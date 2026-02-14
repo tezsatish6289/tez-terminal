@@ -7,28 +7,29 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useCollection, useUser, useMemoFirebase } from "@/firebase";
-import { collection, doc, serverTimestamp } from "firebase/firestore";
+import { useCollection, useUser, useMemoFirebase, useFirestore } from "@/firebase";
+import { collection, doc } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { Copy, Plus, Trash2, Webhook as WebhookIcon, ShieldCheck, Check } from "lucide-react";
+import { Copy, Plus, Webhook as WebhookIcon, ShieldCheck, Check } from "lucide-react";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 
 export default function WebhooksPage() {
   const { user } = useUser();
+  const firestore = useFirestore();
   const [newWebhookName, setNewWebhookName] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const webhooksQuery = useMemoFirebase(() => {
-    if (!user) return null;
-    return collection(doc(collection(window.firebaseFirestore, "users"), user.uid), "webhookConfigurations");
-  }, [user]);
+    if (!user || !firestore) return null;
+    return collection(doc(collection(firestore, "users"), user.uid), "webhookConfigurations");
+  }, [user, firestore]);
 
   const { data: webhooks, isLoading } = useCollection(webhooksQuery);
 
   const handleAddWebhook = () => {
-    if (!user || !newWebhookName.trim()) return;
+    if (!user || !newWebhookName.trim() || !firestore) return;
 
     const webhookData = {
       name: newWebhookName,
@@ -40,7 +41,7 @@ export default function WebhooksPage() {
       endpointUrl: `${window.location.origin}/api/webhook`,
     };
 
-    const colRef = collection(doc(collection(window.firebaseFirestore, "users"), user.uid), "webhookConfigurations");
+    const colRef = collection(doc(collection(firestore, "users"), user.uid), "webhookConfigurations");
     addDocumentNonBlocking(colRef, webhookData);
     setNewWebhookName("");
     toast({

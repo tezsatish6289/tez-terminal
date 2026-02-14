@@ -17,10 +17,14 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 export function SignalHistory() {
-  const [mounted, setMounted] = useState(false);
+  const [formattedDates, setFormattedDates] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    setMounted(true);
+    const dates: Record<string, string> = {};
+    MOCK_SIGNALS.forEach(s => {
+      dates[s.id] = format(new Date(s.timestamp), 'MMM dd, HH:mm:ss');
+    });
+    setFormattedDates(dates);
   }, []);
 
   return (
@@ -81,7 +85,7 @@ export function SignalHistory() {
                   <span className="text-xs text-muted-foreground font-medium">{signal.source}</span>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
-                  {mounted ? format(new Date(signal.timestamp), 'MMM dd, HH:mm:ss') : '...'}
+                  {formattedDates[signal.id] || '...'}
                 </TableCell>
                 <TableCell className="text-right">
                   <Badge 

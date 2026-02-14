@@ -11,7 +11,7 @@ import { useCollection, useUser, useMemoFirebase, useFirestore, useAuth } from "
 import { collection, query, orderBy } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Send, Lock, Copy, Info } from "lucide-react";
+import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Send, Lock, Copy, Info, AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
@@ -203,9 +203,12 @@ export default function WebhooksPage() {
                 <CardTitle className="text-sm font-bold">TradingView Setup</CardTitle>
               </CardHeader>
               <CardContent className="text-[11px] space-y-3 leading-relaxed text-muted-foreground">
-                <p>1. Copy the <b>Endpoint URL</b> into your Alert Webhook box.</p>
-                <p>2. Copy the <b>Secret Key</b> into the JSON message body below.</p>
-                <p className="text-accent font-bold">IMPORTANT: The "Message" box must ONLY contain the JSON. Remove all other text.</p>
+                <p>1. Copy the <b>Webhook URL</b> into your TradingView Alert box.</p>
+                <p>2. Copy the <b>JSON Payload</b> into the "Message" box.</p>
+                <div className="flex items-start gap-2 text-rose-400 font-bold mt-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <p>IMPORTANT: The "Message" box must contain ONLY the JSON. No extra text allowed.</p>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -214,52 +217,66 @@ export default function WebhooksPage() {
             {isWebhooksLoading ? (
               <div className="h-32 bg-card/50 border border-border animate-pulse rounded-xl" />
             ) : (
-              webhooks?.map((webhook) => (
-                <Card key={webhook.id} className="bg-card border-border shadow-md">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-white text-md font-bold">{webhook.name}</CardTitle>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="border-accent/30 hover:bg-accent/10 h-8" onClick={() => handleTestSignal(webhook)} disabled={isTesting === webhook.id}>
-                        {isTesting === webhook.id ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Send className="h-3 w-3 mr-2" />} Test
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="grid gap-6">
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] text-muted-foreground uppercase tracking-wider flex justify-between">
-                          Webhook URL
-                          <button onClick={() => copyToClipboard(`${webhook.endpointUrl}?id=${webhook.id}`)} className="text-accent hover:underline flex items-center gap-1">
-                            <Copy className="h-2 w-2" /> Copy
-                          </button>
-                        </Label>
-                        <Input readOnly value={`${webhook.endpointUrl}?id=${webhook.id}`} className="bg-secondary/50 font-mono text-xs border-none h-8" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] text-muted-foreground uppercase tracking-wider flex justify-between">
-                          Secret Key
-                          <button onClick={() => copyToClipboard(webhook.secretKey)} className="text-accent hover:underline flex items-center gap-1">
-                            <Copy className="h-2 w-2" /> Copy
-                          </button>
-                        </Label>
-                        <Input readOnly value={webhook.secretKey} className="bg-secondary/50 font-mono text-xs border-none h-8" />
-                      </div>
-                    </div>
+              webhooks?.map((webhook) => {
+                const tvJson = JSON.stringify({
+                  ticker: "{{ticker}}",
+                  side: "{{strategy.order.action}}",
+                  secretKey: webhook.secretKey,
+                  note: "TradingView Alert Triggered"
+                }, null, 2);
 
-                    <div className="bg-black/40 rounded-lg p-4 border border-border/50">
-                      <Label className="text-[10px] text-accent uppercase tracking-wider font-bold block mb-2">Required TradingView Message (Paste exactly this)</Label>
-                      <pre className="text-[10px] font-mono text-emerald-400 whitespace-pre-wrap break-all">
-{`{
-  "ticker": "{{ticker}}",
-  "side": "{{strategy.order.action}}",
-  "secretKey": "${webhook.secretKey}",
-  "note": "TradingView Alert Triggered"
-}`}
-                      </pre>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
+                return (
+                  <Card key={webhook.id} className="bg-card border-border shadow-md">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-white text-md font-bold">{webhook.name}</CardTitle>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" className="border-accent/30 hover:bg-accent/10 h-8" onClick={() => handleTestSignal(webhook)} disabled={isTesting === webhook.id}>
+                          {isTesting === webhook.id ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Send className="h-3 w-3 mr-2" />} Test
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="grid gap-6">
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] text-muted-foreground uppercase tracking-wider flex justify-between">
+                            Webhook URL
+                            <button onClick={() => copyToClipboard(`${webhook.endpointUrl}?id=${webhook.id}`)} className="text-accent hover:underline flex items-center gap-1">
+                              <Copy className="h-2 w-2" /> Copy URL
+                            </button>
+                          </Label>
+                          <Input readOnly value={`${webhook.endpointUrl}?id=${webhook.id}`} className="bg-secondary/50 font-mono text-xs border-none h-8" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] text-muted-foreground uppercase tracking-wider flex justify-between">
+                            Secret Key
+                            <button onClick={() => copyToClipboard(webhook.secretKey)} className="text-accent hover:underline flex items-center gap-1">
+                              <Copy className="h-2 w-2" /> Copy Key
+                            </button>
+                          </Label>
+                          <Input readOnly value={webhook.secretKey} className="bg-secondary/50 font-mono text-xs border-none h-8" />
+                        </div>
+                      </div>
+
+                      <div className="bg-black/40 rounded-lg p-4 border border-border/50 relative group">
+                        <div className="absolute top-4 right-4 z-10">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-6 text-[10px] text-accent border border-accent/20 hover:bg-accent/10"
+                            onClick={() => copyToClipboard(tvJson)}
+                          >
+                            <Copy className="h-3 w-3 mr-1" /> Copy JSON
+                          </Button>
+                        </div>
+                        <Label className="text-[10px] text-accent uppercase tracking-wider font-bold block mb-2">Required TradingView Message (Paste ONLY this)</Label>
+                        <pre className="text-[10px] font-mono text-emerald-400 whitespace-pre-wrap break-all leading-tight">
+{tvJson}
+                        </pre>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
             )}
             {!isWebhooksLoading && webhooks?.length === 0 && (
               <div className="text-center py-12 border border-dashed border-border rounded-xl">

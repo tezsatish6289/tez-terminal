@@ -1,0 +1,96 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * TEZTERMINAL ANTIGRAVITY SECURITY RULES
+     *
+     * CORE PHILOSOPHY:
+     * This ruleset enforces a strict User-Ownership model. Access to any data is predicated on the 
+     * user being authenticated and the data being located within their specific user silo.
+     *
+     * DATA STRUCTURE:
+     * All data is organized hierarchically under the root /users/{userId} collection. 
+     * - /users/{userId}: The User Profile.
+     * - /users/{userId}/webhookConfigurations: User-defined webhook endpoints.
+     * - /users/{userId}/webhookEvents: Logs of incoming signals for that user.
+     *
+     * KEY SECURITY DECISIONS:
+     * 1. Authorization Independence: We use path-based authorization. By nesting all user data 
+     *    under their UID, we can verify ownership by comparing the {userId} path variable 
+     *    directly to request.auth.uid without expensive get() lookups.
+     * 2. Denormalization for Integrity: Documents in subcollections include a 'userId' field 
+     *    that must match the path's {userId}. This ensures relational integrity and allows 
+     *    the database to act as a source of truth for ownership during queries.
+     * 3. Prototyping Flexibility: While authorization is strictly enforced, the internal 
+     *    structure of data (fields like 'email', 'name', 'payload') is not validated to allow 
+     *    for rapid iteration of the application features.
+     */
+
+    // --- Global Helper Functions ---
+
+    /** Checks if the request is from an authenticated user. */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /** Checks if the authenticated user's UID matches the provided userId. */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /** Checks if the user is the owner and the document currently exists. Used for updates/deletes. */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for individual User Profiles. Users can only manage their own profile.
+     * @path /users/{userId}
+     * @allow (get) If auth.uid is 'user123' and path is /users/user123.
+     * @deny (create) If auth.uid is 'user123' but path is /users/hacker456.
+     * @principle Restricts access to a user's own data tree and enforces path-to-ID consistency.
+     */
+    match /users/{userId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+
+      /**
+       * @description Rules for Webhook Configurations. Configurations are private to the owner.
+       * @path /users/{userId}/webhookConfigurations/{webhookConfigurationId}
+       * @allow (list) auth.uid 'user1' querying /users/user1/webhookConfigurations.
+       * @deny (update) Changing the 'userId' field to hijack the document to another user.
+       * @principle Ownership-based access with relational integrity validation on create/update.
+       */
+      match /webhookConfigurations/{webhookConfigurationId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+        allow delete: if isExistingOwner(userId);
+      }
+
+      /**
+       * @description Rules for Webhook Events. High-volume signal logs accessible only by the owner.
+       * @path /users/{userId}/webhookEvents/{webhookEventId}
+       * @allow (create) Backend/Client creates an event log for the authenticated user.
+       * @deny (get) Anonymous user attempting to read a specific event ID.
+       * @principle Denormalized userId in the document ensures authorization independence.
+       */
+      match /webhookEvents/{webhookEventId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+        allow delete: if isExistingOwner(userId);
+      }
+    }
+
+    // Deny all other access by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

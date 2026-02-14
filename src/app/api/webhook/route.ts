@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
@@ -29,7 +28,7 @@ export async function POST(request: NextRequest) {
 
     const configData = configSnap.data();
 
-    // 2. Security: Validate Secret Key
+    // 2. Security: Validate Secret Key (if provided in body)
     if (configData.secretKey && body.secretKey !== configData.secretKey) {
       return NextResponse.json({ 
         success: false, 
@@ -45,9 +44,9 @@ export async function POST(request: NextRequest) {
       receivedAt: new Date().toISOString(),
       serverTimestamp: serverTimestamp(),
       payload: JSON.stringify(body),
-      symbol: (body.symbol || "UNKNOWN").toUpperCase(),
-      type: (body.type || "NEUTRAL").toUpperCase(),
-      note: body.note || "Alert Ingested",
+      symbol: (body.symbol || body.ticker || "UNKNOWN").toUpperCase(),
+      type: (body.type || body.side || body.action || "NEUTRAL").toUpperCase(),
+      note: body.note || body.message || "Alert Ingested",
       source: configData.name || "Bridge"
     });
 

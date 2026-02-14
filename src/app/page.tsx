@@ -1,4 +1,3 @@
-
 "use client";
 
 import { LeftSidebar } from "@/components/dashboard/Sidebar";
@@ -11,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import Link from "next/link";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Zap, ShieldAlert, Loader2 } from "lucide-react";
+import { Zap, Loader2 } from "lucide-react";
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -34,21 +33,27 @@ export default function Home() {
   if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-6">
-        <Card className="max-w-md w-full border-accent/20 bg-card">
+        <Card className="max-w-md w-full border-accent/20 bg-card shadow-2xl">
           <CardHeader className="text-center">
-            <div className="bg-primary p-3 rounded-xl border border-accent/20 inline-block mx-auto mb-4">
-              <Zap className="h-8 w-8 text-accent fill-accent/20" />
+            <div className="bg-primary p-4 rounded-2xl border border-accent/20 inline-block mx-auto mb-6">
+              <Zap className="h-10 w-10 text-accent fill-accent/20" />
             </div>
-            <CardTitle className="text-2xl font-bold">TezTerminal Antigravity</CardTitle>
-            <CardDescription>Professional trading signal hub. Please sign in with your Google account to access the terminal.</CardDescription>
+            <CardTitle className="text-3xl font-bold tracking-tighter">TezTerminal</CardTitle>
+            <CardDescription className="text-base mt-2">
+              India's Premier Antigravity Trading Hub. 
+              Sign in to access the live signal stream.
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Button onClick={handleGoogleLogin} className="w-full h-12 gap-2 bg-white text-black hover:bg-white/90">
-              <ChromeIcon className="h-5 w-5" />
+          <CardContent className="space-y-4">
+            <Button 
+              onClick={handleGoogleLogin} 
+              className="w-full h-14 gap-3 bg-white text-black hover:bg-white/90 text-lg font-semibold"
+            >
+              <ChromeIcon className="h-6 w-6" />
               Sign in with Google
             </Button>
-            <p className="mt-6 text-center text-xs text-muted-foreground">
-              By signing in, you agree to our Terms of Service.
+            <p className="text-center text-xs text-muted-foreground px-6">
+              Administrator login: <span className="text-accent font-mono">hello@tezterminal.com</span>
             </p>
           </CardContent>
         </Card>
@@ -73,13 +78,6 @@ export default function Home() {
                   <h1 className="text-2xl font-bold tracking-tight text-white">Market Overview</h1>
                   <p className="text-muted-foreground text-sm">Real-time TradingView analysis and signals.</p>
                 </div>
-                <div className="hidden sm:block">
-                  <div className="flex items-center gap-4 bg-secondary/30 p-1.5 rounded-lg border border-border">
-                    <button className="px-3 py-1 text-xs font-medium rounded-md bg-accent text-accent-foreground shadow-sm">Chart</button>
-                    <button className="px-3 py-1 text-xs font-medium rounded-md text-muted-foreground hover:text-foreground">Depth</button>
-                    <button className="px-3 py-1 text-xs font-medium rounded-md text-muted-foreground hover:text-foreground">Orderbook</button>
-                  </div>
-                </div>
               </div>
               
               <ChartPane />
@@ -87,35 +85,30 @@ export default function Home() {
 
             <div className="lg:col-span-4 space-y-6">
                <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
-                  <h3 className="text-sm font-semibold mb-4 text-accent uppercase tracking-wider">Trading Quick-View</h3>
+                  <h3 className="text-sm font-semibold mb-4 text-accent uppercase tracking-wider">Terminal Status</h3>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground text-xs">Execution Speed</span>
+                      <span className="text-muted-foreground text-xs">Latency</span>
                       <span className="text-emerald-400 text-xs font-mono">12ms</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground text-xs">Total Webhooks Today</span>
-                      <span className="text-foreground text-xs font-mono">142</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground text-xs">Active Indicators</span>
-                      <span className="text-foreground text-xs font-mono">8</span>
+                      <span className="text-muted-foreground text-xs">Node</span>
+                      <span className="text-foreground text-xs font-mono">Lucknow-01</span>
                     </div>
                   </div>
                   <div className="mt-6 pt-6 border-t border-border">
                     <Link href="/webhooks" className="block w-full">
-                      <button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-bold py-2.5 rounded-lg text-sm transition-all shadow-lg shadow-accent/10">
-                        {isAdmin ? 'Manage Global Bridges' : 'View Integration Details'}
-                      </button>
+                      <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-bold py-6 rounded-lg shadow-lg shadow-accent/10">
+                        {isAdmin ? 'Manage Global Bridges' : 'View Integration Guides'}
+                      </Button>
                     </Link>
                   </div>
                </div>
 
                <div className="bg-primary/20 border border-accent/20 rounded-xl p-5 relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-accent/20 h-16 w-16 rounded-full blur-2xl group-hover:bg-accent/40 transition-all" />
                   <h3 className="text-sm font-semibold mb-2 text-white">Lucknow Trading Hub</h3>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Connecting direct to TradingView alerts for ultra-low latency execution on India's premier trading terminal.
+                    Connected to low-latency Indian equity and global crypto alert nodes.
                   </p>
                </div>
             </div>

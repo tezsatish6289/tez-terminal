@@ -4,50 +4,48 @@ import { initializeFirebase } from "@/firebase";
 import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
 
 /**
- * Enhanced Ingestion Bridge
- * Optimized for standard TradingView payloads and robust error logging.
+ * Enhanced Ingestion Bridge with verbose logging
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
   const logsRef = collection(firestore, "logs");
   const signalsRef = collection(firestore, "signals");
   
-  const { searchParams } = new URL(request.url);
-  const webhookId = searchParams.get("id");
   const timestamp = new Date().toISOString();
-
   let rawBody = "";
+  let webhookId = "";
 
   try {
-    // 1. Basic Validation
-    if (!webhookId) {
-      await addDoc(logsRef, {
-        timestamp,
-        level: "ERROR",
-        message: "Missing bridge ID in request URL",
-        details: "The webhook URL must end with ?id=YOUR_ID",
-      });
-      return NextResponse.json({ success: false, message: "Missing bridge ID" }, { status: 400 });
+    const { searchParams } = new URL(request.url);
+    webhookId = searchParams.get("id") || "MISSING_ID";
+    
+    // 1. Log the absolute beginning of the request
+    rawBody = await request.text();
+    await addDoc(logsRef, {
+      timestamp,
+      level: "INFO",
+      message: "Webhook Request Received",
+      details: `ID from URL: ${webhookId} | Body Length: ${rawBody.length} characters`,
+      webhookId,
+    });
+
+    if (webhookId === "MISSING_ID") {
+      throw new Error("The webhook URL is missing the ?id= parameter. Check your TradingView settings.");
     }
 
-    // 2. Parse Body (Handle TradingView's plain text or JSON)
+    // 2. Parse Body
     let body: any;
     try {
-      rawBody = await request.text();
-      // TradingView often sends extra whitespace or invisible characters
       body = JSON.parse(rawBody.trim());
     } catch (parseError: any) {
       await addDoc(logsRef, {
         timestamp,
         level: "ERROR",
-        message: "Invalid JSON format from TradingView",
-        details: `Raw Body: ${rawBody.substring(0, 500)}... Error: ${parseError.message}`,
+        message: "JSON Parse Failure",
+        details: `Raw Body: ${rawBody.substring(0, 500)}... Ensure no extra text exists in TradingView message.`,
         webhookId,
       });
-      return NextResponse.json({ 
-        success: false, 
-        message: "Invalid JSON payload. Ensure NO extra text exists outside the {} braces." 
-      }, { status: 400 });
+      return NextResponse.json({ success: false, message: "Invalid JSON" }, { status: 400 });
     }
 
     // 3. Validate Bridge Configuration
@@ -58,8 +56,8 @@ export async function POST(request: NextRequest) {
       await addDoc(logsRef, {
         timestamp,
         level: "WARN",
-        message: "Bridge ID not found in database",
-        details: `Requested ID: ${webhookId}`,
+        message: "Bridge ID Not Found",
+        details: `The ID ${webhookId} does not match any active bridge in your dashboard.`,
         webhookId,
       });
       return NextResponse.json({ success: false, message: "Bridge not found" }, { status: 404 });
@@ -67,49 +65,38 @@ export async function POST(request: NextRequest) {
 
     const configData = configSnap.data();
 
-    // 4. Security: Secret Key Validation
+    // 4. Secret Key Validation
     const providedKey = body.secretKey || searchParams.get("key");
     if (configData.secretKey && providedKey !== configData.secretKey) {
       await addDoc(logsRef, {
         timestamp,
         level: "WARN",
-        message: "Unauthorized: Secret Key Mismatch",
-        details: `Received: ${providedKey} | Source: ${configData.name}`,
+        message: "Unauthorized: Invalid Secret Key",
+        details: `Expected: ${configData.secretKey} | Received: ${providedKey}`,
         webhookId,
       });
-      return NextResponse.json({ success: false, message: "Unauthorized: Invalid Secret Key" }, { status: 401 });
+      return NextResponse.json({ success: false, message: "Invalid Key" }, { status: 401 });
     }
 
-    // 5. Broadcast Signal (Mapping common TradingView fields)
+    // 5. Ingest Signal
     const signalData = {
       webhookId: webhookId,
       receivedAt: timestamp,
       serverTimestamp: serverTimestamp(),
       payload: JSON.stringify(body),
-      // Map 'ticker' or 'symbol'
-      symbol: (body.ticker || body.symbol || body.asset || "UNKNOWN").toUpperCase(),
-      // Map 'side', 'type', 'action', or 'direction'
-      type: (body.side || body.type || body.action || body.direction || "NEUTRAL").toUpperCase(),
-      // Map descriptive notes
-      note: body.note || body.message || body.comment || `Signal from ${configData.name}`,
+      symbol: (body.ticker || body.symbol || "UNKNOWN").toUpperCase(),
+      type: (body.side || body.type || body.action || "NEUTRAL").toUpperCase(),
+      note: body.note || body.comment || `TradingView Alert from ${configData.name}`,
       source: configData.name || "Bridge",
-      // Store raw extra data for detail views
-      meta: {
-        price: body.trigger_price || body.price || null,
-        exchange: body.exchange || null,
-        timeframe: body.timeframe || null,
-        currency: body.currency || null
-      }
     };
 
     await addDoc(signalsRef, signalData);
 
-    // 6. Log Success
     await addDoc(logsRef, {
       timestamp,
       level: "INFO",
-      message: `Signal Ingested: ${signalData.symbol}`,
-      details: `Action: ${signalData.type} | Source: ${configData.name}`,
+      message: `Success: Signal Ingested (${signalData.symbol})`,
+      details: `Action: ${signalData.type} | ID: ${webhookId}`,
       webhookId,
     });
 
@@ -118,7 +105,7 @@ export async function POST(request: NextRequest) {
     await addDoc(logsRef, {
       timestamp,
       level: "ERROR",
-      message: "Critical Ingestion Failure",
+      message: "Critical Bridge Failure",
       details: error.message,
       webhookId: webhookId || "UNKNOWN",
     });
@@ -127,5 +114,5 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ status: "active", service: "Antigravity Node" });
+  return NextResponse.json({ status: "active" });
 }

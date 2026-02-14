@@ -9,8 +9,9 @@ import { collection, query, orderBy, limit } from "firebase/firestore";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { History as HistoryIcon, Loader2, Lock, Terminal, ShieldAlert } from "lucide-react";
+import { History as HistoryIcon, Loader2, Lock, Terminal, ShieldAlert, AlertTriangle, Info, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 export default function HistoryPage() {
   const { user, isUserLoading } = useUser();
@@ -19,10 +20,10 @@ export default function HistoryPage() {
 
   const isAdmin = user?.email === "hello@tezterminal.com";
 
-  // Debug Logs Query
+  // Debug Logs Query - specifically looking for the latest events
   const logsQuery = useMemoFirebase(() => {
     if (!firestore || !isAdmin) return null;
-    return query(collection(firestore, "logs"), orderBy("timestamp", "desc"), limit(20));
+    return query(collection(firestore, "logs"), orderBy("timestamp", "desc"), limit(30));
   }, [firestore, isAdmin]);
 
   const { data: logs, isLoading: isLogsLoading } = useCollection(logsQuery);
@@ -90,11 +91,11 @@ export default function HistoryPage() {
             </div>
 
             <div className="space-y-6">
-              <Card className="bg-card border-border border-dashed">
+              <Card className="bg-card border-border border-dashed sticky top-0">
                 <CardHeader className="flex flex-row items-center justify-between">
                   <div>
                     <CardTitle className="text-lg">System Debugger</CardTitle>
-                    <CardDescription className="text-xs">Live ingestion diagnostics (Admin Only)</CardDescription>
+                    <CardDescription className="text-xs">Live Ingestion Node (Admin Only)</CardDescription>
                   </div>
                   <Terminal className="h-4 w-4 text-accent" />
                 </CardHeader>
@@ -105,22 +106,46 @@ export default function HistoryPage() {
                       <p className="text-xs text-muted-foreground">Log access restricted to admin.</p>
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-3">
+                      <div className="p-2 bg-accent/5 rounded border border-accent/10 flex items-center gap-2 mb-4">
+                        <Info className="h-3 w-3 text-accent" />
+                        <p className="text-[10px] text-accent font-medium">Monitoring root ingestion point...</p>
+                      </div>
+                      
                       {isLogsLoading ? (
-                        <div className="h-20 animate-pulse bg-secondary/20 rounded-lg" />
+                        <div className="space-y-2">
+                           {[1,2,3].map(i => <div key={i} className="h-16 animate-pulse bg-secondary/20 rounded-lg" />)}
+                        </div>
                       ) : logs?.length === 0 ? (
-                        <p className="text-xs text-muted-foreground text-center py-4">No system logs yet.</p>
+                        <p className="text-xs text-muted-foreground text-center py-8">No system logs recorded yet.</p>
                       ) : (
                         logs?.map((log) => (
-                          <div key={log.id} className="p-3 rounded-lg bg-secondary/30 border border-border/50 text-[10px] space-y-1">
+                          <div key={log.id} className={cn(
+                            "p-3 rounded-lg border text-[10px] space-y-1.5 transition-all hover:bg-secondary/20",
+                            log.level === 'ERROR' ? 'bg-rose-500/5 border-rose-500/20' : 
+                            log.level === 'WARN' ? 'bg-amber-500/5 border-amber-500/20' : 
+                            'bg-emerald-500/5 border-emerald-500/20'
+                          )}>
                             <div className="flex justify-between items-center">
-                              <span className={log.level === 'ERROR' ? 'text-rose-400 font-bold' : log.level === 'WARN' ? 'text-amber-400 font-bold' : 'text-emerald-400 font-bold'}>
+                              <span className={cn(
+                                "font-bold flex items-center gap-1",
+                                log.level === 'ERROR' ? 'text-rose-400' : 
+                                log.level === 'WARN' ? 'text-amber-400' : 
+                                'text-emerald-400'
+                              )}>
+                                {log.level === 'ERROR' ? <AlertTriangle className="h-3 w-3" /> : 
+                                 log.level === 'WARN' ? <AlertTriangle className="h-3 w-3" /> : 
+                                 <CheckCircle2 className="h-3 w-3" />}
                                 {log.level}
                               </span>
                               <span className="text-muted-foreground font-mono">{format(new Date(log.timestamp), 'HH:mm:ss')}</span>
                             </div>
-                            <p className="text-white font-medium">{log.message}</p>
-                            {log.details && <p className="text-muted-foreground truncate italic">{log.details}</p>}
+                            <p className="text-white font-semibold leading-tight">{log.message}</p>
+                            {log.details && (
+                              <div className="bg-black/20 p-2 rounded text-muted-foreground font-mono whitespace-pre-wrap break-all border border-white/5 mt-1">
+                                {log.details}
+                              </div>
+                            )}
                           </div>
                         ))
                       )}

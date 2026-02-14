@@ -5,7 +5,7 @@ import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/fires
 
 /**
  * Enhanced Ingestion Bridge
- * Handles TradingView alerts with robust parsing and system logging.
+ * Optimized for standard TradingView payloads and robust error logging.
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
@@ -32,21 +32,22 @@ export async function POST(request: NextRequest) {
 
     // 2. Parse Body (Handle TradingView's plain text or JSON)
     let body: any;
-    const contentType = request.headers.get("content-type") || "";
-    
     try {
       rawBody = await request.text();
-      // Trim to handle accidental newlines from TradingView
+      // TradingView often sends extra whitespace or invisible characters
       body = JSON.parse(rawBody.trim());
     } catch (parseError: any) {
       await addDoc(logsRef, {
         timestamp,
         level: "ERROR",
         message: "Invalid JSON format from TradingView",
-        details: `Body: ${rawBody.substring(0, 100)}... Error: ${parseError.message}`,
+        details: `Raw Body: ${rawBody.substring(0, 500)}... Error: ${parseError.message}`,
         webhookId,
       });
-      return NextResponse.json({ success: false, message: "Invalid JSON payload. Ensure NO extra text exists outside the {} braces." }, { status: 400 });
+      return NextResponse.json({ 
+        success: false, 
+        message: "Invalid JSON payload. Ensure NO extra text exists outside the {} braces." 
+      }, { status: 400 });
     }
 
     // 3. Validate Bridge Configuration
@@ -73,22 +74,32 @@ export async function POST(request: NextRequest) {
         timestamp,
         level: "WARN",
         message: "Unauthorized: Secret Key Mismatch",
-        details: `Expected match for ${configData.name}`,
+        details: `Received: ${providedKey} | Source: ${configData.name}`,
         webhookId,
       });
       return NextResponse.json({ success: false, message: "Unauthorized: Invalid Secret Key" }, { status: 401 });
     }
 
-    // 5. Broadcast Signal
+    // 5. Broadcast Signal (Mapping common TradingView fields)
     const signalData = {
       webhookId: webhookId,
       receivedAt: timestamp,
       serverTimestamp: serverTimestamp(),
       payload: JSON.stringify(body),
-      symbol: (body.symbol || body.ticker || body.asset || "UNKNOWN").toUpperCase(),
-      type: (body.type || body.side || body.action || "NEUTRAL").toUpperCase(),
-      note: body.note || body.message || body.comment || "Alert Ingested",
-      source: configData.name || "Bridge"
+      // Map 'ticker' or 'symbol'
+      symbol: (body.ticker || body.symbol || body.asset || "UNKNOWN").toUpperCase(),
+      // Map 'side', 'type', 'action', or 'direction'
+      type: (body.side || body.type || body.action || body.direction || "NEUTRAL").toUpperCase(),
+      // Map descriptive notes
+      note: body.note || body.message || body.comment || `Signal from ${configData.name}`,
+      source: configData.name || "Bridge",
+      // Store raw extra data for detail views
+      meta: {
+        price: body.trigger_price || body.price || null,
+        exchange: body.exchange || null,
+        timeframe: body.timeframe || null,
+        currency: body.currency || null
+      }
     };
 
     await addDoc(signalsRef, signalData);
@@ -98,7 +109,7 @@ export async function POST(request: NextRequest) {
       timestamp,
       level: "INFO",
       message: `Signal Ingested: ${signalData.symbol}`,
-      details: `Source: ${configData.name}`,
+      details: `Action: ${signalData.type} | Source: ${configData.name}`,
       webhookId,
     });
 

@@ -222,6 +222,8 @@ export default function WebhooksPage() {
                   ticker: "{{ticker}}",
                   side: "{{strategy.order.action}}",
                   secretKey: webhook.secretKey,
+                  exchange: "{{exchange}}",
+                  timeframe: "{{interval}}",
                   note: "TradingView Alert Triggered"
                 }, null, 2);
 

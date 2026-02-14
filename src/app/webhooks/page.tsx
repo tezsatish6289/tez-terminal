@@ -7,14 +7,38 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { useCollection, useUser, useMemoFirebase, useFirestore, useAuth } from "@/firebase";
 import { collection } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { initiateEmailSignIn } from "@/firebase/non-blocking-login";
+import { initiateEmailSignIn, initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Send } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
+
+export function ChromeIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="4" />
+      <line x1="21.17" x2="12" y1="8" y2="8" />
+      <line x1="3.95" x2="8.54" y1="6.06" y2="14" />
+      <line x1="10.88" x2="15.46" y1="21.94" y2="14" />
+    </svg>
+  );
+}
 
 export default function WebhooksPage() {
   const { user } = useUser();
@@ -107,6 +131,12 @@ export default function WebhooksPage() {
     }
   };
 
+  const handleGoogleLogin = () => {
+    if (auth) {
+      initiateGoogleSignIn(auth);
+    }
+  };
+
   if (!isAdmin) {
     return (
       <div className="flex min-h-screen bg-background">
@@ -118,7 +148,19 @@ export default function WebhooksPage() {
               <CardTitle>Admin Access Required</CardTitle>
               <CardDescription>Please sign in with the designated admin account to manage bridges.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-6">
+              <Button onClick={handleGoogleLogin} variant="outline" className="w-full border-border hover:bg-secondary flex items-center justify-center gap-2 py-6">
+                <ChromeIcon className="h-5 w-5 text-accent" />
+                Sign in with Google
+              </Button>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center"><Separator /></div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Or with credentials</span>
+                </div>
+              </div>
+
               <form onSubmit={handleAdminLogin} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Admin Email</Label>

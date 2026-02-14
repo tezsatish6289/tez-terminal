@@ -1,11 +1,12 @@
 
 "use client";
 
-import { Bell, Search, User, Settings, LayoutDashboard } from "lucide-react";
+import { Bell, Search, User, Settings, LayoutDashboard, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { useUser } from "@/firebase";
+import { useUser, useAuth } from "@/firebase";
+import { initiateSignOut } from "@/firebase/non-blocking-login";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,10 +15,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { toast } from "@/hooks/use-toast";
 
 export function TopBar() {
   const { user, isUserLoading } = useUser();
+  const auth = useAuth();
   const isAdmin = user?.email === "hello@turbogains.ai";
+
+  const handleLogout = () => {
+    if (auth) {
+      initiateSignOut(auth);
+      toast({
+        title: "Session Ended",
+        description: "You have been logged out successfully.",
+      });
+    }
+  };
 
   return (
     <header className="h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 w-full">
@@ -62,12 +75,15 @@ export function TopBar() {
             <DropdownMenuContent align="end" className="w-56 bg-card border-border">
               <DropdownMenuLabel>Traders Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-xs truncate">
-                {user?.email || user?.uid}
+              <DropdownMenuItem className="text-xs truncate font-mono text-muted-foreground">
+                {user?.email || user?.uid.substring(0, 12)}
               </DropdownMenuItem>
               <DropdownMenuItem className="cursor-pointer">Profile Settings</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer text-destructive">Logout Session</DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive flex items-center gap-2" onClick={handleLogout}>
+                <LogOut className="h-4 w-4" />
+                Logout Session
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

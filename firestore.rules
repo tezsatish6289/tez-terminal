@@ -2,32 +2,35 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper to check if user owns the document path
-    function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "ADMIN";
     }
 
     match /users/{userId} {
-      match /webhookConfigurations/{configId} {
-        // User can manage their own configurations
-        allow read, write: if isOwner(userId);
-        
-        // ALLOW: Ingestion route needs to read config to verify secretKey
-        // In a prototype with Client SDK on server, we allow public GET for ingestion verification
-        // assuming the configId is known only to the system/user.
-        allow get: if true; 
-      }
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && request.auth.uid == userId;
+    }
 
-      match /webhookEvents/{eventId} {
-        // User can read their own events
-        allow read: if isOwner(userId);
-        
-        // ALLOW: Ingestion route needs to write events
-        // For prototype simplicity, we allow public creation if it's the right path.
-        // In production, we'd use a service account (Admin SDK).
-        allow create: if true; 
-        allow update, delete: if isOwner(userId);
-      }
+    match /webhooks/{webhookId} {
+      // Admins manage webhooks
+      allow read, write: if isAdmin();
+      
+      // Ingestion route needs to read config publicly (or via service account)
+      allow get: if true;
+    }
+
+    match /signals/{signalId} {
+      // All authenticated users can read the signal stream
+      allow read: if isAuthenticated();
+      
+      // Ingestion route creates signals
+      allow create: if true;
+      allow update, delete: if isAdmin();
     }
   }
 }

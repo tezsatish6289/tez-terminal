@@ -1,49 +1,65 @@
 
 {
   "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "type": "object",
+      "description": "User account information and role.",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["ADMIN", "USER"] },
+        "subscriptionPlan": { "type": "string", "enum": ["BASIC", "PRO", "ELITE"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "role"]
+    },
     "WebhookConfiguration": {
       "title": "WebhookConfiguration",
       "type": "object",
-      "description": "A configuration for a TradingView webhook endpoint.",
+      "description": "A global configuration for a TradingView webhook endpoint managed by Admins.",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
-        "userId": { "type": "string" },
+        "adminId": { "type": "string" },
         "secretKey": { "type": "string" },
         "isActive": { "type": "boolean" },
         "endpointUrl": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "name", "userId", "secretKey"]
+      "required": ["id", "name", "adminId", "secretKey"]
     },
-    "WebhookEvent": {
-      "title": "WebhookEvent",
+    "Signal": {
+      "title": "Signal",
       "type": "object",
-      "description": "An individual signal received from an external source.",
+      "description": "A trading signal received from a webhook, consumed by users.",
       "properties": {
         "id": { "type": "string" },
-        "webhookConfigurationId": { "type": "string" },
-        "userId": { "type": "string" },
+        "webhookId": { "type": "string" },
         "receivedAt": { "type": "string", "format": "date-time" },
         "payload": { "type": "string" },
-        "sourceIp": { "type": "string" },
-        "processingStatus": { "type": "string", "enum": ["PROCESSED", "ERROR"] }
+        "symbol": { "type": "string" },
+        "type": { "type": "string", "enum": ["BUY", "SELL"] },
+        "processingStatus": { "type": "string" }
       },
-      "required": ["id", "userId", "receivedAt", "payload"]
+      "required": ["id", "webhookId", "receivedAt", "payload"]
     }
   },
   "auth": {
     "providers": ["anonymous", "password"]
   },
   "firestore": {
-    "/users/{userId}/webhookConfigurations/{configId}": {
-      "schema": "#/backend/entities/WebhookConfiguration",
-      "description": "User-specific webhook endpoint settings."
+    "/users/{userId}": {
+      "schema": "#/backend/entities/UserProfile",
+      "description": "Individual user profiles including roles."
     },
-    "/users/{userId}/webhookEvents/{eventId}": {
-      "schema": "#/backend/entities/WebhookEvent",
-      "description": "User-specific log of received trading signals."
+    "/webhooks/{webhookId}": {
+      "schema": "#/backend/entities/WebhookConfiguration",
+      "description": "Global webhook configurations managed by admins."
+    },
+    "/signals/{signalId}": {
+      "schema": "#/backend/entities/Signal",
+      "description": "Global stream of signals for all users."
     }
   }
 }

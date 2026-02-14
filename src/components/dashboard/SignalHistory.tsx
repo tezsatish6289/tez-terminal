@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { 
   Table, 
   TableBody, 
@@ -26,24 +26,23 @@ export function SignalHistory() {
     setMounted(true);
   }, []);
 
-  const eventsQuery = useMemoFirebase(() => {
+  // Listen to GLOBAL signals collection
+  const signalsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
-    // We order by receivedAt desc to show latest first. 
-    // Note: This requires an index in Firestore eventually, but for small collections it works.
     return query(
-      collection(firestore, "users", user.uid, "webhookEvents"),
+      collection(firestore, "signals"),
       orderBy("receivedAt", "desc"),
-      limit(20)
+      limit(25)
     );
   }, [user, firestore]);
 
-  const { data: signals, isLoading, error } = useCollection(eventsQuery);
+  const { data: signals, isLoading, error } = useCollection(signalsQuery);
 
   const getFormattedDate = (receivedAt: string) => {
     if (!mounted) return "...";
     try {
       const date = new Date(receivedAt);
-      return !isNaN(date.getTime()) ? format(date, 'MMM dd, HH:mm:ss') : receivedAt;
+      return !isNaN(date.getTime()) ? format(date, 'HH:mm:ss (MMM dd)') : receivedAt;
     } catch (e) {
       return receivedAt;
     }
@@ -54,7 +53,7 @@ export function SignalHistory() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Zap className="h-5 w-5 text-accent" />
-          <h2 className="text-lg font-semibold tracking-tight">Real-time Signal Stream</h2>
+          <h2 className="text-lg font-semibold tracking-tight">Antigravity Signal Stream</h2>
         </div>
         <div className="text-sm text-muted-foreground flex items-center gap-2">
           <Clock className="h-4 w-4" />
@@ -73,50 +72,51 @@ export function SignalHistory() {
         <Table>
           <TableHeader className="bg-secondary/30">
             <TableRow className="hover:bg-transparent border-border">
-              <TableHead className="w-[150px]">Time Received</TableHead>
-              <TableHead>Source IP</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="max-w-[400px]">Payload Data</TableHead>
+              <TableHead className="w-[140px]">Time</TableHead>
+              <TableHead className="w-[100px]">Asset</TableHead>
+              <TableHead className="w-[80px]">Side</TableHead>
+              <TableHead className="hidden md:table-cell">Raw Signal Payload</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (!signals || signals.length === 0) ? (
               <TableRow>
                 <TableCell colSpan={4} className="text-center py-8 text-muted-foreground animate-pulse">
-                  Connecting to signal bridge...
+                  Connecting to global signal node...
                 </TableCell>
               </TableRow>
             ) : !signals || signals.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} className="text-center py-12">
                   <Terminal className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-20" />
-                  <p className="text-muted-foreground text-sm">No signals received yet. Send a test signal from the Webhooks page.</p>
+                  <p className="text-muted-foreground text-sm">Waiting for market signals...</p>
                 </TableCell>
               </TableRow>
             ) : (
               signals.map((signal) => (
                 <TableRow key={signal.id} className="transition-colors group border-border">
-                  <TableCell className="text-xs font-mono text-muted-foreground">
+                  <TableCell className="text-[11px] font-mono text-muted-foreground">
                     {getFormattedDate(signal.receivedAt)}
                   </TableCell>
-                  <TableCell>
-                    <span className="text-xs font-mono text-foreground">{signal.sourceIp}</span>
+                  <TableCell className="font-bold text-sm">
+                    {signal.symbol}
                   </TableCell>
                   <TableCell>
                     <Badge 
                       variant="outline" 
                       className={cn(
-                        "text-[10px] uppercase font-bold",
-                        signal.processingStatus === 'PROCESSED' ? 'border-emerald-500/30 text-emerald-500 bg-emerald-500/5' : 
-                        'border-accent/30 text-accent bg-accent/5'
+                        "text-[10px] uppercase font-bold border-none",
+                        signal.type === 'BUY' ? 'text-emerald-400 bg-emerald-400/10' : 
+                        signal.type === 'SELL' ? 'text-rose-400 bg-rose-400/10' : 
+                        'text-accent bg-accent/10'
                       )}
                     >
-                      {signal.processingStatus}
+                      {signal.type}
                     </Badge>
                   </TableCell>
-                  <TableCell className="max-w-[400px]">
-                    <div className="bg-background/50 rounded p-2 border border-border/50 overflow-hidden">
-                      <code className="text-[10px] text-accent truncate block font-mono">
+                  <TableCell className="hidden md:table-cell">
+                    <div className="bg-background/40 rounded p-1.5 border border-border/30 overflow-hidden">
+                      <code className="text-[10px] text-muted-foreground truncate block font-mono">
                         {signal.payload}
                       </code>
                     </div>

@@ -30,7 +30,9 @@ export default function WebhooksPage() {
   const [password, setPassword] = useState("");
 
   useEffect(() => {
-    setOrigin(window.location.origin);
+    if (typeof window !== "undefined") {
+      setOrigin(window.location.origin);
+    }
   }, []);
 
   const isAdmin = user?.email === "hello@turbogains.ai";

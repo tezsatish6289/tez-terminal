@@ -1,12 +1,13 @@
+
 # TezTerminal Antigravity
 
 Advanced Trading Terminal with TradingView Ingestion Bridge.
 
 ## Step-by-Step Deployment Instructions (No GitHub Required)
 
-1.  **Click Deploy**: Look at the sidebar of this editor (Firebase Studio). Click the **"Deploy"** button (represented by a rocket icon or the word "Deploy").
+1.  **Click "Publish"**: Look at the top-right corner of this screen (Firebase Studio). Click the blue **"Publish"** button.
 2.  **Wait**: The system will package your app and push it to a public server. This takes 2-4 minutes.
-3.  **Find Public URL**: After deployment, a public URL will appear in the deployment logs (e.g., `https://studio-xxxx.web.app`).
+3.  **Find Public URL**: After deployment, a public URL will appear (e.g., `https://studio-xxxx.web.app`).
 4.  **Update TradingView**: 
     *   Go to **Bridge Management** in your newly deployed app.
     *   Copy the **Public Webhook URL**.

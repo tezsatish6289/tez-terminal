@@ -1,3 +1,4 @@
+
 "use client";
 
 import { LeftSidebar } from "@/components/dashboard/Sidebar";
@@ -90,19 +91,19 @@ export default function Home() {
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-2 text-rose-400 mb-1">
                   <AlertTriangle className="h-5 w-5" />
-                  <CardTitle className="text-lg">Deployment Required for TradingView</CardTitle>
+                  <CardTitle className="text-lg">Action Required: Go Live</CardTitle>
                 </div>
                 <CardDescription className="text-rose-200/70">
-                  TradingView cannot send signals to this private URL. You must deploy your app to a public server.
+                  TradingView cannot send signals to this private URL. You must Publish your app to a public server.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="bg-black/40 rounded-lg p-4 border border-rose-500/20">
-                  <h4 className="text-sm font-bold text-white mb-2">How to Deploy:</h4>
+                  <h4 className="text-sm font-bold text-white mb-2">How to Go Live:</h4>
                   <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-2">
-                    <li>Find the <span className="text-white font-bold">"Deploy"</span> button in the Firebase Studio sidebar (left or top).</li>
-                    <li>Click it and wait 2-4 minutes for the process to finish.</li>
-                    <li>Once finished, a <span className="text-accent font-bold">Public URL</span> will be generated.</li>
+                    <li>Click the blue <span className="text-white font-bold">"Publish"</span> button in the top-right corner of this screen.</li>
+                    <li>Wait 2-4 minutes for the process to finish.</li>
+                    <li>Once finished, a <span className="text-accent font-bold">Public URL</span> (ending in .web.app) will be shown.</li>
                     <li>Use that URL in TradingView to receive real signals.</li>
                   </ol>
                 </div>

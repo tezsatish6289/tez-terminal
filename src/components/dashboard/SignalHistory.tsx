@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useState, useEffect } from "react";
 import { MOCK_SIGNALS } from "@/app/lib/mock-data";
 import { 
   Table, 
@@ -13,8 +14,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Zap, Clock, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 export function SignalHistory() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -73,7 +81,7 @@ export function SignalHistory() {
                   <span className="text-xs text-muted-foreground font-medium">{signal.source}</span>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
-                  {format(new Date(signal.timestamp), 'MMM dd, HH:mm:ss')}
+                  {mounted ? format(new Date(signal.timestamp), 'MMM dd, HH:mm:ss') : '...'}
                 </TableCell>
                 <TableCell className="text-right">
                   <Badge 
@@ -95,8 +103,4 @@ export function SignalHistory() {
       </div>
     </div>
   );
-}
-
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(' ');
 }

@@ -1,12 +1,26 @@
 
+"use client";
+
 import { LeftSidebar } from "@/components/dashboard/Sidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { SignalHistory } from "@/components/dashboard/SignalHistory";
 import { ChartPane } from "@/components/dashboard/ChartPane";
 import { Toaster } from "@/components/ui/toaster";
 import Link from "next/link";
+import { useEffect } from "react";
+import { useUser, useAuth, initiateAnonymousSignIn } from "@/firebase";
 
 export default function Home() {
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
+
+  // Ensure user is authenticated even on the home page to listen for signals
+  useEffect(() => {
+    if (!isUserLoading && !user && auth) {
+      initiateAnonymousSignIn(auth);
+    }
+  }, [user, isUserLoading, auth]);
+
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       <LeftSidebar />

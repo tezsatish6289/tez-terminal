@@ -1,4 +1,3 @@
-
 "use client";
 
 import { LeftSidebar } from "@/components/dashboard/Sidebar";
@@ -11,14 +10,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import Link from "next/link";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Zap, Loader2, Rocket, ExternalLink, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Zap, Loader2, Rocket, ExternalLink, AlertTriangle, CheckCircle2, Info } from "lucide-react";
 import { ChromeIcon } from "@/components/icons";
 import { useState, useEffect } from "react";
+import { toast } from "@/hooks/use-toast";
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const [origin, setOrigin] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -28,9 +29,20 @@ export default function Home() {
 
   const isWorkstation = origin.includes("workstations.dev") || origin.includes("cloudworkstations.dev");
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
     if (auth) {
-      initiateGoogleSignIn(auth);
+      setIsLoggingIn(true);
+      try {
+        await initiateGoogleSignIn(auth);
+      } catch (e: any) {
+        toast({
+          variant: "destructive",
+          title: "Login Failed",
+          description: e.message || "Could not authenticate with Google.",
+        });
+      } finally {
+        setIsLoggingIn(false);
+      }
     }
   };
 
@@ -59,10 +71,17 @@ export default function Home() {
           <CardContent className="space-y-4">
             <Button 
               onClick={handleGoogleLogin} 
+              disabled={isLoggingIn}
               className="w-full h-14 gap-3 bg-white text-black hover:bg-white/90 text-lg font-semibold"
             >
-              <ChromeIcon className="h-6 w-6" />
-              Sign in with Google
+              {isLoggingIn ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                <>
+                  <ChromeIcon className="h-6 w-6" />
+                  Sign in with Google
+                </>
+              )}
             </Button>
             <p className="text-center text-xs text-muted-foreground px-6">
               Administrator login: <span className="text-accent font-mono">hello@tezterminal.com</span>
@@ -169,5 +188,3 @@ export default function Home() {
     </div>
   );
 }
-
-import { Info } from "lucide-react";

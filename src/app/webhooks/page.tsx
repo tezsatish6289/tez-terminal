@@ -7,63 +7,43 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useCollection, useUser, useMemoFirebase, useFirestore, useDoc, useAuth, initiateAnonymousSignIn } from "@/firebase";
-import { collection, doc } from "firebase/firestore";
-import { addDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { Copy, Plus, Webhook as WebhookIcon, ShieldCheck, Check, Loader2, Send, AlertTriangle } from "lucide-react";
+import { useCollection, useUser, useMemoFirebase, useFirestore, useAuth } from "@/firebase";
+import { collection } from "firebase/firestore";
+import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { initiateEmailSignIn } from "@/firebase/non-blocking-login";
+import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Send } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 
 export default function WebhooksPage() {
+  const { user } = useUser();
   const auth = useAuth();
-  const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const [newWebhookName, setNewWebhookName] = useState("");
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [origin, setOrigin] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isTesting, setIsTesting] = useState<string | null>(null);
+  
+  // Login form state
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
     setOrigin(window.location.origin);
   }, []);
 
-  useEffect(() => {
-    if (!isUserLoading && !user && auth) {
-      initiateAnonymousSignIn(auth);
-    }
-  }, [user, isUserLoading, auth]);
-
-  // Fetch User Profile to check role
-  const profileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, "users", user.uid);
-  }, [user, firestore]);
-
-  const { data: profile, isLoading: isProfileLoading } = useDoc(profileRef);
-
-  // If new user, set them as ADMIN for this prototype (optional - normally default to USER)
-  useEffect(() => {
-    if (!isProfileLoading && user && !profile && firestore) {
-      const newUserRef = doc(firestore, "users", user.uid);
-      setDocumentNonBlocking(newUserRef, {
-        uid: user.uid,
-        role: "ADMIN", // Hardcoded for first login in prototype
-        createdAt: new Date().toISOString()
-      }, { merge: true });
-    }
-  }, [profile, isProfileLoading, user, firestore]);
+  const isAdmin = user?.email === "hello@turbogains.ai";
 
   const webhooksQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !isAdmin) return null;
     return collection(firestore, "webhooks");
-  }, [firestore]);
+  }, [firestore, isAdmin]);
 
   const { data: webhooks, isLoading: isWebhooksLoading } = useCollection(webhooksQuery);
 
   const handleAddWebhook = () => {
-    if (!user || !newWebhookName.trim() || !firestore) return;
+    if (!user || !newWebhookName.trim() || !firestore || !isAdmin) return;
 
     setIsCreating(true);
     const webhookData = {
@@ -115,19 +95,55 @@ export default function WebhooksPage() {
     }
   };
 
-  const isAdmin = profile?.role === "ADMIN";
+  const handleAdminLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (auth && email === "hello@turbogains.ai") {
+      initiateEmailSignIn(auth, email, password);
+      toast({ title: "Signing in...", description: "Authenticating as Admin." });
+    } else {
+      toast({ variant: "destructive", title: "Invalid", description: "Only hello@turbogains.ai can log in here." });
+    }
+  };
 
-  if (!isProfileLoading && !isAdmin) {
+  if (!isAdmin) {
     return (
       <div className="flex min-h-screen bg-background">
         <LeftSidebar />
         <main className="flex-1 flex items-center justify-center p-6">
-          <Card className="max-w-md w-full border-accent/20">
+          <Card className="max-w-md w-full border-accent/20 bg-card">
             <CardHeader className="text-center">
-              <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+              <ShieldAlert className="h-12 w-12 text-amber-500 mx-auto mb-4" />
               <CardTitle>Admin Access Required</CardTitle>
-              <CardDescription>Only system administrators can configure global webhooks.</CardDescription>
+              <CardDescription>Please sign in with the designated admin account to manage bridges.</CardDescription>
             </CardHeader>
+            <CardContent>
+              <form onSubmit={handleAdminLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Admin Email</Label>
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    placeholder="hello@turbogains.ai" 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="bg-secondary/50"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Security Password</Label>
+                  <Input 
+                    id="password" 
+                    type="password" 
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="bg-secondary/50"
+                  />
+                </div>
+                <Button type="submit" className="w-full bg-accent text-accent-foreground">
+                  Authenticate Admin
+                </Button>
+              </form>
+            </CardContent>
           </Card>
         </main>
       </div>
@@ -143,7 +159,7 @@ export default function WebhooksPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white">Bridge Management</h1>
-              <p className="text-muted-foreground text-sm">System Admins only: Configure global data ingestors.</p>
+              <p className="text-muted-foreground text-sm">Welcome back, Admin. Configure global data ingestors.</p>
             </div>
             <WebhookIcon className="h-8 w-8 text-accent opacity-20" />
           </div>
@@ -161,8 +177,8 @@ export default function WebhooksPage() {
                   onChange={(e) => setNewWebhookName(e.target.value)}
                   className="bg-background border-border flex-1"
                 />
-                <Button onClick={handleAddWebhook} className="bg-accent text-accent-foreground">
-                  <Plus className="h-4 w-4 mr-2" />
+                <Button onClick={handleAddWebhook} className="bg-accent text-accent-foreground" disabled={isCreating}>
+                  {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
                   Add Global Bridge
                 </Button>
               </div>
@@ -174,27 +190,30 @@ export default function WebhooksPage() {
               <div className="h-32 bg-card/50 border border-border animate-pulse rounded-xl" />
             ) : (
               webhooks?.map((webhook) => (
-                <Card key={webhook.id} className="bg-card border-border">
+                <Card key={webhook.id} className="bg-card border-border shadow-md">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-white">{webhook.name}</CardTitle>
-                    <Button variant="outline" size="sm" onClick={() => handleTestSignal(webhook)} disabled={isTesting === webhook.id}>
-                      <Send className="h-3 w-3 mr-2" /> Test
+                    <CardTitle className="text-white text-md font-bold">{webhook.name}</CardTitle>
+                    <Button variant="outline" size="sm" className="border-accent/30 hover:bg-accent/10" onClick={() => handleTestSignal(webhook)} disabled={isTesting === webhook.id}>
+                      {isTesting === webhook.id ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Send className="h-3 w-3 mr-2" />} Test
                     </Button>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="space-y-1">
                       <Label className="text-[10px] text-muted-foreground uppercase">Endpoint URL</Label>
-                      <div className="flex gap-2">
-                        <Input readOnly value={`${webhook.endpointUrl}?id=${webhook.id}`} className="bg-secondary/50 font-mono text-xs" />
-                      </div>
+                      <Input readOnly value={`${webhook.endpointUrl}?id=${webhook.id}`} className="bg-secondary/50 font-mono text-xs border-none" />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-[10px] text-muted-foreground uppercase">Secret Key</Label>
-                      <Input readOnly value={webhook.secretKey} className="bg-secondary/50 font-mono text-xs" />
+                      <Input readOnly value={webhook.secretKey} className="bg-secondary/50 font-mono text-xs border-none" />
                     </div>
                   </CardContent>
                 </Card>
               ))
+            )}
+            {!isWebhooksLoading && webhooks?.length === 0 && (
+              <div className="text-center py-12 border border-dashed border-border rounded-xl">
+                <p className="text-muted-foreground text-sm">No bridges configured yet.</p>
+              </div>
             )}
           </div>
         </div>

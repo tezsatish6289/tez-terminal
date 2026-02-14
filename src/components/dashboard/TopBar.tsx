@@ -17,6 +17,7 @@ import {
 
 export function TopBar() {
   const { user, isUserLoading } = useUser();
+  const isAdmin = user?.email === "hello@turbogains.ai";
 
   return (
     <header className="h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 w-full">
@@ -40,7 +41,7 @@ export function TopBar() {
           <div className="hidden sm:flex items-center gap-2 mr-2">
             <Badge variant="outline" className="border-accent/50 text-accent gap-1 py-1">
               <span className={`h-2 w-2 rounded-full ${user ? 'bg-accent animate-pulse' : 'bg-amber-500'}`} />
-              {isUserLoading ? 'Connecting...' : user ? 'Live Terminal' : 'Offline'}
+              {isUserLoading ? 'Connecting...' : isAdmin ? 'Admin Terminal' : 'Consumer Node'}
             </Badge>
           </div>
 
@@ -61,12 +62,12 @@ export function TopBar() {
             <DropdownMenuContent align="end" className="w-56 bg-card border-border">
               <DropdownMenuLabel>Traders Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer">
-                {user ? `UID: ${user.uid.substring(0, 8)}...` : 'Not Signed In'}
+              <DropdownMenuItem className="text-xs truncate">
+                {user?.email || user?.uid}
               </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer">Profile</DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer">Profile Settings</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer text-destructive">Logout</DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer text-destructive">Logout Session</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

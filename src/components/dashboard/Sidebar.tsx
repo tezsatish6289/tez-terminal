@@ -1,27 +1,19 @@
 
 "use client";
 
-import { LayoutDashboard, LineChart, History, Zap, ShieldCheck, Heart, TrendingUp, TrendingDown, Webhook } from "lucide-react";
+import { LayoutDashboard, LineChart, History, Zap, ShieldCheck, Heart, Webhook } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WATCHLIST } from "@/app/lib/mock-data";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
-import { doc } from "firebase/firestore";
+import { useUser } from "@/firebase";
 
 export function LeftSidebar() {
   const pathname = usePathname();
   const { user } = useUser();
-  const firestore = useFirestore();
 
-  const profileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, "users", user.uid);
-  }, [user, firestore]);
-
-  const { data: profile } = useDoc(profileRef);
-  const isAdmin = profile?.role === "ADMIN";
+  const isAdmin = user?.email === "hello@turbogains.ai";
 
   const navItems = [
     { name: "Terminal", icon: LayoutDashboard, href: "/" },
@@ -29,7 +21,6 @@ export function LeftSidebar() {
     { name: "History", icon: History, href: "/history" },
   ];
 
-  // Only Admins see the Webhooks bridge management
   const adminItems = [
     { name: "Bridge Config", icon: Webhook, href: "/webhooks" },
   ];
@@ -127,8 +118,8 @@ export function LeftSidebar() {
             <ShieldCheck className="h-4 w-4 text-accent" />
           </div>
           <div className="flex-1 overflow-hidden">
-            <p className="text-xs font-medium truncate">{isAdmin ? 'Master Admin' : 'Signal User'}</p>
-            <p className="text-[10px] text-muted-foreground truncate">{user?.uid.substring(0, 10)}...</p>
+            <p className="text-xs font-medium truncate">{isAdmin ? 'Turbo Admin' : 'Trade Consumer'}</p>
+            <p className="text-[10px] text-muted-foreground truncate">{user?.email || `ID: ${user?.uid.substring(0, 8)}`}</p>
           </div>
         </div>
       </div>

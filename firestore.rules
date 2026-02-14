@@ -3,21 +3,23 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Check if the user is the designated admin
+    // Check if the user is the designated terminal admin
     function isAdmin() {
       return request.auth != null && request.auth.token.email == "hello@tezterminal.com";
     }
 
-    // Webhooks: Only Admin can manage. Anyone can 'get' if they know the ID (for API route)
+    // Webhook Configurations: Only Admin can create or edit.
+    // GET is allowed for the API route to validate keys.
     match /webhooks/{webhookId} {
       allow read: if true; 
       allow write: if isAdmin();
     }
 
-    // Signals: Anyone can read the stream.
+    // Signals (Alerts): Anyone authenticated can read the stream.
+    // Public 'create' is allowed to facilitate ingestion from TradingView bots.
     match /signals/{signalId} {
       allow read: if request.auth != null;
-      allow create: if true; // Public ingestion for TradingView bridges
+      allow create: if true; 
       allow update, delete: if isAdmin();
     }
   }

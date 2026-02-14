@@ -4,7 +4,7 @@
     "WebhookConfig": {
       "title": "WebhookConfig",
       "type": "object",
-      "description": "Configuration for an external signal bridge.",
+      "description": "Configuration for an external signal source managed by the admin.",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
@@ -18,29 +18,30 @@
     "Signal": {
       "title": "Signal",
       "type": "object",
-      "description": "A trading signal received from a bridge.",
+      "description": "A trading alert/signal received from TradingView via the bridge.",
       "properties": {
         "id": { "type": "string" },
         "webhookId": { "type": "string" },
         "receivedAt": { "type": "string", "format": "date-time" },
         "symbol": { "type": "string" },
         "type": { "type": "string", "enum": ["BUY", "SELL", "NEUTRAL"] },
-        "payload": { "type": "string" }
+        "payload": { "type": "string" },
+        "note": { "type": "string" }
       },
       "required": ["id", "symbol", "type", "receivedAt"]
     }
   },
   "auth": {
-    "providers": ["password", "anonymous", "google.com"]
+    "providers": ["google.com"]
   },
   "firestore": {
     "/webhooks/{webhookId}": {
       "schema": "#/backend/entities/WebhookConfig",
-      "description": "Global bridge configurations managed by the admin."
+      "description": "Global bridge configurations managed exclusively by hello@tezterminal.com."
     },
     "/signals/{signalId}": {
       "schema": "#/backend/entities/Signal",
-      "description": "Global stream of signals for all consumers."
+      "description": "The real-time feed of market alerts consumed by all traders."
     }
   }
 }

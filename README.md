@@ -4,7 +4,7 @@ Advanced Trading Terminal with TradingView Ingestion Bridge.
 
 ## Step-by-Step Deployment Instructions (No GitHub Required)
 
-1.  **Click Deploy**: In the sidebar of this editor, click the **"Deploy"** button.
+1.  **Click Deploy**: Look at the sidebar of this editor (Firebase Studio). Click the **"Deploy"** button (represented by a rocket icon or the word "Deploy").
 2.  **Wait**: The system will package your app and push it to a public server. This takes 2-4 minutes.
 3.  **Find Public URL**: After deployment, a public URL will appear in the deployment logs (e.g., `https://studio-xxxx.web.app`).
 4.  **Update TradingView**: 
@@ -20,7 +20,10 @@ Example:
 {
   "ticker": "{{ticker}}",
   "side": "buy",
-  "secretKey": "YOUR_KEY"
+  "secretKey": "YOUR_KEY",
+  "exchange": "{{exchange}}",
+  "timeframe": "{{interval}}",
+  "note": "TradingView Alert Triggered"
 }
 ```
 

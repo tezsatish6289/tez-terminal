@@ -10,12 +10,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import Link from "next/link";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Zap, Loader2 } from "lucide-react";
+import { Zap, Loader2, Rocket, ExternalLink, AlertTriangle } from "lucide-react";
 import { ChromeIcon } from "@/components/icons";
+import { useState, useEffect } from "react";
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setOrigin(window.location.origin);
+    }
+  }, []);
+
+  const isWorkstation = origin.includes("workstations.dev");
 
   const handleGoogleLogin = () => {
     if (auth) {
@@ -72,6 +82,34 @@ export default function Home() {
         <TopBar />
         
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 space-y-8">
+          {isWorkstation && (
+            <Card className="bg-rose-500/10 border-rose-500/30 overflow-hidden relative">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <Rocket className="h-20 w-20" />
+              </div>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2 text-rose-400 mb-1">
+                  <AlertTriangle className="h-5 w-5" />
+                  <CardTitle className="text-lg">Deployment Required for TradingView</CardTitle>
+                </div>
+                <CardDescription className="text-rose-200/70">
+                  TradingView cannot send signals to this private URL. You must deploy your app to a public server.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="bg-black/40 rounded-lg p-4 border border-rose-500/20">
+                  <h4 className="text-sm font-bold text-white mb-2">How to Deploy:</h4>
+                  <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-2">
+                    <li>Find the <span className="text-white font-bold">"Deploy"</span> button in the Firebase Studio sidebar (left or top).</li>
+                    <li>Click it and wait 2-4 minutes for the process to finish.</li>
+                    <li>Once finished, a <span className="text-accent font-bold">Public URL</span> will be generated.</li>
+                    <li>Use that URL in TradingView to receive real signals.</li>
+                  </ol>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             <div className="lg:col-span-8 flex flex-col h-full space-y-6">
               <div className="flex items-center justify-between">
@@ -95,6 +133,12 @@ export default function Home() {
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground text-xs">Node</span>
                       <span className="text-foreground text-xs font-mono">Lucknow-01</span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-border pt-2">
+                      <span className="text-muted-foreground text-xs">Environment</span>
+                      <span className={isWorkstation ? "text-amber-500 text-xs font-bold" : "text-emerald-400 text-xs font-bold"}>
+                        {isWorkstation ? "Development (Private)" : "Production (Public)"}
+                      </span>
                     </div>
                   </div>
                   <div className="mt-6 pt-6 border-t border-border">

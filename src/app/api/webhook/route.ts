@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
 
+/**
+ * Global Ingestion Bridge
+ * Receives alerts from TradingView and persists them to the global 'signals' stream.
+ */
 export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -15,7 +19,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { firestore } = initializeFirebase();
 
-    // 1. Validate the bridge exists
+    // 1. Validate the bridge exists in the global collection
     const configRef = doc(firestore, "webhooks", webhookId);
     const configSnap = await getDoc(configRef);
 
@@ -25,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     const configData = configSnap.data();
 
-    // 2. Security: Validate Secret Key if defined
+    // 2. Security: Validate Secret Key
     if (configData.secretKey && body.secretKey !== configData.secretKey) {
       return NextResponse.json({ 
         success: false, 
@@ -33,13 +37,13 @@ export async function POST(request: NextRequest) {
       }, { status: 401 });
     }
 
-    // 3. Persist the Signal to the global feed
+    // 3. Persist the Signal to the global shared feed
     const signalsRef = collection(firestore, "signals");
     
     await addDoc(signalsRef, {
       webhookId: webhookId,
       receivedAt: new Date().toISOString(),
-      timestamp: serverTimestamp(),
+      serverTimestamp: serverTimestamp(),
       payload: JSON.stringify(body),
       symbol: (body.symbol || "UNKNOWN").toUpperCase(),
       type: (body.type || "NEUTRAL").toUpperCase(),
@@ -49,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       success: true, 
-      message: "Alert logged to global stream",
+      message: "Signal broadcasted to global stream",
       receivedAt: new Date().toISOString()
     });
   } catch (error: any) {
@@ -61,5 +65,5 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ status: "active", service: "Antigravity Bridge Node" });
+  return NextResponse.json({ status: "active", service: "Antigravity Ingestion Node" });
 }

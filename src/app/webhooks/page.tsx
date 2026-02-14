@@ -7,9 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { useCollection, useUser, useMemoFirebase, useFirestore, useAuth } from "@/firebase";
-import { collection } from "firebase/firestore";
+import { collection, query, orderBy } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Send, Lock } from "lucide-react";
@@ -17,7 +16,7 @@ import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 
-export function ChromeIcon(props: React.SVGProps<SVGSVGElement>) {
+function ChromeIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
@@ -57,9 +56,10 @@ export default function WebhooksPage() {
 
   const isAdmin = user?.email === "hello@tezterminal.com";
 
+  // Query global webhooks
   const webhooksQuery = useMemoFirebase(() => {
     if (!firestore || !isAdmin) return null;
-    return collection(firestore, "webhooks");
+    return query(collection(firestore, "webhooks"), orderBy("createdAt", "desc"));
   }, [firestore, isAdmin]);
 
   const { data: webhooks, isLoading: isWebhooksLoading } = useCollection(webhooksQuery);
@@ -70,7 +70,6 @@ export default function WebhooksPage() {
     setIsCreating(true);
     const webhookData = {
       name: newWebhookName,
-      adminId: user.uid,
       isActive: true,
       secretKey: Math.random().toString(36).substring(2, 15),
       createdAt: new Date().toISOString(),
@@ -84,8 +83,8 @@ export default function WebhooksPage() {
       setNewWebhookName("");
       setIsCreating(false);
       toast({
-        title: "Configuration Saved",
-        description: "Admin webhook has been registered.",
+        title: "Bridge Created",
+        description: `${newWebhookName} is now ready for signals.`,
       });
     }, 500);
   };
@@ -96,7 +95,7 @@ export default function WebhooksPage() {
       symbol: "BTCUSDT",
       type: "BUY",
       secretKey: webhook.secretKey,
-      note: "Admin Terminal Test"
+      note: "Manual Terminal Test"
     };
 
     try {
@@ -106,9 +105,9 @@ export default function WebhooksPage() {
         body: JSON.stringify(testPayload)
       });
       if (response.ok) {
-        toast({ title: "Signal Dispatched", description: "Global stream updated." });
+        toast({ title: "Test Success", description: "Signal broadcasted to global stream." });
       } else {
-        toast({ variant: "destructive", title: "Dispatch Failed" });
+        toast({ variant: "destructive", title: "Test Failed", description: "Check API logs." });
       }
     } catch (e) {
       toast({ variant: "destructive", title: "Network Error" });
@@ -137,8 +136,8 @@ export default function WebhooksPage() {
         <Card className="max-w-md w-full border-accent/20 bg-card">
           <CardHeader className="text-center">
             <Lock className="h-12 w-12 text-accent mx-auto mb-4" />
-            <CardTitle>Authentication Required</CardTitle>
-            <CardDescription>Please sign in with your Google account to continue.</CardDescription>
+            <CardTitle>Admin Sign-In</CardTitle>
+            <CardDescription>Authenticate to manage global bridge configurations.</CardDescription>
           </CardHeader>
           <CardContent>
             <Button onClick={handleGoogleLogin} className="w-full h-12 gap-2 bg-white text-black hover:bg-white/90">
@@ -159,12 +158,12 @@ export default function WebhooksPage() {
           <Card className="max-w-md w-full border-accent/20 bg-card">
             <CardHeader className="text-center">
               <ShieldAlert className="h-12 w-12 text-amber-500 mx-auto mb-4" />
-              <CardTitle>Admin Access Required</CardTitle>
-              <CardDescription>Only hello@tezterminal.com has permission to manage global bridges.</CardDescription>
+              <CardTitle>Unauthorized Access</CardTitle>
+              <CardDescription>Only hello@tezterminal.com can configure global bridges.</CardDescription>
             </CardHeader>
-            <CardContent className="text-center space-y-4">
-               <p className="text-sm text-muted-foreground">You are currently logged in as {user.email}.</p>
-               <Button variant="outline" className="w-full border-border" onClick={() => auth && auth.signOut()}>
+            <CardContent className="text-center">
+               <p className="text-sm text-muted-foreground mb-4">Logged in as: {user.email}</p>
+               <Button variant="outline" className="w-full" onClick={() => auth && auth.signOut()}>
                  Switch Account
                </Button>
             </CardContent>
@@ -183,7 +182,7 @@ export default function WebhooksPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white">Bridge Management</h1>
-              <p className="text-muted-foreground text-sm">Welcome back, Admin. Configure global data ingestors.</p>
+              <p className="text-muted-foreground text-sm">Configure technical entry points for global alerts.</p>
             </div>
             <WebhookIcon className="h-8 w-8 text-accent opacity-20" />
           </div>
@@ -191,19 +190,19 @@ export default function WebhooksPage() {
           <Card className="bg-secondary/20 border-accent/20">
             <CardHeader>
               <CardTitle className="text-lg">Register Global Webhook</CardTitle>
-              <CardDescription>Create a technical entry point for external signals.</CardDescription>
+              <CardDescription>Signals sent here will be broadcast to all terminal users.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-col md:flex-row gap-4">
                 <Input 
-                  placeholder="e.g. Master RSI Bridge" 
+                  placeholder="e.g. BTC Master RSI Bridge" 
                   value={newWebhookName}
                   onChange={(e) => setNewWebhookName(e.target.value)}
                   className="bg-background border-border flex-1"
                 />
                 <Button onClick={handleAddWebhook} className="bg-accent text-accent-foreground" disabled={isCreating}>
                   {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
-                  Add Global Bridge
+                  Create Global Bridge
                 </Button>
               </div>
             </CardContent>
@@ -221,14 +220,16 @@ export default function WebhooksPage() {
                       {isTesting === webhook.id ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Send className="h-3 w-3 mr-2" />} Test
                     </Button>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground uppercase">Endpoint URL</Label>
-                      <Input readOnly value={`${webhook.endpointUrl}?id=${webhook.id}`} className="bg-secondary/50 font-mono text-xs border-none" />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground uppercase">Secret Key</Label>
-                      <Input readOnly value={webhook.secretKey} className="bg-secondary/50 font-mono text-xs border-none" />
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Endpoint URL</Label>
+                        <Input readOnly value={`${webhook.endpointUrl}?id=${webhook.id}`} className="bg-secondary/50 font-mono text-xs border-none" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Secret Key (JSON Field)</Label>
+                        <Input readOnly value={webhook.secretKey} className="bg-secondary/50 font-mono text-xs border-none" />
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -236,7 +237,7 @@ export default function WebhooksPage() {
             )}
             {!isWebhooksLoading && webhooks?.length === 0 && (
               <div className="text-center py-12 border border-dashed border-border rounded-xl">
-                <p className="text-muted-foreground text-sm">No bridges configured yet.</p>
+                <p className="text-muted-foreground text-sm">No bridges active. Create one to start receiving signals.</p>
               </div>
             )}
           </div>

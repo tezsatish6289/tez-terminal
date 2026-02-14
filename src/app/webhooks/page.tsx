@@ -1,3 +1,4 @@
+
 "use client";
 
 import { LeftSidebar } from "@/components/dashboard/Sidebar";
@@ -10,7 +11,7 @@ import { useCollection, useUser, useMemoFirebase, useFirestore, useAuth } from "
 import { collection, query, orderBy } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Lock, Copy, AlertTriangle, Code, Globe, Zap, ExternalLink, Info, Rocket } from "lucide-react";
+import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Lock, Copy, AlertTriangle, Code, Globe, Zap, ExternalLink, Info, Rocket, CheckCircle2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
@@ -74,16 +75,16 @@ export default function WebhooksPage() {
     setIsTesting(`${webhook.id}-${side}`);
     
     const indicatorPayload = {
-      ticker: "ARCUSDT.P",
+      ticker: "SIMULATED_ASSET",
       side: side,
       secretKey: webhook.secretKey,
-      exchange: "BINANCE",
+      exchange: "SIMULATOR",
       timeframe: "1",
       note: `Simulation: Manual ${side.toUpperCase()} Signal`
     };
 
     try {
-      const response = await fetch(`${webhook.endpointUrl}?id=${webhook.id}`, {
+      const response = await fetch(`${origin}/api/webhook?id=${webhook.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(indicatorPayload)
@@ -167,7 +168,7 @@ export default function WebhooksPage() {
     );
   }
 
-  const isWorkstation = origin.includes("cloudworkstations.dev");
+  const isWorkstation = origin.includes("workstations.dev") || origin.includes("cloudworkstations.dev");
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -205,31 +206,31 @@ export default function WebhooksPage() {
               </CardContent>
             </Card>
 
-            <Card className={isWorkstation ? "bg-rose-500/10 border-rose-500/30 shadow-[0_0_20px_rgba(244,63,94,0.1)]" : "bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.1)]"}>
+            <Card className={isWorkstation ? "bg-amber-500/10 border-amber-500/30" : "bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.1)]"}>
               <CardHeader className="flex flex-row items-center gap-2 space-y-0">
-                {isWorkstation ? <AlertTriangle className="h-4 w-4 text-rose-400" /> : <Globe className="h-4 w-4 text-emerald-400" />}
-                <CardTitle className="text-sm font-bold">{isWorkstation ? "Deployment Needed" : "Public Terminal Active"}</CardTitle>
+                {isWorkstation ? <Info className="h-4 w-4 text-amber-400" /> : <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
+                <CardTitle className="text-sm font-bold">{isWorkstation ? "Private Preview" : "Public App Live"}</CardTitle>
               </CardHeader>
               <CardContent className="text-[11px] space-y-3 leading-relaxed text-muted-foreground">
                 {isWorkstation ? (
                   <div className="space-y-3">
-                    <p className="text-rose-200">TradingView cannot reach this <b>private development URL</b>. You must deploy to go live.</p>
-                    <div className="p-2 bg-black/30 rounded border border-rose-500/20">
-                      <p className="font-bold text-white flex items-center gap-1"><Rocket className="h-3 w-3" /> Step-by-Step Deployment:</p>
+                    <p className="text-amber-200">You are currently in the <strong>Editor Preview</strong>. Use your <code>.web.app</code> domain for TradingView.</p>
+                    <div className="p-2 bg-black/30 rounded border border-amber-500/20">
+                      <p className="font-bold text-white flex items-center gap-1"><Rocket className="h-3 w-3" /> Step-by-Step:</p>
                       <ol className="list-decimal list-inside mt-1 space-y-1">
-                        <li>Click <b>"Deploy"</b> in the sidebar.</li>
-                        <li>Wait 3 mins for completion.</li>
-                        <li>Open the new <b>.web.app</b> URL provided.</li>
+                        <li>Find the Public URL from the <strong>Publish</strong> output.</li>
+                        <li>Open that URL in a new tab.</li>
+                        <li>Copy the Webhook URL from the <strong>Public site</strong>.</li>
                       </ol>
                     </div>
                   </div>
                 ) : (
-                  <p>Terminal is publicly accessible. TradingView signals will now flow into your global history feed.</p>
+                  <p>This is the Public Terminal. TradingView signals sent to these URLs will flow into the global history feed.</p>
                 )}
                 <div className="pt-2">
                    <Button variant="outline" size="sm" className="w-full text-[10px] h-8 gap-2 bg-background" asChild>
                      <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer">
-                       <ExternalLink className="h-3 w-3" /> Go to Deployment Console
+                       <ExternalLink className="h-3 w-3" /> Firebase Console
                      </a>
                    </Button>
                 </div>
@@ -242,6 +243,7 @@ export default function WebhooksPage() {
               <div className="h-32 bg-card/50 border border-border animate-pulse rounded-xl" />
             ) : (
               webhooks?.map((webhook) => {
+                const endpoint = `${origin}/api/webhook?id=${webhook.id}`;
                 const pineScriptSnippet = `// Webhook Logic for TezTerminal\n// Use 'Any alert() function call' in TV Alert settings\nif buySignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"buy", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)\nif sellSignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"sell", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)`;
 
                 const jsonPayload = `{
@@ -286,11 +288,11 @@ export default function WebhooksPage() {
                         <div className="space-y-1.5">
                           <Label className="text-[10px] text-muted-foreground uppercase tracking-wider flex justify-between">
                             Webhook URL (Copy to TradingView)
-                            <button onClick={() => copyToClipboard(`${webhook.endpointUrl}?id=${webhook.id}`)} className="text-accent hover:underline flex items-center gap-1">
+                            <button onClick={() => copyToClipboard(endpoint)} className="text-accent hover:underline flex items-center gap-1">
                               <Copy className="h-2 w-2" /> Copy URL
                             </button>
                           </Label>
-                          <Input readOnly value={`${webhook.endpointUrl}?id=${webhook.id}`} className="bg-secondary/50 font-mono text-xs border-none h-8" />
+                          <Input readOnly value={endpoint} className="bg-secondary/50 font-mono text-xs border-none h-8" />
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-[10px] text-muted-foreground uppercase tracking-wider flex justify-between">
@@ -348,7 +350,7 @@ export default function WebhooksPage() {
                       <div className="p-3 bg-accent/5 border border-accent/20 rounded-lg flex items-start gap-3">
                          <Info className="h-4 w-4 text-accent mt-0.5" />
                          <p className="text-[10px] leading-relaxed text-muted-foreground">
-                           <b>Pro Tip:</b> When setting up the alert in TradingView, ensure the "Webhook URL" is correct and the "Message" box contains <b>nothing but the JSON</b>. Any extra text will break the parsing.
+                           <b>Pro Tip:</b> Ensure the "Webhook URL" is correct and the "Message" box in TradingView contains <b>nothing but the JSON</b>.
                          </p>
                       </div>
                     </CardContent>

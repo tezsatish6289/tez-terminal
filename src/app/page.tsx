@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import Link from "next/link";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Zap, Loader2, Rocket, ExternalLink, AlertTriangle } from "lucide-react";
+import { Zap, Loader2, Rocket, ExternalLink, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { ChromeIcon } from "@/components/icons";
 import { useState, useEffect } from "react";
 
@@ -26,7 +26,7 @@ export default function Home() {
     }
   }, []);
 
-  const isWorkstation = origin.includes("workstations.dev");
+  const isWorkstation = origin.includes("workstations.dev") || origin.includes("cloudworkstations.dev");
 
   const handleGoogleLogin = () => {
     if (auth) {
@@ -84,28 +84,27 @@ export default function Home() {
         
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 space-y-8">
           {isWorkstation && (
-            <Card className="bg-rose-500/10 border-rose-500/30 overflow-hidden relative">
+            <Card className="bg-amber-500/10 border-amber-500/30 overflow-hidden relative border-dashed">
               <div className="absolute top-0 right-0 p-4 opacity-10">
                 <Rocket className="h-20 w-20" />
               </div>
               <CardHeader className="pb-2">
-                <div className="flex items-center gap-2 text-rose-400 mb-1">
-                  <AlertTriangle className="h-5 w-5" />
-                  <CardTitle className="text-lg">Action Required: Go Live</CardTitle>
+                <div className="flex items-center gap-2 text-amber-400 mb-1">
+                  <Info className="h-5 w-5" />
+                  <CardTitle className="text-lg">Editor Preview Active</CardTitle>
                 </div>
-                <CardDescription className="text-rose-200/70">
-                  TradingView cannot send signals to this private URL. You must Publish your app to a public server.
+                <CardDescription className="text-amber-200/70">
+                  You are viewing the <strong>Private Preview</strong>. TradingView alerts will only work if sent to your <strong>Public URL</strong>.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="bg-black/40 rounded-lg p-4 border border-rose-500/20">
-                  <h4 className="text-sm font-bold text-white mb-2">How to Go Live:</h4>
-                  <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-2">
-                    <li>Click the blue <span className="text-white font-bold">"Publish"</span> button in the top-right corner of this screen.</li>
-                    <li>Wait 2-4 minutes for the process to finish.</li>
-                    <li>Once finished, a <span className="text-accent font-bold">Public URL</span> (ending in .web.app) will be shown.</li>
-                    <li>Use that URL in TradingView to receive real signals.</li>
-                  </ol>
+                <div className="bg-black/40 rounded-lg p-4 border border-amber-500/20">
+                  <h4 className="text-sm font-bold text-white mb-2">Next Steps:</h4>
+                  <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                    <li>Find the Public URL in the output after clicking <strong>"Publish"</strong>.</li>
+                    <li>Open that URL in a new tab to see your live Terminal.</li>
+                    <li>Use the <strong>Bridge Management</strong> page on the public site to get your Webhook link.</li>
+                  </ul>
                 </div>
               </CardContent>
             </Card>
@@ -138,7 +137,7 @@ export default function Home() {
                     <div className="flex items-center justify-between border-t border-border pt-2">
                       <span className="text-muted-foreground text-xs">Environment</span>
                       <span className={isWorkstation ? "text-amber-500 text-xs font-bold" : "text-emerald-400 text-xs font-bold"}>
-                        {isWorkstation ? "Development (Private)" : "Production (Public)"}
+                        {isWorkstation ? "Preview (Private)" : "Live (Public)"}
                       </span>
                     </div>
                   </div>
@@ -170,3 +169,5 @@ export default function Home() {
     </div>
   );
 }
+
+import { Info } from "lucide-react";

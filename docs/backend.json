@@ -25,6 +25,7 @@
         "receivedAt": { "type": "string", "format": "date-time" },
         "symbol": { "type": "string" },
         "type": { "type": "string", "enum": ["BUY", "SELL", "NEUTRAL"] },
+        "price": { "type": "number", "description": "The price at which the alert was triggered." },
         "payload": { "type": "string" },
         "note": { "type": "string" },
         "source": { "type": "string" }

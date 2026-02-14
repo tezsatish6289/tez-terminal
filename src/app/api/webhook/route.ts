@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest) {
     if (rawSide === "sell") signalType = "SELL";
 
     const symbol = (body.ticker || body.symbol || "UNKNOWN").toUpperCase();
+    const price = body.price ? parseFloat(body.price.toString()) : null;
 
     const signalData = {
       webhookId: webhookId,
@@ -79,6 +81,7 @@ export async function POST(request: NextRequest) {
       payload: rawBody,
       symbol: symbol,
       type: signalType,
+      price: price,
       note: body.note || `Indicator alert for ${symbol}`,
       source: configData.name || "TradingView Indicator",
     };
@@ -91,7 +94,7 @@ export async function POST(request: NextRequest) {
       timestamp,
       level: "INFO",
       message: "Signal Processed Successfully",
-      details: `Asset: ${symbol} | Action: ${signalType}`,
+      details: `Asset: ${symbol} | Action: ${signalType} | Price: ${price || 'N/A'}`,
       webhookId,
     });
 

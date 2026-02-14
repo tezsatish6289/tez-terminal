@@ -11,7 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Zap, Clock, Terminal, AlertCircle, Globe, Activity, Info } from "lucide-react";
+import { Zap, Clock, Terminal, AlertCircle, Globe, Activity, Info, Tag } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -91,20 +91,21 @@ export function SignalHistory() {
             <TableRow className="hover:bg-transparent border-border">
               <TableHead className="w-[120px]">Time</TableHead>
               <TableHead className="w-[140px]">Asset</TableHead>
-              <TableHead className="w-[80px]">Side</TableHead>
+              <TableHead className="w-[100px]">Side</TableHead>
+              <TableHead className="w-[120px]">Price</TableHead>
               <TableHead className="hidden md:table-cell">Signal Metadata</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (!signals || signals.length === 0) ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground animate-pulse">
+                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground animate-pulse">
                   Connecting to global signal node...
                 </TableCell>
               </TableRow>
             ) : !signals || signals.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-12">
+                <TableCell colSpan={5} className="text-center py-12">
                   <Terminal className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-20" />
                   <p className="text-muted-foreground text-sm">Waiting for market signals...</p>
                 </TableCell>
@@ -133,6 +134,14 @@ export function SignalHistory() {
                       >
                         {signal.type}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="font-mono text-white text-xs">
+                      {signal.price ? (
+                         <div className="flex items-center gap-1">
+                           <Tag className="h-3 w-3 text-muted-foreground" />
+                           {Number(signal.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+                         </div>
+                      ) : '--'}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       <div className="flex flex-wrap gap-2 items-center">

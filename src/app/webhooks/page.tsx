@@ -77,6 +77,7 @@ export default function WebhooksPage() {
     const indicatorPayload = {
       ticker: "SIMULATED_ASSET",
       side: side,
+      price: side === 'buy' ? 98500 : 97200,
       secretKey: webhook.secretKey,
       exchange: "SIMULATOR",
       timeframe: "1",
@@ -244,11 +245,12 @@ export default function WebhooksPage() {
             ) : (
               webhooks?.map((webhook) => {
                 const endpoint = `${origin}/api/webhook?id=${webhook.id}`;
-                const pineScriptSnippet = `// Webhook Logic for TezTerminal\n// Use 'Any alert() function call' in TV Alert settings\nif buySignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"buy", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)\nif sellSignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"sell", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)`;
+                const pineScriptSnippet = `// Webhook Logic for TezTerminal\n// Use 'Any alert() function call' in TV Alert settings\nif buySignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"buy", "price":"' + str.tostring(close) + '", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)\nif sellSignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"sell", "price":"' + str.tostring(close) + '", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)`;
 
                 const jsonPayload = `{
   "ticker": "{{ticker}}",
   "side": "buy",
+  "price": "{{close}}",
   "secretKey": "${webhook.secretKey}",
   "exchange": "{{exchange}}",
   "timeframe": "{{interval}}",

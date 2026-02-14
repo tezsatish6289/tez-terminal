@@ -200,14 +200,14 @@ export default function WebhooksPage() {
             <Card className="bg-primary/10 border-accent/20">
               <CardHeader className="flex flex-row items-center gap-2 space-y-0">
                 <Info className="h-4 w-4 text-accent" />
-                <CardTitle className="text-sm font-bold">TradingView Setup</CardTitle>
+                <CardTitle className="text-sm font-bold">Indicator Setup</CardTitle>
               </CardHeader>
               <CardContent className="text-[11px] space-y-3 leading-relaxed text-muted-foreground">
                 <p>1. Copy the <b>Webhook URL</b> into your TradingView Alert box.</p>
-                <p>2. Copy the <b>JSON Payload</b> into the "Message" box.</p>
+                <p>2. Copy the <b>JSON Payload</b> (for "buy" or "sell") into the "Message" box.</p>
                 <div className="flex items-start gap-2 text-rose-400 font-bold mt-2">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <p>IMPORTANT: The "Message" box must contain ONLY the JSON. No extra text or characters.</p>
+                  <p>IMPORTANT: The "Message" box must contain ONLY the JSON. No extra text or trailing quotes.</p>
                 </div>
               </CardContent>
             </Card>
@@ -270,10 +270,13 @@ export default function WebhooksPage() {
                             <Copy className="h-3 w-3 mr-1" /> Copy JSON
                           </Button>
                         </div>
-                        <Label className="text-[10px] text-accent uppercase tracking-wider font-bold block mb-2">Required TradingView Message (Paste ONLY this)</Label>
+                        <Label className="text-[10px] text-accent uppercase tracking-wider font-bold block mb-2">TradingView Message (Paste ONLY this)</Label>
                         <pre className="text-[10px] font-mono text-emerald-400 whitespace-pre-wrap break-all leading-tight">
 {tvJson}
                         </pre>
+                        <p className="mt-4 text-[10px] text-muted-foreground italic">
+                          * Change "side": "buy" to "side": "sell" for your sell alerts.
+                        </p>
                       </div>
                     </CardContent>
                   </Card>

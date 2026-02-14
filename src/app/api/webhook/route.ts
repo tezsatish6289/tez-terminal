@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
         timestamp,
         level: "ERROR",
         message: "JSON Parse Error",
-        details: `Raw Body: ${rawBody}. Ensure your TradingView message is valid JSON and has no trailing characters.`,
+        details: `Raw Body: ${rawBody}. Ensure your TradingView message is valid JSON and has no trailing characters or extra text.`,
         webhookId,
       });
       return NextResponse.json({ success: false, message: "Invalid JSON body" }, { status: 400 });
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
         timestamp,
         level: "WARN",
         message: "Bridge ID Not Found",
-        details: `The ID '${webhookId}' does not match any registered bridge.`,
+        details: `The ID '${webhookId}' does not match any registered bridge in Firestore.`,
         webhookId,
       });
       return NextResponse.json({ success: false, message: "Bridge not found" }, { status: 404 });
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     const configData = configSnap.data();
 
-    // 4. Secret Key Validation
+    // 4. Secret Key Validation (Check body first, then searchParams)
     const providedKey = body.secretKey || searchParams.get("key");
     if (configData.secretKey && providedKey !== configData.secretKey) {
       await addDoc(logsRef, {
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: "Unauthorized: Invalid Secret Key" }, { status: 401 });
     }
 
-    // 5. Signal Normalization (Handle "buy"/"sell" lowercase from Indicator)
+    // 5. Signal Normalization (Handle "buy"/"sell" indicator strings)
     let signalType = "NEUTRAL";
     const rawSide = (body.side || body.type || body.action || "").toString().toUpperCase();
     

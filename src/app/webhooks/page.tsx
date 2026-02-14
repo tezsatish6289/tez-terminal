@@ -10,7 +10,7 @@ import { useCollection, useUser, useMemoFirebase, useFirestore, useAuth } from "
 import { collection, query, orderBy } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Lock, Copy, AlertTriangle, Code, Globe, Zap, ExternalLink } from "lucide-react";
+import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Lock, Copy, AlertTriangle, Code, Globe, Zap, ExternalLink, Info } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
@@ -205,19 +205,19 @@ export default function WebhooksPage() {
               </CardContent>
             </Card>
 
-            <Card className={isWorkstation ? "bg-rose-500/10 border-rose-500/30" : "bg-emerald-500/10 border-emerald-500/30"}>
+            <Card className={isWorkstation ? "bg-rose-500/10 border-rose-500/30 shadow-[0_0_20px_rgba(244,63,94,0.1)]" : "bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.1)]"}>
               <CardHeader className="flex flex-row items-center gap-2 space-y-0">
                 {isWorkstation ? <AlertTriangle className="h-4 w-4 text-rose-400" /> : <Globe className="h-4 w-4 text-emerald-400" />}
-                <CardTitle className="text-sm font-bold">{isWorkstation ? "Private Dev Node" : "Public Terminal Active"}</CardTitle>
+                <CardTitle className="text-sm font-bold">{isWorkstation ? "Development Mode" : "Public Terminal Active"}</CardTitle>
               </CardHeader>
               <CardContent className="text-[11px] space-y-3 leading-relaxed text-muted-foreground">
                 {isWorkstation ? (
-                  <p>External sites (TradingView) are <b>blocked</b> from this workstation URL. Use the Simulate buttons to verify code logic.</p>
+                  <p>TradingView cannot reach this <b>private URL</b>. Click the <b>Deploy</b> button in the sidebar to get a public URL for your alerts.</p>
                 ) : (
-                  <p>Terminal is publicly accessible. TradingView can now hit your webhook endpoints directly.</p>
+                  <p>Terminal is publicly accessible. TradingView signals will now flow into your global history feed.</p>
                 )}
                 <div className="pt-2">
-                   <Button variant="outline" size="sm" className="w-full text-[10px] h-8 gap-2" asChild>
+                   <Button variant="outline" size="sm" className="w-full text-[10px] h-8 gap-2 bg-background" asChild>
                      <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer">
                        <ExternalLink className="h-3 w-3" /> Go to Deployment Console
                      </a>
@@ -232,11 +232,19 @@ export default function WebhooksPage() {
               <div className="h-32 bg-card/50 border border-border animate-pulse rounded-xl" />
             ) : (
               webhooks?.map((webhook) => {
-                const pineScriptSnippet = `// Webhook Logic for TezTerminal\nif buySignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"buy", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)\nif sellSignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"sell", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)`;
+                const pineScriptSnippet = `// Webhook Logic for TezTerminal\n// Use 'Any alert() function call' in TV Alert settings\nif buySignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"buy", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)\nif sellSignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"sell", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)`;
+
+                const jsonPayload = `{
+  "ticker": "{{ticker}}",
+  "side": "buy",
+  "secretKey": "${webhook.secretKey}",
+  "exchange": "{{exchange}}",
+  "timeframe": "{{interval}}"
+}`;
 
                 return (
                   <Card key={webhook.id} className="bg-card border-border shadow-md">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 border-b border-border/50 mb-4 bg-secondary/10">
                       <div>
                         <CardTitle className="text-white text-md font-bold">{webhook.name}</CardTitle>
                         <CardDescription className="text-[10px] font-mono">{webhook.id}</CardDescription>
@@ -284,24 +292,53 @@ export default function WebhooksPage() {
                         </div>
                       </div>
 
-                      <div className="space-y-4">
-                        <div className="bg-black/40 rounded-lg p-4 border border-border/50 relative group">
-                           <div className="flex items-center gap-2 mb-3">
-                             <Code className="h-4 w-4 text-accent" />
-                             <span className="text-[10px] text-accent uppercase font-bold tracking-widest">Pine Script Integration</span>
-                           </div>
-                           <pre className="text-[10px] font-mono text-emerald-400 whitespace-pre-wrap break-all leading-relaxed bg-black/20 p-3 rounded border border-white/5">
+                      <div className="grid md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                          <div className="bg-black/40 rounded-lg p-4 border border-border/50 h-full">
+                             <div className="flex items-center gap-2 mb-3">
+                               <Code className="h-4 w-4 text-accent" />
+                               <span className="text-[10px] text-accent uppercase font-bold tracking-widest">Pine Script Signal Logic</span>
+                             </div>
+                             <pre className="text-[10px] font-mono text-emerald-400 whitespace-pre-wrap break-all leading-relaxed bg-black/20 p-3 rounded border border-white/5 mb-3">
 {pineScriptSnippet}
-                           </pre>
-                           <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="mt-3 h-7 text-[10px] text-accent border border-accent/20 hover:bg-accent/10 w-full"
-                              onClick={() => copyToClipboard(pineScriptSnippet)}
-                            >
-                              <Copy className="h-3 w-3 mr-2" /> Copy Pine Script Logic
-                            </Button>
+                             </pre>
+                             <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-7 text-[10px] text-accent border border-accent/20 hover:bg-accent/10 w-full"
+                                onClick={() => copyToClipboard(pineScriptSnippet)}
+                              >
+                                <Copy className="h-3 w-3 mr-2" /> Copy Pine Script
+                              </Button>
+                          </div>
                         </div>
+
+                        <div className="space-y-4">
+                           <div className="bg-black/40 rounded-lg p-4 border border-border/50 h-full">
+                             <div className="flex items-center gap-2 mb-3">
+                               <Zap className="h-4 w-4 text-amber-400" />
+                               <span className="text-[10px] text-amber-400 uppercase font-bold tracking-widest">TradingView Message JSON</span>
+                             </div>
+                             <pre className="text-[10px] font-mono text-amber-200 whitespace-pre-wrap break-all leading-relaxed bg-black/20 p-3 rounded border border-white/5 mb-3">
+{jsonPayload}
+                             </pre>
+                             <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-7 text-[10px] text-amber-400 border border-amber-400/20 hover:bg-amber-400/10 w-full"
+                                onClick={() => copyToClipboard(jsonPayload)}
+                              >
+                                <Copy className="h-3 w-3 mr-2" /> Copy JSON Payload
+                              </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-accent/5 border border-accent/20 rounded-lg flex items-start gap-3">
+                         <Info className="h-4 w-4 text-accent mt-0.5" />
+                         <p className="text-[10px] leading-relaxed text-muted-foreground">
+                           <b>Pro Tip:</b> When setting up the alert in TradingView, ensure the "Webhook URL" is correct and the "Message" box contains <b>nothing but the JSON</b>. Any extra text will break the parsing.
+                         </p>
                       </div>
                     </CardContent>
                   </Card>

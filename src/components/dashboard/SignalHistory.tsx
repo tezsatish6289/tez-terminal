@@ -11,7 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Zap, Clock, Terminal, AlertCircle } from "lucide-react";
+import { Zap, Clock, Terminal, AlertCircle, Globe, Activity, Info } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -26,7 +26,6 @@ export function SignalHistory() {
     setMounted(true);
   }, []);
 
-  // Listen to GLOBAL signals collection
   const signalsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     return query(
@@ -42,9 +41,27 @@ export function SignalHistory() {
     if (!mounted) return "...";
     try {
       const date = new Date(receivedAt);
-      return !isNaN(date.getTime()) ? format(date, 'HH:mm:ss (MMM dd)') : receivedAt;
+      return !isNaN(date.getTime()) ? format(date, 'HH:mm:ss') : receivedAt;
     } catch (e) {
       return receivedAt;
+    }
+  };
+
+  const getFormattedDay = (receivedAt: string) => {
+    if (!mounted) return "";
+    try {
+      const date = new Date(receivedAt);
+      return !isNaN(date.getTime()) ? format(date, '(MMM dd)') : "";
+    } catch (e) {
+      return "";
+    }
+  };
+
+  const parsePayload = (payload: string) => {
+    try {
+      return JSON.parse(payload);
+    } catch (e) {
+      return null;
     }
   };
 
@@ -56,7 +73,7 @@ export function SignalHistory() {
           <h2 className="text-lg font-semibold tracking-tight">Antigravity Signal Stream</h2>
         </div>
         <div className="text-sm text-muted-foreground flex items-center gap-2">
-          <Clock className="h-4 w-4" />
+          <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
           {isLoading ? 'Syncing...' : 'Live Connected'}
         </div>
       </div>
@@ -72,10 +89,10 @@ export function SignalHistory() {
         <Table>
           <TableHeader className="bg-secondary/30">
             <TableRow className="hover:bg-transparent border-border">
-              <TableHead className="w-[140px]">Time</TableHead>
-              <TableHead className="w-[100px]">Asset</TableHead>
+              <TableHead className="w-[120px]">Time</TableHead>
+              <TableHead className="w-[140px]">Asset</TableHead>
               <TableHead className="w-[80px]">Side</TableHead>
-              <TableHead className="hidden md:table-cell">Raw Signal Payload</TableHead>
+              <TableHead className="hidden md:table-cell">Signal Metadata</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -93,36 +110,60 @@ export function SignalHistory() {
                 </TableCell>
               </TableRow>
             ) : (
-              signals.map((signal) => (
-                <TableRow key={signal.id} className="transition-colors group border-border">
-                  <TableCell className="text-[11px] font-mono text-muted-foreground">
-                    {getFormattedDate(signal.receivedAt)}
-                  </TableCell>
-                  <TableCell className="font-bold text-sm">
-                    {signal.symbol}
-                  </TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant="outline" 
-                      className={cn(
-                        "text-[10px] uppercase font-bold border-none",
-                        signal.type === 'BUY' ? 'text-emerald-400 bg-emerald-400/10' : 
-                        signal.type === 'SELL' ? 'text-rose-400 bg-rose-400/10' : 
-                        'text-accent bg-accent/10'
-                      )}
-                    >
-                      {signal.type}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <div className="bg-background/40 rounded p-1.5 border border-border/30 overflow-hidden">
-                      <code className="text-[10px] text-muted-foreground truncate block font-mono">
-                        {signal.payload}
-                      </code>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+              signals.map((signal) => {
+                const data = parsePayload(signal.payload);
+                return (
+                  <TableRow key={signal.id} className="transition-colors group border-border hover:bg-white/[0.02]">
+                    <TableCell className="text-[11px] font-mono py-4">
+                      <div className="text-white font-medium">{getFormattedDate(signal.receivedAt)}</div>
+                      <div className="text-muted-foreground opacity-60">{getFormattedDay(signal.receivedAt)}</div>
+                    </TableCell>
+                    <TableCell className="font-bold text-sm text-white">
+                      {signal.symbol}
+                    </TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant="outline" 
+                        className={cn(
+                          "text-[10px] uppercase font-bold border-none h-6 px-3",
+                          signal.type === 'BUY' ? 'text-emerald-400 bg-emerald-400/10' : 
+                          signal.type === 'SELL' ? 'text-rose-400 bg-rose-400/10' : 
+                          'text-accent bg-accent/10'
+                        )}
+                      >
+                        {signal.type}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <div className="flex flex-wrap gap-2 items-center">
+                        {data?.exchange && (
+                          <div className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded text-[10px] text-muted-foreground border border-white/5">
+                            <Globe className="h-3 w-3" />
+                            <span className="font-semibold text-white/80">{data.exchange}</span>
+                          </div>
+                        )}
+                        {data?.timeframe && (
+                          <div className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded text-[10px] text-muted-foreground border border-white/5">
+                            <Activity className="h-3 w-3" />
+                            <span className="font-semibold text-white/80">{data.timeframe}m</span>
+                          </div>
+                        )}
+                        {data?.note && (
+                          <div className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded text-[10px] text-muted-foreground border border-white/5 max-w-[300px] truncate">
+                            <Info className="h-3 w-3" />
+                            <span className="italic truncate">{data.note}</span>
+                          </div>
+                        )}
+                        {!data && (
+                          <code className="text-[10px] text-muted-foreground/50 font-mono italic">
+                            {signal.payload.substring(0, 50)}...
+                          </code>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

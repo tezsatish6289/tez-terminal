@@ -1,8 +1,6 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
-import { MOCK_SIGNALS } from "@/app/lib/mock-data";
 import { 
   Table, 
   TableBody, 
@@ -12,31 +10,52 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Zap, Clock, ExternalLink } from "lucide-react";
+import { Zap, Clock, ExternalLink, Terminal } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
+import { collection, query, orderBy, limit } from "firebase/firestore";
 
 export function SignalHistory() {
+  const { user } = useUser();
+  const firestore = useFirestore();
   const [formattedDates, setFormattedDates] = useState<Record<string, string>>({});
 
+  const eventsQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return query(
+      collection(firestore, "users", user.uid, "webhookEvents"),
+      orderBy("receivedAt", "desc"),
+      limit(20)
+    );
+  }, [user, firestore]);
+
+  const { data: signals, isLoading } = useCollection(eventsQuery);
+
   useEffect(() => {
-    const dates: Record<string, string> = {};
-    MOCK_SIGNALS.forEach(s => {
-      dates[s.id] = format(new Date(s.timestamp), 'MMM dd, HH:mm:ss');
-    });
-    setFormattedDates(dates);
-  }, []);
+    if (signals) {
+      const dates: Record<string, string> = {};
+      signals.forEach(s => {
+        try {
+          dates[s.id] = format(new Date(s.receivedAt), 'MMM dd, HH:mm:ss');
+        } catch (e) {
+          dates[s.id] = s.receivedAt;
+        }
+      });
+      setFormattedDates(dates);
+    }
+  }, [signals]);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Zap className="h-5 w-5 text-accent" />
-          <h2 className="text-lg font-semibold tracking-tight">Webhook Signal History</h2>
+          <h2 className="text-lg font-semibold tracking-tight">Real-time Signal Stream</h2>
         </div>
         <div className="text-sm text-muted-foreground flex items-center gap-2">
           <Clock className="h-4 w-4" />
-          Last updated: Just now
+          {isLoading ? 'Syncing...' : 'Live Connected'}
         </div>
       </div>
 
@@ -44,64 +63,57 @@ export function SignalHistory() {
         <Table>
           <TableHeader className="bg-secondary/30">
             <TableRow className="hover:bg-transparent border-border">
-              <TableHead className="w-[150px]">Pair</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Entry / Targets</TableHead>
-              <TableHead>Source</TableHead>
-              <TableHead>Time Received</TableHead>
-              <TableHead className="text-right">Status</TableHead>
+              <TableHead className="w-[150px]">Time Received</TableHead>
+              <TableHead>Source IP</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="max-w-[400px]">Payload Data</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {MOCK_SIGNALS.map((signal) => (
-              <TableRow key={signal.id} className="cursor-pointer transition-colors group border-border">
-                <TableCell className="font-bold">
-                  <div className="flex items-center gap-2">
-                    {signal.symbol}
-                    <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge 
-                    variant={signal.type === 'BUY' ? 'default' : 'destructive'} 
-                    className={signal.type === 'BUY' ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 border-rose-500/20'}
-                  >
-                    {signal.type}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="text-xs space-y-1">
-                    <div className="flex justify-between w-32">
-                      <span className="text-muted-foreground">Entry:</span>
-                      <span className="font-mono text-foreground">{signal.entry.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between w-32">
-                      <span className="text-muted-foreground">TP:</span>
-                      <span className="font-mono text-emerald-400">{signal.tp.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <span className="text-xs text-muted-foreground font-medium">{signal.source}</span>
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {formattedDates[signal.id] || '...'}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Badge 
-                    variant="outline" 
-                    className={cn(
-                      "text-[10px] uppercase font-bold",
-                      signal.status === 'active' ? 'border-accent/30 text-accent bg-accent/5' : 
-                      signal.status === 'hit' ? 'border-emerald-500/30 text-emerald-500 bg-emerald-500/5' : 
-                      'border-muted/30 text-muted-foreground bg-muted/5'
-                    )}
-                  >
-                    {signal.status}
-                  </Badge>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground animate-pulse">
+                  Listening for incoming signals...
                 </TableCell>
               </TableRow>
-            ))}
+            ) : !signals || signals.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center py-12">
+                  <Terminal className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-20" />
+                  <p className="text-muted-foreground text-sm">No signals received yet. Send a ping to your webhook URL.</p>
+                </TableCell>
+              </TableRow>
+            ) : (
+              signals.map((signal) => (
+                <TableRow key={signal.id} className="transition-colors group border-border">
+                  <TableCell className="text-xs font-mono text-muted-foreground">
+                    {formattedDates[signal.id] || '...'}
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs font-mono text-foreground">{signal.sourceIp}</span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge 
+                      variant="outline" 
+                      className={cn(
+                        "text-[10px] uppercase font-bold",
+                        signal.processingStatus === 'PROCESSED' ? 'border-emerald-500/30 text-emerald-500 bg-emerald-500/5' : 
+                        'border-accent/30 text-accent bg-accent/5'
+                      )}
+                    >
+                      {signal.processingStatus}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="max-w-[400px]">
+                    <div className="bg-background/50 rounded p-2 border border-border/50 overflow-hidden">
+                      <code className="text-[10px] text-accent truncate block font-mono">
+                        {signal.payload}
+                      </code>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>

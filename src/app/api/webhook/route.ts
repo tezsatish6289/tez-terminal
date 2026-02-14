@@ -1,39 +1,52 @@
-
 import { NextRequest, NextResponse } from "next/server";
+import { initializeFirebase } from "@/firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 /**
  * Webhook Ingestion Endpoint
  * 
- * Example payload from TradingView:
- * {
- *   "symbol": "{{ticker}}",
- *   "action": "{{strategy.order.action}}",
- *   "price": "{{close}}",
- *   "time": "{{timenow}}",
- *   "id": "{{strategy.order.id}}"
- * }
+ * This route receives POST requests from TradingView.
+ * It uses the 'uid' and 'id' (configId) from the query string to route
+ * the signal to the correct user's Firestore collection.
  */
 export async function POST(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const uid = searchParams.get("uid");
+    const configId = searchParams.get("id");
+    
+    if (!uid || !configId) {
+      return NextResponse.json({ success: false, message: "Missing uid or configuration id" }, { status: 400 });
+    }
+
     const body = await request.json();
+    const { firestore } = initializeFirebase();
+
+    // Persist the signal to Firestore
+    // Path: /users/{userId}/webhookEvents
+    const eventsRef = collection(firestore, "users", uid, "webhookEvents");
     
-    // Logic for handling the incoming signal:
-    // 1. Validate the secret/token for security
-    // 2. Persist the signal to a database (Firebase/Firestore)
-    // 3. Trigger server-side alerts or automated trades
-    
-    console.log("Received Webhook Signal:", body);
+    await addDoc(eventsRef, {
+      webhookConfigurationId: configId,
+      receivedAt: new Date().toISOString(),
+      serverTimestamp: serverTimestamp(),
+      payload: JSON.stringify(body),
+      sourceIp: request.headers.get("x-forwarded-for") || "unknown",
+      processingStatus: "PROCESSED",
+      userId: uid
+    });
 
     return NextResponse.json({ 
       success: true, 
       message: "Signal ingested by TezTerminal Antigravity",
-      data: body 
+      received: body 
     });
-  } catch (error) {
-    console.error("Webhook Error:", error);
+  } catch (error: any) {
+    console.error("Webhook Ingestion Error:", error);
     return NextResponse.json({ 
       success: false, 
-      message: "Failed to process signal" 
+      message: "Failed to process signal",
+      error: error.message 
     }, { status: 400 });
   }
 }

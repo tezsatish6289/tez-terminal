@@ -1,4 +1,3 @@
-
 "use client";
 
 import { LeftSidebar } from "@/components/dashboard/Sidebar";
@@ -11,7 +10,7 @@ import { useCollection, useUser, useMemoFirebase, useFirestore } from "@/firebas
 import { collection, doc } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { Copy, Plus, Webhook as WebhookIcon, ShieldCheck, Check } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 
@@ -20,6 +19,11 @@ export default function WebhooksPage() {
   const firestore = useFirestore();
   const [newWebhookName, setNewWebhookName] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
 
   const webhooksQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -38,7 +42,7 @@ export default function WebhooksPage() {
       secretKey: Math.random().toString(36).substring(2, 15),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      endpointUrl: `${window.location.origin}/api/webhook`,
+      endpointUrl: `${origin}/api/webhook`,
     };
 
     const colRef = collection(doc(collection(firestore, "users"), user.uid), "webhookConfigurations");
@@ -80,7 +84,7 @@ export default function WebhooksPage() {
               <CardDescription>Give your webhook a name to identify it in your alerts.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-4">
+              <div className="flex flex-col md:flex-row gap-4">
                 <div className="flex-1 space-y-2">
                   <Label htmlFor="webhook-name">Configuration Name</Label>
                   <Input 
@@ -94,7 +98,7 @@ export default function WebhooksPage() {
                 <div className="flex items-end">
                   <Button 
                     onClick={handleAddWebhook}
-                    className="bg-accent text-accent-foreground hover:bg-accent/90"
+                    className="bg-accent text-accent-foreground hover:bg-accent/90 w-full md:w-auto"
                   >
                     <Plus className="h-4 w-4 mr-2" /> Create Webhook
                   </Button>
@@ -112,57 +116,60 @@ export default function WebhooksPage() {
                 <p className="text-muted-foreground">No webhook configurations found. Create your first one above.</p>
               </div>
             ) : (
-              webhooks?.map((webhook) => (
-                <Card key={webhook.id} className="bg-card border-border overflow-hidden group">
-                  <div className="h-1 w-full bg-accent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                    <div>
-                      <CardTitle className="text-white">{webhook.name}</CardTitle>
-                      <CardDescription className="text-xs">ID: {webhook.id}</CardDescription>
-                    </div>
-                    <ShieldCheck className="h-5 w-5 text-emerald-400" />
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Webhook URL (TradingView Endpoint)</Label>
-                      <div className="flex gap-2">
-                        <Input 
-                          readOnly 
-                          value={`${webhook.endpointUrl}?id=${webhook.id}`} 
-                          className="bg-secondary/50 border-none font-mono text-xs h-9"
-                        />
-                        <Button 
-                          variant="secondary" 
-                          size="sm" 
-                          className="h-9 px-3"
-                          onClick={() => copyToClipboard(`${webhook.endpointUrl}?id=${webhook.id}`, `url-${webhook.id}`)}
-                        >
-                          {copiedId === `url-${webhook.id}` ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                        </Button>
+              webhooks?.map((webhook) => {
+                const fullUrl = `${webhook.endpointUrl}?id=${webhook.id}&uid=${user?.uid}`;
+                return (
+                  <Card key={webhook.id} className="bg-card border-border overflow-hidden group">
+                    <div className="h-1 w-full bg-accent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                      <div>
+                        <CardTitle className="text-white">{webhook.name}</CardTitle>
+                        <CardDescription className="text-xs">ID: {webhook.id}</CardDescription>
                       </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Secret Key (Include in payload for validation)</Label>
-                      <div className="flex gap-2">
-                        <Input 
-                          readOnly 
-                          type="password"
-                          value={webhook.secretKey} 
-                          className="bg-secondary/50 border-none font-mono text-xs h-9"
-                        />
-                        <Button 
-                          variant="secondary" 
-                          size="sm" 
-                          className="h-9 px-3"
-                          onClick={() => copyToClipboard(webhook.secretKey, `key-${webhook.id}`)}
-                        >
-                          {copiedId === `key-${webhook.id}` ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                        </Button>
+                      <ShieldCheck className="h-5 w-5 text-emerald-400" />
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Webhook URL (TradingView Endpoint)</Label>
+                        <div className="flex gap-2">
+                          <Input 
+                            readOnly 
+                            value={fullUrl} 
+                            className="bg-secondary/50 border-none font-mono text-xs h-9"
+                          />
+                          <Button 
+                            variant="secondary" 
+                            size="sm" 
+                            className="h-9 px-3"
+                            onClick={() => copyToClipboard(fullUrl, `url-${webhook.id}`)}
+                          >
+                            {copiedId === `url-${webhook.id}` ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Secret Key (Include in payload for validation)</Label>
+                        <div className="flex gap-2">
+                          <Input 
+                            readOnly 
+                            type="password"
+                            value={webhook.secretKey} 
+                            className="bg-secondary/50 border-none font-mono text-xs h-9"
+                          />
+                          <Button 
+                            variant="secondary" 
+                            size="sm" 
+                            className="h-9 px-3"
+                            onClick={() => copyToClipboard(webhook.secretKey, `key-${webhook.id}`)}
+                          >
+                            {copiedId === `key-${webhook.id}` ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
             )}
           </div>
         </div>

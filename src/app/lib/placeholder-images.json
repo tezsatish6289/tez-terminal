@@ -1,0 +1,11 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "trading-chart",
+      "description": "Candlestick trading chart visual",
+      "imageUrl": "https://picsum.photos/seed/trading1/1200/800",
+      "imageHint": "stock market chart"
+    }
+  ]
+}

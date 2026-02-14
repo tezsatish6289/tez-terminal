@@ -1,0 +1,72 @@
+
+"use client";
+
+import { Bell, Search, User, Settings, LayoutDashboard } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+export function TopBar() {
+  return (
+    <header className="h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 w-full">
+      <div className="flex h-full items-center px-6 justify-between gap-4">
+        <div className="flex items-center gap-4 flex-1 max-w-xl">
+          <div className="flex items-center gap-2 mr-4 lg:hidden">
+             <LayoutDashboard className="h-6 w-6 text-accent" />
+             <span className="font-bold text-lg text-accent">TezTerminal</span>
+          </div>
+          <div className="relative w-full max-w-sm hidden md:block">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Search pairs, signals..."
+              className="pl-8 bg-secondary/50 border-none focus-visible:ring-1 focus-visible:ring-accent h-9"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-2 mr-2">
+            <Badge variant="outline" className="border-accent/50 text-accent gap-1 py-1">
+              <span className="h-2 w-2 rounded-full bg-accent animate-pulse" />
+              Live Terminal
+            </Badge>
+          </div>
+
+          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-accent">
+            <Bell className="h-5 w-5" />
+          </Button>
+          
+          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-accent">
+            <Settings className="h-5 w-5" />
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full border border-border/50">
+                <User className="h-5 w-5 text-accent" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 bg-card border-border">
+              <DropdownMenuLabel>Traders Account</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="cursor-pointer">Profile</DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer">Billing</DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer">Team</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="cursor-pointer text-destructive">Logout</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    </header>
+  );
+}

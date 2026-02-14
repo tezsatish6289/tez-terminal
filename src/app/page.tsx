@@ -1,3 +1,4 @@
+
 "use client";
 
 import { LeftSidebar } from "@/components/dashboard/Sidebar";
@@ -41,7 +42,7 @@ export default function Home() {
             <CardTitle className="text-3xl font-bold tracking-tighter">TezTerminal</CardTitle>
             <CardDescription className="text-base mt-2">
               India's Premier Antigravity Trading Hub. 
-              Sign in to access the live signal stream.
+              Sign in with Google to access the live signal stream.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

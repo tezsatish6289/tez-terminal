@@ -1,4 +1,3 @@
-
 "use client";
 
 import { LeftSidebar } from "@/components/dashboard/Sidebar";
@@ -12,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { History as HistoryIcon, Loader2, Lock, Terminal, ShieldAlert, AlertTriangle, Info, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { ChromeIcon } from "@/components/icons";
 
 export default function HistoryPage() {
   const { user, isUserLoading } = useUser();
@@ -20,7 +20,6 @@ export default function HistoryPage() {
 
   const isAdmin = user?.email === "hello@tezterminal.com";
 
-  // Debug Logs Query - specifically looking for the latest events
   const logsQuery = useMemoFirebase(() => {
     if (!firestore || !isAdmin) return null;
     return query(collection(firestore, "logs"), orderBy("timestamp", "desc"), limit(30));
@@ -158,28 +157,5 @@ export default function HistoryPage() {
         </div>
       </main>
     </div>
-  );
-}
-
-function ChromeIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <circle cx="12" cy="12" r="4" />
-      <line x1="21.17" x2="12" y1="8" y2="8" />
-      <line x1="3.95" x2="8.54" y1="6.06" y2="14" />
-      <line x1="10.88" x2="15.46" y1="21.94" y2="14" />
-    </svg>
   );
 }

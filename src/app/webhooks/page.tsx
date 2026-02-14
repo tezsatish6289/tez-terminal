@@ -1,4 +1,3 @@
-
 "use client";
 
 import { LeftSidebar } from "@/components/dashboard/Sidebar";
@@ -11,10 +10,11 @@ import { useCollection, useUser, useMemoFirebase, useFirestore, useAuth } from "
 import { collection, query, orderBy } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Send, Lock, Copy, Info, AlertTriangle } from "lucide-react";
+import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Send, Lock, Copy, Info, AlertTriangle, Code } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
+import { ChromeIcon } from "@/components/icons";
 
 export default function WebhooksPage() {
   const { user, isUserLoading } = useUser();
@@ -47,7 +47,7 @@ export default function WebhooksPage() {
     const webhookData = {
       name: newWebhookName,
       isActive: true,
-      secretKey: Math.random().toString(36).substring(2, 15),
+      secretKey: Math.random().toString(36).substring(2, 11), // 9-11 char key
       createdAt: new Date().toISOString(),
       endpointUrl: `${origin}/api/webhook`,
     };
@@ -204,28 +204,21 @@ export default function WebhooksPage() {
               </CardHeader>
               <CardContent className="text-[11px] space-y-3 leading-relaxed text-muted-foreground">
                 <p>1. Copy the <b>Webhook URL</b> into your TradingView Alert box.</p>
-                <p>2. Copy the <b>JSON Payload</b> (for "buy" or "sell") into the "Message" box.</p>
+                <p>2. Set Condition to <b>"Any alert() function call"</b> in the alert dialog.</p>
                 <div className="flex items-start gap-2 text-rose-400 font-bold mt-2">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <p>IMPORTANT: The "Message" box must contain ONLY the JSON. No extra text or trailing quotes.</p>
+                  <p>IMPORTANT: Ensure the <code>?id=...</code> parameter is at the end of your Webhook URL.</p>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          <div className="grid gap-6">
+          <div className="grid gap-6 pb-20">
             {isWebhooksLoading ? (
               <div className="h-32 bg-card/50 border border-border animate-pulse rounded-xl" />
             ) : (
               webhooks?.map((webhook) => {
-                const tvJson = JSON.stringify({
-                  ticker: "{{ticker}}",
-                  side: "buy",
-                  secretKey: webhook.secretKey,
-                  exchange: "{{exchange}}",
-                  timeframe: "{{interval}}",
-                  note: "TradingView Alert Triggered"
-                }, null, 2);
+                const pineScriptSnippet = `// Webhook Integration for TezTerminal\nif buySignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"buy", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)\nif sellSignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"sell", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)`;
 
                 return (
                   <Card key={webhook.id} className="bg-card border-border shadow-md">
@@ -241,7 +234,7 @@ export default function WebhooksPage() {
                       <div className="grid md:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <Label className="text-[10px] text-muted-foreground uppercase tracking-wider flex justify-between">
-                            Webhook URL
+                            Webhook URL (Paste into TradingView)
                             <button onClick={() => copyToClipboard(`${webhook.endpointUrl}?id=${webhook.id}`)} className="text-accent hover:underline flex items-center gap-1">
                               <Copy className="h-2 w-2" /> Copy URL
                             </button>
@@ -259,24 +252,24 @@ export default function WebhooksPage() {
                         </div>
                       </div>
 
-                      <div className="bg-black/40 rounded-lg p-4 border border-border/50 relative group">
-                        <div className="absolute top-4 right-4 z-10">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="h-6 text-[10px] text-accent border border-accent/20 hover:bg-accent/10"
-                            onClick={() => copyToClipboard(tvJson)}
-                          >
-                            <Copy className="h-3 w-3 mr-1" /> Copy JSON
-                          </Button>
+                      <div className="space-y-4">
+                        <div className="bg-black/40 rounded-lg p-4 border border-border/50 relative group">
+                           <div className="flex items-center gap-2 mb-3">
+                             <Code className="h-4 w-4 text-accent" />
+                             <span className="text-[10px] text-accent uppercase font-bold tracking-widest">Pine Script Snippet</span>
+                           </div>
+                           <pre className="text-[10px] font-mono text-emerald-400 whitespace-pre-wrap break-all leading-relaxed bg-black/20 p-3 rounded border border-white/5">
+{pineScriptSnippet}
+                           </pre>
+                           <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="mt-3 h-7 text-[10px] text-accent border border-accent/20 hover:bg-accent/10 w-full"
+                              onClick={() => copyToClipboard(pineScriptSnippet)}
+                            >
+                              <Copy className="h-3 w-3 mr-2" /> Copy Pine Script Integration
+                            </Button>
                         </div>
-                        <Label className="text-[10px] text-accent uppercase tracking-wider font-bold block mb-2">TradingView Message (Paste ONLY this)</Label>
-                        <pre className="text-[10px] font-mono text-emerald-400 whitespace-pre-wrap break-all leading-tight">
-{tvJson}
-                        </pre>
-                        <p className="mt-4 text-[10px] text-muted-foreground italic">
-                          * Change "side": "buy" to "side": "sell" for your sell alerts.
-                        </p>
                       </div>
                     </CardContent>
                   </Card>
@@ -293,28 +286,5 @@ export default function WebhooksPage() {
       </main>
       <Toaster />
     </div>
-  );
-}
-
-function ChromeIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <circle cx="12" cy="12" r="4" />
-      <line x1="21.17" x2="12" y1="8" y2="8" />
-      <line x1="3.95" x2="8.54" y1="6.06" y2="14" />
-      <line x1="10.88" x2="15.46" y1="21.94" y2="14" />
-    </svg>
   );
 }

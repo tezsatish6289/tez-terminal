@@ -10,7 +10,7 @@ import { useCollection, useUser, useMemoFirebase, useFirestore, useAuth } from "
 import { collection, query, orderBy } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Lock, Copy, AlertTriangle, Code, Globe, Zap, ExternalLink, Info } from "lucide-react";
+import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Lock, Copy, AlertTriangle, Code, Globe, Zap, ExternalLink, Info, Rocket } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
@@ -208,11 +208,21 @@ export default function WebhooksPage() {
             <Card className={isWorkstation ? "bg-rose-500/10 border-rose-500/30 shadow-[0_0_20px_rgba(244,63,94,0.1)]" : "bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.1)]"}>
               <CardHeader className="flex flex-row items-center gap-2 space-y-0">
                 {isWorkstation ? <AlertTriangle className="h-4 w-4 text-rose-400" /> : <Globe className="h-4 w-4 text-emerald-400" />}
-                <CardTitle className="text-sm font-bold">{isWorkstation ? "Development Mode" : "Public Terminal Active"}</CardTitle>
+                <CardTitle className="text-sm font-bold">{isWorkstation ? "Deployment Needed" : "Public Terminal Active"}</CardTitle>
               </CardHeader>
               <CardContent className="text-[11px] space-y-3 leading-relaxed text-muted-foreground">
                 {isWorkstation ? (
-                  <p>TradingView cannot reach this <b>private URL</b>. Click the <b>Deploy</b> button in the sidebar to get a public URL for your alerts.</p>
+                  <div className="space-y-3">
+                    <p className="text-rose-200">TradingView cannot reach this <b>private development URL</b>. You must deploy to go live.</p>
+                    <div className="p-2 bg-black/30 rounded border border-rose-500/20">
+                      <p className="font-bold text-white flex items-center gap-1"><Rocket className="h-3 w-3" /> Step-by-Step Deployment:</p>
+                      <ol className="list-decimal list-inside mt-1 space-y-1">
+                        <li>Click <b>"Deploy"</b> in the sidebar.</li>
+                        <li>Wait 3 mins for completion.</li>
+                        <li>Open the new <b>.web.app</b> URL provided.</li>
+                      </ol>
+                    </div>
+                  </div>
                 ) : (
                   <p>Terminal is publicly accessible. TradingView signals will now flow into your global history feed.</p>
                 )}
@@ -239,7 +249,8 @@ export default function WebhooksPage() {
   "side": "buy",
   "secretKey": "${webhook.secretKey}",
   "exchange": "{{exchange}}",
-  "timeframe": "{{interval}}"
+  "timeframe": "{{interval}}",
+  "note": "TradingView Alert Triggered"
 }`;
 
                 return (

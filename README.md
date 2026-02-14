@@ -2,17 +2,28 @@
 
 Advanced Trading Terminal with TradingView Ingestion Bridge.
 
-## Deployment Instructions
+## Step-by-Step Deployment Instructions (No GitHub Required)
 
-1.  **Click Deploy**: Click the "Deploy" button in the Firebase Studio sidebar. You do **NOT** need a GitHub account for this step.
-2.  **Get Public URL**: Once deployment finishes, you will receive a public domain (e.g., `https://my-app.web.app`).
-3.  **Update TradingView**: 
-    *   Go to **Bridge Management** in your live app.
-    *   Copy the new **Public Webhook URL** (it will use your `web.app` domain).
+1.  **Click Deploy**: In the sidebar of this editor, click the **"Deploy"** button.
+2.  **Wait**: The system will package your app and push it to a public server. This takes 2-4 minutes.
+3.  **Find Public URL**: After deployment, a public URL will appear in the deployment logs (e.g., `https://studio-xxxx.web.app`).
+4.  **Update TradingView**: 
+    *   Go to **Bridge Management** in your newly deployed app.
+    *   Copy the **Public Webhook URL**.
     *   Paste it into your TradingView Alert "Webhook URL" box.
-4.  **Confirm Hits**: Check the **History** page in the live app to see real-time signals.
+5.  **Test**: Trigger an alert in TradingView and watch the **History** page in your live app.
 
-## Technical Notes
-- **Ingestion**: External POST requests are handled via `/api/webhook`.
-- **Security**: Bridges are secured via `secretKey` in the JSON payload.
-- **Admin**: Only `hello@tezterminal.com` can manage bridges.
+## Ingestion Format
+The bridge expects JSON with `ticker`, `side`, and `secretKey`. 
+Example:
+```json
+{
+  "ticker": "{{ticker}}",
+  "side": "buy",
+  "secretKey": "YOUR_KEY"
+}
+```
+
+## Security
+- Bridges are secured via `secretKey` in the JSON payload.
+- Admin: Only `hello@tezterminal.com` can manage bridges.

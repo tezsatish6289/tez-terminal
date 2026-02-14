@@ -6,35 +6,54 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useCollection, useUser, useMemoFirebase, useFirestore } from "@/firebase";
+import { useCollection, useUser, useMemoFirebase, useFirestore, useAuth, initiateAnonymousSignIn } from "@/firebase";
 import { collection, doc } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { Copy, Plus, Webhook as WebhookIcon, ShieldCheck, Check } from "lucide-react";
+import { Copy, Plus, Webhook as WebhookIcon, ShieldCheck, Check, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 
 export default function WebhooksPage() {
-  const { user } = useUser();
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const [newWebhookName, setNewWebhookName] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [origin, setOrigin] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
     setOrigin(window.location.origin);
   }, []);
 
+  // Ensure user is signed in to have a UID for Firestore paths
+  useEffect(() => {
+    if (!isUserLoading && !user && auth) {
+      initiateAnonymousSignIn(auth);
+    }
+  }, [user, isUserLoading, auth]);
+
   const webhooksQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
-    return collection(doc(collection(firestore, "users"), user.uid), "webhookConfigurations");
+    return collection(firestore, "users", user.uid, "webhookConfigurations");
   }, [user, firestore]);
 
-  const { data: webhooks, isLoading } = useCollection(webhooksQuery);
+  const { data: webhooks, isLoading: isWebhooksLoading } = useCollection(webhooksQuery);
 
   const handleAddWebhook = () => {
-    if (!user || !newWebhookName.trim() || !firestore) return;
+    if (!user || !newWebhookName.trim() || !firestore) {
+      if (!user) {
+        toast({
+          variant: "destructive",
+          title: "Session Error",
+          description: "Please wait while we establish your secure trading session.",
+        });
+      }
+      return;
+    }
 
+    setIsCreating(true);
     const webhookData = {
       name: newWebhookName,
       userId: user.uid,
@@ -45,23 +64,29 @@ export default function WebhooksPage() {
       endpointUrl: `${origin}/api/webhook`,
     };
 
-    const colRef = collection(doc(collection(firestore, "users"), user.uid), "webhookConfigurations");
+    const colRef = collection(firestore, "users", user.uid, "webhookConfigurations");
     addDocumentNonBlocking(colRef, webhookData);
-    setNewWebhookName("");
-    toast({
-      title: "Webhook Created",
-      description: `Configuration for ${newWebhookName} has been saved.`,
-    });
+    
+    setTimeout(() => {
+      setNewWebhookName("");
+      setIsCreating(false);
+      toast({
+        title: "Webhook Created",
+        description: `Configuration for "${newWebhookName}" has been saved.`,
+      });
+    }, 500);
   };
 
   const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-    toast({
-      title: "Copied!",
-      description: "Value copied to clipboard.",
-    });
+    if (typeof window !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+      toast({
+        title: "Copied!",
+        description: "Value copied to clipboard.",
+      });
+    }
   };
 
   return (
@@ -93,14 +118,17 @@ export default function WebhooksPage() {
                     value={newWebhookName}
                     onChange={(e) => setNewWebhookName(e.target.value)}
                     className="bg-background border-border focus-visible:ring-accent"
+                    disabled={isUserLoading || isCreating}
                   />
                 </div>
                 <div className="flex items-end">
                   <Button 
                     onClick={handleAddWebhook}
+                    disabled={!newWebhookName.trim() || isUserLoading || isCreating}
                     className="bg-accent text-accent-foreground hover:bg-accent/90 w-full md:w-auto"
                   >
-                    <Plus className="h-4 w-4 mr-2" /> Create Webhook
+                    {isCreating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
+                    Create Webhook
                   </Button>
                 </div>
               </div>
@@ -108,8 +136,12 @@ export default function WebhooksPage() {
           </Card>
 
           <div className="grid gap-6">
-            {isLoading ? (
-              <p className="text-muted-foreground animate-pulse">Loading configurations...</p>
+            {(isWebhooksLoading || isUserLoading) ? (
+              <div className="space-y-4">
+                {[1, 2].map((i) => (
+                  <div key={i} className="h-32 bg-card/50 border border-border animate-pulse rounded-xl" />
+                ))}
+              </div>
             ) : webhooks?.length === 0 ? (
               <div className="text-center py-12 border border-dashed border-border rounded-xl">
                 <WebhookIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />

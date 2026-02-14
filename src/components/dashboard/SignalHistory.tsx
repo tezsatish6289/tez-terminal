@@ -10,7 +10,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Zap, Clock, ExternalLink, Terminal } from "lucide-react";
+import { Zap, Clock, Terminal } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -32,12 +32,19 @@ export function SignalHistory() {
 
   const { data: signals, isLoading } = useCollection(eventsQuery);
 
+  // Hydration-safe date formatting
   useEffect(() => {
     if (signals) {
       const dates: Record<string, string> = {};
       signals.forEach(s => {
         try {
-          dates[s.id] = format(new Date(s.receivedAt), 'MMM dd, HH:mm:ss');
+          const date = new Date(s.receivedAt);
+          // Only format if the date is valid
+          if (!isNaN(date.getTime())) {
+            dates[s.id] = format(date, 'MMM dd, HH:mm:ss');
+          } else {
+            dates[s.id] = s.receivedAt;
+          }
         } catch (e) {
           dates[s.id] = s.receivedAt;
         }

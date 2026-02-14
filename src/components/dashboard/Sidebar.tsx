@@ -13,7 +13,7 @@ export function LeftSidebar() {
   const pathname = usePathname();
   const { user } = useUser();
 
-  const isAdmin = user?.email === "hello@turbogains.ai";
+  const isAdmin = user?.email === "hello@tezterminal.com";
 
   const navItems = [
     { name: "Terminal", icon: LayoutDashboard, href: "/" },
@@ -92,7 +92,7 @@ export function LeftSidebar() {
           <Heart className="h-3 w-3 text-muted-foreground cursor-pointer hover:text-accent" />
         </div>
         
-        <ScrollArea className="flex-1 -mx-2 px-2">
+        <div className="flex-1 overflow-y-auto -mx-2 px-2">
           <div className="space-y-1">
             {WATCHLIST.map((item) => (
               <div key={item.symbol} className="flex items-center justify-between p-3 rounded-lg hover:bg-secondary/50 transition-colors cursor-pointer group">
@@ -109,7 +109,7 @@ export function LeftSidebar() {
               </div>
             ))}
           </div>
-        </ScrollArea>
+        </div>
       </div>
 
       <div className="p-4 border-t border-sidebar-border bg-sidebar-background/50">
@@ -119,7 +119,7 @@ export function LeftSidebar() {
           </div>
           <div className="flex-1 overflow-hidden">
             <p className="text-xs font-medium truncate">{isAdmin ? 'Turbo Admin' : 'Trade Consumer'}</p>
-            <p className="text-[10px] text-muted-foreground truncate">{user?.email || `ID: ${user?.uid.substring(0, 8)}`}</p>
+            <p className="text-[10px] text-muted-foreground truncate">{user?.email || 'Not Signed In'}</p>
           </div>
         </div>
       </div>

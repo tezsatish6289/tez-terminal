@@ -20,7 +20,7 @@ import { toast } from "@/hooks/use-toast";
 export function TopBar() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
-  const isAdmin = user?.email === "hello@turbogains.ai";
+  const isAdmin = user?.email === "hello@tezterminal.com";
 
   const handleLogout = () => {
     if (auth) {
@@ -76,7 +76,7 @@ export function TopBar() {
               <DropdownMenuLabel>Traders Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-xs truncate font-mono text-muted-foreground">
-                {user?.email || user?.uid.substring(0, 12)}
+                {user?.email || 'Account'}
               </DropdownMenuItem>
               <DropdownMenuItem className="cursor-pointer">Profile Settings</DropdownMenuItem>
               <DropdownMenuSeparator />

@@ -4,20 +4,49 @@
 import { LeftSidebar } from "@/components/dashboard/Sidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { SignalHistory } from "@/components/dashboard/SignalHistory";
-import { useUser, useAuth, initiateAnonymousSignIn } from "@/firebase";
-import { useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { History as HistoryIcon } from "lucide-react";
+import { useUser, useAuth } from "@/firebase";
+import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { History as HistoryIcon, Loader2, Lock } from "lucide-react";
 
 export default function HistoryPage() {
-  const auth = useAuth();
   const { user, isUserLoading } = useUser();
+  const auth = useAuth();
 
-  useEffect(() => {
-    if (!isUserLoading && !user && auth) {
-      initiateAnonymousSignIn(auth);
+  const handleGoogleLogin = () => {
+    if (auth) {
+      initiateGoogleSignIn(auth);
     }
-  }, [user, isUserLoading, auth]);
+  };
+
+  if (isUserLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <Card className="max-w-md w-full border-accent/20 bg-card">
+          <CardHeader className="text-center">
+            <Lock className="h-12 w-12 text-accent mx-auto mb-4" />
+            <CardTitle>Access Denied</CardTitle>
+            <CardDescription>Please sign in with your Google account to view signal history.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={handleGoogleLogin} className="w-full h-12 gap-2 bg-white text-black hover:bg-white/90">
+              <ChromeIcon className="h-5 w-5" />
+              Sign in with Google
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -46,5 +75,28 @@ export default function HistoryPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+function ChromeIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="4" />
+      <line x1="21.17" x2="12" y1="8" y2="8" />
+      <line x1="3.95" x2="8.54" y1="6.06" y2="14" />
+      <line x1="10.88" x2="15.46" y1="21.94" y2="14" />
+    </svg>
   );
 }

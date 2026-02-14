@@ -11,8 +11,8 @@ import { Separator } from "@/components/ui/separator";
 import { useCollection, useUser, useMemoFirebase, useFirestore, useAuth } from "@/firebase";
 import { collection } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { initiateEmailSignIn, initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Send } from "lucide-react";
+import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
+import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Send, Lock } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
@@ -41,17 +41,13 @@ export function ChromeIcon(props: React.SVGProps<SVGSVGElement>) {
 }
 
 export default function WebhooksPage() {
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
   const [newWebhookName, setNewWebhookName] = useState("");
   const [origin, setOrigin] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isTesting, setIsTesting] = useState<string | null>(null);
-  
-  // Login form state
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -59,7 +55,7 @@ export default function WebhooksPage() {
     }
   }, []);
 
-  const isAdmin = user?.email === "hello@turbogains.ai";
+  const isAdmin = user?.email === "hello@tezterminal.com";
 
   const webhooksQuery = useMemoFirebase(() => {
     if (!firestore || !isAdmin) return null;
@@ -121,21 +117,39 @@ export default function WebhooksPage() {
     }
   };
 
-  const handleAdminLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (auth && email === "hello@turbogains.ai") {
-      initiateEmailSignIn(auth, email, password);
-      toast({ title: "Signing in...", description: "Authenticating as Admin." });
-    } else {
-      toast({ variant: "destructive", title: "Invalid", description: "Only hello@turbogains.ai can log in here." });
-    }
-  };
-
   const handleGoogleLogin = () => {
     if (auth) {
       initiateGoogleSignIn(auth);
     }
   };
+
+  if (isUserLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex min-h-screen bg-background items-center justify-center p-6">
+        <Card className="max-w-md w-full border-accent/20 bg-card">
+          <CardHeader className="text-center">
+            <Lock className="h-12 w-12 text-accent mx-auto mb-4" />
+            <CardTitle>Authentication Required</CardTitle>
+            <CardDescription>Please sign in with your Google account to continue.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={handleGoogleLogin} className="w-full h-12 gap-2 bg-white text-black hover:bg-white/90">
+              <ChromeIcon className="h-5 w-5" />
+              Sign in with Google
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (!isAdmin) {
     return (
@@ -146,47 +160,13 @@ export default function WebhooksPage() {
             <CardHeader className="text-center">
               <ShieldAlert className="h-12 w-12 text-amber-500 mx-auto mb-4" />
               <CardTitle>Admin Access Required</CardTitle>
-              <CardDescription>Please sign in with the designated admin account to manage bridges.</CardDescription>
+              <CardDescription>Only hello@tezterminal.com has permission to manage global bridges.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <Button onClick={handleGoogleLogin} variant="outline" className="w-full border-border hover:bg-secondary flex items-center justify-center gap-2 py-6">
-                <ChromeIcon className="h-5 w-5 text-accent" />
-                Sign in with Google
-              </Button>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center"><Separator /></div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">Or with credentials</span>
-                </div>
-              </div>
-
-              <form onSubmit={handleAdminLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Admin Email</Label>
-                  <Input 
-                    id="email" 
-                    type="email" 
-                    placeholder="hello@turbogains.ai" 
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="bg-secondary/50"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Security Password</Label>
-                  <Input 
-                    id="password" 
-                    type="password" 
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="bg-secondary/50"
-                  />
-                </div>
-                <Button type="submit" className="w-full bg-accent text-accent-foreground">
-                  Authenticate Admin
-                </Button>
-              </form>
+            <CardContent className="text-center space-y-4">
+               <p className="text-sm text-muted-foreground">You are currently logged in as {user.email}.</p>
+               <Button variant="outline" className="w-full border-border" onClick={() => auth && auth.signOut()}>
+                 Switch Account
+               </Button>
             </CardContent>
           </Card>
         </main>

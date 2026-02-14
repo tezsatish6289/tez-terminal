@@ -5,7 +5,7 @@ service cloud.firestore {
     
     // Check if the user is the designated admin
     function isAdmin() {
-      return request.auth != null && request.auth.token.email == "hello@turbogains.ai";
+      return request.auth != null && request.auth.token.email == "hello@tezterminal.com";
     }
 
     // Webhooks: Only Admin can manage. Anyone can 'get' if they know the ID (for API route)
@@ -15,9 +15,8 @@ service cloud.firestore {
     }
 
     // Signals: Anyone can read the stream.
-    // The API route (acting as a client) needs to be able to create signals.
     match /signals/{signalId} {
-      allow read: if true;
+      allow read: if request.auth != null;
       allow create: if true; // Public ingestion for TradingView bridges
       allow update, delete: if isAdmin();
     }

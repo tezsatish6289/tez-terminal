@@ -1,10 +1,10 @@
-
 import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
 
 /**
- * Robust Ingestion Bridge for TradingView Indicators
+ * Enhanced Ingestion Bridge for TradingView Indicators
+ * Supports direct "buy"/"sell" strings and robust error logging.
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
@@ -12,9 +12,8 @@ export async function POST(request: NextRequest) {
   const signalsRef = collection(firestore, "signals");
   
   const timestamp = new Date().toISOString();
+  let webhookId = "UNKNOWN";
   let rawBody = "";
-  let webhookId = "";
-  const userAgent = request.headers.get("user-agent") || "unknown";
 
   try {
     const { searchParams } = new URL(request.url);
@@ -27,12 +26,16 @@ export async function POST(request: NextRequest) {
       rawBody = "UNREADABLE_BODY";
     }
 
-    // Log the hit immediately
+    // Server-side log for immediate visibility in platform logs
+    console.log(`[Webhook Hit] ID: ${webhookId} | Body: ${rawBody}`);
+
+    // 2. Immediate Audit Log to Firestore
+    // This happens before any validation to ensure we see the "hit"
     await addDoc(logsRef, {
       timestamp,
       level: "INFO",
-      message: "Webhook Hit Detected",
-      details: `ID: ${webhookId} | UA: ${userAgent} | Body: ${rawBody.substring(0, 1000)}`,
+      message: "Webhook Request Detected",
+      details: `ID: ${webhookId} | Body: ${rawBody.substring(0, 1000)}`,
       webhookId,
     });
 
@@ -40,64 +43,46 @@ export async function POST(request: NextRequest) {
       throw new Error("Missing 'id' parameter in Webhook URL. URL should end with ?id=YOUR_BRIDGE_ID");
     }
 
-    // 2. Parse Body
+    // 3. Parse Body
     let body: any;
     try {
       body = JSON.parse(rawBody.trim());
     } catch (parseError: any) {
-      await addDoc(logsRef, {
-        timestamp,
-        level: "ERROR",
-        message: "JSON Parse Error",
-        details: `Raw Body: ${rawBody}. Ensure your TradingView message is valid JSON and has no trailing characters or extra text.`,
-        webhookId,
-      });
-      return NextResponse.json({ success: false, message: "Invalid JSON body" }, { status: 400 });
+      throw new Error(`Invalid JSON: ${parseError.message}. Body: ${rawBody}`);
     }
 
-    // 3. Validate Bridge Configuration
+    // 4. Validate Bridge Configuration
     const configRef = doc(firestore, "webhooks", webhookId);
     const configSnap = await getDoc(configRef);
 
     if (!configSnap.exists()) {
-      await addDoc(logsRef, {
-        timestamp,
-        level: "WARN",
-        message: "Bridge ID Not Found",
-        details: `The ID '${webhookId}' does not match any registered bridge in Firestore.`,
-        webhookId,
-      });
-      return NextResponse.json({ success: false, message: "Bridge not found" }, { status: 404 });
+      throw new Error(`Bridge ID '${webhookId}' does not exist in the database.`);
     }
 
     const configData = configSnap.data();
 
-    // 4. Secret Key Validation (Check body first, then searchParams)
+    // 5. Secret Key Validation
     const providedKey = body.secretKey || searchParams.get("key");
     if (configData.secretKey && providedKey !== configData.secretKey) {
-      await addDoc(logsRef, {
-        timestamp,
-        level: "WARN",
-        message: "Auth Failure: Key Mismatch",
-        details: `Expected: ${configData.secretKey} | Received: ${providedKey}`,
-        webhookId,
-      });
-      return NextResponse.json({ success: false, message: "Unauthorized: Invalid Secret Key" }, { status: 401 });
+      throw new Error("Authentication Failed: Secret Key Mismatch.");
     }
 
-    // 5. Signal Normalization (Handle "buy"/"sell" indicator strings)
+    // 6. Signal Normalization
+    // Prioritize fields from your indicator: ticker, side
     let signalType = "NEUTRAL";
     const rawSide = (body.side || body.type || body.action || "").toString().toUpperCase();
     
     if (rawSide.includes("BUY")) signalType = "BUY";
     if (rawSide.includes("SELL")) signalType = "SELL";
 
+    const symbol = (body.ticker || body.symbol || "UNKNOWN").toUpperCase();
+
     const signalData = {
       webhookId: webhookId,
       receivedAt: timestamp,
       serverTimestamp: serverTimestamp(),
       payload: JSON.stringify(body),
-      symbol: (body.ticker || body.symbol || "UNKNOWN").toUpperCase(),
+      symbol: symbol,
       type: signalType,
       note: body.note || body.comment || `Alert from ${configData.name}`,
       source: configData.name || "Bridge",
@@ -105,27 +90,40 @@ export async function POST(request: NextRequest) {
 
     await addDoc(signalsRef, signalData);
 
+    // Success Log
     await addDoc(logsRef, {
       timestamp,
       level: "INFO",
-      message: `Success: Signal Processed`,
-      details: `${signalData.symbol} ${signalData.type} from ${userAgent}`,
+      message: "Success: Signal Ingested",
+      details: `Symbol: ${symbol} | Side: ${signalType}`,
       webhookId,
     });
 
-    return NextResponse.json({ success: true, message: "Signal ingested" });
+    return NextResponse.json({ success: true, message: "Signal ingested successfully" });
   } catch (error: any) {
-    await addDoc(logsRef, {
-      timestamp,
-      level: "ERROR",
-      message: "Bridge Processing Error",
-      details: error.message,
-      webhookId: webhookId || "UNKNOWN",
-    });
+    console.error(`[Webhook Error] ${error.message}`);
+    
+    // Attempt to log the error to Firestore for the user to see in History
+    try {
+      await addDoc(logsRef, {
+        timestamp,
+        level: "ERROR",
+        message: "Ingestion Failure",
+        details: error.message,
+        webhookId: webhookId || "UNKNOWN",
+      });
+    } catch (logErr) {
+      console.error("Critical: Failed to write error log to Firestore", logErr);
+    }
+
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }
 }
 
 export async function GET() {
-  return NextResponse.json({ status: "online", info: "Submit POST requests to /api/webhook?id=YOUR_ID" });
+  return NextResponse.json({ 
+    status: "online", 
+    message: "Endpoint ready for TradingView POST requests.",
+    example: "/api/webhook?id=YOUR_BRIDGE_ID"
+  });
 }

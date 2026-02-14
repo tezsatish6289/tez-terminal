@@ -8,7 +8,7 @@ import { collection, query, orderBy, limit } from "firebase/firestore";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { History as HistoryIcon, Loader2, Lock, Terminal, ShieldAlert, AlertTriangle, Info, CheckCircle2 } from "lucide-react";
+import { History as HistoryIcon, Loader2, Lock, Terminal, ShieldAlert, AlertTriangle, Info, CheckCircle2, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ChromeIcon } from "@/components/icons";
@@ -22,10 +22,10 @@ export default function HistoryPage() {
 
   const logsQuery = useMemoFirebase(() => {
     if (!firestore || !isAdmin) return null;
-    return query(collection(firestore, "logs"), orderBy("timestamp", "desc"), limit(30));
+    return query(collection(firestore, "logs"), orderBy("timestamp", "desc"), limit(50));
   }, [firestore, isAdmin]);
 
-  const { data: logs, isLoading: isLogsLoading } = useCollection(logsQuery);
+  const { data: logs, isLoading: isLogsLoading, error: logsError } = useCollection(logsQuery);
 
   const handleGoogleLogin = () => {
     if (auth) {
@@ -77,6 +77,13 @@ export default function HistoryPage() {
             <HistoryIcon className="h-8 w-8 text-accent opacity-20" />
           </div>
 
+          {logsError && (
+            <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Failed to load logs: {logsError.message}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
             <div className="xl:col-span-2 space-y-6">
               <Card className="bg-card border-border">
@@ -90,15 +97,15 @@ export default function HistoryPage() {
             </div>
 
             <div className="space-y-6">
-              <Card className="bg-card border-border border-dashed sticky top-0">
-                <CardHeader className="flex flex-row items-center justify-between">
+              <Card className="bg-card border-border border-dashed sticky top-0 h-fit max-h-[80vh] flex flex-col">
+                <CardHeader className="flex flex-row items-center justify-between shrink-0">
                   <div>
                     <CardTitle className="text-lg">System Debugger</CardTitle>
                     <CardDescription className="text-xs">Live Ingestion Node (Admin Only)</CardDescription>
                   </div>
                   <Terminal className="h-4 w-4 text-accent" />
                 </CardHeader>
-                <CardContent>
+                <CardContent className="overflow-y-auto flex-1 pb-6">
                   {!isAdmin ? (
                     <div className="py-8 text-center">
                       <ShieldAlert className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-20" />
@@ -107,44 +114,47 @@ export default function HistoryPage() {
                   ) : (
                     <div className="space-y-3">
                       <div className="p-2 bg-accent/5 rounded border border-accent/10 flex items-center gap-2 mb-4">
-                        <Info className="h-3 w-3 text-accent" />
-                        <p className="text-[10px] text-accent font-medium">Monitoring root ingestion point...</p>
+                        <RefreshCw className="h-3 w-3 text-accent animate-spin-slow" />
+                        <p className="text-[10px] text-accent font-medium uppercase tracking-wider">Listening for triggers...</p>
                       </div>
                       
                       {isLogsLoading ? (
                         <div className="space-y-2">
-                           {[1,2,3].map(i => <div key={i} className="h-16 animate-pulse bg-secondary/20 rounded-lg" />)}
+                           {[1,2,3,4].map(i => <div key={i} className="h-20 animate-pulse bg-secondary/20 rounded-lg" />)}
                         </div>
                       ) : logs?.length === 0 ? (
-                        <p className="text-xs text-muted-foreground text-center py-8">No system logs recorded yet.</p>
+                        <div className="py-12 text-center">
+                           <Info className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-20" />
+                           <p className="text-xs text-muted-foreground">No hits detected yet.<br/>Ensure TradingView URL is correct.</p>
+                        </div>
                       ) : (
                         logs?.map((log) => (
                           <div key={log.id} className={cn(
-                            "p-3 rounded-lg border text-[10px] space-y-1.5 transition-all hover:bg-secondary/20",
+                            "p-3 rounded-lg border text-[10px] space-y-2 transition-all hover:bg-secondary/20",
                             log.level === 'ERROR' ? 'bg-rose-500/5 border-rose-500/20' : 
                             log.level === 'WARN' ? 'bg-amber-500/5 border-amber-500/20' : 
-                            'bg-emerald-500/5 border-emerald-500/20'
+                            'bg-emerald-500/5 border-emerald-500/10'
                           )}>
                             <div className="flex justify-between items-center">
                               <span className={cn(
-                                "font-bold flex items-center gap-1",
-                                log.level === 'ERROR' ? 'text-rose-400' : 
-                                log.level === 'WARN' ? 'text-amber-400' : 
-                                'text-emerald-400'
+                                "font-bold flex items-center gap-1 px-1.5 py-0.5 rounded",
+                                log.level === 'ERROR' ? 'bg-rose-500/20 text-rose-400' : 
+                                log.level === 'WARN' ? 'bg-amber-500/20 text-amber-400' : 
+                                'bg-emerald-500/20 text-emerald-400'
                               )}>
-                                {log.level === 'ERROR' ? <AlertTriangle className="h-3 w-3" /> : 
-                                 log.level === 'WARN' ? <AlertTriangle className="h-3 w-3" /> : 
-                                 <CheckCircle2 className="h-3 w-3" />}
                                 {log.level}
                               </span>
                               <span className="text-muted-foreground font-mono">{format(new Date(log.timestamp), 'HH:mm:ss')}</span>
                             </div>
                             <p className="text-white font-semibold leading-tight">{log.message}</p>
                             {log.details && (
-                              <div className="bg-black/20 p-2 rounded text-muted-foreground font-mono whitespace-pre-wrap break-all border border-white/5 mt-1">
+                              <div className="bg-black/40 p-2 rounded text-muted-foreground font-mono whitespace-pre-wrap break-all border border-white/5 overflow-x-hidden">
                                 {log.details}
                               </div>
                             )}
+                            <div className="text-[8px] text-muted-foreground uppercase tracking-widest pt-1 border-t border-white/5">
+                              Bridge: {log.webhookId}
+                            </div>
                           </div>
                         ))
                       )}

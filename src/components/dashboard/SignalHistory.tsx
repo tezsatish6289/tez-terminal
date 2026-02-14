@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -14,7 +15,7 @@ import { Zap, Clock, Terminal, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, limit } from "firebase/firestore";
+import { collection, query, limit, orderBy } from "firebase/firestore";
 
 export function SignalHistory() {
   const { user } = useUser();
@@ -27,23 +28,16 @@ export function SignalHistory() {
 
   const eventsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
+    // We order by receivedAt desc to show latest first. 
+    // Note: This requires an index in Firestore eventually, but for small collections it works.
     return query(
       collection(firestore, "users", user.uid, "webhookEvents"),
+      orderBy("receivedAt", "desc"),
       limit(20)
     );
   }, [user, firestore]);
 
-  const { data: rawSignals, isLoading, error } = useCollection(eventsQuery);
-
-  // Client-side sort to ensure newest signals appear first without requiring a server-side index
-  const signals = useMemo(() => {
-    if (!rawSignals) return null;
-    return [...rawSignals].sort((a, b) => {
-      const dateA = new Date(a.receivedAt).getTime();
-      const dateB = new Date(b.receivedAt).getTime();
-      return dateB - dateA;
-    });
-  }, [rawSignals]);
+  const { data: signals, isLoading, error } = useCollection(eventsQuery);
 
   const getFormattedDate = (receivedAt: string) => {
     if (!mounted) return "...";
@@ -71,7 +65,7 @@ export function SignalHistory() {
       {error && (
         <div className="bg-destructive/10 border border-destructive/20 p-3 rounded-lg flex items-center gap-3 text-destructive text-sm">
           <AlertCircle className="h-4 w-4" />
-          <span>Error loading signals: {error.message}</span>
+          <span>Sync error: {error.message}</span>
         </div>
       )}
 

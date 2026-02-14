@@ -1,94 +1,49 @@
+
 {
   "entities": {
-    "WebhookAlert": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "WebhookAlert",
+    "WebhookConfiguration": {
+      "title": "WebhookConfiguration",
       "type": "object",
-      "description": "Represents a trading signal received from an external webhook source, such as TradingView, intended for display and potential processing.",
+      "description": "A configuration for a TradingView webhook endpoint.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the WebhookAlert entity."
-        },
-        "receivedAt": {
-          "type": "string",
-          "description": "The timestamp when the webhook alert was received by the application.",
-          "format": "date-time"
-        },
-        "source": {
-          "type": "string",
-          "description": "The external platform or system from which the webhook alert originated, e.g., 'TradingView'."
-        },
-        "symbol": {
-          "type": "string",
-          "description": "The trading instrument or asset symbol associated with the alert, e.g., 'BTCUSD', 'AAPL'."
-        },
-        "exchange": {
-          "type": "string",
-          "description": "The cryptocurrency exchange or financial market where the asset is traded, e.g., 'BINANCE', 'NYSE'."
-        },
-        "action": {
-          "type": "string",
-          "description": "The recommended trading action based on the signal, e.g., 'buy', 'sell', 'hold', 'exit'."
-        },
-        "price": {
-          "type": "number",
-          "description": "The price level relevant to the trading signal, indicating the asset's price at the time of the alert or a target price."
-        },
-        "indicator": {
-          "type": "string",
-          "description": "The technical indicator or strategy that triggered the alert, e.g., 'RSI', 'MACD', 'Bollinger Bands breakout'."
-        },
-        "timeframe": {
-          "type": "string",
-          "description": "The chart timeframe or interval associated with the alert, e.g., '15m', '1h', '4h', '1d', '1W'."
-        },
-        "message": {
-          "type": "string",
-          "description": "The raw or processed message content received directly from the webhook payload, containing detailed alert information."
-        },
-        "status": {
-          "type": "string",
-          "description": "The current processing status of the webhook alert within the application, e.g., 'new', 'processed', 'ignored', 'error'."
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "userId": { "type": "string" },
+        "secretKey": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "endpointUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "receivedAt",
-        "source",
-        "symbol",
-        "action",
-        "price",
-        "message",
-        "status"
-      ]
+      "required": ["id", "name", "userId", "secretKey"]
+    },
+    "WebhookEvent": {
+      "title": "WebhookEvent",
+      "type": "object",
+      "description": "An individual signal received from an external source.",
+      "properties": {
+        "id": { "type": "string" },
+        "webhookConfigurationId": { "type": "string" },
+        "userId": { "type": "string" },
+        "receivedAt": { "type": "string", "format": "date-time" },
+        "payload": { "type": "string" },
+        "sourceIp": { "type": "string" },
+        "processingStatus": { "type": "string", "enum": ["PROCESSED", "ERROR"] }
+      },
+      "required": ["id", "userId", "receivedAt", "payload"]
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
+    "providers": ["anonymous", "password"]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/webhook_alerts/{webhookAlertId}",
-        "definition": {
-          "entityName": "WebhookAlert",
-          "schema": {
-            "$ref": "#/backend/entities/WebhookAlert"
-          },
-          "description": "Stores individual webhook alerts received from external sources. This collection serves as a system-wide history log. Access control is managed at the collection level, allowing authenticated users to read. Includes denormalized `status` and `receivedAt` fields for efficient querying and display, and does not require additional denormalized authorization fields as access is collection-wide for authenticated users.",
-          "params": [
-            {
-              "name": "webhookAlertId",
-              "description": "The unique identifier for a specific WebhookAlert document."
-            }
-          ]
-        }
-      }
-    ],
-    "reasoning": "The proposed Firestore structure for TezTerminal Antigravity focuses on a single top-level collection, `webhook_alerts`, to store all incoming trading signal alerts. This design adheres strictly to the core principles of Authorization Independence, Structural Segregation, and clear Access Modeling.\n\n**Authorization Independence (CRITICAL):** The `webhook_alerts` collection is designed to be self-contained for authorization. Each `WebhookAlert` document will carry all necessary information, including its `id`, `receivedAt` timestamp, and `status`. Authorization for reading these alerts will be determined at the collection level, typically by checking if `request.auth.uid` is present (for authenticated users) or by querying a separate roles collection for admin access (e.g., `/roles_admin/{uid}`). Crucially, no `get()` calls to parent documents or external documents are required within the `webhook_alerts` rules to determine read access for individual alerts. This means that creating, updating, or deleting alerts can be performed atomically without cascading rule dependencies.\n\n**QAPs (Secure List Operations):** By implementing `webhook_alerts` as a top-level collection with a homogeneous security posture, secure `list` operations are inherently supported. For instance, if all authenticated users are allowed to view the history, a simple rule like `allow read: if request.auth.uid != null;` would secure all `list` operations. The structure itself ensures that no client-side filtering is required for security, as all documents in the collection share the same access requirements. If the intent were to restrict alerts to specific user configurations, the structure would pivot to `/users/{userId}/webhook_alerts/{webhookAlertId}`, where the `userId` in the path provides the secure query scope for `list` operations, again without `get()` calls.\n\n**Structural Segregation:** All documents within `/webhook_alerts` represent a `WebhookAlert` entity and share identical security requirements (e.g., all are readable by authenticated users). This prevents mixing data with different access control needs within the same collection, simplifying security rules and making them easier to debug.\n\n**Access Modeling & Data Clarity:** The structure uses a straightforward path-based naming scheme (`/webhook_alerts/{webhookAlertId}`). The `WebhookAlert` schema includes an explicit `status` field, facilitating clear state management as mandated by 'Explicit State Modeling'. Wildcards are descriptive (`webhookAlertId`), and essential timestamps (`receivedAt`) are included, ensuring data clarity and predictability. Ownership of the alerts is assumed to be system-level for display purposes, eliminating the need for denormalized `ownerId` fields within each alert document, making the alerts viewable by authorized system users."
+    "/users/{userId}/webhookConfigurations/{configId}": {
+      "schema": "#/backend/entities/WebhookConfiguration",
+      "description": "User-specific webhook endpoint settings."
+    },
+    "/users/{userId}/webhookEvents/{eventId}": {
+      "schema": "#/backend/entities/WebhookEvent",
+      "description": "User-specific log of received trading signals."
+    }
   }
 }

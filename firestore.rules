@@ -1,67 +1,33 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    /**
-     * TezTerminal Antigravity Security Rules
-     *
-     * CORE PHILOSOPHY:
-     * This ruleset implements a centralized system-log model for trading signals. 
-     * The security posture focuses on providing shared visibility to all authenticated 
-     * users while strictly preventing client-side modification of the signal history.
-     *
-     * DATA STRUCTURE:
-     * Data is organized into a single top-level collection: /webhook_alerts.
-     * These documents represent incoming signals from external sources (e.g., TradingView).
-     *
-     * KEY SECURITY DECISIONS:
-     * 1. Shared Read Access: Any authenticated user (including anonymous users, as 
-     *    per the IR auth providers) can read and list alerts.
-     * 2. System-Managed Writes: Because alerts are system-generated "history logs," 
-     *    standard users are prohibited from creating, updating, or deleting them 
-     *    via the client SDK. This ensures the integrity of the trading signals.
-     * 3. Flat Hierarchy: By using a top-level collection, we support efficient 
-     *    cross-user signal distribution without complex nested queries.
-     *
-     * DENORMALIZATION FOR AUTHORIZATION:
-     * As these alerts are not owned by specific users, no ownership denormalization 
-     * (e.g., ownerId) is implemented. Authorization is handled at the collection 
-     * level based on authentication state.
-     */
-
-    // --- GLOBAL HELPER FUNCTIONS ---
-
-    /**
-     * @description Checks if the request is made by an authenticated user.
-     */
-    function isSignedIn() {
-      return request.auth != null;
+    // Helper to check if user owns the document path
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
     }
 
-    // The 'isExisting' function and its reference to 'resource' were removed
-    // as it was unused and 'resource' is only available within match blocks,
-    // making its definition as a global function problematic in this context.
+    match /users/{userId} {
+      match /webhookConfigurations/{configId} {
+        // User can manage their own configurations
+        allow read, write: if isOwner(userId);
+        
+        // ALLOW: Ingestion route needs to read config to verify secretKey
+        // In a prototype with Client SDK on server, we allow public GET for ingestion verification
+        // assuming the configId is known only to the system/user.
+        allow get: if true; 
+      }
 
-    // --- COLLECTION RULES ---
-
-    /**
-     * @description Rules for the WebhookAlert collection, which stores external trading signals.
-     * @path /webhook_alerts/{webhookAlertId}
-     * @allow (get, list) if the user is signed in (password or anonymous).
-     * @deny (create, update, delete) for all client-side requests to preserve log integrity.
-     * @principle System-wide history log with read-only access for authorized participants.
-     */
-    match /webhook_alerts/{webhookAlertId} {
-      // Read access is granted to all authenticated members of the system.
-      allow get, list: if isSignedIn();
-
-      // CRITICAL: Cannot implement owner-only writes. 
-      // The 'WebhookAlert' entity is missing an 'ownerId' or 'authorId' field 
-      // and is documented as a "system-level" entity. Client-side writes are disabled.
-      allow create: if false; // TODO: If client-side creation is needed, add an ownerId to the schema.
-      allow update: if false; // Only system processes (Admin SDK) should modify alert status.
-      allow delete: if false; // Signal history should be immutable via the client.
+      match /webhookEvents/{eventId} {
+        // User can read their own events
+        allow read: if isOwner(userId);
+        
+        // ALLOW: Ingestion route needs to write events
+        // For prototype simplicity, we allow public creation if it's the right path.
+        // In production, we'd use a service account (Admin SDK).
+        allow create: if true; 
+        allow update, delete: if isOwner(userId);
+      }
     }
-
   }
 }

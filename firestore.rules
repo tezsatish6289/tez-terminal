@@ -9,19 +9,24 @@ service cloud.firestore {
     }
 
     // Webhook Configurations: 
-    // allow read: if true is required for the API route bridge to validate the secret key.
-    // allow write: is strictly reserved for the terminal admin.
+    // Public read is required for the API route bridge.
     match /webhooks/{webhookId} {
       allow read: if true; 
       allow write: if isAdmin();
     }
 
     // Signals (Alerts): Anyone authenticated can read the global stream.
-    // allow create: if true permits the Ingestion Bridge to post new signals.
     match /signals/{signalId} {
       allow read: if request.auth != null;
       allow create: if true; 
       allow update, delete: if isAdmin();
+    }
+
+    // Logs: Allow the API route to post logs for debugging.
+    match /logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if true;
+      allow update, delete: if false;
     }
   }
 }

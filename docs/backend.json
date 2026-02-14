@@ -30,6 +30,20 @@
         "source": { "type": "string" }
       },
       "required": ["id", "symbol", "type", "receivedAt"]
+    },
+    "SystemLog": {
+      "title": "SystemLog",
+      "type": "object",
+      "description": "Technical logs for debugging webhook ingestion and system events.",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "level": { "type": "string", "enum": ["INFO", "WARN", "ERROR"] },
+        "message": { "type": "string" },
+        "details": { "type": "string" },
+        "webhookId": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "level", "message"]
     }
   },
   "auth": {
@@ -43,6 +57,10 @@
     "/signals/{signalId}": {
       "schema": "#/backend/entities/Signal",
       "description": "The real-time global feed of market alerts consumed by all traders."
+    },
+    "/logs/{logId}": {
+      "schema": "#/backend/entities/SystemLog",
+      "description": "System debugging logs."
     }
   }
 }

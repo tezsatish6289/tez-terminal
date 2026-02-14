@@ -74,7 +74,7 @@ export default function WebhooksPage() {
     setIsTesting(webhook.id);
     const testPayload = {
       ticker: "BTCUSDT",
-      side: "BUY",
+      side: "buy",
       secretKey: webhook.secretKey,
       note: "Manual Terminal Test"
     };
@@ -94,7 +94,7 @@ export default function WebhooksPage() {
         toast({ 
           variant: "destructive", 
           title: "Test Failed", 
-          description: result.message || "Check API logs." 
+          description: result.message || "Check API logs in History page." 
         });
       }
     } catch (e) {
@@ -207,7 +207,7 @@ export default function WebhooksPage() {
                 <p>2. Copy the <b>JSON Payload</b> into the "Message" box.</p>
                 <div className="flex items-start gap-2 text-rose-400 font-bold mt-2">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <p>IMPORTANT: The "Message" box must contain ONLY the JSON. No extra text allowed.</p>
+                  <p>IMPORTANT: The "Message" box must contain ONLY the JSON. No extra text or characters.</p>
                 </div>
               </CardContent>
             </Card>
@@ -220,7 +220,7 @@ export default function WebhooksPage() {
               webhooks?.map((webhook) => {
                 const tvJson = JSON.stringify({
                   ticker: "{{ticker}}",
-                  side: "{{strategy.order.action}}",
+                  side: "buy",
                   secretKey: webhook.secretKey,
                   exchange: "{{exchange}}",
                   timeframe: "{{interval}}",

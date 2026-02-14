@@ -16,29 +16,6 @@ import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 
-function ChromeIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <circle cx="12" cy="12" r="4" />
-      <line x1="21.17" x2="12" y1="8" y2="8" />
-      <line x1="3.95" x2="8.54" y1="6.06" y2="14" />
-      <line x1="10.88" x2="15.46" y1="21.94" y2="14" />
-    </svg>
-  );
-}
-
 export default function WebhooksPage() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
@@ -104,13 +81,20 @@ export default function WebhooksPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(testPayload)
       });
+      
+      const result = await response.json();
+
       if (response.ok) {
         toast({ title: "Test Success", description: "Signal broadcasted to global stream." });
       } else {
-        toast({ variant: "destructive", title: "Test Failed", description: "Check API logs." });
+        toast({ 
+          variant: "destructive", 
+          title: "Test Failed", 
+          description: result.message || "Check API logs." 
+        });
       }
     } catch (e) {
-      toast({ variant: "destructive", title: "Network Error" });
+      toast({ variant: "destructive", title: "Network Error", description: "Could not reach the ingestion node." });
     } finally {
       setIsTesting(null);
     }
@@ -245,5 +229,28 @@ export default function WebhooksPage() {
       </main>
       <Toaster />
     </div>
+  );
+}
+
+function ChromeIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="4" />
+      <line x1="21.17" x2="12" y1="8" y2="8" />
+      <line x1="3.95" x2="8.54" y1="6.06" y2="14" />
+      <line x1="10.88" x2="15.46" y1="21.94" y2="14" />
+    </svg>
   );
 }

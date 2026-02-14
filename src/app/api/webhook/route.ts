@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
@@ -11,6 +12,8 @@ export async function POST(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const webhookId = searchParams.get("id");
     
+    console.log(`[Ingestion] Incoming request for bridge: ${webhookId}`);
+
     if (!webhookId) {
       return NextResponse.json({ success: false, message: "Missing bridge ID" }, { status: 400 });
     }
@@ -23,13 +26,16 @@ export async function POST(request: NextRequest) {
     const configSnap = await getDoc(configRef);
 
     if (!configSnap.exists()) {
+      console.error(`[Ingestion] Bridge ${webhookId} not found in Firestore`);
       return NextResponse.json({ success: false, message: "Bridge configuration not found" }, { status: 404 });
     }
 
     const configData = configSnap.data();
 
-    // 2. Security: Validate Secret Key (if provided in body)
+    // 2. Security: Validate Secret Key
+    // TradingView alert must contain the secretKey matching the bridge config
     if (configData.secretKey && body.secretKey !== configData.secretKey) {
+      console.warn(`[Ingestion] Unauthorized attempt on bridge ${webhookId}: Invalid Secret Key`);
       return NextResponse.json({ 
         success: false, 
         message: "Unauthorized: Invalid secret key" 
@@ -39,7 +45,7 @@ export async function POST(request: NextRequest) {
     // 3. Persist the Signal to the global shared feed
     const signalsRef = collection(firestore, "signals");
     
-    await addDoc(signalsRef, {
+    const signalData = {
       webhookId: webhookId,
       receivedAt: new Date().toISOString(),
       serverTimestamp: serverTimestamp(),
@@ -48,7 +54,11 @@ export async function POST(request: NextRequest) {
       type: (body.type || body.side || body.action || "NEUTRAL").toUpperCase(),
       note: body.note || body.message || "Alert Ingested",
       source: configData.name || "Bridge"
-    });
+    };
+
+    await addDoc(signalsRef, signalData);
+
+    console.log(`[Ingestion] Signal broadcasted for ${signalData.symbol} via ${configData.name}`);
 
     return NextResponse.json({ 
       success: true, 
@@ -56,6 +66,7 @@ export async function POST(request: NextRequest) {
       receivedAt: new Date().toISOString()
     });
   } catch (error: any) {
+    console.error("[Ingestion] Critical Error:", error);
     return NextResponse.json({ 
       success: false, 
       message: "Ingestion Error: " + error.message,

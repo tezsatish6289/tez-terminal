@@ -8,15 +8,16 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.email == "hello@tezterminal.com";
     }
 
-    // Webhook Configurations: Only hello@tezterminal.com can write.
-    // Read is allowed for everyone to facilitate client-side checks/logic.
+    // Webhook Configurations: 
+    // allow read: if true is required for the API route bridge to validate the secret key.
+    // allow write: is strictly reserved for the terminal admin.
     match /webhooks/{webhookId} {
-      allow read: if request.auth != null; 
+      allow read: if true; 
       allow write: if isAdmin();
     }
 
     // Signals (Alerts): Anyone authenticated can read the global stream.
-    // Public 'create' is allowed to facilitate ingestion from TradingView/API.
+    // allow create: if true permits the Ingestion Bridge to post new signals.
     match /signals/{signalId} {
       allow read: if request.auth != null;
       allow create: if true; 

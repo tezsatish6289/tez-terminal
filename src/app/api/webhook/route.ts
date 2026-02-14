@@ -4,7 +4,7 @@ import { initializeFirebase } from "@/firebase";
 import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
 
 /**
- * Enhanced Ingestion Bridge with verbose logging
+ * Enhanced Ingestion Bridge with verbose logging for debugging TradingView
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
@@ -14,23 +14,30 @@ export async function POST(request: NextRequest) {
   const timestamp = new Date().toISOString();
   let rawBody = "";
   let webhookId = "";
+  const userAgent = request.headers.get("user-agent") || "unknown";
+  const contentType = request.headers.get("content-type") || "unknown";
 
   try {
     const { searchParams } = new URL(request.url);
     webhookId = searchParams.get("id") || "MISSING_ID";
     
-    // 1. Log the absolute beginning of the request
-    rawBody = await request.text();
+    // 1. Log the absolute beginning of the request with headers
+    try {
+      rawBody = await request.text();
+    } catch (e) {
+      rawBody = "UNREADABLE_BODY";
+    }
+
     await addDoc(logsRef, {
       timestamp,
       level: "INFO",
       message: "Webhook Request Received",
-      details: `ID from URL: ${webhookId} | Body Length: ${rawBody.length} characters`,
+      details: `ID: ${webhookId} | UA: ${userAgent} | CT: ${contentType} | Body: ${rawBody.substring(0, 1000)}`,
       webhookId,
     });
 
     if (webhookId === "MISSING_ID") {
-      throw new Error("The webhook URL is missing the ?id= parameter. Check your TradingView settings.");
+      throw new Error("The webhook URL is missing the ?id= parameter. Ensure your TradingView Webhook URL looks like: https://your-domain.com/api/webhook?id=YOUR_BRIDGE_ID");
     }
 
     // 2. Parse Body
@@ -42,10 +49,10 @@ export async function POST(request: NextRequest) {
         timestamp,
         level: "ERROR",
         message: "JSON Parse Failure",
-        details: `Raw Body: ${rawBody.substring(0, 500)}... Ensure no extra text exists in TradingView message.`,
+        details: `Raw Body: ${rawBody}. Ensure no extra text exists in TradingView message box and it is valid JSON.`,
         webhookId,
       });
-      return NextResponse.json({ success: false, message: "Invalid JSON" }, { status: 400 });
+      return NextResponse.json({ success: false, message: "Invalid JSON format" }, { status: 400 });
     }
 
     // 3. Validate Bridge Configuration
@@ -57,7 +64,7 @@ export async function POST(request: NextRequest) {
         timestamp,
         level: "WARN",
         message: "Bridge ID Not Found",
-        details: `The ID ${webhookId} does not match any active bridge in your dashboard.`,
+        details: `The ID ${webhookId} does not match any bridge in your dashboard. Check the URL in TradingView.`,
         webhookId,
       });
       return NextResponse.json({ success: false, message: "Bridge not found" }, { status: 404 });
@@ -75,7 +82,7 @@ export async function POST(request: NextRequest) {
         details: `Expected: ${configData.secretKey} | Received: ${providedKey}`,
         webhookId,
       });
-      return NextResponse.json({ success: false, message: "Invalid Key" }, { status: 401 });
+      return NextResponse.json({ success: false, message: "Invalid Secret Key" }, { status: 401 });
     }
 
     // 5. Ingest Signal
@@ -114,5 +121,5 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ status: "active" });
+  return NextResponse.json({ status: "active", info: "Use POST to send signals" });
 }

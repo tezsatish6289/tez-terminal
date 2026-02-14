@@ -1,10 +1,11 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
 
 /**
- * Enhanced Ingestion Bridge for TradingView Indicators
- * Supports direct "buy"/"sell" strings and robust error logging.
+ * Enhanced Ingestion Bridge for TradingView Indicators.
+ * Prioritizes indicator-specific fields like 'ticker' and 'side'.
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
@@ -19,25 +20,24 @@ export async function POST(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     webhookId = searchParams.get("id") || "MISSING_ID";
     
-    // 1. Capture Raw Request for Audit
+    // 1. Capture Raw Request immediately
     try {
       rawBody = await request.text();
     } catch (e) {
       rawBody = "UNREADABLE_BODY";
     }
 
-    // 2. Immediate Audit Log to Firestore
-    // This happens before any validation to ensure we see the "hit"
+    // 2. Immediate Audit Log
     await addDoc(logsRef, {
       timestamp,
       level: "INFO",
-      message: "Webhook Request Detected",
-      details: `ID: ${webhookId} | Body: ${rawBody.substring(0, 1000)}`,
+      message: "Webhook Hit Detected",
+      details: `ID: ${webhookId} | Body: ${rawBody}`,
       webhookId,
     });
 
     if (webhookId === "MISSING_ID") {
-      throw new Error("Missing 'id' parameter in Webhook URL. URL should end with ?id=YOUR_BRIDGE_ID");
+      throw new Error("Missing 'id' parameter in URL. Format: /api/webhook?id=XYZ");
     }
 
     // 3. Parse Body
@@ -45,32 +45,32 @@ export async function POST(request: NextRequest) {
     try {
       body = JSON.parse(rawBody.trim());
     } catch (parseError: any) {
-      throw new Error(`Invalid JSON: ${parseError.message}. Body: ${rawBody}`);
+      throw new Error(`JSON Error: ${parseError.message}. Body: ${rawBody}`);
     }
 
-    // 4. Validate Bridge Configuration
+    // 4. Validate Bridge Config
     const configRef = doc(firestore, "webhooks", webhookId);
     const configSnap = await getDoc(configRef);
 
     if (!configSnap.exists()) {
-      throw new Error(`Bridge ID '${webhookId}' does not exist in the database.`);
+      throw new Error(`Bridge ID '${webhookId}' not found.`);
     }
 
     const configData = configSnap.data();
 
-    // 5. Secret Key Validation
+    // 5. Auth Check
     const providedKey = body.secretKey || searchParams.get("key");
     if (configData.secretKey && providedKey !== configData.secretKey) {
-      throw new Error(`Authentication Failed: Secret Key Mismatch. Expected ${configData.secretKey}, got ${providedKey}`);
+      throw new Error(`Auth Mismatch. Expected ${configData.secretKey}, got ${providedKey}`);
     }
 
-    // 6. Signal Normalization
-    // Prioritize fields from your indicator: ticker, side
+    // 6. Signal Mapping
+    // Handle your indicator's specific strings: "buy", "sell"
     let signalType = "NEUTRAL";
-    const rawSide = (body.side || body.type || body.action || "").toString().toUpperCase();
+    const rawSide = (body.side || body.type || body.action || "").toString().toLowerCase();
     
-    if (rawSide.includes("BUY")) signalType = "BUY";
-    if (rawSide.includes("SELL")) signalType = "SELL";
+    if (rawSide.includes("buy")) signalType = "BUY";
+    if (rawSide.includes("sell")) signalType = "SELL";
 
     const symbol = (body.ticker || body.symbol || "UNKNOWN").toUpperCase();
 
@@ -78,39 +78,38 @@ export async function POST(request: NextRequest) {
       webhookId: webhookId,
       receivedAt: timestamp,
       serverTimestamp: serverTimestamp(),
-      payload: JSON.stringify(body),
+      payload: rawBody,
       symbol: symbol,
       type: signalType,
-      note: body.note || body.comment || `Alert from ${configData.name}`,
-      source: configData.name || "Bridge",
+      note: body.note || `Indicator alert for ${symbol}`,
+      source: configData.name || "Indicator",
     };
 
     await addDoc(signalsRef, signalData);
 
-    // Success Log
+    // Final Success Log
     await addDoc(logsRef, {
       timestamp,
       level: "INFO",
       message: "Success: Signal Ingested",
-      details: `Symbol: ${symbol} | Side: ${signalType}`,
+      details: `Symbol: ${symbol} | Type: ${signalType}`,
       webhookId,
     });
 
-    return NextResponse.json({ success: true, message: "Signal ingested successfully" });
+    return NextResponse.json({ success: true, message: "Signal ingested" });
   } catch (error: any) {
-    console.error(`[Webhook Error] ${error.message}`);
+    console.error(`[Bridge Error] ${error.message}`);
     
-    // Attempt to log the error to Firestore for the user to see in History
     try {
       await addDoc(logsRef, {
         timestamp,
         level: "ERROR",
-        message: "Ingestion Failure",
+        message: "Processing Failure",
         details: error.message,
         webhookId: webhookId || "UNKNOWN",
       });
     } catch (logErr) {
-      console.error("Critical: Failed to write error log to Firestore", logErr);
+      // Silent catch
     }
 
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });

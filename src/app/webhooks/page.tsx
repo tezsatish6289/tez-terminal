@@ -1,3 +1,4 @@
+
 "use client";
 
 import { LeftSidebar } from "@/components/dashboard/Sidebar";
@@ -10,7 +11,7 @@ import { useCollection, useUser, useMemoFirebase, useFirestore, useAuth } from "
 import { collection, query, orderBy } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Send, Lock, Copy, Info, AlertTriangle, Code, Globe } from "lucide-react";
+import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Send, Lock, Copy, AlertTriangle, Code, Globe, Zap } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
@@ -70,35 +71,42 @@ export default function WebhooksPage() {
     toast({ title: "Copied", description: "Value copied to clipboard." });
   };
 
-  const handleTestSignal = async (webhook: any) => {
-    setIsTesting(webhook.id);
-    const testPayload = {
-      ticker: "BTCUSDT",
-      side: "buy",
+  const handleSimulateIndicatorSignal = async (webhook: any, side: 'buy' | 'sell') => {
+    setIsTesting(`${webhook.id}-${side}`);
+    
+    // This is the EXACT payload your indicator sends
+    const indicatorPayload = {
+      ticker: "ARCUSDT.P",
+      side: side,
       secretKey: webhook.secretKey,
-      note: "Manual Terminal Test"
+      exchange: "BINANCE",
+      timeframe: "1",
+      note: `Simulation: Manual ${side.toUpperCase()} Signal`
     };
 
     try {
       const response = await fetch(`${webhook.endpointUrl}?id=${webhook.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(testPayload)
+        body: JSON.stringify(indicatorPayload)
       });
       
       const result = await response.json();
 
       if (response.ok) {
-        toast({ title: "Test Success", description: "Signal broadcasted to global stream." });
+        toast({ 
+          title: "Simulation Success", 
+          description: `Internal ${side.toUpperCase()} signal processed. Check History Page.` 
+        });
       } else {
         toast({ 
           variant: "destructive", 
-          title: "Test Failed", 
-          description: result.message || "Check API logs in History page." 
+          title: "Simulation Failed", 
+          description: result.message || "Check API logs." 
         });
       }
     } catch (e) {
-      toast({ variant: "destructive", title: "Network Error", description: "Could not reach the ingestion node." });
+      toast({ variant: "destructive", title: "Network Error", description: "Internal API call failed." });
     } finally {
       setIsTesting(null);
     }
@@ -197,16 +205,16 @@ export default function WebhooksPage() {
               </CardContent>
             </Card>
 
-            <Card className="bg-primary/10 border-accent/20">
+            <Card className="bg-primary/10 border-rose-500/20">
               <CardHeader className="flex flex-row items-center gap-2 space-y-0">
-                <Globe className="h-4 w-4 text-accent" />
-                <CardTitle className="text-sm font-bold">Workstation Note</CardTitle>
+                <Globe className="h-4 w-4 text-rose-400" />
+                <CardTitle className="text-sm font-bold text-rose-400">Connection Blocker</CardTitle>
               </CardHeader>
               <CardContent className="text-[11px] space-y-3 leading-relaxed text-muted-foreground">
-                <p>You are using a <b>Google Cloud Workstation</b>. External services like TradingView cannot hit this URL directly because it is private.</p>
+                <p>TradingView servers are currently <b>blocked</b> from hitting this URL because your environment is private.</p>
                 <div className="flex items-start gap-2 text-rose-400 font-bold mt-2">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <p>Real alerts will only work once the app is deployed to a public URL (e.g. Firebase App Hosting).</p>
+                  <p>Use the "Simulate" buttons below to verify the code works. Real TradingView signals require a public deployment.</p>
                 </div>
               </CardContent>
             </Card>
@@ -222,10 +230,28 @@ export default function WebhooksPage() {
                 return (
                   <Card key={webhook.id} className="bg-card border-border shadow-md">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-white text-md font-bold">{webhook.name}</CardTitle>
+                      <div>
+                        <CardTitle className="text-white text-md font-bold">{webhook.name}</CardTitle>
+                        <CardDescription className="text-[10px] font-mono">{webhook.id}</CardDescription>
+                      </div>
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="border-accent/30 hover:bg-accent/10 h-8" onClick={() => handleTestSignal(webhook)} disabled={isTesting === webhook.id}>
-                          {isTesting === webhook.id ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Send className="h-3 w-3 mr-2" />} Test
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-400 h-8" 
+                          onClick={() => handleSimulateIndicatorSignal(webhook, 'buy')} 
+                          disabled={!!isTesting}
+                        >
+                          {isTesting === `${webhook.id}-buy` ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Simulate Buy
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="border-rose-500/30 hover:bg-rose-500/10 text-rose-400 h-8" 
+                          onClick={() => handleSimulateIndicatorSignal(webhook, 'sell')} 
+                          disabled={!!isTesting}
+                        >
+                          {isTesting === `${webhook.id}-sell` ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Simulate Sell
                         </Button>
                       </div>
                     </CardHeader>
@@ -233,16 +259,16 @@ export default function WebhooksPage() {
                       <div className="grid md:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <Label className="text-[10px] text-muted-foreground uppercase tracking-wider flex justify-between">
-                            Webhook URL (Paste into TradingView)
+                            Webhook URL (Blocked by Private Workspace)
                             <button onClick={() => copyToClipboard(`${webhook.endpointUrl}?id=${webhook.id}`)} className="text-accent hover:underline flex items-center gap-1">
                               <Copy className="h-2 w-2" /> Copy URL
                             </button>
                           </Label>
-                          <Input readOnly value={`${webhook.endpointUrl}?id=${webhook.id}`} className="bg-secondary/50 font-mono text-xs border-none h-8" />
+                          <Input readOnly value={`${webhook.endpointUrl}?id=${webhook.id}`} className="bg-secondary/50 font-mono text-xs border-none h-8 opacity-50" />
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-[10px] text-muted-foreground uppercase tracking-wider flex justify-between">
-                            Secret Key
+                            Indicator Secret Key
                             <button onClick={() => copyToClipboard(webhook.secretKey)} className="text-accent hover:underline flex items-center gap-1">
                               <Copy className="h-2 w-2" /> Copy Key
                             </button>
@@ -255,7 +281,7 @@ export default function WebhooksPage() {
                         <div className="bg-black/40 rounded-lg p-4 border border-border/50 relative group">
                            <div className="flex items-center gap-2 mb-3">
                              <Code className="h-4 w-4 text-accent" />
-                             <span className="text-[10px] text-accent uppercase font-bold tracking-widest">Pine Script Snippet</span>
+                             <span className="text-[10px] text-accent uppercase font-bold tracking-widest">Indicator Code Integration</span>
                            </div>
                            <pre className="text-[10px] font-mono text-emerald-400 whitespace-pre-wrap break-all leading-relaxed bg-black/20 p-3 rounded border border-white/5">
 {pineScriptSnippet}
@@ -266,7 +292,7 @@ export default function WebhooksPage() {
                               className="mt-3 h-7 text-[10px] text-accent border border-accent/20 hover:bg-accent/10 w-full"
                               onClick={() => copyToClipboard(pineScriptSnippet)}
                             >
-                              <Copy className="h-3 w-3 mr-2" /> Copy Pine Script Integration
+                              <Copy className="h-3 w-3 mr-2" /> Copy Pine Script Logic
                             </Button>
                         </div>
                       </div>
@@ -277,7 +303,7 @@ export default function WebhooksPage() {
             )}
             {!isWebhooksLoading && webhooks?.length === 0 && (
               <div className="text-center py-12 border border-dashed border-border rounded-xl">
-                <p className="text-muted-foreground text-sm">No bridges active. Create one to start receiving signals.</p>
+                <p className="text-muted-foreground text-sm">No bridges active. Create one to start.</p>
               </div>
             )}
           </div>

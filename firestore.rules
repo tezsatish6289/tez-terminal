@@ -1,34 +1,104 @@
-
 rules_version = '2';
+
+/**
+ * FIRESTORE SECURITY RULES - PROTOTYPING MODE
+ * 
+ * Core Philosophy:
+ * This ruleset implements a strict User-Ownership model. Access is strictly compartmentalized
+ * using a hierarchical path structure where all data is nested under the user's unique identifier.
+ * 
+ * Data Structure:
+ * - /users/{userId}: Root profile for each user.
+ * - /users/{userId}/webhookAlerts/{alertId}: Private subcollection for trading alerts.
+ * 
+ * Key Security Decisions:
+ * 1. Ownership Isolation: Users are only permitted to read or write data within their own
+ *    document tree (/users/{request.auth.uid}/...).
+ * 2. Authorization Independence: Every WebhookAlert document is required to include a 'userId'
+ *    field. This allows for atomic security checks and ensures data integrity between the
+ *    document content and its location in the database.
+ * 3. Prototyping Flexibility: While authorization is strictly enforced based on identity,
+ *    the specific shape of the data (schema validation) is kept flexible to allow for
+ *    rapid iteration and changes to the webhook payload structure.
+ * 
+ * Relational Integrity:
+ * On creation of alerts, the system enforces that the internal 'userId' field matches the 
+ * authenticated user's ID. On updates, this field is immutable to prevent document hijacking.
+ */
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isAuthenticated() {
+
+    // --- GLOBAL HELPER FUNCTIONS ---
+
+    /** @description Checks if the request is from an authenticated user. */
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    function isAdmin() {
-      return isAuthenticated() && request.auth.token.email == "hello@turbogains.ai";
+    /** @description Checks if the authenticated user matches the provided ID. */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
     }
 
+    /** @description Checks if the authenticated user is the owner and the document exists. */
+    function isExistingOwner(userId) {
+      return resource != null && isOwner(userId);
+    }
+
+    // --- COLLECTION RULES ---
+
+    /**
+     * @description Rules for the top-level user profile documents.
+     * @path /users/{userId}
+     * @allow (create) if the UID in the path matches the authenticated user.
+     * @deny (read) if a user attempts to view a profile that is not their own.
+     * @principle Self-Creation and Ownership.
+     */
     match /users/{userId} {
-      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update, delete: if isExistingOwner(userId);
+
+      /**
+       * @description Rules for trading signals/alerts received via webhooks.
+       * @path /users/{userId}/webhookAlerts/{webhookAlertId}
+       * @allow (list) a user fetching their own historical alerts.
+       * @deny (create) if the 'userId' field in the data does not match the path UID.
+       * @principle Path-based ownership and Relational Integrity.
+       */
+      match /webhookAlerts/{webhookAlertId} {
+        allow get, list: if isOwner(userId);
+        
+        // Ensure the creator is the owner and the internal userId matches the path
+        allow create: if isOwner(userId) 
+          && request.resource.data.userId == userId;
+
+        // Ensure only the owner can update, and the userId field remains immutable
+        allow update: if isExistingOwner(userId) 
+          && request.resource.data.userId == resource.data.userId;
+
+        allow delete: if isExistingOwner(userId);
+      }
     }
 
-    match /webhooks/{webhookId} {
-      // Only the designated admin email can manage webhooks
-      allow read, write: if isAdmin();
-      
-      // Public access for the ingestion route to validate config
-      allow get: if true;
-    }
-
-    match /signals/{signalId} {
-      // All authenticated users can read the global signal stream
-      allow read: if isAuthenticated();
-      
-      // Ingestion route creates signals
-      allow create: if true;
-      allow update, delete: if isAdmin();
+    // --- DEFAULT DENY ---
+    // Explicitly deny any access to paths not defined above.
+    match /{path=**} {
+      allow read, write: if false;
     }
   }
 }
+
+/**
+ * ANALYSIS SUMMARY (FOR DEVELOPERS):
+ * 
+ * 1. Adopted Intent: Followed the 'Authorization Independence' reasoning. The rules 
+ *    rely on the hierarchy and the denormalized 'userId' field.
+ * 2. Access Patterns:
+ *    - /users/{userId}: Pattern 4 (Self-Creation) + Pattern 1 (Ownership).
+ *    - /users/{userId}/webhookAlerts/{id}: Pattern 1 (Ownership) with relational 
+ *      checks for the 'userId' field as specified in the reasoning.
+ * 3. Ambiguities: The 'user' entity schema was not provided, so the /users/{userId} 
+ *    path is secured using basic UID matching and isExistingOwner helpers.
+ */

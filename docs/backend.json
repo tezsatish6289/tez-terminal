@@ -1,65 +1,111 @@
-
 {
   "entities": {
-    "UserProfile": {
-      "title": "UserProfile",
+    "WebhookAlert": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "WebhookAlert",
       "type": "object",
-      "description": "User account information and role.",
+      "description": "Represents a single trading signal or alert received via a webhook, typically from TradingView. This entity stores the raw and parsed details of the alert for historical display and processing.",
       "properties": {
-        "uid": { "type": "string" },
-        "email": { "type": "string" },
-        "role": { "type": "string", "enum": ["ADMIN", "USER"] },
-        "subscriptionPlan": { "type": "string", "enum": ["BASIC", "PRO", "ELITE"] },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the WebhookAlert entity."
+        },
+        "receivedAt": {
+          "type": "string",
+          "description": "The timestamp when the webhook alert was received by the application.",
+          "format": "date-time"
+        },
+        "source": {
+          "type": "string",
+          "description": "The origin of the webhook alert (e.g., \"TradingView\")."
+        },
+        "payload": {
+          "type": "string",
+          "description": "The full, raw JSON payload received from the webhook, stored as a string to preserve the original data."
+        },
+        "alertName": {
+          "type": "string",
+          "description": "The name of the alert as configured in the webhook sender (e.g., TradingView)."
+        },
+        "symbol": {
+          "type": "string",
+          "description": "The trading instrument symbol (e.g., \"BTCUSD\", \"ETHUSDT\")."
+        },
+        "exchange": {
+          "type": "string",
+          "description": "The exchange associated with the trading instrument (e.g., \"Binance\", \"Bybit\")."
+        },
+        "interval": {
+          "type": "string",
+          "description": "The timeframe or interval associated with the alert (e.g., \"1h\", \"4h\", \"1D\")."
+        },
+        "price": {
+          "type": "number",
+          "description": "The price at which the alert was triggered."
+        },
+        "message": {
+          "type": "string",
+          "description": "The custom message content provided in the webhook alert."
+        },
+        "status": {
+          "type": "string",
+          "description": "The processing status of the webhook alert (e.g., \"received\", \"processed\", \"error\")."
+        }
       },
-      "required": ["uid", "role"]
-    },
-    "WebhookConfiguration": {
-      "title": "WebhookConfiguration",
-      "type": "object",
-      "description": "A global configuration for a TradingView webhook endpoint managed by Admins.",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "adminId": { "type": "string" },
-        "secretKey": { "type": "string" },
-        "isActive": { "type": "boolean" },
-        "endpointUrl": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["id", "name", "adminId", "secretKey"]
-    },
-    "Signal": {
-      "title": "Signal",
-      "type": "object",
-      "description": "A trading signal received from a webhook, consumed by users.",
-      "properties": {
-        "id": { "type": "string" },
-        "webhookId": { "type": "string" },
-        "receivedAt": { "type": "string", "format": "date-time" },
-        "payload": { "type": "string" },
-        "symbol": { "type": "string" },
-        "type": { "type": "string", "enum": ["BUY", "SELL"] },
-        "processingStatus": { "type": "string" }
-      },
-      "required": ["id", "webhookId", "receivedAt", "payload"]
+      "required": [
+        "id",
+        "receivedAt",
+        "source",
+        "payload",
+        "status"
+      ]
     }
   },
   "auth": {
-    "providers": ["anonymous", "password"]
+    "providers": [
+      "password",
+      "anonymous"
+    ]
   },
   "firestore": {
-    "/users/{userId}": {
-      "schema": "#/backend/entities/UserProfile",
-      "description": "Individual user profiles including roles."
-    },
-    "/webhooks/{webhookId}": {
-      "schema": "#/backend/entities/WebhookConfiguration",
-      "description": "Global webhook configurations managed by admins."
-    },
-    "/signals/{signalId}": {
-      "schema": "#/backend/entities/Signal",
-      "description": "Global stream of signals for all users."
-    }
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "user",
+          "schema": {
+            "$ref": "#/backend/entities/user"
+          },
+          "description": "Top-level collection for user profiles. Each document ID corresponds to the Firebase Authentication UID. This collection serves as the root for all user-specific data. While a specific 'user' entity schema was not provided, this path assumes a basic user profile document would reside here.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for a user, corresponding to their Firebase Authentication UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/webhookAlerts/{webhookAlertId}",
+        "definition": {
+          "entityName": "WebhookAlert",
+          "schema": {
+            "$ref": "#/backend/entities/WebhookAlert"
+          },
+          "description": "A subcollection holding all trading signal alerts received via webhooks for a specific user. Each document contains the raw and parsed alert details. For Authorization Independence, each `WebhookAlert` document must also include a 'userId' field, which matches the parent `{userId}` in the path, enabling atomic security rule checks.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the owner of this webhook alert, matching the Firebase Authentication UID."
+            },
+            {
+              "name": "webhookAlertId",
+              "description": "The unique identifier for a specific webhook alert document."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed following the core principles of Authorization Independence and Structural Segregation to ensure robust, scalable, and debuggable security rules. All user-specific data, especially sensitive trading signals, is nested under a `users` top-level collection, adhering to the 'Private Data' and 'Hierarchical Paths for User-Owned Data' access modeling.\n\n**Authorization Independence:** Each `WebhookAlert` document is stored in a subcollection under the specific user's path: `/users/{userId}/webhookAlerts/{webhookAlertId}`. This design inherently links the document to its owner. For explicit authorization independence, each `WebhookAlert` document *will include a `userId` field (or `ownerId`)* that matches the `{userId}` wildcard in its path. This denormalization, though seemingly redundant with the path, is critical: it allows security rules to perform atomic checks (`request.auth.uid == resource.data.userId`) without requiring a `get()` call to a parent document or another collection. This eliminates authorization dependencies, making rule evaluation faster, more reliable in batched writes/transactions, and easier to debug.\n\n**QAPs (Query as Authorization Policies):** By enforcing path-based ownership (`/users/{userId}/webhookAlerts/{webhookAlertId}`), the security rules `allow read, write: if request.auth.uid == userId;` naturally serve as Query as Authorization Policies. A user can only successfully query or list documents within their own `/users/{request.auth.uid}/webhookAlerts` path. Any attempt to query another user's `webhookAlerts` subcollection (e.g., `/users/{otherUserId}/webhookAlerts`) will be rejected by the rules, as `request.auth.uid` will not match `{otherUserId}`. This guarantees that `list` operations are secure by structure, preventing accidental data exposure and simplifying client-side logic.\n\n**Structural Segregation:** All `WebhookAlert` documents within a user's `webhookAlerts` subcollection share the same security posture: they are private to that user. This avoids mixing data with different access requirements within the same collection, simplifying rule logic. Should different types of alerts (e.g., public vs. private) emerge, they would be housed in separate collections (e.g., `/public_alerts` or a different subcollection under the user path).\n\n**DBAC:** User roles (if any were to be implemented) would be stored in dedicated collections (e.g., `/roles_admin/{uid}`) or within the `user` document, and authorization would rely solely on `request.auth.uid` for path matching or checking explicit membership maps/roles stored within the database."
   }
 }

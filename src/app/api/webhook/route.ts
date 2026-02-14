@@ -16,14 +16,16 @@ export async function POST(request: NextRequest) {
   const webhookId = searchParams.get("id");
   const timestamp = new Date().toISOString();
 
+  let rawBody = "";
+
   try {
     // 1. Basic Validation
     if (!webhookId) {
       await addDoc(logsRef, {
         timestamp,
         level: "ERROR",
-        message: "Missing webhook ID in request URL",
-        details: "Expected ?id=...",
+        message: "Missing bridge ID in request URL",
+        details: "The webhook URL must end with ?id=YOUR_ID",
       });
       return NextResponse.json({ success: false, message: "Missing bridge ID" }, { status: 400 });
     }
@@ -33,21 +35,18 @@ export async function POST(request: NextRequest) {
     const contentType = request.headers.get("content-type") || "";
     
     try {
-      if (contentType.includes("application/json")) {
-        body = await request.json();
-      } else {
-        const text = await request.text();
-        body = JSON.parse(text);
-      }
+      rawBody = await request.text();
+      // Trim to handle accidental newlines from TradingView
+      body = JSON.parse(rawBody.trim());
     } catch (parseError: any) {
       await addDoc(logsRef, {
         timestamp,
         level: "ERROR",
-        message: "Failed to parse request body as JSON",
-        details: parseError.message,
+        message: "Invalid JSON format from TradingView",
+        details: `Body: ${rawBody.substring(0, 100)}... Error: ${parseError.message}`,
         webhookId,
       });
-      return NextResponse.json({ success: false, message: "Invalid JSON payload" }, { status: 400 });
+      return NextResponse.json({ success: false, message: "Invalid JSON payload. Ensure NO extra text exists outside the {} braces." }, { status: 400 });
     }
 
     // 3. Validate Bridge Configuration
@@ -59,7 +58,7 @@ export async function POST(request: NextRequest) {
         timestamp,
         level: "WARN",
         message: "Bridge ID not found in database",
-        details: `ID: ${webhookId}`,
+        details: `Requested ID: ${webhookId}`,
         webhookId,
       });
       return NextResponse.json({ success: false, message: "Bridge not found" }, { status: 404 });
@@ -68,17 +67,16 @@ export async function POST(request: NextRequest) {
     const configData = configSnap.data();
 
     // 4. Security: Secret Key Validation
-    // TradingView alert must contain the secretKey
     const providedKey = body.secretKey || searchParams.get("key");
     if (configData.secretKey && providedKey !== configData.secretKey) {
       await addDoc(logsRef, {
         timestamp,
         level: "WARN",
-        message: "Unauthorized attempt: Invalid Secret Key",
-        details: `Provided: ${providedKey}`,
+        message: "Unauthorized: Secret Key Mismatch",
+        details: `Expected match for ${configData.name}`,
         webhookId,
       });
-      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ success: false, message: "Unauthorized: Invalid Secret Key" }, { status: 401 });
     }
 
     // 5. Broadcast Signal
@@ -99,7 +97,7 @@ export async function POST(request: NextRequest) {
     await addDoc(logsRef, {
       timestamp,
       level: "INFO",
-      message: `Signal Ingested: ${signalData.symbol} ${signalData.type}`,
+      message: `Signal Ingested: ${signalData.symbol}`,
       details: `Source: ${configData.name}`,
       webhookId,
     });
@@ -109,7 +107,7 @@ export async function POST(request: NextRequest) {
     await addDoc(logsRef, {
       timestamp,
       level: "ERROR",
-      message: "Critical Ingestion Error",
+      message: "Critical Ingestion Failure",
       details: error.message,
       webhookId: webhookId || "UNKNOWN",
     });

@@ -10,7 +10,7 @@ import { useCollection, useUser, useMemoFirebase, useFirestore, useAuth } from "
 import { collection, query, orderBy } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Send, Lock, Copy, Info, AlertTriangle, Code } from "lucide-react";
+import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Send, Lock, Copy, Info, AlertTriangle, Code, Globe } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
@@ -47,7 +47,7 @@ export default function WebhooksPage() {
     const webhookData = {
       name: newWebhookName,
       isActive: true,
-      secretKey: Math.random().toString(36).substring(2, 11), // 9-11 char key
+      secretKey: Math.random().toString(36).substring(2, 11),
       createdAt: new Date().toISOString(),
       endpointUrl: `${origin}/api/webhook`,
     };
@@ -199,15 +199,14 @@ export default function WebhooksPage() {
 
             <Card className="bg-primary/10 border-accent/20">
               <CardHeader className="flex flex-row items-center gap-2 space-y-0">
-                <Info className="h-4 w-4 text-accent" />
-                <CardTitle className="text-sm font-bold">Indicator Setup</CardTitle>
+                <Globe className="h-4 w-4 text-accent" />
+                <CardTitle className="text-sm font-bold">Workstation Note</CardTitle>
               </CardHeader>
               <CardContent className="text-[11px] space-y-3 leading-relaxed text-muted-foreground">
-                <p>1. Copy the <b>Webhook URL</b> into your TradingView Alert box.</p>
-                <p>2. Set Condition to <b>"Any alert() function call"</b> in the alert dialog.</p>
+                <p>You are using a <b>Google Cloud Workstation</b>. External services like TradingView cannot hit this URL directly because it is private.</p>
                 <div className="flex items-start gap-2 text-rose-400 font-bold mt-2">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <p>IMPORTANT: Ensure the <code>?id=...</code> parameter is at the end of your Webhook URL.</p>
+                  <p>Real alerts will only work once the app is deployed to a public URL (e.g. Firebase App Hosting).</p>
                 </div>
               </CardContent>
             </Card>

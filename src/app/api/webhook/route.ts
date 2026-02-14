@@ -26,9 +26,6 @@ export async function POST(request: NextRequest) {
       rawBody = "UNREADABLE_BODY";
     }
 
-    // Server-side log for immediate visibility in platform logs
-    console.log(`[Webhook Hit] ID: ${webhookId} | Body: ${rawBody}`);
-
     // 2. Immediate Audit Log to Firestore
     // This happens before any validation to ensure we see the "hit"
     await addDoc(logsRef, {
@@ -64,7 +61,7 @@ export async function POST(request: NextRequest) {
     // 5. Secret Key Validation
     const providedKey = body.secretKey || searchParams.get("key");
     if (configData.secretKey && providedKey !== configData.secretKey) {
-      throw new Error("Authentication Failed: Secret Key Mismatch.");
+      throw new Error(`Authentication Failed: Secret Key Mismatch. Expected ${configData.secretKey}, got ${providedKey}`);
     }
 
     // 6. Signal Normalization

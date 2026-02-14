@@ -1,11 +1,10 @@
-
 import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
 
 /**
- * Enhanced Ingestion Bridge for TradingView Indicators.
- * Prioritizes indicator-specific fields like 'ticker' and 'side'.
+ * Production-Ready Ingestion Bridge.
+ * Optimized for external TradingView signals.
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
@@ -20,24 +19,24 @@ export async function POST(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     webhookId = searchParams.get("id") || "MISSING_ID";
     
-    // 1. Capture Raw Request immediately
+    // 1. Capture Raw Request immediately for debugging
     try {
       rawBody = await request.text();
     } catch (e) {
       rawBody = "UNREADABLE_BODY";
     }
 
-    // 2. Immediate Audit Log
+    // 2. Audit Log (Helpful during initial deployment setup)
     await addDoc(logsRef, {
       timestamp,
       level: "INFO",
-      message: "Webhook Hit Detected",
+      message: "Incoming Webhook Attempt",
       details: `ID: ${webhookId} | Body: ${rawBody}`,
       webhookId,
     });
 
     if (webhookId === "MISSING_ID") {
-      throw new Error("Missing 'id' parameter in URL. Format: /api/webhook?id=XYZ");
+      throw new Error("Missing 'id' parameter in Webhook URL.");
     }
 
     // 3. Parse Body
@@ -45,7 +44,7 @@ export async function POST(request: NextRequest) {
     try {
       body = JSON.parse(rawBody.trim());
     } catch (parseError: any) {
-      throw new Error(`JSON Error: ${parseError.message}. Body: ${rawBody}`);
+      throw new Error(`Invalid JSON format. Body: ${rawBody}`);
     }
 
     // 4. Validate Bridge Config
@@ -53,7 +52,7 @@ export async function POST(request: NextRequest) {
     const configSnap = await getDoc(configRef);
 
     if (!configSnap.exists()) {
-      throw new Error(`Bridge ID '${webhookId}' not found.`);
+      throw new Error(`Bridge ID '${webhookId}' not found in terminal registry.`);
     }
 
     const configData = configSnap.data();
@@ -61,16 +60,15 @@ export async function POST(request: NextRequest) {
     // 5. Auth Check
     const providedKey = body.secretKey || searchParams.get("key");
     if (configData.secretKey && providedKey !== configData.secretKey) {
-      throw new Error(`Auth Mismatch. Expected ${configData.secretKey}, got ${providedKey}`);
+      throw new Error(`Authentication failure: Secret key mismatch.`);
     }
 
-    // 6. Signal Mapping
-    // Handle your indicator's specific strings: "buy", "sell"
+    // 6. Signal Mapping (Indicator specific)
     let signalType = "NEUTRAL";
-    const rawSide = (body.side || body.type || body.action || "").toString().toLowerCase();
+    const rawSide = (body.side || "").toString().toLowerCase();
     
-    if (rawSide.includes("buy")) signalType = "BUY";
-    if (rawSide.includes("sell")) signalType = "SELL";
+    if (rawSide === "buy") signalType = "BUY";
+    if (rawSide === "sell") signalType = "SELL";
 
     const symbol = (body.ticker || body.symbol || "UNKNOWN").toUpperCase();
 
@@ -82,29 +80,30 @@ export async function POST(request: NextRequest) {
       symbol: symbol,
       type: signalType,
       note: body.note || `Indicator alert for ${symbol}`,
-      source: configData.name || "Indicator",
+      source: configData.name || "TradingView Indicator",
     };
 
+    // Save to global signal stream
     await addDoc(signalsRef, signalData);
 
     // Final Success Log
     await addDoc(logsRef, {
       timestamp,
       level: "INFO",
-      message: "Success: Signal Ingested",
-      details: `Symbol: ${symbol} | Type: ${signalType}`,
+      message: "Signal Processed Successfully",
+      details: `Asset: ${symbol} | Action: ${signalType}`,
       webhookId,
     });
 
-    return NextResponse.json({ success: true, message: "Signal ingested" });
+    return NextResponse.json({ success: true, message: "Signal processed" });
   } catch (error: any) {
-    console.error(`[Bridge Error] ${error.message}`);
+    console.error(`[Ingestion Error] ${error.message}`);
     
     try {
       await addDoc(logsRef, {
         timestamp,
         level: "ERROR",
-        message: "Processing Failure",
+        message: "Ingestion Failure",
         details: error.message,
         webhookId: webhookId || "UNKNOWN",
       });

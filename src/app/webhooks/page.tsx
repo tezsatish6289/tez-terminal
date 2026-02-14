@@ -1,4 +1,3 @@
-
 "use client";
 
 import { LeftSidebar } from "@/components/dashboard/Sidebar";
@@ -11,7 +10,7 @@ import { useCollection, useUser, useMemoFirebase, useFirestore, useAuth } from "
 import { collection, query, orderBy } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Send, Lock, Copy, AlertTriangle, Code, Globe, Zap } from "lucide-react";
+import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Lock, Copy, AlertTriangle, Code, Globe, Zap, ExternalLink } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
@@ -74,7 +73,6 @@ export default function WebhooksPage() {
   const handleSimulateIndicatorSignal = async (webhook: any, side: 'buy' | 'sell') => {
     setIsTesting(`${webhook.id}-${side}`);
     
-    // This is the EXACT payload your indicator sends
     const indicatorPayload = {
       ticker: "ARCUSDT.P",
       side: side,
@@ -169,6 +167,8 @@ export default function WebhooksPage() {
     );
   }
 
+  const isWorkstation = origin.includes("cloudworkstations.dev");
+
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       <LeftSidebar />
@@ -178,7 +178,7 @@ export default function WebhooksPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white">Bridge Management</h1>
-              <p className="text-muted-foreground text-sm">Configure technical entry points for global alerts.</p>
+              <p className="text-muted-foreground text-sm">Configure entry points for global TradingView alerts.</p>
             </div>
             <WebhookIcon className="h-8 w-8 text-accent opacity-20" />
           </div>
@@ -205,16 +205,23 @@ export default function WebhooksPage() {
               </CardContent>
             </Card>
 
-            <Card className="bg-primary/10 border-rose-500/20">
+            <Card className={isWorkstation ? "bg-rose-500/10 border-rose-500/30" : "bg-emerald-500/10 border-emerald-500/30"}>
               <CardHeader className="flex flex-row items-center gap-2 space-y-0">
-                <Globe className="h-4 w-4 text-rose-400" />
-                <CardTitle className="text-sm font-bold text-rose-400">Connection Blocker</CardTitle>
+                {isWorkstation ? <AlertTriangle className="h-4 w-4 text-rose-400" /> : <Globe className="h-4 w-4 text-emerald-400" />}
+                <CardTitle className="text-sm font-bold">{isWorkstation ? "Private Dev Node" : "Public Terminal Active"}</CardTitle>
               </CardHeader>
               <CardContent className="text-[11px] space-y-3 leading-relaxed text-muted-foreground">
-                <p>TradingView servers are currently <b>blocked</b> from hitting this URL because your environment is private.</p>
-                <div className="flex items-start gap-2 text-rose-400 font-bold mt-2">
-                  <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <p>Use the "Simulate" buttons below to verify the code works. Real TradingView signals require a public deployment.</p>
+                {isWorkstation ? (
+                  <p>External sites (TradingView) are <b>blocked</b> from this workstation URL. Use the Simulate buttons to verify code logic.</p>
+                ) : (
+                  <p>Terminal is publicly accessible. TradingView can now hit your webhook endpoints directly.</p>
+                )}
+                <div className="pt-2">
+                   <Button variant="outline" size="sm" className="w-full text-[10px] h-8 gap-2" asChild>
+                     <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer">
+                       <ExternalLink className="h-3 w-3" /> Go to Deployment Console
+                     </a>
+                   </Button>
                 </div>
               </CardContent>
             </Card>
@@ -225,7 +232,7 @@ export default function WebhooksPage() {
               <div className="h-32 bg-card/50 border border-border animate-pulse rounded-xl" />
             ) : (
               webhooks?.map((webhook) => {
-                const pineScriptSnippet = `// Webhook Integration for TezTerminal\nif buySignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"buy", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)\nif sellSignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"sell", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)`;
+                const pineScriptSnippet = `// Webhook Logic for TezTerminal\nif buySignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"buy", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)\nif sellSignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"sell", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)`;
 
                 return (
                   <Card key={webhook.id} className="bg-card border-border shadow-md">
@@ -259,12 +266,12 @@ export default function WebhooksPage() {
                       <div className="grid md:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <Label className="text-[10px] text-muted-foreground uppercase tracking-wider flex justify-between">
-                            Webhook URL (Blocked by Private Workspace)
+                            Webhook URL (Copy to TradingView)
                             <button onClick={() => copyToClipboard(`${webhook.endpointUrl}?id=${webhook.id}`)} className="text-accent hover:underline flex items-center gap-1">
                               <Copy className="h-2 w-2" /> Copy URL
                             </button>
                           </Label>
-                          <Input readOnly value={`${webhook.endpointUrl}?id=${webhook.id}`} className="bg-secondary/50 font-mono text-xs border-none h-8 opacity-50" />
+                          <Input readOnly value={`${webhook.endpointUrl}?id=${webhook.id}`} className="bg-secondary/50 font-mono text-xs border-none h-8" />
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-[10px] text-muted-foreground uppercase tracking-wider flex justify-between">
@@ -281,7 +288,7 @@ export default function WebhooksPage() {
                         <div className="bg-black/40 rounded-lg p-4 border border-border/50 relative group">
                            <div className="flex items-center gap-2 mb-3">
                              <Code className="h-4 w-4 text-accent" />
-                             <span className="text-[10px] text-accent uppercase font-bold tracking-widest">Indicator Code Integration</span>
+                             <span className="text-[10px] text-accent uppercase font-bold tracking-widest">Pine Script Integration</span>
                            </div>
                            <pre className="text-[10px] font-mono text-emerald-400 whitespace-pre-wrap break-all leading-relaxed bg-black/20 p-3 rounded border border-white/5">
 {pineScriptSnippet}
@@ -300,11 +307,6 @@ export default function WebhooksPage() {
                   </Card>
                 );
               })
-            )}
-            {!isWebhooksLoading && webhooks?.length === 0 && (
-              <div className="text-center py-12 border border-dashed border-border rounded-xl">
-                <p className="text-muted-foreground text-sm">No bridges active. Create one to start.</p>
-              </div>
             )}
           </div>
         </div>

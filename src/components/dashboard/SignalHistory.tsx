@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { 
   Table, 
   TableBody, 
@@ -19,9 +19,12 @@ import { collection, query, limit } from "firebase/firestore";
 export function SignalHistory() {
   const { user } = useUser();
   const firestore = useFirestore();
-  const [formattedDates, setFormattedDates] = useState<Record<string, string>>({});
+  const [mounted, setMounted] = useState(false);
 
-  // Simplified query: removed orderBy to avoid index requirement for prototype
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const eventsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     return query(
@@ -33,30 +36,24 @@ export function SignalHistory() {
   const { data: rawSignals, isLoading, error } = useCollection(eventsQuery);
 
   // Client-side sort to ensure newest signals appear first without requiring a server-side index
-  const signals = rawSignals ? [...rawSignals].sort((a, b) => {
-    const dateA = new Date(a.receivedAt).getTime();
-    const dateB = new Date(b.receivedAt).getTime();
-    return dateB - dateA;
-  }) : null;
+  const signals = useMemo(() => {
+    if (!rawSignals) return null;
+    return [...rawSignals].sort((a, b) => {
+      const dateA = new Date(a.receivedAt).getTime();
+      const dateB = new Date(b.receivedAt).getTime();
+      return dateB - dateA;
+    });
+  }, [rawSignals]);
 
-  useEffect(() => {
-    if (signals) {
-      const dates: Record<string, string> = {};
-      signals.forEach(s => {
-        try {
-          const date = new Date(s.receivedAt);
-          if (!isNaN(date.getTime())) {
-            dates[s.id] = format(date, 'MMM dd, HH:mm:ss');
-          } else {
-            dates[s.id] = s.receivedAt;
-          }
-        } catch (e) {
-          dates[s.id] = s.receivedAt;
-        }
-      });
-      setFormattedDates(dates);
+  const getFormattedDate = (receivedAt: string) => {
+    if (!mounted) return "...";
+    try {
+      const date = new Date(receivedAt);
+      return !isNaN(date.getTime()) ? format(date, 'MMM dd, HH:mm:ss') : receivedAt;
+    } catch (e) {
+      return receivedAt;
     }
-  }, [signals]);
+  };
 
   return (
     <div className="space-y-4">
@@ -106,7 +103,7 @@ export function SignalHistory() {
               signals.map((signal) => (
                 <TableRow key={signal.id} className="transition-colors group border-border">
                   <TableCell className="text-xs font-mono text-muted-foreground">
-                    {formattedDates[signal.id] || '...'}
+                    {getFormattedDate(signal.receivedAt)}
                   </TableCell>
                   <TableCell>
                     <span className="text-xs font-mono text-foreground">{signal.sourceIp}</span>

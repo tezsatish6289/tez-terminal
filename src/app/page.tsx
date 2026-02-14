@@ -4,6 +4,7 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { SignalHistory } from "@/components/dashboard/SignalHistory";
 import { ChartPane } from "@/components/dashboard/ChartPane";
 import { Toaster } from "@/components/ui/toaster";
+import Link from "next/link";
 
 export default function Home() {
   return (
@@ -51,9 +52,11 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="mt-6 pt-6 border-t border-border">
-                    <button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-bold py-2.5 rounded-lg text-sm transition-all shadow-lg shadow-accent/10">
-                      Configure Webhook API
-                    </button>
+                    <Link href="/webhooks" className="block w-full">
+                      <button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground font-bold py-2.5 rounded-lg text-sm transition-all shadow-lg shadow-accent/10">
+                        Configure Webhook API
+                      </button>
+                    </Link>
                   </div>
                </div>
 

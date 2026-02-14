@@ -1,0 +1,172 @@
+
+"use client";
+
+import { LeftSidebar } from "@/components/dashboard/Sidebar";
+import { TopBar } from "@/components/dashboard/TopBar";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useCollection, useUser, useMemoFirebase } from "@/firebase";
+import { collection, doc, serverTimestamp } from "firebase/firestore";
+import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { Copy, Plus, Trash2, Webhook as WebhookIcon, ShieldCheck, Check } from "lucide-react";
+import { useState } from "react";
+import { toast } from "@/hooks/use-toast";
+import { Toaster } from "@/components/ui/toaster";
+
+export default function WebhooksPage() {
+  const { user } = useUser();
+  const [newWebhookName, setNewWebhookName] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const webhooksQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return collection(doc(collection(window.firebaseFirestore, "users"), user.uid), "webhookConfigurations");
+  }, [user]);
+
+  const { data: webhooks, isLoading } = useCollection(webhooksQuery);
+
+  const handleAddWebhook = () => {
+    if (!user || !newWebhookName.trim()) return;
+
+    const webhookData = {
+      name: newWebhookName,
+      userId: user.uid,
+      isActive: true,
+      secretKey: Math.random().toString(36).substring(2, 15),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      endpointUrl: `${window.location.origin}/api/webhook`,
+    };
+
+    const colRef = collection(doc(collection(window.firebaseFirestore, "users"), user.uid), "webhookConfigurations");
+    addDocumentNonBlocking(colRef, webhookData);
+    setNewWebhookName("");
+    toast({
+      title: "Webhook Created",
+      description: `Configuration for ${newWebhookName} has been saved.`,
+    });
+  };
+
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+    toast({
+      title: "Copied!",
+      description: "Value copied to clipboard.",
+    });
+  };
+
+  return (
+    <div className="flex min-h-screen bg-background text-foreground">
+      <LeftSidebar />
+      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+        <TopBar />
+        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-white">Webhook Configurations</h1>
+              <p className="text-muted-foreground text-sm">Manage your TradingView alert endpoints.</p>
+            </div>
+            <WebhookIcon className="h-8 w-8 text-accent opacity-20" />
+          </div>
+
+          <Card className="bg-secondary/20 border-accent/20">
+            <CardHeader>
+              <CardTitle className="text-lg">Create New Webhook</CardTitle>
+              <CardDescription>Give your webhook a name to identify it in your alerts.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-4">
+                <div className="flex-1 space-y-2">
+                  <Label htmlFor="webhook-name">Configuration Name</Label>
+                  <Input 
+                    id="webhook-name" 
+                    placeholder="e.g. BTC 15m RSI Strategy" 
+                    value={newWebhookName}
+                    onChange={(e) => setNewWebhookName(e.target.value)}
+                    className="bg-background border-border focus-visible:ring-accent"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button 
+                    onClick={handleAddWebhook}
+                    className="bg-accent text-accent-foreground hover:bg-accent/90"
+                  >
+                    <Plus className="h-4 w-4 mr-2" /> Create Webhook
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-6">
+            {isLoading ? (
+              <p className="text-muted-foreground animate-pulse">Loading configurations...</p>
+            ) : webhooks?.length === 0 ? (
+              <div className="text-center py-12 border border-dashed border-border rounded-xl">
+                <WebhookIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
+                <p className="text-muted-foreground">No webhook configurations found. Create your first one above.</p>
+              </div>
+            ) : (
+              webhooks?.map((webhook) => (
+                <Card key={webhook.id} className="bg-card border-border overflow-hidden group">
+                  <div className="h-1 w-full bg-accent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                    <div>
+                      <CardTitle className="text-white">{webhook.name}</CardTitle>
+                      <CardDescription className="text-xs">ID: {webhook.id}</CardDescription>
+                    </div>
+                    <ShieldCheck className="h-5 w-5 text-emerald-400" />
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Webhook URL (TradingView Endpoint)</Label>
+                      <div className="flex gap-2">
+                        <Input 
+                          readOnly 
+                          value={`${webhook.endpointUrl}?id=${webhook.id}`} 
+                          className="bg-secondary/50 border-none font-mono text-xs h-9"
+                        />
+                        <Button 
+                          variant="secondary" 
+                          size="sm" 
+                          className="h-9 px-3"
+                          onClick={() => copyToClipboard(`${webhook.endpointUrl}?id=${webhook.id}`, `url-${webhook.id}`)}
+                        >
+                          {copiedId === `url-${webhook.id}` ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Secret Key (Include in payload for validation)</Label>
+                      <div className="flex gap-2">
+                        <Input 
+                          readOnly 
+                          type="password"
+                          value={webhook.secretKey} 
+                          className="bg-secondary/50 border-none font-mono text-xs h-9"
+                        />
+                        <Button 
+                          variant="secondary" 
+                          size="sm" 
+                          className="h-9 px-3"
+                          onClick={() => copyToClipboard(webhook.secretKey, `key-${webhook.id}`)}
+                        >
+                          {copiedId === `key-${webhook.id}` ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </div>
+      </main>
+      <Toaster />
+    </div>
+  );
+}

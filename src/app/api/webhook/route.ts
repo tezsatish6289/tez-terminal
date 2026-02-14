@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
 
 /**
  * Webhook Ingestion Endpoint
  * 
  * This route receives POST requests from TradingView.
- * It uses the 'uid' and 'id' (configId) from the query string to route
- * the signal to the correct user's Firestore collection.
+ * It validates the secretKey and routes the signal to Firestore.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -22,8 +21,26 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { firestore } = initializeFirebase();
 
-    // Persist the signal to Firestore
-    // Path: /users/{userId}/webhookEvents
+    // 1. Fetch the configuration to validate the secret key
+    const configRef = doc(firestore, "users", uid, "webhookConfigurations", configId);
+    const configSnap = await getDoc(configRef);
+
+    if (!configSnap.exists()) {
+      return NextResponse.json({ success: false, message: "Configuration not found" }, { status: 404 });
+    }
+
+    const configData = configSnap.data();
+
+    // 2. Validate Secret Key (if one is set in the configuration)
+    // We expect "secretKey" to be a field in the incoming JSON body
+    if (configData.secretKey && body.secretKey !== configData.secretKey) {
+      return NextResponse.json({ 
+        success: false, 
+        message: "Unauthorized: Invalid or missing secret key in payload." 
+      }, { status: 401 });
+    }
+
+    // 3. Persist the signal to Firestore
     const eventsRef = collection(firestore, "users", uid, "webhookEvents");
     
     await addDoc(eventsRef, {
@@ -38,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       success: true, 
-      message: "Signal ingested by TezTerminal Antigravity",
+      message: "Signal verified and ingested by TezTerminal",
       received: body 
     });
   } catch (error: any) {

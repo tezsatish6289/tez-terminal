@@ -10,36 +10,41 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Zap, Clock, Terminal } from "lucide-react";
+import { Zap, Clock, Terminal, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, limit } from "firebase/firestore";
+import { collection, query, limit } from "firebase/firestore";
 
 export function SignalHistory() {
   const { user } = useUser();
   const firestore = useFirestore();
   const [formattedDates, setFormattedDates] = useState<Record<string, string>>({});
 
+  // Simplified query: removed orderBy to avoid index requirement for prototype
   const eventsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     return query(
       collection(firestore, "users", user.uid, "webhookEvents"),
-      orderBy("receivedAt", "desc"),
       limit(20)
     );
   }, [user, firestore]);
 
-  const { data: signals, isLoading } = useCollection(eventsQuery);
+  const { data: rawSignals, isLoading, error } = useCollection(eventsQuery);
 
-  // Hydration-safe date formatting
+  // Client-side sort to ensure newest signals appear first without requiring a server-side index
+  const signals = rawSignals ? [...rawSignals].sort((a, b) => {
+    const dateA = new Date(a.receivedAt).getTime();
+    const dateB = new Date(b.receivedAt).getTime();
+    return dateB - dateA;
+  }) : null;
+
   useEffect(() => {
     if (signals) {
       const dates: Record<string, string> = {};
       signals.forEach(s => {
         try {
           const date = new Date(s.receivedAt);
-          // Only format if the date is valid
           if (!isNaN(date.getTime())) {
             dates[s.id] = format(date, 'MMM dd, HH:mm:ss');
           } else {
@@ -66,6 +71,13 @@ export function SignalHistory() {
         </div>
       </div>
 
+      {error && (
+        <div className="bg-destructive/10 border border-destructive/20 p-3 rounded-lg flex items-center gap-3 text-destructive text-sm">
+          <AlertCircle className="h-4 w-4" />
+          <span>Error loading signals: {error.message}</span>
+        </div>
+      )}
+
       <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
         <Table>
           <TableHeader className="bg-secondary/30">
@@ -77,17 +89,17 @@ export function SignalHistory() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
+            {isLoading && (!signals || signals.length === 0) ? (
               <TableRow>
                 <TableCell colSpan={4} className="text-center py-8 text-muted-foreground animate-pulse">
-                  Listening for incoming signals...
+                  Connecting to signal bridge...
                 </TableCell>
               </TableRow>
             ) : !signals || signals.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} className="text-center py-12">
                   <Terminal className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-20" />
-                  <p className="text-muted-foreground text-sm">No signals received yet. Send a ping to your webhook URL.</p>
+                  <p className="text-muted-foreground text-sm">No signals received yet. Send a test signal from the Webhooks page.</p>
                 </TableCell>
               </TableRow>
             ) : (

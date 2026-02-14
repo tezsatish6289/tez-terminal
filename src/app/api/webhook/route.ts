@@ -22,21 +22,21 @@ export async function POST(request: NextRequest) {
     const { firestore } = initializeFirebase();
 
     // 1. Fetch the configuration to validate the secret key
+    // Rules have been updated to allow GET on this specific path for ingestion.
     const configRef = doc(firestore, "users", uid, "webhookConfigurations", configId);
     const configSnap = await getDoc(configRef);
 
     if (!configSnap.exists()) {
-      return NextResponse.json({ success: false, message: "Configuration not found" }, { status: 404 });
+      return NextResponse.json({ success: false, message: "Webhook configuration not found in TezTerminal" }, { status: 404 });
     }
 
     const configData = configSnap.data();
 
-    // 2. Validate Secret Key (if one is set in the configuration)
-    // We expect "secretKey" to be a field in the incoming JSON body
+    // 2. Validate Secret Key
     if (configData.secretKey && body.secretKey !== configData.secretKey) {
       return NextResponse.json({ 
         success: false, 
-        message: "Unauthorized: Invalid or missing secret key in payload." 
+        message: "Unauthorized: Invalid or missing secretKey in JSON payload." 
       }, { status: 401 });
     }
 
@@ -55,22 +55,24 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       success: true, 
-      message: "Signal verified and ingested by TezTerminal",
-      received: body 
+      message: "Signal accepted by TezTerminal",
+      received: {
+        id: configId,
+        time: new Date().toISOString()
+      }
     });
   } catch (error: any) {
     console.error("Webhook Ingestion Error:", error);
     return NextResponse.json({ 
       success: false, 
-      message: "Failed to process signal",
-      error: error.message 
-    }, { status: 400 });
+      message: "TezTerminal Bridge Error: " + error.message,
+    }, { status: 500 });
   }
 }
 
 export async function GET() {
   return NextResponse.json({ 
     status: "online", 
-    service: "TezTerminal Webhook Listener" 
+    service: "TezTerminal Webhook Bridge" 
   });
 }

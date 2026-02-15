@@ -78,14 +78,14 @@ export function SignalHistory() {
   };
 
   /**
-   * STRATEGY THEME DEFINITIONS
+   * STRATEGY THEME DEFINITIONS (Advanced Tool Terminology)
    */
   const categories = [
-    { id: "5", title: "Try scalping", label: "5 MIN" },
-    { id: "15", title: "Intraday candidates", label: "15 MIN" },
-    { id: "60", title: "BTST options", label: "1 HOUR" },
-    { id: "240", title: "Swing opportunities", label: "4 HOUR" },
-    { id: "D", title: "Positional opportunities", label: "DAILY" },
+    { id: "5", title: "High-Velocity Stream", label: "5 MIN" },
+    { id: "15", title: "Interim-Trend Monitor", label: "15 MIN" },
+    { id: "60", title: "Momentum Signal Engine", label: "1 HOUR" },
+    { id: "240", title: "Swing-Trend Processor", label: "4 HOUR" },
+    { id: "D", title: "Macro-Bias Terminal", label: "DAILY" },
   ];
 
   const assetTypes = [
@@ -172,13 +172,13 @@ export function SignalHistory() {
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="h-9 gap-2 border-white/10 bg-[#121214] hover:bg-white/5 text-muted-foreground hover:text-white rounded-xl px-4">
               <Filter className="h-4 w-4 text-accent" />
-              <span className="text-[10px] font-black uppercase tracking-wider">Strategy Filters</span>
+              <span className="text-[10px] font-black uppercase tracking-wider">Analysis Filters</span>
               <ChevronDown className="h-3 w-3 opacity-50" />
             </Button>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-64 bg-[#121214] border-white/10 p-4 shadow-2xl">
             <div className="space-y-4">
-              <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] pb-2 border-b border-white/5">CATEGORIES</h3>
+              <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] pb-2 border-b border-white/5">DATA FEEDS</h3>
               <div className="space-y-3">
                 {categories.map(cat => {
                   const count = getCountForTimeframe(cat.id);
@@ -194,7 +194,7 @@ export function SignalHistory() {
                         htmlFor={`filter-${cat.id}`} 
                         className="flex-1 text-xs font-bold text-white/70 group-hover:text-white transition-colors cursor-pointer flex justify-between items-center"
                       >
-                        <span className="uppercase tracking-wide">{cat.label} CHART</span>
+                        <span className="uppercase tracking-wide">{cat.label} ENGINE</span>
                         <span className="text-[10px] font-mono opacity-40">({count})</span>
                       </Label>
                     </div>
@@ -239,7 +239,7 @@ export function SignalHistory() {
                       {cat.title}
                     </h2>
                     <p className="text-[10px] font-black text-accent uppercase tracking-[0.4em] mt-2 opacity-80">
-                      {cat.label} CHART
+                      {cat.label} TECHNICAL CONTEXT
                     </p>
                   </div>
 
@@ -303,14 +303,14 @@ export function SignalHistory() {
                                   </div>
                                   <div className={cn("text-xs font-black flex items-center justify-end gap-2 mt-1", isPnlPositive ? "text-emerald-400" : "text-rose-400")}>
                                      <TrendingUp className={cn("h-4 w-4", !isPnlPositive && "rotate-180")} />
-                                     {livePnl}% PNL
+                                     {livePnl}% PERF
                                   </div>
                                 </div>
                               </div>
 
                               <div className="grid grid-cols-2 gap-4 pt-6 border-t border-white/5">
                                 <div className="p-4 rounded-xl bg-emerald-500/[0.03] border border-emerald-500/10">
-                                  <p className="text-[9px] font-black text-emerald-500/60 uppercase tracking-widest mb-2">Peak Upside</p>
+                                  <p className="text-[9px] font-black text-emerald-500/60 uppercase tracking-widest mb-2">Max Upside</p>
                                   <p className="text-md font-mono font-black text-emerald-400 flex items-center gap-2">
                                     <ArrowUpRight className="h-5 w-5" /> {upsidePercent}%
                                   </p>
@@ -347,3 +347,4 @@ export function SignalHistory() {
     </div>
   );
 }
+

@@ -4,20 +4,23 @@
 import { TopBar } from "@/components/dashboard/TopBar";
 import { SignalHistory } from "@/components/dashboard/SignalHistory";
 import { useUser, useAuth, useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, limit } from "firebase/firestore";
+import { collection, query, orderBy, limit, getDocs, deleteDoc } from "firebase/firestore";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { History as HistoryIcon, Loader2, Lock, Terminal, ShieldAlert, AlertTriangle, Info, RefreshCw, Activity, Lightbulb } from "lucide-react";
+import { History as HistoryIcon, Loader2, Lock, Terminal, ShieldAlert, AlertTriangle, Info, RefreshCw, Activity, Lightbulb, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ChromeIcon } from "@/components/icons";
+import { useState } from "react";
+import { toast } from "@/hooks/use-toast";
 
 export default function HistoryPage() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
+  const [isPurging, setIsPurging] = useState(false);
 
   const isAdmin = user?.email === "hello@tezterminal.com";
 
@@ -31,6 +34,33 @@ export default function HistoryPage() {
   const handleGoogleLogin = () => {
     if (auth) {
       initiateGoogleSignIn(auth);
+    }
+  };
+
+  const handlePurgeSignals = async () => {
+    if (!isAdmin || !firestore) return;
+    if (!confirm("Are you sure you want to delete all signal history? This cannot be undone.")) return;
+    
+    setIsPurging(true);
+    try {
+      const q = query(collection(firestore, "signals"));
+      const snapshot = await getDocs(q);
+      
+      const deletePromises = snapshot.docs.map(docSnap => deleteDoc(docSnap.ref));
+      await Promise.all(deletePromises);
+      
+      toast({ 
+        title: "History Purged", 
+        description: `Successfully removed ${snapshot.size} signals from the terminal.` 
+      });
+    } catch (e: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Purge Failed", 
+        description: e.message 
+      });
+    } finally {
+      setIsPurging(false);
     }
   };
 
@@ -73,7 +103,21 @@ export default function HistoryPage() {
               <h1 className="text-2xl font-bold tracking-tight text-white">Terminal Activity</h1>
               <p className="text-muted-foreground text-sm">Full audit trail of market ideas and system events.</p>
             </div>
-            <HistoryIcon className="h-8 w-8 text-accent opacity-20" />
+            <div className="flex items-center gap-3">
+              {isAdmin && (
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  className="gap-2 h-9 px-4 font-bold"
+                  onClick={handlePurgeSignals}
+                  disabled={isPurging}
+                >
+                  {isPurging ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  Purge Signals
+                </Button>
+              )}
+              <HistoryIcon className="h-8 w-8 text-accent opacity-20" />
+            </div>
           </div>
 
           <Tabs defaultValue="signals" className="w-full">

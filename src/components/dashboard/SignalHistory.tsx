@@ -27,7 +27,6 @@ import { useRouter } from "next/navigation";
 
 /**
  * PRODUCTION TERMINAL ENGINE - THEMED STRATEGY ROWS
- * Organizes signals into horizontally scrollable rows based on the requested strategy themes.
  */
 export function SignalHistory() {
   const router = useRouter();
@@ -80,38 +79,36 @@ export function SignalHistory() {
    * STRATEGY THEME DEFINITIONS
    */
   const categories = [
-    { id: "5", title: "Try scalping", label: "5 Min chart" },
-    { id: "15", title: "Intraday candidates", label: "15 min chart" },
-    { id: "60", title: "BTST options", label: "1 hour" },
-    { id: "240", title: "Swing opportunities", label: "4 Hour" },
-    { id: "D", title: "Positional opportunities", label: "Daily" },
+    { id: "5", title: "Try scalping", label: "5 MIN CHART" },
+    { id: "15", title: "Intraday candidates", label: "15 MIN CHART" },
+    { id: "60", title: "BTST options", label: "1 HOUR" },
+    { id: "240", title: "Swing opportunities", label: "4 HOUR" },
+    { id: "D", title: "Positional opportunities", label: "DAILY" },
   ];
 
   const timeframeFilters = [
-    { label: "All Chart Timeframes", value: null },
-    { label: "5 min", value: "5" },
-    { label: "15 min", value: "15" },
-    { label: "1 hour", value: "60" },
-    { label: "4 Hour", value: "240" },
-    { label: "Daily", value: "D" },
+    { label: "ALL CHART TIMEFRAMES", value: null },
+    { label: "5 MIN", value: "5" },
+    { label: "15 MIN", value: "15" },
+    { label: "1 HOUR", value: "60" },
+    { label: "4 HOUR", value: "240" },
+    { label: "DAILY", value: "D" },
   ];
 
   const assetTypes = [
-    { label: "All Assets", value: null },
-    { label: "Crypto", value: "CRYPTO" },
-    { label: "Indian Stocks", value: "INDIAN STOCKS" },
-    { label: "US Stocks", value: "US STOCKS" },
+    { label: "ALL ASSETS", value: null },
+    { label: "CRYPTO", value: "CRYPTO" },
+    { label: "INDIAN STOCKS", value: "INDIAN STOCKS" },
+    { label: "US STOCKS", value: "US STOCKS" },
   ];
 
   const filteredSignals = useMemo(() => {
     if (!rawSignals) return [];
     return rawSignals.filter(signal => {
-      // Asset Type Filter
       if (activeAssetType) {
         const displayAssetType = getDisplayAssetType(signal);
         if (displayAssetType !== activeAssetType) return false;
       }
-      // Timeframe Filter (Jump to specific category)
       if (activeTimeframe && signal.timeframe !== activeTimeframe) {
         return false;
       }
@@ -145,72 +142,70 @@ export function SignalHistory() {
     return `${mins}m`;
   };
 
-  if (error) {
-    return (
-      <div className="p-10 text-center flex flex-col items-center justify-center gap-4 h-full">
-        <AlertCircle className="h-12 w-12 text-destructive" />
-        <p className="text-sm font-bold text-white uppercase tracking-widest">Database Error: {error.message}</p>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-full bg-[#0a0a0c]">
-      {/* Top Filter Bar */}
+      {/* Refined Integrated Filter Bar */}
       <div className="p-4 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-md flex flex-col gap-4 shrink-0 z-20">
-        <div className="flex items-center justify-between">
-           <div className="flex items-center gap-3">
-             <Filter className="h-4 w-4 text-accent/60" />
-             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                {timeframeFilters.map(tf => (
+        <div className="flex flex-wrap items-center justify-between gap-4">
+           <div className="flex items-center gap-6">
+             {/* Asset Types Section */}
+             <div className="flex gap-2">
+                {assetTypes.map(asset => (
                   <button
-                    key={tf.label}
-                    onClick={() => setActiveTimeframe(tf.value)}
+                    key={asset.label}
+                    onClick={() => setActiveAssetType(asset.value)}
                     className={cn(
-                      "px-3 py-1.5 text-[10px] font-black rounded-md uppercase transition-all whitespace-nowrap border",
-                      activeTimeframe === tf.value 
-                        ? "bg-accent text-accent-foreground border-accent shadow-[0_0_10px_rgba(125,249,255,0.15)]" 
+                      "px-4 py-1.5 text-[10px] font-black rounded-lg uppercase transition-all whitespace-nowrap border",
+                      activeAssetType === asset.value 
+                        ? "bg-primary text-primary-foreground border-primary/50" 
                         : "bg-white/5 text-muted-foreground border-white/5 hover:bg-white/10"
                     )}
                   >
-                    {tf.label}
+                    {asset.label}
                   </button>
                 ))}
              </div>
-           </div>
-           <Badge variant="outline" className="text-[10px] h-8 border-emerald-500/20 text-emerald-400 gap-2 bg-emerald-500/5 px-4 font-black uppercase hidden lg:flex">
-             <Server className="h-3.5 w-3.5 animate-pulse" /> 24/7 SYNC ACTIVE
-           </Badge>
-        </div>
 
-        <div className="flex gap-2 overflow-x-auto no-scrollbar">
-          {assetTypes.map(asset => (
-            <button
-              key={asset.label}
-              onClick={() => setActiveAssetType(asset.value)}
-              className={cn(
-                "px-4 py-1.5 text-[10px] font-black rounded-lg uppercase transition-all whitespace-nowrap border",
-                activeAssetType === asset.value 
-                  ? "bg-primary text-primary-foreground border-primary/50" 
-                  : "bg-white/5 text-muted-foreground border-white/5 hover:bg-white/10"
-              )}
-            >
-              {asset.label}
-            </button>
-          ))}
+             {/* Timeframe Filter Group with Icon */}
+             <div className="flex items-center gap-3 bg-white/[0.02] p-1 rounded-xl border border-white/5">
+               <div className="pl-3 pr-1">
+                 <Filter className="h-4 w-4 text-accent/60" />
+               </div>
+               <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1 pr-1">
+                  {timeframeFilters.map(tf => (
+                    <button
+                      key={tf.label}
+                      onClick={() => setActiveTimeframe(tf.value)}
+                      className={cn(
+                        "px-4 py-2 text-[10px] font-black rounded-lg uppercase transition-all whitespace-nowrap border",
+                        activeTimeframe === tf.value 
+                          ? "bg-accent text-accent-foreground border-accent shadow-[0_0_15px_rgba(125,249,255,0.2)]" 
+                          : "bg-transparent text-muted-foreground border-transparent hover:bg-white/5"
+                      )}
+                    >
+                      {tf.label}
+                    </button>
+                  ))}
+               </div>
+             </div>
+           </div>
+           
+           <Badge variant="outline" className="text-[10px] h-9 border-emerald-500/20 text-emerald-400 gap-2 bg-emerald-500/5 px-4 font-black uppercase hidden lg:flex">
+             <Server className="h-4 w-4 animate-pulse" /> SYNC ACTIVE
+           </Badge>
         </div>
       </div>
 
-      {/* Main Content Sections with Vertical Scroll */}
+      {/* Main Content Sections with Horizontal Scroll Snap */}
       <ScrollArea className="flex-1 w-full bg-[#0a0a0c]">
-        <div className="py-6 space-y-12">
+        <div className="py-8 space-y-16">
           {isLoading ? (
             <div className="px-6 space-y-8">
                {[1,2,3].map(i => (
                  <div key={i} className="space-y-4">
                    <div className="h-6 w-48 bg-white/5 animate-pulse rounded" />
                    <div className="flex gap-4 overflow-hidden">
-                     {[1,2,3,4].map(j => <div key={j} className="h-64 w-72 shrink-0 rounded-xl bg-white/5 animate-pulse" />)}
+                     {[1,2,3,4].map(j => <div key={j} className="h-64 w-80 shrink-0 rounded-2xl bg-white/5 animate-pulse" />)}
                    </div>
                  </div>
                ))}
@@ -222,7 +217,6 @@ export function SignalHistory() {
             </div>
           ) : (
             categories.map(cat => {
-              // Filter logic for specific timeframe selection
               if (activeTimeframe && activeTimeframe !== cat.id) return null;
 
               const categorySignals = filteredSignals.filter(s => s.timeframe === cat.id);
@@ -230,29 +224,25 @@ export function SignalHistory() {
 
               return (
                 <section key={cat.id} className="space-y-6">
-                  {/* Row Header */}
                   <div className="px-6 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="bg-accent/10 p-2.5 rounded-xl border border-accent/20">
-                        <Zap className="h-5 w-5 text-accent" />
+                        <Zap className="h-6 w-6 text-accent" />
                       </div>
                       <div>
-                        <h2 className="text-xl font-black text-white uppercase tracking-tighter leading-none">
+                        <h2 className="text-2xl font-black text-white uppercase tracking-tighter leading-none">
                           {cat.title}
                         </h2>
-                        <p className="text-[10px] font-bold text-accent uppercase tracking-[0.25em] mt-2 opacity-80">
+                        <p className="text-[10px] font-black text-accent uppercase tracking-[0.4em] mt-2.5 opacity-80">
                           {cat.label}
                         </p>
                       </div>
                     </div>
-                    <Badge variant="outline" className="border-white/10 text-muted-foreground/60 text-[10px] uppercase font-black px-3 h-7">
-                      {categorySignals.length} Active Alerts
-                    </Badge>
                   </div>
 
                   {/* HIGH-PERFORMANCE HORIZONTAL SCROLLER */}
-                  <div className="w-full relative group">
-                    <div className="flex flex-row overflow-x-auto overflow-y-hidden gap-6 px-6 pb-6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent snap-x snap-mandatory">
+                  <div className="w-full">
+                    <div className="flex flex-row overflow-x-auto gap-6 px-6 pb-8 snap-x snap-mandatory no-scrollbar scroll-smooth">
                       {categorySignals.map((signal) => {
                         const alertPrice = Number(signal.price || 0);
                         const currentPrice = signal.currentPrice ? Number(signal.currentPrice) : alertPrice;
@@ -267,13 +257,12 @@ export function SignalHistory() {
                           <Card 
                             key={signal.id} 
                             onClick={() => router.push(`/chart/${signal.id}`)}
-                            className="group relative overflow-hidden bg-[#121214] border-white/5 hover:border-accent/40 transition-all duration-500 cursor-pointer shadow-2xl hover:shadow-accent/5 rounded-2xl flex flex-col w-[320px] shrink-0 snap-start"
+                            className="group relative overflow-hidden bg-[#121214] border-white/5 hover:border-accent/40 transition-all duration-500 cursor-pointer shadow-2xl rounded-2xl flex flex-col w-[340px] shrink-0 snap-start"
                           >
-                            {/* Card Top */}
-                            <div className="p-5 border-b border-white/5 bg-white/[0.02]">
+                            <div className="p-6 border-b border-white/5 bg-white/[0.02]">
                               <div className="flex items-start justify-between">
                                 <div className="flex flex-col">
-                                  <h3 className="text-xl font-black text-white leading-none tracking-tighter uppercase mb-1.5">
+                                  <h3 className="text-2xl font-black text-white leading-none tracking-tighter uppercase mb-2">
                                     {signal.symbol}
                                   </h3>
                                   <span className="text-[10px] font-black text-accent uppercase tracking-widest">
@@ -281,7 +270,7 @@ export function SignalHistory() {
                                   </span>
                                 </div>
                                 <Badge className={cn(
-                                  "text-[10px] font-black border-none px-3 h-6 uppercase rounded-md",
+                                  "text-[10px] font-black border-none px-4 h-7 uppercase rounded-md",
                                   isBullish ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
                                 )}>
                                   {isBullish ? 'BULLISH' : 'BEARISH'}
@@ -289,66 +278,58 @@ export function SignalHistory() {
                               </div>
                             </div>
 
-                            {/* Alert Context */}
-                            <div className="px-5 py-2.5 bg-black/50 flex items-center justify-between border-b border-white/5 text-[10px] font-black text-muted-foreground/40 uppercase">
+                            <div className="px-6 py-3 bg-black/40 flex items-center justify-between border-b border-white/5 text-[10px] font-black text-muted-foreground/40 uppercase">
                               <div className="flex items-center gap-2">
-                                <Clock className="h-3.5 w-3.5" /> {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"} UTC
+                                <Clock className="h-4 w-4" /> {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"} UTC
                               </div>
                               <div className="flex items-center gap-2">
-                                <Timer className="h-3.5 w-3.5 text-accent" /> {mounted ? getRunningSince(signal.receivedAt) : "--"}
+                                <Timer className="h-4 w-4 text-accent" /> {mounted ? getRunningSince(signal.receivedAt) : "--"}
                               </div>
                             </div>
 
-                            {/* Core Performance */}
-                            <CardContent className="p-5 flex-1 flex flex-col gap-6">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1.5">
-                                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Signal Entry</p>
-                                  <p className="text-md font-mono font-bold text-white">${formatPrice(alertPrice)}</p>
+                            <CardContent className="p-6 flex-1 flex flex-col gap-8">
+                              <div className="grid grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Entry Level</p>
+                                  <p className="text-lg font-mono font-bold text-white">${formatPrice(alertPrice)}</p>
                                 </div>
-                                <div className="space-y-1.5 text-right">
-                                  <p className="text-[10px] font-black text-accent uppercase tracking-widest">Live Feed</p>
-                                  <div className={cn("text-md font-mono font-black", isPnlPositive ? "text-emerald-400" : "text-rose-400")}>
+                                <div className="space-y-2 text-right">
+                                  <p className="text-[10px] font-black text-accent uppercase tracking-widest">Latest Live</p>
+                                  <div className={cn("text-lg font-mono font-black", isPnlPositive ? "text-emerald-400" : "text-rose-400")}>
                                     ${formatPrice(currentPrice)}
                                   </div>
-                                  <div className={cn("text-[11px] font-black flex items-center justify-end gap-1.5 mt-1", isPnlPositive ? "text-emerald-400" : "text-rose-400")}>
-                                     <TrendingUp className={cn("h-3.5 w-3.5", !isPnlPositive && "rotate-180")} />
-                                     {livePnl}%
+                                  <div className={cn("text-xs font-black flex items-center justify-end gap-2 mt-1", isPnlPositive ? "text-emerald-400" : "text-rose-400")}>
+                                     <TrendingUp className={cn("h-4 w-4", !isPnlPositive && "rotate-180")} />
+                                     {livePnl}% PNL
                                   </div>
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
-                                <div className="p-3 rounded-xl bg-emerald-500/[0.03] border border-emerald-500/10">
-                                  <p className="text-[9px] font-black text-emerald-500/60 uppercase tracking-widest mb-1.5">Max Upside</p>
-                                  <p className="text-sm font-mono font-black text-emerald-400 flex items-center gap-1.5">
-                                    <ArrowUpRight className="h-4 w-4" /> {upsidePercent}%
+                              <div className="grid grid-cols-2 gap-4 pt-6 border-t border-white/5">
+                                <div className="p-4 rounded-xl bg-emerald-500/[0.03] border border-emerald-500/10">
+                                  <p className="text-[9px] font-black text-emerald-500/60 uppercase tracking-widest mb-2">Peak Upside</p>
+                                  <p className="text-md font-mono font-black text-emerald-400 flex items-center gap-2">
+                                    <ArrowUpRight className="h-5 w-5" /> {upsidePercent}%
                                   </p>
                                 </div>
-                                <div className="p-3 rounded-xl bg-rose-500/[0.03] border border-rose-500/10 text-right">
-                                  <p className="text-[9px] font-black text-rose-500/60 uppercase tracking-widest mb-1.5">Max Down</p>
-                                  <p className="text-sm font-mono font-black text-rose-400 flex items-center justify-end gap-1.5">
-                                    <ArrowDownRight className="h-4 w-4" /> {drawdownPercent}%
+                                <div className="p-4 rounded-xl bg-rose-500/[0.03] border border-rose-500/10 text-right">
+                                  <p className="text-[9px] font-black text-rose-500/60 uppercase tracking-widest mb-2">Max Drawdown</p>
+                                  <p className="text-md font-mono font-black text-rose-400 flex items-center justify-end gap-2">
+                                    <ArrowDownRight className="h-5 w-5" /> {drawdownPercent}%
                                   </p>
                                 </div>
                               </div>
                             </CardContent>
 
-                            {/* Card Footer */}
-                            <div className="px-5 py-4 border-t border-white/5 bg-white/[0.01] flex items-center justify-between group-hover:bg-accent/[0.05] transition-colors">
+                            <div className="px-6 py-5 border-t border-white/5 bg-white/[0.01] flex items-center justify-between group-hover:bg-accent/[0.05] transition-colors">
                               <div className="flex items-center gap-3">
-                                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest group-hover:text-white">Analyze Chart</span>
-                                <Badge variant="outline" className="text-[9px] border-white/10 h-5 px-2 text-accent/80 font-black">{cat.label}</Badge>
+                                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] group-hover:text-white transition-colors">Analyze Chart</span>
                               </div>
-                              <LineChart className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
+                              <div className="flex items-center gap-3">
+                                <Badge variant="outline" className="text-[10px] border-accent/20 h-6 px-3 text-accent font-black uppercase">{cat.label}</Badge>
+                                <LineChart className="h-5 w-5 text-muted-foreground group-hover:text-accent transition-colors" />
+                              </div>
                             </div>
-
-                            {/* Progress Accent */}
-                            <div className={cn(
-                              "absolute bottom-0 left-0 right-0 h-[3px] transition-all duration-500",
-                              isPnlPositive ? "bg-emerald-500/30" : "bg-rose-500/30",
-                              "group-hover:h-1.5 group-hover:bg-accent"
-                            )} />
                           </Card>
                         );
                       })}
@@ -358,40 +339,8 @@ export function SignalHistory() {
               );
             })
           )}
-
-          {/* Unmapped timeframe fallback section */}
-          {!isLoading && !activeTimeframe && filteredSignals.some(s => !categories.map(c => c.id).includes(s.timeframe)) && (
-             <section className="space-y-6 pt-6 border-t border-white/5">
-                <div className="px-6 flex items-center gap-3 text-muted-foreground/30">
-                  <Activity className="h-5 w-5" />
-                  <h2 className="text-xs font-black uppercase tracking-[0.3em]">Other Active Node Intervals</h2>
-                </div>
-                <div className="flex flex-row overflow-x-auto gap-5 px-6 pb-10 scrollbar-thin">
-                    {filteredSignals
-                      .filter(s => !categories.map(c => c.id).includes(s.timeframe))
-                      .map((signal) => (
-                        <Card 
-                          key={signal.id} 
-                          onClick={() => router.push(`/chart/${signal.id}`)}
-                          className="bg-[#121214] border-white/5 rounded-2xl w-[280px] shrink-0 p-5 hover:border-accent/40 transition-all cursor-pointer shadow-xl"
-                        >
-                           <div className="flex justify-between items-center mb-3">
-                             <span className="font-black text-white uppercase text-lg tracking-tighter">{signal.symbol}</span>
-                             <Badge variant="outline" className="text-[10px] border-white/10 font-black">{signal.timeframe}m</Badge>
-                           </div>
-                           <div className="flex justify-between items-center">
-                             <span className="text-[10px] text-muted-foreground font-black uppercase tracking-wider">{getDisplayAssetType(signal)}</span>
-                             <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                           </div>
-                        </Card>
-                      ))}
-                </div>
-             </section>
-          )}
         </div>
       </ScrollArea>
     </div>
   );
 }
-
-    

@@ -3,8 +3,8 @@
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Maximize2, MoreHorizontal, MousePointer2, Plus, Zap } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Maximize2, MoreHorizontal, Zap } from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface ChartPaneProps {
   symbol?: string;
@@ -13,7 +13,6 @@ interface ChartPaneProps {
 }
 
 export function ChartPane({ symbol = "BTCUSDT", interval = "15", exchange = "BINANCE" }: ChartPaneProps) {
-  const container = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -27,18 +26,13 @@ export function ChartPane({ symbol = "BTCUSDT", interval = "15", exchange = "BIN
   const tvInterval = interval === "0" ? "1" : interval;
 
   return (
-    <Card className="flex-1 bg-[#13111a] border-border overflow-hidden relative group rounded-xl min-h-[500px] h-[60vh]">
-      <div className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-background/80 backdrop-blur-md p-1.5 rounded-lg border border-border">
-        <Button variant="ghost" size="sm" className="h-7 px-2 text-accent font-bold">{formattedSymbol}</Button>
-        <span className="text-muted-foreground text-xs">{tvInterval}m</span>
-      </div>
-      
+    <div className="w-full h-full bg-[#13111a] relative flex flex-col">
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-background/80 backdrop-blur-md p-1.5 rounded-lg border border-border">
-        <Button variant="ghost" size="icon" className="h-7 w-7"><Maximize2 className="h-4 w-4" /></Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" className="h-7 w-7"><Maximize2 className="h-4 w-4 text-muted-foreground" /></Button>
+        <Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="h-4 w-4 text-muted-foreground" /></Button>
       </div>
 
-      <div className="w-full h-full bg-[#13111a] relative">
+      <div className="flex-1 w-full h-full bg-[#13111a]">
         {mounted ? (
           <iframe
             key={`${formattedSymbol}-${tvInterval}`}
@@ -55,6 +49,6 @@ export function ChartPane({ symbol = "BTCUSDT", interval = "15", exchange = "BIN
           </div>
         )}
       </div>
-    </Card>
+    </div>
   );
 }

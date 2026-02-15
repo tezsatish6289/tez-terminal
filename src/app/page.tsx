@@ -6,14 +6,13 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { SignalHistory } from "@/components/dashboard/SignalHistory";
 import { ChartPane } from "@/components/dashboard/ChartPane";
 import { Toaster } from "@/components/ui/toaster";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Zap, Loader2 } from "lucide-react";
-import { ChromeIcon } from "@/components/icons";
+import { Zap, Loader2, Chrome } from "lucide-react";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function Home() {
   const { user, isUserLoading } = useUser();
@@ -48,65 +47,79 @@ export default function Home() {
 
   if (!user) {
     return (
-      <Card className="max-w-md w-full border-accent/20 bg-card shadow-2xl mx-auto mt-20">
-        <CardHeader className="text-center">
-          <div className="bg-primary p-4 rounded-2xl border border-accent/20 inline-block mx-auto mb-6">
-            <Zap className="h-10 w-10 text-accent fill-accent/20" />
-          </div>
-          <CardTitle className="text-3xl font-bold tracking-tighter">TezTerminal</CardTitle>
-          <CardDescription className="text-base mt-2">
-            India's Premier Antigravity Trading Hub. 
-            Sign in with Google to access the live signal stream.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Button 
-            onClick={handleGoogleLogin} 
-            disabled={isLoggingIn}
-            className="w-full h-14 gap-3 bg-white text-black hover:bg-white/90 text-lg font-semibold"
-          >
-            {isLoggingIn ? (
-              <Loader2 className="h-6 w-6 animate-spin" />
-            ) : (
-              <>
-                <ChromeIcon className="h-6 w-6" />
-                Sign in with Google
-              </>
-            )}
-          </Button>
-          <p className="text-center text-xs text-muted-foreground px-6">
-            Administrator login: <span className="text-accent font-mono">hello@tezterminal.com</span>
-          </p>
-        </CardContent>
-      </Card>
+      <div className="flex h-screen items-center justify-center bg-background p-6">
+        <Card className="max-w-md w-full border-accent/20 bg-card shadow-2xl">
+          <CardHeader className="text-center">
+            <div className="bg-primary p-4 rounded-2xl border border-accent/20 inline-block mx-auto mb-6">
+              <Zap className="h-10 w-10 text-accent fill-accent/20" />
+            </div>
+            <CardTitle className="text-3xl font-bold tracking-tighter text-white">TezTerminal</CardTitle>
+            <CardDescription className="text-base mt-2">
+              India's Premier Antigravity Trading Hub. 
+              Sign in with Google to access the live signal stream.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button 
+              onClick={handleGoogleLogin} 
+              disabled={isLoggingIn}
+              className="w-full h-14 gap-3 bg-white text-black hover:bg-white/90 text-lg font-semibold"
+            >
+              {isLoggingIn ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                <>
+                  <Chrome className="h-6 w-6" />
+                  Sign in with Google
+                </>
+              )}
+            </Button>
+            <p className="text-center text-xs text-muted-foreground px-6">
+              Administrator login: <span className="text-accent font-mono">hello@tezterminal.com</span>
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
+    <div className="flex h-screen bg-background text-foreground overflow-hidden">
       <LeftSidebar />
       
-      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 h-full">
         <TopBar />
         
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 space-y-8">
-          <section className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-white">Market Overview</h1>
-                <p className="text-muted-foreground text-sm">Real-time TradingView analysis for {activeSignal?.symbol || 'BTCUSDT'}.</p>
-              </div>
+        <div className="flex-1 flex min-h-0 divide-x divide-border">
+          {/* Left Pane: Signals */}
+          <section className="w-[450px] flex flex-col bg-card/30">
+            <div className="p-4 border-b border-border bg-background/50 flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                <Zap className="h-3 w-3 text-accent" />
+                Signal Stream
+              </h2>
+              <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
             </div>
-            
-            <ChartPane 
-              symbol={activeSignal?.symbol} 
-              interval={activeSignal?.timeframe} 
-              exchange={activeSignal?.exchange}
-            />
+            <div className="flex-1 overflow-y-auto p-2">
+              <SignalHistory onSignalSelect={setActiveSignal} />
+            </div>
           </section>
 
-          <section className="pb-8">
-            <SignalHistory onSignalSelect={setActiveSignal} />
+          {/* Right Pane: Chart */}
+          <section className="flex-1 flex flex-col bg-background p-4 relative">
+             <div className="absolute top-6 left-6 z-20 pointer-events-none">
+                <div className="bg-black/60 backdrop-blur-md px-3 py-1 rounded-md border border-white/10">
+                   <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Active View</p>
+                   <p className="text-sm font-bold text-accent">{activeSignal?.symbol || 'BTCUSDT'}</p>
+                </div>
+             </div>
+             <div className="flex-1 rounded-xl overflow-hidden border border-border shadow-2xl">
+                <ChartPane 
+                  symbol={activeSignal?.symbol} 
+                  interval={activeSignal?.timeframe} 
+                  exchange={activeSignal?.exchange}
+                />
+             </div>
           </section>
         </div>
       </main>

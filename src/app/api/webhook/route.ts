@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     const symbol = (body.ticker || body.symbol || body.pair || body.asset || "UNKNOWN").toUpperCase();
     const exchange = (body.exchange || body.market || "BINANCE").toUpperCase();
     
-    // Check multiple possible keys for Asset Type to ensure ingestion success
+    // Check multiple possible keys for Asset Type to ensure it becomes a filterable field
     const rawAssetType = body.assetType || body.asset_type || body.category || body.market_type || body.type_asset || "CRYPTO";
     const assetType = rawAssetType.toString().toUpperCase().trim();
 
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       payload: JSON.stringify(body),
       symbol,
       exchange,
-      assetType, // Physically saving this to the DB now
+      assetType, // EXPLICIT TOP-LEVEL FIELD FOR DATABASE FILTERING
       type: signalType,
       price, 
       currentPrice: price, 

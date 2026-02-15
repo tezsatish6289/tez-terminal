@@ -162,7 +162,7 @@ export function SignalHistory() {
             <TableRow className="border-border hover:bg-transparent">
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">TIME</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[90px]">AGE</TableHead>
-              <TableHead className="text-[10px] uppercase font-black py-3 text-left pl-6 w-[150px]">ASSET</TableHead>
+              <TableHead className="text-[10px] uppercase font-black py-3 text-left pl-[21px] w-[150px]">ASSET</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[130px]">EXCHANGE</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">CHART</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">SIDE</TableHead>
@@ -182,7 +182,7 @@ export function SignalHistory() {
                     <AlertCircle className="h-8 w-8 text-muted-foreground opacity-20" />
                     <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">No signals detected for current filters</p>
                     <p className="text-[10px] text-muted-foreground/60 max-w-sm leading-relaxed mx-auto">
-                      Filters only apply to signals containing asset metadata. 
+                      Filters only apply to signals containing top-level assetType data. 
                       Please send a test signal from the <span className="text-accent cursor-pointer underline" onClick={() => router.push('/webhooks')}>Bridge Management</span> page to populate the stream.
                     </p>
                   </div>
@@ -214,10 +214,12 @@ export function SignalHistory() {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="py-3 pl-6">
+                    <TableCell className="py-3 pl-[21px]">
                       <div className="flex flex-col">
                         <span className="font-bold text-sm text-white tracking-tight uppercase leading-none">{signal.symbol}</span>
-                        <span className="text-[9px] text-muted-foreground font-bold mt-1 uppercase opacity-50 truncate">{signal.assetType}</span>
+                        <span className="text-[9px] text-muted-foreground font-bold mt-1 uppercase opacity-50 truncate">
+                          {signal.assetType || "CRYPTO"}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell className="py-3 text-center">

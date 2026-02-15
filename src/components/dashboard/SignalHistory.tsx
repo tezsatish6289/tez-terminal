@@ -21,7 +21,7 @@ interface SignalHistoryProps {
   onSignalSelect?: (signal: { symbol: string; timeframe?: string; exchange?: string }) => void;
 }
 
-// These values MUST match the normalized output of the API engine
+// These values MUST match the normalized output of the API engine exactly as strings
 const FILTERS = [
   { label: "All", value: null },
   { label: "1 min", value: "1" },
@@ -90,7 +90,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
 
   const formatTimeframe = (tf: string) => {
     if (!tf) return "--";
-    const upperTf = tf.toUpperCase();
+    const upperTf = tf.toString().toUpperCase();
     if (upperTf === 'D' || upperTf === '1D') return 'Daily';
     if (upperTf === 'W' || upperTf === '1W') return 'Weekly';
     if (upperTf === '60' || upperTf === '1H') return '1 hour';
@@ -131,17 +131,26 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
               : `Connection error: ${error.message}`}
           </p>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="h-8 text-[10px]" 
-          onClick={() => {
-            setActiveFilter(null);
-            window.location.reload();
-          }}
-        >
-          Reset Connection
-        </Button>
+        <div className="flex flex-col gap-2 w-full">
+           <Button 
+            variant="outline" 
+            size="sm" 
+            className="h-8 text-[10px]" 
+            onClick={() => {
+              setActiveFilter(null);
+            }}
+          >
+            Clear Filter
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-8 text-[10px]" 
+            onClick={() => window.location.reload()}
+          >
+            Reload Terminal
+          </Button>
+        </div>
       </div>
     );
   }
@@ -176,7 +185,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
               <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">Time</TableHead>
               <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold">Asset</TableHead>
               <TableHead className="w-[60px] px-1 text-[10px] uppercase font-bold text-center">Side</TableHead>
-              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">Timeframe</TableHead>
+              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">TF</TableHead>
               <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold">Price</TableHead>
             </TableRow>
           </TableHeader>

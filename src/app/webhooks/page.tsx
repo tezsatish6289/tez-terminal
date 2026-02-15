@@ -78,7 +78,7 @@ export default function WebhooksPage() {
       price_at_alert: side === 'buy' ? 98500.42 : 97200.15,
       secretKey: webhook.secretKey,
       exchange: "SIMULATOR",
-      timeframe: tf,
+      timeframe: tf, // This MUST match the standard keys used by the normalization engine
       note: `Simulation: Manual ${side.toUpperCase()} ${tf} Signal`
     };
 
@@ -228,8 +228,6 @@ export default function WebhooksPage() {
             ) : (
               webhooks?.map((webhook) => {
                 const endpoint = `${origin}/api/webhook?id=${webhook.id}`;
-                const pineScriptSnippet = `// Webhook Logic for TezTerminal\nif buySignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"buy", "price_at_alert":"' + str.tostring(close) + '", "secretKey":"${webhook.secretKey}", "timeframe":"' + timeframe.period + '"}', alert.freq_once_per_bar_close)`;
-
                 return (
                   <Card key={webhook.id} className="bg-card border-border shadow-md">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 border-b border-border/50 mb-4 bg-secondary/10">
@@ -292,7 +290,7 @@ export default function WebhooksPage() {
                       <div className="p-3 bg-accent/5 border border-accent/20 rounded-lg flex items-start gap-3">
                          <Info className="h-4 w-4 text-accent mt-0.5" />
                          <p className="text-[10px] leading-relaxed text-muted-foreground">
-                           <b>Normalization active:</b> Timeframes are now standardized automatically. "1D", "Daily", "D" will all match the <b>Daily</b> filter. "5m", "5M", "5" will all match the <b>5 min</b> filter.
+                           <b>Normalization active:</b> Signals are automatically standardized. "1D", "Daily", "D" all map to <b>Daily</b>. "5m", "5M", "5" all map to <b>5 min</b>.
                          </p>
                       </div>
                     </CardContent>

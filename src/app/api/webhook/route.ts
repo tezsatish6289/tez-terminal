@@ -82,18 +82,15 @@ export async function POST(request: NextRequest) {
       "W": "W", "1W": "W", "WEEKLY": "W",
     };
 
-    // If it's just numbers followed by M (e.g. 5M), treat as minutes
-    if (/^\d+M$/.test(rawTf)) {
-      rawTf = rawTf.replace("M", "");
-    }
-
-    const timeframe = tfMap[rawTf] || rawTf || "15";
+    // Strip characters to handle things like "5m" or "15min"
+    const cleanedTf = rawTf.replace(/[^A-Z0-9]/g, "");
+    const timeframe = tfMap[cleanedTf] || cleanedTf || "15";
 
     const signalData = {
       webhookId: webhookId,
       receivedAt: timestamp,
       serverTimestamp: serverTimestamp(),
-      payload: rawBody,
+      payload: JSON.stringify({ ...body, normalizedTf: timeframe }),
       symbol: symbol,
       type: signalType,
       price: price,

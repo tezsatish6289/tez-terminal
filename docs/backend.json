@@ -29,7 +29,9 @@
         "payload": { "type": "string" },
         "note": { "type": "string" },
         "source": { "type": "string" },
-        "timeframe": { "type": "string", "description": "The timeframe of the signal (e.g. 1, 5, 15, 60, D)" }
+        "timeframe": { "type": "string", "description": "The timeframe of the signal (e.g. 1, 5, 15, 60, D)" },
+        "maxUpsidePrice": { "type": "number" },
+        "maxDrawdownPrice": { "type": "number" }
       },
       "required": ["id", "symbol", "type", "receivedAt"]
     },

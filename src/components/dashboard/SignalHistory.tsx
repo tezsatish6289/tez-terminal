@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { 
   Table, 
   TableBody, 
@@ -51,7 +51,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
 
   const { data: signals, isLoading: isCollectionLoading, error } = useCollection(signalsQuery);
 
-  // Poll our internal Price Proxy for latest prices
+  // Poll our internal Server Proxy for latest prices
   useEffect(() => {
     const fetchPrices = async () => {
       try {
@@ -61,7 +61,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
           setLatestPrices(priceMap);
         }
       } catch (e) {
-        console.error("Price fetch error:", e);
+        // Silently fail, UI will show "Live..." or "Syncing"
       }
     };
 
@@ -112,9 +112,11 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
     });
   };
 
-  // Improved symbol cleaning for Binance matching (e.g. BINANCE:BTCUSDT -> BTCUSDT)
+  // Robust symbol cleaning for Binance matching (e.g. BINANCE:BTC/USDT -> BTCUSDT)
   const resolveBinanceSymbol = (rawSymbol: string) => {
-    return rawSymbol.split(':').pop()?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || "";
+    if (!rawSymbol) return "";
+    const clean = rawSymbol.split(':').pop()?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || "";
+    return clean;
   };
 
   if (error) {
@@ -181,10 +183,11 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                 
                 let priceColorClass = "text-muted-foreground";
                 if (latestPrice && alertPriceValue) {
+                  const alertPriceNum = Number(alertPriceValue);
                   if (isBuy) {
-                    priceColorClass = latestPrice >= Number(alertPriceValue) ? "text-emerald-400" : "text-rose-400";
+                    priceColorClass = latestPrice >= alertPriceNum ? "text-emerald-400" : "text-rose-400";
                   } else {
-                    priceColorClass = latestPrice <= Number(alertPriceValue) ? "text-emerald-400" : "text-rose-400";
+                    priceColorClass = latestPrice <= alertPriceNum ? "text-emerald-400" : "text-rose-400";
                   }
                 }
 

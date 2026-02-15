@@ -8,6 +8,9 @@ export async function GET() {
   try {
     const response = await fetch("https://fapi.binance.com/fapi/v2/ticker/price", {
       next: { revalidate: 0 },
+      headers: {
+        'Content-Type': 'application/json',
+      }
     });
 
     if (!response.ok) {
@@ -20,7 +23,9 @@ export async function GET() {
     const priceMap: Record<string, number> = {};
     if (Array.isArray(data)) {
       data.forEach((item: any) => {
-        priceMap[item.symbol] = parseFloat(item.price);
+        if (item.symbol && item.price) {
+          priceMap[item.symbol] = parseFloat(item.price);
+        }
       });
     }
 

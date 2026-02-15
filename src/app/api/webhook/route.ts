@@ -5,7 +5,7 @@ import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/fires
 
 /**
  * Production-Ready Ingestion Bridge.
- * Standardizes incoming signals and initializes performance tracking fields.
+ * Standardizes incoming signals and handles various market metadata formats.
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
@@ -50,9 +50,13 @@ export async function POST(request: NextRequest) {
       throw new Error(`Authentication failure: Secret key mismatch.`);
     }
 
+    // Comprehensive Asset Type Detection
     const symbol = (body.ticker || body.symbol || body.pair || body.asset || "UNKNOWN").toUpperCase();
     const exchange = (body.exchange || body.market || "BINANCE").toUpperCase();
-    const assetType = (body.assetType || body.category || body.market_type || "CRYPTO").toUpperCase();
+    
+    // Check multiple possible keys for Asset Type to ensure ingestion success
+    const rawAssetType = body.assetType || body.asset_type || body.category || body.market_type || body.type_asset || "CRYPTO";
+    const assetType = rawAssetType.toString().toUpperCase().trim();
 
     let signalType = "NEUTRAL";
     const rawSide = (body.side || body.action || body.type || "").toString().toLowerCase();
@@ -88,7 +92,7 @@ export async function POST(request: NextRequest) {
       payload: JSON.stringify(body),
       symbol,
       exchange,
-      assetType,
+      assetType, // Physically saving this to the DB now
       type: signalType,
       price, 
       currentPrice: price, 

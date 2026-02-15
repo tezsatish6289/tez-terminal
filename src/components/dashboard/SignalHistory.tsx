@@ -21,8 +21,8 @@ import { useRouter } from "next/navigation";
 
 /**
  * PRODUCTION TERMINAL ENGINE
- * Using server-side Firestore filtering for maximum scalability.
- * Fixed-width column architecture for professional uniformity.
+ * Standardized fixed-width columns for uniform terminal spacing.
+ * Age-to-Asset gap tightened by 3px via reduced padding.
  */
 export function SignalHistory() {
   const router = useRouter();
@@ -39,10 +39,6 @@ export function SignalHistory() {
     return () => clearInterval(interval);
   }, []);
 
-  /**
-   * SERVER-SIDE FILTERING ENGINE
-   * Constructing dynamic Firestore queries based on UI state.
-   */
   const signalsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     
@@ -56,7 +52,6 @@ export function SignalHistory() {
       constraints.push(where("timeframe", "==", activeTimeframe));
     }
 
-    // Server-side ordering requires a Composite Index if where() is used.
     constraints.push(orderBy("receivedAt", "desc"));
     constraints.push(limit(150));
 
@@ -222,7 +217,7 @@ export function SignalHistory() {
                     <TableCell className="py-3 pl-6">
                       <div className="flex flex-col">
                         <span className="font-bold text-sm text-white tracking-tight uppercase leading-none">{signal.symbol}</span>
-                        <span className="text-[9px] text-muted-foreground font-bold mt-1 uppercase opacity-50 truncate">{signal.assetType || "CRYPTO"}</span>
+                        <span className="text-[9px] text-muted-foreground font-bold mt-1 uppercase opacity-50 truncate">{signal.assetType}</span>
                       </div>
                     </TableCell>
                     <TableCell className="py-3 text-center">

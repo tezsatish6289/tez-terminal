@@ -1,17 +1,21 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { AlertCircle, LineChart, Server, ArrowUpRight, ArrowDownRight, Timer, TrendingUp } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { 
+  AlertCircle, 
+  LineChart, 
+  Server, 
+  ArrowUpRight, 
+  ArrowDownRight, 
+  Timer, 
+  TrendingUp,
+  Clock,
+  ExternalLink,
+  Activity
+} from "lucide-react";
 import { format, differenceInMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -19,7 +23,7 @@ import { collection, query, limit, orderBy } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
 /**
- * PRODUCTION TERMINAL ENGINE
+ * PRODUCTION TERMINAL ENGINE - CARD EDITION
  */
 export function SignalHistory() {
   const router = useRouter();
@@ -32,7 +36,7 @@ export function SignalHistory() {
 
   useEffect(() => {
     setMounted(true);
-    const interval = setInterval(() => setNow(new Date()), 60000);
+    const interval = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -41,7 +45,7 @@ export function SignalHistory() {
     return query(
       collection(firestore, "signals"), 
       orderBy("receivedAt", "desc"), 
-      limit(150)
+      limit(100)
     );
   }, [user, firestore]);
 
@@ -49,7 +53,6 @@ export function SignalHistory() {
 
   /**
    * DEEP-PARSING ENGINE (TRUTH-BASED)
-   * Extracts assetType from top-level OR raw payload string.
    */
   const getDisplayAssetType = (signal: any) => {
     if (signal.assetType && signal.assetType !== "UNCLASSIFIED") return signal.assetType;
@@ -98,16 +101,14 @@ export function SignalHistory() {
     const days = Math.floor(diffMins / 1440);
     const hours = Math.floor((diffMins % 1440) / 60);
     const mins = diffMins % 60;
-    const parts = [];
-    if (days > 0) parts.push(`${days}d`);
-    if (hours > 0) parts.push(`${hours}h`);
-    parts.push(`${mins}m`);
-    return parts.join(" ");
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${mins}m`;
+    return `${mins}m`;
   };
 
   if (error) {
     return (
-      <div className="p-10 text-center flex flex-col items-center justify-center gap-4 h-full bg-card/10">
+      <div className="p-10 text-center flex flex-col items-center justify-center gap-4 h-full">
         <AlertCircle className="h-12 w-12 text-destructive" />
         <p className="text-sm font-bold text-white uppercase tracking-widest">Database Error: {error.message}</p>
       </div>
@@ -122,188 +123,169 @@ export function SignalHistory() {
   ];
 
   return (
-    <div className="flex flex-col h-full bg-card/30">
-      <div className="p-3 border-b border-border bg-background/50 flex flex-col gap-3 shrink-0">
+    <div className="flex flex-col h-full bg-[#0a0a0c]">
+      <div className="p-4 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-md flex flex-col gap-4 shrink-0 z-20">
         <div className="flex items-center justify-between">
-          <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
             {assetTypes.map(asset => (
               <button
                 key={asset.label}
                 onClick={() => setActiveAssetType(asset.value)}
                 className={cn(
-                  "px-4 py-1.5 text-[11px] font-bold rounded uppercase transition-all whitespace-nowrap",
+                  "px-4 py-2 text-[11px] font-black rounded-lg uppercase transition-all whitespace-nowrap border",
                   activeAssetType === asset.value 
-                    ? "bg-accent text-accent-foreground shadow-md shadow-accent/20" 
-                    : "bg-secondary/30 text-muted-foreground hover:bg-secondary/50"
+                    ? "bg-accent text-accent-foreground border-accent shadow-[0_0_15px_rgba(125,249,255,0.2)]" 
+                    : "bg-white/5 text-muted-foreground border-white/5 hover:bg-white/10"
                 )}
               >
                 {asset.label}
               </button>
             ))}
           </div>
-          <div className="hidden md:flex items-center gap-2">
-            <Badge variant="outline" className="text-[10px] h-7 border-emerald-500/20 text-emerald-400 gap-1.5 bg-emerald-500/5 px-3 font-bold uppercase">
-              <Server className="h-3.5 w-3.5" /> 24/7 SYNC ACTIVE
-            </Badge>
-          </div>
+          <Badge variant="outline" className="text-[10px] h-8 border-emerald-500/20 text-emerald-400 gap-2 bg-emerald-500/5 px-4 font-black uppercase hidden sm:flex">
+            <Server className="h-3.5 w-3.5 animate-pulse" /> 24/7 SYNC ACTIVE
+          </Badge>
         </div>
 
-        <div className="flex gap-1.5">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar">
           {["All TF", "5", "15", "60", "D"].map(tf => (
             <button
               key={tf}
               onClick={() => setActiveTimeframe(tf === "All TF" ? null : tf)}
               className={cn(
-                "px-4 py-1.5 text-[11px] font-bold rounded uppercase transition-all",
+                "px-4 py-1.5 text-[10px] font-black rounded-md uppercase transition-all border",
                 (tf === "All TF" ? !activeTimeframe : activeTimeframe === tf) 
-                  ? "bg-accent text-accent-foreground shadow-md shadow-accent/20" 
-                  : "bg-secondary/30 text-muted-foreground hover:bg-secondary/50"
+                  ? "bg-white text-black border-white" 
+                  : "bg-white/5 text-muted-foreground border-white/5 hover:bg-white/10"
               )}
             >
-              {tf === "All TF" ? "All TF" : tf === "D" ? "Daily" : `${tf}m`}
+              {tf === "All TF" ? "All Timeframes" : tf === "D" ? "Daily" : `${tf}m`}
             </button>
           ))}
         </div>
       </div>
 
-      <ScrollArea className="flex-1 w-full">
-        <Table className="min-w-[1200px] table-fixed border-collapse">
-          <TableHeader className="bg-secondary/20 sticky top-0 z-10 backdrop-blur-md">
-            <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">TIME</TableHead>
-              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[90px]">AGE</TableHead>
-              <TableHead className="text-[10px] uppercase font-black py-3 text-left pl-6 w-[150px]">ASSET</TableHead>
-              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[130px]">EXCHANGE</TableHead>
-              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">CHART</TableHead>
-              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">SIDE</TableHead>
-              <TableHead className="text-[10px] uppercase font-black py-3 text-right w-[110px]">ENTRY</TableHead>
-              <TableHead className="text-[10px] uppercase font-black text-accent py-3 text-right w-[180px]">LIVE PERFORMANCE</TableHead>
-              <TableHead className="text-[10px] uppercase font-black text-emerald-400 py-3 text-right w-[120px]">MAX UP</TableHead>
-              <TableHead className="text-[10px] uppercase font-black text-rose-400 py-3 text-center w-[120px] pr-6">MAX DOWN</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={10} className="text-center py-20 text-sm animate-pulse text-accent uppercase tracking-widest font-bold">
-                  Connecting to Idea Stream...
-                </TableCell>
-              </TableRow>
-            ) : filteredSignals.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={10} className="text-center py-24">
-                  <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">No signals detected for current filters</p>
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredSignals.map((signal) => {
-                const alertPrice = Number(signal.price || 0);
-                const currentPrice = signal.currentPrice ? Number(signal.currentPrice) : alertPrice;
-                const livePnl = calculatePercent(currentPrice, alertPrice, signal.type);
-                const upsidePercent = calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type);
-                const drawdownPercent = calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type);
-                const isPnlPositive = Number(livePnl) >= 0;
-                const displayAssetType = getDisplayAssetType(signal);
+      <ScrollArea className="flex-1 w-full bg-[#0a0a0c]">
+        <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+          {isLoading ? (
+            Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="h-64 rounded-xl bg-white/5 animate-pulse border border-white/5" />
+            ))
+          ) : filteredSignals.length === 0 ? (
+            <div className="col-span-full py-24 text-center">
+              <Activity className="h-12 w-12 text-muted-foreground/20 mx-auto mb-4" />
+              <p className="text-xs text-muted-foreground uppercase tracking-widest font-black">No signals detected for current filters</p>
+            </div>
+          ) : (
+            filteredSignals.map((signal) => {
+              const alertPrice = Number(signal.price || 0);
+              const currentPrice = signal.currentPrice ? Number(signal.currentPrice) : alertPrice;
+              const livePnl = calculatePercent(currentPrice, alertPrice, signal.type);
+              const upsidePercent = calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type);
+              const drawdownPercent = calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type);
+              const isPnlPositive = Number(livePnl) >= 0;
+              const displayAssetType = getDisplayAssetType(signal);
 
-                return (
-                  <TableRow 
-                    key={signal.id} 
-                    onClick={() => router.push(`/chart/${signal.id}`)}
-                    className="group border-border hover:bg-accent/5 transition-all cursor-pointer"
-                  >
-                    <TableCell className="text-[11px] font-mono text-muted-foreground py-3 text-center">
-                      {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"}
-                    </TableCell>
-                    <TableCell className="py-3 text-center">
-                      <div className="flex items-center justify-center gap-1.5 text-muted-foreground">
-                        <Timer className="h-3 w-3 text-accent/50" />
-                        <span className="text-[11px] font-mono font-bold">
-                          {mounted ? getRunningSince(signal.receivedAt) : "--"}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-3 pl-6">
+              return (
+                <Card 
+                  key={signal.id} 
+                  onClick={() => router.push(`/chart/${signal.id}`)}
+                  className="group relative overflow-hidden bg-[#121214] border-white/5 hover:border-accent/40 transition-all duration-300 cursor-pointer shadow-xl hover:shadow-accent/5 rounded-xl flex flex-col"
+                >
+                  {/* Card Header */}
+                  <div className="p-4 border-b border-white/5 bg-white/[0.02]">
+                    <div className="flex items-start justify-between">
                       <div className="flex flex-col">
-                        <span className="font-bold text-sm text-white tracking-tight uppercase leading-none">{signal.symbol}</span>
-                        <span className="text-[9px] text-accent/70 font-bold mt-1.5 uppercase tracking-tighter truncate">
-                          {displayAssetType}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-3 text-center">
-                      <div className="flex justify-center">
-                        <Badge className="bg-primary/30 text-accent border-accent/20 text-[9px] font-bold h-5 px-1.5 uppercase tracking-tighter">
-                          {signal.exchange || "BINANCE"}
-                        </Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-3 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <Badge variant="outline" className="text-[9px] h-5 px-1.5 border-white/10 font-bold bg-white/5 opacity-80 uppercase">
-                          {signal.timeframe}
-                        </Badge>
-                        <div className="p-1.5 rounded-md bg-accent/5 group-hover:bg-accent/20 text-muted-foreground group-hover:text-accent transition-all">
-                          <LineChart className="h-4 w-4" />
+                        <h3 className="text-lg font-black text-white leading-none tracking-tighter uppercase mb-1">
+                          {signal.symbol}
+                        </h3>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] font-black text-accent uppercase tracking-wider">
+                            {displayAssetType}
+                          </span>
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell className="text-center py-3">
                       <Badge className={cn(
-                        "text-[10px] font-bold border-none h-6 px-3 shadow-sm uppercase",
+                        "text-[10px] font-black border-none px-2 h-5 uppercase rounded-sm",
                         signal.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
                       )}>
                         {signal.type}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-[11px] text-white/50 py-3">
-                      ${formatPrice(alertPrice)}
-                    </TableCell>
-                    <TableCell className="text-right py-3">
-                        <div className="flex flex-col items-end">
-                          <div className={cn(
-                            "font-mono text-[12px] font-black",
-                            isPnlPositive ? "text-emerald-400" : "text-rose-400"
-                          )}>
-                            ${formatPrice(currentPrice)}
-                          </div>
-                          <div className={cn(
-                            "font-mono text-[10px] font-bold flex items-center gap-1 mt-0.5",
-                            isPnlPositive ? "text-emerald-400" : "text-rose-400"
-                          )}>
-                            <TrendingUp className={cn("h-2.5 w-2.5", !isPnlPositive && "rotate-180")} />
-                            {livePnl}%
-                          </div>
+                    </div>
+                  </div>
+
+                  {/* Metadata Bar */}
+                  <div className="px-4 py-2 bg-black/40 flex items-center justify-between border-b border-white/5 text-[10px] font-bold text-muted-foreground/60 uppercase">
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="h-3 w-3" /> {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Timer className="h-3 w-3 text-accent" /> {mounted ? getRunningSince(signal.receivedAt) : "--"}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <ExternalLink className="h-3 w-3" /> {signal.exchange || "BINANCE"}
+                    </div>
+                  </div>
+
+                  {/* Pricing Grid */}
+                  <CardContent className="p-4 flex-1 flex flex-col gap-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Entry Price</p>
+                        <p className="text-sm font-mono font-bold text-white/80">${formatPrice(alertPrice)}</p>
+                      </div>
+                      <div className="space-y-1 text-right">
+                        <p className="text-[9px] font-black text-accent uppercase tracking-widest">Live Performance</p>
+                        <div className={cn("text-sm font-mono font-black", isPnlPositive ? "text-emerald-400" : "text-rose-400")}>
+                          ${formatPrice(currentPrice)}
                         </div>
-                    </TableCell>
-                    <TableCell className="text-right py-3">
-                       <div className="flex flex-col items-end">
-                         <span className="text-emerald-400 font-bold text-[12px] font-mono flex items-center gap-1">
-                           <ArrowUpRight className="h-3 w-3" />
-                           {upsidePercent}%
-                         </span>
-                         <span className="text-[9px] text-muted-foreground font-mono opacity-60">
-                           ${formatPrice(signal.maxUpsidePrice || alertPrice)}
-                         </span>
-                       </div>
-                    </TableCell>
-                    <TableCell className="text-center py-3 pr-6">
-                       <div className="flex flex-col items-center">
-                         <span className="text-rose-400 font-bold text-[12px] font-mono flex items-center gap-1">
-                           <ArrowDownRight className="h-3 w-3" />
-                           {drawdownPercent}%
-                         </span>
-                         <span className="text-[9px] text-muted-foreground font-mono opacity-60">
-                           ${formatPrice(signal.maxDrawdownPrice || alertPrice)}
-                         </span>
-                       </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-        <ScrollBar orientation="horizontal" />
+                        <div className={cn("text-[10px] font-black flex items-center justify-end gap-1", isPnlPositive ? "text-emerald-400" : "text-rose-400")}>
+                           <TrendingUp className={cn("h-3 w-3", !isPnlPositive && "rotate-180")} />
+                           {livePnl}%
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/5">
+                      <div className="p-2 rounded-lg bg-emerald-500/[0.03] border border-emerald-500/10">
+                        <p className="text-[8px] font-black text-emerald-500/60 uppercase tracking-widest mb-1">Max Upside</p>
+                        <p className="text-xs font-mono font-black text-emerald-400 flex items-center gap-1">
+                          <ArrowUpRight className="h-3 w-3" /> {upsidePercent}%
+                        </p>
+                        <p className="text-[9px] font-mono text-muted-foreground/40 font-bold mt-1">
+                          ${formatPrice(signal.maxUpsidePrice)}
+                        </p>
+                      </div>
+                      <div className="p-2 rounded-lg bg-rose-500/[0.03] border border-rose-500/10 text-right">
+                        <p className="text-[8px] font-black text-rose-500/60 uppercase tracking-widest mb-1">Max Drawdown</p>
+                        <p className="text-xs font-mono font-black text-rose-400 flex items-center justify-end gap-1">
+                          <ArrowDownRight className="h-3 w-3" /> {drawdownPercent}%
+                        </p>
+                        <p className="text-[9px] font-mono text-muted-foreground/40 font-bold mt-1">
+                          ${formatPrice(signal.maxDrawdownPrice)}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+
+                  {/* Footer CTA */}
+                  <div className="px-4 py-3 border-t border-white/5 bg-white/[0.01] flex items-center justify-between group-hover:bg-accent/[0.05] transition-colors">
+                    <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Analyze Chart</span>
+                    <LineChart className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
+                  </div>
+
+                  {/* Accent Line */}
+                  <div className={cn(
+                    "absolute bottom-0 left-0 right-0 h-[2px] transition-all duration-300",
+                    isPnlPositive ? "bg-emerald-500/40" : "bg-rose-500/40",
+                    "group-hover:h-1 group-hover:bg-accent"
+                  )} />
+                </Card>
+              );
+            })
+          )}
+        </div>
+        <ScrollBar orientation="vertical" />
       </ScrollArea>
     </div>
   );

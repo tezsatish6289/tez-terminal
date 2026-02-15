@@ -23,7 +23,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Clock,
-  Zap
+  Zap,
+  ExternalLink
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -150,6 +151,8 @@ export default function DeepDiveChartPage() {
   const drawdownPercent = calculatePercent(signal?.maxDrawdownPrice, signal?.price, signal?.type || "BUY");
   const isBullish = signal?.type === 'BUY';
 
+  const tradingViewUrl = `https://www.tradingview.com/chart/?symbol=${signal?.exchange || 'BINANCE'}:${signal?.symbol}&interval=${signal?.timeframe || '15'}`;
+
   return (
     <div className="flex flex-col h-screen bg-[#0a0a0c] text-foreground overflow-hidden">
       <TopBar />
@@ -206,7 +209,7 @@ export default function DeepDiveChartPage() {
           </div>
 
           {/* Status & AI CTA */}
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3">
             <div className="flex flex-col items-end gap-1.5 mr-4">
               <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/5 text-[9px] font-black gap-1.5 h-6 px-3">
                 <Zap className="h-3 w-3 animate-pulse fill-emerald-400" /> LIVE NODE
@@ -214,7 +217,13 @@ export default function DeepDiveChartPage() {
               <div className="text-[10px] font-mono font-bold text-muted-foreground">{mounted ? format(now, 'HH:mm:ss') : "--:--:--"} UTC</div>
             </div>
 
-            <Button onClick={handleAIAnalysis} disabled={isAnalyzing} className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2 h-11 px-6 font-bold shadow-[0_0_20px_rgba(125,249,255,0.2)]">
+            <Button variant="outline" size="icon" asChild className="h-11 w-11 border-white/10 hover:bg-white/5 text-muted-foreground hover:text-white shrink-0">
+              <a href={tradingViewUrl} target="_blank" rel="noopener noreferrer" title="View on TradingView">
+                <ExternalLink className="h-5 w-5" />
+              </a>
+            </Button>
+
+            <Button onClick={handleAIAnalysis} disabled={isAnalyzing} className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2 h-11 px-6 font-bold shadow-[0_0_20px_rgba(125,249,255,0.2)] shrink-0">
               {isAnalyzing ? <Loader2 className="h-5 w-5 animate-spin" /> : <BrainCircuit className="h-5 w-5" />} Gemini AI Insight
             </Button>
           </div>

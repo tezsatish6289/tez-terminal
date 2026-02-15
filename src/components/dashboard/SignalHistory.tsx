@@ -21,8 +21,8 @@ import { useRouter } from "next/navigation";
 
 /**
  * PRODUCTION TERMINAL ENGINE
- * Standardized fixed-width columns for uniform spacing.
- * Removed fallback hardcoding for assetType to show raw database values.
+ * Using fixed-width columns for uniform spacing.
+ * Displays the real Asset Type from the database beneath the symbol.
  */
 export function SignalHistory() {
   const router = useRouter();
@@ -43,13 +43,9 @@ export function SignalHistory() {
     if (!firestore || !user) return null;
     
     const constraints: QueryConstraint[] = [];
-    
-    // Server-side filtering by Asset Type
     if (activeAssetType) {
       constraints.push(where("assetType", "==", activeAssetType));
     }
-    
-    // Server-side filtering by Timeframe
     if (activeTimeframe) {
       constraints.push(where("timeframe", "==", activeTimeframe));
     }
@@ -186,8 +182,8 @@ export function SignalHistory() {
                     <AlertCircle className="h-8 w-8 text-muted-foreground opacity-20" />
                     <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">No signals detected for current filters</p>
                     <p className="text-[10px] text-muted-foreground/60 max-w-sm leading-relaxed mx-auto">
-                      Only signals with a valid Asset Type in the database will appear under these filters.
-                      Please send a test signal from the <span className="text-accent cursor-pointer underline" onClick={() => router.push('/webhooks')}>Bridge Management</span> page to populate the stream.
+                      Ensure your Bridge signals have the <strong>assetType</strong> field populated in the database. 
+                      Signals without a top-level assetType field will be excluded from filtered views.
                     </p>
                   </div>
                 </TableCell>
@@ -221,8 +217,8 @@ export function SignalHistory() {
                     <TableCell className="py-3 px-4">
                       <div className="flex flex-col">
                         <span className="font-bold text-sm text-white tracking-tight uppercase leading-none">{signal.symbol}</span>
-                        <span className="text-[9px] text-muted-foreground font-bold mt-1 uppercase opacity-50 truncate">
-                          {signal.assetType}
+                        <span className="text-[9px] text-accent/70 font-bold mt-1.5 uppercase tracking-tighter truncate">
+                          {signal.assetType || "UNCLASSIFIED"}
                         </span>
                       </div>
                     </TableCell>

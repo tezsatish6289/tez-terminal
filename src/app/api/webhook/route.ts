@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     const exchange = (body.exchange || body.market || "BINANCE").toUpperCase();
     
     // 2. Asset Type Detection (Supports mapping 'asset_type' to 'assetType')
-    const rawAssetType = body.assetType || body.asset_type || body.category || body.market_type || body.type_asset || "CRYPTO";
+    const rawAssetType = body.assetType || body.asset_type || body.category || body.market_type || body.type_asset || "UNCLASSIFIED";
     const assetType = rawAssetType.toString().toUpperCase().trim();
 
     // 3. Side Detection
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
       payload: JSON.stringify(body),
       symbol,
       exchange,
-      assetType, // PROMOTED TO TOP-LEVEL FOR DATABASE FILTERING
+      assetType, // ENSURE THIS IS TOP-LEVEL FOR FILTERING
       type: signalType,
       price, 
       currentPrice: price, 

@@ -23,17 +23,13 @@ export function ChartPane({ symbol = "BTCUSDT", interval = "15", exchange = "BIN
   // Map intervals if they are coming as numbers but need to be strings for TV
   const tvInterval = interval === "0" ? "1" : interval;
 
-  // Use the canonical study ID for the built-in Moving Average Ribbon.
-  // Note: Standard widget embed uses a stringified array of study names.
-  const defaultStudies = JSON.stringify(["Moving Average Ribbon@tv-basicstudies"]);
-
   return (
     <div className="w-full h-full bg-[#13111a] relative flex flex-col">
       <div className="flex-1 w-full h-full bg-[#13111a]">
         {mounted ? (
           <iframe
             key={`${formattedSymbol}-${tvInterval}`}
-            src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_762c4&symbol=${formattedSymbol}&interval=${tvInterval}&hidesidetoolbar=1&hidetoptoolbar=0&symboledit=1&saveimage=1&toolbarbg=f1f3f6&studies=${encodeURIComponent(defaultStudies)}&theme=dark&style=1&timezone=Etc/UTC&studies_overrides={}&overrides={}&enabled_features=[]&disabled_features=[]&locale=en`}
+            src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_762c4&symbol=${formattedSymbol}&interval=${tvInterval}&hidesidetoolbar=1&hidetoptoolbar=0&symboledit=1&saveimage=1&toolbarbg=f1f3f6&theme=dark&style=1&timezone=Etc/UTC&studies_overrides={}&overrides={}&enabled_features=[]&disabled_features=[]&locale=en`}
             className="w-full h-full border-none"
             allowFullScreen
           />

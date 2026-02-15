@@ -110,18 +110,18 @@ export default function DeepDiveChartPage() {
       <TopBar />
       
       {/* Performance Data Strip */}
-      <div className="h-20 bg-card/90 border-b border-white/10 flex items-center px-6 justify-between shrink-0 backdrop-blur-xl z-20 shadow-2xl">
-        <div className="flex items-center gap-6">
+      <div className="h-20 bg-card/95 border-b border-white/10 flex items-center px-6 justify-between shrink-0 backdrop-blur-xl z-20 shadow-2xl overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-6 min-w-max">
           <Button 
             variant="ghost" 
             size="icon" 
             onClick={() => router.push("/")}
-            className="hover:bg-accent/10 text-muted-foreground h-10 w-10"
+            className="hover:bg-accent/10 text-muted-foreground h-10 w-10 shrink-0"
           >
             <ChevronLeft className="h-6 w-6" />
           </Button>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 shrink-0">
              <div className="bg-primary/30 p-2.5 rounded-xl border border-accent/20">
                 <BarChart3 className="h-6 w-6 text-accent" />
              </div>
@@ -129,17 +129,17 @@ export default function DeepDiveChartPage() {
                 <h2 className="text-2xl font-black tracking-tight text-white leading-none uppercase">
                   {signal?.symbol}
                 </h2>
-                <div className="flex items-center gap-3 mt-1.5">
-                   <Badge variant="outline" className="text-[9px] h-5 border-white/10 uppercase tracking-widest font-black opacity-60">
+                <div className="flex items-center gap-2 mt-1.5">
+                   <Badge variant="outline" className="text-[9px] h-4 border-white/10 uppercase tracking-widest font-black opacity-60 px-1">
                      {signal?.exchange}
                    </Badge>
                    <Badge className={cn(
-                     "text-[9px] h-5 font-bold border-none px-2 uppercase",
+                     "text-[9px] h-4 font-bold border-none px-1.5 uppercase",
                      signal?.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
                    )}>
                      {signal?.type}
                    </Badge>
-                   <Badge variant="outline" className="text-[9px] h-5 px-2 border-accent/20 text-accent font-bold gap-1.5">
+                   <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-accent/20 text-accent font-bold gap-1">
                      <Timer className="h-3 w-3" />
                      {mounted && signal ? getRunningSince(signal.receivedAt) : "--"}
                    </Badge>
@@ -147,27 +147,29 @@ export default function DeepDiveChartPage() {
              </div>
           </div>
 
-          <div className="h-10 w-px bg-white/5 mx-4" />
+          <div className="h-10 w-px bg-white/10 mx-2 shrink-0" />
 
-          <div className="flex gap-8">
+          <div className="flex gap-10">
             <div className="flex flex-col">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-1">Entry</span>
-              <span className="text-lg font-mono font-bold text-white/90">${formatPrice(alertPrice)}</span>
+              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-1.5">Entry Price</span>
+              <span className="text-xl font-mono font-bold text-white/90 leading-none">${formatPrice(alertPrice)}</span>
             </div>
+            
             <div className="flex flex-col">
-              <span className="text-[10px] uppercase font-bold text-accent tracking-widest mb-1">Live</span>
+              <span className="text-[10px] uppercase font-bold text-accent tracking-widest mb-1.5">Latest Live</span>
               <span className={cn(
-                "text-lg font-mono font-black",
+                "text-xl font-mono font-black leading-none",
                 (signal?.type === 'BUY' && currentPrice >= alertPrice) || (signal?.type === 'SELL' && currentPrice <= alertPrice) 
                 ? "text-emerald-400" : "text-rose-400"
               )}>
                 ${formatPrice(currentPrice)}
               </span>
             </div>
+
             <div className="flex flex-col">
-              <span className="text-[10px] uppercase font-bold text-accent-foreground tracking-widest mb-1">Live PNL</span>
+              <span className="text-[10px] uppercase font-bold text-accent-foreground tracking-widest mb-1.5">Live PNL</span>
               <span className={cn(
-                "text-lg font-mono font-black flex items-center gap-1.5",
+                "text-xl font-mono font-black flex items-center gap-1 leading-none",
                 isPnlPositive ? "text-emerald-400" : "text-rose-400"
               )}>
                 <TrendingUp className={cn("h-4 w-4", !isPnlPositive && "rotate-180")} />
@@ -177,11 +179,11 @@ export default function DeepDiveChartPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-12">
+        <div className="flex items-center gap-10 min-w-max">
            <div className="flex flex-col items-end">
-              <span className="text-[10px] uppercase font-bold text-emerald-500/60 tracking-widest mb-1">Max Upside</span>
+              <span className="text-[10px] uppercase font-bold text-emerald-500/60 tracking-widest mb-1.5">Max Upside</span>
               <div className="flex items-center gap-3">
-                 <span className="text-xl font-black text-emerald-400 font-mono flex items-center gap-1">
+                 <span className="text-xl font-black text-emerald-400 font-mono flex items-center gap-1 leading-none">
                    <ArrowUpRight className="h-5 w-5" />
                    {upsidePercent}%
                  </span>
@@ -190,9 +192,9 @@ export default function DeepDiveChartPage() {
            </div>
            
            <div className="flex flex-col items-end">
-              <span className="text-[10px] uppercase font-bold text-rose-500/60 tracking-widest mb-1">Max Drawdown</span>
+              <span className="text-[10px] uppercase font-bold text-rose-500/60 tracking-widest mb-1.5">Max Drawdown</span>
               <div className="flex items-center gap-3">
-                 <span className="text-xl font-black text-rose-400 font-mono flex items-center gap-1">
+                 <span className="text-xl font-black text-rose-400 font-mono flex items-center gap-1 leading-none">
                    <ArrowDownRight className="h-5 w-5" />
                    {drawdownPercent}%
                  </span>
@@ -200,9 +202,9 @@ export default function DeepDiveChartPage() {
               </div>
            </div>
 
-           <div className="h-10 w-px bg-white/5" />
+           <div className="h-10 w-px bg-white/10 shrink-0" />
 
-           <div className="flex flex-col items-end">
+           <div className="flex flex-col items-end shrink-0">
              <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
                <Zap className="h-3.5 w-3.5 text-emerald-400 fill-emerald-400 animate-pulse" />
                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-tighter">Live Node</span>

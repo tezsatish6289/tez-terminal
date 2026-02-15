@@ -157,7 +157,14 @@ export default function DeepDiveChartPage() {
       <ScrollArea className="w-full bg-[#0a0a0c] border-b border-white/5 shrink-0 z-20">
         <div className="h-24 flex items-center px-6 justify-between min-w-[1200px] gap-8">
           <div className="flex items-center gap-6">
-            <Button variant="ghost" size="icon" onClick={() => router.push("/")} className="hover:bg-accent/10 text-muted-foreground"><ChevronLeft className="h-6 w-6" /></Button>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => router.back()} 
+              className="hover:bg-accent/10 text-muted-foreground"
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </Button>
             <div className="flex items-center gap-4">
                <div className="bg-primary/20 p-2 rounded-xl border border-white/5"><BarChart3 className="h-6 w-6 text-accent" /></div>
                <div>
@@ -176,7 +183,7 @@ export default function DeepDiveChartPage() {
           <div className="flex items-center gap-12 flex-1 justify-center">
             <div className="flex flex-col gap-1 min-w-[120px]">
               <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Entry</span>
-              <span className="text-xl font-mono font-bold text-white leading-none">${formatPrice(signal?.price)}</span>
+              <span className="text-xl font-mono font-bold text-white">${formatPrice(signal?.price)}</span>
               <span className="text-[10px] uppercase font-bold text-muted-foreground/40">{signal?.exchange || "BINANCE"}</span>
             </div>
 

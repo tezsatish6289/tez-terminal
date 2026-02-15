@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { 
@@ -29,20 +29,26 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
 /**
- * PRODUCTION TERMINAL ENGINE - THEMED STRATEGY ROWS
+ * PRODUCTION TERMINAL ENGINE - PERSISTENT STATE
  */
 export function SignalHistory() {
   const router = useRouter();
   const { user } = useUser();
   const firestore = useFirestore();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
   const [mounted, setMounted] = useState(false);
   const [now, setNow] = useState(new Date());
   
-  // Filtering States
+  // Persistence Keys
+  const STORAGE_KEY_ASSET = "tez_terminal_asset";
+  const STORAGE_KEY_TF = "tez_terminal_tf";
+  const STORAGE_KEY_STATUS = "tez_terminal_status";
+  const STORAGE_KEY_SCROLL = "tez_terminal_scroll";
+
+  // Filtering States - Initialized from Session Storage if available
   const [activeAssetType, setActiveAssetType] = useState<string | null>(null);
   const [selectedTimeframes, setSelectedTimeframes] = useState<string[]>(["5", "15", "60", "240", "D"]);
-  
-  // Performance Status Filters per Section
   const [sectionStatusFilters, setSectionStatusFilters] = useState<Record<string, string>>({
     "5": "all",
     "15": "all",
@@ -51,11 +57,43 @@ export function SignalHistory() {
     "D": "all"
   });
 
+  // Load state and handle scroll restoration
   useEffect(() => {
     setMounted(true);
+    
+    const savedAsset = sessionStorage.getItem(STORAGE_KEY_ASSET);
+    const savedTf = sessionStorage.getItem(STORAGE_KEY_TF);
+    const savedStatus = sessionStorage.getItem(STORAGE_KEY_STATUS);
+    const savedScroll = sessionStorage.getItem(STORAGE_KEY_SCROLL);
+
+    if (savedAsset !== null) setActiveAssetType(savedAsset === "null" ? null : savedAsset);
+    if (savedTf) setSelectedTimeframes(JSON.parse(savedTf));
+    if (savedStatus) setSectionStatusFilters(JSON.parse(savedStatus));
+
+    // Wait for content to render before restoring scroll
+    if (savedScroll && scrollContainerRef.current) {
+      setTimeout(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = parseInt(savedScroll, 10);
+        }
+      }, 100);
+    }
+
     const interval = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Sync states to storage
+  useEffect(() => {
+    if (!mounted) return;
+    sessionStorage.setItem(STORAGE_KEY_ASSET, String(activeAssetType));
+    sessionStorage.setItem(STORAGE_KEY_TF, JSON.stringify(selectedTimeframes));
+    sessionStorage.setItem(STORAGE_KEY_STATUS, JSON.stringify(sectionStatusFilters));
+  }, [activeAssetType, selectedTimeframes, sectionStatusFilters, mounted]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    sessionStorage.setItem(STORAGE_KEY_SCROLL, e.currentTarget.scrollTop.toString());
+  };
 
   const signalsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -211,7 +249,11 @@ export function SignalHistory() {
         </Popover>
       </div>
 
-      <div className="flex-1 overflow-y-auto w-full bg-[#0a0a0c]">
+      <div 
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto w-full bg-[#0a0a0c]"
+      >
         <div className="py-8 space-y-16">
           {isLoading ? (
             <div className="px-6 space-y-8">

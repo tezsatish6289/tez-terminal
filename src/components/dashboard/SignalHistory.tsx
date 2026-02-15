@@ -11,7 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Zap, Clock, Terminal, AlertCircle, Globe, Activity, Info, Tag, DollarSign, ExternalLink } from "lucide-react";
+import { Zap, Terminal, AlertCircle, Globe, Activity, Info, DollarSign, ExternalLink, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -35,7 +35,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
     return query(
       collection(firestore, "signals"),
       orderBy("receivedAt", "desc"),
-      limit(25)
+      limit(50)
     );
   }, [user, firestore]);
 
@@ -103,24 +103,26 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
         <Table>
           <TableHeader className="bg-secondary/30">
             <TableRow className="hover:bg-transparent border-border">
-              <TableHead className="w-[100px]">Time</TableHead>
+              <TableHead className="w-[90px]">Time</TableHead>
               <TableHead className="w-[120px]">Asset</TableHead>
-              <TableHead className="w-[90px]">Side</TableHead>
-              <TableHead className="w-[140px] text-accent font-bold">Price @ Alert</TableHead>
-              <TableHead className="hidden md:table-cell">Signal Metadata</TableHead>
-              <TableHead className="w-[50px]"></TableHead>
+              <TableHead className="w-[70px]">Side</TableHead>
+              <TableHead className="w-[70px]">TF</TableHead>
+              <TableHead className="w-[100px]">Exchange</TableHead>
+              <TableHead className="w-[130px] text-accent font-bold">Price @ Alert</TableHead>
+              <TableHead className="hidden lg:table-cell">Notes</TableHead>
+              <TableHead className="w-[40px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (!signals || signals.length === 0) ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground animate-pulse">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground animate-pulse">
                   Connecting to global signal node...
                 </TableCell>
               </TableRow>
             ) : !signals || signals.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12">
+                <TableCell colSpan={8} className="text-center py-12">
                   <Terminal className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-20" />
                   <p className="text-muted-foreground text-sm">Waiting for market signals...</p>
                 </TableCell>
@@ -136,18 +138,18 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                     className="transition-colors group border-border hover:bg-white/[0.04] cursor-pointer"
                     onClick={() => handleRowClick(signal)}
                   >
-                    <TableCell className="text-[11px] font-mono py-4">
+                    <TableCell className="text-[10px] font-mono py-4">
                       <div className="text-white font-medium">{getFormattedDate(signal.receivedAt)}</div>
-                      <div className="text-muted-foreground opacity-60">{getFormattedDay(signal.receivedAt)}</div>
+                      <div className="text-muted-foreground opacity-50">{getFormattedDay(signal.receivedAt)}</div>
                     </TableCell>
-                    <TableCell className="font-bold text-sm text-white">
+                    <TableCell className="font-bold text-sm text-white pr-0">
                       {signal.symbol}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="pl-2">
                       <Badge 
                         variant="outline" 
                         className={cn(
-                          "text-[10px] uppercase font-bold border-none h-6 px-3",
+                          "text-[9px] uppercase font-bold border-none h-5 px-2",
                           signal.type === 'BUY' ? 'text-emerald-400 bg-emerald-400/10' : 
                           signal.type === 'SELL' ? 'text-rose-400 bg-rose-400/10' : 
                           'text-accent bg-accent/10'
@@ -156,11 +158,27 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                         {signal.type}
                       </Badge>
                     </TableCell>
+                    <TableCell>
+                      {data?.timeframe ? (
+                        <div className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground">
+                          <Activity className="h-3 w-3 opacity-50" />
+                          {data.timeframe}m
+                        </div>
+                      ) : <span className="text-muted-foreground/20">--</span>}
+                    </TableCell>
+                    <TableCell>
+                      {data?.exchange ? (
+                        <div className="flex items-center gap-1 text-[10px] font-semibold text-white/70">
+                          <Globe className="h-3 w-3 opacity-50" />
+                          {data.exchange}
+                        </div>
+                      ) : <span className="text-muted-foreground/20">--</span>}
+                    </TableCell>
                     <TableCell className="font-mono text-white text-xs">
                       {displayPrice ? (
                          <div className="flex items-center gap-1 bg-accent/5 px-2 py-1 rounded border border-accent/10 w-fit">
                            <DollarSign className="h-3 w-3 text-accent" />
-                           <span className="font-bold">
+                           <span className="font-bold text-accent/90">
                              {Number(displayPrice).toLocaleString(undefined, { 
                                minimumFractionDigits: 2, 
                                maximumFractionDigits: 6 
@@ -171,27 +189,13 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                         <span className="text-muted-foreground/30">--</span>
                       )}
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <div className="flex flex-wrap gap-2 items-center">
-                        {data?.exchange && (
-                          <div className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded text-[10px] text-muted-foreground border border-white/5">
-                            <Globe className="h-3 w-3" />
-                            <span className="font-semibold text-white/80">{data.exchange}</span>
-                          </div>
-                        )}
-                        {data?.timeframe && (
-                          <div className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded text-[10px] text-muted-foreground border border-white/5">
-                            <Activity className="h-3 w-3" />
-                            <span className="font-semibold text-white/80">{data.timeframe}m</span>
-                          </div>
-                        )}
-                        {data?.note && (
-                          <div className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded text-[10px] text-muted-foreground border border-white/5 max-w-[300px] truncate">
-                            <Info className="h-3 w-3" />
-                            <span className="italic truncate">{data.note}</span>
-                          </div>
-                        )}
-                      </div>
+                    <TableCell className="hidden lg:table-cell">
+                      {data?.note && (
+                        <div className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded text-[10px] text-muted-foreground border border-white/5 max-w-[200px] truncate">
+                          <Info className="h-3 w-3 flex-shrink-0" />
+                          <span className="italic truncate">{data.note}</span>
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
                       <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />

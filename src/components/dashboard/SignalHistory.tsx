@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { 
   Table, 
   TableBody, 
@@ -11,7 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Terminal, AlertCircle, Loader2 } from "lucide-react";
+import { Terminal, AlertCircle, Loader2, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -35,6 +35,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
   const firestore = useFirestore();
   const [mounted, setMounted] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [latestPrices, setLatestPrices] = useState<Record<string, number>>({});
 
   useEffect(() => {
     setMounted(true);
@@ -50,6 +51,38 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
   }, [user, firestore, activeFilter]);
 
   const { data: signals, isLoading: isCollectionLoading, error } = useCollection(signalsQuery);
+
+  // Poll Binance API for latest prices
+  useEffect(() => {
+    if (!signals || signals.length === 0) return;
+
+    const fetchPrices = async () => {
+      // Get unique symbols from signals
+      const symbols = Array.from(new Set(signals.map(s => s.symbol))).filter(s => s !== "UNKNOWN");
+      
+      const newPrices: Record<string, number> = { ...latestPrices };
+      
+      await Promise.all(symbols.map(async (sym) => {
+        try {
+          // Binance expects symbols without slashes, which our bridge already handles (e.g. BTCUSDT)
+          const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${sym.replace('/', '')}`);
+          if (response.ok) {
+            const data = await response.json();
+            newPrices[sym] = parseFloat(data.price);
+          }
+        } catch (e) {
+          // Silent fail for non-binance or non-existent symbols
+        }
+      }));
+
+      setLatestPrices(newPrices);
+    };
+
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 5000); // Poll every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [signals]);
 
   const isLoading = isUserLoading || isCollectionLoading;
 
@@ -129,11 +162,11 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
         <Table>
           <TableHeader className="bg-secondary/10 sticky top-0 z-10">
             <TableRow className="hover:bg-transparent border-border">
-              <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold">Alert Time</TableHead>
-              <TableHead className="w-[120px] px-2 text-[10px] uppercase font-bold">Asset Name</TableHead>
-              <TableHead className="w-[60px] px-1 text-[10px] uppercase font-bold text-center">Side</TableHead>
-              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">Chart</TableHead>
-              <TableHead className="w-[120px] px-2 text-[10px] uppercase font-bold">Alert Price</TableHead>
+              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">Alert Time</TableHead>
+              <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold">Asset Name</TableHead>
+              <TableHead className="w-[50px] px-1 text-[10px] uppercase font-bold text-center">Side</TableHead>
+              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold text-right">Alert Price</TableHead>
+              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold text-right">Latest Price</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -146,32 +179,56 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                 const data = parsePayload(signal.payload);
                 
                 // Resilient Price detection
-                let displayPriceValue = signal.price;
-                if (displayPriceValue === null || displayPriceValue === undefined || displayPriceValue === 0) {
-                  displayPriceValue = data?.price ?? data?.close ?? data?.price_at_alert ?? data?.last_price ?? data?.entry;
+                let alertPriceValue = signal.price;
+                if (alertPriceValue === null || alertPriceValue === undefined || alertPriceValue === 0) {
+                  alertPriceValue = data?.price ?? data?.close ?? data?.price_at_alert ?? data?.last_price ?? data?.entry;
                 }
                 
-                const displayTF = signal.timeframe || data?.timeframe || data?.interval || data?.tf;
+                const latestPrice = latestPrices[signal.symbol];
+                const isBuy = signal.type === 'BUY';
                 
+                // PNL Color logic
+                let priceColorClass = "text-muted-foreground";
+                if (latestPrice && alertPriceValue) {
+                  if (isBuy) {
+                    priceColorClass = latestPrice >= alertPriceValue ? "text-emerald-400" : "text-rose-400";
+                  } else {
+                    priceColorClass = latestPrice <= alertPriceValue ? "text-emerald-400" : "text-rose-400";
+                  }
+                }
+
                 return (
                   <TableRow key={signal.id} className="transition-colors group border-border hover:bg-accent/5 cursor-pointer" onClick={() => handleRowClick(signal)}>
                     <TableCell className="text-[10px] font-mono py-3 px-2">
                       <div className="text-white font-medium">{getFormattedDate(signal.receivedAt)}</div>
                       <div className="text-muted-foreground opacity-50">{getFormattedDay(signal.receivedAt)}</div>
                     </TableCell>
-                    <TableCell className="font-bold text-xs text-white px-2">{signal.symbol}</TableCell>
+                    <TableCell className="px-2">
+                      <div className="font-bold text-xs text-white truncate max-w-[80px]">{signal.symbol}</div>
+                      <div className="text-[9px] text-muted-foreground font-medium uppercase">{formatTimeframe(signal.timeframe)}</div>
+                    </TableCell>
                     <TableCell className="px-1 text-center">
                       <Badge variant="outline" className={cn("text-[9px] uppercase font-bold border-none h-5 px-1.5", signal.type === 'BUY' ? 'text-emerald-400 bg-emerald-400/10' : 'text-rose-400 bg-rose-400/10')}>
                         {signal.type}
                       </Badge>
                     </TableCell>
-                    <TableCell className="px-2">
-                      <div className="text-[10px] font-bold text-muted-foreground">{formatTimeframe(displayTF)}</div>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs px-2 text-accent font-bold">
-                      {displayPriceValue !== null && displayPriceValue !== undefined 
-                        ? `$${Number(displayPriceValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 8 })}` 
+                    <TableCell className="font-mono text-[11px] px-2 text-white/70 font-semibold text-right">
+                      {alertPriceValue !== null && alertPriceValue !== undefined 
+                        ? `$${Number(alertPriceValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}` 
                         : "--"}
+                    </TableCell>
+                    <TableCell className={cn("font-mono text-[11px] px-2 font-bold text-right", priceColorClass)}>
+                      {latestPrice ? (
+                        <div className="flex flex-col items-end">
+                          <span>${latestPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span>
+                          <div className="flex items-center gap-0.5 text-[8px] opacity-80">
+                            {priceColorClass === "text-emerald-400" ? <ArrowUpRight className="h-2 w-2" /> : <ArrowDownRight className="h-2 w-2" />}
+                            {alertPriceValue ? `${((Math.abs(latestPrice - alertPriceValue) / alertPriceValue) * 100).toFixed(2)}%` : ""}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="opacity-20">Live...</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 );

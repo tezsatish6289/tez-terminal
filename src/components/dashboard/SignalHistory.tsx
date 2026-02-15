@@ -113,8 +113,8 @@ export function SignalHistory() {
         <Table>
           <TableHeader className="bg-secondary/20 sticky top-0 z-10 backdrop-blur-md">
             <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-[10px] uppercase font-bold py-3 pl-6 w-[100px]">Time</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 w-[110px]">Age</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">Time</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[110px]">Age</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 w-[140px]">Asset</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 w-[80px]">Exch</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">Chart</TableHead>
@@ -147,11 +147,11 @@ export function SignalHistory() {
                     onClick={() => router.push(`/chart/${signal.id}`)}
                     className="group border-border hover:bg-accent/5 transition-all cursor-pointer"
                   >
-                    <TableCell className="text-[11px] font-mono text-muted-foreground py-3 pl-6 whitespace-nowrap">
+                    <TableCell className="text-[11px] font-mono text-muted-foreground py-3 text-center whitespace-nowrap">
                       {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"}
                     </TableCell>
                     <TableCell className="py-3">
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <div className="flex items-center justify-center gap-1.5 text-muted-foreground">
                         <Timer className="h-3.5 w-3.5 text-accent/50" />
                         <span className="text-[11px] font-mono font-bold whitespace-nowrap">
                           {mounted ? getRunningSince(signal.receivedAt) : "--"}

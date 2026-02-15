@@ -215,7 +215,7 @@ export default function WebhooksPage() {
               <CardContent className="text-[11px] space-y-3 leading-relaxed text-muted-foreground">
                 {isWorkstation ? (
                   <div className="space-y-3">
-                    <p className="text-amber-200">You are currently in the <strong>Editor Preview</strong>. Use your <code>.web.app</code> domain for TradingView.</p>
+                    <p className="text-amber-200">You are currently in the <strong>Editor Preview</strong>. Use your <code>.hosted.app</code> domain for TradingView.</p>
                     <div className="p-2 bg-black/30 rounded border border-amber-500/20">
                       <p className="font-bold text-white flex items-center gap-1"><Rocket className="h-3 w-3" /> Step-by-Step:</p>
                       <ol className="list-decimal list-inside mt-1 space-y-1">
@@ -352,7 +352,7 @@ export default function WebhooksPage() {
                       <div className="p-3 bg-accent/5 border border-accent/20 rounded-lg flex items-start gap-3">
                          <Info className="h-4 w-4 text-accent mt-0.5" />
                          <p className="text-[10px] leading-relaxed text-muted-foreground">
-                           <b>Pro Tip:</b> Ensure the "Webhook URL" is correct and the "Message" box in TradingView contains <b>nothing but the JSON</b>.
+                           <b>Pro Tip:</b> Ensure the "Webhook URL" is correct and the "Message" box in TradingView contains <b>nothing but the JSON</b>. Include the <b>price</b> field for accurate terminal tracking.
                          </p>
                       </div>
                     </CardContent>

@@ -129,11 +129,11 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
         <Table>
           <TableHeader className="bg-secondary/10 sticky top-0 z-10">
             <TableRow className="hover:bg-transparent border-border">
-              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">Time</TableHead>
-              <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold">Asset</TableHead>
+              <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold">Alert Time</TableHead>
+              <TableHead className="w-[120px] px-2 text-[10px] uppercase font-bold">Asset Name</TableHead>
               <TableHead className="w-[60px] px-1 text-[10px] uppercase font-bold text-center">Side</TableHead>
               <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">Chart</TableHead>
-              <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold">Price</TableHead>
+              <TableHead className="w-[120px] px-2 text-[10px] uppercase font-bold">Price at Alert</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

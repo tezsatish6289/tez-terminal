@@ -4,7 +4,7 @@ import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/fires
 
 /**
  * Production-Ready Ingestion Bridge.
- * Fuzzy-searches for common TradingView JSON keys to ensure high compatibility.
+ * Now initializes Max Upside and Max Drawdown tracking fields.
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
@@ -24,15 +24,6 @@ export async function POST(request: NextRequest) {
     } catch (e) {
       rawBody = "UNREADABLE_BODY";
     }
-
-    // Log attempt for debugging
-    await addDoc(logsRef, {
-      timestamp,
-      level: "INFO",
-      message: "Incoming Webhook Attempt",
-      details: `ID: ${webhookId} | Body: ${rawBody}`,
-      webhookId,
-    });
 
     if (webhookId === "MISSING_ID") {
       throw new Error("Missing 'id' parameter in Webhook URL.");
@@ -58,19 +49,14 @@ export async function POST(request: NextRequest) {
       throw new Error(`Authentication failure: Secret key mismatch.`);
     }
 
-    // 1. FUZZY SYMBOL SEARCH
     const symbol = (body.ticker || body.symbol || body.pair || body.asset || "UNKNOWN").toUpperCase();
 
-    // 2. FUZZY SIDE/TYPE SEARCH
     let signalType = "NEUTRAL";
     const rawSide = (body.side || body.action || body.type || "").toString().toLowerCase();
     if (rawSide.includes("buy") || rawSide.includes("long")) signalType = "BUY";
     if (rawSide.includes("sell") || rawSide.includes("short")) signalType = "SELL";
 
-    // 3. HARDENED FUZZY PRICE SEARCH
-    // Check for common TradingView price keys
     const rawPrice = body.price ?? body.close ?? body.price_at_alert ?? body.last_price ?? body.entry ?? body.open;
-    
     let price: number | null = null;
     if (rawPrice !== undefined && rawPrice !== null && rawPrice !== "") {
       const parsed = parseFloat(rawPrice.toString());
@@ -79,9 +65,7 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // 4. FUZZY TIMEFRAME SEARCH & NORMALIZATION
     let rawTf = (body.timeframe || body.interval || body.tf || "").toString().toUpperCase().trim();
-    
     const tfMap: Record<string, string> = {
       "1": "1", "1M": "1", "1MIN": "1", "1MINUTE": "1",
       "5": "5", "5M": "5", "5MIN": "5", "5MINUTE": "5",
@@ -91,7 +75,6 @@ export async function POST(request: NextRequest) {
       "D": "D", "1D": "D", "DAILY": "D", "DAY": "D",
       "W": "W", "1W": "W", "WEEKLY": "W",
     };
-
     const cleanedTf = rawTf.replace(/[^A-Z0-9]/g, "");
     const timeframe = tfMap[cleanedTf] || cleanedTf || "15";
 
@@ -102,7 +85,9 @@ export async function POST(request: NextRequest) {
       payload: JSON.stringify(body),
       symbol,
       type: signalType,
-      price, // Stored as a strict number or null
+      price, 
+      maxUpsidePrice: price, // Initialize performance tracking at entry
+      maxDrawdownPrice: price, // Initialize performance tracking at entry
       timeframe: timeframe.toString(),
       note: body.note || `Indicator alert for ${symbol}`,
       source: configData.name || "TradingView Indicator",
@@ -110,7 +95,7 @@ export async function POST(request: NextRequest) {
 
     await addDoc(signalsRef, signalData);
 
-    return NextResponse.json({ success: true, message: "Signal processed", timeframe, price });
+    return NextResponse.json({ success: true, message: "Signal processed" });
   } catch (error: any) {
     console.error(`[Ingestion Error] ${error.message}`);
     try {

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -11,7 +10,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, RefreshCw, LineChart } from "lucide-react";
+import { AlertCircle, LineChart, Activity } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -51,7 +50,6 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
     return rawSymbol.split(':').pop()?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || "";
   };
 
-  // Live Price Polling (60s Refresh)
   useEffect(() => {
     const fetchPrices = async () => {
       try {
@@ -105,7 +103,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
               className={cn(
                 "px-2 py-1 text-[9px] font-bold rounded uppercase transition-colors",
                 (tf === "All" ? !activeFilter : activeFilter === tf) 
-                  ? "bg-accent text-accent-foreground shadow-sm shadow-accent/20" 
+                  ? "bg-accent text-accent-foreground" 
                   : "bg-secondary/30 text-muted-foreground hover:bg-secondary/50"
               )}
             >
@@ -119,15 +117,16 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
         <Table>
           <TableHeader className="bg-secondary/20 sticky top-0 z-10 backdrop-blur-sm">
             <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-[9px] uppercase font-black text-muted-foreground py-2">Alert Time</TableHead>
-              <TableHead className="text-[9px] uppercase font-black text-muted-foreground py-2">Asset Name</TableHead>
-              <TableHead className="text-[9px] uppercase font-black text-muted-foreground py-2 text-center">Side</TableHead>
-              <TableHead className="text-[9px] uppercase font-black text-muted-foreground py-2 text-right">Alert Price</TableHead>
+              <TableHead className="text-[9px] uppercase font-black py-2">Alert Time</TableHead>
+              <TableHead className="text-[9px] uppercase font-black py-2">Asset Name</TableHead>
+              <TableHead className="text-[9px] uppercase font-black py-2 text-center">Chart</TableHead>
+              <TableHead className="text-[9px] uppercase font-black py-2 text-center">Side</TableHead>
+              <TableHead className="text-[9px] uppercase font-black py-2 text-right">Alert Price</TableHead>
               <TableHead className="text-[9px] uppercase font-black text-accent py-2 text-right">
                 <div className="flex flex-col items-end">
                    <span>Latest Price</span>
                    <Badge variant="outline" className="text-[7px] h-3 px-1 border-accent/30 text-accent font-mono">
-                     {countdown}s
+                     NEXT: {countdown}s
                    </Badge>
                 </div>
               </TableHead>
@@ -137,16 +136,15 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
           </TableHeader>
           <TableBody>
             {isLoading && (!signals || signals.length === 0) ? (
-              <TableRow><TableCell colSpan={7} className="text-center py-20 text-[10px] animate-pulse text-accent">Initializing Feed...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center py-20 text-[10px] animate-pulse text-accent">Synchronizing Market Data...</TableCell></TableRow>
             ) : signals?.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="text-center py-20 text-[10px] text-muted-foreground">No active signals found.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center py-20 text-[10px] text-muted-foreground">Waiting for fresh TradingView signals...</TableCell></TableRow>
             ) : (
               signals?.map((signal) => {
                 const cleanSym = resolveBinanceSymbol(signal.symbol);
                 const latestPrice = latestPrices[cleanSym];
                 const alertPrice = Number(signal.price || 0);
                 
-                // Read performance directly from DB (Updated by Backend Cron)
                 const upsidePercent = calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type);
                 const drawdownPercent = calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type);
 
@@ -164,6 +162,9 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                         <span className="font-black text-[11px] text-white tracking-tight">{signal.symbol}</span>
                         <Badge variant="outline" className="text-[8px] h-3.5 px-1 border-white/10 font-mono">{signal.timeframe}m</Badge>
                       </div>
+                    </TableCell>
+                    <TableCell className="text-center py-3">
+                      <LineChart className="h-3.5 w-3.5 mx-auto text-muted-foreground group-hover:text-accent transition-colors" />
                     </TableCell>
                     <TableCell className="text-center py-3">
                       <Badge className={cn(
@@ -189,12 +190,12 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                     </TableCell>
                     <TableCell className="text-right py-3">
                        <div className="text-emerald-400 font-black text-[10px] font-mono">
-                         {upsidePercent ? `+${upsidePercent}%` : "--"}
+                         {upsidePercent && Number(upsidePercent) > 0 ? `+${upsidePercent}%` : "0.00%"}
                        </div>
                     </TableCell>
                     <TableCell className="text-right py-3">
                        <div className="text-rose-400 font-black text-[10px] font-mono">
-                         {drawdownPercent ? `${drawdownPercent}%` : "--"}
+                         {drawdownPercent && Number(drawdownPercent) < 0 ? `${drawdownPercent}%` : "0.00%"}
                        </div>
                     </TableCell>
                   </TableRow>

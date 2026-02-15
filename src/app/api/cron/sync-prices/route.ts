@@ -1,18 +1,17 @@
-
 import { NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
-import { collection, getDocs, updateDoc, doc } from "firebase/firestore";
+import { collection, getDocs, updateDoc, doc, addDoc } from "firebase/firestore";
 
 /**
  * 24/7 Performance Engine.
- * Intended to be triggered every 5 minutes by an external scheduler.
+ * Intended to be triggered every 5 minutes.
  * Updates high/low watermarks for all active signals.
  */
 export async function GET() {
   const { firestore } = initializeFirebase();
+  const logsRef = collection(firestore, "logs");
   
   try {
-    // 1. Fetch current Binance prices (One call for all pairs)
     const priceRes = await fetch("https://fapi.binance.com/fapi/v2/ticker/price", { cache: 'no-store' });
     if (!priceRes.ok) throw new Error("Failed to fetch prices from Binance");
     
@@ -26,8 +25,8 @@ export async function GET() {
       });
     }
 
-    // 2. Fetch all signals to evaluate performance
     const signalsSnap = await getDocs(collection(firestore, "signals"));
+    let updateCount = 0;
     
     const updates = signalsSnap.docs.map(async (signalDoc) => {
       const signal = signalDoc.data();
@@ -41,17 +40,15 @@ export async function GET() {
       let newMaxDrawdown = signal.maxDrawdownPrice || alertPrice;
 
       if (signal.type === 'BUY') {
-        // Upside = High, Drawdown = Low
         if (currentPrice > newMaxUpside) newMaxUpside = currentPrice;
         if (currentPrice < newMaxDrawdown) newMaxDrawdown = currentPrice;
       } else if (signal.type === 'SELL') {
-        // Upside = Low, Drawdown = High
         if (currentPrice < newMaxUpside || newMaxUpside === 0) newMaxUpside = currentPrice;
         if (currentPrice > newMaxDrawdown) newMaxDrawdown = currentPrice;
       }
 
-      // 3. Persist new records to DB if performance improved or dipped
       if (newMaxUpside !== signal.maxUpsidePrice || newMaxDrawdown !== signal.maxDrawdownPrice) {
+        updateCount++;
         return updateDoc(doc(firestore, "signals", signalDoc.id), {
           maxUpsidePrice: newMaxUpside,
           maxDrawdownPrice: newMaxDrawdown
@@ -61,13 +58,31 @@ export async function GET() {
 
     await Promise.all(updates);
 
+    // Technical Log for Admin Debugger
+    await addDoc(logsRef, {
+      timestamp: new Date().toISOString(),
+      level: "INFO",
+      message: "Cron Heartbeat: Performance Sync Complete",
+      details: `Processed ${signalsSnap.size} signals. Records updated: ${updateCount}.`,
+      webhookId: "SYSTEM_CRON",
+    });
+
     return NextResponse.json({ 
       success: true, 
       processed: signalsSnap.size,
-      timestamp: new Date().toISOString()
+      updated: updateCount
     });
   } catch (error: any) {
     console.error("[Cron Error]", error.message);
+    try {
+      await addDoc(logsRef, {
+        timestamp: new Date().toISOString(),
+        level: "ERROR",
+        message: "Cron Failure: Sync Interrupted",
+        details: error.message,
+        webhookId: "SYSTEM_CRON",
+      });
+    } catch (e) {}
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

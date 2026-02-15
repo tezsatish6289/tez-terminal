@@ -57,10 +57,11 @@ export async function POST(request: NextRequest) {
     // 2. Asset Type Detection & Normalization (Crucial for filtering)
     const rawAssetType = (body.assetType || body.asset_type || body.category || body.market_type || body.type_asset || "UNCLASSIFIED").toString().toUpperCase().trim();
     
-    let assetType = rawAssetType;
+    let assetType = "UNCLASSIFIED";
     if (rawAssetType.includes("INDIAN STOCK")) assetType = "INDIAN STOCKS";
-    if (rawAssetType.includes("US STOCK")) assetType = "US STOCKS";
-    if (rawAssetType.includes("CRYPTO")) assetType = "CRYPTO";
+    else if (rawAssetType.includes("US STOCK")) assetType = "US STOCKS";
+    else if (rawAssetType.includes("CRYPTO")) assetType = "CRYPTO";
+    else assetType = rawAssetType;
 
     // 3. Side Detection
     let signalType = "NEUTRAL";

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { 
   Table, 
   TableBody, 
@@ -16,12 +16,12 @@ import { AlertCircle, LineChart, Server, ArrowUpRight, ArrowDownRight, Timer, Tr
 import { format, differenceInMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, limit, orderBy, where, QueryConstraint } from "firebase/firestore";
+import { collection, query, limit, orderBy } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
 /**
  * PRODUCTION TERMINAL ENGINE
- * Extracts assetType from both top-level metadata and raw payload to ensure legacy data compatibility.
+ * Uses Resilient Client-Side Filtering for 100% data coverage (legacy + new metadata).
  */
 export function SignalHistory() {
   const router = useRouter();
@@ -40,30 +40,26 @@ export function SignalHistory() {
 
   const signalsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    
-    const constraints: QueryConstraint[] = [];
-    if (activeAssetType) {
-      constraints.push(where("assetType", "==", activeAssetType));
-    }
-    if (activeTimeframe) {
-      constraints.push(where("timeframe", "==", activeTimeframe));
-    }
+    return query(
+      collection(firestore, "signals"), 
+      orderBy("receivedAt", "desc"), 
+      limit(150)
+    );
+  }, [user, firestore]);
 
-    constraints.push(orderBy("receivedAt", "desc"));
-    constraints.push(limit(150));
+  const { data: rawSignals, isLoading, error } = useCollection(signalsQuery);
 
-    return query(collection(firestore, "signals"), ...constraints);
-  }, [user, firestore, activeTimeframe, activeAssetType]);
-
-  const { data: signals, isLoading, error } = useCollection(signalsQuery);
-
+  /**
+   * INTUITIVE METADATA EXTRACTION
+   * Scans both top-level fields and deep JSON payload to find the truth.
+   */
   const getDisplayAssetType = (signal: any) => {
     if (signal.assetType && signal.assetType !== "UNCLASSIFIED") return signal.assetType;
     
-    // Deep fallback for legacy signals: try to parse the payload
     try {
-      const payload = JSON.parse(signal.payload || "{}");
-      const raw = payload.assetType || payload.asset_type || payload.category || payload.market_type;
+      const payload = typeof signal.payload === 'string' ? JSON.parse(signal.payload) : (signal.payload || {});
+      const raw = payload.assetType || payload.asset_type || payload.category || payload.market_type || payload.type_asset;
+      
       if (raw) {
         const norm = raw.toString().toUpperCase().trim();
         if (norm.includes("INDIAN STOCK")) return "INDIAN STOCKS";
@@ -71,10 +67,27 @@ export function SignalHistory() {
         if (norm.includes("CRYPTO")) return "CRYPTO";
         return norm;
       }
-    } catch (e) {}
+    } catch (e) {
+      // Silently fail if JSON is malformed
+    }
     
     return "UNCLASSIFIED";
   };
+
+  const filteredSignals = useMemo(() => {
+    if (!rawSignals) return [];
+    return rawSignals.filter(signal => {
+      const displayAssetType = getDisplayAssetType(signal);
+      
+      // Asset Type Match
+      if (activeAssetType && displayAssetType !== activeAssetType) return false;
+      
+      // Timeframe Match
+      if (activeTimeframe && signal.timeframe !== activeTimeframe) return false;
+      
+      return true;
+    });
+  }, [rawSignals, activeAssetType, activeTimeframe]);
 
   const calculatePercent = (targetPrice: number | undefined | null, entry: number, type: string) => {
     if (targetPrice === undefined || targetPrice === null || !entry || entry === 0) return null;
@@ -108,14 +121,7 @@ export function SignalHistory() {
     return (
       <div className="p-10 text-center flex flex-col items-center justify-center gap-4 h-full bg-card/10">
         <AlertCircle className="h-12 w-12 text-destructive" />
-        <div className="max-w-md">
-          <p className="text-sm font-bold text-white uppercase tracking-widest">Database Sync Error</p>
-          <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-            {error.message.toLowerCase().includes('index') 
-              ? "Missing Firestore Index for current filters. Please click the link in your browser console (F12) to create it."
-              : error.message}
-          </p>
-        </div>
+        <p className="text-sm font-bold text-white uppercase tracking-widest">Database Error: {error.message}</p>
       </div>
     );
   }
@@ -177,8 +183,8 @@ export function SignalHistory() {
           <TableHeader className="bg-secondary/20 sticky top-0 z-10 backdrop-blur-md">
             <TableRow className="border-border hover:bg-transparent">
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">TIME</TableHead>
-              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[100px]">AGE</TableHead>
-              <TableHead className="text-[10px] uppercase font-black py-3 text-left px-4 w-[160px]">ASSET</TableHead>
+              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[90px]">AGE</TableHead>
+              <TableHead className="text-[10px] uppercase font-black py-3 text-left pl-6 w-[160px]">ASSET</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[130px]">EXCHANGE</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">CHART</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">SIDE</TableHead>
@@ -191,20 +197,16 @@ export function SignalHistory() {
           <TableBody>
             {isLoading ? (
               <TableRow><TableCell colSpan={10} className="text-center py-20 text-sm animate-pulse text-accent uppercase tracking-widest font-bold">Connecting to Idea Stream...</TableCell></TableRow>
-            ) : signals?.length === 0 ? (
+            ) : filteredSignals.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={10} className="text-center py-24">
                   <div className="flex flex-col items-center gap-3">
-                    <AlertCircle className="h-8 w-8 text-muted-foreground opacity-20" />
-                    <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">No signals detected for current filters</p>
-                    <p className="text-[10px] text-muted-foreground/60 max-w-sm leading-relaxed mx-auto px-10">
-                      Note: Filtering relies on the <strong>assetType</strong> database field. Signals without this field (or unindexed legacy data) will not appear in filtered views.
-                    </p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">No signals match current filters</p>
                   </div>
                 </TableCell>
               </TableRow>
             ) : (
-              signals?.map((signal) => {
+              filteredSignals.map((signal) => {
                 const alertPrice = Number(signal.price || 0);
                 const currentPrice = signal.currentPrice ? Number(signal.currentPrice) : null;
                 const livePnl = calculatePercent(currentPrice, alertPrice, signal.type);
@@ -230,7 +232,7 @@ export function SignalHistory() {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="py-3 px-4">
+                    <TableCell className="py-3 pl-6">
                       <div className="flex flex-col">
                         <span className="font-bold text-sm text-white tracking-tight uppercase leading-none">{signal.symbol}</span>
                         <span className="text-[9px] text-accent/70 font-bold mt-1.5 uppercase tracking-tighter truncate">

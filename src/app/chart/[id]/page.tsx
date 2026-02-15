@@ -54,8 +54,8 @@ export default function DeepDiveChartPage() {
     if (signal.assetType && signal.assetType !== "UNCLASSIFIED") return signal.assetType;
     
     try {
-      const payload = JSON.parse(signal.payload || "{}");
-      const raw = payload.assetType || payload.asset_type || payload.category;
+      const payload = typeof signal.payload === 'string' ? JSON.parse(signal.payload) : (signal.payload || {});
+      const raw = payload.assetType || payload.asset_type || payload.category || payload.market_type || payload.type_asset;
       if (raw) {
         const norm = raw.toString().toUpperCase().trim();
         if (norm.includes("INDIAN STOCK")) return "INDIAN STOCKS";

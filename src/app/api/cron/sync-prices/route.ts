@@ -5,14 +5,14 @@ import { collection, getDocs, updateDoc, doc, addDoc } from "firebase/firestore"
 
 /**
  * 24/7 Global Synchronization Engine.
- * Fetches data from both Futures and Spot markets to ensure 100% symbol coverage.
+ * Enhanced matching logic to handle symbol variations (BTC vs BTCUSDT).
  */
 export async function GET() {
   const { firestore } = initializeFirebase();
   const logsRef = collection(firestore, "logs");
   
   try {
-    // 1. Fetch from BOTH Futures and Spot to ensure no missing symbols
+    // 1. Fetch from BOTH Futures and Spot
     const [futuresRes, spotRes] = await Promise.all([
       fetch("https://fapi.binance.com/fapi/v2/ticker/price", { cache: 'no-store' }),
       fetch("https://api.binance.com/api/v3/ticker/price", { cache: 'no-store' })
@@ -38,14 +38,25 @@ export async function GET() {
     const signalsSnap = await getDocs(collection(firestore, "signals"));
     let updateCount = 0;
     const missingSymbols: string[] = [];
+    const skippedAssets: string[] = [];
     
     const updates = signalsSnap.docs.map(async (signalDoc) => {
       const signal = signalDoc.data();
-      // Handle various symbol formats: BINANCE:BTCUSDT, BTC/USDT, etc.
+      const assetType = (signal.assetType || "").toUpperCase();
+
+      // Only sync Crypto via Binance. Indian/US Stocks require different nodes.
+      if (assetType !== "CRYPTO" && !signal.symbol?.includes("USDT")) {
+        skippedAssets.push(signal.symbol || "UNKNOWN");
+        return;
+      }
+
       const rawSymbol = signal.symbol || "";
       const cleanedSymbol = rawSymbol.split(':').pop()?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || "";
       
-      const currentPrice = priceMap[cleanedSymbol];
+      // Multi-layer matching: Direct -> +USDT -> +BUSD
+      let currentPrice = priceMap[cleanedSymbol];
+      if (!currentPrice) currentPrice = priceMap[cleanedSymbol + 'USDT'];
+      if (!currentPrice) currentPrice = priceMap[cleanedSymbol + 'BUSD'];
       
       if (!currentPrice) {
         missingSymbols.push(rawSymbol);
@@ -58,13 +69,10 @@ export async function GET() {
       let newMaxUpside = signal.maxUpsidePrice || alertPrice;
       let newMaxDrawdown = signal.maxDrawdownPrice || alertPrice;
 
-      // BUY Logic: MaxUpside is Highest High, MaxDrawdown is Lowest Low
       if (signal.type === 'BUY') {
         if (currentPrice > newMaxUpside) newMaxUpside = currentPrice;
         if (currentPrice < newMaxDrawdown || newMaxDrawdown === 0) newMaxDrawdown = currentPrice;
-      } 
-      // SELL Logic: MaxUpside is Lowest Low, MaxDrawdown is Highest High
-      else if (signal.type === 'SELL') {
+      } else if (signal.type === 'SELL') {
         if (currentPrice < newMaxUpside || newMaxUpside === 0) newMaxUpside = currentPrice;
         if (currentPrice > newMaxDrawdown) newMaxDrawdown = currentPrice;
       }
@@ -79,34 +87,20 @@ export async function GET() {
 
     await Promise.all(updates);
 
-    // Audit Log for Debugger
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
       level: missingSymbols.length > 0 ? "WARN" : "INFO",
-      message: `Global Sync: ${updateCount} Success, ${missingSymbols.length} Missing`,
-      details: missingSymbols.length > 0 
-        ? `Updated ${updateCount} signals. Missing mapping for: ${Array.from(new Set(missingSymbols)).join(', ')}`
-        : `Synchronized prices for all ${updateCount} active signals across Spot & Futures.`,
+      message: `Sync Heartbeat: ${updateCount} Updated`,
+      details: `Processed ${updateCount} signals. ${missingSymbols.length} missing mapping. ${skippedAssets.length} non-crypto assets skipped.`,
       webhookId: "SYSTEM_CRON",
     });
 
     return NextResponse.json({ 
       success: true, 
-      processed: signalsSnap.size,
       updated: updateCount,
       missing: missingSymbols.length
     });
   } catch (error: any) {
-    console.error("[Cron Error]", error.message);
-    try {
-      await addDoc(logsRef, {
-        timestamp: new Date().toISOString(),
-        level: "ERROR",
-        message: "Sync Engine Failure",
-        details: error.message,
-        webhookId: "SYSTEM_CRON",
-      });
-    } catch (e) {}
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

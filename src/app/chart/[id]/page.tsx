@@ -64,9 +64,6 @@ export default function DeepDiveChartPage() {
 
   const { data: signal, isLoading: isSignalLoading, error } = useDoc(signalRef);
 
-  /**
-   * DEEP-PARSING ENGINE (TRUTH-BASED)
-   */
   const getDisplayAssetType = (s: any) => {
     if (!s) return "UNCLASSIFIED";
     if (s.assetType && s.assetType !== "UNCLASSIFIED") return s.assetType;
@@ -110,11 +107,10 @@ export default function DeepDiveChartPage() {
       });
       setAnalysis(result);
     } catch (err: any) {
-      console.error("AI Analysis failed:", err);
       toast({
         variant: "destructive",
         title: "AI Analysis Offline",
-        description: err.message || "Failed to generate technical insight. Please try again."
+        description: err.message || "Failed to generate technical insight."
       });
     } finally {
       setIsAnalyzing(false);
@@ -160,7 +156,6 @@ export default function DeepDiveChartPage() {
       
       <ScrollArea className="w-full bg-[#0a0a0c] border-b border-white/5 shrink-0 z-20">
         <div className="h-24 flex items-center px-6 justify-between min-w-[1200px] gap-8">
-          {/* Signal Identity */}
           <div className="flex items-center gap-6">
             <Button variant="ghost" size="icon" onClick={() => router.push("/")} className="hover:bg-accent/10 text-muted-foreground"><ChevronLeft className="h-6 w-6" /></Button>
             <div className="flex items-center gap-4">
@@ -178,7 +173,6 @@ export default function DeepDiveChartPage() {
             </div>
           </div>
 
-          {/* Core Metrics: Entry, Live, Max Upside, Max Down */}
           <div className="flex items-center gap-12 flex-1 justify-center">
             <div className="flex flex-col gap-1 min-w-[120px]">
               <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Entry</span>
@@ -209,7 +203,6 @@ export default function DeepDiveChartPage() {
             </div>
           </div>
 
-          {/* Status & AI CTA */}
           <div className="flex items-center gap-3">
             <div className="flex flex-col items-end gap-1.5 mr-4">
               <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/5 text-[9px] font-black gap-1.5 h-6 px-3">
@@ -232,7 +225,6 @@ export default function DeepDiveChartPage() {
             <ChartPane symbol={signal?.symbol} interval={signal?.timeframe} exchange={signal?.exchange} />
           </div>
           
-          {/* Centrally Aligned CTA Button directly below the chart, NOT overlaying */}
           <div className="py-3 flex items-center justify-center bg-[#0a0a0c] border-t border-white/5 shrink-0">
             <Button 
               asChild 
@@ -261,7 +253,7 @@ export default function DeepDiveChartPage() {
                    <div className="relative"><BrainCircuit className="h-12 w-12 text-accent animate-pulse" /><div className="absolute inset-0 bg-accent/20 blur-xl rounded-full animate-pulse" /></div>
                    <p className="text-xs font-bold text-muted-foreground uppercase animate-pulse">Scanning Technicals...</p>
                 </div>
-              ) : analysis && (
+              ) : (analysis && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                   <div className="bg-accent/5 border border-accent/20 rounded-xl p-4">
                     <span className="text-[10px] font-bold text-accent uppercase tracking-wider mb-2 block">RECOMMENDATION</span>
@@ -292,7 +284,7 @@ export default function DeepDiveChartPage() {
                     </div>
                   </div>
                 </div>
-              )}
+              ))}
             </div>
           </ScrollArea>
         </aside>

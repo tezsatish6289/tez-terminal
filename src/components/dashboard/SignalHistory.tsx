@@ -16,10 +16,7 @@ import {
   ChevronDown,
   Zap,
   BarChart3,
-  Globe,
-  CheckCircle2,
-  XCircle,
-  MinusCircle
+  Globe
 } from "lucide-react";
 import { format, differenceInMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -71,9 +68,6 @@ export function SignalHistory() {
 
   const { data: rawSignals, isLoading } = useCollection(signalsQuery);
 
-  /**
-   * DEEP-PARSING ENGINE (TRUTH-BASED)
-   */
   const getDisplayAssetType = (signal: any) => {
     if (signal.assetType && signal.assetType !== "UNCLASSIFIED") return signal.assetType;
     try {
@@ -90,15 +84,12 @@ export function SignalHistory() {
     return "UNCLASSIFIED";
   };
 
-  /**
-   * STRATEGY THEME DEFINITIONS (Advanced Technical Tool Terminology)
-   */
   const categories = [
-    { id: "5", title: "High-Velocity Stream", label: "5 min", icon: Zap },
-    { id: "15", title: "Interim-Trend Monitor", label: "15 min", icon: Activity },
-    { id: "60", title: "Momentum Signal Engine", label: "1 hour", icon: BarChart3 },
-    { id: "240", title: "Swing-Trend Processor", label: "4 Hour", icon: TrendingUp },
-    { id: "D", title: "Macro-Bias Terminal", label: "Daily", icon: Globe },
+    { id: "5", title: "High-Velocity Stream", label: "5 MIN", icon: Zap },
+    { id: "15", title: "Interim-Trend Monitor", label: "15 MIN", icon: Activity },
+    { id: "60", title: "Momentum Signal Engine", label: "1 HOUR", icon: BarChart3 },
+    { id: "240", title: "Swing-Trend Processor", label: "4 HOUR", icon: TrendingUp },
+    { id: "D", title: "Macro-Bias Terminal", label: "DAILY", icon: Globe },
   ];
 
   const assetTypes = [
@@ -162,10 +153,8 @@ export function SignalHistory() {
 
   return (
     <div className="flex flex-col h-full bg-[#0a0a0c]">
-      {/* Integrated Filter Bar */}
       <div className="p-4 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
         <div className="flex items-center gap-6">
-           {/* Asset Types Filter */}
            <div className="flex gap-2">
               {assetTypes.map(asset => (
                 <button
@@ -184,7 +173,6 @@ export function SignalHistory() {
            </div>
         </div>
 
-        {/* Professional Filter Dropdown */}
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="h-9 gap-2 border-white/10 bg-[#121214] hover:bg-white/5 text-muted-foreground hover:text-white rounded-xl px-4">
@@ -223,7 +211,6 @@ export function SignalHistory() {
         </Popover>
       </div>
 
-      {/* Main Content Sections with Horizontal Scroll */}
       <div className="flex-1 overflow-y-auto w-full bg-[#0a0a0c]">
         <div className="py-8 space-y-16">
           {isLoading ? (
@@ -247,9 +234,8 @@ export function SignalHistory() {
               if (!selectedTimeframes.includes(cat.id)) return null;
 
               let categorySignals = filteredSignals.filter(s => s.timeframe === cat.id);
-              
-              // Apply Status Filter for this section
               const statusFilter = sectionStatusFilters[cat.id] || "all";
+              
               if (statusFilter !== "all") {
                 categorySignals = categorySignals.filter(s => {
                   const pnl = Number(calculatePercent(s.currentPrice, s.price, s.type));
@@ -266,7 +252,6 @@ export function SignalHistory() {
 
               return (
                 <section key={cat.id} className="space-y-8">
-                  {/* Subtle Text-Only Performance Filters Stacked below Header */}
                   <div className="px-6">
                     <div className="flex items-center gap-4">
                       <div className="bg-primary/20 p-2.5 rounded-xl border border-white/10 shrink-0">
@@ -280,7 +265,6 @@ export function SignalHistory() {
                           {cat.label} TECHNICAL CONTEXT
                         </p>
                         
-                        {/* Section Performance Filters - Subtle Text Version */}
                         <div className="flex items-center gap-4 pt-1">
                           {[
                             { id: 'all', label: 'All' },
@@ -306,7 +290,6 @@ export function SignalHistory() {
                     </div>
                   </div>
 
-                  {/* NATIVE HORIZONTAL SCROLLER */}
                   <div className="w-full overflow-x-auto flex flex-row gap-6 px-6 pb-6 scrollbar-thin">
                     {categorySignals.length === 0 ? (
                       <div className="w-full py-12 text-center bg-white/[0.01] border border-dashed border-white/5 rounded-2xl">

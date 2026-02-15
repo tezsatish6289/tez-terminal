@@ -4,11 +4,14 @@
 import { TopBar } from "@/components/dashboard/TopBar";
 import { SignalHistory } from "@/components/dashboard/SignalHistory";
 import { useUser, useAuth, useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, limit, getDocs, deleteDoc } from "firebase/firestore";
+import { collection, query, orderBy, limit, getDocs, deleteDoc, writeBatch } from "firebase/firestore";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { History as HistoryIcon, Loader2, Lock, Terminal, ShieldAlert, AlertTriangle, Info, RefreshCw, Activity, Lightbulb, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -21,6 +24,8 @@ export default function HistoryPage() {
   const auth = useAuth();
   const firestore = useFirestore();
   const [isPurging, setIsPurging] = useState(false);
+  const [purgeInput, setPurgeInput] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const isAdmin = user?.email === "hello@tezterminal.com";
 
@@ -38,21 +43,26 @@ export default function HistoryPage() {
   };
 
   const handlePurgeSignals = async () => {
-    if (!isAdmin || !firestore) return;
-    if (!confirm("Are you sure you want to delete all signal history? This cannot be undone.")) return;
+    if (!isAdmin || !firestore || purgeInput.toLowerCase() !== "purge") return;
     
     setIsPurging(true);
     try {
       const q = query(collection(firestore, "signals"));
       const snapshot = await getDocs(q);
       
-      const deletePromises = snapshot.docs.map(docSnap => deleteDoc(docSnap.ref));
-      await Promise.all(deletePromises);
+      // Use batches for efficiency if there are many signals
+      const batch = writeBatch(firestore);
+      snapshot.docs.forEach(docSnap => {
+        batch.delete(docSnap.ref);
+      });
+      await batch.commit();
       
       toast({ 
         title: "History Purged", 
         description: `Successfully removed ${snapshot.size} signals from the terminal.` 
       });
+      setIsDialogOpen(false);
+      setPurgeInput("");
     } catch (e: any) {
       toast({ 
         variant: "destructive", 
@@ -105,16 +115,53 @@ export default function HistoryPage() {
             </div>
             <div className="flex items-center gap-3">
               {isAdmin && (
-                <Button 
-                  variant="destructive" 
-                  size="sm" 
-                  className="gap-2 h-9 px-4 font-bold"
-                  onClick={handlePurgeSignals}
-                  disabled={isPurging}
-                >
-                  {isPurging ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                  Purge Signals
-                </Button>
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      variant="destructive" 
+                      size="sm" 
+                      className="gap-2 h-9 px-4 font-bold"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Purge Signals
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="bg-card border-border">
+                    <DialogHeader>
+                      <DialogTitle className="text-destructive flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5" />
+                        Critical Action Required
+                      </DialogTitle>
+                      <DialogDescription className="text-muted-foreground pt-2">
+                        This will permanently delete ALL market signals from the global feed. This action cannot be undone.
+                        <br /><br />
+                        Type <span className="text-white font-bold underline">purge</span> below to confirm.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 space-y-2">
+                      <Label htmlFor="purge-confirm" className="text-xs uppercase tracking-widest opacity-50">Confirmation Text</Label>
+                      <Input 
+                        id="purge-confirm"
+                        placeholder="Type 'purge' here..." 
+                        value={purgeInput}
+                        onChange={(e) => setPurgeInput(e.target.value)}
+                        className="bg-background border-border focus:ring-destructive"
+                      />
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isPurging}>Cancel</Button>
+                      <Button 
+                        variant="destructive" 
+                        onClick={handlePurgeSignals}
+                        disabled={purgeInput.toLowerCase() !== "purge" || isPurging}
+                        className="gap-2"
+                      >
+                        {isPurging && <Loader2 className="h-4 w-4 animate-spin" />}
+                        Confirm Global Purge
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               )}
               <HistoryIcon className="h-8 w-8 text-accent opacity-20" />
             </div>

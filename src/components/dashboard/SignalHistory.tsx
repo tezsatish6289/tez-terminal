@@ -30,13 +30,15 @@ const FILTERS = [
   { label: "Daily", value: "D" },
 ];
 
+const REFRESH_INTERVAL_SEC = 10;
+
 export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const [mounted, setMounted] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [latestPrices, setLatestPrices] = useState<Record<string, number>>({});
-  const [countdown, setCountdown] = useState(5);
+  const [countdown, setCountdown] = useState(REFRESH_INTERVAL_SEC);
 
   useEffect(() => {
     setMounted(true);
@@ -53,7 +55,6 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
 
   const { data: signals, isLoading: isCollectionLoading, error } = useCollection(signalsQuery);
 
-  // Poll our internal Server Proxy for latest prices synced with a 1s countdown
   useEffect(() => {
     const fetchPrices = async () => {
       try {
@@ -67,13 +68,13 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
       }
     };
 
-    fetchPrices(); // Initial fetch
+    fetchPrices();
 
     const interval = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           fetchPrices();
-          return 5;
+          return REFRESH_INTERVAL_SEC;
         }
         return prev - 1;
       });
@@ -174,9 +175,8 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
               <TableHead className="w-[110px] px-2 text-[10px] uppercase font-bold text-right text-accent/80">
                 <div className="flex flex-col items-end leading-tight gap-1">
                   <span>Latest Price</span>
-                  <div className="flex items-center gap-1.5 bg-accent/10 border border-accent/20 px-1.5 py-0.5 rounded text-[9px] font-mono text-accent">
-                    <RefreshCw className="h-2 w-2 animate-spin" />
-                    <span>REFRESH: {countdown}S</span>
+                  <div className="flex items-center gap-1 bg-accent/10 border border-accent/20 px-1.5 py-0.5 rounded text-[8px] font-mono text-accent">
+                    <span>{countdown}S</span>
                   </div>
                 </div>
               </TableHead>
@@ -240,7 +240,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                           </div>
                         </div>
                       ) : (
-                        <span className="opacity-20 animate-pulse">Live...</span>
+                        <span className="opacity-20">--</span>
                       )}
                     </TableCell>
                   </TableRow>

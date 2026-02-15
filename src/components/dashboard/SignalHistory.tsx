@@ -97,7 +97,7 @@ export function SignalHistory() {
               <TableHead className="text-[10px] uppercase font-black py-3 pl-4 w-[120px]">Alert Time</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 w-[140px]">Asset Name</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 w-[100px]">Exchange</TableHead>
-              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[60px]">Deep Dive</TableHead>
+              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[100px]">Deep Dive</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">Side</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-right w-[110px]">Alert Price</TableHead>
               <TableHead className="text-[10px] uppercase font-black text-accent py-3 text-right w-[110px]">Latest Price</TableHead>
@@ -127,23 +127,25 @@ export function SignalHistory() {
                       {mounted ? format(new Date(signal.receivedAt), 'yyyy/MM/dd HH:mm:ss') : "--"}
                     </TableCell>
                     <TableCell className="py-4">
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-[13px] text-white tracking-tight">{signal.symbol}</span>
-                        <Badge variant="outline" className="text-[9px] h-4 px-1 border-white/10 font-mono bg-white/5">{signal.timeframe}</Badge>
-                      </div>
+                      <span className="font-black text-[13px] text-white tracking-tight">{signal.symbol}</span>
                     </TableCell>
                     <TableCell className="py-4">
                       <Badge className="bg-primary/40 text-accent border-accent/20 text-[9px] font-bold tracking-tighter h-5">
                         {signal.exchange || "BINANCE"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-center py-4">
-                      <button 
-                        onClick={() => router.push(`/chart/${signal.id}`)}
-                        className="p-2 rounded-lg hover:bg-accent/20 text-muted-foreground hover:text-accent transition-all group-hover:scale-110"
-                      >
-                        <LineChart className="h-5 w-5" />
-                      </button>
+                    <TableCell className="py-4">
+                      <div className="flex items-center justify-center gap-2">
+                        <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-white/10 font-mono bg-white/5 opacity-60">
+                          {signal.timeframe}
+                        </Badge>
+                        <button 
+                          onClick={() => router.push(`/chart/${signal.id}`)}
+                          className="p-1.5 rounded-lg hover:bg-accent/20 text-muted-foreground hover:text-accent transition-all group-hover:scale-110"
+                        >
+                          <LineChart className="h-4 w-4" />
+                        </button>
+                      </div>
                     </TableCell>
                     <TableCell className="text-center py-4">
                       <Badge className={cn(

@@ -32,6 +32,10 @@ import { Progress } from "@/components/ui/progress";
 import { format, differenceInMinutes } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
+/**
+ * Deep Dive Analysis Page.
+ * features BULLISH/BEARISH labels and Gemini AI Insights.
+ */
 export default function DeepDiveChartPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -144,6 +148,7 @@ export default function DeepDiveChartPage() {
   const livePnl = calculatePercent(signal?.currentPrice, signal?.price, signal?.type || "BUY");
   const upsidePercent = calculatePercent(signal?.maxUpsidePrice, signal?.price, signal?.type || "BUY");
   const drawdownPercent = calculatePercent(signal?.maxDrawdownPrice, signal?.price, signal?.type || "BUY");
+  const isBullish = signal?.type === 'BUY';
 
   return (
     <div className="flex flex-col h-screen bg-[#0a0a0c] text-foreground overflow-hidden">
@@ -160,7 +165,9 @@ export default function DeepDiveChartPage() {
                   <h2 className="text-2xl font-black text-white leading-none uppercase tracking-tighter">{signal?.symbol}</h2>
                   <div className="flex items-center gap-2 mt-2">
                      <Badge variant="outline" className="text-[9px] h-4 border-white/10 uppercase font-black opacity-60 px-1.5">{getDisplayAssetType(signal)}</Badge>
-                     <Badge className={cn("text-[9px] h-4 font-bold border-none px-1.5", signal?.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400')}>{signal?.type}</Badge>
+                     <Badge className={cn("text-[9px] h-4 font-bold border-none px-1.5", isBullish ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400')}>
+                        {isBullish ? 'BULLISH' : 'BEARISH'}
+                     </Badge>
                      <div className="flex items-center gap-1 ml-1 text-[10px] font-bold text-muted-foreground/60"><Timer className="h-3 w-3" /> {getAge(signal?.receivedAt)}</div>
                   </div>
                </div>

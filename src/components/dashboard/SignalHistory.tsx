@@ -24,6 +24,7 @@ import { useRouter } from "next/navigation";
 
 /**
  * PRODUCTION TERMINAL ENGINE - CARD EDITION
+ * Displays signals as high-density market cards with BULLISH/BEARISH labels.
  */
 export function SignalHistory() {
   const router = useRouter();
@@ -45,7 +46,7 @@ export function SignalHistory() {
     return query(
       collection(firestore, "signals"), 
       orderBy("receivedAt", "desc"), 
-      limit(100)
+      limit(150)
     );
   }, [user, firestore]);
 
@@ -53,6 +54,7 @@ export function SignalHistory() {
 
   /**
    * DEEP-PARSING ENGINE (TRUTH-BASED)
+   * Intelligently extracts asset classification from top-level fields or raw JSON payloads.
    */
   const getDisplayAssetType = (signal: any) => {
     if (signal.assetType && signal.assetType !== "UNCLASSIFIED") return signal.assetType;
@@ -70,6 +72,10 @@ export function SignalHistory() {
     return "UNCLASSIFIED";
   };
 
+  /**
+   * RESILIENT FILTERING ENGINE (CLIENT-SIDE)
+   * Ensures legacy and new signals are filterable regardless of metadata storage.
+   */
   const filteredSignals = useMemo(() => {
     if (!rawSignals) return [];
     return rawSignals.filter(signal => {
@@ -185,6 +191,7 @@ export function SignalHistory() {
               const drawdownPercent = calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type);
               const isPnlPositive = Number(livePnl) >= 0;
               const displayAssetType = getDisplayAssetType(signal);
+              const isBullish = signal.type === 'BUY';
 
               return (
                 <Card 
@@ -207,9 +214,9 @@ export function SignalHistory() {
                       </div>
                       <Badge className={cn(
                         "text-[10px] font-black border-none px-2 h-5 uppercase rounded-sm",
-                        signal.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+                        isBullish ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
                       )}>
-                        {signal.type}
+                        {isBullish ? 'BULLISH' : 'BEARISH'}
                       </Badge>
                     </div>
                   </div>

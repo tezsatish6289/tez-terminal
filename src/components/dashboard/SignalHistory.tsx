@@ -135,6 +135,13 @@ export function SignalHistory() {
     { label: "Daily", value: "D" },
   ];
 
+  const getTimeframeLabel = (tf: string) => {
+    const found = timeframeFilters.find(f => f.value === tf);
+    if (found) return found.label;
+    if (tf === "1") return "1 min";
+    return tf;
+  };
+
   return (
     <div className="flex flex-col h-full bg-[#0a0a0c]">
       <div className="p-4 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-md flex flex-col gap-4 shrink-0 z-20">
@@ -209,8 +216,11 @@ export function SignalHistory() {
                   <div className="p-4 border-b border-white/5 bg-white/[0.02]">
                     <div className="flex items-start justify-between">
                       <div className="flex flex-col">
-                        <h3 className="text-lg font-black text-white leading-none tracking-tighter uppercase mb-1">
+                        <h3 className="text-lg font-black text-white leading-none tracking-tighter uppercase mb-1 flex items-baseline gap-2">
                           {signal.symbol}
+                          <span className="text-[10px] text-muted-foreground font-bold opacity-40">
+                            {getTimeframeLabel(signal.timeframe)}
+                          </span>
                         </h3>
                         <div className="flex items-center gap-2">
                           <span className="text-[9px] font-black text-accent uppercase tracking-wider">

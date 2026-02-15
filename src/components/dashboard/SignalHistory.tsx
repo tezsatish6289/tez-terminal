@@ -6,9 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { 
-  AlertCircle, 
   LineChart, 
-  Server, 
   ArrowUpRight, 
   ArrowDownRight, 
   Timer, 
@@ -16,7 +14,6 @@ import {
   Clock,
   Activity,
   Zap,
-  ChevronRight,
   Filter
 } from "lucide-react";
 import { format, differenceInMinutes } from "date-fns";
@@ -144,59 +141,53 @@ export function SignalHistory() {
 
   return (
     <div className="flex flex-col h-full bg-[#0a0a0c]">
-      {/* Refined Integrated Filter Bar */}
+      {/* Integrated Filter Bar */}
       <div className="p-4 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-md flex flex-col gap-4 shrink-0 z-20">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-           <div className="flex items-center gap-6">
-             {/* Asset Types Section */}
-             <div className="flex gap-2">
-                {assetTypes.map(asset => (
+        <div className="flex flex-wrap items-center gap-6">
+           {/* Asset Types Filter */}
+           <div className="flex gap-2">
+              {assetTypes.map(asset => (
+                <button
+                  key={asset.label}
+                  onClick={() => setActiveAssetType(asset.value)}
+                  className={cn(
+                    "px-4 py-1.5 text-[10px] font-black rounded-lg uppercase transition-all whitespace-nowrap border",
+                    activeAssetType === asset.value 
+                      ? "bg-primary text-primary-foreground border-primary/50" 
+                      : "bg-white/5 text-muted-foreground border-white/5 hover:bg-white/10"
+                  )}
+                >
+                  {asset.label}
+                </button>
+              ))}
+           </div>
+
+           {/* Timeframe Filter Group - Redesigned to match requested screenshot */}
+           <div className="flex items-center gap-2 bg-[#121214] p-1.5 rounded-2xl border border-white/10">
+             <div className="px-3">
+               <Filter className="h-4 w-4 text-accent/80" />
+             </div>
+             <div className="flex gap-1 overflow-x-auto no-scrollbar py-0.5">
+                {timeframeFilters.map(tf => (
                   <button
-                    key={asset.label}
-                    onClick={() => setActiveAssetType(asset.value)}
+                    key={tf.label}
+                    onClick={() => setActiveTimeframe(tf.value)}
                     className={cn(
-                      "px-4 py-1.5 text-[10px] font-black rounded-lg uppercase transition-all whitespace-nowrap border",
-                      activeAssetType === asset.value 
-                        ? "bg-primary text-primary-foreground border-primary/50" 
-                        : "bg-white/5 text-muted-foreground border-white/5 hover:bg-white/10"
+                      "px-5 py-2.5 text-[10px] font-black rounded-xl uppercase transition-all whitespace-nowrap",
+                      activeTimeframe === tf.value 
+                        ? "bg-accent text-accent-foreground shadow-[0_0_20px_rgba(125,249,255,0.3)]" 
+                        : "bg-transparent text-muted-foreground hover:text-white"
                     )}
                   >
-                    {asset.label}
+                    {tf.label}
                   </button>
                 ))}
              </div>
-
-             {/* Timeframe Filter Group with Icon */}
-             <div className="flex items-center gap-3 bg-white/[0.02] p-1 rounded-xl border border-white/5">
-               <div className="pl-3 pr-1">
-                 <Filter className="h-4 w-4 text-accent/60" />
-               </div>
-               <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1 pr-1">
-                  {timeframeFilters.map(tf => (
-                    <button
-                      key={tf.label}
-                      onClick={() => setActiveTimeframe(tf.value)}
-                      className={cn(
-                        "px-4 py-2 text-[10px] font-black rounded-lg uppercase transition-all whitespace-nowrap border",
-                        activeTimeframe === tf.value 
-                          ? "bg-accent text-accent-foreground border-accent shadow-[0_0_15px_rgba(125,249,255,0.2)]" 
-                          : "bg-transparent text-muted-foreground border-transparent hover:bg-white/5"
-                      )}
-                    >
-                      {tf.label}
-                    </button>
-                  ))}
-               </div>
-             </div>
            </div>
-           
-           <Badge variant="outline" className="text-[10px] h-9 border-emerald-500/20 text-emerald-400 gap-2 bg-emerald-500/5 px-4 font-black uppercase hidden lg:flex">
-             <Server className="h-4 w-4 animate-pulse" /> SYNC ACTIVE
-           </Badge>
         </div>
       </div>
 
-      {/* Main Content Sections with Horizontal Scroll Snap */}
+      {/* Main Content Sections with Horizontal Scroll */}
       <ScrollArea className="flex-1 w-full bg-[#0a0a0c]">
         <div className="py-8 space-y-16">
           {isLoading ? (
@@ -224,24 +215,17 @@ export function SignalHistory() {
 
               return (
                 <section key={cat.id} className="space-y-6">
-                  <div className="px-6 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="bg-accent/10 p-2.5 rounded-xl border border-accent/20">
-                        <Zap className="h-6 w-6 text-accent" />
-                      </div>
-                      <div>
-                        <h2 className="text-2xl font-black text-white uppercase tracking-tighter leading-none">
-                          {cat.title}
-                        </h2>
-                        <p className="text-[10px] font-black text-accent uppercase tracking-[0.4em] mt-2.5 opacity-80">
-                          {cat.label}
-                        </p>
-                      </div>
-                    </div>
+                  <div className="px-6">
+                    <h2 className="text-2xl font-black text-white uppercase tracking-tighter leading-none">
+                      {cat.title}
+                    </h2>
+                    <p className="text-[10px] font-black text-accent uppercase tracking-[0.4em] mt-2 opacity-80">
+                      {cat.label}
+                    </p>
                   </div>
 
                   {/* HIGH-PERFORMANCE HORIZONTAL SCROLLER */}
-                  <div className="w-full">
+                  <div className="w-full relative">
                     <div className="flex flex-row overflow-x-auto gap-6 px-6 pb-8 snap-x snap-mandatory no-scrollbar scroll-smooth">
                       {categorySignals.map((signal) => {
                         const alertPrice = Number(signal.price || 0);

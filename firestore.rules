@@ -4,31 +4,36 @@ service cloud.firestore {
     
     // Check if the user is the designated terminal admin
     function isAdmin() {
-      return request.auth != null && request.auth.token.email == "hello@tezterminal.com";
+      return request.auth != null && 
+             request.auth.token.email == "hello@tezterminal.com";
     }
 
     // Webhook Configurations: 
     // Public read is required for the API route to verify the bridge.
+    // Admin has full control.
     match /webhooks/{webhookId} {
       allow read: if true; 
       allow write: if isAdmin();
     }
 
     // Signals (Alerts): Anyone authenticated can read the global stream.
-    match /signals/{signalId} {
+    // Use recursive match to ensure collection-level 'list' is always permitted.
+    match /signals/{allPaths=**} {
       allow read: if request.auth != null;
       // API Route (unauthenticated) needs to create signals.
       allow create: if true; 
       allow update, delete: if isAdmin();
     }
 
-    // Logs: Allow the API route to post logs for debugging.
-    match /logs/{logId} {
+    // Logs: Technical audit trail.
+    match /logs/{allPaths=**} {
       // Only Admin can read debugging logs.
       allow read: if isAdmin();
       // Public creation allowed for the ingestion node to log hits.
       allow create: if true;
       allow update, delete: if false;
     }
+    
+    // Deployment Trigger: 2024-05-21 - Robust path matching update for Idea Stream.
   }
 }

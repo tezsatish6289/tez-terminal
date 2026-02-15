@@ -11,7 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Timer, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
+import { AlertCircle, RefreshCw, LineChart } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -29,7 +29,6 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
   const [mounted, setMounted] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [latestPrices, setLatestPrices] = useState<Record<string, number>>({});
-  const [historyStats, setHistoryStats] = useState<Record<string, { maxHigh: number; minLow: number }>>({});
   const [countdown, setCountdown] = useState(REFRESH_INTERVAL_SEC);
 
   useEffect(() => {
@@ -52,7 +51,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
     return rawSymbol.split(':').pop()?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || "";
   };
 
-  // 1. Live Price Polling (60s)
+  // Live Price Polling (60s Refresh)
   useEffect(() => {
     const fetchPrices = async () => {
       try {
@@ -80,39 +79,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
     return () => clearInterval(interval);
   }, []);
 
-  // 2. Historical Backfill (When signals load)
-  useEffect(() => {
-    if (!signals || signals.length === 0) return;
-
-    const fetchHistoryForNewSignals = async () => {
-      const newStats = { ...historyStats };
-      let changed = false;
-
-      for (const signal of signals) {
-        if (!newStats[signal.id]) {
-          const cleanSym = resolveBinanceSymbol(signal.symbol);
-          const startTime = new Date(signal.receivedAt).getTime();
-          
-          try {
-            const res = await fetch(`/api/prices?type=history&symbol=${cleanSym}&startTime=${startTime}`);
-            if (res.ok) {
-              const data = await res.json();
-              newStats[signal.id] = data;
-              changed = true;
-            }
-          } catch (e) {
-            console.error(`History backfill failed for ${cleanSym}`, e);
-          }
-        }
-      }
-
-      if (changed) setHistoryStats(newStats);
-    };
-
-    fetchHistoryForNewSignals();
-  }, [signals]);
-
-  const calculatePercent = (current: number | null, entry: number, type: string) => {
+  const calculatePercent = (current: number | undefined, entry: number, type: string) => {
     if (!current || !entry) return null;
     const diff = type === 'BUY' ? current - entry : entry - current;
     return ((diff / entry) * 100).toFixed(2);
@@ -159,7 +126,9 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
               <TableHead className="text-[9px] uppercase font-black text-accent py-2 text-right">
                 <div className="flex flex-col items-end">
                    <span>Latest Price</span>
-                   <span className="text-[8px] font-mono opacity-60">Refresh: {countdown}s</span>
+                   <Badge variant="outline" className="text-[7px] h-3 px-1 border-accent/30 text-accent font-mono">
+                     {countdown}s
+                   </Badge>
                 </div>
               </TableHead>
               <TableHead className="text-[9px] uppercase font-black text-emerald-400 py-2 text-right">Max Upside</TableHead>
@@ -168,25 +137,18 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
           </TableHeader>
           <TableBody>
             {isLoading && (!signals || signals.length === 0) ? (
-              <TableRow><TableCell colSpan={7} className="text-center py-20 text-[10px] animate-pulse text-accent">Establishing Binance Link...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-20 text-[10px] animate-pulse text-accent">Initializing Feed...</TableCell></TableRow>
             ) : signals?.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="text-center py-20 text-[10px] text-muted-foreground">No signals detected.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-20 text-[10px] text-muted-foreground">No active signals found.</TableCell></TableRow>
             ) : (
               signals?.map((signal) => {
                 const cleanSym = resolveBinanceSymbol(signal.symbol);
                 const latestPrice = latestPrices[cleanSym];
-                const stats = historyStats[signal.id];
                 const alertPrice = Number(signal.price || 0);
                 
-                // Combine history with live feed for "Best Achieved"
-                const actualMaxHigh = stats ? Math.max(stats.maxHigh, latestPrice || 0) : latestPrice;
-                const actualMinLow = stats ? Math.min(stats.minLow, latestPrice || Infinity) : latestPrice;
-
-                const maxUpside = signal.type === 'BUY' ? actualMaxHigh : actualMinLow;
-                const maxDraw = signal.type === 'BUY' ? actualMinLow : actualMaxHigh;
-
-                const upsidePercent = calculatePercent(maxUpside, alertPrice, signal.type);
-                const drawdownPercent = calculatePercent(maxDraw, alertPrice, signal.type);
+                // Read performance directly from DB (Updated by Backend Cron)
+                const upsidePercent = calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type);
+                const drawdownPercent = calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type);
 
                 return (
                   <TableRow 
@@ -222,7 +184,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                           ? "text-emerald-400" : "text-rose-400"
                         ) : "text-muted-foreground"
                       )}>
-                        {latestPrice ? `$${latestPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : <RefreshCw className="h-3 w-3 animate-spin inline-block opacity-20" />}
+                        {latestPrice ? `$${latestPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "--"}
                       </div>
                     </TableCell>
                     <TableCell className="text-right py-3">

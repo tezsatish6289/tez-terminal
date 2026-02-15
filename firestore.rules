@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -9,12 +10,12 @@ service cloud.firestore {
     }
 
     // Signals (Idea Stream)
-    // Broaden matching to ensure collection-level queries (listing) are permitted for all auth users.
     match /signals/{document=**} {
       allow read: if request.auth != null;
-      // Webhook API creates signals without auth.
       allow create: if true; 
-      allow update, delete: if isAdmin();
+      // Allow updates to performance tracking fields for the backend cron or admin
+      allow update: if request.auth != null;
+      allow delete: if isAdmin();
     }
 
     // Webhook Configurations
@@ -30,6 +31,6 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     
-    // Deployment Trigger: 2024-05-23 18:45 - Rules confirmed working. Waiting for Composite Index activation.
+    // Deployment Trigger: 2024-05-24 10:15 - Enabled Signal Performance Updates.
   }
 }

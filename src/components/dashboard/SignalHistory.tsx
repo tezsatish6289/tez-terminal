@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -12,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Terminal, Clock } from "lucide-react";
+import { Terminal, Clock, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -49,7 +48,6 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
     
     if (activeFilter) {
       // Note: Filtering + Ordering requires a composite index in Firestore.
-      // If results don't show, check the console for the index creation link.
       return query(
         baseQuery,
         where("timeframe", "==", activeFilter),
@@ -117,9 +115,28 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
 
   if (error) {
     return (
-      <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-xs">
-        Sync error: {error.message}. <br/>
-        <span className="opacity-70 text-[10px]">Filtering by timeframe requires a Firestore Index. Check console for URL.</span>
+      <div className="p-6 flex flex-col items-center text-center space-y-4">
+        <div className="bg-destructive/10 p-3 rounded-full">
+          <AlertCircle className="h-6 w-6 text-destructive" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-sm font-bold text-white">Stream Sync Error</h3>
+          <p className="text-[10px] text-muted-foreground leading-relaxed max-w-[200px] mx-auto">
+            {activeFilter 
+              ? "Filtering by timeframe requires a Composite Index. Please check the browser console for the activation link."
+              : `Connection error: ${error.message}`}
+          </p>
+        </div>
+        {activeFilter && (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="h-8 text-[10px]" 
+            onClick={() => setActiveFilter(null)}
+          >
+            Clear Filters
+          </Button>
+        )}
       </div>
     );
   }
@@ -170,7 +187,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                 <TableCell colSpan={5} className="text-center py-12">
                   <Terminal className="h-6 w-6 text-muted-foreground mx-auto mb-2 opacity-20" />
                   <p className="text-muted-foreground text-[10px]">
-                    {activeFilter ? `No ${activeFilter} min signals found...` : "No signals yet..."}
+                    {activeFilter ? `No ${activeFilter} signals found...` : "No signals yet..."}
                   </p>
                 </TableCell>
               </TableRow>

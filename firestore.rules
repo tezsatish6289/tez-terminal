@@ -17,7 +17,8 @@ service cloud.firestore {
     }
 
     // Signals (Alerts): Anyone authenticated can read the global stream.
-    match /signals/{signalId} {
+    // Using recursive wildcard {document=**} to ensure collection-level lists are permitted.
+    match /signals/{document=**} {
       // Explicitly allow both 'get' and 'list' for authenticated users
       allow read: if request.auth != null;
       // API Route (unauthenticated) needs to create signals.
@@ -25,13 +26,8 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Explicitly allow collection-level queries for signals
-    match /signals {
-      allow list: if request.auth != null;
-    }
-
     // Logs: Technical audit trail.
-    match /logs/{logId} {
+    match /logs/{document=**} {
       // Only Admin can read debugging logs.
       allow read: if isAdmin();
       // Public creation allowed for the ingestion node to log hits.
@@ -39,6 +35,6 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     
-    // Deployment Trigger: 2024-05-22 10:30 - Explicit collection list permissions.
+    // Deployment Trigger: 2024-05-23 14:15 - Recursive wildcard implementation for query stability.
   }
 }

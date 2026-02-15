@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -30,7 +29,7 @@ const FILTERS = [
   { label: "Daily", value: "D" },
 ];
 
-const REFRESH_INTERVAL_SEC = 10;
+const REFRESH_INTERVAL_SEC = 60; // Increased to 60s to prevent rate limiting
 
 export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
   const { user, isUserLoading } = useUser();

@@ -54,8 +54,10 @@ export function SignalHistory() {
    * Scans both top-level fields and deep JSON payload to find the truth.
    */
   const getDisplayAssetType = (signal: any) => {
+    // 1. Check top-level promoted field first
     if (signal.assetType && signal.assetType !== "UNCLASSIFIED") return signal.assetType;
     
+    // 2. Deep Dive into payload string if top-level is missing
     try {
       const payload = typeof signal.payload === 'string' ? JSON.parse(signal.payload) : (signal.payload || {});
       const raw = payload.assetType || payload.asset_type || payload.category || payload.market_type || payload.type_asset;
@@ -201,7 +203,7 @@ export function SignalHistory() {
               <TableRow>
                 <TableCell colSpan={10} className="text-center py-24">
                   <div className="flex flex-col items-center gap-3">
-                    <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">No signals match current filters</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">No signals detected for current filters</p>
                   </div>
                 </TableCell>
               </TableRow>

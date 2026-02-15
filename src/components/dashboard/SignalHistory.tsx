@@ -14,13 +14,18 @@ import {
   Clock,
   Activity,
   Zap,
-  Filter
+  Filter,
+  ChevronDown
 } from "lucide-react";
 import { format, differenceInMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, limit, orderBy } from "firebase/firestore";
 import { useRouter } from "next/navigation";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 
 /**
  * PRODUCTION TERMINAL ENGINE - THEMED STRATEGY ROWS
@@ -34,7 +39,7 @@ export function SignalHistory() {
   
   // Filtering States
   const [activeAssetType, setActiveAssetType] = useState<string | null>(null);
-  const [activeTimeframe, setActiveTimeframe] = useState<string | null>(null);
+  const [selectedTimeframes, setSelectedTimeframes] = useState<string[]>(["5", "15", "60", "240", "D"]);
 
   useEffect(() => {
     setMounted(true);
@@ -76,20 +81,11 @@ export function SignalHistory() {
    * STRATEGY THEME DEFINITIONS
    */
   const categories = [
-    { id: "5", title: "Try scalping", label: "5 MIN CHART" },
-    { id: "15", title: "Intraday candidates", label: "15 MIN CHART" },
+    { id: "5", title: "Try scalping", label: "5 MIN" },
+    { id: "15", title: "Intraday candidates", label: "15 MIN" },
     { id: "60", title: "BTST options", label: "1 HOUR" },
     { id: "240", title: "Swing opportunities", label: "4 HOUR" },
     { id: "D", title: "Positional opportunities", label: "DAILY" },
-  ];
-
-  const timeframeFilters = [
-    { label: "ALL CHART TIMEFRAMES", value: null },
-    { label: "5 MIN", value: "5" },
-    { label: "15 MIN", value: "15" },
-    { label: "1 HOUR", value: "60" },
-    { label: "4 HOUR", value: "240" },
-    { label: "DAILY", value: "D" },
   ];
 
   const assetTypes = [
@@ -106,12 +102,20 @@ export function SignalHistory() {
         const displayAssetType = getDisplayAssetType(signal);
         if (displayAssetType !== activeAssetType) return false;
       }
-      if (activeTimeframe && signal.timeframe !== activeTimeframe) {
-        return false;
-      }
       return true;
     });
-  }, [rawSignals, activeAssetType, activeTimeframe]);
+  }, [rawSignals, activeAssetType]);
+
+  const getCountForTimeframe = (tfId: string) => {
+    if (!rawSignals) return 0;
+    return rawSignals.filter(s => s.timeframe === tfId).length;
+  };
+
+  const toggleTimeframe = (tfId: string) => {
+    setSelectedTimeframes(prev => 
+      prev.includes(tfId) ? prev.filter(id => id !== tfId) : [...prev, tfId]
+    );
+  };
 
   const calculatePercent = (targetPrice: number | undefined | null, entry: number, type: string) => {
     if (targetPrice === undefined || targetPrice === null || !entry || entry === 0) return "0.00";
@@ -142,8 +146,8 @@ export function SignalHistory() {
   return (
     <div className="flex flex-col h-full bg-[#0a0a0c]">
       {/* Integrated Filter Bar */}
-      <div className="p-4 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-md flex flex-col gap-4 shrink-0 z-20">
-        <div className="flex flex-wrap items-center gap-6">
+      <div className="p-4 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
+        <div className="flex items-center gap-6">
            {/* Asset Types Filter */}
            <div className="flex gap-2">
               {assetTypes.map(asset => (
@@ -161,30 +165,45 @@ export function SignalHistory() {
                 </button>
               ))}
            </div>
-
-           {/* Timeframe Filter Group - Redesigned to match requested screenshot */}
-           <div className="flex items-center gap-2 bg-[#121214] p-1.5 rounded-2xl border border-white/10">
-             <div className="px-3">
-               <Filter className="h-4 w-4 text-accent/80" />
-             </div>
-             <div className="flex gap-1 overflow-x-auto no-scrollbar py-0.5">
-                {timeframeFilters.map(tf => (
-                  <button
-                    key={tf.label}
-                    onClick={() => setActiveTimeframe(tf.value)}
-                    className={cn(
-                      "px-5 py-2.5 text-[10px] font-black rounded-xl uppercase transition-all whitespace-nowrap",
-                      activeTimeframe === tf.value 
-                        ? "bg-accent text-accent-foreground shadow-[0_0_20px_rgba(125,249,255,0.3)]" 
-                        : "bg-transparent text-muted-foreground hover:text-white"
-                    )}
-                  >
-                    {tf.label}
-                  </button>
-                ))}
-             </div>
-           </div>
         </div>
+
+        {/* Professional Filter Dropdown */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="h-9 gap-2 border-white/10 bg-[#121214] hover:bg-white/5 text-muted-foreground hover:text-white rounded-xl px-4">
+              <Filter className="h-4 w-4 text-accent" />
+              <span className="text-[10px] font-black uppercase tracking-wider">Strategy Filters</span>
+              <ChevronDown className="h-3 w-3 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-64 bg-[#121214] border-white/10 p-4 shadow-2xl">
+            <div className="space-y-4">
+              <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] pb-2 border-b border-white/5">CATEGORIES</h3>
+              <div className="space-y-3">
+                {categories.map(cat => {
+                  const count = getCountForTimeframe(cat.id);
+                  return (
+                    <div key={cat.id} className="flex items-center space-x-3 group cursor-pointer" onClick={() => toggleTimeframe(cat.id)}>
+                      <Checkbox 
+                        id={`filter-${cat.id}`} 
+                        checked={selectedTimeframes.includes(cat.id)}
+                        onCheckedChange={() => toggleTimeframe(cat.id)}
+                        className="border-white/20 data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground"
+                      />
+                      <Label 
+                        htmlFor={`filter-${cat.id}`} 
+                        className="flex-1 text-xs font-bold text-white/70 group-hover:text-white transition-colors cursor-pointer flex justify-between items-center"
+                      >
+                        <span className="uppercase tracking-wide">{cat.label} CHART</span>
+                        <span className="text-[10px] font-mono opacity-40">({count})</span>
+                      </Label>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Main Content Sections with Horizontal Scroll */}
@@ -208,7 +227,7 @@ export function SignalHistory() {
             </div>
           ) : (
             categories.map(cat => {
-              if (activeTimeframe && activeTimeframe !== cat.id) return null;
+              if (!selectedTimeframes.includes(cat.id)) return null;
 
               const categorySignals = filteredSignals.filter(s => s.timeframe === cat.id);
               if (categorySignals.length === 0) return null;
@@ -220,7 +239,7 @@ export function SignalHistory() {
                       {cat.title}
                     </h2>
                     <p className="text-[10px] font-black text-accent uppercase tracking-[0.4em] mt-2 opacity-80">
-                      {cat.label}
+                      {cat.label} CHART
                     </p>
                   </div>
 

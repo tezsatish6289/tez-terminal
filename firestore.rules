@@ -25,6 +25,11 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // Explicitly allow collection-level queries for signals
+    match /signals {
+      allow list: if request.auth != null;
+    }
+
     // Logs: Technical audit trail.
     match /logs/{logId} {
       // Only Admin can read debugging logs.
@@ -34,6 +39,6 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     
-    // Deployment Trigger: 2024-05-21 15:45 - Robust path matching for authenticated streams.
+    // Deployment Trigger: 2024-05-22 10:30 - Explicit collection list permissions.
   }
 }

@@ -72,7 +72,7 @@ const analyzeSignalFlow = ai.defineFlow(
   },
   async (input) => {
     const { output } = await prompt(input);
-    if (!output) throw new Error('Advanced AI analysis failed');
+    if (!output) throw new Error('Advanced AI analysis failed to generate a structured response.');
     return output;
   }
 );

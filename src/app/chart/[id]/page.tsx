@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useDoc, useFirestore, useMemoFirebase, useUser } from "@/firebase";
@@ -31,11 +30,13 @@ import { useEffect, useState } from "react";
 import { analyzeSignal, type AnalyzeSignalOutput } from "@/ai/flows/analyze-signal-flow";
 import { Progress } from "@/components/ui/progress";
 import { format, differenceInMinutes } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 export default function DeepDiveChartPage() {
   const { id } = useParams();
   const router = useRouter();
   const firestore = useFirestore();
+  const { toast } = useToast();
   const { user, isUserLoading } = useUser();
   const [mounted, setMounted] = useState(false);
   const [now, setNow] = useState(new Date());
@@ -77,9 +78,18 @@ export default function DeepDiveChartPage() {
     return "UNCLASSIFIED";
   };
 
+  const calculatePercent = (target: any, entry: any, type: string) => {
+    const e = Number(entry);
+    const t = Number(target);
+    if (!e || isNaN(t)) return "0.00";
+    const diff = type === 'BUY' ? t - e : e - t;
+    return ((diff / e) * 100).toFixed(2);
+  };
+
   const handleAIAnalysis = async () => {
     if (!signal) return;
     setIsAnalyzing(true);
+    setAnalysis(null);
     try {
       const result = await analyzeSignal({
         symbol: signal.symbol,
@@ -93,19 +103,16 @@ export default function DeepDiveChartPage() {
         exchange: signal.exchange
       });
       setAnalysis(result);
-    } catch (err) {
+    } catch (err: any) {
       console.error("AI Analysis failed:", err);
+      toast({
+        variant: "destructive",
+        title: "AI Analysis Offline",
+        description: err.message || "Failed to generate technical insight. Please try again."
+      });
     } finally {
       setIsAnalyzing(false);
     }
-  };
-
-  const calculatePercent = (target: any, entry: any, type: string) => {
-    const e = Number(entry);
-    const t = Number(target);
-    if (!e || isNaN(t)) return "0.00";
-    const diff = type === 'BUY' ? t - e : e - t;
-    return ((diff / e) * 100).toFixed(2);
   };
 
   const formatPrice = (p: number | null | undefined) => {

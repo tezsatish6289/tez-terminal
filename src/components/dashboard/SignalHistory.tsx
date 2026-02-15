@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -186,7 +185,11 @@ export function SignalHistory() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={10} className="text-center py-20 text-sm animate-pulse text-accent uppercase tracking-widest font-bold">Connecting to Idea Stream...</TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={10} className="text-center py-20 text-sm animate-pulse text-accent uppercase tracking-widest font-bold">
+                  Connecting to Idea Stream...
+                </TableCell>
+              </TableRow>
             ) : filteredSignals.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={10} className="text-center py-24">

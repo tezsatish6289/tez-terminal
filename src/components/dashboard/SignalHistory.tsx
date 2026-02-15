@@ -115,8 +115,8 @@ export function SignalHistory() {
             <TableRow className="border-border hover:bg-transparent">
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Time</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">Age</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 w-[150px] pl-10">Asset</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 w-[80px] pl-0">Exch</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 w-[150px] pl-16">Asset</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[110px]">Exchange</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">Chart</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Side</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-right w-[110px]">Entry</TableHead>
@@ -150,7 +150,7 @@ export function SignalHistory() {
                     <TableCell className="text-[11px] font-mono text-muted-foreground py-3 text-center whitespace-nowrap">
                       {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"}
                     </TableCell>
-                    <TableCell className="py-3">
+                    <TableCell className="py-3 text-center">
                       <div className="flex items-center justify-center gap-1.5 text-muted-foreground">
                         <Timer className="h-3.5 w-3.5 text-accent/50" />
                         <span className="text-[11px] font-mono font-bold whitespace-nowrap">
@@ -158,13 +158,15 @@ export function SignalHistory() {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="py-3 pl-10">
+                    <TableCell className="py-3 pl-16">
                       <span className="font-bold text-sm text-white tracking-tight uppercase">{signal.symbol}</span>
                     </TableCell>
-                    <TableCell className="py-3 pl-0">
-                      <Badge className="bg-primary/30 text-accent border-accent/20 text-[9px] font-bold h-5 px-1.5">
-                        {signal.exchange || "BINANCE"}
-                      </Badge>
+                    <TableCell className="py-3 text-center">
+                      <div className="flex justify-center">
+                        <Badge className="bg-primary/30 text-accent border-accent/20 text-[9px] font-bold h-5 px-1.5">
+                          {signal.exchange || "BINANCE"}
+                        </Badge>
+                      </div>
                     </TableCell>
                     <TableCell className="py-3">
                       <div className="flex items-center justify-center gap-2">

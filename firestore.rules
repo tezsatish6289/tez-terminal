@@ -30,6 +30,6 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     
-    // Deployment Trigger: 2024-05-23 18:30 - Explicit recursive wildcard match for signal listing.
+    // Deployment Trigger: 2024-05-23 18:45 - Rules confirmed working. Waiting for Composite Index activation.
   }
 }

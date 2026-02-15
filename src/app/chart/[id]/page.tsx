@@ -88,9 +88,9 @@ export default function DeepDiveChartPage() {
     return (
       <div className="flex h-screen flex-col items-center justify-center bg-background p-6 text-center gap-6">
         <AlertTriangle className="h-16 w-16 text-destructive" />
-        <h2 className="text-3xl font-bold">Signal Not Found</h2>
-        <p className="text-muted-foreground text-lg">This market alert may have been purged or the link is invalid.</p>
-        <Button onClick={() => router.push("/")} variant="outline" size="lg" className="gap-2">
+        <h2 className="text-2xl font-bold">Signal Not Found</h2>
+        <p className="text-muted-foreground">This market alert may have been purged or the link is invalid.</p>
+        <Button onClick={() => router.push("/")} variant="outline" className="gap-2">
           <ChevronLeft className="h-5 w-5" /> Return to Terminal
         </Button>
       </div>
@@ -110,54 +110,54 @@ export default function DeepDiveChartPage() {
       <TopBar />
       
       {/* Performance Data Strip */}
-      <div className="h-24 bg-card/90 border-b border-white/10 flex items-center px-8 justify-between shrink-0 backdrop-blur-xl z-20 shadow-2xl">
-        <div className="flex items-center gap-10">
+      <div className="h-20 bg-card/90 border-b border-white/10 flex items-center px-6 justify-between shrink-0 backdrop-blur-xl z-20 shadow-2xl">
+        <div className="flex items-center gap-6">
           <Button 
             variant="ghost" 
             size="icon" 
             onClick={() => router.push("/")}
-            className="hover:bg-accent/10 text-muted-foreground h-14 w-14"
+            className="hover:bg-accent/10 text-muted-foreground h-10 w-10"
           >
-            <ChevronLeft className="h-8 w-8" />
+            <ChevronLeft className="h-6 w-6" />
           </Button>
 
-          <div className="flex items-center gap-6">
-             <div className="bg-primary/30 p-3.5 rounded-2xl border border-accent/20">
-                <BarChart3 className="h-8 w-8 text-accent" />
+          <div className="flex items-center gap-4">
+             <div className="bg-primary/30 p-2.5 rounded-xl border border-accent/20">
+                <BarChart3 className="h-6 w-6 text-accent" />
              </div>
              <div>
-                <h2 className="text-4xl font-black tracking-tighter text-white leading-none uppercase">
+                <h2 className="text-2xl font-black tracking-tight text-white leading-none uppercase">
                   {signal?.symbol}
                 </h2>
-                <div className="flex items-center gap-4 mt-3">
-                   <Badge variant="outline" className="text-[11px] h-6 border-white/10 uppercase tracking-widest font-black opacity-70">
+                <div className="flex items-center gap-3 mt-1.5">
+                   <Badge variant="outline" className="text-[9px] h-5 border-white/10 uppercase tracking-widest font-black opacity-60">
                      {signal?.exchange}
                    </Badge>
                    <Badge className={cn(
-                     "text-[11px] h-6 font-black border-none px-3 uppercase",
+                     "text-[9px] h-5 font-bold border-none px-2 uppercase",
                      signal?.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
                    )}>
                      {signal?.type}
                    </Badge>
-                   <Badge variant="outline" className="text-[11px] h-6 px-3 border-accent/20 text-accent font-black gap-2">
-                     <Timer className="h-4 w-4" />
+                   <Badge variant="outline" className="text-[9px] h-5 px-2 border-accent/20 text-accent font-bold gap-1.5">
+                     <Timer className="h-3 w-3" />
                      {mounted && signal ? getRunningSince(signal.receivedAt) : "--"}
                    </Badge>
                 </div>
              </div>
           </div>
 
-          <div className="h-14 w-px bg-white/5" />
+          <div className="h-10 w-px bg-white/5 mx-4" />
 
-          <div className="flex gap-12">
+          <div className="flex gap-8">
             <div className="flex flex-col">
-              <span className="text-[12px] uppercase font-bold text-muted-foreground tracking-widest mb-1.5">Entry Price</span>
-              <span className="text-2xl font-mono font-bold text-white/90">${formatPrice(alertPrice)}</span>
+              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-1">Entry</span>
+              <span className="text-lg font-mono font-bold text-white/90">${formatPrice(alertPrice)}</span>
             </div>
             <div className="flex flex-col">
-              <span className="text-[12px] uppercase font-bold text-accent tracking-widest mb-1.5">Latest Live</span>
+              <span className="text-[10px] uppercase font-bold text-accent tracking-widest mb-1">Live</span>
               <span className={cn(
-                "text-2xl font-mono font-black",
+                "text-lg font-mono font-black",
                 (signal?.type === 'BUY' && currentPrice >= alertPrice) || (signal?.type === 'SELL' && currentPrice <= alertPrice) 
                 ? "text-emerald-400" : "text-rose-400"
               )}>
@@ -165,49 +165,49 @@ export default function DeepDiveChartPage() {
               </span>
             </div>
             <div className="flex flex-col">
-              <span className="text-[12px] uppercase font-bold text-accent-foreground tracking-widest mb-1.5">Live PNL</span>
+              <span className="text-[10px] uppercase font-bold text-accent-foreground tracking-widest mb-1">Live PNL</span>
               <span className={cn(
-                "text-2xl font-mono font-black flex items-center gap-2",
+                "text-lg font-mono font-black flex items-center gap-1.5",
                 isPnlPositive ? "text-emerald-400" : "text-rose-400"
               )}>
-                <TrendingUp className={cn("h-5 w-5", !isPnlPositive && "rotate-180")} />
+                <TrendingUp className={cn("h-4 w-4", !isPnlPositive && "rotate-180")} />
                 {livePnl}%
               </span>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-16">
+        <div className="flex items-center gap-12">
            <div className="flex flex-col items-end">
-              <span className="text-[12px] uppercase font-bold text-emerald-500/60 tracking-widest mb-1.5">Max Upside</span>
-              <div className="flex items-center gap-4">
-                 <span className="text-3xl font-black text-emerald-400 font-mono flex items-center gap-2">
-                   <ArrowUpRight className="h-7 w-7" />
+              <span className="text-[10px] uppercase font-bold text-emerald-500/60 tracking-widest mb-1">Max Upside</span>
+              <div className="flex items-center gap-3">
+                 <span className="text-xl font-black text-emerald-400 font-mono flex items-center gap-1">
+                   <ArrowUpRight className="h-5 w-5" />
                    {upsidePercent}%
                  </span>
-                 <span className="text-[12px] text-muted-foreground font-mono opacity-50 font-bold">${formatPrice(signal?.maxUpsidePrice)}</span>
+                 <span className="text-[10px] text-muted-foreground font-mono opacity-50 font-bold">${formatPrice(signal?.maxUpsidePrice)}</span>
               </div>
            </div>
            
            <div className="flex flex-col items-end">
-              <span className="text-[12px] uppercase font-bold text-rose-500/60 tracking-widest mb-1.5">Max Drawdown</span>
-              <div className="flex items-center gap-4">
-                 <span className="text-3xl font-black text-rose-400 font-mono flex items-center gap-2">
-                   <ArrowDownRight className="h-7 w-7" />
+              <span className="text-[10px] uppercase font-bold text-rose-500/60 tracking-widest mb-1">Max Drawdown</span>
+              <div className="flex items-center gap-3">
+                 <span className="text-xl font-black text-rose-400 font-mono flex items-center gap-1">
+                   <ArrowDownRight className="h-5 w-5" />
                    {drawdownPercent}%
                  </span>
-                 <span className="text-[12px] text-muted-foreground font-mono opacity-50 font-bold">${formatPrice(signal?.maxDrawdownPrice)}</span>
+                 <span className="text-[10px] text-muted-foreground font-mono opacity-50 font-bold">${formatPrice(signal?.maxDrawdownPrice)}</span>
               </div>
            </div>
 
-           <div className="h-14 w-px bg-white/5" />
+           <div className="h-10 w-px bg-white/5" />
 
            <div className="flex flex-col items-end">
-             <div className="flex items-center gap-2 bg-emerald-500/10 px-4 py-2 rounded-full border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
-               <Zap className="h-5 w-5 text-emerald-400 fill-emerald-400 animate-pulse" />
-               <span className="text-[12px] font-black text-emerald-400 uppercase tracking-tighter">Live Node</span>
+             <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+               <Zap className="h-3.5 w-3.5 text-emerald-400 fill-emerald-400 animate-pulse" />
+               <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-tighter">Live Node</span>
              </div>
-             <span className="text-[12px] text-muted-foreground font-mono mt-2 font-bold">
+             <span className="text-[10px] text-muted-foreground font-mono mt-1 font-bold">
                {mounted ? format(now, 'HH:mm:ss') : "--"} UTC
              </span>
            </div>

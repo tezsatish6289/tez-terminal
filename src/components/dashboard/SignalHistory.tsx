@@ -23,9 +23,9 @@ interface SignalHistoryProps {
 
 const FILTERS = [
   { label: "All", value: null },
-  { label: "1m", value: "1" },
-  { label: "5m", value: "5" },
-  { label: "15m", value: "15" },
+  { label: "1 min", value: "1" },
+  { label: "5 min", value: "5" },
+  { label: "15 min", value: "15" },
   { label: "1h", value: "60" },
   { label: "4h", value: "240" },
   { label: "Daily", value: "D" },
@@ -42,12 +42,13 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
   }, []);
 
   const signalsQuery = useMemoFirebase(() => {
-    // Only build query if we have both firestore and a fully loaded user object
     if (!firestore || !user?.uid) return null;
     
     const baseQuery = collection(firestore, "signals");
     
     if (activeFilter) {
+      // TradingView often sends "1D" or "D" for daily.
+      // We check for simple matches based on the selected value.
       return query(
         baseQuery,
         where("timeframe", "==", activeFilter),

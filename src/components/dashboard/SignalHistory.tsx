@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -47,8 +48,6 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
     const baseQuery = collection(firestore, "signals");
     
     if (activeFilter) {
-      // TradingView often sends "1D" or "D" for daily.
-      // We check for simple matches based on the selected value.
       return query(
         baseQuery,
         where("timeframe", "==", activeFilter),
@@ -125,7 +124,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
         <div className="space-y-1">
           <h3 className="text-sm font-bold text-white">Stream Sync Error</h3>
           <p className="text-[10px] text-muted-foreground leading-relaxed max-w-[200px] mx-auto">
-            {error.message.includes("index") || activeFilter 
+            {error.message.includes("index") 
               ? "This filter requires a Firestore Index. Check your browser console (F12) for the activation link."
               : `Connection error: ${error.message}`}
           </p>
@@ -149,7 +148,6 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
     <div className="w-full flex flex-col h-full">
       {/* Timeframe Filters */}
       <div className="px-4 py-3 bg-background/20 border-b border-border flex items-center gap-1 overflow-x-auto no-scrollbar">
-        <Clock className="h-3 w-3 text-muted-foreground mr-1 shrink-0" />
         {FILTERS.map((filter) => (
           <Button
             key={filter.label}
@@ -193,7 +191,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                 <TableCell colSpan={5} className="text-center py-12">
                   <Terminal className="h-6 w-6 text-muted-foreground mx-auto mb-2 opacity-20" />
                   <p className="text-muted-foreground text-[10px]">
-                    {activeFilter ? `No ${activeFilter} signals found...` : "No signals yet..."}
+                    {activeFilter ? `No ${activeFilter === 'D' ? 'Daily' : activeFilter + ' min'} signals found...` : "No signals yet..."}
                   </p>
                 </TableCell>
               </TableRow>

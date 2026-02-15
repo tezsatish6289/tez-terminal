@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       rawBody = "UNREADABLE_BODY";
     }
 
-    // 2. Audit Log (Helpful during initial deployment setup)
+    // 2. Audit Log
     await addDoc(logsRef, {
       timestamp,
       level: "INFO",
@@ -73,12 +73,13 @@ export async function POST(request: NextRequest) {
 
     const symbol = (body.ticker || body.symbol || "UNKNOWN").toUpperCase();
     
-    // Support multiple price fields for flexibility
     const rawPrice = body.price_at_alert ?? body.price;
     const price = rawPrice ? parseFloat(rawPrice.toString()) : null;
     
-    // Extract timeframe for top-level filtering
-    const timeframe = body.timeframe?.toString() || null;
+    // Normalize Timeframe (TV sends 1, 5, 15, 60, 240, D, 1D, etc.)
+    let timeframe = (body.timeframe || body.interval || "").toString().toUpperCase();
+    if (timeframe === "1D" || timeframe === "DAILY") timeframe = "D";
+    if (!timeframe) timeframe = "15"; // Default if missing
 
     const signalData = {
       webhookId: webhookId,
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
       timestamp,
       level: "INFO",
       message: "Signal Processed Successfully",
-      details: `Asset: ${symbol} | Action: ${signalType} | Price: ${price || 'N/A'} | TF: ${timeframe || 'N/A'}`,
+      details: `Asset: ${symbol} | Action: ${signalType} | Price: ${price || 'N/A'} | TF: ${timeframe}`,
       webhookId,
     });
 

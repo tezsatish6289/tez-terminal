@@ -1,6 +1,6 @@
+
 "use client";
 
-import { LeftSidebar } from "@/components/dashboard/Sidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -147,8 +147,8 @@ export default function WebhooksPage() {
 
   if (!isAdmin) {
     return (
-      <div className="flex min-h-screen bg-background">
-        <LeftSidebar />
+      <div className="flex min-h-screen bg-background flex-col">
+        <TopBar />
         <main className="flex-1 flex items-center justify-center p-6">
           <Card className="max-w-md w-full border-accent/20 bg-card">
             <CardHeader className="text-center">
@@ -172,7 +172,6 @@ export default function WebhooksPage() {
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      <LeftSidebar />
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         <TopBar />
         <div className="flex-1 overflow-y-auto p-6 space-y-8">

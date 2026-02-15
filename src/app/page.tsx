@@ -1,7 +1,6 @@
 
 "use client";
 
-import { LeftSidebar } from "@/components/dashboard/Sidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { SignalHistory } from "@/components/dashboard/SignalHistory";
 import { ChartPane } from "@/components/dashboard/ChartPane";
@@ -85,8 +84,6 @@ export default function Home() {
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
-      <LeftSidebar />
-      
       <main className="flex-1 flex flex-col min-w-0 h-full">
         <TopBar />
         
@@ -100,15 +97,15 @@ export default function Home() {
               </h2>
               <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
             </div>
-            <div className="flex-1 overflow-y-auto p-2">
+            <div className="flex-1 overflow-y-auto">
               <SignalHistory onSignalSelect={setActiveSignal} />
             </div>
           </section>
 
           {/* Right Pane: Chart */}
-          <section className="flex-1 flex flex-col bg-background p-4 relative">
-             <div className="absolute top-6 left-6 z-20 pointer-events-none">
-                <div className="bg-black/60 backdrop-blur-md px-3 py-1 rounded-md border border-white/10">
+          <section className="flex-1 flex flex-col bg-background p-2 relative">
+             <div className="absolute top-4 left-4 z-20 pointer-events-none">
+                <div className="bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 shadow-xl">
                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Active View</p>
                    <p className="text-sm font-bold text-accent">{activeSignal?.symbol || 'BTCUSDT'}</p>
                 </div>

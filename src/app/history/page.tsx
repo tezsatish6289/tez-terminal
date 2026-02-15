@@ -1,6 +1,6 @@
+
 "use client";
 
-import { LeftSidebar } from "@/components/dashboard/Sidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { SignalHistory } from "@/components/dashboard/SignalHistory";
 import { useUser, useAuth, useCollection, useFirestore, useMemoFirebase } from "@/firebase";
@@ -64,8 +64,6 @@ export default function HistoryPage() {
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      <LeftSidebar />
-      
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         <TopBar />
         
@@ -98,7 +96,7 @@ export default function HistoryPage() {
                     <CardTitle className="text-lg">Live Feed</CardTitle>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-6">
+                <CardContent className="pt-6 px-0">
                   <SignalHistory />
                 </CardContent>
               </Card>

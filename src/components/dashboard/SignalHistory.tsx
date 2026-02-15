@@ -11,20 +11,32 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Terminal, Globe, DollarSign, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Terminal, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, limit, orderBy } from "firebase/firestore";
+import { collection, query, limit, orderBy, where } from "firebase/firestore";
 
 interface SignalHistoryProps {
   onSignalSelect?: (signal: { symbol: string; timeframe?: string; exchange?: string }) => void;
 }
 
+const FILTERS = [
+  { label: "All", value: null },
+  { label: "1m", value: "1" },
+  { label: "5m", value: "5" },
+  { label: "15m", value: "15" },
+  { label: "1h", value: "60" },
+  { label: "4h", value: "240" },
+  { label: "Daily", value: "D" },
+];
+
 export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const [mounted, setMounted] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -32,12 +44,26 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
 
   const signalsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
+    
+    const baseQuery = collection(firestore, "signals");
+    
+    if (activeFilter) {
+      // Note: Filtering + Ordering requires a composite index in Firestore.
+      // If results don't show, check the console for the index creation link.
+      return query(
+        baseQuery,
+        where("timeframe", "==", activeFilter),
+        orderBy("receivedAt", "desc"),
+        limit(50)
+      );
+    }
+
     return query(
-      collection(firestore, "signals"),
+      baseQuery,
       orderBy("receivedAt", "desc"),
       limit(50)
     );
-  }, [user, firestore]);
+  }, [user, firestore, activeFilter]);
 
   const { data: signals, isLoading, error } = useCollection(signalsQuery);
 
@@ -84,7 +110,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
     const data = parsePayload(signal.payload);
     onSignalSelect({
       symbol: signal.symbol,
-      timeframe: data?.timeframe || "15",
+      timeframe: signal.timeframe || data?.timeframe || "15",
       exchange: data?.exchange || "BINANCE"
     });
   };
@@ -92,93 +118,120 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
   if (error) {
     return (
       <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-xs">
-        Sync error: {error.message}
+        Sync error: {error.message}. <br/>
+        <span className="opacity-70 text-[10px]">Filtering by timeframe requires a Firestore Index. Check console for URL.</span>
       </div>
     );
   }
 
   return (
-    <div className="w-full">
-      <Table>
-        <TableHeader className="bg-secondary/10 sticky top-0 z-10">
-          <TableRow className="hover:bg-transparent border-border">
-            <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">Time</TableHead>
-            <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold">Asset</TableHead>
-            <TableHead className="w-[60px] px-1 text-[10px] uppercase font-bold text-center">Side</TableHead>
-            <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">Chart</TableHead>
-            <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold">Price @ Alert</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {isLoading && (!signals || signals.length === 0) ? (
-            <TableRow>
-              <TableCell colSpan={5} className="text-center py-8 text-muted-foreground animate-pulse text-[10px]">
-                Connecting...
-              </TableCell>
+    <div className="w-full flex flex-col h-full">
+      {/* Timeframe Filters */}
+      <div className="px-4 py-3 bg-background/20 border-b border-border flex items-center gap-1 overflow-x-auto no-scrollbar">
+        <Clock className="h-3 w-3 text-muted-foreground mr-1 shrink-0" />
+        {FILTERS.map((filter) => (
+          <Button
+            key={filter.label}
+            variant="ghost"
+            size="sm"
+            onClick={() => setActiveFilter(filter.value)}
+            className={cn(
+              "h-7 px-2.5 text-[10px] font-bold rounded-md transition-all whitespace-nowrap",
+              activeFilter === filter.value 
+                ? "bg-accent text-accent-foreground shadow-sm" 
+                : "text-muted-foreground hover:bg-secondary hover:text-white"
+            )}
+          >
+            {filter.label}
+          </Button>
+        ))}
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        <Table>
+          <TableHeader className="bg-secondary/10 sticky top-0 z-10">
+            <TableRow className="hover:bg-transparent border-border">
+              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">Time</TableHead>
+              <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold">Asset</TableHead>
+              <TableHead className="w-[60px] px-1 text-[10px] uppercase font-bold text-center">Side</TableHead>
+              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">Chart</TableHead>
+              <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold">Price @ Alert</TableHead>
             </TableRow>
-          ) : !signals || signals.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={5} className="text-center py-12">
-                <Terminal className="h-6 w-6 text-muted-foreground mx-auto mb-2 opacity-20" />
-                <p className="text-muted-foreground text-[10px]">No signals yet...</p>
-              </TableCell>
-            </TableRow>
-          ) : (
-            signals.map((signal) => {
-              const data = parsePayload(signal.payload);
-              const displayPrice = signal.price ?? data?.price_at_alert;
-              
-              return (
-                <TableRow 
-                  key={signal.id} 
-                  className="transition-colors group border-border hover:bg-accent/5 cursor-pointer"
-                  onClick={() => handleRowClick(signal)}
-                >
-                  <TableCell className="text-[10px] font-mono py-3 px-2">
-                    <div className="text-white font-medium">{getFormattedDate(signal.receivedAt)}</div>
-                    <div className="text-muted-foreground opacity-50">{getFormattedDay(signal.receivedAt)}</div>
-                  </TableCell>
-                  <TableCell className="font-bold text-xs text-white px-2">
-                    {signal.symbol}
-                  </TableCell>
-                  <TableCell className="px-1 text-center">
-                    <Badge 
-                      variant="outline" 
-                      className={cn(
-                        "text-[9px] uppercase font-bold border-none h-5 px-1.5",
-                        signal.type === 'BUY' ? 'text-emerald-400 bg-emerald-400/10' : 
-                        signal.type === 'SELL' ? 'text-rose-400 bg-rose-400/10' : 
-                        'text-accent bg-accent/10'
+          </TableHeader>
+          <TableBody>
+            {isLoading && (!signals || signals.length === 0) ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground animate-pulse text-[10px]">
+                  Connecting...
+                </TableCell>
+              </TableRow>
+            ) : !signals || signals.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-12">
+                  <Terminal className="h-6 w-6 text-muted-foreground mx-auto mb-2 opacity-20" />
+                  <p className="text-muted-foreground text-[10px]">
+                    {activeFilter ? `No ${activeFilter} min signals found...` : "No signals yet..."}
+                  </p>
+                </TableCell>
+              </TableRow>
+            ) : (
+              signals.map((signal) => {
+                const data = parsePayload(signal.payload);
+                const displayPrice = signal.price ?? data?.price_at_alert;
+                const displayTF = signal.timeframe ?? data?.timeframe;
+                
+                return (
+                  <TableRow 
+                    key={signal.id} 
+                    className="transition-colors group border-border hover:bg-accent/5 cursor-pointer"
+                    onClick={() => handleRowClick(signal)}
+                  >
+                    <TableCell className="text-[10px] font-mono py-3 px-2">
+                      <div className="text-white font-medium">{getFormattedDate(signal.receivedAt)}</div>
+                      <div className="text-muted-foreground opacity-50">{getFormattedDay(signal.receivedAt)}</div>
+                    </TableCell>
+                    <TableCell className="font-bold text-xs text-white px-2">
+                      {signal.symbol}
+                    </TableCell>
+                    <TableCell className="px-1 text-center">
+                      <Badge 
+                        variant="outline" 
+                        className={cn(
+                          "text-[9px] uppercase font-bold border-none h-5 px-1.5",
+                          signal.type === 'BUY' ? 'text-emerald-400 bg-emerald-400/10' : 
+                          signal.type === 'SELL' ? 'text-rose-400 bg-rose-400/10' : 
+                          'text-accent bg-accent/10'
+                        )}
+                      >
+                        {signal.type}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="px-2">
+                      {displayTF ? (
+                        <div className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">
+                          {formatTimeframe(displayTF)}
+                        </div>
+                      ) : <span className="text-muted-foreground/20">--</span>}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs px-2">
+                      {displayPrice ? (
+                         <span className="text-accent font-bold">
+                           ${Number(displayPrice).toLocaleString(undefined, { 
+                             minimumFractionDigits: 2, 
+                             maximumFractionDigits: 4 
+                           })}
+                         </span>
+                      ) : (
+                        <span className="text-muted-foreground/30">--</span>
                       )}
-                    >
-                      {signal.type}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-2">
-                    {data?.timeframe ? (
-                      <div className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">
-                        {formatTimeframe(data.timeframe)}
-                      </div>
-                    ) : <span className="text-muted-foreground/20">--</span>}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs px-2">
-                    {displayPrice ? (
-                       <span className="text-accent font-bold">
-                         ${Number(displayPrice).toLocaleString(undefined, { 
-                           minimumFractionDigits: 2, 
-                           maximumFractionDigits: 4 
-                         })}
-                       </span>
-                    ) : (
-                      <span className="text-muted-foreground/30">--</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              );
-            })
-          )}
-        </TableBody>
-      </Table>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

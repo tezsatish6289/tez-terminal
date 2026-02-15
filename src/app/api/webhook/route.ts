@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
@@ -72,9 +73,12 @@ export async function POST(request: NextRequest) {
 
     const symbol = (body.ticker || body.symbol || "UNKNOWN").toUpperCase();
     
-    // Support both 'price_at_alert' and 'price' for backward compatibility
+    // Support multiple price fields for flexibility
     const rawPrice = body.price_at_alert ?? body.price;
     const price = rawPrice ? parseFloat(rawPrice.toString()) : null;
+    
+    // Extract timeframe for top-level filtering
+    const timeframe = body.timeframe?.toString() || null;
 
     const signalData = {
       webhookId: webhookId,
@@ -84,6 +88,7 @@ export async function POST(request: NextRequest) {
       symbol: symbol,
       type: signalType,
       price: price,
+      timeframe: timeframe,
       note: body.note || `Indicator alert for ${symbol}`,
       source: configData.name || "TradingView Indicator",
     };
@@ -96,7 +101,7 @@ export async function POST(request: NextRequest) {
       timestamp,
       level: "INFO",
       message: "Signal Processed Successfully",
-      details: `Asset: ${symbol} | Action: ${signalType} | Price: ${price || 'N/A'}`,
+      details: `Asset: ${symbol} | Action: ${signalType} | Price: ${price || 'N/A'} | TF: ${timeframe || 'N/A'}`,
       webhookId,
     });
 

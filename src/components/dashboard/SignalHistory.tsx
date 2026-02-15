@@ -3,7 +3,6 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { 
   LineChart, 
@@ -13,7 +12,6 @@ import {
   TrendingUp,
   Clock,
   Activity,
-  Zap,
   Filter,
   ChevronDown
 } from "lucide-react";
@@ -39,6 +37,7 @@ export function SignalHistory() {
   
   // Filtering States
   const [activeAssetType, setActiveAssetType] = useState<string | null>(null);
+  // Defaulting all categories to selected as requested
   const [selectedTimeframes, setSelectedTimeframes] = useState<string[]>(["5", "15", "60", "240", "D"]);
 
   useEffect(() => {
@@ -56,7 +55,7 @@ export function SignalHistory() {
     );
   }, [user, firestore]);
 
-  const { data: rawSignals, isLoading, error } = useCollection(signalsQuery);
+  const { data: rawSignals, isLoading } = useCollection(signalsQuery);
 
   /**
    * DEEP-PARSING ENGINE (TRUTH-BASED)
@@ -78,14 +77,14 @@ export function SignalHistory() {
   };
 
   /**
-   * STRATEGY THEME DEFINITIONS (Advanced Tool Terminology)
+   * STRATEGY THEME DEFINITIONS (Advanced Technical Tool Terminology)
    */
   const categories = [
-    { id: "5", title: "High-Velocity Stream", label: "5 MIN" },
-    { id: "15", title: "Interim-Trend Monitor", label: "15 MIN" },
-    { id: "60", title: "Momentum Signal Engine", label: "1 HOUR" },
-    { id: "240", title: "Swing-Trend Processor", label: "4 HOUR" },
-    { id: "D", title: "Macro-Bias Terminal", label: "DAILY" },
+    { id: "5", title: "High-Velocity Stream", label: "5 min" },
+    { id: "15", title: "Interim-Trend Monitor", label: "15 min" },
+    { id: "60", title: "Momentum Signal Engine", label: "1 hour" },
+    { id: "240", title: "Swing-Trend Processor", label: "4 Hour" },
+    { id: "D", title: "Macro-Bias Terminal", label: "Daily" },
   ];
 
   const assetTypes = [
@@ -207,7 +206,7 @@ export function SignalHistory() {
       </div>
 
       {/* Main Content Sections with Horizontal Scroll */}
-      <ScrollArea className="flex-1 w-full bg-[#0a0a0c]">
+      <div className="flex-1 overflow-y-auto w-full bg-[#0a0a0c]">
         <div className="py-8 space-y-16">
           {isLoading ? (
             <div className="px-6 space-y-8">
@@ -243,108 +242,105 @@ export function SignalHistory() {
                     </p>
                   </div>
 
-                  {/* HIGH-PERFORMANCE HORIZONTAL SCROLLER */}
-                  <div className="w-full relative">
-                    <div className="flex flex-row overflow-x-auto gap-6 px-6 pb-8 snap-x snap-mandatory no-scrollbar scroll-smooth">
-                      {categorySignals.map((signal) => {
-                        const alertPrice = Number(signal.price || 0);
-                        const currentPrice = signal.currentPrice ? Number(signal.currentPrice) : alertPrice;
-                        const livePnl = calculatePercent(currentPrice, alertPrice, signal.type);
-                        const upsidePercent = calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type);
-                        const drawdownPercent = calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type);
-                        const isPnlPositive = Number(livePnl) >= 0;
-                        const displayAssetType = getDisplayAssetType(signal);
-                        const isBullish = signal.type === 'BUY';
+                  {/* NATIVE HORIZONTAL SCROLLER - Robust Native Scroll */}
+                  <div className="w-full overflow-x-auto flex flex-row gap-6 px-6 pb-6 scrollbar-thin">
+                    {categorySignals.map((signal) => {
+                      const alertPrice = Number(signal.price || 0);
+                      const currentPrice = signal.currentPrice ? Number(signal.currentPrice) : alertPrice;
+                      const livePnl = calculatePercent(currentPrice, alertPrice, signal.type);
+                      const upsidePercent = calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type);
+                      const drawdownPercent = calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type);
+                      const isPnlPositive = Number(livePnl) >= 0;
+                      const displayAssetType = getDisplayAssetType(signal);
+                      const isBullish = signal.type === 'BUY';
 
-                        return (
-                          <Card 
-                            key={signal.id} 
-                            onClick={() => router.push(`/chart/${signal.id}`)}
-                            className="group relative overflow-hidden bg-[#121214] border-white/5 hover:border-accent/40 transition-all duration-500 cursor-pointer shadow-2xl rounded-2xl flex flex-col w-[340px] shrink-0 snap-start"
-                          >
-                            <div className="p-6 border-b border-white/5 bg-white/[0.02]">
-                              <div className="flex items-start justify-between">
-                                <div className="flex flex-col">
-                                  <h3 className="text-2xl font-black text-white leading-none tracking-tighter uppercase mb-2">
-                                    {signal.symbol}
-                                  </h3>
-                                  <span className="text-[10px] font-black text-accent uppercase tracking-widest">
-                                    {displayAssetType}
-                                  </span>
+                      return (
+                        <Card 
+                          key={signal.id} 
+                          onClick={() => router.push(`/chart/${signal.id}`)}
+                          className="group relative overflow-hidden bg-[#121214] border-white/5 hover:border-accent/40 transition-all duration-300 cursor-pointer shadow-2xl rounded-2xl flex flex-col w-[340px] shrink-0"
+                        >
+                          <div className="p-6 border-b border-white/5 bg-white/[0.02]">
+                            <div className="flex items-start justify-between">
+                              <div className="flex flex-col">
+                                <h3 className="text-2xl font-black text-white leading-none tracking-tighter uppercase mb-2">
+                                  {signal.symbol}
+                                </h3>
+                                <span className="text-[10px] font-black text-accent uppercase tracking-widest">
+                                  {displayAssetType}
+                                </span>
+                              </div>
+                              <Badge className={cn(
+                                "text-[10px] font-black border-none px-4 h-7 uppercase rounded-md",
+                                isBullish ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+                              )}>
+                                {isBullish ? 'BULLISH' : 'BEARISH'}
+                              </Badge>
+                            </div>
+                          </div>
+
+                          <div className="px-6 py-3 bg-black/40 flex items-center justify-between border-b border-white/5 text-[10px] font-black text-muted-foreground/40 uppercase">
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-4 w-4" /> {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"} UTC
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Timer className="h-4 w-4 text-accent" /> {mounted ? getRunningSince(signal.receivedAt) : "--"}
+                            </div>
+                          </div>
+
+                          <CardContent className="p-6 flex-1 flex flex-col gap-8">
+                            <div className="grid grid-cols-2 gap-6">
+                              <div className="space-y-2">
+                                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Entry Level</p>
+                                <p className="text-lg font-mono font-bold text-white">${formatPrice(alertPrice)}</p>
+                              </div>
+                              <div className="space-y-2 text-right">
+                                <p className="text-[10px] font-black text-accent uppercase tracking-widest">Latest Live</p>
+                                <div className={cn("text-lg font-mono font-black", isPnlPositive ? "text-emerald-400" : "text-rose-400")}>
+                                  ${formatPrice(currentPrice)}
                                 </div>
-                                <Badge className={cn(
-                                  "text-[10px] font-black border-none px-4 h-7 uppercase rounded-md",
-                                  isBullish ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
-                                )}>
-                                  {isBullish ? 'BULLISH' : 'BEARISH'}
-                                </Badge>
+                                <div className={cn("text-xs font-black flex items-center justify-end gap-2 mt-1", isPnlPositive ? "text-emerald-400" : "text-rose-400")}>
+                                   <TrendingUp className={cn("h-4 w-4", !isPnlPositive && "rotate-180")} />
+                                   {livePnl}% PERF
+                                </div>
                               </div>
                             </div>
 
-                            <div className="px-6 py-3 bg-black/40 flex items-center justify-between border-b border-white/5 text-[10px] font-black text-muted-foreground/40 uppercase">
-                              <div className="flex items-center gap-2">
-                                <Clock className="h-4 w-4" /> {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"} UTC
+                            <div className="grid grid-cols-2 gap-4 pt-6 border-t border-white/5">
+                              <div className="p-4 rounded-xl bg-emerald-500/[0.03] border border-emerald-500/10">
+                                <p className="text-[9px] font-black text-emerald-500/60 uppercase tracking-widest mb-2">Max Upside</p>
+                                <p className="text-md font-mono font-black text-emerald-400 flex items-center gap-2">
+                                  <ArrowUpRight className="h-5 w-5" /> {upsidePercent}%
+                                </p>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <Timer className="h-4 w-4 text-accent" /> {mounted ? getRunningSince(signal.receivedAt) : "--"}
-                              </div>
-                            </div>
-
-                            <CardContent className="p-6 flex-1 flex flex-col gap-8">
-                              <div className="grid grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Entry Level</p>
-                                  <p className="text-lg font-mono font-bold text-white">${formatPrice(alertPrice)}</p>
-                                </div>
-                                <div className="space-y-2 text-right">
-                                  <p className="text-[10px] font-black text-accent uppercase tracking-widest">Latest Live</p>
-                                  <div className={cn("text-lg font-mono font-black", isPnlPositive ? "text-emerald-400" : "text-rose-400")}>
-                                    ${formatPrice(currentPrice)}
-                                  </div>
-                                  <div className={cn("text-xs font-black flex items-center justify-end gap-2 mt-1", isPnlPositive ? "text-emerald-400" : "text-rose-400")}>
-                                     <TrendingUp className={cn("h-4 w-4", !isPnlPositive && "rotate-180")} />
-                                     {livePnl}% PERF
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-4 pt-6 border-t border-white/5">
-                                <div className="p-4 rounded-xl bg-emerald-500/[0.03] border border-emerald-500/10">
-                                  <p className="text-[9px] font-black text-emerald-500/60 uppercase tracking-widest mb-2">Max Upside</p>
-                                  <p className="text-md font-mono font-black text-emerald-400 flex items-center gap-2">
-                                    <ArrowUpRight className="h-5 w-5" /> {upsidePercent}%
-                                  </p>
-                                </div>
-                                <div className="p-4 rounded-xl bg-rose-500/[0.03] border border-rose-500/10 text-right">
-                                  <p className="text-[9px] font-black text-rose-500/60 uppercase tracking-widest mb-2">Max Drawdown</p>
-                                  <p className="text-md font-mono font-black text-rose-400 flex items-center justify-end gap-2">
-                                    <ArrowDownRight className="h-5 w-5" /> {drawdownPercent}%
-                                  </p>
-                                </div>
-                              </div>
-                            </CardContent>
-
-                            <div className="px-6 py-5 border-t border-white/5 bg-white/[0.01] flex items-center justify-between group-hover:bg-accent/[0.05] transition-colors">
-                              <div className="flex items-center gap-3">
-                                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] group-hover:text-white transition-colors">Analyze Chart</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <Badge variant="outline" className="text-[10px] border-accent/20 h-6 px-3 text-accent font-black uppercase">{cat.label}</Badge>
-                                <LineChart className="h-5 w-5 text-muted-foreground group-hover:text-accent transition-colors" />
+                              <div className="p-4 rounded-xl bg-rose-500/[0.03] border border-rose-500/10 text-right">
+                                <p className="text-[9px] font-black text-rose-500/60 uppercase tracking-widest mb-2">Max Drawdown</p>
+                                <p className="text-md font-mono font-black text-rose-400 flex items-center justify-end gap-2">
+                                  <ArrowDownRight className="h-5 w-5" /> {drawdownPercent}%
+                                </p>
                               </div>
                             </div>
-                          </Card>
-                        );
-                      })}
-                    </div>
+                          </CardContent>
+
+                          <div className="px-6 py-5 border-t border-white/5 bg-white/[0.01] flex items-center justify-between group-hover:bg-accent/[0.05] transition-colors">
+                            <div className="flex items-center gap-3">
+                              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] group-hover:text-white transition-colors">Analyze Chart</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <Badge variant="outline" className="text-[10px] border-accent/20 h-6 px-3 text-accent font-black uppercase">{cat.label}</Badge>
+                              <LineChart className="h-5 w-5 text-muted-foreground group-hover:text-accent transition-colors" />
+                            </div>
+                          </div>
+                        </Card>
+                      );
+                    })}
                   </div>
                 </section>
               );
             })
           )}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }
-

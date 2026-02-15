@@ -20,7 +20,6 @@ import { useRouter } from "next/navigation";
 
 /**
  * PRODUCTION TERMINAL ENGINE
- * Features: Deep-Parsing Fallback for assetType, Client-Side Resilient Filtering, and Normalized Display.
  */
 export function SignalHistory() {
   const router = useRouter();
@@ -42,15 +41,15 @@ export function SignalHistory() {
     return query(
       collection(firestore, "signals"), 
       orderBy("receivedAt", "desc"), 
-      limit(200)
+      limit(150)
     );
   }, [user, firestore]);
 
   const { data: rawSignals, isLoading, error } = useCollection(signalsQuery);
 
   /**
-   * DEEP-PARSING ENGINE
-   * Extracts assetType from top-level OR raw payload string, and normalizes values.
+   * DEEP-PARSING ENGINE (TRUTH-BASED)
+   * Extracts assetType from top-level OR raw payload string.
    */
   const getDisplayAssetType = (signal: any) => {
     if (signal.assetType && signal.assetType !== "UNCLASSIFIED") return signal.assetType;
@@ -173,7 +172,7 @@ export function SignalHistory() {
             <TableRow className="border-border hover:bg-transparent">
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">TIME</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[90px]">AGE</TableHead>
-              <TableHead className="text-[10px] uppercase font-black py-3 text-left pl-6 w-[160px]">ASSET</TableHead>
+              <TableHead className="text-[10px] uppercase font-black py-3 text-left pl-6 w-[150px]">ASSET</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[130px]">EXCHANGE</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">CHART</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">SIDE</TableHead>

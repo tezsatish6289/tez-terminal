@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -12,7 +13,10 @@ import {
   Clock,
   Activity,
   Filter,
-  ChevronDown
+  ChevronDown,
+  Zap,
+  BarChart3,
+  Globe
 } from "lucide-react";
 import { format, differenceInMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -79,11 +83,11 @@ export function SignalHistory() {
    * STRATEGY THEME DEFINITIONS (Advanced Technical Tool Terminology)
    */
   const categories = [
-    { id: "5", title: "High-Velocity Stream", label: "5 min" },
-    { id: "15", title: "Interim-Trend Monitor", label: "15 min" },
-    { id: "60", title: "Momentum Signal Engine", label: "1 hour" },
-    { id: "240", title: "Swing-Trend Processor", label: "4 Hour" },
-    { id: "D", title: "Macro-Bias Terminal", label: "Daily" },
+    { id: "5", title: "High-Velocity Stream", label: "5 min", icon: Zap },
+    { id: "15", title: "Interim-Trend Monitor", label: "15 min", icon: Activity },
+    { id: "60", title: "Momentum Signal Engine", label: "1 hour", icon: BarChart3 },
+    { id: "240", title: "Swing-Trend Processor", label: "4 Hour", icon: TrendingUp },
+    { id: "D", title: "Macro-Bias Terminal", label: "Daily", icon: Globe },
   ];
 
   const assetTypes = [
@@ -230,19 +234,26 @@ export function SignalHistory() {
               const categorySignals = filteredSignals.filter(s => s.timeframe === cat.id);
               if (categorySignals.length === 0) return null;
 
+              const SectionIcon = cat.icon;
+
               return (
                 <section key={cat.id} className="space-y-6">
-                  <div className="px-6">
-                    <h2 className="text-2xl font-black text-white uppercase tracking-tighter leading-none">
-                      {cat.title}
-                    </h2>
-                    <p className="text-[10px] font-black text-accent uppercase tracking-[0.4em] mt-2 opacity-80">
-                      {cat.label} TECHNICAL CONTEXT
-                    </p>
+                  <div className="px-6 flex items-center gap-4">
+                    <div className="bg-primary/20 p-2.5 rounded-xl border border-white/10 shrink-0">
+                      <SectionIcon className="h-6 w-6 text-accent" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-black text-white uppercase tracking-tighter leading-none">
+                        {cat.title}
+                      </h2>
+                      <p className="text-[10px] font-black text-accent uppercase tracking-[0.4em] mt-2 opacity-80">
+                        {cat.label} TECHNICAL CONTEXT
+                      </p>
+                    </div>
                   </div>
 
                   {/* NATIVE HORIZONTAL SCROLLER */}
-                  <div className="w-full overflow-x-auto flex flex-row gap-6 px-6 pb-6">
+                  <div className="w-full overflow-x-auto flex flex-row gap-6 px-6 pb-6 scrollbar-thin">
                     {categorySignals.map((signal) => {
                       const alertPrice = Number(signal.price || 0);
                       const currentPrice = signal.currentPrice ? Number(signal.currentPrice) : alertPrice;

@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, getDocs, updateDoc, doc, addDoc } from "firebase/firestore";
@@ -39,10 +40,13 @@ export async function GET() {
       let newMaxUpside = signal.maxUpsidePrice || alertPrice;
       let newMaxDrawdown = signal.maxDrawdownPrice || alertPrice;
 
+      // BUY Logic: MaxUpside is Highest High, MaxDrawdown is Lowest Low
       if (signal.type === 'BUY') {
         if (currentPrice > newMaxUpside) newMaxUpside = currentPrice;
         if (currentPrice < newMaxDrawdown) newMaxDrawdown = currentPrice;
-      } else if (signal.type === 'SELL') {
+      } 
+      // SELL Logic: MaxUpside is Lowest Low, MaxDrawdown is Highest High
+      else if (signal.type === 'SELL') {
         if (currentPrice < newMaxUpside || newMaxUpside === 0) newMaxUpside = currentPrice;
         if (currentPrice > newMaxDrawdown) newMaxDrawdown = currentPrice;
       }

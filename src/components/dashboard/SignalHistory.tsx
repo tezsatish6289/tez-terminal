@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -10,7 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, LineChart, Activity } from "lucide-react";
+import { AlertCircle, LineChart, Activity, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -111,6 +112,11 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
             </button>
           ))}
         </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-[8px] h-4 border-emerald-500/20 text-emerald-400 gap-1 bg-emerald-500/5 uppercase font-bold">
+            <Activity className="h-2 w-2" /> Cron Active
+          </Badge>
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto">
@@ -125,8 +131,8 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
               <TableHead className="text-[9px] uppercase font-black text-accent py-2 text-right">
                 <div className="flex flex-col items-end">
                    <span>Latest Price</span>
-                   <Badge variant="outline" className="text-[7px] h-3 px-1 border-accent/30 text-accent font-mono">
-                     NEXT: {countdown}s
+                   <Badge variant="outline" className="text-[7px] h-3 px-1 border-accent/30 text-accent font-mono mt-0.5">
+                     SYNC: {countdown}s
                    </Badge>
                 </div>
               </TableHead>
@@ -189,13 +195,23 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                       </div>
                     </TableCell>
                     <TableCell className="text-right py-3">
-                       <div className="text-emerald-400 font-black text-[10px] font-mono">
-                         {upsidePercent && Number(upsidePercent) > 0 ? `+${upsidePercent}%` : "0.00%"}
+                       <div className="flex flex-col items-end">
+                         <span className="text-emerald-400 font-black text-[10px] font-mono">
+                           {upsidePercent && Number(upsidePercent) > 0 ? `+${upsidePercent}%` : "0.00%"}
+                         </span>
+                         <span className="text-[8px] text-muted-foreground font-mono">
+                           ${(signal.maxUpsidePrice || alertPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                         </span>
                        </div>
                     </TableCell>
                     <TableCell className="text-right py-3">
-                       <div className="text-rose-400 font-black text-[10px] font-mono">
-                         {drawdownPercent && Number(drawdownPercent) < 0 ? `${drawdownPercent}%` : "0.00%"}
+                       <div className="flex flex-col items-end">
+                         <span className="text-rose-400 font-black text-[10px] font-mono">
+                           {drawdownPercent && Number(drawdownPercent) < 0 ? `${drawdownPercent}%` : "0.00%"}
+                         </span>
+                         <span className="text-[8px] text-muted-foreground font-mono">
+                           ${(signal.maxDrawdownPrice || alertPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                         </span>
                        </div>
                     </TableCell>
                   </TableRow>

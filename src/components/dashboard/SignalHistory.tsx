@@ -111,19 +111,19 @@ export function SignalHistory() {
       </div>
 
       <ScrollArea className="flex-1 w-full">
-        <Table>
+        <Table className="min-w-[1200px]">
           <TableHeader className="bg-secondary/20 sticky top-0 z-10 backdrop-blur-md">
             <TableRow className="border-border hover:bg-transparent">
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Time</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">Age</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 w-[150px] pl-[58px]">Asset</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 w-[150px] pl-6">Asset</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[110px]">EXCHANGE</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">Chart</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Side</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-right w-[110px]">Entry</TableHead>
               <TableHead className="text-[10px] uppercase font-bold text-accent py-3 text-right w-[160px]">Live (Price / %)</TableHead>
               <TableHead className="text-[10px] uppercase font-bold text-emerald-400 py-3 text-right w-[120px]">Max Up</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold text-rose-400 py-3 text-center pr-6 w-[120px]">Max Down</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold text-rose-400 py-3 text-center w-[120px] pr-6">Max Down</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -159,7 +159,7 @@ export function SignalHistory() {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="py-3 pl-[58px]">
+                    <TableCell className="py-3 pl-6">
                       <span className="font-bold text-sm text-white tracking-tight uppercase">{signal.symbol}</span>
                     </TableCell>
                     <TableCell className="py-3 text-center">

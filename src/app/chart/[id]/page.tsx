@@ -217,12 +217,6 @@ export default function DeepDiveChartPage() {
               <div className="text-[10px] font-mono font-bold text-muted-foreground">{mounted ? format(now, 'HH:mm:ss') : "--:--:--"} UTC</div>
             </div>
 
-            <Button variant="outline" size="icon" asChild className="h-11 w-11 border-white/10 hover:bg-white/5 text-muted-foreground hover:text-white shrink-0">
-              <a href={tradingViewUrl} target="_blank" rel="noopener noreferrer" title="View on TradingView">
-                <ExternalLink className="h-5 w-5" />
-              </a>
-            </Button>
-
             <Button onClick={handleAIAnalysis} disabled={isAnalyzing} className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2 h-11 px-6 font-bold shadow-[0_0_20px_rgba(125,249,255,0.2)] shrink-0">
               {isAnalyzing ? <Loader2 className="h-5 w-5 animate-spin" /> : <BrainCircuit className="h-5 w-5" />} Gemini AI Insight
             </Button>
@@ -231,9 +225,25 @@ export default function DeepDiveChartPage() {
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
 
-      <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 relative bg-[#13111a]">
-          <ChartPane symbol={signal?.symbol} interval={signal?.timeframe} exchange={signal?.exchange} />
+      <div className="flex-1 flex overflow-hidden relative">
+        <div className="flex-1 relative bg-[#13111a] flex flex-col">
+          <div className="flex-1 min-h-0">
+            <ChartPane symbol={signal?.symbol} interval={signal?.timeframe} exchange={signal?.exchange} />
+          </div>
+          
+          {/* Centrally Aligned CTA Button at the Bottom of the Chart Area */}
+          <div className="h-20 flex items-center justify-center bg-background/50 backdrop-blur-sm border-t border-white/5 absolute bottom-0 left-0 right-0 z-30">
+            <Button 
+              asChild 
+              size="lg" 
+              className="bg-accent text-accent-foreground hover:bg-accent/90 font-black uppercase tracking-widest h-12 px-10 rounded-xl shadow-[0_0_30px_rgba(125,249,255,0.15)] group transition-all"
+            >
+              <a href={tradingViewUrl} target="_blank" rel="noopener noreferrer">
+                View In Tradingview
+                <ExternalLink className="ml-3 h-5 w-5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+              </a>
+            </Button>
+          </div>
         </div>
 
         <aside className={cn("w-80 border-l border-white/5 bg-[#0a0a0c] flex flex-col transition-all duration-500", (!analysis && !isAnalyzing) ? "translate-x-full opacity-0 w-0" : "translate-x-0 opacity-100")}>

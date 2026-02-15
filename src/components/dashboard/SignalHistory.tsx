@@ -132,7 +132,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
               <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">Time</TableHead>
               <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold">Asset</TableHead>
               <TableHead className="w-[60px] px-1 text-[10px] uppercase font-bold text-center">Side</TableHead>
-              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">TF</TableHead>
+              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">Chart</TableHead>
               <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold">Price</TableHead>
             </TableRow>
           </TableHeader>
@@ -146,8 +146,6 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                 const data = parsePayload(signal.payload);
                 
                 // Resilient Price detection
-                // 1. Try primary db field
-                // 2. Try various payload keys if db field is null/undefined
                 let displayPriceValue = signal.price;
                 if (displayPriceValue === null || displayPriceValue === undefined) {
                   displayPriceValue = data?.price ?? data?.close ?? data?.price_at_alert ?? data?.last_price ?? data?.entry;

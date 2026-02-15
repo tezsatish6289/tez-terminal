@@ -22,7 +22,6 @@ interface SignalHistoryProps {
 
 const FILTERS = [
   { label: "All", value: null },
-  { label: "1 min", value: "1" },
   { label: "5 min", value: "5" },
   { label: "15 min", value: "15" },
   { label: "1h", value: "60" },
@@ -100,7 +99,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
         <div className="space-y-1">
           <h3 className="text-sm font-bold text-white">Stream Sync Error</h3>
           <p className="text-[10px] text-muted-foreground leading-relaxed max-w-[200px] mx-auto">
-            {error.message.includes("index") ? "Indexing required. Check F12 console." : error.message}
+            {error.message.includes("index") ? "This filter requires a Firestore Index. Check console for link." : error.message}
           </p>
         </div>
       </div>
@@ -147,7 +146,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                 
                 // Resilient Price detection
                 let displayPriceValue = signal.price;
-                if (displayPriceValue === null || displayPriceValue === undefined) {
+                if (displayPriceValue === null || displayPriceValue === undefined || displayPriceValue === 0) {
                   displayPriceValue = data?.price ?? data?.close ?? data?.price_at_alert ?? data?.last_price ?? data?.entry;
                 }
                 

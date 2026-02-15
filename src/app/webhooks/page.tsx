@@ -78,7 +78,7 @@ export default function WebhooksPage() {
     const indicatorPayload = {
       ticker: "SIMULATED_ASSET",
       side: side,
-      price: simPrice, // Using 'price' directly to test primary extraction
+      price: simPrice,
       secretKey: webhook.secretKey,
       exchange: "SIMULATOR",
       timeframe: tf, 
@@ -261,10 +261,10 @@ export default function WebhooksPage() {
                           variant="outline" 
                           size="sm" 
                           className="border-rose-500/30 hover:bg-rose-500/10 text-rose-400 h-8" 
-                          onClick={() => handleSimulateIndicatorSignal(webhook, 'sell', '1')} 
+                          onClick={() => handleSimulateIndicatorSignal(webhook, 'sell', '60')} 
                           disabled={!!isTesting}
                         >
-                          {isTesting?.includes(`${webhook.id}-sell-1`) ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Sim 1m Sell
+                          {isTesting?.includes(`${webhook.id}-sell-60`) ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Sim 1h Sell
                         </Button>
                       </div>
                     </CardHeader>

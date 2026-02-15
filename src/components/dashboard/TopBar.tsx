@@ -65,7 +65,8 @@ export function TopBar() {
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="bg-sidebar border-r border-border p-0 w-72">
-              <div className="p-6 border-b border-border/50">
+              <SheetHeader className="p-6 border-b border-border/50 text-left">
+                <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
                 <Link href="/" className="flex items-center gap-3">
                   <div className="bg-primary p-1.5 rounded-lg border border-accent/20">
                     <Zap className="h-6 w-6 text-accent fill-accent/20" />
@@ -75,7 +76,7 @@ export function TopBar() {
                     <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">Antigravity</p>
                   </div>
                 </Link>
-              </div>
+              </SheetHeader>
 
               <nav className="p-4 space-y-1">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-3 mb-2">Navigation</p>

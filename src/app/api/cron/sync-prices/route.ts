@@ -5,7 +5,7 @@ import { collection, getDocs, updateDoc, doc, addDoc } from "firebase/firestore"
 
 /**
  * 24/7 Global Synchronization Engine.
- * Enhanced matching logic to handle symbol variations (BTC vs BTCUSDT).
+ * Enhanced matching logic to handle Perpetual suffixes (.P, .PERP, _PERP).
  */
 export async function GET() {
   const { firestore } = initializeFirebase();
@@ -51,7 +51,12 @@ export async function GET() {
       }
 
       const rawSymbol = signal.symbol || "";
-      const cleanedSymbol = rawSymbol.split(':').pop()?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || "";
+      // Strip common exchange suffixes and split by exchange prefix (e.g. BYBIT:BTCUSDT.P -> BTCUSDT)
+      const base = rawSymbol.split(':').pop() || "";
+      const cleanedSymbol = base
+        .replace(/\.P$|\.PERP$|_PERP$|-PERP$/i, '')
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .toUpperCase();
       
       // Multi-layer matching: Direct -> +USDT -> +BUSD
       let currentPrice = priceMap[cleanedSymbol];
@@ -91,7 +96,7 @@ export async function GET() {
       timestamp: new Date().toISOString(),
       level: missingSymbols.length > 0 ? "WARN" : "INFO",
       message: `Sync Heartbeat: ${updateCount} Updated`,
-      details: `Processed ${updateCount} signals. ${missingSymbols.length} missing mapping. ${skippedAssets.length} non-crypto assets skipped.`,
+      details: `Processed ${updateCount} signals. ${missingSymbols.length} missing mapping. ${skippedAssets.length} non-crypto assets skipped. Missing symbols: ${missingSymbols.join(', ')}`,
       webhookId: "SYSTEM_CRON",
     });
 

@@ -293,7 +293,7 @@ export function SignalHistory() {
                   <div className="w-full overflow-x-auto flex flex-row gap-6 px-6 pb-6 scrollbar-thin">
                     {categorySignals.length === 0 ? (
                       <div className="w-full py-12 text-center bg-white/[0.01] border border-dashed border-white/5 rounded-2xl">
-                        <p className="text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest">No signals match status filter</p>
+                        <p className="text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest">No signals match filter</p>
                       </div>
                     ) : (
                       categorySignals.map((signal) => {

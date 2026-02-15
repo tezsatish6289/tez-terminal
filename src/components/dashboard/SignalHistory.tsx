@@ -54,14 +54,10 @@ export function SignalHistory() {
    * Extracts assetType from top-level OR raw payload string, and normalizes values.
    */
   const getDisplayAssetType = (signal: any) => {
-    // 1. Check top-level promoted field
     if (signal.assetType && signal.assetType !== "UNCLASSIFIED") return signal.assetType;
-    
-    // 2. Dive into payload JSON
     try {
       const payload = typeof signal.payload === 'string' ? JSON.parse(signal.payload) : (signal.payload || {});
       const raw = payload.asset_type || payload.assetType || payload.category || payload.market_type;
-      
       if (raw) {
         const norm = raw.toString().toUpperCase().trim();
         if (norm.includes("INDIAN")) return "INDIAN STOCKS";
@@ -70,7 +66,6 @@ export function SignalHistory() {
         return norm;
       }
     } catch (e) {}
-    
     return "UNCLASSIFIED";
   };
 
@@ -78,13 +73,8 @@ export function SignalHistory() {
     if (!rawSignals) return [];
     return rawSignals.filter(signal => {
       const displayAssetType = getDisplayAssetType(signal);
-      
-      // Asset Type Match
       if (activeAssetType && displayAssetType !== activeAssetType) return false;
-      
-      // Timeframe Match
       if (activeTimeframe && signal.timeframe !== activeTimeframe) return false;
-      
       return true;
     });
   }, [rawSignals, activeAssetType, activeTimeframe]);

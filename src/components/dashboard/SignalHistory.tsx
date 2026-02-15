@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -10,7 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Loader2, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { AlertCircle, Loader2, ArrowUpRight, ArrowDownRight, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -170,10 +171,13 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
               <TableHead className="w-[70px] px-2 text-[10px] uppercase font-bold text-center text-accent/80">Chart</TableHead>
               <TableHead className="w-[50px] px-1 text-[10px] uppercase font-bold text-center text-accent/80">Side</TableHead>
               <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold text-right text-accent/80">Alert Price</TableHead>
-              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold text-right text-accent/80">
-                <div className="flex flex-col items-end">
+              <TableHead className="w-[110px] px-2 text-[10px] uppercase font-bold text-right text-accent/80">
+                <div className="flex flex-col items-end leading-tight gap-1">
                   <span>Latest Price</span>
-                  <span className="text-[8px] text-accent/60 font-mono tracking-tighter tabular-nums">{countdown}s</span>
+                  <div className="flex items-center gap-1.5 bg-accent/10 border border-accent/20 px-1.5 py-0.5 rounded text-[9px] font-mono text-accent">
+                    <RefreshCw className="h-2 w-2 animate-spin" />
+                    <span>REFRESH: {countdown}S</span>
+                  </div>
                 </div>
               </TableHead>
             </TableRow>

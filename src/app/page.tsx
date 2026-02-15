@@ -86,8 +86,8 @@ export default function Home() {
         <TopBar />
         
         <div className="flex-1 flex flex-col min-h-0">
-          <section className="flex-1 flex flex-col bg-card/30">
-            <div className="p-4 border-b border-border bg-background/50 flex items-center justify-between">
+          <section className="flex-1 flex flex-col bg-card/30 overflow-hidden">
+            <div className="p-4 border-b border-border bg-background/50 flex items-center justify-between shrink-0">
               <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                 <Lightbulb className="h-3 w-3 text-accent" />
                 Live Performance Terminal
@@ -97,7 +97,7 @@ export default function Home() {
                 <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 min-h-0">
               <SignalHistory />
             </div>
           </section>

@@ -11,6 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertCircle, LineChart, Server, ArrowUpRight, ArrowDownRight, Timer, TrendingUp } from "lucide-react";
 import { format, differenceInMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -85,7 +86,7 @@ export function SignalHistory() {
 
   return (
     <div className="flex flex-col h-full bg-card/30">
-      <div className="p-3 border-b border-border bg-background/50 flex items-center justify-between">
+      <div className="p-3 border-b border-border bg-background/50 flex items-center justify-between shrink-0">
         <div className="flex gap-1.5">
           {["All", "5", "15", "60", "D"].map(tf => (
             <button
@@ -109,7 +110,7 @@ export function SignalHistory() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto">
+      <ScrollArea className="flex-1 w-full">
         <Table>
           <TableHeader className="bg-secondary/20 sticky top-0 z-10 backdrop-blur-md">
             <TableRow className="border-border hover:bg-transparent">
@@ -247,7 +248,7 @@ export function SignalHistory() {
             )}
           </TableBody>
         </Table>
-      </div>
+      </ScrollArea>
     </div>
   );
 }

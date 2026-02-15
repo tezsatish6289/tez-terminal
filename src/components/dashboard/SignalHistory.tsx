@@ -16,12 +16,12 @@ import { AlertCircle, LineChart, Server, ArrowUpRight, ArrowDownRight, Timer, Tr
 import { format, differenceInMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, limit, orderBy } from "firebase/firestore";
+import { collection, query, limit, orderBy, where, QueryConstraint } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
 /**
  * PRODUCTION TERMINAL ENGINE
- * Standardized for 24/7 high-density market monitoring.
+ * Using server-side Firestore filtering for maximum scalability.
  */
 export function SignalHistory() {
   const router = useRouter();
@@ -38,23 +38,32 @@ export function SignalHistory() {
     return () => clearInterval(interval);
   }, []);
 
-  // PRODUCTION STRATEGY: Fetch recent signals and filter client-side for zero-latency UI interaction.
+  /**
+   * SERVER-SIDE FILTERING ENGINE
+   * Constructing dynamic Firestore queries based on UI state.
+   * Note: Combining 'where' with 'orderBy' requires composite indexes.
+   */
   const signalsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(
-      collection(firestore, "signals"), 
-      orderBy("receivedAt", "desc"), 
-      limit(200)
-    );
-  }, [user, firestore]);
+    
+    const constraints: QueryConstraint[] = [];
+    
+    if (activeAssetType) {
+      constraints.push(where("assetType", "==", activeAssetType));
+    }
+    
+    if (activeTimeframe) {
+      constraints.push(where("timeframe", "==", activeTimeframe));
+    }
 
-  const { data: rawSignals, isLoading, error } = useCollection(signalsQuery);
+    // Default sorting and limits
+    constraints.push(orderBy("receivedAt", "desc"));
+    constraints.push(limit(150));
 
-  const signals = rawSignals?.filter(signal => {
-    const matchesAsset = !activeAssetType || signal.assetType === activeAssetType;
-    const matchesTf = !activeTimeframe || signal.timeframe === activeTimeframe;
-    return matchesAsset && matchesTf;
-  });
+    return query(collection(firestore, "signals"), ...constraints);
+  }, [user, firestore, activeTimeframe, activeAssetType]);
+
+  const { data: signals, isLoading, error } = useCollection(signalsQuery);
 
   const calculatePercent = (targetPrice: number | undefined | null, entry: number, type: string) => {
     if (targetPrice === undefined || targetPrice === null || !entry || entry === 0) return null;
@@ -86,9 +95,16 @@ export function SignalHistory() {
 
   if (error) {
     return (
-      <div className="p-10 text-center">
-        <AlertCircle className="h-10 w-10 text-destructive mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground">{error.message}</p>
+      <div className="p-10 text-center flex flex-col items-center justify-center gap-4">
+        <AlertCircle className="h-10 w-10 text-destructive" />
+        <div className="max-w-md">
+          <p className="text-sm font-bold text-white uppercase tracking-wider">Production Query Error</p>
+          <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+            {error.message.includes('index') 
+              ? "This filtered view requires a Firestore Composite Index. Please check your browser's developer console for the auto-generation link."
+              : error.message}
+          </p>
+        </div>
       </div>
     );
   }
@@ -162,10 +178,10 @@ export function SignalHistory() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && (!signals || signals.length === 0) ? (
-              <TableRow><TableCell colSpan={10} className="text-center py-20 text-sm animate-pulse text-accent uppercase tracking-widest font-bold">Connecting Node...</TableCell></TableRow>
+            {isLoading ? (
+              <TableRow><TableCell colSpan={10} className="text-center py-20 text-sm animate-pulse text-accent uppercase tracking-widest font-bold">Querying Server...</TableCell></TableRow>
             ) : signals?.length === 0 ? (
-              <TableRow><TableCell colSpan={10} className="text-center py-20 text-sm text-muted-foreground uppercase tracking-widest font-bold">No signals found for this criteria</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="text-center py-20 text-sm text-muted-foreground uppercase tracking-widest font-bold">No results found for current filters</TableCell></TableRow>
             ) : (
               signals?.map((signal) => {
                 const alertPrice = Number(signal.price || 0);
@@ -286,6 +302,7 @@ export function SignalHistory() {
         </Table>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
+      <Toaster />
     </div>
   );
 }

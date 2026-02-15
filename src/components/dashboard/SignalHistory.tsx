@@ -266,7 +266,8 @@ export function SignalHistory() {
 
               return (
                 <section key={cat.id} className="space-y-6">
-                  <div className="px-6 flex items-center justify-between">
+                  {/* Restructured Header with Filters Below Title */}
+                  <div className="px-6 space-y-6">
                     <div className="flex items-center gap-4">
                       <div className="bg-primary/20 p-2.5 rounded-xl border border-white/10 shrink-0">
                         <SectionIcon className="h-6 w-6 text-accent" />
@@ -281,8 +282,8 @@ export function SignalHistory() {
                       </div>
                     </div>
 
-                    {/* Section Performance Filters */}
-                    <div className="flex items-center gap-1.5 bg-white/[0.03] border border-white/5 p-1 rounded-xl">
+                    {/* Section Performance Filters - Moved Below Title Labels */}
+                    <div className="flex items-center gap-1.5 bg-white/[0.03] border border-white/5 p-1 rounded-xl w-fit">
                       {[
                         { id: 'all', label: 'All', icon: Activity, color: 'text-muted-foreground' },
                         { id: 'working', label: 'Working', icon: CheckCircle2, color: 'text-emerald-400' },

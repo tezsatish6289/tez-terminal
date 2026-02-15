@@ -9,7 +9,7 @@ import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { History as HistoryIcon, Loader2, Lock, Terminal, ShieldAlert, AlertTriangle, Info, RefreshCw, Zap, Activity } from "lucide-react";
+import { History as HistoryIcon, Loader2, Lock, Terminal, ShieldAlert, AlertTriangle, Info, RefreshCw, Activity, Lightbulb } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ChromeIcon } from "@/components/icons";
@@ -71,7 +71,7 @@ export default function HistoryPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white">Terminal Activity</h1>
-              <p className="text-muted-foreground text-sm">Full audit trail of market signals and system events.</p>
+              <p className="text-muted-foreground text-sm">Full audit trail of market ideas and system events.</p>
             </div>
             <HistoryIcon className="h-8 w-8 text-accent opacity-20" />
           </div>
@@ -79,8 +79,8 @@ export default function HistoryPage() {
           <Tabs defaultValue="signals" className="w-full">
             <TabsList className="bg-secondary/30 border border-border p-1 mb-6">
               <TabsTrigger value="signals" className="gap-2 data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
-                <Zap className="h-4 w-4" />
-                Signal Stream
+                <Lightbulb className="h-4 w-4" />
+                Idea Stream
               </TabsTrigger>
               <TabsTrigger value="debugger" className="gap-2 data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
                 <Terminal className="h-4 w-4" />

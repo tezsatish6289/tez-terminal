@@ -7,7 +7,7 @@ import { ChartPane } from "@/components/dashboard/ChartPane";
 import { Toaster } from "@/components/ui/toaster";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Zap, Loader2, Chrome } from "lucide-react";
+import { Zap, Loader2, Chrome, Lightbulb } from "lucide-react";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -55,7 +55,7 @@ export default function Home() {
             <CardTitle className="text-3xl font-bold tracking-tighter text-white">TezTerminal</CardTitle>
             <CardDescription className="text-base mt-2">
               India's Premier Antigravity Trading Hub. 
-              Sign in with Google to access the live signal stream.
+              Sign in with Google to access the live idea stream.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -88,12 +88,12 @@ export default function Home() {
         <TopBar />
         
         <div className="flex-1 flex min-h-0 divide-x divide-border">
-          {/* Left Pane: Signals */}
+          {/* Left Pane: Ideas */}
           <section className="w-[450px] flex flex-col bg-card/30">
             <div className="p-4 border-b border-border bg-background/50 flex items-center justify-between">
               <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                <Zap className="h-3 w-3 text-accent" />
-                Signal Stream
+                <Lightbulb className="h-3 w-3 text-accent" />
+                Idea Stream
               </h2>
               <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
             </div>

@@ -11,7 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Zap, Clock, Terminal, AlertCircle, Globe, Activity, Info, Tag } from "lucide-react";
+import { Zap, Clock, Terminal, AlertCircle, Globe, Activity, Info, Tag, DollarSign } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -89,10 +89,10 @@ export function SignalHistory() {
         <Table>
           <TableHeader className="bg-secondary/30">
             <TableRow className="hover:bg-transparent border-border">
-              <TableHead className="w-[120px]">Time</TableHead>
-              <TableHead className="w-[140px]">Asset</TableHead>
-              <TableHead className="w-[100px]">Side</TableHead>
-              <TableHead className="w-[120px]">Price</TableHead>
+              <TableHead className="w-[100px]">Time</TableHead>
+              <TableHead className="w-[120px]">Asset</TableHead>
+              <TableHead className="w-[90px]">Side</TableHead>
+              <TableHead className="w-[140px] text-accent font-bold">Price @ Alert</TableHead>
               <TableHead className="hidden md:table-cell">Signal Metadata</TableHead>
             </TableRow>
           </TableHeader>
@@ -113,6 +113,8 @@ export function SignalHistory() {
             ) : (
               signals.map((signal) => {
                 const data = parsePayload(signal.payload);
+                const displayPrice = signal.price ?? data?.price_at_alert;
+                
                 return (
                   <TableRow key={signal.id} className="transition-colors group border-border hover:bg-white/[0.02]">
                     <TableCell className="text-[11px] font-mono py-4">
@@ -136,12 +138,19 @@ export function SignalHistory() {
                       </Badge>
                     </TableCell>
                     <TableCell className="font-mono text-white text-xs">
-                      {signal.price ? (
-                         <div className="flex items-center gap-1">
-                           <Tag className="h-3 w-3 text-muted-foreground" />
-                           {Number(signal.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+                      {displayPrice ? (
+                         <div className="flex items-center gap-1 bg-accent/5 px-2 py-1 rounded border border-accent/10 w-fit">
+                           <DollarSign className="h-3 w-3 text-accent" />
+                           <span className="font-bold">
+                             {Number(displayPrice).toLocaleString(undefined, { 
+                               minimumFractionDigits: 2, 
+                               maximumFractionDigits: 6 
+                             })}
+                           </span>
                          </div>
-                      ) : '--'}
+                      ) : (
+                        <span className="text-muted-foreground/30">--</span>
+                      )}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       <div className="flex flex-wrap gap-2 items-center">

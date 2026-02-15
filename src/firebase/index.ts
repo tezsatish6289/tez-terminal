@@ -10,12 +10,13 @@ export function initializeFirebase() {
   if (!getApps().length) {
     let firebaseApp;
     try {
-      firebaseApp = initializeApp();
+      // Prefer explicit config for workstation stability
+      firebaseApp = initializeApp(firebaseConfig);
     } catch (e) {
       if (process.env.NODE_ENV === "production") {
-        console.warn('Automatic initialization failed. Falling back to firebase config object.', e);
+        console.warn('Config initialization failed. Falling back to default.', e);
       }
-      firebaseApp = initializeApp(firebaseConfig);
+      firebaseApp = initializeApp();
     }
     return getSdks(firebaseApp);
   }

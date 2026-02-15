@@ -18,6 +18,7 @@ service cloud.firestore {
 
     // Signals (Alerts): Anyone authenticated can read the global stream.
     match /signals/{signalId} {
+      // Explicitly allow both 'get' and 'list' for authenticated users
       allow read: if request.auth != null;
       // API Route (unauthenticated) needs to create signals.
       allow create: if true; 
@@ -33,6 +34,6 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     
-    // Deployment Trigger: 2024-05-21 - Explicit permission path matching for signals collection.
+    // Deployment Trigger: 2024-05-21 15:45 - Robust path matching for authenticated streams.
   }
 }

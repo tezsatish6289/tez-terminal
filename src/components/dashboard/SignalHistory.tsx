@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -30,6 +29,7 @@ import { Button } from "@/components/ui/button";
 
 /**
  * PRODUCTION TERMINAL ENGINE - PERSISTENT STATE
+ * Focus: Strategy Icons, Subtle Filters below header, and State Persistence.
  */
 export function SignalHistory() {
   const router = useRouter();
@@ -108,18 +108,7 @@ export function SignalHistory() {
 
   const getDisplayAssetType = (signal: any) => {
     if (signal.assetType && signal.assetType !== "UNCLASSIFIED") return signal.assetType;
-    try {
-      const payload = typeof signal.payload === 'string' ? JSON.parse(signal.payload) : (signal.payload || {});
-      const raw = payload.asset_type || payload.assetType || payload.category || payload.market_type;
-      if (raw) {
-        const norm = raw.toString().toUpperCase().trim();
-        if (norm.includes("INDIAN")) return "INDIAN STOCKS";
-        if (norm.includes("US")) return "US STOCKS";
-        if (norm.includes("CRYPTO")) return "CRYPTO";
-        return norm;
-      }
-    } catch (e) {}
-    return "UNCLASSIFIED";
+    return "CRYPTO";
   };
 
   const categories = [

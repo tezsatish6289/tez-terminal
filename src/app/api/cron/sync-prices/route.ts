@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, getDocs, updateDoc, doc, addDoc } from "firebase/firestore";
@@ -12,7 +11,7 @@ export async function GET() {
   const logsRef = collection(firestore, "logs");
   
   try {
-    // 1. Fetch from BOTH Futures and Spot
+    // 1. Fetch from BOTH Futures and Spot to maximize coverage
     const [futuresRes, spotRes] = await Promise.all([
       fetch("https://fapi.binance.com/fapi/v2/ticker/price", { cache: 'no-store' }),
       fetch("https://api.binance.com/api/v3/ticker/price", { cache: 'no-store' })
@@ -44,14 +43,14 @@ export async function GET() {
       const signal = signalDoc.data();
       const assetType = (signal.assetType || "").toUpperCase();
 
-      // Only sync Crypto via Binance.
+      // Only sync Crypto via Binance for now.
       if (assetType !== "CRYPTO" && !signal.symbol?.includes("USDT")) {
         skippedAssets.push(signal.symbol || "UNKNOWN");
         return;
       }
 
       const rawSymbol = signal.symbol || "";
-      // Strip common exchange suffixes and perpetual markers
+      // Strip common exchange suffixes and perpetual markers (e.g., BTCUSDT.P -> BTCUSDT)
       const base = rawSymbol.split(':').pop() || "";
       const cleanedSymbol = base
         .replace(/\.P$|\.PERP$|_PERP$|-PERP$/i, '')

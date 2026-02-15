@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useDoc, useFirestore, useMemoFirebase, useUser } from "@/firebase";
@@ -35,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 
 /**
  * Deep Dive Analysis Page.
+ * Focus: Centralized TradingView CTA and AI Technical Insights.
  */
 export default function DeepDiveChartPage() {
   const { id } = useParams();
@@ -121,6 +121,7 @@ export default function DeepDiveChartPage() {
     <div className="flex flex-col h-screen bg-[#0a0a0c] text-foreground overflow-hidden">
       <TopBar />
       
+      {/* Dynamic Header Strip */}
       <ScrollArea className="w-full bg-[#0a0a0c] border-b border-white/5 shrink-0 z-20">
         <div className="h-24 flex items-center px-6 justify-between min-w-[1200px] gap-8">
           <div className="flex items-center gap-6">
@@ -162,10 +163,12 @@ export default function DeepDiveChartPage() {
       </ScrollArea>
 
       <div className="flex-1 flex overflow-hidden relative">
+        {/* Chart Viewport */}
         <div className="flex-1 relative bg-[#13111a] flex flex-col">
           <div className="flex-1 min-h-0">
             <ChartPane symbol={signal?.symbol} interval={signal?.timeframe} exchange={signal?.exchange} />
           </div>
+          {/* Centrally Aligned Slim CTA */}
           <div className="py-3 flex items-center justify-center bg-[#0a0a0c] border-t border-white/5">
             <Button asChild variant="outline" size="sm" className="border-accent/30 text-accent hover:bg-accent/10 font-bold uppercase tracking-tight h-8 px-6 rounded-lg">
               <a href={tradingViewUrl} target="_blank" rel="noopener noreferrer">View In Tradingview <ExternalLink className="ml-2 h-3.5 w-3.5" /></a>
@@ -173,6 +176,7 @@ export default function DeepDiveChartPage() {
           </div>
         </div>
 
+        {/* AI Sidebar */}
         <aside className={cn("w-80 border-l border-white/5 bg-[#0a0a0c] flex flex-col transition-all duration-500", !analysis && !isAnalyzing ? "translate-x-full opacity-0 w-0" : "translate-x-0 opacity-100")}>
           <ScrollArea className="flex-1">
             <div className="p-6 space-y-6">

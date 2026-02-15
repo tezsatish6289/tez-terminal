@@ -44,11 +44,19 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
 
   const calculatePercent = (targetPrice: number | undefined, entry: number, type: string) => {
     if (!targetPrice || !entry || entry === 0) return null;
-    // For Performance Stats:
-    // BUY: (current - entry) / entry
-    // SELL: (entry - current) / entry
     const diff = type === 'BUY' ? targetPrice - entry : entry - targetPrice;
     return ((diff / entry) * 100).toFixed(2);
+  };
+
+  const formatPrice = (price: number | null | undefined) => {
+    if (price === null || price === undefined) return "--";
+    // For small prices like 0.00123, we need more decimals.
+    // If price < 1, show 6 decimals, otherwise 2.
+    const decimals = price < 1 ? 6 : 2;
+    return price.toLocaleString(undefined, { 
+      minimumFractionDigits: decimals, 
+      maximumFractionDigits: decimals 
+    });
   };
 
   if (error) {
@@ -140,7 +148,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-mono text-[11px] text-white/40 py-4">
-                      ${alertPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      ${formatPrice(alertPrice)}
                     </TableCell>
                     <TableCell className="text-right py-4">
                       {currentPrice ? (
@@ -149,7 +157,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                           (signal.type === 'BUY' && currentPrice >= alertPrice) || (signal.type === 'SELL' && currentPrice <= alertPrice) 
                           ? "text-emerald-400" : "text-rose-400"
                         )}>
-                          ${currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          ${formatPrice(currentPrice)}
                         </div>
                       ) : (
                         <span className="text-muted-foreground font-mono text-[11px]">--</span>
@@ -166,7 +174,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                            ) : "0.00%"}
                          </span>
                          <span className="text-[9px] text-muted-foreground/60 font-mono">
-                           ${(signal.maxUpsidePrice || alertPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                           ${formatPrice(signal.maxUpsidePrice || alertPrice)}
                          </span>
                        </div>
                     </TableCell>
@@ -181,7 +189,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                            ) : "0.00%"}
                          </span>
                          <span className="text-[9px] text-muted-foreground/60 font-mono">
-                           ${(signal.maxDrawdownPrice || alertPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                           ${formatPrice(signal.maxDrawdownPrice || alertPrice)}
                          </span>
                        </div>
                     </TableCell>

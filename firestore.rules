@@ -8,33 +8,30 @@ service cloud.firestore {
              request.auth.token.email == "hello@tezterminal.com";
     }
 
-    // Webhook Configurations: 
-    // Public read is required for the API route to verify the bridge.
-    // Admin has full control.
+    // Webhook Configurations
     match /webhooks/{webhookId} {
       allow read: if true; 
       allow write: if isAdmin();
     }
 
-    // Signals (Alerts): Anyone authenticated can read the global stream.
-    // Using recursive wildcard {document=**} to ensure collection-level lists are permitted.
-    match /signals/{document=**} {
-      // Explicitly allow both 'get' and 'list' for authenticated users
-      allow read: if request.auth != null;
-      // API Route (unauthenticated) needs to create signals.
+    // Signals (Idea Stream)
+    // Explicitly allow list and get to ensure filtered queries (listing) work for all authenticated users.
+    match /signals/{signalId} {
+      allow list, get: if request.auth != null;
+      // API Route creates signals without auth.
       allow create: if true; 
       allow update, delete: if isAdmin();
     }
 
     // Logs: Technical audit trail.
-    match /logs/{document=**} {
-      // Only Admin can read debugging logs.
-      allow read: if isAdmin();
-      // Public creation allowed for the ingestion node to log hits.
+    match /logs/{logId} {
+      // Only Admin can read/list debugging logs.
+      allow list, get: if isAdmin();
+      // Public creation allowed for the ingestion node.
       allow create: if true;
       allow update, delete: if false;
     }
     
-    // Deployment Trigger: 2024-05-23 14:15 - Recursive wildcard implementation for query stability.
+    // Deployment Trigger: 2024-05-23 16:15 - Explicit collection list permission deployment.
   }
 }

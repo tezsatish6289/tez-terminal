@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Terminal, Clock, AlertCircle } from "lucide-react";
+import { Terminal, Clock, AlertCircle, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -32,7 +32,7 @@ const FILTERS = [
 ];
 
 export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const [mounted, setMounted] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
@@ -42,12 +42,12 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
   }, []);
 
   const signalsQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
+    // Only build query if we have both firestore and a fully loaded user object
+    if (!firestore || !user?.uid) return null;
     
     const baseQuery = collection(firestore, "signals");
     
     if (activeFilter) {
-      // Note: Filtering + Ordering requires a composite index in Firestore.
       return query(
         baseQuery,
         where("timeframe", "==", activeFilter),
@@ -61,9 +61,11 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
       orderBy("receivedAt", "desc"),
       limit(50)
     );
-  }, [user, firestore, activeFilter]);
+  }, [user?.uid, firestore, activeFilter]);
 
-  const { data: signals, isLoading, error } = useCollection(signalsQuery);
+  const { data: signals, isLoading: isCollectionLoading, error } = useCollection(signalsQuery);
+
+  const isLoading = isUserLoading || isCollectionLoading;
 
   const getFormattedDate = (receivedAt: string) => {
     if (!mounted) return "...";
@@ -122,21 +124,22 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
         <div className="space-y-1">
           <h3 className="text-sm font-bold text-white">Stream Sync Error</h3>
           <p className="text-[10px] text-muted-foreground leading-relaxed max-w-[200px] mx-auto">
-            {activeFilter 
-              ? "Filtering by timeframe requires a Composite Index. Please check the browser console for the activation link."
+            {error.message.includes("index") || activeFilter 
+              ? "This filter requires a Firestore Index. Check your browser console (F12) for the activation link."
               : `Connection error: ${error.message}`}
           </p>
         </div>
-        {activeFilter && (
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="h-8 text-[10px]" 
-            onClick={() => setActiveFilter(null)}
-          >
-            Clear Filters
-          </Button>
-        )}
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-8 text-[10px]" 
+          onClick={() => {
+            setActiveFilter(null);
+            window.location.reload();
+          }}
+        >
+          Reset Connection
+        </Button>
       </div>
     );
   }
@@ -152,6 +155,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
             variant="ghost"
             size="sm"
             onClick={() => setActiveFilter(filter.value)}
+            disabled={isLoading && activeFilter !== filter.value}
             className={cn(
               "h-7 px-2.5 text-[10px] font-bold rounded-md transition-all whitespace-nowrap",
               activeFilter === filter.value 
@@ -162,6 +166,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
             {filter.label}
           </Button>
         ))}
+        {isLoading && <Loader2 className="h-3 w-3 animate-spin text-accent ml-auto shrink-0" />}
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -179,7 +184,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
             {isLoading && (!signals || signals.length === 0) ? (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-8 text-muted-foreground animate-pulse text-[10px]">
-                  Connecting...
+                  Syncing Idea Stream...
                 </TableCell>
               </TableRow>
             ) : !signals || signals.length === 0 ? (

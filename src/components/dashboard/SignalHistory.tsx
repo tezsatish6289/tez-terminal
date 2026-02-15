@@ -10,7 +10,6 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/badge";
 import { Terminal, AlertCircle, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -145,8 +144,15 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
             ) : (
               signals.map((signal) => {
                 const data = parsePayload(signal.payload);
-                // Resilient Price/TF detection from both primary fields and nested payload
-                const displayPrice = signal.price ?? data?.price ?? data?.close ?? data?.price_at_alert;
+                
+                // Resilient Price detection
+                // 1. Try primary db field
+                // 2. Try various payload keys if db field is null/undefined
+                let displayPriceValue = signal.price;
+                if (displayPriceValue === null || displayPriceValue === undefined) {
+                  displayPriceValue = data?.price ?? data?.close ?? data?.price_at_alert ?? data?.last_price ?? data?.entry;
+                }
+                
                 const displayTF = signal.timeframe || data?.timeframe || data?.interval || data?.tf;
                 
                 return (
@@ -165,7 +171,9 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                       <div className="text-[10px] font-bold text-muted-foreground">{formatTimeframe(displayTF)}</div>
                     </TableCell>
                     <TableCell className="font-mono text-xs px-2 text-accent font-bold">
-                      {displayPrice ? `$${Number(displayPrice).toLocaleString()}` : "--"}
+                      {displayPriceValue !== null && displayPriceValue !== undefined 
+                        ? `$${Number(displayPriceValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 8 })}` 
+                        : "--"}
                     </TableCell>
                   </TableRow>
                 );

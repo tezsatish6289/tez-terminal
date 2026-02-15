@@ -72,11 +72,13 @@ export default function WebhooksPage() {
   const handleSimulateIndicatorSignal = async (webhook: any, side: 'buy' | 'sell', tf: string) => {
     setIsTesting(`${webhook.id}-${side}-${tf}`);
     
-    // Canonical TF values: 1, 5, 15, 60, 240, D
+    // Use realistic simulated prices
+    const simPrice = side === 'buy' ? 98500.42 : 97200.15;
+    
     const indicatorPayload = {
       ticker: "SIMULATED_ASSET",
       side: side,
-      price_at_alert: side === 'buy' ? 98500.42 : 97200.15,
+      price: simPrice, // Using 'price' directly to test primary extraction
       secretKey: webhook.secretKey,
       exchange: "SIMULATOR",
       timeframe: tf, 
@@ -95,7 +97,7 @@ export default function WebhooksPage() {
       if (response.ok) {
         toast({ 
           title: "Simulation Success", 
-          description: `Internal ${side.toUpperCase()} signal processed for TF: ${result.timeframe || tf}` 
+          description: `Internal ${side.toUpperCase()} signal processed at $${result.price || simPrice}` 
         });
       } else {
         toast({ 

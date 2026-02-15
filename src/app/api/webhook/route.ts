@@ -67,9 +67,17 @@ export async function POST(request: NextRequest) {
     if (rawSide.includes("buy") || rawSide.includes("long")) signalType = "BUY";
     if (rawSide.includes("sell") || rawSide.includes("short")) signalType = "SELL";
 
-    // 3. FUZZY PRICE SEARCH
-    const rawPrice = body.price ?? body.close ?? body.price_at_alert ?? body.last_price ?? body.entry;
-    const price = rawPrice && !isNaN(parseFloat(rawPrice.toString())) ? parseFloat(rawPrice.toString()) : null;
+    // 3. HARDENED FUZZY PRICE SEARCH
+    // Check for common TradingView price keys
+    const rawPrice = body.price ?? body.close ?? body.price_at_alert ?? body.last_price ?? body.entry ?? body.open;
+    
+    let price: number | null = null;
+    if (rawPrice !== undefined && rawPrice !== null && rawPrice !== "") {
+      const parsed = parseFloat(rawPrice.toString());
+      if (!isNaN(parsed)) {
+        price = parsed;
+      }
+    }
     
     // 4. FUZZY TIMEFRAME SEARCH & NORMALIZATION
     let rawTf = (body.timeframe || body.interval || body.tf || "").toString().toUpperCase().trim();
@@ -94,7 +102,7 @@ export async function POST(request: NextRequest) {
       payload: JSON.stringify(body),
       symbol,
       type: signalType,
-      price,
+      price, // Stored as a strict number or null
       timeframe: timeframe.toString(),
       note: body.note || `Indicator alert for ${symbol}`,
       source: configData.name || "TradingView Indicator",

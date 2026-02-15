@@ -11,7 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, LineChart, Activity, RefreshCw } from "lucide-react";
+import { AlertCircle, LineChart, Activity } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -21,15 +21,11 @@ interface SignalHistoryProps {
   onSignalSelect?: (signal: { symbol: string; timeframe?: string; exchange?: string }) => void;
 }
 
-const REFRESH_INTERVAL_SEC = 60; 
-
 export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const [mounted, setMounted] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
-  const [latestPrices, setLatestPrices] = useState<Record<string, number>>({});
-  const [countdown, setCountdown] = useState(REFRESH_INTERVAL_SEC);
 
   useEffect(() => {
     setMounted(true);
@@ -46,41 +42,11 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
 
   const { data: signals, isLoading, error } = useCollection(signalsQuery);
 
-  const resolveBinanceSymbol = (rawSymbol: string) => {
-    if (!rawSymbol) return "";
-    return rawSymbol.split(':').pop()?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || "";
-  };
-
-  useEffect(() => {
-    const fetchPrices = async () => {
-      try {
-        const response = await fetch('/api/prices?type=price');
-        if (response.ok) {
-          const priceMap = await response.json();
-          setLatestPrices(priceMap);
-        }
-      } catch (e) {
-        console.error("Price fetch failed", e);
-      }
-    };
-
-    fetchPrices();
-    const interval = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          fetchPrices();
-          return REFRESH_INTERVAL_SEC;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const calculatePercent = (current: number | undefined, entry: number, type: string) => {
-    if (!current || !entry) return null;
-    const diff = type === 'BUY' ? current - entry : entry - current;
+  const calculatePercent = (targetPrice: number | undefined, entry: number, type: string) => {
+    if (!targetPrice || !entry) return null;
+    // BUY: (current - entry) / entry
+    // SELL: (entry - current) / entry
+    const diff = type === 'BUY' ? targetPrice - entry : entry - targetPrice;
     return ((diff / entry) * 100).toFixed(2);
   };
 
@@ -114,7 +80,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-[8px] h-4 border-emerald-500/20 text-emerald-400 gap-1 bg-emerald-500/5 uppercase font-bold">
-            <Activity className="h-2 w-2" /> Cron Active
+            <Activity className="h-2 w-2" /> Server Node Active
           </Badge>
         </div>
       </div>
@@ -132,7 +98,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                 <div className="flex flex-col items-end">
                    <span>Latest Price</span>
                    <Badge variant="outline" className="text-[7px] h-3 px-1 border-accent/30 text-accent font-mono mt-0.5">
-                     SYNC: {countdown}s
+                     5M HEARTBEAT
                    </Badge>
                 </div>
               </TableHead>
@@ -142,14 +108,13 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
           </TableHeader>
           <TableBody>
             {isLoading && (!signals || signals.length === 0) ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-20 text-[10px] animate-pulse text-accent">Synchronizing Market Data...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center py-20 text-[10px] animate-pulse text-accent">Listening to Global Data Feed...</TableCell></TableRow>
             ) : signals?.length === 0 ? (
               <TableRow><TableCell colSpan={8} className="text-center py-20 text-[10px] text-muted-foreground">Waiting for fresh TradingView signals...</TableCell></TableRow>
             ) : (
               signals?.map((signal) => {
-                const cleanSym = resolveBinanceSymbol(signal.symbol);
-                const latestPrice = latestPrices[cleanSym];
                 const alertPrice = Number(signal.price || 0);
+                const currentPrice = Number(signal.currentPrice || alertPrice);
                 
                 const upsidePercent = calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type);
                 const drawdownPercent = calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type);
@@ -186,12 +151,10 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                     <TableCell className="text-right py-3">
                       <div className={cn(
                         "font-mono text-[11px] font-bold",
-                        latestPrice && alertPrice ? (
-                          (signal.type === 'BUY' && latestPrice >= alertPrice) || (signal.type === 'SELL' && latestPrice <= alertPrice) 
-                          ? "text-emerald-400" : "text-rose-400"
-                        ) : "text-muted-foreground"
+                        (signal.type === 'BUY' && currentPrice >= alertPrice) || (signal.type === 'SELL' && currentPrice <= alertPrice) 
+                        ? "text-emerald-400" : "text-rose-400"
                       )}>
-                        {latestPrice ? `$${latestPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "--"}
+                        ${currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </div>
                     </TableCell>
                     <TableCell className="text-right py-3">

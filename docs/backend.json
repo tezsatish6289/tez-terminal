@@ -26,6 +26,7 @@
         "symbol": { "type": "string" },
         "type": { "type": "string", "enum": ["BUY", "SELL", "NEUTRAL"] },
         "price": { "type": "number", "description": "The price at which the alert was triggered." },
+        "currentPrice": { "type": "number", "description": "The most recent price recorded by the server cron." },
         "payload": { "type": "string" },
         "note": { "type": "string" },
         "source": { "type": "string" },

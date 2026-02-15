@@ -4,9 +4,9 @@ import { initializeFirebase } from "@/firebase";
 import { collection, getDocs, updateDoc, doc, addDoc } from "firebase/firestore";
 
 /**
- * 24/7 Performance Engine.
- * Intended to be triggered every 5 minutes.
- * Updates high/low watermarks for all active signals.
+ * 24/7 Global Synchronization Engine.
+ * This cron job is the sole source of price truth for the entire terminal.
+ * It updates currentPrice, maxUpsidePrice, and maxDrawdownPrice in Firestore.
  */
 export async function GET() {
   const { firestore } = initializeFirebase();
@@ -51,23 +51,23 @@ export async function GET() {
         if (currentPrice > newMaxDrawdown) newMaxDrawdown = currentPrice;
       }
 
-      if (newMaxUpside !== signal.maxUpsidePrice || newMaxDrawdown !== signal.maxDrawdownPrice) {
-        updateCount++;
-        return updateDoc(doc(firestore, "signals", signalDoc.id), {
-          maxUpsidePrice: newMaxUpside,
-          maxDrawdownPrice: newMaxDrawdown
-        });
-      }
+      // Always update currentPrice, and update max metrics if they changed
+      updateCount++;
+      return updateDoc(doc(firestore, "signals", signalDoc.id), {
+        currentPrice: currentPrice,
+        maxUpsidePrice: newMaxUpside,
+        maxDrawdownPrice: newMaxDrawdown
+      });
     });
 
     await Promise.all(updates);
 
-    // Technical Log for Admin Debugger
+    // Audit Log for Debugger
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
       level: "INFO",
-      message: "Cron Heartbeat: Performance Sync Complete",
-      details: `Processed ${signalsSnap.size} signals. Records updated: ${updateCount}.`,
+      message: "Cron Heartbeat: Multi-Metric Sync Complete",
+      details: `Updated current price and performance metrics for ${signalsSnap.size} signals.`,
       webhookId: "SYSTEM_CRON",
     });
 

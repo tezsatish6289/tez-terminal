@@ -1,10 +1,11 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
 
 /**
  * Production-Ready Ingestion Bridge.
- * Now initializes Max Upside and Max Drawdown tracking fields.
+ * Standardizes incoming signals and initializes performance tracking fields.
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
@@ -86,8 +87,9 @@ export async function POST(request: NextRequest) {
       symbol,
       type: signalType,
       price, 
-      maxUpsidePrice: price, // Initialize performance tracking at entry
-      maxDrawdownPrice: price, // Initialize performance tracking at entry
+      currentPrice: price, // Initialize with alert price
+      maxUpsidePrice: price, // Initialize performance tracking
+      maxDrawdownPrice: price, // Initialize performance tracking
       timeframe: timeframe.toString(),
       note: body.note || `Indicator alert for ${symbol}`,
       source: configData.name || "TradingView Indicator",

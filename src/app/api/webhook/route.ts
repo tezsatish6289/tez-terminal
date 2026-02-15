@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
@@ -76,9 +75,20 @@ export async function POST(request: NextRequest) {
     const rawPrice = body.price_at_alert ?? body.price;
     const price = rawPrice ? parseFloat(rawPrice.toString()) : null;
     
-    // Normalize Timeframe (TV sends 1, 5, 15, 60, 240, D, 1D, etc.)
+    // Normalize Timeframe (TV sends 1, 5, 15, 60, 240, D, 1D, 5m, etc.)
+    // We want a standard: "1", "5", "15", "60", "240", "D"
     let timeframe = (body.timeframe || body.interval || "").toString().toUpperCase();
-    if (timeframe === "1D" || timeframe === "DAILY") timeframe = "D";
+    
+    // Remove "M" if it's a minute timeframe (e.g. 5M -> 5)
+    if (/^\d+M$/.test(timeframe)) {
+      timeframe = timeframe.replace("M", "");
+    }
+    
+    // Map daily variations
+    if (timeframe === "1D" || timeframe === "D" || timeframe === "DAILY" || timeframe === "240") {
+       if (timeframe !== "240") timeframe = "D";
+    }
+
     if (!timeframe) timeframe = "15"; // Default if missing
 
     const signalData = {

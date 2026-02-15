@@ -1,4 +1,3 @@
-
 "use client";
 
 import { TopBar } from "@/components/dashboard/TopBar";
@@ -70,8 +69,8 @@ export default function WebhooksPage() {
     toast({ title: "Copied", description: "Value copied to clipboard." });
   };
 
-  const handleSimulateIndicatorSignal = async (webhook: any, side: 'buy' | 'sell') => {
-    setIsTesting(`${webhook.id}-${side}`);
+  const handleSimulateIndicatorSignal = async (webhook: any, side: 'buy' | 'sell', tf: string = "5") => {
+    setIsTesting(`${webhook.id}-${side}-${tf}`);
     
     const indicatorPayload = {
       ticker: "SIMULATED_ASSET",
@@ -79,8 +78,8 @@ export default function WebhooksPage() {
       price_at_alert: side === 'buy' ? 98500.42 : 97200.15,
       secretKey: webhook.secretKey,
       exchange: "SIMULATOR",
-      timeframe: "1",
-      note: `Simulation: Manual ${side.toUpperCase()} Signal`
+      timeframe: tf,
+      note: `Simulation: Manual ${side.toUpperCase()} ${tf} Signal`
     };
 
     try {
@@ -95,7 +94,7 @@ export default function WebhooksPage() {
       if (response.ok) {
         toast({ 
           title: "Simulation Success", 
-          description: `Internal ${side.toUpperCase()} signal processed. Check History Page.` 
+          description: `Internal ${side.toUpperCase()} (${tf}) signal processed.` 
         });
       } else {
         toast({ 
@@ -262,24 +261,33 @@ export default function WebhooksPage() {
                         <CardTitle className="text-white text-md font-bold">{webhook.name}</CardTitle>
                         <CardDescription className="text-[10px] font-mono">{webhook.id}</CardDescription>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <Button 
                           variant="outline" 
                           size="sm" 
                           className="border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-400 h-8" 
-                          onClick={() => handleSimulateIndicatorSignal(webhook, 'buy')} 
+                          onClick={() => handleSimulateIndicatorSignal(webhook, 'buy', '5')} 
                           disabled={!!isTesting}
                         >
-                          {isTesting === `${webhook.id}-buy` ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Simulate Buy
+                          {isTesting?.includes(`${webhook.id}-buy-5`) ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Sim 5m Buy
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-400 h-8" 
+                          onClick={() => handleSimulateIndicatorSignal(webhook, 'buy', 'D')} 
+                          disabled={!!isTesting}
+                        >
+                          {isTesting?.includes(`${webhook.id}-buy-D`) ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Sim Daily Buy
                         </Button>
                         <Button 
                           variant="outline" 
                           size="sm" 
                           className="border-rose-500/30 hover:bg-rose-500/10 text-rose-400 h-8" 
-                          onClick={() => handleSimulateIndicatorSignal(webhook, 'sell')} 
+                          onClick={() => handleSimulateIndicatorSignal(webhook, 'sell', '1')} 
                           disabled={!!isTesting}
                         >
-                          {isTesting === `${webhook.id}-sell` ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Simulate Sell
+                          {isTesting?.includes(`${webhook.id}-sell-1`) ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Sim 1m Sell
                         </Button>
                       </div>
                     </CardHeader>

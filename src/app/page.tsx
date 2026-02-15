@@ -88,28 +88,43 @@ export default function Home() {
         <TopBar />
         
         <div className="flex-1 flex min-h-0 divide-x divide-border">
-          {/* Left Pane: Ideas */}
-          <section className="w-[450px] flex flex-col bg-card/30">
+          {/* Left Pane: Ideas (Expanded for Performance Columns) */}
+          <section className="w-[850px] flex flex-col bg-card/30 border-r border-border shrink-0">
             <div className="p-4 border-b border-border bg-background/50 flex items-center justify-between">
               <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                 <Lightbulb className="h-3 w-3 text-accent" />
                 Idea Stream
               </h2>
-              <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] text-muted-foreground font-mono uppercase">Full Performance View</span>
+                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto">
               <SignalHistory onSignalSelect={setActiveSignal} />
             </div>
           </section>
 
-          {/* Right Pane: Chart */}
-          <section className="flex-1 flex flex-col bg-background p-2 relative">
-             <div className="flex-1 rounded-xl overflow-hidden border border-border shadow-2xl">
-                <ChartPane 
-                  symbol={activeSignal?.symbol} 
-                  interval={activeSignal?.timeframe} 
-                  exchange={activeSignal?.exchange}
-                />
+          {/* Right Pane: Chart (Remaining space) */}
+          <section className="flex-1 flex flex-col bg-background p-2 relative min-w-0">
+             <div className="flex-1 rounded-xl overflow-hidden border border-border shadow-2xl relative bg-[#13111a]">
+                {activeSignal ? (
+                  <ChartPane 
+                    symbol={activeSignal?.symbol} 
+                    interval={activeSignal?.timeframe} 
+                    exchange={activeSignal?.exchange}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-12">
+                     <div className="bg-accent/5 p-6 rounded-full border border-accent/10">
+                        <LineChart className="h-12 w-12 text-accent/20" />
+                     </div>
+                     <div>
+                        <h3 className="text-white font-bold text-lg">No Signal Selected</h3>
+                        <p className="text-muted-foreground text-sm max-w-xs mx-auto">Click on a trade in the idea stream to initialize the TradingView terminal.</p>
+                     </div>
+                  </div>
+                )}
              </div>
           </section>
         </div>
@@ -119,3 +134,5 @@ export default function Home() {
     </div>
   );
 }
+
+import { LineChart } from "lucide-react";

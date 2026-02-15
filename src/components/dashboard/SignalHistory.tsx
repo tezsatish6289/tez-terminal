@@ -11,7 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Loader2, ArrowUpRight, ArrowDownRight, RefreshCw } from "lucide-react";
+import { AlertCircle, Loader2, ArrowUpRight, ArrowDownRight, RefreshCw, Timer } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -127,6 +127,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
 
   const resolveBinanceSymbol = (rawSymbol: string) => {
     if (!rawSymbol) return "";
+    // Clean symbol for Binance mapping (e.g. BINANCE:BTCUSDT -> BTCUSDT)
     const clean = rawSymbol.split(':').pop()?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || "";
     return clean;
   };
@@ -175,8 +176,9 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
               <TableHead className="w-[110px] px-2 text-[10px] uppercase font-bold text-right text-accent/80">
                 <div className="flex flex-col items-end leading-tight gap-1">
                   <span>Latest Price</span>
-                  <div className="flex items-center gap-1 bg-accent/10 border border-accent/20 px-1.5 py-0.5 rounded text-[8px] font-mono text-accent">
-                    <span>{countdown}S</span>
+                  <div className="flex items-center gap-1 bg-accent/20 border border-accent/40 px-2 py-0.5 rounded-sm text-[8px] font-mono text-accent">
+                    <Timer className="h-2 w-2" />
+                    <span>REFRESH: {countdown}s</span>
                   </div>
                 </div>
               </TableHead>

@@ -22,6 +22,7 @@ import { useRouter } from "next/navigation";
 /**
  * PRODUCTION TERMINAL ENGINE
  * Using server-side Firestore filtering for maximum scalability.
+ * Fixed-width column architecture for professional uniformity.
  */
 export function SignalHistory() {
   const router = useRouter();
@@ -55,6 +56,7 @@ export function SignalHistory() {
       constraints.push(where("timeframe", "==", activeTimeframe));
     }
 
+    // Server-side ordering requires a Composite Index if where() is used.
     constraints.push(orderBy("receivedAt", "desc"));
     constraints.push(limit(150));
 
@@ -93,13 +95,13 @@ export function SignalHistory() {
 
   if (error) {
     return (
-      <div className="p-10 text-center flex flex-col items-center justify-center gap-4">
-        <AlertCircle className="h-10 w-10 text-destructive" />
+      <div className="p-10 text-center flex flex-col items-center justify-center gap-4 h-full bg-card/10">
+        <AlertCircle className="h-12 w-12 text-destructive" />
         <div className="max-w-md">
-          <p className="text-sm font-bold text-white uppercase tracking-wider">Production Query Error</p>
+          <p className="text-sm font-bold text-white uppercase tracking-widest">Database Sync Error</p>
           <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-            {error.message.includes('index') 
-              ? "This filtered view requires a Firestore Composite Index. Check console for the generation link."
+            {error.message.toLowerCase().includes('index') 
+              ? "This filtered view requires a Firestore Composite Index. Please check your browser console (F12) for the generation link."
               : error.message}
           </p>
         </div>
@@ -163,23 +165,35 @@ export function SignalHistory() {
         <Table className="min-w-[1250px] table-fixed">
           <TableHeader className="bg-secondary/20 sticky top-0 z-10 backdrop-blur-md">
             <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Time</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">Age</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 text-left pl-3 w-[130px]">Asset</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[110px]">EXCHANGE</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Chart</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Side</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 text-right w-[110px]">Entry</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold text-accent py-3 text-right w-[180px]">Live Performance</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold text-emerald-400 py-3 text-right w-[120px]">Max Up</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold text-rose-400 py-3 text-center w-[120px] pr-6">Max Down</TableHead>
+              {/* TIME COLUMN */}
+              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">TIME</TableHead>
+              {/* AGE COLUMN */}
+              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[90px]">AGE</TableHead>
+              {/* ASSET COLUMN - Tightened with 58px padding as requested */}
+              <TableHead className="text-[10px] uppercase font-black py-3 text-left pl-[58px] w-[140px]">ASSET</TableHead>
+              {/* EXCHANGE COLUMN */}
+              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[120px]">EXCHANGE</TableHead>
+              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">CHART</TableHead>
+              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">SIDE</TableHead>
+              <TableHead className="text-[10px] uppercase font-black py-3 text-right w-[110px]">ENTRY</TableHead>
+              <TableHead className="text-[10px] uppercase font-black text-accent py-3 text-right w-[180px]">LIVE PERFORMANCE</TableHead>
+              <TableHead className="text-[10px] uppercase font-black text-emerald-400 py-3 text-right w-[120px]">MAX UP</TableHead>
+              <TableHead className="text-[10px] uppercase font-black text-rose-400 py-3 text-center w-[120px] pr-6">MAX DOWN</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={10} className="text-center py-20 text-sm animate-pulse text-accent uppercase tracking-widest font-bold">Querying Server...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="text-center py-20 text-sm animate-pulse text-accent uppercase tracking-widest font-bold">Connecting to Idea Stream...</TableCell></TableRow>
             ) : signals?.length === 0 ? (
-              <TableRow><TableCell colSpan={10} className="text-center py-20 text-sm text-muted-foreground uppercase tracking-widest font-bold">No results found for current filters</TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={10} className="text-center py-24">
+                  <div className="flex flex-col items-center gap-3">
+                    <AlertCircle className="h-8 w-8 text-muted-foreground opacity-20" />
+                    <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">No signals detected for current filters</p>
+                    <p className="text-[10px] text-muted-foreground/60 max-w-xs leading-relaxed">Ensure your Bridge Management has active webhooks or send a test signal from the configuration page.</p>
+                  </div>
+                </TableCell>
+              </TableRow>
             ) : (
               signals?.map((signal) => {
                 const alertPrice = Number(signal.price || 0);
@@ -200,13 +214,13 @@ export function SignalHistory() {
                     </TableCell>
                     <TableCell className="py-3 text-center">
                       <div className="flex items-center justify-center gap-1.5 text-muted-foreground">
-                        <Timer className="h-3.5 w-3.5 text-accent/50" />
+                        <Timer className="h-3 w-3 text-accent/50" />
                         <span className="text-[11px] font-mono font-bold">
                           {mounted ? getRunningSince(signal.receivedAt) : "--"}
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="py-3 pl-3">
+                    <TableCell className="py-3 pl-[58px]">
                       <div className="flex flex-col">
                         <span className="font-bold text-sm text-white tracking-tight uppercase leading-none">{signal.symbol}</span>
                         <span className="text-[9px] text-muted-foreground font-bold mt-1 uppercase opacity-50 truncate">{signal.assetType || "CRYPTO"}</span>
@@ -214,7 +228,7 @@ export function SignalHistory() {
                     </TableCell>
                     <TableCell className="py-3 text-center">
                       <div className="flex justify-center">
-                        <Badge className="bg-primary/30 text-accent border-accent/20 text-[9px] font-bold h-5 px-1.5 uppercase">
+                        <Badge className="bg-primary/30 text-accent border-accent/20 text-[9px] font-bold h-5 px-1.5 uppercase tracking-tighter">
                           {signal.exchange || "BINANCE"}
                         </Badge>
                       </div>

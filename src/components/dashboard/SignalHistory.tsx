@@ -162,17 +162,13 @@ export function SignalHistory() {
       </div>
 
       <ScrollArea className="flex-1 w-full">
-        <Table className="min-w-[1250px] table-fixed">
+        <Table className="min-w-[1250px] table-fixed border-collapse">
           <TableHeader className="bg-secondary/20 sticky top-0 z-10 backdrop-blur-md">
             <TableRow className="border-border hover:bg-transparent">
-              {/* TIME COLUMN */}
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">TIME</TableHead>
-              {/* AGE COLUMN */}
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[90px]">AGE</TableHead>
-              {/* ASSET COLUMN - Tightened with 58px padding as requested */}
-              <TableHead className="text-[10px] uppercase font-black py-3 text-left pl-[58px] w-[140px]">ASSET</TableHead>
-              {/* EXCHANGE COLUMN */}
-              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[120px]">EXCHANGE</TableHead>
+              <TableHead className="text-[10px] uppercase font-black py-3 text-left pl-6 w-[150px]">ASSET</TableHead>
+              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[130px]">EXCHANGE</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">CHART</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">SIDE</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-right w-[110px]">ENTRY</TableHead>
@@ -190,7 +186,10 @@ export function SignalHistory() {
                   <div className="flex flex-col items-center gap-3">
                     <AlertCircle className="h-8 w-8 text-muted-foreground opacity-20" />
                     <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">No signals detected for current filters</p>
-                    <p className="text-[10px] text-muted-foreground/60 max-w-xs leading-relaxed">Ensure your Bridge Management has active webhooks or send a test signal from the configuration page.</p>
+                    <p className="text-[10px] text-muted-foreground/60 max-w-sm leading-relaxed mx-auto">
+                      Filters only apply to signals containing asset metadata. 
+                      Please send a test signal from the <span className="text-accent cursor-pointer underline" onClick={() => router.push('/webhooks')}>Bridge Management</span> page to populate the stream.
+                    </p>
                   </div>
                 </TableCell>
               </TableRow>
@@ -220,7 +219,7 @@ export function SignalHistory() {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="py-3 pl-[58px]">
+                    <TableCell className="py-3 pl-6">
                       <div className="flex flex-col">
                         <span className="font-bold text-sm text-white tracking-tight uppercase leading-none">{signal.symbol}</span>
                         <span className="text-[9px] text-muted-foreground font-bold mt-1 uppercase opacity-50 truncate">{signal.assetType || "CRYPTO"}</span>

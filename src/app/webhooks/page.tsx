@@ -72,13 +72,14 @@ export default function WebhooksPage() {
   const handleSimulateIndicatorSignal = async (webhook: any, side: 'buy' | 'sell', tf: string) => {
     setIsTesting(`${webhook.id}-${side}-${tf}`);
     
+    // Canonical TF values: 1, 5, 15, 60, 240, D
     const indicatorPayload = {
       ticker: "SIMULATED_ASSET",
       side: side,
       price_at_alert: side === 'buy' ? 98500.42 : 97200.15,
       secretKey: webhook.secretKey,
       exchange: "SIMULATOR",
-      timeframe: tf, // This MUST match the standard keys used by the normalization engine
+      timeframe: tf, 
       note: `Simulation: Manual ${side.toUpperCase()} ${tf} Signal`
     };
 

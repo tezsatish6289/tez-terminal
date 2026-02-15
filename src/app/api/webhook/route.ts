@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
       rawBody = "UNREADABLE_BODY";
     }
 
+    // Log the raw attempt for admin debugging
     await addDoc(logsRef, {
       timestamp,
       level: "INFO",
@@ -68,8 +69,8 @@ export async function POST(request: NextRequest) {
     const rawPrice = body.price_at_alert ?? body.price;
     const price = rawPrice ? parseFloat(rawPrice.toString()) : null;
     
-    // --- TIMEFRAME NORMALIZATION ENGINE ---
-    // Standardizes TradingView interval codes to a canonical set: 1, 5, 15, 60, 240, D
+    // --- ROBUST TIMEFRAME NORMALIZATION ENGINE ---
+    // This ensures that the DB always contains "1", "5", "15", "60", "240", "D"
     let rawTf = (body.timeframe || body.interval || "").toString().toUpperCase().trim();
     
     const tfMap: Record<string, string> = {
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
       "W": "W", "1W": "W", "WEEKLY": "W",
     };
 
-    // Strip characters to handle things like "5m" or "15min"
+    // Strip non-alphanumeric chars for cleaner matching
     const cleanedTf = rawTf.replace(/[^A-Z0-9]/g, "");
     const timeframe = tfMap[cleanedTf] || cleanedTf || "15";
 
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest) {
       symbol: symbol,
       type: signalType,
       price: price,
-      timeframe: timeframe,
+      timeframe: timeframe.toString(), // Force string for Firestore query consistency
       note: body.note || `Indicator alert for ${symbol}`,
       source: configData.name || "TradingView Indicator",
     };

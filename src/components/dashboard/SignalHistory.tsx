@@ -21,7 +21,7 @@ interface SignalHistoryProps {
   onSignalSelect?: (signal: { symbol: string; timeframe?: string; exchange?: string }) => void;
 }
 
-// These values MUST match the normalized output of the API engine exactly as strings
+// These values MUST match the normalized output of the API engine exactly
 const FILTERS = [
   { label: "All", value: null },
   { label: "1 min", value: "1" },
@@ -47,7 +47,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
     
     const baseQuery = collection(firestore, "signals");
     
-    // Use string comparisons for normalized timeframes
+    // Querying by timeframe requires a Firestore Composite Index
     if (activeFilter) {
       return query(
         baseQuery,
@@ -201,8 +201,18 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                 <TableCell colSpan={5} className="text-center py-12">
                   <Terminal className="h-6 w-6 text-muted-foreground mx-auto mb-2 opacity-20" />
                   <p className="text-muted-foreground text-[10px]">
-                    {activeFilter ? `No ${activeFilter} signals found...` : "No signals yet..."}
+                    {activeFilter ? `No "${formatTimeframe(activeFilter)}" signals found...` : "No signals yet..."}
                   </p>
+                  {activeFilter && (
+                    <Button 
+                      variant="link" 
+                      size="sm" 
+                      className="text-[9px] text-accent mt-2"
+                      onClick={() => setActiveFilter(null)}
+                    >
+                      Show all timeframes
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ) : (

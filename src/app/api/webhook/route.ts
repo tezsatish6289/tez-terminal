@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
@@ -64,7 +63,7 @@ export async function POST(request: NextRequest) {
       throw new Error(`Authentication failure: Secret key mismatch.`);
     }
 
-    // 6. Signal Mapping (Indicator specific)
+    // 6. Signal Mapping
     let signalType = "NEUTRAL";
     const rawSide = (body.side || "").toString().toLowerCase();
     
@@ -72,7 +71,10 @@ export async function POST(request: NextRequest) {
     if (rawSide === "sell") signalType = "SELL";
 
     const symbol = (body.ticker || body.symbol || "UNKNOWN").toUpperCase();
-    const price = body.price ? parseFloat(body.price.toString()) : null;
+    
+    // Support both 'price_at_alert' and 'price' for backward compatibility
+    const rawPrice = body.price_at_alert ?? body.price;
+    const price = rawPrice ? parseFloat(rawPrice.toString()) : null;
 
     const signalData = {
       webhookId: webhookId,

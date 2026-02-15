@@ -1,4 +1,3 @@
-
 "use client";
 
 import { LeftSidebar } from "@/components/dashboard/Sidebar";
@@ -77,7 +76,7 @@ export default function WebhooksPage() {
     const indicatorPayload = {
       ticker: "SIMULATED_ASSET",
       side: side,
-      price: side === 'buy' ? 98500 : 97200,
+      price_at_alert: side === 'buy' ? 98500.42 : 97200.15,
       secretKey: webhook.secretKey,
       exchange: "SIMULATOR",
       timeframe: "1",
@@ -245,12 +244,12 @@ export default function WebhooksPage() {
             ) : (
               webhooks?.map((webhook) => {
                 const endpoint = `${origin}/api/webhook?id=${webhook.id}`;
-                const pineScriptSnippet = `// Webhook Logic for TezTerminal\n// Use 'Any alert() function call' in TV Alert settings\nif buySignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"buy", "price":"' + str.tostring(close) + '", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)\nif sellSignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"sell", "price":"' + str.tostring(close) + '", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)`;
+                const pineScriptSnippet = `// Webhook Logic for TezTerminal\n// Use 'Any alert() function call' in TV Alert settings\nif buySignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"buy", "price_at_alert":"' + str.tostring(close) + '", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)\nif sellSignal\n    alert('{"ticker":"' + syminfo.ticker + '", "side":"sell", "price_at_alert":"' + str.tostring(close) + '", "secretKey":"${webhook.secretKey}"}', alert.freq_once_per_bar_close)`;
 
                 const jsonPayload = `{
   "ticker": "{{ticker}}",
   "side": "buy",
-  "price": "{{close}}",
+  "price_at_alert": "{{close}}",
   "secretKey": "${webhook.secretKey}",
   "exchange": "{{exchange}}",
   "timeframe": "{{interval}}",
@@ -352,7 +351,7 @@ export default function WebhooksPage() {
                       <div className="p-3 bg-accent/5 border border-accent/20 rounded-lg flex items-start gap-3">
                          <Info className="h-4 w-4 text-accent mt-0.5" />
                          <p className="text-[10px] leading-relaxed text-muted-foreground">
-                           <b>Pro Tip:</b> Ensure the "Webhook URL" is correct and the "Message" box in TradingView contains <b>nothing but the JSON</b>. Include the <b>price</b> field for accurate terminal tracking.
+                           <b>Pro Tip:</b> Ensure the "Webhook URL" is correct and the "Message" box in TradingView contains <b>nothing but the JSON</b>. Include the <b>price_at_alert</b> field for accurate terminal tracking.
                          </p>
                       </div>
                     </CardContent>

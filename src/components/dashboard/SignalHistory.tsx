@@ -21,8 +21,8 @@ import { useRouter } from "next/navigation";
 
 /**
  * PRODUCTION TERMINAL ENGINE
- * Standardized fixed-width columns for uniform terminal spacing.
- * Age-to-Asset gap tightened by 3px via reduced padding.
+ * Standardized fixed-width columns for uniform spacing.
+ * Removed fallback hardcoding for assetType to show raw database values.
  */
 export function SignalHistory() {
   const router = useRouter();
@@ -44,10 +44,12 @@ export function SignalHistory() {
     
     const constraints: QueryConstraint[] = [];
     
+    // Server-side filtering by Asset Type
     if (activeAssetType) {
       constraints.push(where("assetType", "==", activeAssetType));
     }
     
+    // Server-side filtering by Timeframe
     if (activeTimeframe) {
       constraints.push(where("timeframe", "==", activeTimeframe));
     }
@@ -113,6 +115,7 @@ export function SignalHistory() {
 
   return (
     <div className="flex flex-col h-full bg-card/30">
+      {/* FILTER BAR */}
       <div className="p-3 border-b border-border bg-background/50 flex flex-col gap-3 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
@@ -156,13 +159,14 @@ export function SignalHistory() {
         </div>
       </div>
 
+      {/* TERMINAL FEED */}
       <ScrollArea className="flex-1 w-full">
         <Table className="min-w-[1250px] table-fixed border-collapse">
           <TableHeader className="bg-secondary/20 sticky top-0 z-10 backdrop-blur-md">
             <TableRow className="border-border hover:bg-transparent">
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">TIME</TableHead>
-              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[90px]">AGE</TableHead>
-              <TableHead className="text-[10px] uppercase font-black py-3 text-left pl-[21px] w-[150px]">ASSET</TableHead>
+              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[100px]">AGE</TableHead>
+              <TableHead className="text-[10px] uppercase font-black py-3 text-left px-4 w-[160px]">ASSET</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[130px]">EXCHANGE</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">CHART</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">SIDE</TableHead>
@@ -182,7 +186,7 @@ export function SignalHistory() {
                     <AlertCircle className="h-8 w-8 text-muted-foreground opacity-20" />
                     <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">No signals detected for current filters</p>
                     <p className="text-[10px] text-muted-foreground/60 max-w-sm leading-relaxed mx-auto">
-                      Filters only apply to signals containing top-level assetType data. 
+                      Only signals with a valid Asset Type in the database will appear under these filters.
                       Please send a test signal from the <span className="text-accent cursor-pointer underline" onClick={() => router.push('/webhooks')}>Bridge Management</span> page to populate the stream.
                     </p>
                   </div>
@@ -214,11 +218,11 @@ export function SignalHistory() {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="py-3 pl-[21px]">
+                    <TableCell className="py-3 px-4">
                       <div className="flex flex-col">
                         <span className="font-bold text-sm text-white tracking-tight uppercase leading-none">{signal.symbol}</span>
                         <span className="text-[9px] text-muted-foreground font-bold mt-1 uppercase opacity-50 truncate">
-                          {signal.assetType || "CRYPTO"}
+                          {signal.assetType}
                         </span>
                       </div>
                     </TableCell>

@@ -5,7 +5,7 @@ import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/fires
 
 /**
  * Production-Ready Ingestion Bridge.
- * Standardizes incoming signals and handles various market metadata formats.
+ * Extracts metadata from multiple JSON formats to ensure 100% filter compatibility.
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
@@ -50,19 +50,21 @@ export async function POST(request: NextRequest) {
       throw new Error(`Authentication failure: Secret key mismatch.`);
     }
 
-    // Comprehensive Asset Type Detection
+    // 1. Symbol Detection
     const symbol = (body.ticker || body.symbol || body.pair || body.asset || "UNKNOWN").toUpperCase();
     const exchange = (body.exchange || body.market || "BINANCE").toUpperCase();
     
-    // Check multiple possible keys for Asset Type to ensure it becomes a filterable field
+    // 2. Asset Type Detection (Supports mapping 'asset_type' to 'assetType')
     const rawAssetType = body.assetType || body.asset_type || body.category || body.market_type || body.type_asset || "CRYPTO";
     const assetType = rawAssetType.toString().toUpperCase().trim();
 
+    // 3. Side Detection
     let signalType = "NEUTRAL";
     const rawSide = (body.side || body.action || body.type || "").toString().toLowerCase();
     if (rawSide.includes("buy") || rawSide.includes("long")) signalType = "BUY";
     if (rawSide.includes("sell") || rawSide.includes("short")) signalType = "SELL";
 
+    // 4. Price Detection
     const rawPrice = body.price ?? body.close ?? body.price_at_alert ?? body.last_price ?? body.entry ?? body.open;
     let price: number | null = null;
     if (rawPrice !== undefined && rawPrice !== null && rawPrice !== "") {
@@ -72,6 +74,7 @@ export async function POST(request: NextRequest) {
       }
     }
     
+    // 5. Timeframe Detection
     let rawTf = (body.timeframe || body.interval || body.tf || "").toString().toUpperCase().trim();
     const tfMap: Record<string, string> = {
       "1": "1", "1M": "1", "1MIN": "1", "1MINUTE": "1",
@@ -92,7 +95,7 @@ export async function POST(request: NextRequest) {
       payload: JSON.stringify(body),
       symbol,
       exchange,
-      assetType, // EXPLICIT TOP-LEVEL FIELD FOR DATABASE FILTERING
+      assetType, // PROMOTED TO TOP-LEVEL FOR DATABASE FILTERING
       type: signalType,
       price, 
       currentPrice: price, 

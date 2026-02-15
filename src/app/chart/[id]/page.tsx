@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useDoc, useFirestore, useMemoFirebase, useUser } from "@/firebase";
@@ -18,16 +17,20 @@ import {
   Loader2,
   AlertTriangle,
   Timer,
-  TrendingUp
+  TrendingUp,
+  BrainCircuit,
+  ShieldCheck,
+  Target,
+  Info,
+  ChevronRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, differenceInMinutes } from "date-fns";
 import { useEffect, useState } from "react";
+import { analyzeSignal, type AnalyzeSignalOutput } from "@/ai/flows/analyze-signal-flow";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 
-/**
- * DEEP DIVE PERFORMANCE PAGE
- * Extracts assetType with legacy payload fallback to ensure data accuracy.
- */
 export default function DeepDiveChartPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -35,6 +38,10 @@ export default function DeepDiveChartPage() {
   const { user, isUserLoading } = useUser();
   const [mounted, setMounted] = useState(false);
   const [now, setNow] = useState(new Date());
+  
+  // AI States
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<AnalyzeSignalOutput | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -49,29 +56,45 @@ export default function DeepDiveChartPage() {
 
   const { data: signal, isLoading: isSignalLoading, error } = useDoc(signalRef);
 
+  const handleAIAnalysis = async () => {
+    if (!signal) return;
+    setIsAnalyzing(true);
+    try {
+      const result = await analyzeSignal({
+        symbol: signal.symbol,
+        type: signal.type,
+        entryPrice: Number(signal.price),
+        currentPrice: Number(signal.currentPrice || signal.price),
+        timeframe: signal.timeframe,
+        maxUpside: Number(calculatePercent(signal.maxUpsidePrice, signal.price, signal.type)),
+        maxDrawdown: Number(calculatePercent(signal.maxDrawdownPrice, signal.price, signal.type)),
+        assetType: signal.assetType,
+        exchange: signal.exchange
+      });
+      setAnalysis(result);
+    } catch (err) {
+      console.error("AI Analysis failed:", err);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const getDisplayAssetType = (signal: any) => {
     if (!signal) return "UNCLASSIFIED";
     if (signal.assetType && signal.assetType !== "UNCLASSIFIED") return signal.assetType;
-    
     try {
       const payload = typeof signal.payload === 'string' ? JSON.parse(signal.payload) : (signal.payload || {});
       const raw = payload.assetType || payload.asset_type || payload.category || payload.market_type || payload.type_asset;
-      if (raw) {
-        const norm = raw.toString().toUpperCase().trim();
-        if (norm.includes("INDIAN STOCK")) return "INDIAN STOCKS";
-        if (norm.includes("US STOCK")) return "US STOCKS";
-        if (norm.includes("CRYPTO")) return "CRYPTO";
-        return norm;
-      }
+      if (raw) return raw.toString().toUpperCase();
     } catch (e) {}
-    
     return "UNCLASSIFIED";
   };
 
-  const calculatePercent = (targetPrice: number | undefined | null, entry: number, type: string) => {
-    if (targetPrice === undefined || targetPrice === null || !entry || entry === 0) return null;
-    const diff = type === 'BUY' ? targetPrice - entry : entry - targetPrice;
-    return ((diff / entry) * 100).toFixed(2);
+  const calculatePercent = (targetPrice: number | undefined | null, entry: any, type: string) => {
+    const entryNum = Number(entry);
+    if (targetPrice === undefined || targetPrice === null || !entryNum || entryNum === 0) return "0.00";
+    const diff = type === 'BUY' ? targetPrice - entryNum : entryNum - targetPrice;
+    return ((diff / entryNum) * 100).toFixed(2);
   };
 
   const formatPrice = (price: number | null | undefined) => {
@@ -81,19 +104,6 @@ export default function DeepDiveChartPage() {
       minimumFractionDigits: decimals, 
       maximumFractionDigits: decimals 
     });
-  };
-
-  const getRunningSince = (receivedAt: string) => {
-    const start = new Date(receivedAt);
-    const diffMins = differenceInMinutes(now, start);
-    const days = Math.floor(diffMins / 1440);
-    const hours = Math.floor((diffMins % 1440) / 60);
-    const mins = diffMins % 60;
-    const parts = [];
-    if (days > 0) parts.push(`${days}d`);
-    if (hours > 0) parts.push(`${hours}h`);
-    parts.push(`${mins}m`);
-    return parts.join(" ");
   };
 
   if (isUserLoading || (isSignalLoading && !signal)) {
@@ -109,10 +119,7 @@ export default function DeepDiveChartPage() {
       <div className="flex h-screen flex-col items-center justify-center bg-background p-6 text-center gap-6">
         <AlertTriangle className="h-16 w-16 text-destructive" />
         <h2 className="text-2xl font-bold">Signal Not Found</h2>
-        <p className="text-muted-foreground">This market alert may have been purged or the link is invalid.</p>
-        <Button onClick={() => router.push("/")} variant="outline" className="gap-2">
-          <ChevronLeft className="h-5 w-5" /> Return to Terminal
-        </Button>
+        <Button onClick={() => router.push("/")} variant="outline">Return to Terminal</Button>
       </div>
     );
   }
@@ -120,10 +127,6 @@ export default function DeepDiveChartPage() {
   const alertPrice = Number(signal?.price || 0);
   const currentPrice = Number(signal?.currentPrice || 0);
   const livePnl = calculatePercent(currentPrice, alertPrice, signal?.type || "BUY");
-  const upsidePercent = calculatePercent(signal?.maxUpsidePrice, alertPrice, signal?.type || "BUY");
-  const drawdownPercent = calculatePercent(signal?.maxDrawdownPrice, alertPrice, signal?.type || "BUY");
-  const isPnlPositive = livePnl ? Number(livePnl) > 0 : false;
-  const displayAssetType = getDisplayAssetType(signal);
 
   return (
     <div className="flex flex-col h-screen bg-[#0a0a0c] text-foreground overflow-hidden">
@@ -132,113 +135,147 @@ export default function DeepDiveChartPage() {
       <ScrollArea className="w-full bg-card/95 border-b border-white/10 shrink-0 backdrop-blur-xl z-20 shadow-2xl">
         <div className="h-24 flex items-center px-6 justify-between min-w-max gap-12">
           <div className="flex items-center gap-8">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => router.push("/")}
-              className="hover:bg-accent/10 text-muted-foreground h-10 w-10 shrink-0"
-            >
+            <Button variant="ghost" size="icon" onClick={() => router.push("/")} className="hover:bg-accent/10 text-muted-foreground">
               <ChevronLeft className="h-6 w-6" />
             </Button>
-
-            <div className="flex items-center gap-4 shrink-0">
+            <div className="flex items-center gap-4">
                <div className="bg-primary/30 p-2.5 rounded-xl border border-accent/20">
                   <BarChart3 className="h-6 w-6 text-accent" />
                </div>
                <div>
-                  <h2 className="text-2xl font-black tracking-tight text-white leading-none uppercase">
-                    {signal?.symbol}
-                  </h2>
+                  <h2 className="text-2xl font-black text-white leading-none uppercase">{signal?.symbol}</h2>
                   <div className="flex items-center gap-2 mt-1.5">
-                     <Badge variant="outline" className="text-[9px] h-4 border-white/10 uppercase tracking-widest font-black opacity-60 px-1">
-                       {displayAssetType}
+                     <Badge variant="outline" className="text-[9px] h-4 border-white/10 uppercase font-black opacity-60">
+                       {getDisplayAssetType(signal)}
                      </Badge>
-                     <Badge className={cn(
-                       "text-[9px] h-4 font-bold border-none px-1.5 uppercase",
-                       signal?.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
-                     )}>
+                     <Badge className={cn("text-[9px] h-4 font-bold border-none", signal?.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400')}>
                        {signal?.type}
-                     </Badge>
-                     <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-accent/20 text-accent font-bold gap-1">
-                       <Timer className="h-3 w-3" />
-                       {mounted && signal ? getRunningSince(signal.receivedAt) : "--"}
                      </Badge>
                   </div>
                </div>
             </div>
-
-            <div className="h-10 w-px bg-white/10 mx-2 shrink-0" />
-
             <div className="flex flex-col justify-center gap-1">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Entry</span>
+              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Entry Price</span>
               <span className="text-xl font-mono font-bold text-white/90 leading-none">${formatPrice(alertPrice)}</span>
-              <span className="text-[10px] text-muted-foreground uppercase font-bold opacity-30">{signal?.exchange}</span>
             </div>
           </div>
 
           <div className="flex items-center gap-12">
             <div className="flex flex-col gap-1 min-w-[140px]">
               <span className="text-[10px] uppercase font-bold text-accent tracking-widest">Latest Live</span>
-              <span className={cn(
-                "text-xl font-mono font-black leading-none",
-                (signal?.type === 'BUY' && currentPrice >= alertPrice) || (signal?.type === 'SELL' && currentPrice <= alertPrice) 
-                ? "text-emerald-400" : "text-rose-400"
-              )}>
+              <span className={cn("text-xl font-mono font-black leading-none", Number(livePnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>
                 ${formatPrice(currentPrice)}
               </span>
-              <span className={cn(
-                "text-[10px] font-mono font-black flex items-center gap-1",
-                isPnlPositive ? "text-emerald-400" : "text-rose-400"
-              )}>
-                <TrendingUp className={cn("h-3 w-3", !isPnlPositive && "rotate-180")} />
+              <span className={cn("text-[10px] font-mono font-black flex items-center gap-1", Number(livePnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                <TrendingUp className={cn("h-3 w-3", Number(livePnl) < 0 && "rotate-180")} />
                 {livePnl}% PNL
               </span>
             </div>
 
-            <div className="flex flex-col gap-1 min-w-[140px]">
-              <span className="text-[10px] uppercase font-bold text-emerald-500/60 tracking-widest">Max Upside</span>
-              <span className="text-xl font-black text-emerald-400 font-mono flex items-center gap-1 leading-none">
-                <ArrowUpRight className="h-5 w-5" />
-                {upsidePercent}%
-              </span>
-              <span className="text-[10px] text-muted-foreground font-mono font-bold opacity-50">
-                Peak: ${formatPrice(signal?.maxUpsidePrice)}
-              </span>
-            </div>
-
-            <div className="flex flex-col gap-1 min-w-[140px]">
-              <span className="text-[10px] uppercase font-bold text-rose-500/60 tracking-widest">Max Down</span>
-              <span className="text-xl font-black text-rose-400 font-mono flex items-center gap-1 leading-none">
-                <ArrowDownRight className="h-5 w-5" />
-                {drawdownPercent}%
-              </span>
-              <span className="text-[10px] text-muted-foreground font-mono font-bold opacity-50">
-                Low: ${formatPrice(signal?.maxDrawdownPrice)}
-              </span>
-            </div>
-
-            <div className="h-10 w-px bg-white/10 mx-2 shrink-0" />
-
-            <div className="flex flex-col items-end shrink-0 gap-1">
-               <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
-                 <Zap className="h-3.5 w-3.5 text-emerald-400 fill-emerald-400 animate-pulse" />
-                 <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-tighter">Live Node</span>
-               </div>
-               <span className="text-[10px] text-muted-foreground font-mono font-bold">
-                 {mounted ? format(now, 'HH:mm:ss') : "--"} UTC
-               </span>
-            </div>
+            <Button 
+              onClick={handleAIAnalysis} 
+              disabled={isAnalyzing}
+              className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2 h-11 px-6 font-bold shadow-[0_0_20px_rgba(125,249,255,0.2)]"
+            >
+              {isAnalyzing ? <Loader2 className="h-5 w-5 animate-spin" /> : <BrainCircuit className="h-5 w-5" />}
+              Gemini AI Insight
+            </Button>
           </div>
         </div>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
 
-      <div className="flex-1 w-full bg-[#13111a] relative">
-        <ChartPane 
-          symbol={signal?.symbol} 
-          interval={signal?.timeframe} 
-          exchange={signal?.exchange}
-        />
+      <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 relative bg-[#13111a]">
+          <ChartPane 
+            symbol={signal?.symbol} 
+            interval={signal?.timeframe} 
+            exchange={signal?.exchange}
+          />
+        </div>
+
+        {/* AI INSIGHT SIDEBAR */}
+        <aside className={cn(
+          "w-80 border-l border-white/5 bg-[#0a0a0c] flex flex-col transition-all duration-500",
+          (!analysis && !isAnalyzing) ? "translate-x-full opacity-0 w-0" : "translate-x-0 opacity-100"
+        )}>
+          <ScrollArea className="flex-1">
+            <div className="p-6 space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BrainCircuit className="h-5 w-5 text-accent" />
+                  <h3 className="font-bold text-sm uppercase tracking-widest text-white">AI Co-Pilot</h3>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => setAnalysis(null)} className="h-6 w-6 text-muted-foreground">
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {isAnalyzing ? (
+                <div className="py-20 flex flex-col items-center justify-center gap-4 text-center">
+                   <div className="relative">
+                     <BrainCircuit className="h-12 w-12 text-accent animate-pulse" />
+                     <div className="absolute inset-0 bg-accent/20 blur-xl rounded-full animate-pulse" />
+                   </div>
+                   <p className="text-xs font-bold text-muted-foreground uppercase animate-pulse">Scanning technical metrics...</p>
+                </div>
+              ) : analysis && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+                  <div className="bg-accent/5 border border-accent/20 rounded-xl p-4">
+                    <span className="text-[10px] font-bold text-accent uppercase tracking-wider mb-2 block">Recommendation</span>
+                    <div className="text-2xl font-black text-white uppercase leading-tight mb-3">
+                      {analysis.recommendation}
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-[10px] font-bold text-muted-foreground uppercase">
+                        <span>Confidence Score</span>
+                        <span>{analysis.confidenceScore}%</span>
+                      </div>
+                      <Progress value={analysis.confidenceScore} className="h-1 bg-white/5" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                        <Info className="h-3.5 w-3.5 text-accent" />
+                        Reasoning
+                      </div>
+                      <p className="text-xs text-white/70 leading-relaxed font-medium bg-white/5 p-3 rounded-lg border border-white/5">
+                        {analysis.technicalReasoning}
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                        Risk Assessment
+                      </div>
+                      <p className="text-xs text-white/70 leading-relaxed font-medium bg-emerald-500/5 p-3 rounded-lg border border-emerald-500/10">
+                        {analysis.riskAssessment}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/10">
+                       <div className="bg-rose-500/5 border border-rose-500/20 rounded-xl p-3">
+                          <div className="flex items-center gap-1.5 text-[9px] font-black text-rose-400 uppercase mb-1">
+                             <Target className="h-3 w-3" /> Stop Loss
+                          </div>
+                          <div className="text-sm font-mono font-bold text-white">${formatPrice(analysis.suggestedStopLoss)}</div>
+                       </div>
+                       <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">
+                          <div className="flex items-center gap-1.5 text-[9px] font-black text-emerald-400 uppercase mb-1">
+                             <TrendingUp className="h-3 w-3" /> Target
+                          </div>
+                          <div className="text-sm font-mono font-bold text-white">${formatPrice(analysis.suggestedTakeProfit)}</div>
+                       </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </aside>
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/fires
 
 /**
  * Production-Ready Ingestion Bridge.
- * Extracts metadata from multiple JSON formats to ensure 100% filter compatibility.
+ * Extracts metadata from multiple JSON formats and normalizes them for the global filter engine.
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
@@ -54,9 +54,13 @@ export async function POST(request: NextRequest) {
     const symbol = (body.ticker || body.symbol || body.pair || body.asset || "UNKNOWN").toUpperCase();
     const exchange = (body.exchange || body.market || "BINANCE").toUpperCase();
     
-    // 2. Asset Type Detection (Supports mapping 'asset_type' to 'assetType')
-    const rawAssetType = body.assetType || body.asset_type || body.category || body.market_type || body.type_asset || "UNCLASSIFIED";
-    const assetType = rawAssetType.toString().toUpperCase().trim();
+    // 2. Asset Type Detection & Normalization (Crucial for filtering)
+    const rawAssetType = (body.assetType || body.asset_type || body.category || body.market_type || body.type_asset || "UNCLASSIFIED").toString().toUpperCase().trim();
+    
+    let assetType = rawAssetType;
+    if (rawAssetType.includes("INDIAN STOCK")) assetType = "INDIAN STOCKS";
+    if (rawAssetType.includes("US STOCK")) assetType = "US STOCKS";
+    if (rawAssetType.includes("CRYPTO")) assetType = "CRYPTO";
 
     // 3. Side Detection
     let signalType = "NEUTRAL";
@@ -95,7 +99,7 @@ export async function POST(request: NextRequest) {
       payload: JSON.stringify(body),
       symbol,
       exchange,
-      assetType, // ENSURE THIS IS TOP-LEVEL FOR FILTERING
+      assetType, // Top-level field for DB filtering
       type: signalType,
       price, 
       currentPrice: price, 

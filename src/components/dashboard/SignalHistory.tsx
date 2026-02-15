@@ -21,8 +21,7 @@ import { useRouter } from "next/navigation";
 
 /**
  * PRODUCTION TERMINAL ENGINE
- * Using fixed-width columns for uniform spacing.
- * Displays the real Asset Type from the database beneath the symbol.
+ * Extracts assetType from both top-level metadata and raw payload to ensure legacy data compatibility.
  */
 export function SignalHistory() {
   const router = useRouter();
@@ -57,6 +56,25 @@ export function SignalHistory() {
   }, [user, firestore, activeTimeframe, activeAssetType]);
 
   const { data: signals, isLoading, error } = useCollection(signalsQuery);
+
+  const getDisplayAssetType = (signal: any) => {
+    if (signal.assetType && signal.assetType !== "UNCLASSIFIED") return signal.assetType;
+    
+    // Deep fallback for legacy signals: try to parse the payload
+    try {
+      const payload = JSON.parse(signal.payload || "{}");
+      const raw = payload.assetType || payload.asset_type || payload.category || payload.market_type;
+      if (raw) {
+        const norm = raw.toString().toUpperCase().trim();
+        if (norm.includes("INDIAN STOCK")) return "INDIAN STOCKS";
+        if (norm.includes("US STOCK")) return "US STOCKS";
+        if (norm.includes("CRYPTO")) return "CRYPTO";
+        return norm;
+      }
+    } catch (e) {}
+    
+    return "UNCLASSIFIED";
+  };
 
   const calculatePercent = (targetPrice: number | undefined | null, entry: number, type: string) => {
     if (targetPrice === undefined || targetPrice === null || !entry || entry === 0) return null;
@@ -94,7 +112,7 @@ export function SignalHistory() {
           <p className="text-sm font-bold text-white uppercase tracking-widest">Database Sync Error</p>
           <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
             {error.message.toLowerCase().includes('index') 
-              ? "This filtered view requires a Firestore Composite Index. Please check your browser console (F12) for the generation link."
+              ? "Missing Firestore Index for current filters. Please click the link in your browser console (F12) to create it."
               : error.message}
           </p>
         </div>
@@ -111,7 +129,6 @@ export function SignalHistory() {
 
   return (
     <div className="flex flex-col h-full bg-card/30">
-      {/* FILTER BAR */}
       <div className="p-3 border-b border-border bg-background/50 flex flex-col gap-3 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
@@ -155,7 +172,6 @@ export function SignalHistory() {
         </div>
       </div>
 
-      {/* TERMINAL FEED */}
       <ScrollArea className="flex-1 w-full">
         <Table className="min-w-[1250px] table-fixed border-collapse">
           <TableHeader className="bg-secondary/20 sticky top-0 z-10 backdrop-blur-md">
@@ -181,9 +197,8 @@ export function SignalHistory() {
                   <div className="flex flex-col items-center gap-3">
                     <AlertCircle className="h-8 w-8 text-muted-foreground opacity-20" />
                     <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">No signals detected for current filters</p>
-                    <p className="text-[10px] text-muted-foreground/60 max-w-sm leading-relaxed mx-auto">
-                      Ensure your Bridge signals have the <strong>assetType</strong> field populated in the database. 
-                      Signals without a top-level assetType field will be excluded from filtered views.
+                    <p className="text-[10px] text-muted-foreground/60 max-w-sm leading-relaxed mx-auto px-10">
+                      Note: Filtering relies on the <strong>assetType</strong> database field. Signals without this field (or unindexed legacy data) will not appear in filtered views.
                     </p>
                   </div>
                 </TableCell>
@@ -196,6 +211,7 @@ export function SignalHistory() {
                 const upsidePercent = calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type);
                 const drawdownPercent = calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type);
                 const isPnlPositive = livePnl ? Number(livePnl) > 0 : false;
+                const displayAssetType = getDisplayAssetType(signal);
 
                 return (
                   <TableRow 
@@ -218,7 +234,7 @@ export function SignalHistory() {
                       <div className="flex flex-col">
                         <span className="font-bold text-sm text-white tracking-tight uppercase leading-none">{signal.symbol}</span>
                         <span className="text-[9px] text-accent/70 font-bold mt-1.5 uppercase tracking-tighter truncate">
-                          {signal.assetType || "UNCLASSIFIED"}
+                          {displayAssetType}
                         </span>
                       </div>
                     </TableCell>

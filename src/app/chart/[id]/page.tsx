@@ -24,6 +24,10 @@ import { cn } from "@/lib/utils";
 import { format, differenceInMinutes } from "date-fns";
 import { useEffect, useState } from "react";
 
+/**
+ * DEEP DIVE PERFORMANCE PAGE
+ * Extracts assetType with legacy payload fallback to ensure data accuracy.
+ */
 export default function DeepDiveChartPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -34,7 +38,6 @@ export default function DeepDiveChartPage() {
 
   useEffect(() => {
     setMounted(true);
-    // Refresh loop for 'Running Since' counter and overall state
     const interval = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(interval);
   }, []);
@@ -45,6 +48,25 @@ export default function DeepDiveChartPage() {
   }, [firestore, id]);
 
   const { data: signal, isLoading: isSignalLoading, error } = useDoc(signalRef);
+
+  const getDisplayAssetType = (signal: any) => {
+    if (!signal) return "UNCLASSIFIED";
+    if (signal.assetType && signal.assetType !== "UNCLASSIFIED") return signal.assetType;
+    
+    try {
+      const payload = JSON.parse(signal.payload || "{}");
+      const raw = payload.assetType || payload.asset_type || payload.category;
+      if (raw) {
+        const norm = raw.toString().toUpperCase().trim();
+        if (norm.includes("INDIAN STOCK")) return "INDIAN STOCKS";
+        if (norm.includes("US STOCK")) return "US STOCKS";
+        if (norm.includes("CRYPTO")) return "CRYPTO";
+        return norm;
+      }
+    } catch (e) {}
+    
+    return "UNCLASSIFIED";
+  };
 
   const calculatePercent = (targetPrice: number | undefined | null, entry: number, type: string) => {
     if (targetPrice === undefined || targetPrice === null || !entry || entry === 0) return null;
@@ -64,16 +86,13 @@ export default function DeepDiveChartPage() {
   const getRunningSince = (receivedAt: string) => {
     const start = new Date(receivedAt);
     const diffMins = differenceInMinutes(now, start);
-    
     const days = Math.floor(diffMins / 1440);
     const hours = Math.floor((diffMins % 1440) / 60);
     const mins = diffMins % 60;
-
     const parts = [];
     if (days > 0) parts.push(`${days}d`);
     if (hours > 0) parts.push(`${hours}h`);
     parts.push(`${mins}m`);
-    
     return parts.join(" ");
   };
 
@@ -103,8 +122,8 @@ export default function DeepDiveChartPage() {
   const livePnl = calculatePercent(currentPrice, alertPrice, signal?.type || "BUY");
   const upsidePercent = calculatePercent(signal?.maxUpsidePrice, alertPrice, signal?.type || "BUY");
   const drawdownPercent = calculatePercent(signal?.maxDrawdownPrice, alertPrice, signal?.type || "BUY");
-
   const isPnlPositive = livePnl ? Number(livePnl) > 0 : false;
+  const displayAssetType = getDisplayAssetType(signal);
 
   return (
     <div className="flex flex-col h-screen bg-[#0a0a0c] text-foreground overflow-hidden">
@@ -132,7 +151,7 @@ export default function DeepDiveChartPage() {
                   </h2>
                   <div className="flex items-center gap-2 mt-1.5">
                      <Badge variant="outline" className="text-[9px] h-4 border-white/10 uppercase tracking-widest font-black opacity-60 px-1">
-                       {signal?.assetType}
+                       {displayAssetType}
                      </Badge>
                      <Badge className={cn(
                        "text-[9px] h-4 font-bold border-none px-1.5 uppercase",

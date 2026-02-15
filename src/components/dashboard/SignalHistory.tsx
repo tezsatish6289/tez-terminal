@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -58,15 +57,8 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
       try {
         const response = await fetch('/api/prices');
         if (response.ok) {
-          const data = await response.json();
-          const priceMap: Record<string, number> = {};
-          
-          if (Array.isArray(data)) {
-            data.forEach((item: any) => {
-              priceMap[item.symbol] = parseFloat(item.price);
-            });
-            setLatestPrices(priceMap);
-          }
+          const priceMap = await response.json();
+          setLatestPrices(priceMap);
         }
       } catch (e) {
         console.error("Price fetch error:", e);
@@ -120,6 +112,11 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
     });
   };
 
+  // Improved symbol cleaning for Binance matching (e.g. BINANCE:BTCUSDT -> BTCUSDT)
+  const resolveBinanceSymbol = (rawSymbol: string) => {
+    return rawSymbol.split(':').pop()?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || "";
+  };
+
   if (error) {
     return (
       <div className="p-6 flex flex-col items-center text-center space-y-4">
@@ -156,41 +153,38 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
         <Table>
           <TableHeader className="bg-secondary/10 sticky top-0 z-10">
             <TableRow className="hover:bg-transparent border-border">
-              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">Alert Time</TableHead>
-              <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold">Asset Name</TableHead>
-              <TableHead className="w-[70px] px-2 text-[10px] uppercase font-bold text-center">Chart</TableHead>
-              <TableHead className="w-[50px] px-1 text-[10px] uppercase font-bold text-center">Side</TableHead>
-              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold text-right">Alert Price</TableHead>
-              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold text-right">Latest Price</TableHead>
+              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold text-accent/80">Alert Time</TableHead>
+              <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold text-accent/80">Asset Name</TableHead>
+              <TableHead className="w-[70px] px-2 text-[10px] uppercase font-bold text-center text-accent/80">Chart</TableHead>
+              <TableHead className="w-[50px] px-1 text-[10px] uppercase font-bold text-center text-accent/80">Side</TableHead>
+              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold text-right text-accent/80">Alert Price</TableHead>
+              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold text-right text-accent/80">Latest Price</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (!signals || signals.length === 0) ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8 animate-pulse text-[10px]">Syncing...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="text-center py-8 animate-pulse text-[10px]">Syncing Terminal...</TableCell></TableRow>
             ) : !signals || signals.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-12 text-[10px] opacity-20">No signals found.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="text-center py-12 text-[10px] opacity-20">No active signals.</TableCell></TableRow>
             ) : (
               signals.map((signal) => {
                 const data = parsePayload(signal.payload);
                 
-                // Resilient Price detection
                 let alertPriceValue = signal.price;
-                if (alertPriceValue === null || alertPriceValue === undefined || alertPriceValue === 0) {
+                if (!alertPriceValue) {
                   alertPriceValue = data?.price ?? data?.close ?? data?.price_at_alert ?? data?.last_price ?? data?.entry;
                 }
                 
-                // Clean symbol for matching (strip / . -)
-                const cleanSym = signal.symbol.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                const cleanSym = resolveBinanceSymbol(signal.symbol);
                 const latestPrice = latestPrices[cleanSym];
                 const isBuy = signal.type === 'BUY';
                 
-                // PNL Color logic
                 let priceColorClass = "text-muted-foreground";
                 if (latestPrice && alertPriceValue) {
                   if (isBuy) {
-                    priceColorClass = latestPrice >= alertPriceValue ? "text-emerald-400" : "text-rose-400";
+                    priceColorClass = latestPrice >= Number(alertPriceValue) ? "text-emerald-400" : "text-rose-400";
                   } else {
-                    priceColorClass = latestPrice <= alertPriceValue ? "text-emerald-400" : "text-rose-400";
+                    priceColorClass = latestPrice <= Number(alertPriceValue) ? "text-emerald-400" : "text-rose-400";
                   }
                 }
 
@@ -212,9 +206,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                       </Badge>
                     </TableCell>
                     <TableCell className="font-mono text-[11px] px-2 text-white/70 font-semibold text-right">
-                      {alertPriceValue !== null && alertPriceValue !== undefined 
-                        ? `$${Number(alertPriceValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}` 
-                        : "--"}
+                      {alertPriceValue ? `$${Number(alertPriceValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}` : "--"}
                     </TableCell>
                     <TableCell className={cn("font-mono text-[11px] px-2 font-bold text-right", priceColorClass)}>
                       {latestPrice ? (
@@ -222,7 +214,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                           <span>${latestPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span>
                           <div className="flex items-center gap-0.5 text-[8px] opacity-80">
                             {priceColorClass === "text-emerald-400" ? <ArrowUpRight className="h-2 w-2" /> : <ArrowDownRight className="h-2 w-2" />}
-                            {alertPriceValue ? `${((Math.abs(latestPrice - alertPriceValue) / alertPriceValue) * 100).toFixed(2)}%` : ""}
+                            {alertPriceValue ? `${((Math.abs(latestPrice - Number(alertPriceValue)) / Number(alertPriceValue)) * 100).toFixed(2)}%` : ""}
                           </div>
                         </div>
                       ) : (

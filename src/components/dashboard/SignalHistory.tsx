@@ -113,10 +113,10 @@ export function SignalHistory() {
         <Table>
           <TableHeader className="bg-secondary/20 sticky top-0 z-10 backdrop-blur-md">
             <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">Time</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[110px] pr-[2px]">Age</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 w-[140px] pl-[2px]">Asset</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 w-[80px]">Exch</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Time</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px] pr-[1px]">Age</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 w-[130px] pl-[1px]">Asset</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 w-[90px]">Exch</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">Chart</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Side</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-right w-[110px]">Entry</TableHead>
@@ -150,7 +150,7 @@ export function SignalHistory() {
                     <TableCell className="text-[11px] font-mono text-muted-foreground py-3 text-center whitespace-nowrap">
                       {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"}
                     </TableCell>
-                    <TableCell className="py-3 pr-[2px]">
+                    <TableCell className="py-3 pr-[1px]">
                       <div className="flex items-center justify-center gap-1.5 text-muted-foreground">
                         <Timer className="h-3.5 w-3.5 text-accent/50" />
                         <span className="text-[11px] font-mono font-bold whitespace-nowrap">
@@ -158,7 +158,7 @@ export function SignalHistory() {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="py-3 pl-[2px]">
+                    <TableCell className="py-3 pl-[1px]">
                       <span className="font-bold text-sm text-white tracking-tight uppercase">{signal.symbol}</span>
                     </TableCell>
                     <TableCell className="py-3">

@@ -265,45 +265,44 @@ export function SignalHistory() {
               const SectionIcon = cat.icon;
 
               return (
-                <section key={cat.id} className="space-y-6">
-                  {/* Restructured Header with Filters Below Title */}
-                  <div className="px-6 space-y-6">
+                <section key={cat.id} className="space-y-8">
+                  {/* Subtle Text-Only Performance Filters Stacked below Header */}
+                  <div className="px-6">
                     <div className="flex items-center gap-4">
                       <div className="bg-primary/20 p-2.5 rounded-xl border border-white/10 shrink-0">
                         <SectionIcon className="h-6 w-6 text-accent" />
                       </div>
-                      <div>
+                      <div className="space-y-1.5">
                         <h2 className="text-2xl font-black text-white uppercase tracking-tighter leading-none">
                           {cat.title}
                         </h2>
-                        <p className="text-[10px] font-black text-accent uppercase tracking-[0.4em] mt-2 opacity-80">
+                        <p className="text-[10px] font-black text-accent uppercase tracking-[0.4em] opacity-80">
                           {cat.label} TECHNICAL CONTEXT
                         </p>
+                        
+                        {/* Section Performance Filters - Subtle Text Version */}
+                        <div className="flex items-center gap-4 pt-1">
+                          {[
+                            { id: 'all', label: 'All' },
+                            { id: 'working', label: 'Working' },
+                            { id: 'neutral', label: 'Neutral' },
+                            { id: 'not-working', label: 'Not Working' }
+                          ].map((status) => (
+                            <button
+                              key={status.id}
+                              onClick={() => updateSectionStatus(cat.id, status.id)}
+                              className={cn(
+                                "text-[9px] font-black uppercase tracking-wider transition-all",
+                                statusFilter === status.id 
+                                  ? "text-accent border-b border-accent pb-0.5" 
+                                  : "text-muted-foreground/30 hover:text-muted-foreground"
+                              )}
+                            >
+                              {status.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-
-                    {/* Section Performance Filters - Moved Below Title Labels */}
-                    <div className="flex items-center gap-1.5 bg-white/[0.03] border border-white/5 p-1 rounded-xl w-fit">
-                      {[
-                        { id: 'all', label: 'All', icon: Activity, color: 'text-muted-foreground' },
-                        { id: 'working', label: 'Working', icon: CheckCircle2, color: 'text-emerald-400' },
-                        { id: 'neutral', label: 'Neutral', icon: MinusCircle, color: 'text-muted-foreground/40' },
-                        { id: 'not-working', label: 'Not Working', icon: XCircle, color: 'text-rose-400' }
-                      ].map((status) => (
-                        <button
-                          key={status.id}
-                          onClick={() => updateSectionStatus(cat.id, status.id)}
-                          className={cn(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all",
-                            statusFilter === status.id 
-                              ? "bg-white/10 text-white" 
-                              : "text-muted-foreground/40 hover:text-muted-foreground"
-                          )}
-                        >
-                          <status.icon className={cn("h-3 w-3", statusFilter === status.id ? status.color : "opacity-30")} />
-                          {status.label}
-                        </button>
-                      ))}
                     </div>
                   </div>
 

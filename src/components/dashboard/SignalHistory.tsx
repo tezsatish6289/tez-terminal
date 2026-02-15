@@ -11,7 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Zap, Terminal, AlertCircle, Globe, Activity, Info, DollarSign, ExternalLink, Clock } from "lucide-react";
+import { Zap, Terminal, AlertCircle, Globe, Activity, DollarSign, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -104,25 +104,24 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
           <TableHeader className="bg-secondary/30">
             <TableRow className="hover:bg-transparent border-border">
               <TableHead className="w-[90px]">Time</TableHead>
-              <TableHead className="w-[120px]">Asset</TableHead>
-              <TableHead className="w-[70px]">Side</TableHead>
-              <TableHead className="w-[70px]">TF</TableHead>
+              <TableHead className="w-[110px]">Asset</TableHead>
+              <TableHead className="w-[70px] px-1">Side</TableHead>
+              <TableHead className="w-[80px]">Chart</TableHead>
               <TableHead className="w-[100px]">Exchange</TableHead>
-              <TableHead className="w-[130px] text-accent font-bold">Price @ Alert</TableHead>
-              <TableHead className="hidden lg:table-cell">Notes</TableHead>
+              <TableHead className="text-accent font-bold">Price @ Alert</TableHead>
               <TableHead className="w-[40px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (!signals || signals.length === 0) ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground animate-pulse">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground animate-pulse">
                   Connecting to global signal node...
                 </TableCell>
               </TableRow>
             ) : !signals || signals.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12">
+                <TableCell colSpan={7} className="text-center py-12">
                   <Terminal className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-20" />
                   <p className="text-muted-foreground text-sm">Waiting for market signals...</p>
                 </TableCell>
@@ -145,7 +144,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                     <TableCell className="font-bold text-sm text-white pr-0">
                       {signal.symbol}
                     </TableCell>
-                    <TableCell className="pl-2">
+                    <TableCell className="px-1">
                       <Badge 
                         variant="outline" 
                         className={cn(
@@ -187,14 +186,6 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                          </div>
                       ) : (
                         <span className="text-muted-foreground/30">--</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      {data?.note && (
-                        <div className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded text-[10px] text-muted-foreground border border-white/5 max-w-[200px] truncate">
-                          <Info className="h-3 w-3 flex-shrink-0" />
-                          <span className="italic truncate">{data.note}</span>
-                        </div>
                       )}
                     </TableCell>
                     <TableCell>

@@ -111,17 +111,17 @@ export function SignalHistory() {
       </div>
 
       <ScrollArea className="flex-1 w-full">
-        <Table className="min-w-[1200px]">
+        <Table className="min-w-[1200px] table-fixed">
           <TableHeader className="bg-secondary/20 sticky top-0 z-10 backdrop-blur-md">
             <TableRow className="border-border hover:bg-transparent">
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Time</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">Age</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 w-[150px] pl-6">Asset</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[110px]">EXCHANGE</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">Chart</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 text-left pl-6 w-[130px]">Asset</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">EXCHANGE</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Chart</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Side</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-right w-[110px]">Entry</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold text-accent py-3 text-right w-[160px]">Live (Price / %)</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold text-accent py-3 text-right w-[180px]">Live Performance</TableHead>
               <TableHead className="text-[10px] uppercase font-bold text-emerald-400 py-3 text-right w-[120px]">Max Up</TableHead>
               <TableHead className="text-[10px] uppercase font-bold text-rose-400 py-3 text-center w-[120px] pr-6">Max Down</TableHead>
             </TableRow>
@@ -160,16 +160,19 @@ export function SignalHistory() {
                       </div>
                     </TableCell>
                     <TableCell className="py-3 pl-6">
-                      <span className="font-bold text-sm text-white tracking-tight uppercase">{signal.symbol}</span>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-sm text-white tracking-tight uppercase leading-none">{signal.symbol}</span>
+                        <span className="text-[9px] text-muted-foreground font-bold mt-1 uppercase opacity-50 truncate">{signal.assetType || "CRYPTO"}</span>
+                      </div>
                     </TableCell>
                     <TableCell className="py-3 text-center">
                       <div className="flex justify-center">
-                        <Badge className="bg-primary/30 text-accent border-accent/20 text-[9px] font-bold h-5 px-1.5">
+                        <Badge className="bg-primary/30 text-accent border-accent/20 text-[9px] font-bold h-5 px-1.5 uppercase">
                           {signal.exchange || "BINANCE"}
                         </Badge>
                       </div>
                     </TableCell>
-                    <TableCell className="py-3">
+                    <TableCell className="py-3 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <Badge variant="outline" className="text-[9px] h-5 px-1.5 border-white/10 font-bold bg-white/5 opacity-80 uppercase">
                           {signal.timeframe}

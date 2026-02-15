@@ -1,3 +1,4 @@
+
 "use client";
 
 import { TopBar } from "@/components/dashboard/TopBar";
@@ -69,18 +70,18 @@ export default function WebhooksPage() {
     toast({ title: "Copied", description: "Value copied to clipboard." });
   };
 
-  const handleSimulateIndicatorSignal = async (webhook: any, side: 'buy' | 'sell', tf: string, testSymbol: string = "BTCUSDT") => {
+  const handleSimulateIndicatorSignal = async (webhook: any, side: 'buy' | 'sell', tf: string, testSymbol: string = "BTCUSDT", assetType: string = "CRYPTO") => {
     setIsTesting(`${webhook.id}-${side}-${tf}`);
     
-    // Fetch a "near-real" price for simulation if possible, or just use a standard one
     const simPrice = side === 'buy' ? 98500.42 : 97200.15;
     
     const indicatorPayload = {
-      ticker: testSymbol, // Using real symbols so price sync works!
+      ticker: testSymbol,
       side: side,
       price: simPrice,
       secretKey: webhook.secretKey,
       exchange: "BINANCE",
+      assetType: assetType,
       timeframe: tf, 
       note: `Simulation: Manual ${side.toUpperCase()} ${tf} Signal`
     };
@@ -243,7 +244,7 @@ export default function WebhooksPage() {
                           variant="outline" 
                           size="sm" 
                           className="border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-400 h-8" 
-                          onClick={() => handleSimulateIndicatorSignal(webhook, 'buy', '5', 'BTCUSDT')} 
+                          onClick={() => handleSimulateIndicatorSignal(webhook, 'buy', '5', 'BTCUSDT', 'CRYPTO')} 
                           disabled={!!isTesting}
                         >
                           {isTesting?.includes(`${webhook.id}-buy-5`) ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Sim 5m Buy (BTC)
@@ -252,7 +253,7 @@ export default function WebhooksPage() {
                           variant="outline" 
                           size="sm" 
                           className="border-rose-500/30 hover:bg-rose-500/10 text-rose-400 h-8" 
-                          onClick={() => handleSimulateIndicatorSignal(webhook, 'sell', '60', 'ETHUSDT')} 
+                          onClick={() => handleSimulateIndicatorSignal(webhook, 'sell', '60', 'ETHUSDT', 'CRYPTO')} 
                           disabled={!!isTesting}
                         >
                           {isTesting?.includes(`${webhook.id}-sell-60`) ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Sim 1h Sell (ETH)
@@ -284,7 +285,7 @@ export default function WebhooksPage() {
                       <div className="p-3 bg-accent/5 border border-accent/20 rounded-lg flex items-start gap-3">
                          <Info className="h-4 w-4 text-accent mt-0.5" />
                          <p className="text-[10px] leading-relaxed text-muted-foreground">
-                           <b>Normalization active:</b> Signals are automatically standardized. "1D", "Daily", "D" all map to <b>Daily</b>. "5m", "5M", "5" all map to <b>5 min</b>.
+                           <b>Asset Context:</b> Webhooks now support an optional <code>assetType</code> field (e.g., FOREX, STOCKS) which is displayed in the terminal.
                          </p>
                       </div>
                     </CardContent>

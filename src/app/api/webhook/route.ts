@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
 
     const symbol = (body.ticker || body.symbol || body.pair || body.asset || "UNKNOWN").toUpperCase();
     const exchange = (body.exchange || body.market || "BINANCE").toUpperCase();
+    const assetType = (body.assetType || body.category || body.market_type || "CRYPTO").toUpperCase();
 
     let signalType = "NEUTRAL";
     const rawSide = (body.side || body.action || body.type || "").toString().toLowerCase();
@@ -87,6 +88,7 @@ export async function POST(request: NextRequest) {
       payload: JSON.stringify(body),
       symbol,
       exchange,
+      assetType,
       type: signalType,
       price, 
       currentPrice: price, 

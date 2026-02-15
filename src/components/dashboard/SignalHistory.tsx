@@ -13,7 +13,6 @@ import {
   Timer, 
   TrendingUp,
   Clock,
-  ExternalLink,
   Activity,
   Zap,
   ChevronRight,
@@ -150,7 +149,7 @@ export function SignalHistory() {
    * Map database timeframe ID to User-friendly Label
    */
   const getLabelForId = (id: string) => {
-    const found = categories.find(c => c.id === id);
+    const found = timeframeFilters.find(f => f.value === id);
     return found ? found.label : id;
   };
 
@@ -258,9 +257,9 @@ export function SignalHistory() {
                     </Badge>
                   </div>
 
-                  {/* Horizontal Scroller with explicit scroll support */}
-                  <ScrollArea className="w-full whitespace-nowrap">
-                    <div className="flex gap-5 px-6 pb-6 min-w-max">
+                  {/* Horizontal Scroller Section */}
+                  <ScrollArea className="w-full">
+                    <div className="flex flex-row flex-nowrap gap-5 px-6 pb-6 min-w-max">
                       {categorySignals.map((signal) => {
                         const alertPrice = Number(signal.price || 0);
                         const currentPrice = signal.currentPrice ? Number(signal.currentPrice) : alertPrice;
@@ -370,8 +369,8 @@ export function SignalHistory() {
                   <Activity className="h-4 w-4" />
                   <h2 className="text-xs font-bold uppercase tracking-widest">Other Active Intervals</h2>
                 </div>
-                <ScrollArea className="w-full whitespace-nowrap">
-                  <div className="flex gap-4 px-6 pb-6 min-w-max">
+                <ScrollArea className="w-full">
+                  <div className="flex flex-row flex-nowrap gap-4 px-6 pb-6 min-w-max">
                     {filteredSignals
                       .filter(s => !categories.map(c => c.id).includes(s.timeframe))
                       .map((signal) => (
@@ -382,7 +381,7 @@ export function SignalHistory() {
                         >
                            <div className="flex justify-between items-center mb-2">
                              <span className="font-black text-white uppercase">{signal.symbol}</span>
-                             <Badge variant="outline" className="text-[9px] border-white/10">{signal.timeframe}</Badge>
+                             <Badge variant="outline" className="text-[9px] border-white/10">{getLabelForId(signal.timeframe)}</Badge>
                            </div>
                            <div className="flex justify-between items-center">
                              <span className="text-[10px] text-muted-foreground font-bold">{getDisplayAssetType(signal)}</span>

@@ -64,8 +64,9 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
       
       await Promise.all(symbols.map(async (sym) => {
         try {
-          // Binance expects symbols without slashes, which our bridge already handles (e.g. BTCUSDT)
-          const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${sym.replace('/', '')}`);
+          // Binance expects symbols without slashes and uppercase (e.g. BTCUSDT)
+          const cleanSym = sym.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+          const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${cleanSym}`);
           if (response.ok) {
             const data = await response.json();
             newPrices[sym] = parseFloat(data.price);
@@ -133,7 +134,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
         <div className="space-y-1">
           <h3 className="text-sm font-bold text-white">Stream Sync Error</h3>
           <p className="text-[10px] text-muted-foreground leading-relaxed max-w-[200px] mx-auto">
-            {error.message.includes("index") ? "This filter requires a Firestore Index. Check console for link." : error.message}
+            {error.message}
           </p>
         </div>
       </div>

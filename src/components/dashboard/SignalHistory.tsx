@@ -11,7 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Zap, Terminal, AlertCircle, Globe, Activity, DollarSign, ExternalLink } from "lucide-react";
+import { Zap, Terminal, AlertCircle, Globe, DollarSign, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -61,6 +61,16 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
     }
   };
 
+  const formatTimeframe = (tf: string) => {
+    if (!tf) return "--";
+    const upperTf = tf.toUpperCase();
+    if (upperTf === 'D' || upperTf === '1D') return 'Daily';
+    if (upperTf === 'W' || upperTf === '1W') return 'Weekly';
+    if (upperTf === 'M' || upperTf === '1M') return 'Monthly';
+    if (/^\d+$/.test(tf)) return `${tf} min`;
+    return tf;
+  };
+
   const parsePayload = (payload: string) => {
     try {
       return JSON.parse(payload);
@@ -106,7 +116,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
               <TableHead className="w-[90px]">Time</TableHead>
               <TableHead className="w-[110px]">Asset</TableHead>
               <TableHead className="w-[70px] px-1">Side</TableHead>
-              <TableHead className="w-[80px]">Chart</TableHead>
+              <TableHead className="w-[90px]">Chart</TableHead>
               <TableHead className="w-[100px]">Exchange</TableHead>
               <TableHead className="text-accent font-bold">Price @ Alert</TableHead>
               <TableHead className="w-[40px]"></TableHead>
@@ -159,9 +169,8 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                     </TableCell>
                     <TableCell>
                       {data?.timeframe ? (
-                        <div className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground">
-                          <Activity className="h-3 w-3 opacity-50" />
-                          {data.timeframe}m
+                        <div className="text-[10px] font-bold text-muted-foreground">
+                          {formatTimeframe(data.timeframe)}
                         </div>
                       ) : <span className="text-muted-foreground/20">--</span>}
                     </TableCell>

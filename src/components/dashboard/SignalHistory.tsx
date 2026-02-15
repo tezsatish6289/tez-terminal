@@ -114,15 +114,15 @@ export function SignalHistory() {
           <TableHeader className="bg-secondary/20 sticky top-0 z-10 backdrop-blur-md">
             <TableRow className="border-border hover:bg-transparent">
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">Time</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[110px]">Age</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 w-[140px]">Asset</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[110px] pr-[2px]">Age</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 w-[140px] pl-[2px]">Asset</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 w-[80px]">Exch</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">Chart</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Side</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-right w-[110px]">Entry</TableHead>
               <TableHead className="text-[10px] uppercase font-bold text-accent py-3 text-right w-[160px]">Live (Price / %)</TableHead>
               <TableHead className="text-[10px] uppercase font-bold text-emerald-400 py-3 text-right w-[120px]">Max Up</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold text-rose-400 py-3 text-right pr-6 w-[120px]">Max Down</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold text-rose-400 py-3 text-center pr-6 w-[120px]">Max Down</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -150,7 +150,7 @@ export function SignalHistory() {
                     <TableCell className="text-[11px] font-mono text-muted-foreground py-3 text-center whitespace-nowrap">
                       {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"}
                     </TableCell>
-                    <TableCell className="py-3">
+                    <TableCell className="py-3 pr-[2px]">
                       <div className="flex items-center justify-center gap-1.5 text-muted-foreground">
                         <Timer className="h-3.5 w-3.5 text-accent/50" />
                         <span className="text-[11px] font-mono font-bold whitespace-nowrap">
@@ -158,7 +158,7 @@ export function SignalHistory() {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="py-3">
+                    <TableCell className="py-3 pl-[2px]">
                       <span className="font-bold text-sm text-white tracking-tight uppercase">{signal.symbol}</span>
                     </TableCell>
                     <TableCell className="py-3">
@@ -224,8 +224,8 @@ export function SignalHistory() {
                          </span>
                        </div>
                     </TableCell>
-                    <TableCell className="text-right py-3 pr-6">
-                       <div className="flex flex-col items-end">
+                    <TableCell className="text-center py-3 pr-6">
+                       <div className="flex flex-col items-center">
                          <span className="text-rose-400 font-bold text-[12px] font-mono flex items-center gap-1">
                            {drawdownPercent && Number(drawdownPercent) !== 0 ? (
                              <>

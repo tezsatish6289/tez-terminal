@@ -36,7 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 
 /**
  * Deep Dive Analysis Page.
- * features BULLISH/BEARISH labels and Gemini AI Insights.
+ * Features BULLISH/BEARISH labels and Gemini AI Insights.
  */
 export default function DeepDiveChartPage() {
   const { id } = useParams();
@@ -233,15 +233,16 @@ export default function DeepDiveChartPage() {
           </div>
           
           {/* Centrally Aligned CTA Button directly below the chart, NOT overlaying */}
-          <div className="h-20 flex items-center justify-center bg-[#0a0a0c] border-t border-white/5 shrink-0">
+          <div className="py-3 flex items-center justify-center bg-[#0a0a0c] border-t border-white/5 shrink-0">
             <Button 
               asChild 
-              size="lg" 
-              className="bg-accent text-accent-foreground hover:bg-accent/90 font-black uppercase tracking-widest h-12 px-10 rounded-xl shadow-[0_0_30px_rgba(125,249,255,0.15)] group transition-all"
+              variant="outline"
+              size="sm"
+              className="border-accent/30 text-accent hover:bg-accent/10 font-bold uppercase tracking-tight h-8 px-6 rounded-lg transition-all"
             >
               <a href={tradingViewUrl} target="_blank" rel="noopener noreferrer">
                 View In Tradingview
-                <ExternalLink className="ml-3 h-5 w-5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                <ExternalLink className="ml-2 h-3.5 w-3.5" />
               </a>
             </Button>
           </div>

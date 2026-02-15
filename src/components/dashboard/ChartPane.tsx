@@ -1,10 +1,8 @@
 
 "use client";
 
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Maximize2, MoreHorizontal, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Zap } from "lucide-react";
 
 interface ChartPaneProps {
   symbol?: string;
@@ -27,11 +25,6 @@ export function ChartPane({ symbol = "BTCUSDT", interval = "15", exchange = "BIN
 
   return (
     <div className="w-full h-full bg-[#13111a] relative flex flex-col">
-      <div className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-background/80 backdrop-blur-md p-1.5 rounded-lg border border-border">
-        <Button variant="ghost" size="icon" className="h-7 w-7"><Maximize2 className="h-4 w-4 text-muted-foreground" /></Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="h-4 w-4 text-muted-foreground" /></Button>
-      </div>
-
       <div className="flex-1 w-full h-full bg-[#13111a]">
         {mounted ? (
           <iframe

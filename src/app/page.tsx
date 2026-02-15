@@ -104,12 +104,6 @@ export default function Home() {
 
           {/* Right Pane: Chart */}
           <section className="flex-1 flex flex-col bg-background p-2 relative">
-             <div className="absolute top-4 left-4 z-20 pointer-events-none">
-                <div className="bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 shadow-xl">
-                   <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Active View</p>
-                   <p className="text-sm font-bold text-accent">{activeSignal?.symbol || 'BTCUSDT'}</p>
-                </div>
-             </div>
              <div className="flex-1 rounded-xl overflow-hidden border border-border shadow-2xl">
                 <ChartPane 
                   symbol={activeSignal?.symbol} 

@@ -111,7 +111,7 @@ export default function DeepDiveChartPage() {
       <TopBar />
       
       <ScrollArea className="w-full bg-card/95 border-b border-white/10 shrink-0 backdrop-blur-xl z-20 shadow-2xl">
-        <div className="h-20 flex items-center px-6 justify-between min-w-max gap-12">
+        <div className="h-24 flex items-center px-6 justify-between min-w-max gap-12">
           <div className="flex items-center gap-8">
             <Button 
               variant="ghost" 
@@ -132,7 +132,7 @@ export default function DeepDiveChartPage() {
                   </h2>
                   <div className="flex items-center gap-2 mt-1.5">
                      <Badge variant="outline" className="text-[9px] h-4 border-white/10 uppercase tracking-widest font-black opacity-60 px-1">
-                       {signal?.assetType || "CRYPTO"}
+                       {signal?.assetType}
                      </Badge>
                      <Badge className={cn(
                        "text-[9px] h-4 font-bold border-none px-1.5 uppercase",

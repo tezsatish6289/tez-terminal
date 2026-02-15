@@ -13,7 +13,6 @@ import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Lock, Copy, AlertTriangle, Code, Globe, Zap, ExternalLink, Info, Rocket, CheckCircle2, TrendingUp, TrendingDown } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
-import { Toaster } from "@/components/ui/toaster";
 import { ChromeIcon } from "@/components/icons";
 
 export default function WebhooksPage() {
@@ -313,7 +312,6 @@ export default function WebhooksPage() {
           </div>
         </div>
       </main>
-      <Toaster />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 import type {Metadata} from 'next';
 import './globals.css';
 import { FirebaseClientProvider } from '@/firebase';
+import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
   title: 'TezTerminal Antigravity - Pro Trading Webhooks',
@@ -23,6 +24,7 @@ export default function RootLayout({
       <body className="font-body antialiased selection:bg-accent/30 selection:text-accent">
         <FirebaseClientProvider>
           {children}
+          <Toaster />
         </FirebaseClientProvider>
       </body>
     </html>

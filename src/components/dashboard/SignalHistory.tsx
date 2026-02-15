@@ -41,7 +41,6 @@ export function SignalHistory() {
   /**
    * SERVER-SIDE FILTERING ENGINE
    * Constructing dynamic Firestore queries based on UI state.
-   * Note: Combining 'where' with 'orderBy' requires composite indexes.
    */
   const signalsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -56,7 +55,6 @@ export function SignalHistory() {
       constraints.push(where("timeframe", "==", activeTimeframe));
     }
 
-    // Default sorting and limits
     constraints.push(orderBy("receivedAt", "desc"));
     constraints.push(limit(150));
 
@@ -101,7 +99,7 @@ export function SignalHistory() {
           <p className="text-sm font-bold text-white uppercase tracking-wider">Production Query Error</p>
           <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
             {error.message.includes('index') 
-              ? "This filtered view requires a Firestore Composite Index. Please check your browser's developer console for the auto-generation link."
+              ? "This filtered view requires a Firestore Composite Index. Check console for the generation link."
               : error.message}
           </p>
         </div>
@@ -167,7 +165,7 @@ export function SignalHistory() {
             <TableRow className="border-border hover:bg-transparent">
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Time</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">Age</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 text-left pl-6 w-[130px]">Asset</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 text-left pl-3 w-[130px]">Asset</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[110px]">EXCHANGE</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Chart</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Side</TableHead>
@@ -208,7 +206,7 @@ export function SignalHistory() {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="py-3 pl-6">
+                    <TableCell className="py-3 pl-3">
                       <div className="flex flex-col">
                         <span className="font-bold text-sm text-white tracking-tight uppercase leading-none">{signal.symbol}</span>
                         <span className="text-[9px] text-muted-foreground font-bold mt-1 uppercase opacity-50 truncate">{signal.assetType || "CRYPTO"}</span>
@@ -302,7 +300,6 @@ export function SignalHistory() {
         </Table>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
-      <Toaster />
     </div>
   );
 }

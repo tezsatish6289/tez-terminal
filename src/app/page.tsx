@@ -3,7 +3,6 @@
 
 import { TopBar } from "@/components/dashboard/TopBar";
 import { SignalHistory } from "@/components/dashboard/SignalHistory";
-import { Toaster } from "@/components/ui/toaster";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Zap, Loader2, Chrome, Lightbulb } from "lucide-react";
@@ -103,8 +102,6 @@ export default function Home() {
           </section>
         </div>
       </main>
-      
-      <Toaster />
     </div>
   );
 }

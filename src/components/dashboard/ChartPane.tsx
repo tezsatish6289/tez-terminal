@@ -23,8 +23,8 @@ export function ChartPane({ symbol = "BTCUSDT", interval = "15", exchange = "BIN
   // Map intervals if they are coming as numbers but need to be strings for TV
   const tvInterval = interval === "0" ? "1" : interval;
 
-  // Adding Moving Average Ribbon indicator by default via the studies parameter.
-  // We use the standard TV study ID for the built-in Ribbon.
+  // Use the canonical study ID for the built-in Moving Average Ribbon.
+  // Note: Standard widget embed uses a stringified array of study names.
   const defaultStudies = JSON.stringify(["Moving Average Ribbon@tv-basicstudies"]);
 
   return (

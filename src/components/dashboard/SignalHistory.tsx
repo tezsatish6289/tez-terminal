@@ -1,8 +1,9 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { 
   AlertCircle, 
@@ -25,9 +26,8 @@ import { collection, query, limit, orderBy } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
 /**
- * PRODUCTION TERMINAL ENGINE - THEMED SECTIONS
- * Organizes signals into horizontal scrollable rows based on trading strategy.
- * Headers match user-specified themes (Scalping, Intraday, BTST, Swing, Positional).
+ * PRODUCTION TERMINAL ENGINE - THEMED STRATEGY ROWS
+ * Organizes signals into horizontally scrollable rows based on the requested strategy themes.
  */
 export function SignalHistory() {
   const router = useRouter();
@@ -77,14 +77,14 @@ export function SignalHistory() {
   };
 
   /**
-   * THEME DEFINITIONS
+   * STRATEGY THEME DEFINITIONS
    */
   const categories = [
-    { id: "5", title: "Try scalping", label: "5 min Chart" },
-    { id: "15", title: "Intraday candidates", label: "15 min Chart" },
-    { id: "60", title: "BTST options", label: "1 hour Chart" },
-    { id: "240", title: "Swing opportunities", label: "4 Hour Chart" },
-    { id: "D", title: "Positional opportunities", label: "Daily Chart" },
+    { id: "5", title: "Try scalping", label: "5 Min chart" },
+    { id: "15", title: "Intraday candidates", label: "15 min chart" },
+    { id: "60", title: "BTST options", label: "1 hour" },
+    { id: "240", title: "Swing opportunities", label: "4 Hour" },
+    { id: "D", title: "Positional opportunities", label: "Daily" },
   ];
 
   const timeframeFilters = [
@@ -145,14 +145,6 @@ export function SignalHistory() {
     return `${mins}m`;
   };
 
-  /**
-   * Map database timeframe ID to User-friendly Label
-   */
-  const getLabelForId = (id: string) => {
-    const found = timeframeFilters.find(f => f.value === id);
-    return found ? found.label : id;
-  };
-
   if (error) {
     return (
       <div className="p-10 text-center flex flex-col items-center justify-center gap-4 h-full">
@@ -169,7 +161,7 @@ export function SignalHistory() {
         <div className="flex items-center justify-between">
            <div className="flex items-center gap-3">
              <Filter className="h-4 w-4 text-accent/60" />
-             <div className="flex gap-2 overflow-x-auto no-scrollbar">
+             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                 {timeframeFilters.map(tf => (
                   <button
                     key={tf.label}
@@ -209,9 +201,9 @@ export function SignalHistory() {
         </div>
       </div>
 
-      {/* Main Content Sections */}
+      {/* Main Content Sections with Vertical Scroll */}
       <ScrollArea className="flex-1 w-full bg-[#0a0a0c]">
-        <div className="py-6 space-y-10">
+        <div className="py-6 space-y-12">
           {isLoading ? (
             <div className="px-6 space-y-8">
                {[1,2,3].map(i => (
@@ -230,36 +222,37 @@ export function SignalHistory() {
             </div>
           ) : (
             categories.map(cat => {
-              // Only show the section if it's either "All" or matches the specific filter
+              // Filter logic for specific timeframe selection
               if (activeTimeframe && activeTimeframe !== cat.id) return null;
 
               const categorySignals = filteredSignals.filter(s => s.timeframe === cat.id);
               if (categorySignals.length === 0) return null;
 
               return (
-                <section key={cat.id} className="space-y-4">
+                <section key={cat.id} className="space-y-6">
+                  {/* Row Header */}
                   <div className="px-6 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className="bg-accent/10 p-2 rounded-lg border border-accent/20">
+                      <div className="bg-accent/10 p-2.5 rounded-xl border border-accent/20">
                         <Zap className="h-5 w-5 text-accent" />
                       </div>
                       <div>
-                        <h2 className="text-lg font-black text-white uppercase tracking-tighter leading-none">
-                          {cat.label}
-                        </h2>
-                        <p className="text-[10px] font-bold text-accent uppercase tracking-[0.2em] mt-1.5 opacity-70">
+                        <h2 className="text-xl font-black text-white uppercase tracking-tighter leading-none">
                           {cat.title}
+                        </h2>
+                        <p className="text-[10px] font-bold text-accent uppercase tracking-[0.25em] mt-2 opacity-80">
+                          {cat.label}
                         </p>
                       </div>
                     </div>
-                    <Badge variant="outline" className="border-white/5 text-muted-foreground/60 text-[10px] uppercase font-bold">
-                      {categorySignals.length} Active
+                    <Badge variant="outline" className="border-white/10 text-muted-foreground/60 text-[10px] uppercase font-black px-3 h-7">
+                      {categorySignals.length} Active Alerts
                     </Badge>
                   </div>
 
-                  {/* Horizontal Scroller Section */}
-                  <ScrollArea className="w-full">
-                    <div className="flex flex-row flex-nowrap gap-5 px-6 pb-6 min-w-max">
+                  {/* HIGH-PERFORMANCE HORIZONTAL SCROLLER */}
+                  <div className="w-full relative group">
+                    <div className="flex flex-row overflow-x-auto overflow-y-hidden gap-6 px-6 pb-6 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent snap-x snap-mandatory">
                       {categorySignals.map((signal) => {
                         const alertPrice = Number(signal.price || 0);
                         const currentPrice = signal.currentPrice ? Number(signal.currentPrice) : alertPrice;
@@ -274,20 +267,21 @@ export function SignalHistory() {
                           <Card 
                             key={signal.id} 
                             onClick={() => router.push(`/chart/${signal.id}`)}
-                            className="group relative overflow-hidden bg-[#121214] border-white/5 hover:border-accent/40 transition-all duration-300 cursor-pointer shadow-xl hover:shadow-accent/5 rounded-xl flex flex-col w-[300px] shrink-0 whitespace-normal"
+                            className="group relative overflow-hidden bg-[#121214] border-white/5 hover:border-accent/40 transition-all duration-500 cursor-pointer shadow-2xl hover:shadow-accent/5 rounded-2xl flex flex-col w-[320px] shrink-0 snap-start"
                           >
-                            <div className="p-4 border-b border-white/5 bg-white/[0.02]">
+                            {/* Card Top */}
+                            <div className="p-5 border-b border-white/5 bg-white/[0.02]">
                               <div className="flex items-start justify-between">
                                 <div className="flex flex-col">
-                                  <h3 className="text-lg font-black text-white leading-none tracking-tighter uppercase mb-1">
+                                  <h3 className="text-xl font-black text-white leading-none tracking-tighter uppercase mb-1.5">
                                     {signal.symbol}
                                   </h3>
-                                  <span className="text-[9px] font-black text-accent uppercase tracking-wider">
+                                  <span className="text-[10px] font-black text-accent uppercase tracking-widest">
                                     {displayAssetType}
                                   </span>
                                 </div>
                                 <Badge className={cn(
-                                  "text-[10px] font-black border-none px-2 h-5 uppercase rounded-sm",
+                                  "text-[10px] font-black border-none px-3 h-6 uppercase rounded-md",
                                   isBullish ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
                                 )}>
                                   {isBullish ? 'BULLISH' : 'BEARISH'}
@@ -295,103 +289,103 @@ export function SignalHistory() {
                               </div>
                             </div>
 
-                            <div className="px-4 py-2 bg-black/40 flex items-center justify-between border-b border-white/5 text-[10px] font-bold text-muted-foreground/60 uppercase">
-                              <div className="flex items-center gap-1.5">
-                                <Clock className="h-3 w-3" /> {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"}
+                            {/* Alert Context */}
+                            <div className="px-5 py-2.5 bg-black/50 flex items-center justify-between border-b border-white/5 text-[10px] font-black text-muted-foreground/40 uppercase">
+                              <div className="flex items-center gap-2">
+                                <Clock className="h-3.5 w-3.5" /> {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"} UTC
                               </div>
-                              <div className="flex items-center gap-1.5">
-                                <Timer className="h-3 w-3 text-accent" /> {mounted ? getRunningSince(signal.receivedAt) : "--"}
+                              <div className="flex items-center gap-2">
+                                <Timer className="h-3.5 w-3.5 text-accent" /> {mounted ? getRunningSince(signal.receivedAt) : "--"}
                               </div>
                             </div>
 
-                            <CardContent className="p-4 flex-1 flex flex-col gap-4">
+                            {/* Core Performance */}
+                            <CardContent className="p-5 flex-1 flex flex-col gap-6">
                               <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                  <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Entry</p>
-                                  <p className="text-sm font-mono font-bold text-white/80">${formatPrice(alertPrice)}</p>
+                                <div className="space-y-1.5">
+                                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Signal Entry</p>
+                                  <p className="text-md font-mono font-bold text-white">${formatPrice(alertPrice)}</p>
                                 </div>
-                                <div className="space-y-1 text-right">
-                                  <p className="text-[9px] font-black text-accent uppercase tracking-widest">Live Performance</p>
-                                  <div className={cn("text-sm font-mono font-black", isPnlPositive ? "text-emerald-400" : "text-rose-400")}>
+                                <div className="space-y-1.5 text-right">
+                                  <p className="text-[10px] font-black text-accent uppercase tracking-widest">Live Feed</p>
+                                  <div className={cn("text-md font-mono font-black", isPnlPositive ? "text-emerald-400" : "text-rose-400")}>
                                     ${formatPrice(currentPrice)}
                                   </div>
-                                  <div className={cn("text-[10px] font-black flex items-center justify-end gap-1", isPnlPositive ? "text-emerald-400" : "text-rose-400")}>
-                                     <TrendingUp className={cn("h-3 w-3", !isPnlPositive && "rotate-180")} />
+                                  <div className={cn("text-[11px] font-black flex items-center justify-end gap-1.5 mt-1", isPnlPositive ? "text-emerald-400" : "text-rose-400")}>
+                                     <TrendingUp className={cn("h-3.5 w-3.5", !isPnlPositive && "rotate-180")} />
                                      {livePnl}%
                                   </div>
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/5">
-                                <div className="p-2 rounded-lg bg-emerald-500/[0.03] border border-emerald-500/10">
-                                  <p className="text-[8px] font-black text-emerald-500/60 uppercase tracking-widest mb-1">Max Upside</p>
-                                  <p className="text-xs font-mono font-black text-emerald-400 flex items-center gap-1">
-                                    <ArrowUpRight className="h-3 w-3" /> {upsidePercent}%
+                              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
+                                <div className="p-3 rounded-xl bg-emerald-500/[0.03] border border-emerald-500/10">
+                                  <p className="text-[9px] font-black text-emerald-500/60 uppercase tracking-widest mb-1.5">Max Upside</p>
+                                  <p className="text-sm font-mono font-black text-emerald-400 flex items-center gap-1.5">
+                                    <ArrowUpRight className="h-4 w-4" /> {upsidePercent}%
                                   </p>
                                 </div>
-                                <div className="p-2 rounded-lg bg-rose-500/[0.03] border border-rose-500/10 text-right">
-                                  <p className="text-[8px] font-black text-rose-500/60 uppercase tracking-widest mb-1">Max Drawdown</p>
-                                  <p className="text-xs font-mono font-black text-rose-400 flex items-center justify-end gap-1">
-                                    <ArrowDownRight className="h-3 w-3" /> {drawdownPercent}%
+                                <div className="p-3 rounded-xl bg-rose-500/[0.03] border border-rose-500/10 text-right">
+                                  <p className="text-[9px] font-black text-rose-500/60 uppercase tracking-widest mb-1.5">Max Down</p>
+                                  <p className="text-sm font-mono font-black text-rose-400 flex items-center justify-end gap-1.5">
+                                    <ArrowDownRight className="h-4 w-4" /> {drawdownPercent}%
                                   </p>
                                 </div>
                               </div>
                             </CardContent>
 
-                            <div className="px-4 py-3 border-t border-white/5 bg-white/[0.01] flex items-center justify-between group-hover:bg-accent/[0.05] transition-colors">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Analyze Chart</span>
-                                <Badge variant="outline" className="text-[8px] border-white/10 h-4 px-1 text-accent/60 font-bold">{getLabelForId(signal.timeframe)}</Badge>
+                            {/* Card Footer */}
+                            <div className="px-5 py-4 border-t border-white/5 bg-white/[0.01] flex items-center justify-between group-hover:bg-accent/[0.05] transition-colors">
+                              <div className="flex items-center gap-3">
+                                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest group-hover:text-white">Analyze Chart</span>
+                                <Badge variant="outline" className="text-[9px] border-white/10 h-5 px-2 text-accent/80 font-black">{cat.label}</Badge>
                               </div>
                               <LineChart className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
                             </div>
 
+                            {/* Progress Accent */}
                             <div className={cn(
-                              "absolute bottom-0 left-0 right-0 h-[2px] transition-all duration-300",
-                              isPnlPositive ? "bg-emerald-500/40" : "bg-rose-500/40",
-                              "group-hover:h-1 group-hover:bg-accent"
+                              "absolute bottom-0 left-0 right-0 h-[3px] transition-all duration-500",
+                              isPnlPositive ? "bg-emerald-500/30" : "bg-rose-500/30",
+                              "group-hover:h-1.5 group-hover:bg-accent"
                             )} />
                           </Card>
                         );
                       })}
                     </div>
-                    <ScrollBar orientation="horizontal" className="h-2.5" />
-                  </ScrollArea>
+                  </div>
                 </section>
               );
             })
           )}
 
-          {/* Unmapped timeframe fallback */}
+          {/* Unmapped timeframe fallback section */}
           {!isLoading && !activeTimeframe && filteredSignals.some(s => !categories.map(c => c.id).includes(s.timeframe)) && (
-             <section className="space-y-4 pt-4 border-t border-white/5">
-                <div className="px-6 flex items-center gap-2 text-muted-foreground opacity-40">
-                  <Activity className="h-4 w-4" />
-                  <h2 className="text-xs font-bold uppercase tracking-widest">Other Active Intervals</h2>
+             <section className="space-y-6 pt-6 border-t border-white/5">
+                <div className="px-6 flex items-center gap-3 text-muted-foreground/30">
+                  <Activity className="h-5 w-5" />
+                  <h2 className="text-xs font-black uppercase tracking-[0.3em]">Other Active Node Intervals</h2>
                 </div>
-                <ScrollArea className="w-full">
-                  <div className="flex flex-row flex-nowrap gap-4 px-6 pb-6 min-w-max">
+                <div className="flex flex-row overflow-x-auto gap-5 px-6 pb-10 scrollbar-thin">
                     {filteredSignals
                       .filter(s => !categories.map(c => c.id).includes(s.timeframe))
                       .map((signal) => (
                         <Card 
                           key={signal.id} 
                           onClick={() => router.push(`/chart/${signal.id}`)}
-                          className="bg-[#121214] border-white/5 rounded-xl w-[260px] shrink-0 p-4 hover:border-accent/40 transition-colors cursor-pointer whitespace-normal"
+                          className="bg-[#121214] border-white/5 rounded-2xl w-[280px] shrink-0 p-5 hover:border-accent/40 transition-all cursor-pointer shadow-xl"
                         >
-                           <div className="flex justify-between items-center mb-2">
-                             <span className="font-black text-white uppercase">{signal.symbol}</span>
-                             <Badge variant="outline" className="text-[9px] border-white/10">{getLabelForId(signal.timeframe)}</Badge>
+                           <div className="flex justify-between items-center mb-3">
+                             <span className="font-black text-white uppercase text-lg tracking-tighter">{signal.symbol}</span>
+                             <Badge variant="outline" className="text-[10px] border-white/10 font-black">{signal.timeframe}m</Badge>
                            </div>
                            <div className="flex justify-between items-center">
-                             <span className="text-[10px] text-muted-foreground font-bold">{getDisplayAssetType(signal)}</span>
-                             <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                             <span className="text-[10px] text-muted-foreground font-black uppercase tracking-wider">{getDisplayAssetType(signal)}</span>
+                             <ChevronRight className="h-4 w-4 text-muted-foreground" />
                            </div>
                         </Card>
                       ))}
-                  </div>
-                  <ScrollBar orientation="horizontal" className="h-2.5" />
-                </ScrollArea>
+                </div>
              </section>
           )}
         </div>
@@ -399,3 +393,5 @@ export function SignalHistory() {
     </div>
   );
 }
+
+    

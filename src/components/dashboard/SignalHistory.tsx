@@ -218,9 +218,6 @@ export function SignalHistory() {
                       <div className="flex flex-col">
                         <h3 className="text-lg font-black text-white leading-none tracking-tighter uppercase mb-1 flex items-baseline gap-2">
                           {signal.symbol}
-                          <span className="text-[10px] text-muted-foreground font-bold opacity-40">
-                            {getTimeframeLabel(signal.timeframe)}
-                          </span>
                         </h3>
                         <div className="flex items-center gap-2">
                           <span className="text-[9px] font-black text-accent uppercase tracking-wider">
@@ -290,7 +287,10 @@ export function SignalHistory() {
                   </CardContent>
 
                   <div className="px-4 py-3 border-t border-white/5 bg-white/[0.01] flex items-center justify-between group-hover:bg-accent/[0.05] transition-colors">
-                    <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Analyze Chart</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Analyze Chart</span>
+                      <span className="text-[9px] font-bold text-accent/60 uppercase">{getTimeframeLabel(signal.timeframe)}</span>
+                    </div>
                     <LineChart className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
                   </div>
 

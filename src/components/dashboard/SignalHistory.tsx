@@ -58,10 +58,14 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
         const response = await fetch('/api/prices');
         if (response.ok) {
           const priceMap = await response.json();
+          // Log for developer confirmation
+          console.log("[SignalHistory] Binance Sync Success:", Object.keys(priceMap).length, "pairs loaded.");
           setLatestPrices(priceMap);
+        } else {
+          console.warn("[SignalHistory] Proxy Error:", response.status);
         }
       } catch (e) {
-        // Silently fail, UI will show "Live..." or "Syncing"
+        console.error("[SignalHistory] Price fetch failed:", e);
       }
     };
 
@@ -173,6 +177,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                 const data = parsePayload(signal.payload);
                 
                 let alertPriceValue = signal.price;
+                // Double check payload if the main field is empty
                 if (!alertPriceValue) {
                   alertPriceValue = data?.price ?? data?.close ?? data?.price_at_alert ?? data?.last_price ?? data?.entry;
                 }
@@ -181,6 +186,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                 const latestPrice = latestPrices[cleanSym];
                 const isBuy = signal.type === 'BUY';
                 
+                // Color coding logic based on trade performance
                 let priceColorClass = "text-muted-foreground";
                 if (latestPrice && alertPriceValue) {
                   const alertPriceNum = Number(alertPriceValue);

@@ -69,18 +69,18 @@ export default function WebhooksPage() {
     toast({ title: "Copied", description: "Value copied to clipboard." });
   };
 
-  const handleSimulateIndicatorSignal = async (webhook: any, side: 'buy' | 'sell', tf: string) => {
+  const handleSimulateIndicatorSignal = async (webhook: any, side: 'buy' | 'sell', tf: string, testSymbol: string = "BTCUSDT") => {
     setIsTesting(`${webhook.id}-${side}-${tf}`);
     
-    // Use realistic simulated prices
+    // Fetch a "near-real" price for simulation if possible, or just use a standard one
     const simPrice = side === 'buy' ? 98500.42 : 97200.15;
     
     const indicatorPayload = {
-      ticker: "SIMULATED_ASSET",
+      ticker: testSymbol, // Using real symbols so price sync works!
       side: side,
       price: simPrice,
       secretKey: webhook.secretKey,
-      exchange: "SIMULATOR",
+      exchange: "BINANCE",
       timeframe: tf, 
       note: `Simulation: Manual ${side.toUpperCase()} ${tf} Signal`
     };
@@ -97,7 +97,7 @@ export default function WebhooksPage() {
       if (response.ok) {
         toast({ 
           title: "Simulation Success", 
-          description: `Internal ${side.toUpperCase()} signal processed at $${result.price || simPrice}` 
+          description: `Internal ${side.toUpperCase()} signal for ${testSymbol} processed.` 
         });
       } else {
         toast({ 
@@ -243,28 +243,19 @@ export default function WebhooksPage() {
                           variant="outline" 
                           size="sm" 
                           className="border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-400 h-8" 
-                          onClick={() => handleSimulateIndicatorSignal(webhook, 'buy', '5')} 
+                          onClick={() => handleSimulateIndicatorSignal(webhook, 'buy', '5', 'BTCUSDT')} 
                           disabled={!!isTesting}
                         >
-                          {isTesting?.includes(`${webhook.id}-buy-5`) ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Sim 5m Buy
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-400 h-8" 
-                          onClick={() => handleSimulateIndicatorSignal(webhook, 'buy', 'D')} 
-                          disabled={!!isTesting}
-                        >
-                          {isTesting?.includes(`${webhook.id}-buy-D`) ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Sim Daily Buy
+                          {isTesting?.includes(`${webhook.id}-buy-5`) ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Sim 5m Buy (BTC)
                         </Button>
                         <Button 
                           variant="outline" 
                           size="sm" 
                           className="border-rose-500/30 hover:bg-rose-500/10 text-rose-400 h-8" 
-                          onClick={() => handleSimulateIndicatorSignal(webhook, 'sell', '60')} 
+                          onClick={() => handleSimulateIndicatorSignal(webhook, 'sell', '60', 'ETHUSDT')} 
                           disabled={!!isTesting}
                         >
-                          {isTesting?.includes(`${webhook.id}-sell-60`) ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Sim 1h Sell
+                          {isTesting?.includes(`${webhook.id}-sell-60`) ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Sim 1h Sell (ETH)
                         </Button>
                       </div>
                     </CardHeader>

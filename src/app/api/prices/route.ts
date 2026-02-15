@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 
 /**
  * Server-side proxy for Binance Futures Price API.
- * Bypasses browser CORS restrictions and provides a standardized price map.
+ * This bypasses browser CORS restrictions and provides a standardized price map.
  */
 export async function GET() {
   try {
+    // Fetching ALL futures prices for efficient lookup
     const response = await fetch("https://fapi.binance.com/fapi/v2/ticker/price", {
-      next: { revalidate: 0 },
+      next: { revalidate: 0 }, // Ensure we don't cache stale prices
       headers: {
         'Content-Type': 'application/json',
       }
@@ -29,9 +30,10 @@ export async function GET() {
       });
     }
 
+    // Success log (visible in server terminal)
     return NextResponse.json(priceMap);
   } catch (error: any) {
     console.error("[Price Proxy Error]", error.message);
-    return NextResponse.json({ error: "Failed to fetch prices" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to fetch prices from Binance" }, { status: 500 });
   }
 }

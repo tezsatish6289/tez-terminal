@@ -11,13 +11,17 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Zap, Clock, Terminal, AlertCircle, Globe, Activity, Info, Tag, DollarSign } from "lucide-react";
+import { Zap, Clock, Terminal, AlertCircle, Globe, Activity, Info, Tag, DollarSign, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, limit, orderBy } from "firebase/firestore";
 
-export function SignalHistory() {
+interface SignalHistoryProps {
+  onSignalSelect?: (signal: { symbol: string; timeframe?: string; exchange?: string }) => void;
+}
+
+export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const [mounted, setMounted] = useState(false);
@@ -65,6 +69,16 @@ export function SignalHistory() {
     }
   };
 
+  const handleRowClick = (signal: any) => {
+    if (!onSignalSelect) return;
+    const data = parsePayload(signal.payload);
+    onSignalSelect({
+      symbol: signal.symbol,
+      timeframe: data?.timeframe || "15",
+      exchange: data?.exchange || "BINANCE"
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -94,18 +108,19 @@ export function SignalHistory() {
               <TableHead className="w-[90px]">Side</TableHead>
               <TableHead className="w-[140px] text-accent font-bold">Price @ Alert</TableHead>
               <TableHead className="hidden md:table-cell">Signal Metadata</TableHead>
+              <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (!signals || signals.length === 0) ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground animate-pulse">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground animate-pulse">
                   Connecting to global signal node...
                 </TableCell>
               </TableRow>
             ) : !signals || signals.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-12">
+                <TableCell colSpan={6} className="text-center py-12">
                   <Terminal className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-20" />
                   <p className="text-muted-foreground text-sm">Waiting for market signals...</p>
                 </TableCell>
@@ -116,7 +131,11 @@ export function SignalHistory() {
                 const displayPrice = signal.price ?? data?.price_at_alert;
                 
                 return (
-                  <TableRow key={signal.id} className="transition-colors group border-border hover:bg-white/[0.02]">
+                  <TableRow 
+                    key={signal.id} 
+                    className="transition-colors group border-border hover:bg-white/[0.04] cursor-pointer"
+                    onClick={() => handleRowClick(signal)}
+                  >
                     <TableCell className="text-[11px] font-mono py-4">
                       <div className="text-white font-medium">{getFormattedDate(signal.receivedAt)}</div>
                       <div className="text-muted-foreground opacity-60">{getFormattedDay(signal.receivedAt)}</div>
@@ -172,12 +191,10 @@ export function SignalHistory() {
                             <span className="italic truncate">{data.note}</span>
                           </div>
                         )}
-                        {!data && (
-                          <code className="text-[10px] text-muted-foreground/50 font-mono italic">
-                            {signal.payload.substring(0, 50)}...
-                          </code>
-                        )}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                     </TableCell>
                   </TableRow>
                 );

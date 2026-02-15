@@ -1,3 +1,4 @@
+
 "use client";
 
 import { LeftSidebar } from "@/components/dashboard/Sidebar";
@@ -18,6 +19,7 @@ export default function Home() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [activeSignal, setActiveSignal] = useState<{ symbol: string; timeframe?: string; exchange?: string } | null>(null);
 
   const handleGoogleLogin = async () => {
     if (auth) {
@@ -46,39 +48,37 @@ export default function Home() {
 
   if (!user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-6">
-        <Card className="max-w-md w-full border-accent/20 bg-card shadow-2xl">
-          <CardHeader className="text-center">
-            <div className="bg-primary p-4 rounded-2xl border border-accent/20 inline-block mx-auto mb-6">
-              <Zap className="h-10 w-10 text-accent fill-accent/20" />
-            </div>
-            <CardTitle className="text-3xl font-bold tracking-tighter">TezTerminal</CardTitle>
-            <CardDescription className="text-base mt-2">
-              India's Premier Antigravity Trading Hub. 
-              Sign in with Google to access the live signal stream.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Button 
-              onClick={handleGoogleLogin} 
-              disabled={isLoggingIn}
-              className="w-full h-14 gap-3 bg-white text-black hover:bg-white/90 text-lg font-semibold"
-            >
-              {isLoggingIn ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              ) : (
-                <>
-                  <ChromeIcon className="h-6 w-6" />
-                  Sign in with Google
-                </>
-              )}
-            </Button>
-            <p className="text-center text-xs text-muted-foreground px-6">
-              Administrator login: <span className="text-accent font-mono">hello@tezterminal.com</span>
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="max-w-md w-full border-accent/20 bg-card shadow-2xl mx-auto mt-20">
+        <CardHeader className="text-center">
+          <div className="bg-primary p-4 rounded-2xl border border-accent/20 inline-block mx-auto mb-6">
+            <Zap className="h-10 w-10 text-accent fill-accent/20" />
+          </div>
+          <CardTitle className="text-3xl font-bold tracking-tighter">TezTerminal</CardTitle>
+          <CardDescription className="text-base mt-2">
+            India's Premier Antigravity Trading Hub. 
+            Sign in with Google to access the live signal stream.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button 
+            onClick={handleGoogleLogin} 
+            disabled={isLoggingIn}
+            className="w-full h-14 gap-3 bg-white text-black hover:bg-white/90 text-lg font-semibold"
+          >
+            {isLoggingIn ? (
+              <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+              <>
+                <ChromeIcon className="h-6 w-6" />
+                Sign in with Google
+              </>
+            )}
+          </Button>
+          <p className="text-center text-xs text-muted-foreground px-6">
+            Administrator login: <span className="text-accent font-mono">hello@tezterminal.com</span>
+          </p>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -94,15 +94,19 @@ export default function Home() {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold tracking-tight text-white">Market Overview</h1>
-                <p className="text-muted-foreground text-sm">Real-time TradingView analysis and signals.</p>
+                <p className="text-muted-foreground text-sm">Real-time TradingView analysis for {activeSignal?.symbol || 'BTCUSDT'}.</p>
               </div>
             </div>
             
-            <ChartPane />
+            <ChartPane 
+              symbol={activeSignal?.symbol} 
+              interval={activeSignal?.timeframe} 
+              exchange={activeSignal?.exchange}
+            />
           </section>
 
           <section className="pb-8">
-            <SignalHistory />
+            <SignalHistory onSignalSelect={setActiveSignal} />
           </section>
         </div>
       </main>

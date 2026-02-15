@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -37,7 +36,7 @@ export function SignalHistory() {
   
   // Filtering States
   const [activeAssetType, setActiveAssetType] = useState<string | null>(null);
-  // Defaulting all categories to selected as requested
+  // Defaulting all categories to selected
   const [selectedTimeframes, setSelectedTimeframes] = useState<string[]>(["5", "15", "60", "240", "D"]);
 
   useEffect(() => {
@@ -242,8 +241,8 @@ export function SignalHistory() {
                     </p>
                   </div>
 
-                  {/* NATIVE HORIZONTAL SCROLLER - Robust Native Scroll */}
-                  <div className="w-full overflow-x-auto flex flex-row gap-6 px-6 pb-6 scrollbar-thin">
+                  {/* NATIVE HORIZONTAL SCROLLER */}
+                  <div className="w-full overflow-x-auto flex flex-row gap-6 px-6 pb-6">
                     {categorySignals.map((signal) => {
                       const alertPrice = Number(signal.price || 0);
                       const currentPrice = signal.currentPrice ? Number(signal.currentPrice) : alertPrice;
@@ -301,7 +300,7 @@ export function SignalHistory() {
                                 </div>
                                 <div className={cn("text-xs font-black flex items-center justify-end gap-2 mt-1", isPnlPositive ? "text-emerald-400" : "text-rose-400")}>
                                    <TrendingUp className={cn("h-4 w-4", !isPnlPositive && "rotate-180")} />
-                                   {livePnl}% PERF
+                                   {livePnl}%
                                 </div>
                               </div>
                             </div>

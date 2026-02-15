@@ -11,7 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { AlertCircle, LineChart, Server, ArrowUpRight, ArrowDownRight, Timer, TrendingUp } from "lucide-react";
 import { format, differenceInMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -25,7 +25,8 @@ export function SignalHistory() {
   const firestore = useFirestore();
   const [mounted, setMounted] = useState(false);
   const [now, setNow] = useState(new Date());
-  const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [activeTimeframe, setActiveTimeframe] = useState<string | null>(null);
+  const [activeAssetType, setActiveAssetType] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -36,11 +37,19 @@ export function SignalHistory() {
   const signalsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     const baseQuery = collection(firestore, "signals");
-    if (activeFilter) {
-      return query(baseQuery, where("timeframe", "==", activeFilter), orderBy("receivedAt", "desc"), limit(50));
+    
+    let constraints = [orderBy("receivedAt", "desc"), limit(50)];
+    
+    if (activeAssetType) {
+      constraints.push(where("assetType", "==", activeAssetType));
     }
-    return query(baseQuery, orderBy("receivedAt", "desc"), limit(50));
-  }, [user, firestore, activeFilter]);
+    
+    if (activeTimeframe) {
+      constraints.push(where("timeframe", "==", activeTimeframe));
+    }
+
+    return query(baseQuery, ...constraints);
+  }, [user, firestore, activeTimeframe, activeAssetType]);
 
   const { data: signals, isLoading, error } = useCollection(signalsQuery);
 
@@ -84,29 +93,55 @@ export function SignalHistory() {
     );
   }
 
+  const assetTypes = [
+    { label: "All Assets", value: null },
+    { label: "Crypto", value: "CRYPTO" },
+    { label: "Indian Stocks", value: "INDIAN STOCKS" },
+    { label: "US Stocks", value: "US STOCKS" },
+  ];
+
   return (
     <div className="flex flex-col h-full bg-card/30">
-      <div className="p-3 border-b border-border bg-background/50 flex items-center justify-between shrink-0">
+      <div className="p-3 border-b border-border bg-background/50 flex flex-col gap-3 shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+            {assetTypes.map(asset => (
+              <button
+                key={asset.label}
+                onClick={() => setActiveAssetType(asset.value)}
+                className={cn(
+                  "px-4 py-1.5 text-[11px] font-bold rounded uppercase transition-all whitespace-nowrap",
+                  activeAssetType === asset.value 
+                    ? "bg-accent text-accent-foreground shadow-md shadow-accent/20" 
+                    : "bg-secondary/30 text-muted-foreground hover:bg-secondary/50"
+                )}
+              >
+                {asset.label}
+              </button>
+            ))}
+          </div>
+          <div className="hidden md:flex items-center gap-2">
+            <Badge variant="outline" className="text-[10px] h-7 border-emerald-500/20 text-emerald-400 gap-1.5 bg-emerald-500/5 px-3 font-bold uppercase">
+              <Server className="h-3.5 w-3.5" /> 24/7 SYNC ACTIVE
+            </Badge>
+          </div>
+        </div>
+
         <div className="flex gap-1.5">
-          {["All", "5", "15", "60", "D"].map(tf => (
+          {["All TF", "5", "15", "60", "D"].map(tf => (
             <button
               key={tf}
-              onClick={() => setActiveFilter(tf === "All" ? null : tf)}
+              onClick={() => setActiveTimeframe(tf === "All TF" ? null : tf)}
               className={cn(
                 "px-4 py-1.5 text-[11px] font-bold rounded uppercase transition-all",
-                (tf === "All" ? !activeFilter : activeFilter === tf) 
+                (tf === "All TF" ? !activeTimeframe : activeTimeframe === tf) 
                   ? "bg-accent text-accent-foreground shadow-md shadow-accent/20" 
                   : "bg-secondary/30 text-muted-foreground hover:bg-secondary/50"
               )}
             >
-              {tf === "All" ? "All" : tf === "D" ? "Daily" : `${tf}m`}
+              {tf === "All TF" ? "All TF" : tf === "D" ? "Daily" : `${tf}m`}
             </button>
           ))}
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-[10px] h-7 border-emerald-500/20 text-emerald-400 gap-1.5 bg-emerald-500/5 px-3 font-bold uppercase">
-            <Server className="h-3.5 w-3.5" /> 24/7 SYNC ACTIVE
-          </Badge>
         </div>
       </div>
 
@@ -117,7 +152,7 @@ export function SignalHistory() {
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Time</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">Age</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-left pl-6 w-[130px]">Asset</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">EXCHANGE</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[120px]">EXCHANGE</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Chart</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Side</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-right w-[110px]">Entry</TableHead>
@@ -130,7 +165,7 @@ export function SignalHistory() {
             {isLoading && (!signals || signals.length === 0) ? (
               <TableRow><TableCell colSpan={10} className="text-center py-20 text-sm animate-pulse text-accent uppercase tracking-widest font-bold">Connecting Node...</TableCell></TableRow>
             ) : signals?.length === 0 ? (
-              <TableRow><TableCell colSpan={10} className="text-center py-20 text-sm text-muted-foreground uppercase tracking-widest font-bold">No active signals</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="text-center py-20 text-sm text-muted-foreground uppercase tracking-widest font-bold">No signals found for this criteria</TableCell></TableRow>
             ) : (
               signals?.map((signal) => {
                 const alertPrice = Number(signal.price || 0);
@@ -251,6 +286,7 @@ export function SignalHistory() {
             )}
           </TableBody>
         </Table>
+        <ScrollBar orientation="horizontal" />
       </ScrollArea>
     </div>
   );

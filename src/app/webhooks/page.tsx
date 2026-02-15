@@ -10,7 +10,7 @@ import { useCollection, useUser, useMemoFirebase, useFirestore, useAuth } from "
 import { collection, query, orderBy } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Lock, Copy, AlertTriangle, Code, Globe, Zap, ExternalLink, Info, Rocket, CheckCircle2 } from "lucide-react";
+import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Lock, Copy, AlertTriangle, Code, Globe, Zap, ExternalLink, Info, Rocket, CheckCircle2, TrendingUp, TrendingDown } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
@@ -70,20 +70,25 @@ export default function WebhooksPage() {
     toast({ title: "Copied", description: "Value copied to clipboard." });
   };
 
-  const handleSimulateIndicatorSignal = async (webhook: any, side: 'buy' | 'sell', tf: string, testSymbol: string = "BTCUSDT", assetType: string = "CRYPTO") => {
-    setIsTesting(`${webhook.id}-${side}-${tf}`);
+  const handleSimulateIndicatorSignal = async (webhook: any, side: 'buy' | 'sell', tf: string, testSymbol: string, assetType: string, exchange: string = "BINANCE") => {
+    setIsTesting(`${webhook.id}-${side}-${tf}-${assetType}`);
     
-    const simPrice = side === 'buy' ? 98500.42 : 97200.15;
+    // Generate realistic entry price based on asset type
+    let simPrice = 98500.42;
+    if (assetType === "INDIAN STOCKS") simPrice = 2450.85;
+    if (assetType === "US STOCKS") simPrice = 184.22;
     
+    if (side === 'sell') simPrice *= 0.98;
+
     const indicatorPayload = {
       ticker: testSymbol,
       side: side,
       price: simPrice,
       secretKey: webhook.secretKey,
-      exchange: "BINANCE",
+      exchange: exchange,
       assetType: assetType,
       timeframe: tf, 
-      note: `Simulation: Manual ${side.toUpperCase()} ${tf} Signal`
+      note: `Simulation: Manual ${side.toUpperCase()} ${tf} Signal for ${assetType}`
     };
 
     try {
@@ -239,25 +244,36 @@ export default function WebhooksPage() {
                         <CardTitle className="text-white text-md font-bold">{webhook.name}</CardTitle>
                         <CardDescription className="text-[10px] font-mono">{webhook.id}</CardDescription>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-400 h-8" 
-                          onClick={() => handleSimulateIndicatorSignal(webhook, 'buy', '5', 'BTCUSDT', 'CRYPTO')} 
-                          disabled={!!isTesting}
-                        >
-                          {isTesting?.includes(`${webhook.id}-buy-5`) ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Sim 5m Buy (BTC)
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="border-rose-500/30 hover:bg-rose-500/10 text-rose-400 h-8" 
-                          onClick={() => handleSimulateIndicatorSignal(webhook, 'sell', '60', 'ETHUSDT', 'CRYPTO')} 
-                          disabled={!!isTesting}
-                        >
-                          {isTesting?.includes(`${webhook.id}-sell-60`) ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Sim 1h Sell (ETH)
-                        </Button>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex flex-wrap gap-2 justify-end">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="border-accent/30 hover:bg-accent/10 text-accent h-7 text-[10px]" 
+                            onClick={() => handleSimulateIndicatorSignal(webhook, 'buy', '15', 'BTCUSDT', 'CRYPTO')} 
+                            disabled={!!isTesting}
+                          >
+                            {isTesting?.includes('CRYPTO') ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Zap className="h-3 w-3 mr-2" />} Sim Crypto (BTC)
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-400 h-7 text-[10px]" 
+                            onClick={() => handleSimulateIndicatorSignal(webhook, 'buy', 'Daily', 'RELIANCE', 'INDIAN STOCKS', 'NSE')} 
+                            disabled={!!isTesting}
+                          >
+                            {isTesting?.includes('INDIAN') ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <TrendingUp className="h-3 w-3 mr-2" />} Sim Indian Stock
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="border-blue-500/30 hover:bg-blue-500/10 text-blue-400 h-7 text-[10px]" 
+                            onClick={() => handleSimulateIndicatorSignal(webhook, 'sell', '60', 'NVDA', 'US STOCKS', 'NASDAQ')} 
+                            disabled={!!isTesting}
+                          >
+                            {isTesting?.includes('US STOCKS') ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <TrendingDown className="h-3 w-3 mr-2" />} Sim US Stock
+                          </Button>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="grid gap-6">
@@ -284,9 +300,10 @@ export default function WebhooksPage() {
 
                       <div className="p-3 bg-accent/5 border border-accent/20 rounded-lg flex items-start gap-3">
                          <Info className="h-4 w-4 text-accent mt-0.5" />
-                         <p className="text-[10px] leading-relaxed text-muted-foreground">
-                           <b>Asset Context:</b> Webhooks now support an optional <code>assetType</code> field (e.g., FOREX, STOCKS) which is displayed in the terminal.
-                         </p>
+                         <div className="text-[10px] leading-relaxed text-muted-foreground">
+                           <p><b>Multi-Market Support:</b> The terminal now filters by Asset Type (Crypto, Indian Stocks, US Stocks).</p>
+                           <p className="mt-1">Example Payload for Stocks: <code>{`{"ticker": "RELIANCE", "assetType": "INDIAN STOCKS", "exchange": "NSE"}`}</code></p>
+                         </div>
                       </div>
                     </CardContent>
                   </Card>

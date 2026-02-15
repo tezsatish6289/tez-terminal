@@ -1,43 +1,35 @@
 
 # TezTerminal Antigravity
 
-Advanced Trading Terminal with TradingView Ingestion Bridge.
+Advanced Trading Terminal with Robust TradingView Ingestion.
 
 ## Step-by-Step Deployment Instructions
 
-1.  **Click "Publish"**: Look at the top-right corner of the Firebase Studio screen. Click the blue **"Publish"** button.
-2.  **Wait for Deployment**: The system will package your app and push it to a public server. This takes 2-4 minutes.
-3.  **Public URL**: Your terminal will be live at: `https://studio--studio-6235588950-a15f2.us-central1.hosted.app`
-4.  **Update TradingView**: 
-    *   Go to **Bridge Management** in your newly deployed app.
+1.  **Click "Publish"**: Look at the top-right corner of the Firebase Studio screen.
+2.  **Public URL**: Your terminal will be live at: `https://studio--studio-6235588950-a15f2.us-central1.hosted.app`
+3.  **Update TradingView**: 
+    *   Go to **Bridge Management** in your app.
     *   Copy the **Public Webhook URL**.
-    *   Paste it into your TradingView Alert "Webhook URL" box.
+    *   Paste it into your TradingView Alert.
 
-## Expected Ingestion Format (JSON)
-The terminal expects the following JSON payload from your indicators:
+## Recommended Ingestion Format (JSON)
+The bridge is fuzzy and handles most common keys, but for best results, use:
 
 ```json
 {
   "ticker": "{{ticker}}",
-  "side": "buy",
+  "side": "{{strategy.order.action}}",
   "price": "{{close}}",
-  "secretKey": "YOUR_KEY",
-  "exchange": "{{exchange}}",
   "timeframe": "{{interval}}",
-  "note": "TradingView Alert Triggered"
+  "secretKey": "YOUR_KEY"
 }
 ```
 
-### Supported Timeframes
-The bridge automatically normalizes your intervals. You can send:
-- **Minutes**: "1", "5", "15", "60" (for 1h), "240" (for 4h).
-- **Daily**: "D", "1D", "Daily".
-- **Weekly**: "W", "1W", "Weekly".
-
-## Data Maintenance
-If filters are not showing old signals, it is because they were stored in a non-standard format. It is recommended to clear the `signals` collection in the Firebase Console to start a fresh, standardized feed.
+### Supported Auto-Normalization
+- **Price**: Handles `price`, `close`, `price_at_alert`, or `entry`.
+- **Timeframe**: Automatically maps `1H`, `Daily`, `5m`, etc., to canonical terminal values.
+- **Symbol**: Handles `ticker`, `symbol`, `pair`, or `asset`.
 
 ## Security
 - Bridges are secured via `secretKey` in the JSON payload.
 - Admin: Only `hello@tezterminal.com` can manage bridges.
-- Ensure the public domain is added to **Authorized Domains** in Firebase Console -> Authentication.

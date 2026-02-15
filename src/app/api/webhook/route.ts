@@ -4,7 +4,7 @@ import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/fires
 
 /**
  * Production-Ready Ingestion Bridge.
- * Optimized for external TradingView signals with aggressive timeframe normalization.
+ * Fuzzy-searches for common TradingView JSON keys to ensure high compatibility.
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       rawBody = "UNREADABLE_BODY";
     }
 
-    // Log the raw attempt for admin debugging
+    // Log attempt for debugging
     await addDoc(logsRef, {
       timestamp,
       level: "INFO",
@@ -49,29 +49,30 @@ export async function POST(request: NextRequest) {
     const configSnap = await getDoc(configRef);
 
     if (!configSnap.exists()) {
-      throw new Error(`Bridge ID '${webhookId}' not found in terminal registry.`);
+      throw new Error(`Bridge ID '${webhookId}' not found.`);
     }
 
     const configData = configSnap.data();
-
     const providedKey = body.secretKey || searchParams.get("key");
     if (configData.secretKey && providedKey !== configData.secretKey) {
       throw new Error(`Authentication failure: Secret key mismatch.`);
     }
 
-    let signalType = "NEUTRAL";
-    const rawSide = (body.side || "").toString().toLowerCase();
-    
-    if (rawSide === "buy") signalType = "BUY";
-    if (rawSide === "sell") signalType = "SELL";
+    // 1. FUZZY SYMBOL SEARCH
+    const symbol = (body.ticker || body.symbol || body.pair || body.asset || "UNKNOWN").toUpperCase();
 
-    const symbol = (body.ticker || body.symbol || "UNKNOWN").toUpperCase();
-    const rawPrice = body.price_at_alert ?? body.price;
-    const price = rawPrice ? parseFloat(rawPrice.toString()) : null;
+    // 2. FUZZY SIDE/TYPE SEARCH
+    let signalType = "NEUTRAL";
+    const rawSide = (body.side || body.action || body.type || "").toString().toLowerCase();
+    if (rawSide.includes("buy") || rawSide.includes("long")) signalType = "BUY";
+    if (rawSide.includes("sell") || rawSide.includes("short")) signalType = "SELL";
+
+    // 3. FUZZY PRICE SEARCH
+    const rawPrice = body.price ?? body.close ?? body.price_at_alert ?? body.last_price ?? body.entry;
+    const price = rawPrice && !isNaN(parseFloat(rawPrice.toString())) ? parseFloat(rawPrice.toString()) : null;
     
-    // --- ROBUST TIMEFRAME NORMALIZATION ENGINE ---
-    // This ensures that the DB always contains "1", "5", "15", "60", "240", "D"
-    let rawTf = (body.timeframe || body.interval || "").toString().toUpperCase().trim();
+    // 4. FUZZY TIMEFRAME SEARCH & NORMALIZATION
+    let rawTf = (body.timeframe || body.interval || body.tf || "").toString().toUpperCase().trim();
     
     const tfMap: Record<string, string> = {
       "1": "1", "1M": "1", "1MIN": "1", "1MINUTE": "1",
@@ -83,34 +84,25 @@ export async function POST(request: NextRequest) {
       "W": "W", "1W": "W", "WEEKLY": "W",
     };
 
-    // Strip non-alphanumeric chars for cleaner matching
     const cleanedTf = rawTf.replace(/[^A-Z0-9]/g, "");
     const timeframe = tfMap[cleanedTf] || cleanedTf || "15";
 
     const signalData = {
-      webhookId: webhookId,
+      webhookId,
       receivedAt: timestamp,
       serverTimestamp: serverTimestamp(),
-      payload: JSON.stringify({ ...body, normalizedTf: timeframe }),
-      symbol: symbol,
+      payload: JSON.stringify(body),
+      symbol,
       type: signalType,
-      price: price,
-      timeframe: timeframe.toString(), // Force string for Firestore query consistency
+      price,
+      timeframe: timeframe.toString(),
       note: body.note || `Indicator alert for ${symbol}`,
       source: configData.name || "TradingView Indicator",
     };
 
     await addDoc(signalsRef, signalData);
 
-    await addDoc(logsRef, {
-      timestamp,
-      level: "INFO",
-      message: "Signal Processed Successfully",
-      details: `Asset: ${symbol} | Action: ${signalType} | TF: ${timeframe}`,
-      webhookId,
-    });
-
-    return NextResponse.json({ success: true, message: "Signal processed", timeframe });
+    return NextResponse.json({ success: true, message: "Signal processed", timeframe, price });
   } catch (error: any) {
     console.error(`[Ingestion Error] ${error.message}`);
     try {

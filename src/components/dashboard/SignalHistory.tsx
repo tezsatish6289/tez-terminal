@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { 
   Table, 
   TableBody, 
@@ -11,7 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Terminal, AlertCircle, Loader2, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { AlertCircle, Loader2, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -52,41 +52,31 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
 
   const { data: signals, isLoading: isCollectionLoading, error } = useCollection(signalsQuery);
 
-  // Poll Binance Futures API for latest prices
+  // Poll our internal Price Proxy for latest prices
   useEffect(() => {
-    if (!signals || signals.length === 0) return;
-
     const fetchPrices = async () => {
-      // Get unique symbols from signals
-      const symbols = Array.from(new Set(signals.map(s => s.symbol))).filter(s => s !== "UNKNOWN");
-      
-      const newPrices: Record<string, number> = { ...latestPrices };
-      
-      await Promise.all(symbols.map(async (sym) => {
-        try {
-          // Binance expects symbols without slashes and uppercase (e.g. BTCUSDT)
-          const cleanSym = sym.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-          // Use the specific Futures API endpoint requested by the user
-          const response = await fetch(`https://fapi.binance.com/fapi/v2/ticker/price?symbol=${cleanSym}`);
-          if (response.ok) {
-            const data = await response.json();
-            if (data && data.price) {
-              newPrices[sym] = parseFloat(data.price);
-            }
+      try {
+        const response = await fetch('/api/prices');
+        if (response.ok) {
+          const data = await response.json();
+          const priceMap: Record<string, number> = {};
+          
+          if (Array.isArray(data)) {
+            data.forEach((item: any) => {
+              priceMap[item.symbol] = parseFloat(item.price);
+            });
+            setLatestPrices(priceMap);
           }
-        } catch (e) {
-          // Silent fail for non-binance or non-existent symbols
         }
-      }));
-
-      setLatestPrices(newPrices);
+      } catch (e) {
+        console.error("Price fetch error:", e);
+      }
     };
 
     fetchPrices();
     const interval = setInterval(fetchPrices, 5000); // Poll every 5 seconds
-
     return () => clearInterval(interval);
-  }, [signals]);
+  }, []);
 
   const isLoading = isUserLoading || isCollectionLoading;
 
@@ -189,7 +179,9 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                   alertPriceValue = data?.price ?? data?.close ?? data?.price_at_alert ?? data?.last_price ?? data?.entry;
                 }
                 
-                const latestPrice = latestPrices[signal.symbol];
+                // Clean symbol for matching (strip / . -)
+                const cleanSym = signal.symbol.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                const latestPrice = latestPrices[cleanSym];
                 const isBuy = signal.type === 'BUY';
                 
                 // PNL Color logic

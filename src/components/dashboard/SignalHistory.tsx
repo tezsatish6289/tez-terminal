@@ -21,6 +21,7 @@ interface SignalHistoryProps {
   onSignalSelect?: (signal: { symbol: string; timeframe?: string; exchange?: string }) => void;
 }
 
+// These values MUST match the normalized output of the API engine
 const FILTERS = [
   { label: "All", value: null },
   { label: "1 min", value: "1" },
@@ -42,10 +43,11 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
   }, []);
 
   const signalsQuery = useMemoFirebase(() => {
-    if (!firestore || !user?.uid) return null;
+    if (!firestore || !user) return null;
     
     const baseQuery = collection(firestore, "signals");
     
+    // Use string comparisons for normalized timeframes
     if (activeFilter) {
       return query(
         baseQuery,
@@ -60,7 +62,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
       orderBy("receivedAt", "desc"),
       limit(50)
     );
-  }, [user?.uid, firestore, activeFilter]);
+  }, [user, firestore, activeFilter]);
 
   const { data: signals, isLoading: isCollectionLoading, error } = useCollection(signalsQuery);
 
@@ -91,7 +93,8 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
     const upperTf = tf.toUpperCase();
     if (upperTf === 'D' || upperTf === '1D') return 'Daily';
     if (upperTf === 'W' || upperTf === '1W') return 'Weekly';
-    if (upperTf === 'M' || upperTf === '1M') return 'Monthly';
+    if (upperTf === '60' || upperTf === '1H') return '1 hour';
+    if (upperTf === '240' || upperTf === '4H') return '4 hours';
     if (/^\d+$/.test(tf)) return `${tf} min`;
     return tf;
   };
@@ -145,7 +148,6 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
 
   return (
     <div className="w-full flex flex-col h-full">
-      {/* Timeframe Filters */}
       <div className="px-4 py-3 bg-background/20 border-b border-border flex items-center gap-1 overflow-x-auto no-scrollbar">
         {FILTERS.map((filter) => (
           <Button
@@ -174,8 +176,8 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
               <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">Time</TableHead>
               <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold">Asset</TableHead>
               <TableHead className="w-[60px] px-1 text-[10px] uppercase font-bold text-center">Side</TableHead>
-              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">Chart</TableHead>
-              <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold">Price @ Alert</TableHead>
+              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">Timeframe</TableHead>
+              <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold">Price</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -190,7 +192,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                 <TableCell colSpan={5} className="text-center py-12">
                   <Terminal className="h-6 w-6 text-muted-foreground mx-auto mb-2 opacity-20" />
                   <p className="text-muted-foreground text-[10px]">
-                    {activeFilter ? `No ${activeFilter === 'D' ? 'Daily' : activeFilter + ' min'} signals found...` : "No signals yet..."}
+                    {activeFilter ? `No ${activeFilter} signals found...` : "No signals yet..."}
                   </p>
                 </TableCell>
               </TableRow>
@@ -198,7 +200,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
               signals.map((signal) => {
                 const data = parsePayload(signal.payload);
                 const displayPrice = signal.price ?? data?.price_at_alert;
-                const displayTF = signal.timeframe ?? data?.timeframe;
+                const displayTF = signal.timeframe;
                 
                 return (
                   <TableRow 
@@ -227,19 +229,14 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                       </Badge>
                     </TableCell>
                     <TableCell className="px-2">
-                      {displayTF ? (
-                        <div className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">
-                          {formatTimeframe(displayTF)}
-                        </div>
-                      ) : <span className="text-muted-foreground/20">--</span>}
+                      <div className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">
+                        {formatTimeframe(displayTF)}
+                      </div>
                     </TableCell>
                     <TableCell className="font-mono text-xs px-2">
                       {displayPrice ? (
                          <span className="text-accent font-bold">
-                           ${Number(displayPrice).toLocaleString(undefined, { 
-                             minimumFractionDigits: 2, 
-                             maximumFractionDigits: 4 
-                           })}
+                           ${Number(displayPrice).toLocaleString()}
                          </span>
                       ) : (
                         <span className="text-muted-foreground/30">--</span>

@@ -4,7 +4,7 @@ import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/fires
 
 /**
  * Production-Ready Ingestion Bridge.
- * Optimized for external TradingView signals.
+ * Optimized for external TradingView signals with aggressive timeframe normalization.
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
@@ -19,14 +19,12 @@ export async function POST(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     webhookId = searchParams.get("id") || "MISSING_ID";
     
-    // 1. Capture Raw Request immediately for debugging
     try {
       rawBody = await request.text();
     } catch (e) {
       rawBody = "UNREADABLE_BODY";
     }
 
-    // 2. Audit Log
     await addDoc(logsRef, {
       timestamp,
       level: "INFO",
@@ -39,7 +37,6 @@ export async function POST(request: NextRequest) {
       throw new Error("Missing 'id' parameter in Webhook URL.");
     }
 
-    // 3. Parse Body
     let body: any;
     try {
       body = JSON.parse(rawBody.trim());
@@ -47,7 +44,6 @@ export async function POST(request: NextRequest) {
       throw new Error(`Invalid JSON format. Body: ${rawBody}`);
     }
 
-    // 4. Validate Bridge Config
     const configRef = doc(firestore, "webhooks", webhookId);
     const configSnap = await getDoc(configRef);
 
@@ -57,13 +53,11 @@ export async function POST(request: NextRequest) {
 
     const configData = configSnap.data();
 
-    // 5. Auth Check
     const providedKey = body.secretKey || searchParams.get("key");
     if (configData.secretKey && providedKey !== configData.secretKey) {
       throw new Error(`Authentication failure: Secret key mismatch.`);
     }
 
-    // 6. Signal Mapping
     let signalType = "NEUTRAL";
     const rawSide = (body.side || "").toString().toLowerCase();
     
@@ -71,25 +65,29 @@ export async function POST(request: NextRequest) {
     if (rawSide === "sell") signalType = "SELL";
 
     const symbol = (body.ticker || body.symbol || "UNKNOWN").toUpperCase();
-    
     const rawPrice = body.price_at_alert ?? body.price;
     const price = rawPrice ? parseFloat(rawPrice.toString()) : null;
     
-    // Normalize Timeframe (TV sends 1, 5, 15, 60, 240, D, 1D, 5m, etc.)
-    // We want a standard: "1", "5", "15", "60", "240", "D"
-    let timeframe = (body.timeframe || body.interval || "").toString().toUpperCase();
+    // --- TIMEFRAME NORMALIZATION ENGINE ---
+    // Standardizes TradingView interval codes to a canonical set: 1, 5, 15, 60, 240, D
+    let rawTf = (body.timeframe || body.interval || "").toString().toUpperCase().trim();
     
-    // Remove "M" if it's a minute timeframe (e.g. 5M -> 5)
-    if (/^\d+M$/.test(timeframe)) {
-      timeframe = timeframe.replace("M", "");
-    }
-    
-    // Map daily variations
-    if (timeframe === "1D" || timeframe === "D" || timeframe === "DAILY" || timeframe === "240") {
-       if (timeframe !== "240") timeframe = "D";
+    const tfMap: Record<string, string> = {
+      "1": "1", "1M": "1", "1MIN": "1", "1MINUTE": "1",
+      "5": "5", "5M": "5", "5MIN": "5", "5MINUTE": "5",
+      "15": "15", "15M": "15", "15MIN": "15", "15MINUTE": "15",
+      "60": "60", "1H": "60", "1HOUR": "60", "H": "60",
+      "240": "240", "4H": "240", "4HOUR": "240",
+      "D": "D", "1D": "D", "DAILY": "D", "DAY": "D",
+      "W": "W", "1W": "W", "WEEKLY": "W",
+    };
+
+    // If it's just numbers followed by M (e.g. 5M), treat as minutes
+    if (/^\d+M$/.test(rawTf)) {
+      rawTf = rawTf.replace("M", "");
     }
 
-    if (!timeframe) timeframe = "15"; // Default if missing
+    const timeframe = tfMap[rawTf] || rawTf || "15";
 
     const signalData = {
       webhookId: webhookId,
@@ -104,22 +102,19 @@ export async function POST(request: NextRequest) {
       source: configData.name || "TradingView Indicator",
     };
 
-    // Save to global signal stream
     await addDoc(signalsRef, signalData);
 
-    // Final Success Log
     await addDoc(logsRef, {
       timestamp,
       level: "INFO",
       message: "Signal Processed Successfully",
-      details: `Asset: ${symbol} | Action: ${signalType} | Price: ${price || 'N/A'} | TF: ${timeframe}`,
+      details: `Asset: ${symbol} | Action: ${signalType} | TF: ${timeframe}`,
       webhookId,
     });
 
-    return NextResponse.json({ success: true, message: "Signal processed" });
+    return NextResponse.json({ success: true, message: "Signal processed", timeframe });
   } catch (error: any) {
     console.error(`[Ingestion Error] ${error.message}`);
-    
     try {
       await addDoc(logsRef, {
         timestamp,
@@ -128,18 +123,11 @@ export async function POST(request: NextRequest) {
         details: error.message,
         webhookId: webhookId || "UNKNOWN",
       });
-    } catch (logErr) {
-      // Silent catch
-    }
-
+    } catch (logErr) {}
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }
 }
 
 export async function GET() {
-  return NextResponse.json({ 
-    status: "online", 
-    message: "Endpoint ready for TradingView POST requests.",
-    example: "/api/webhook?id=YOUR_BRIDGE_ID"
-  });
+  return NextResponse.json({ status: "online" });
 }

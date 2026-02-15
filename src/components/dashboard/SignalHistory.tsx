@@ -35,6 +35,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
   const [mounted, setMounted] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [latestPrices, setLatestPrices] = useState<Record<string, number>>({});
+  const [countdown, setCountdown] = useState(5);
 
   useEffect(() => {
     setMounted(true);
@@ -51,26 +52,32 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
 
   const { data: signals, isLoading: isCollectionLoading, error } = useCollection(signalsQuery);
 
-  // Poll our internal Server Proxy for latest prices
+  // Poll our internal Server Proxy for latest prices synced with a 1s countdown
   useEffect(() => {
     const fetchPrices = async () => {
       try {
         const response = await fetch('/api/prices');
         if (response.ok) {
           const priceMap = await response.json();
-          // Log for developer confirmation
-          console.log("[SignalHistory] Binance Sync Success:", Object.keys(priceMap).length, "pairs loaded.");
           setLatestPrices(priceMap);
-        } else {
-          console.warn("[SignalHistory] Proxy Error:", response.status);
         }
       } catch (e) {
         console.error("[SignalHistory] Price fetch failed:", e);
       }
     };
 
-    fetchPrices();
-    const interval = setInterval(fetchPrices, 5000); // Poll every 5 seconds
+    fetchPrices(); // Initial fetch
+
+    const interval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          fetchPrices();
+          return 5;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
     return () => clearInterval(interval);
   }, []);
 
@@ -116,7 +123,6 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
     });
   };
 
-  // Robust symbol cleaning for Binance matching (e.g. BINANCE:BTC/USDT -> BTCUSDT)
   const resolveBinanceSymbol = (rawSymbol: string) => {
     if (!rawSymbol) return "";
     const clean = rawSymbol.split(':').pop()?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || "";
@@ -164,7 +170,12 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
               <TableHead className="w-[70px] px-2 text-[10px] uppercase font-bold text-center text-accent/80">Chart</TableHead>
               <TableHead className="w-[50px] px-1 text-[10px] uppercase font-bold text-center text-accent/80">Side</TableHead>
               <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold text-right text-accent/80">Alert Price</TableHead>
-              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold text-right text-accent/80">Latest Price</TableHead>
+              <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold text-right text-accent/80">
+                <div className="flex flex-col items-end">
+                  <span>Latest Price</span>
+                  <span className="text-[8px] text-accent/60 font-mono tracking-tighter tabular-nums">{countdown}s</span>
+                </div>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -177,7 +188,6 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                 const data = parsePayload(signal.payload);
                 
                 let alertPriceValue = signal.price;
-                // Double check payload if the main field is empty
                 if (!alertPriceValue) {
                   alertPriceValue = data?.price ?? data?.close ?? data?.price_at_alert ?? data?.last_price ?? data?.entry;
                 }
@@ -186,7 +196,6 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                 const latestPrice = latestPrices[cleanSym];
                 const isBuy = signal.type === 'BUY';
                 
-                // Color coding logic based on trade performance
                 let priceColorClass = "text-muted-foreground";
                 if (latestPrice && alertPriceValue) {
                   const alertPriceNum = Number(alertPriceValue);

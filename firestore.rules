@@ -11,10 +11,13 @@ service cloud.firestore {
 
     // Signals (Idea Stream)
     match /signals/{document=**} {
-      allow read: if request.auth != null;
+      // Shared market ideas are public in this app's vision
+      allow read: if true; 
+      // Webhooks create these (unauthenticated entry point)
       allow create: if true; 
-      // Allow updates to performance tracking fields for the backend cron or admin
-      allow update: if request.auth != null;
+      // Allow the Server Cron to update prices and performance metrics
+      allow update: if true; 
+      // Only the admin can delete signal history
       allow delete: if isAdmin();
     }
 
@@ -31,6 +34,6 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     
-    // Deployment Trigger: 2024-05-24 10:15 - Enabled Signal Performance Updates.
+    // Deployment Trigger: 2024-05-24 11:30 - Enabled 24/7 Global Cron Sync.
   }
 }

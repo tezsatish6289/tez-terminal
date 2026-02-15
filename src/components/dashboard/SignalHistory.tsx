@@ -11,7 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, LineChart, Server, ArrowUpRight, ArrowDownRight, Timer } from "lucide-react";
+import { AlertCircle, LineChart, Server, ArrowUpRight, ArrowDownRight, Timer, TrendingUp } from "lucide-react";
 import { format, differenceInMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -43,8 +43,8 @@ export function SignalHistory() {
 
   const { data: signals, isLoading, error } = useCollection(signalsQuery);
 
-  const calculatePercent = (targetPrice: number | undefined, entry: number, type: string) => {
-    if (!targetPrice || !entry || entry === 0) return null;
+  const calculatePercent = (targetPrice: number | undefined | null, entry: number, type: string) => {
+    if (targetPrice === undefined || targetPrice === null || !entry || entry === 0) return null;
     const diff = type === 'BUY' ? targetPrice - entry : entry - targetPrice;
     return ((diff / entry) * 100).toFixed(2);
   };
@@ -92,7 +92,7 @@ export function SignalHistory() {
               key={tf}
               onClick={() => setActiveFilter(tf === "All" ? null : tf)}
               className={cn(
-                "px-4 py-1.5 text-xs font-black rounded uppercase transition-all",
+                "px-6 py-2 text-sm font-black rounded uppercase transition-all",
                 (tf === "All" ? !activeFilter : activeFilter === tf) 
                   ? "bg-accent text-accent-foreground shadow-lg shadow-accent/20" 
                   : "bg-secondary/30 text-muted-foreground hover:bg-secondary/50"
@@ -103,8 +103,8 @@ export function SignalHistory() {
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-[10px] h-6 border-emerald-500/20 text-emerald-400 gap-1.5 bg-emerald-500/5 px-3 font-black">
-            <Server className="h-3 w-3" /> 24/7 SYNC ACTIVE
+          <Badge variant="outline" className="text-[12px] h-8 border-emerald-500/20 text-emerald-400 gap-1.5 bg-emerald-500/5 px-4 font-black uppercase">
+            <Server className="h-4 w-4" /> 24/7 SYNC ACTIVE
           </Badge>
         </div>
       </div>
@@ -113,30 +113,34 @@ export function SignalHistory() {
         <Table>
           <TableHeader className="bg-secondary/20 sticky top-0 z-10 backdrop-blur-md">
             <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-xs uppercase font-black py-4 pl-6 w-[130px]">Alert Time</TableHead>
-              <TableHead className="text-xs uppercase font-black py-4 w-[140px]">Running Since</TableHead>
-              <TableHead className="text-xs uppercase font-black py-4 w-[180px]">Asset Name</TableHead>
-              <TableHead className="text-xs uppercase font-black py-4 w-[110px]">Exchange</TableHead>
-              <TableHead className="text-xs uppercase font-black py-4 text-center w-[120px]">Deep Dive</TableHead>
-              <TableHead className="text-xs uppercase font-black py-4 text-center w-[100px]">Side</TableHead>
-              <TableHead className="text-xs uppercase font-black py-4 text-right w-[130px]">Alert Price</TableHead>
-              <TableHead className="text-xs uppercase font-black text-accent py-4 text-right w-[130px]">Latest Price</TableHead>
-              <TableHead className="text-xs uppercase font-black text-emerald-400 py-4 text-right w-[130px]">Max Upside</TableHead>
-              <TableHead className="text-xs uppercase font-black text-rose-400 py-4 text-right pr-6 w-[130px]">Max Drawdown</TableHead>
+              <TableHead className="text-xs uppercase font-black py-5 pl-6 w-[120px]">Time</TableHead>
+              <TableHead className="text-xs uppercase font-black py-5 w-[140px]">Age</TableHead>
+              <TableHead className="text-xs uppercase font-black py-5 w-[180px]">Asset</TableHead>
+              <TableHead className="text-xs uppercase font-black py-5 w-[110px]">Exch</TableHead>
+              <TableHead className="text-xs uppercase font-black py-5 text-center w-[120px]">TF / Deep</TableHead>
+              <TableHead className="text-xs uppercase font-black py-5 text-center w-[100px]">Side</TableHead>
+              <TableHead className="text-xs uppercase font-black py-5 text-right w-[140px]">Entry</TableHead>
+              <TableHead className="text-xs uppercase font-black text-accent py-5 text-right w-[140px]">Live</TableHead>
+              <TableHead className="text-xs uppercase font-black text-accent-foreground py-5 text-right w-[120px]">Live PNL</TableHead>
+              <TableHead className="text-xs uppercase font-black text-emerald-400 py-5 text-right w-[140px]">Max Up</TableHead>
+              <TableHead className="text-xs uppercase font-black text-rose-400 py-5 text-right pr-6 w-[140px]">Max DD</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (!signals || signals.length === 0) ? (
-              <TableRow><TableCell colSpan={10} className="text-center py-24 text-sm animate-pulse text-accent uppercase tracking-widest font-black">Establishing Node Bridge...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={11} className="text-center py-24 text-lg animate-pulse text-accent uppercase tracking-widest font-black">Connecting Node...</TableCell></TableRow>
             ) : signals?.length === 0 ? (
-              <TableRow><TableCell colSpan={10} className="text-center py-24 text-sm text-muted-foreground uppercase tracking-widest font-black">No active signals found in the stream</TableCell></TableRow>
+              <TableRow><TableCell colSpan={11} className="text-center py-24 text-lg text-muted-foreground uppercase tracking-widest font-black">No active signals</TableCell></TableRow>
             ) : (
               signals?.map((signal) => {
                 const alertPrice = Number(signal.price || 0);
                 const currentPrice = signal.currentPrice ? Number(signal.currentPrice) : null;
                 
+                const livePnl = calculatePercent(currentPrice, alertPrice, signal.type);
                 const upsidePercent = calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type);
                 const drawdownPercent = calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type);
+
+                const isPnlPositive = livePnl ? Number(livePnl) > 0 : false;
 
                 return (
                   <TableRow 
@@ -144,77 +148,90 @@ export function SignalHistory() {
                     onClick={() => router.push(`/chart/${signal.id}`)}
                     className="group border-border hover:bg-accent/5 transition-all cursor-pointer"
                   >
-                    <TableCell className="text-xs font-mono text-muted-foreground/80 py-6 pl-6 whitespace-nowrap">
-                      {mounted ? format(new Date(signal.receivedAt), 'HH:mm:ss') : "--"}
+                    <TableCell className="text-sm font-mono text-muted-foreground py-6 pl-6 whitespace-nowrap">
+                      {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"}
                     </TableCell>
                     <TableCell className="py-6">
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Timer className="h-4 w-4 text-accent/50" />
-                        <span className="text-xs font-mono font-bold whitespace-nowrap">
+                        <span className="text-sm font-mono font-bold whitespace-nowrap">
                           {mounted ? getRunningSince(signal.receivedAt) : "--"}
                         </span>
                       </div>
                     </TableCell>
                     <TableCell className="py-6">
-                      <span className="font-black text-base text-white tracking-tight">{signal.symbol}</span>
+                      <span className="font-black text-xl text-white tracking-tighter uppercase">{signal.symbol}</span>
                     </TableCell>
                     <TableCell className="py-6">
-                      <Badge className="bg-primary/40 text-accent border-accent/20 text-[10px] font-black tracking-tight h-6 px-2">
+                      <Badge className="bg-primary/30 text-accent border-accent/20 text-[10px] font-black h-6 px-2">
                         {signal.exchange || "BINANCE"}
                       </Badge>
                     </TableCell>
                     <TableCell className="py-6">
                       <div className="flex items-center justify-center gap-3">
-                        <Badge variant="outline" className="text-[10px] h-5 px-2 border-white/10 font-mono bg-white/5 opacity-80">
+                        <Badge variant="outline" className="text-[11px] h-6 px-2 border-white/10 font-black bg-white/5 opacity-80 uppercase">
                           {signal.timeframe}
                         </Badge>
-                        <div className="p-2 rounded-lg bg-accent/5 group-hover:bg-accent/20 text-muted-foreground group-hover:text-accent transition-all">
-                          <LineChart className="h-5 w-5" />
+                        <div className="p-2.5 rounded-xl bg-accent/5 group-hover:bg-accent/20 text-muted-foreground group-hover:text-accent transition-all">
+                          <LineChart className="h-6 w-6" />
                         </div>
                       </div>
                     </TableCell>
                     <TableCell className="text-center py-6">
                       <Badge className={cn(
-                        "text-[11px] font-black border-none h-7 px-4 shadow-sm",
-                        signal.type === 'BUY' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                        "text-[12px] font-black border-none h-8 px-5 shadow-sm uppercase",
+                        signal.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
                       )}>
                         {signal.type}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm text-white/40 py-6">
+                    <TableCell className="text-right font-mono text-base text-white/50 py-6">
                       ${formatPrice(alertPrice)}
                     </TableCell>
                     <TableCell className="text-right py-6">
                       {currentPrice ? (
                         <div className={cn(
-                          "font-mono text-base font-black",
+                          "font-mono text-lg font-black",
                           (signal.type === 'BUY' && currentPrice >= alertPrice) || (signal.type === 'SELL' && currentPrice <= alertPrice) 
                           ? "text-emerald-400" : "text-rose-400"
                         )}>
                           ${formatPrice(currentPrice)}
                         </div>
                       ) : (
-                        <span className="text-muted-foreground font-mono text-sm">--</span>
+                        <span className="text-muted-foreground font-mono text-base">--</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right py-6">
+                      {livePnl ? (
+                        <div className={cn(
+                          "font-mono text-lg font-black flex items-center justify-end gap-1",
+                          isPnlPositive ? "text-emerald-400" : "text-rose-400"
+                        )}>
+                          <TrendingUp className={cn("h-4 w-4", !isPnlPositive && "rotate-180")} />
+                          {livePnl}%
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground font-mono text-base">--</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right py-6">
                        <div className="flex flex-col items-end">
-                         <span className="text-emerald-400 font-black text-sm font-mono flex items-center gap-1">
+                         <span className="text-emerald-400 font-black text-base font-mono flex items-center gap-1">
                            {upsidePercent && Number(upsidePercent) !== 0 ? (
                              <>
                                <ArrowUpRight className="h-4 w-4" />
-                               {Number(upsidePercent) > 0 ? '+' : ''}{upsidePercent}%
+                               {upsidePercent}%
                              </>
                            ) : "0.00%"}
                          </span>
-                         <span className="text-[10px] text-muted-foreground/80 font-mono">
+                         <span className="text-[11px] text-muted-foreground font-mono">
                            ${formatPrice(signal.maxUpsidePrice || alertPrice)}
                          </span>
                        </div>
                     </TableCell>
                     <TableCell className="text-right py-6 pr-6">
                        <div className="flex flex-col items-end">
-                         <span className="text-rose-400 font-black text-sm font-mono flex items-center gap-1">
+                         <span className="text-rose-400 font-black text-base font-mono flex items-center gap-1">
                            {drawdownPercent && Number(drawdownPercent) !== 0 ? (
                              <>
                                <ArrowDownRight className="h-4 w-4" />
@@ -222,7 +239,7 @@ export function SignalHistory() {
                              </>
                            ) : "0.00%"}
                          </span>
-                         <span className="text-[10px] text-muted-foreground/80 font-mono">
+                         <span className="text-[11px] text-muted-foreground font-mono">
                            ${formatPrice(signal.maxDrawdownPrice || alertPrice)}
                          </span>
                        </div>

@@ -16,7 +16,8 @@ import {
   Zap,
   Loader2,
   AlertTriangle,
-  Timer
+  Timer,
+  TrendingUp
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, differenceInMinutes } from "date-fns";
@@ -44,8 +45,8 @@ export default function DeepDiveChartPage() {
 
   const { data: signal, isLoading: isSignalLoading, error } = useDoc(signalRef);
 
-  const calculatePercent = (targetPrice: number | undefined, entry: number, type: string) => {
-    if (!targetPrice || !entry || entry === 0) return null;
+  const calculatePercent = (targetPrice: number | undefined | null, entry: number, type: string) => {
+    if (targetPrice === undefined || targetPrice === null || !entry || entry === 0) return null;
     const diff = type === 'BUY' ? targetPrice - entry : entry - targetPrice;
     return ((diff / entry) * 100).toFixed(2);
   };
@@ -98,102 +99,115 @@ export default function DeepDiveChartPage() {
 
   const alertPrice = Number(signal?.price || 0);
   const currentPrice = Number(signal?.currentPrice || 0);
+  const livePnl = calculatePercent(currentPrice, alertPrice, signal?.type || "BUY");
   const upsidePercent = calculatePercent(signal?.maxUpsidePrice, alertPrice, signal?.type || "BUY");
   const drawdownPercent = calculatePercent(signal?.maxDrawdownPrice, alertPrice, signal?.type || "BUY");
+
+  const isPnlPositive = livePnl ? Number(livePnl) > 0 : false;
 
   return (
     <div className="flex flex-col h-screen bg-[#0a0a0c] text-foreground overflow-hidden">
       <TopBar />
       
       {/* Performance Data Strip */}
-      <div className="h-20 bg-card/90 border-b border-white/10 flex items-center px-8 justify-between shrink-0 backdrop-blur-xl z-20 shadow-2xl">
-        <div className="flex items-center gap-8">
+      <div className="h-24 bg-card/90 border-b border-white/10 flex items-center px-8 justify-between shrink-0 backdrop-blur-xl z-20 shadow-2xl">
+        <div className="flex items-center gap-10">
           <Button 
             variant="ghost" 
             size="icon" 
             onClick={() => router.push("/")}
-            className="hover:bg-accent/10 text-muted-foreground h-12 w-12"
+            className="hover:bg-accent/10 text-muted-foreground h-14 w-14"
           >
-            <ChevronLeft className="h-6 w-6" />
+            <ChevronLeft className="h-8 w-8" />
           </Button>
 
-          <div className="flex items-center gap-4">
-             <div className="bg-primary/30 p-2.5 rounded-xl border border-accent/20">
-                <BarChart3 className="h-6 w-6 text-accent" />
+          <div className="flex items-center gap-6">
+             <div className="bg-primary/30 p-3.5 rounded-2xl border border-accent/20">
+                <BarChart3 className="h-8 w-8 text-accent" />
              </div>
              <div>
-                <h2 className="text-2xl font-black tracking-tighter text-white leading-none">
+                <h2 className="text-4xl font-black tracking-tighter text-white leading-none uppercase">
                   {signal?.symbol}
                 </h2>
-                <div className="flex items-center gap-3 mt-2">
-                   <Badge variant="outline" className="text-[10px] h-5 border-white/10 uppercase tracking-widest font-black opacity-70">
+                <div className="flex items-center gap-4 mt-3">
+                   <Badge variant="outline" className="text-[11px] h-6 border-white/10 uppercase tracking-widest font-black opacity-70">
                      {signal?.exchange}
                    </Badge>
                    <Badge className={cn(
-                     "text-[10px] h-5 font-black border-none px-2",
+                     "text-[11px] h-6 font-black border-none px-3 uppercase",
                      signal?.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
                    )}>
                      {signal?.type}
                    </Badge>
-                   <Badge variant="outline" className="text-[10px] h-5 px-2 border-accent/20 text-accent font-black gap-1.5">
-                     <Timer className="h-3 w-3" />
+                   <Badge variant="outline" className="text-[11px] h-6 px-3 border-accent/20 text-accent font-black gap-2">
+                     <Timer className="h-4 w-4" />
                      {mounted && signal ? getRunningSince(signal.receivedAt) : "--"}
                    </Badge>
                 </div>
              </div>
           </div>
 
-          <div className="h-10 w-px bg-white/5" />
+          <div className="h-14 w-px bg-white/5" />
 
-          <div className="flex gap-10">
+          <div className="flex gap-12">
             <div className="flex flex-col">
-              <span className="text-[11px] uppercase font-bold text-muted-foreground tracking-widest mb-1">Entry</span>
-              <span className="text-lg font-mono font-bold text-white/90">${formatPrice(alertPrice)}</span>
+              <span className="text-[12px] uppercase font-bold text-muted-foreground tracking-widest mb-1.5">Entry Price</span>
+              <span className="text-2xl font-mono font-bold text-white/90">${formatPrice(alertPrice)}</span>
             </div>
             <div className="flex flex-col">
-              <span className="text-[11px] uppercase font-bold text-accent tracking-widest mb-1">Live</span>
+              <span className="text-[12px] uppercase font-bold text-accent tracking-widest mb-1.5">Latest Live</span>
               <span className={cn(
-                "text-lg font-mono font-bold",
+                "text-2xl font-mono font-black",
                 (signal?.type === 'BUY' && currentPrice >= alertPrice) || (signal?.type === 'SELL' && currentPrice <= alertPrice) 
                 ? "text-emerald-400" : "text-rose-400"
               )}>
                 ${formatPrice(currentPrice)}
               </span>
             </div>
+            <div className="flex flex-col">
+              <span className="text-[12px] uppercase font-bold text-accent-foreground tracking-widest mb-1.5">Live PNL</span>
+              <span className={cn(
+                "text-2xl font-mono font-black flex items-center gap-2",
+                isPnlPositive ? "text-emerald-400" : "text-rose-400"
+              )}>
+                <TrendingUp className={cn("h-5 w-5", !isPnlPositive && "rotate-180")} />
+                {livePnl}%
+              </span>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-12">
+        <div className="flex items-center gap-16">
            <div className="flex flex-col items-end">
-              <span className="text-[11px] uppercase font-bold text-emerald-500/60 tracking-widest mb-1">Max Upside</span>
-              <div className="flex items-center gap-3">
-                 <span className="text-xl font-black text-emerald-400 font-mono flex items-center gap-1.5">
-                   <ArrowUpRight className="h-5 w-5" />
+              <span className="text-[12px] uppercase font-bold text-emerald-500/60 tracking-widest mb-1.5">Max Upside</span>
+              <div className="flex items-center gap-4">
+                 <span className="text-3xl font-black text-emerald-400 font-mono flex items-center gap-2">
+                   <ArrowUpRight className="h-7 w-7" />
                    {upsidePercent}%
                  </span>
-                 <span className="text-[11px] text-muted-foreground font-mono opacity-50">${formatPrice(signal?.maxUpsidePrice)}</span>
+                 <span className="text-[12px] text-muted-foreground font-mono opacity-50 font-bold">${formatPrice(signal?.maxUpsidePrice)}</span>
               </div>
            </div>
            
            <div className="flex flex-col items-end">
-              <span className="text-[11px] uppercase font-bold text-rose-500/60 tracking-widest mb-1">Max Drawdown</span>
-              <div className="flex items-center gap-3">
-                 <span className="text-xl font-black text-rose-400 font-mono flex items-center gap-1.5">
-                   <ArrowDownRight className="h-5 w-5" />
+              <span className="text-[12px] uppercase font-bold text-rose-500/60 tracking-widest mb-1.5">Max Drawdown</span>
+              <div className="flex items-center gap-4">
+                 <span className="text-3xl font-black text-rose-400 font-mono flex items-center gap-2">
+                   <ArrowDownRight className="h-7 w-7" />
                    {drawdownPercent}%
                  </span>
-                 <span className="text-[11px] text-muted-foreground font-mono opacity-50">${formatPrice(signal?.maxDrawdownPrice)}</span>
+                 <span className="text-[12px] text-muted-foreground font-mono opacity-50 font-bold">${formatPrice(signal?.maxDrawdownPrice)}</span>
               </div>
            </div>
 
-           <div className="h-10 w-px bg-white/5" />
+           <div className="h-14 w-px bg-white/5" />
 
            <div className="flex flex-col items-end">
-             <div className="flex items-center gap-2 bg-emerald-500/5 px-3 py-1.5 rounded-full border border-emerald-500/10">
-               <Zap className="h-4 w-4 text-emerald-400 fill-emerald-400 animate-pulse" />
-               <span className="text-[11px] font-black text-emerald-400 uppercase">Live Node</span>
+             <div className="flex items-center gap-2 bg-emerald-500/10 px-4 py-2 rounded-full border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+               <Zap className="h-5 w-5 text-emerald-400 fill-emerald-400 animate-pulse" />
+               <span className="text-[12px] font-black text-emerald-400 uppercase tracking-tighter">Live Node</span>
              </div>
-             <span className="text-[10px] text-muted-foreground font-mono mt-1">
+             <span className="text-[12px] text-muted-foreground font-mono mt-2 font-bold">
                {mounted ? format(now, 'HH:mm:ss') : "--"} UTC
              </span>
            </div>

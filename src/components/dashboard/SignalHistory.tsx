@@ -19,6 +19,10 @@ import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebas
 import { collection, query, limit, orderBy } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
+/**
+ * PRODUCTION TERMINAL ENGINE
+ * Standardized for 24/7 high-density market monitoring.
+ */
 export function SignalHistory() {
   const router = useRouter();
   const { user } = useUser();
@@ -34,8 +38,7 @@ export function SignalHistory() {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch a larger set of recent signals to allow for smooth client-side filtering
-  // This avoids the need for manual composite index creation in the Firebase Console
+  // PRODUCTION STRATEGY: Fetch recent signals and filter client-side for zero-latency UI interaction.
   const signalsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
@@ -47,7 +50,6 @@ export function SignalHistory() {
 
   const { data: rawSignals, isLoading, error } = useCollection(signalsQuery);
 
-  // Apply filters on the client side
   const signals = rawSignals?.filter(signal => {
     const matchesAsset = !activeAssetType || signal.assetType === activeAssetType;
     const matchesTf = !activeTimeframe || signal.timeframe === activeTimeframe;
@@ -72,16 +74,13 @@ export function SignalHistory() {
   const getRunningSince = (receivedAt: string) => {
     const start = new Date(receivedAt);
     const diffMins = differenceInMinutes(now, start);
-    
     const days = Math.floor(diffMins / 1440);
     const hours = Math.floor((diffMins % 1440) / 60);
     const mins = diffMins % 60;
-
     const parts = [];
     if (days > 0) parts.push(`${days}d`);
     if (hours > 0) parts.push(`${hours}h`);
     parts.push(`${mins}m`);
-    
     return parts.join(" ");
   };
 
@@ -147,13 +146,13 @@ export function SignalHistory() {
       </div>
 
       <ScrollArea className="flex-1 w-full">
-        <Table className="min-w-[1200px] table-fixed">
+        <Table className="min-w-[1250px] table-fixed">
           <TableHeader className="bg-secondary/20 sticky top-0 z-10 backdrop-blur-md">
             <TableRow className="border-border hover:bg-transparent">
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Time</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">Age</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-left pl-6 w-[130px]">Asset</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[120px]">EXCHANGE</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[110px]">EXCHANGE</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Chart</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Side</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-right w-[110px]">Entry</TableHead>
@@ -171,11 +170,9 @@ export function SignalHistory() {
               signals?.map((signal) => {
                 const alertPrice = Number(signal.price || 0);
                 const currentPrice = signal.currentPrice ? Number(signal.currentPrice) : null;
-                
                 const livePnl = calculatePercent(currentPrice, alertPrice, signal.type);
                 const upsidePercent = calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type);
                 const drawdownPercent = calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type);
-
                 const isPnlPositive = livePnl ? Number(livePnl) > 0 : false;
 
                 return (
@@ -184,13 +181,13 @@ export function SignalHistory() {
                     onClick={() => router.push(`/chart/${signal.id}`)}
                     className="group border-border hover:bg-accent/5 transition-all cursor-pointer"
                   >
-                    <TableCell className="text-[11px] font-mono text-muted-foreground py-3 text-center whitespace-nowrap">
+                    <TableCell className="text-[11px] font-mono text-muted-foreground py-3 text-center">
                       {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"}
                     </TableCell>
                     <TableCell className="py-3 text-center">
                       <div className="flex items-center justify-center gap-1.5 text-muted-foreground">
                         <Timer className="h-3.5 w-3.5 text-accent/50" />
-                        <span className="text-[11px] font-mono font-bold whitespace-nowrap">
+                        <span className="text-[11px] font-mono font-bold">
                           {mounted ? getRunningSince(signal.receivedAt) : "--"}
                         </span>
                       </div>

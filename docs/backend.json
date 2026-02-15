@@ -30,8 +30,8 @@
         "note": { "type": "string" },
         "source": { "type": "string" },
         "timeframe": { "type": "string", "description": "The timeframe of the signal (e.g. 1, 5, 15, 60, D)" },
-        "maxUpsidePrice": { "type": "number" },
-        "maxDrawdownPrice": { "type": "number" }
+        "maxUpsidePrice": { "type": "number", "description": "The best price achieved since the alert." },
+        "maxDrawdownPrice": { "type": "number", "description": "The worst price reached since the alert." }
       },
       "required": ["id", "symbol", "type", "receivedAt"]
     },

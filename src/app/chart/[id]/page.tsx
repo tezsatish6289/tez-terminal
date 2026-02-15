@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useDoc, useFirestore, useMemoFirebase, useUser } from "@/firebase";
@@ -110,7 +109,7 @@ export default function DeepDiveChartPage() {
       <TopBar />
       
       {/* Performance Data Strip */}
-      <div className="h-20 bg-card/95 border-b border-white/10 flex items-center px-6 justify-between shrink-0 backdrop-blur-xl z-20 shadow-2xl overflow-x-auto no-scrollbar">
+      <div className="h-24 bg-card/95 border-b border-white/10 flex items-center px-6 justify-between shrink-0 backdrop-blur-xl z-20 shadow-2xl overflow-x-auto no-scrollbar">
         <div className="flex items-center gap-6 min-w-max">
           <Button 
             variant="ghost" 
@@ -147,16 +146,18 @@ export default function DeepDiveChartPage() {
              </div>
           </div>
 
-          <div className="h-10 w-px bg-white/10 mx-2 shrink-0" />
+          <div className="h-14 w-px bg-white/10 mx-4 shrink-0" />
 
           <div className="flex gap-10">
-            <div className="flex flex-col">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-1.5">Entry Price</span>
+            {/* Entry Price (2-Row for Stability) */}
+            <div className="flex flex-col justify-center">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-1">Entry Price</span>
               <span className="text-xl font-mono font-bold text-white/90 leading-none">${formatPrice(alertPrice)}</span>
             </div>
             
+            {/* Latest Live (3-Row Format) */}
             <div className="flex flex-col">
-              <span className="text-[10px] uppercase font-bold text-accent tracking-widest mb-1.5">Latest Live</span>
+              <span className="text-[10px] uppercase font-bold text-accent tracking-widest mb-1">Latest Live</span>
               <span className={cn(
                 "text-xl font-mono font-black leading-none",
                 (signal?.type === 'BUY' && currentPrice >= alertPrice) || (signal?.type === 'SELL' && currentPrice <= alertPrice) 
@@ -164,45 +165,43 @@ export default function DeepDiveChartPage() {
               )}>
                 ${formatPrice(currentPrice)}
               </span>
-            </div>
-
-            <div className="flex flex-col">
-              <span className="text-[10px] uppercase font-bold text-accent-foreground tracking-widest mb-1.5">Live PNL</span>
               <span className={cn(
-                "text-xl font-mono font-black flex items-center gap-1 leading-none",
+                "text-[10px] font-mono font-black flex items-center gap-1 mt-1.5",
                 isPnlPositive ? "text-emerald-400" : "text-rose-400"
               )}>
-                <TrendingUp className={cn("h-4 w-4", !isPnlPositive && "rotate-180")} />
-                {livePnl}%
+                <TrendingUp className={cn("h-3 w-3", !isPnlPositive && "rotate-180")} />
+                {livePnl}% Live PNL
               </span>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-10 min-w-max">
+           {/* Max Upside (3-Row Format) */}
            <div className="flex flex-col items-end">
-              <span className="text-[10px] uppercase font-bold text-emerald-500/60 tracking-widest mb-1.5">Max Upside</span>
-              <div className="flex items-center gap-3">
-                 <span className="text-xl font-black text-emerald-400 font-mono flex items-center gap-1 leading-none">
-                   <ArrowUpRight className="h-5 w-5" />
-                   {upsidePercent}%
-                 </span>
-                 <span className="text-[10px] text-muted-foreground font-mono opacity-50 font-bold">${formatPrice(signal?.maxUpsidePrice)}</span>
-              </div>
+              <span className="text-[10px] uppercase font-bold text-emerald-500/60 tracking-widest mb-1">Max Upside</span>
+              <span className="text-xl font-black text-emerald-400 font-mono flex items-center gap-1 leading-none">
+                <ArrowUpRight className="h-5 w-5" />
+                {upsidePercent}%
+              </span>
+              <span className="text-[10px] text-muted-foreground font-mono font-bold mt-1.5 opacity-50">
+                Peak: ${formatPrice(signal?.maxUpsidePrice)}
+              </span>
            </div>
            
+           {/* Max Drawdown (3-Row Format) */}
            <div className="flex flex-col items-end">
-              <span className="text-[10px] uppercase font-bold text-rose-500/60 tracking-widest mb-1.5">Max Drawdown</span>
-              <div className="flex items-center gap-3">
-                 <span className="text-xl font-black text-rose-400 font-mono flex items-center gap-1 leading-none">
-                   <ArrowDownRight className="h-5 w-5" />
-                   {drawdownPercent}%
-                 </span>
-                 <span className="text-[10px] text-muted-foreground font-mono opacity-50 font-bold">${formatPrice(signal?.maxDrawdownPrice)}</span>
-              </div>
+              <span className="text-[10px] uppercase font-bold text-rose-500/60 tracking-widest mb-1">Max Down</span>
+              <span className="text-xl font-black text-rose-400 font-mono flex items-center gap-1 leading-none">
+                <ArrowDownRight className="h-5 w-5" />
+                {drawdownPercent}%
+              </span>
+              <span className="text-[10px] text-muted-foreground font-mono font-bold mt-1.5 opacity-50">
+                Low: ${formatPrice(signal?.maxDrawdownPrice)}
+              </span>
            </div>
 
-           <div className="h-10 w-px bg-white/10 shrink-0" />
+           <div className="h-14 w-px bg-white/10 mx-4 shrink-0" />
 
            <div className="flex flex-col items-end shrink-0">
              <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">

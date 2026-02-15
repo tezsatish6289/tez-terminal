@@ -54,7 +54,6 @@ export function SignalHistory() {
 
   /**
    * DEEP-PARSING ENGINE (TRUTH-BASED)
-   * Intelligently extracts asset classification from top-level fields or raw JSON payloads.
    */
   const getDisplayAssetType = (signal: any) => {
     if (signal.assetType && signal.assetType !== "UNCLASSIFIED") return signal.assetType;
@@ -74,7 +73,6 @@ export function SignalHistory() {
 
   /**
    * RESILIENT FILTERING ENGINE (CLIENT-SIDE)
-   * Ensures legacy and new signals are filterable regardless of metadata storage.
    */
   const filteredSignals = useMemo(() => {
     if (!rawSignals) return [];
@@ -128,6 +126,15 @@ export function SignalHistory() {
     { label: "US Stocks", value: "US STOCKS" },
   ];
 
+  const timeframeFilters = [
+    { label: "All Chart Timeframes", value: null },
+    { label: "5 min", value: "5" },
+    { label: "15 min", value: "15" },
+    { label: "1 hour", value: "60" },
+    { label: "4 Hour", value: "240" },
+    { label: "Daily", value: "D" },
+  ];
+
   return (
     <div className="flex flex-col h-full bg-[#0a0a0c]">
       <div className="p-4 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-md flex flex-col gap-4 shrink-0 z-20">
@@ -154,18 +161,18 @@ export function SignalHistory() {
         </div>
 
         <div className="flex gap-2 overflow-x-auto no-scrollbar">
-          {["All TF", "5", "15", "60", "D"].map(tf => (
+          {timeframeFilters.map(tf => (
             <button
-              key={tf}
-              onClick={() => setActiveTimeframe(tf === "All TF" ? null : tf)}
+              key={tf.label}
+              onClick={() => setActiveTimeframe(tf.value)}
               className={cn(
-                "px-4 py-1.5 text-[10px] font-black rounded-md uppercase transition-all border",
-                (tf === "All TF" ? !activeTimeframe : activeTimeframe === tf) 
+                "px-4 py-1.5 text-[10px] font-black rounded-md uppercase transition-all border whitespace-nowrap",
+                activeTimeframe === tf.value
                   ? "bg-white text-black border-white" 
                   : "bg-white/5 text-muted-foreground border-white/5 hover:bg-white/10"
               )}
             >
-              {tf === "All TF" ? "All Timeframes" : tf === "D" ? "Daily" : `${tf}m`}
+              {tf.label}
             </button>
           ))}
         </div>
@@ -199,7 +206,6 @@ export function SignalHistory() {
                   onClick={() => router.push(`/chart/${signal.id}`)}
                   className="group relative overflow-hidden bg-[#121214] border-white/5 hover:border-accent/40 transition-all duration-300 cursor-pointer shadow-xl hover:shadow-accent/5 rounded-xl flex flex-col"
                 >
-                  {/* Card Header */}
                   <div className="p-4 border-b border-white/5 bg-white/[0.02]">
                     <div className="flex items-start justify-between">
                       <div className="flex flex-col">
@@ -221,7 +227,6 @@ export function SignalHistory() {
                     </div>
                   </div>
 
-                  {/* Metadata Bar */}
                   <div className="px-4 py-2 bg-black/40 flex items-center justify-between border-b border-white/5 text-[10px] font-bold text-muted-foreground/60 uppercase">
                     <div className="flex items-center gap-1.5">
                       <Clock className="h-3 w-3" /> {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"}
@@ -234,7 +239,6 @@ export function SignalHistory() {
                     </div>
                   </div>
 
-                  {/* Pricing Grid */}
                   <CardContent className="p-4 flex-1 flex flex-col gap-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
@@ -275,13 +279,11 @@ export function SignalHistory() {
                     </div>
                   </CardContent>
 
-                  {/* Footer CTA */}
                   <div className="px-4 py-3 border-t border-white/5 bg-white/[0.01] flex items-center justify-between group-hover:bg-accent/[0.05] transition-colors">
                     <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Analyze Chart</span>
                     <LineChart className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
                   </div>
 
-                  {/* Accent Line */}
                   <div className={cn(
                     "absolute bottom-0 left-0 right-0 h-[2px] transition-all duration-300",
                     isPnlPositive ? "bg-emerald-500/40" : "bg-rose-500/40",

@@ -46,7 +46,7 @@ export function SignalHistory() {
   const STORAGE_KEY_STATUS = "tez_terminal_status";
   const STORAGE_KEY_SCROLL = "tez_terminal_scroll";
 
-  // Filtering States - Initialized from Session Storage if available
+  // Filtering States
   const [activeAssetType, setActiveAssetType] = useState<string | null>(null);
   const [selectedTimeframes, setSelectedTimeframes] = useState<string[]>(["5", "15", "60", "240", "D"]);
   const [sectionStatusFilters, setSectionStatusFilters] = useState<Record<string, string>>({
@@ -57,7 +57,7 @@ export function SignalHistory() {
     "D": "all"
   });
 
-  // Load state and handle scroll restoration
+  // Initialization: Load state and handle scroll restoration
   useEffect(() => {
     setMounted(true);
     
@@ -70,13 +70,13 @@ export function SignalHistory() {
     if (savedTf) setSelectedTimeframes(JSON.parse(savedTf));
     if (savedStatus) setSectionStatusFilters(JSON.parse(savedStatus));
 
-    // Wait for content to render before restoring scroll
+    // Restore scroll after content mount
     if (savedScroll && scrollContainerRef.current) {
       setTimeout(() => {
         if (scrollContainerRef.current) {
           scrollContainerRef.current.scrollTop = parseInt(savedScroll, 10);
         }
-      }, 100);
+      }, 200);
     }
 
     const interval = setInterval(() => setNow(new Date()), 30000);
@@ -154,17 +154,6 @@ export function SignalHistory() {
     });
   }, [rawSignals, activeAssetType]);
 
-  const getCountForTimeframe = (tfId: string) => {
-    if (!rawSignals) return 0;
-    return rawSignals.filter(s => s.timeframe === tfId).length;
-  };
-
-  const toggleTimeframe = (tfId: string) => {
-    setSelectedTimeframes(prev => 
-      prev.includes(tfId) ? prev.filter(id => id !== tfId) : [...prev, tfId]
-    );
-  };
-
   const formatPrice = (price: number | null | undefined) => {
     if (price === null || price === undefined) return "--";
     const decimals = price < 1 ? 6 : 2;
@@ -223,26 +212,26 @@ export function SignalHistory() {
             <div className="space-y-4">
               <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] pb-2 border-b border-white/5">DATA FEEDS</h3>
               <div className="space-y-3">
-                {categories.map(cat => {
-                  const count = getCountForTimeframe(cat.id);
-                  return (
-                    <div key={cat.id} className="flex items-center space-x-3 group cursor-pointer" onClick={() => toggleTimeframe(cat.id)}>
-                      <Checkbox 
-                        id={`filter-${cat.id}`} 
-                        checked={selectedTimeframes.includes(cat.id)}
-                        onCheckedChange={() => toggleTimeframe(cat.id)}
-                        className="border-white/20 data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground"
-                      />
-                      <Label 
-                        htmlFor={`filter-${cat.id}`} 
-                        className="flex-1 text-xs font-bold text-white/70 group-hover:text-white transition-colors cursor-pointer flex justify-between items-center"
-                      >
-                        <span className="uppercase tracking-wide">{cat.label} ENGINE</span>
-                        <span className="text-[10px] font-mono opacity-40">({count})</span>
-                      </Label>
-                    </div>
-                  );
-                })}
+                {categories.map(cat => (
+                  <div key={cat.id} className="flex items-center space-x-3 group cursor-pointer" onClick={() => {
+                    setSelectedTimeframes(prev => 
+                      prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]
+                    );
+                  }}>
+                    <Checkbox 
+                      id={`filter-${cat.id}`} 
+                      checked={selectedTimeframes.includes(cat.id)}
+                      onCheckedChange={() => {}}
+                      className="border-white/20 data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground"
+                    />
+                    <Label 
+                      htmlFor={`filter-${cat.id}`} 
+                      className="flex-1 text-xs font-bold text-white/70 group-hover:text-white transition-colors cursor-pointer flex justify-between items-center"
+                    >
+                      <span className="uppercase tracking-wide">{cat.label} ENGINE</span>
+                    </Label>
+                  </div>
+                ))}
               </div>
             </div>
           </PopoverContent>
@@ -257,19 +246,12 @@ export function SignalHistory() {
         <div className="py-8 space-y-16">
           {isLoading ? (
             <div className="px-6 space-y-8">
-               {[1,2,3].map(i => (
+               {[1,2].map(i => (
                  <div key={i} className="space-y-4">
                    <div className="h-6 w-48 bg-white/5 animate-pulse rounded" />
-                   <div className="flex gap-4 overflow-hidden">
-                     {[1,2,3,4].map(j => <div key={j} className="h-64 w-80 shrink-0 rounded-2xl bg-white/5 animate-pulse" />)}
-                   </div>
+                   <div className="flex gap-4"><div className="h-64 w-80 shrink-0 rounded-2xl bg-white/5 animate-pulse" /></div>
                  </div>
                ))}
-            </div>
-          ) : filteredSignals.length === 0 ? (
-            <div className="py-24 text-center">
-              <Activity className="h-12 w-12 text-muted-foreground/20 mx-auto mb-4" />
-              <p className="text-xs text-muted-foreground uppercase tracking-widest font-black">No signals detected for current filters</p>
             </div>
           ) : (
             categories.map(cat => {
@@ -332,98 +314,55 @@ export function SignalHistory() {
                     </div>
                   </div>
 
-                  <div className="w-full overflow-x-auto flex flex-row gap-6 px-6 pb-6 scrollbar-thin">
+                  <div className="w-full overflow-x-auto flex flex-row gap-6 px-6 pb-6">
                     {categorySignals.length === 0 ? (
                       <div className="w-full py-12 text-center bg-white/[0.01] border border-dashed border-white/5 rounded-2xl">
-                        <p className="text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest">No signals match filter</p>
+                        <p className="text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest">No matching signals</p>
                       </div>
                     ) : (
                       categorySignals.map((signal) => {
                         const alertPrice = Number(signal.price || 0);
                         const currentPrice = signal.currentPrice ? Number(signal.currentPrice) : alertPrice;
                         const livePnl = calculatePercent(currentPrice, alertPrice, signal.type);
-                        const upsidePercent = calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type);
-                        const drawdownPercent = calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type);
-                        const isPnlPositive = Number(livePnl) >= 0;
-                        const displayAssetType = getDisplayAssetType(signal);
                         const isBullish = signal.type === 'BUY';
 
                         return (
                           <Card 
                             key={signal.id} 
                             onClick={() => router.push(`/chart/${signal.id}`)}
-                            className="group relative overflow-hidden bg-[#121214] border-white/5 hover:border-accent/40 transition-all duration-300 cursor-pointer shadow-2xl rounded-2xl flex flex-col w-[340px] shrink-0"
+                            className="group bg-[#121214] border-white/5 hover:border-accent/40 transition-all duration-300 cursor-pointer shadow-2xl rounded-2xl flex flex-col w-[340px] shrink-0"
                           >
                             <div className="p-6 border-b border-white/5 bg-white/[0.02]">
                               <div className="flex items-start justify-between">
                                 <div className="flex flex-col">
-                                  <h3 className="text-2xl font-black text-white leading-none tracking-tighter uppercase mb-2">
-                                    {signal.symbol}
-                                  </h3>
-                                  <span className="text-[10px] font-black text-accent uppercase tracking-widest">
-                                    {displayAssetType}
-                                  </span>
+                                  <h3 className="text-2xl font-black text-white leading-none tracking-tighter uppercase mb-2">{signal.symbol}</h3>
+                                  <span className="text-[10px] font-black text-accent uppercase tracking-widest">{getDisplayAssetType(signal)}</span>
                                 </div>
-                                <Badge className={cn(
-                                  "text-[10px] font-black border-none px-4 h-7 uppercase rounded-md",
-                                  isBullish ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
-                                )}>
+                                <Badge className={cn("text-[10px] font-black border-none px-4 h-7 uppercase", isBullish ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400')}>
                                   {isBullish ? 'BULLISH' : 'BEARISH'}
                                 </Badge>
                               </div>
                             </div>
-
                             <div className="px-6 py-3 bg-black/40 flex items-center justify-between border-b border-white/5 text-[10px] font-black text-muted-foreground/40 uppercase">
-                              <div className="flex items-center gap-2">
-                                <Clock className="h-4 w-4" /> {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"} UTC
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Timer className="h-4 w-4 text-accent" /> {mounted ? getRunningSince(signal.receivedAt) : "--"}
-                              </div>
+                              <div className="flex items-center gap-2"><Clock className="h-4 w-4" /> {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"}</div>
+                              <div className="flex items-center gap-2"><Timer className="h-4 w-4 text-accent" /> {mounted ? getRunningSince(signal.receivedAt) : "--"}</div>
                             </div>
-
-                            <CardContent className="p-6 flex-1 flex flex-col gap-8">
-                              <div className="grid grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Entry Level</p>
-                                  <p className="text-lg font-mono font-bold text-white">${formatPrice(alertPrice)}</p>
-                                </div>
-                                <div className="space-y-2 text-right">
-                                  <p className="text-[10px] font-black text-accent uppercase tracking-widest">Latest Live</p>
-                                  <div className={cn("text-lg font-mono font-black", isPnlPositive ? "text-emerald-400" : "text-rose-400")}>
-                                    ${formatPrice(currentPrice)}
+                            <CardContent className="p-6">
+                               <div className="grid grid-cols-2 gap-6">
+                                  <div className="space-y-2">
+                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Entry</p>
+                                    <p className="text-lg font-mono font-bold text-white">${formatPrice(alertPrice)}</p>
                                   </div>
-                                  <div className={cn("text-xs font-black flex items-center justify-end gap-2 mt-1", isPnlPositive ? "text-emerald-400" : "text-rose-400")}>
-                                     <TrendingUp className={cn("h-4 w-4", !isPnlPositive && "rotate-180")} />
-                                     {livePnl}%
+                                  <div className="space-y-2 text-right">
+                                    <p className="text-[10px] font-black text-accent uppercase tracking-widest">Live</p>
+                                    <p className={cn("text-lg font-mono font-black", Number(livePnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>${formatPrice(currentPrice)}</p>
+                                    <div className={cn("text-[10px] font-black", Number(livePnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>{livePnl}% PNL</div>
                                   </div>
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-4 pt-6 border-t border-white/5">
-                                <div className="p-4 rounded-xl bg-emerald-500/[0.03] border border-emerald-500/10">
-                                  <p className="text-[9px] font-black text-emerald-500/60 uppercase tracking-widest mb-2">Max Upside</p>
-                                  <p className="text-md font-mono font-black text-emerald-400 flex items-center gap-2">
-                                    <ArrowUpRight className="h-5 w-5" /> {upsidePercent}%
-                                  </p>
-                                </div>
-                                <div className="p-4 rounded-xl bg-rose-500/[0.03] border border-rose-500/10 text-right">
-                                  <p className="text-[9px] font-black text-rose-500/60 uppercase tracking-widest mb-2">Max Drawdown</p>
-                                  <p className="text-md font-mono font-black text-rose-400 flex items-center justify-end gap-2">
-                                    <ArrowDownRight className="h-5 w-5" /> {drawdownPercent}%
-                                  </p>
-                                </div>
-                              </div>
+                               </div>
                             </CardContent>
-
-                            <div className="px-6 py-5 border-t border-white/5 bg-white/[0.01] flex items-center justify-between group-hover:bg-accent/[0.05] transition-colors">
-                              <div className="flex items-center gap-3">
-                                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] group-hover:text-white transition-colors">Analyze Chart</span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <Badge variant="outline" className="text-[10px] border-accent/20 h-6 px-3 text-accent font-black uppercase">{cat.label}</Badge>
-                                <LineChart className="h-5 w-5 text-muted-foreground group-hover:text-accent transition-colors" />
-                              </div>
+                            <div className="px-6 py-4 border-t border-white/5 bg-white/[0.01] flex items-center justify-between group-hover:bg-accent/[0.05] transition-colors">
+                              <span className="text-[10px] font-black text-muted-foreground uppercase group-hover:text-white transition-colors">Analyze Chart</span>
+                              <LineChart className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
                             </div>
                           </Card>
                         );

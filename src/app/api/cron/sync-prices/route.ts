@@ -44,14 +44,14 @@ export async function GET() {
       const signal = signalDoc.data();
       const assetType = (signal.assetType || "").toUpperCase();
 
-      // Only sync Crypto via Binance. Indian/US Stocks require different nodes.
+      // Only sync Crypto via Binance.
       if (assetType !== "CRYPTO" && !signal.symbol?.includes("USDT")) {
         skippedAssets.push(signal.symbol || "UNKNOWN");
         return;
       }
 
       const rawSymbol = signal.symbol || "";
-      // Strip common exchange suffixes and split by exchange prefix (e.g. BYBIT:BTCUSDT.P -> BTCUSDT)
+      // Strip common exchange suffixes and perpetual markers
       const base = rawSymbol.split(':').pop() || "";
       const cleanedSymbol = base
         .replace(/\.P$|\.PERP$|_PERP$|-PERP$/i, '')
@@ -96,7 +96,7 @@ export async function GET() {
       timestamp: new Date().toISOString(),
       level: missingSymbols.length > 0 ? "WARN" : "INFO",
       message: `Sync Heartbeat: ${updateCount} Updated`,
-      details: `Processed ${updateCount} signals. ${missingSymbols.length} missing mapping. ${skippedAssets.length} non-crypto assets skipped. Missing symbols: ${missingSymbols.join(', ')}`,
+      details: `Processed ${updateCount} signals. ${missingSymbols.length} missing mapping. Missing: ${missingSymbols.join(', ')}`,
       webhookId: "SYSTEM_CRON",
     });
 

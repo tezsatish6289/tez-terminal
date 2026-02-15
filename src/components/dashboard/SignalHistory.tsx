@@ -16,7 +16,7 @@ import { AlertCircle, LineChart, Server, ArrowUpRight, ArrowDownRight, Timer, Tr
 import { format, differenceInMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, limit, orderBy, where } from "firebase/firestore";
+import { collection, query, limit, orderBy } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
 export function SignalHistory() {
@@ -34,24 +34,25 @@ export function SignalHistory() {
     return () => clearInterval(interval);
   }, []);
 
+  // Fetch a larger set of recent signals to allow for smooth client-side filtering
+  // This avoids the need for manual composite index creation in the Firebase Console
   const signalsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    const baseQuery = collection(firestore, "signals");
-    
-    let constraints = [orderBy("receivedAt", "desc"), limit(50)];
-    
-    if (activeAssetType) {
-      constraints.push(where("assetType", "==", activeAssetType));
-    }
-    
-    if (activeTimeframe) {
-      constraints.push(where("timeframe", "==", activeTimeframe));
-    }
+    return query(
+      collection(firestore, "signals"), 
+      orderBy("receivedAt", "desc"), 
+      limit(200)
+    );
+  }, [user, firestore]);
 
-    return query(baseQuery, ...constraints);
-  }, [user, firestore, activeTimeframe, activeAssetType]);
+  const { data: rawSignals, isLoading, error } = useCollection(signalsQuery);
 
-  const { data: signals, isLoading, error } = useCollection(signalsQuery);
+  // Apply filters on the client side
+  const signals = rawSignals?.filter(signal => {
+    const matchesAsset = !activeAssetType || signal.assetType === activeAssetType;
+    const matchesTf = !activeTimeframe || signal.timeframe === activeTimeframe;
+    return matchesAsset && matchesTf;
+  });
 
   const calculatePercent = (targetPrice: number | undefined | null, entry: number, type: string) => {
     if (targetPrice === undefined || targetPrice === null || !entry || entry === 0) return null;

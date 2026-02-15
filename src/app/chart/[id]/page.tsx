@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useDoc, useFirestore, useMemoFirebase, useUser } from "@/firebase";
@@ -231,8 +232,8 @@ export default function DeepDiveChartPage() {
             <ChartPane symbol={signal?.symbol} interval={signal?.timeframe} exchange={signal?.exchange} />
           </div>
           
-          {/* Centrally Aligned CTA Button at the Bottom of the Chart Area */}
-          <div className="h-20 flex items-center justify-center bg-background/50 backdrop-blur-sm border-t border-white/5 absolute bottom-0 left-0 right-0 z-30">
+          {/* Centrally Aligned CTA Button directly below the chart, NOT overlaying */}
+          <div className="h-20 flex items-center justify-center bg-[#0a0a0c] border-t border-white/5 shrink-0">
             <Button 
               asChild 
               size="lg" 

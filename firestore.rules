@@ -17,8 +17,7 @@ service cloud.firestore {
     }
 
     // Signals (Alerts): Anyone authenticated can read the global stream.
-    // Use recursive match to ensure collection-level 'list' is always permitted.
-    match /signals/{allPaths=**} {
+    match /signals/{signalId} {
       allow read: if request.auth != null;
       // API Route (unauthenticated) needs to create signals.
       allow create: if true; 
@@ -26,7 +25,7 @@ service cloud.firestore {
     }
 
     // Logs: Technical audit trail.
-    match /logs/{allPaths=**} {
+    match /logs/{logId} {
       // Only Admin can read debugging logs.
       allow read: if isAdmin();
       // Public creation allowed for the ingestion node to log hits.
@@ -34,6 +33,6 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     
-    // Deployment Trigger: 2024-05-21 - Robust path matching update for Idea Stream.
+    // Deployment Trigger: 2024-05-21 - Explicit permission path matching for signals collection.
   }
 }

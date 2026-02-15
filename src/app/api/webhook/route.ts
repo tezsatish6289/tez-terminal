@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
     }
 
     const symbol = (body.ticker || body.symbol || body.pair || body.asset || "UNKNOWN").toUpperCase();
+    const exchange = (body.exchange || body.market || "BINANCE").toUpperCase();
 
     let signalType = "NEUTRAL";
     const rawSide = (body.side || body.action || body.type || "").toString().toLowerCase();
@@ -85,11 +86,12 @@ export async function POST(request: NextRequest) {
       serverTimestamp: serverTimestamp(),
       payload: JSON.stringify(body),
       symbol,
+      exchange,
       type: signalType,
       price, 
-      currentPrice: price, // Initialize with alert price
-      maxUpsidePrice: price, // Initialize performance tracking
-      maxDrawdownPrice: price, // Initialize performance tracking
+      currentPrice: price, 
+      maxUpsidePrice: price, 
+      maxDrawdownPrice: price, 
       timeframe: timeframe.toString(),
       note: body.note || `Indicator alert for ${symbol}`,
       source: configData.name || "TradingView Indicator",

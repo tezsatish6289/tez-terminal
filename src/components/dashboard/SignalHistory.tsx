@@ -11,17 +11,15 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, LineChart, Activity, Server, Clock, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { AlertCircle, LineChart, Activity, Server, Clock, ArrowUpRight, ArrowDownRight, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, limit, orderBy, where } from "firebase/firestore";
+import { useRouter } from "next/navigation";
 
-interface SignalHistoryProps {
-  onSignalSelect?: (signal: { symbol: string; timeframe?: string; exchange?: string }) => void;
-}
-
-export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
+export function SignalHistory() {
+  const router = useRouter();
   const { user } = useUser();
   const firestore = useFirestore();
   const [mounted, setMounted] = useState(false);
@@ -50,8 +48,6 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
 
   const formatPrice = (price: number | null | undefined) => {
     if (price === null || price === undefined) return "--";
-    // For small prices like 0.00123, we need more decimals.
-    // If price < 1, show 6 decimals, otherwise 2.
     const decimals = price < 1 ? 6 : 2;
     return price.toLocaleString(undefined, { 
       minimumFractionDigits: decimals, 
@@ -98,9 +94,10 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
         <Table>
           <TableHeader className="bg-secondary/20 sticky top-0 z-10 backdrop-blur-md">
             <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-[10px] uppercase font-black py-3 pl-4 w-[100px]">Alert Time</TableHead>
+              <TableHead className="text-[10px] uppercase font-black py-3 pl-4 w-[120px]">Alert Time</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 w-[140px]">Asset Name</TableHead>
-              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[60px]">Chart</TableHead>
+              <TableHead className="text-[10px] uppercase font-black py-3 w-[100px]">Exchange</TableHead>
+              <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[60px]">Deep Dive</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">Side</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-right w-[110px]">Alert Price</TableHead>
               <TableHead className="text-[10px] uppercase font-black text-accent py-3 text-right w-[110px]">Latest Price</TableHead>
@@ -110,9 +107,9 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
           </TableHeader>
           <TableBody>
             {isLoading && (!signals || signals.length === 0) ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-20 text-[11px] animate-pulse text-accent">Establishing Global Node Connection...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="text-center py-20 text-[11px] animate-pulse text-accent uppercase tracking-widest font-bold">Establishing Node Bridge...</TableCell></TableRow>
             ) : signals?.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-20 text-[11px] text-muted-foreground">Waiting for fresh market signals...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="text-center py-20 text-[11px] text-muted-foreground uppercase tracking-widest font-bold">No active signals found in the stream</TableCell></TableRow>
             ) : (
               signals?.map((signal) => {
                 const alertPrice = Number(signal.price || 0);
@@ -124,20 +121,29 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                 return (
                   <TableRow 
                     key={signal.id} 
-                    className="group border-border hover:bg-accent/5 cursor-pointer transition-all"
-                    onClick={() => onSignalSelect?.({ symbol: signal.symbol, timeframe: signal.timeframe })}
+                    className="group border-border hover:bg-accent/5 transition-all"
                   >
                     <TableCell className="text-[11px] font-mono text-muted-foreground py-4 pl-4">
-                      {mounted ? format(new Date(signal.receivedAt), 'HH:mm:ss') : "--"}
+                      {mounted ? format(new Date(signal.receivedAt), 'yyyy/MM/dd HH:mm:ss') : "--"}
                     </TableCell>
                     <TableCell className="py-4">
                       <div className="flex items-center gap-2">
-                        <span className="font-black text-[12px] text-white tracking-tight">{signal.symbol}</span>
-                        <Badge variant="outline" className="text-[9px] h-4 px-1 border-white/10 font-mono bg-white/5">{signal.timeframe}m</Badge>
+                        <span className="font-black text-[13px] text-white tracking-tight">{signal.symbol}</span>
+                        <Badge variant="outline" className="text-[9px] h-4 px-1 border-white/10 font-mono bg-white/5">{signal.timeframe}</Badge>
                       </div>
                     </TableCell>
+                    <TableCell className="py-4">
+                      <Badge className="bg-primary/40 text-accent border-accent/20 text-[9px] font-bold tracking-tighter h-5">
+                        {signal.exchange || "BINANCE"}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-center py-4">
-                      <LineChart className="h-4 w-4 mx-auto text-muted-foreground group-hover:text-accent transition-colors" />
+                      <button 
+                        onClick={() => router.push(`/chart/${signal.id}`)}
+                        className="p-2 rounded-lg hover:bg-accent/20 text-muted-foreground hover:text-accent transition-all group-hover:scale-110"
+                      >
+                        <LineChart className="h-5 w-5" />
+                      </button>
                     </TableCell>
                     <TableCell className="text-center py-4">
                       <Badge className={cn(
@@ -153,7 +159,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                     <TableCell className="text-right py-4">
                       {currentPrice ? (
                         <div className={cn(
-                          "font-mono text-[12px] font-black",
+                          "font-mono text-[13px] font-black",
                           (signal.type === 'BUY' && currentPrice >= alertPrice) || (signal.type === 'SELL' && currentPrice <= alertPrice) 
                           ? "text-emerald-400" : "text-rose-400"
                         )}>
@@ -165,7 +171,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                     </TableCell>
                     <TableCell className="text-right py-4">
                        <div className="flex flex-col items-end">
-                         <span className="text-emerald-400 font-black text-[11px] font-mono flex items-center gap-1">
+                         <span className="text-emerald-400 font-black text-[12px] font-mono flex items-center gap-1">
                            {upsidePercent && Number(upsidePercent) !== 0 ? (
                              <>
                                <ArrowUpRight className="h-3 w-3" />
@@ -180,7 +186,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                     </TableCell>
                     <TableCell className="text-right py-4 pr-4">
                        <div className="flex flex-col items-end">
-                         <span className="text-rose-400 font-black text-[11px] font-mono flex items-center gap-1">
+                         <span className="text-rose-400 font-black text-[12px] font-mono flex items-center gap-1">
                            {drawdownPercent && Number(drawdownPercent) !== 0 ? (
                              <>
                                <ArrowDownRight className="h-3 w-3" />

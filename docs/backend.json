@@ -24,6 +24,7 @@
         "webhookId": { "type": "string" },
         "receivedAt": { "type": "string", "format": "date-time" },
         "symbol": { "type": "string" },
+        "exchange": { "type": "string", "description": "The exchange for the asset (e.g., BINANCE, NSE, CRYPTO)." },
         "type": { "type": "string", "enum": ["BUY", "SELL", "NEUTRAL"] },
         "price": { "type": "number", "description": "The price at which the alert was triggered." },
         "currentPrice": { "type": "number", "description": "The most recent price recorded by the server cron." },

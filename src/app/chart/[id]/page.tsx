@@ -18,10 +18,11 @@ import {
   BarChart3, 
   Zap,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  Timer
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, differenceInMinutes } from "date-fns";
 import { useEffect, useState } from "react";
 
 export default function DeepDiveChartPage() {
@@ -30,9 +31,12 @@ export default function DeepDiveChartPage() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const [mounted, setMounted] = useState(false);
+  const [now, setNow] = useState(new Date());
 
   useEffect(() => {
     setMounted(true);
+    const interval = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(interval);
   }, []);
 
   const signalRef = useMemoFirebase(() => {
@@ -55,6 +59,22 @@ export default function DeepDiveChartPage() {
       minimumFractionDigits: decimals, 
       maximumFractionDigits: decimals 
     });
+  };
+
+  const getRunningSince = (receivedAt: string) => {
+    const start = new Date(receivedAt);
+    const diffMins = differenceInMinutes(now, start);
+    
+    const days = Math.floor(diffMins / 1440);
+    const hours = Math.floor((diffMins % 1440) / 60);
+    const mins = diffMins % 60;
+
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    parts.push(`${mins}m`);
+    
+    return parts.join(" ");
   };
 
   if (isUserLoading || (isSignalLoading && !signal)) {
@@ -116,6 +136,10 @@ export default function DeepDiveChartPage() {
                      signal?.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
                    )}>
                      {signal?.type}
+                   </Badge>
+                   <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-accent/20 text-accent font-black gap-1">
+                     <Timer className="h-2.5 w-2.5" />
+                     {mounted && signal ? getRunningSince(signal.receivedAt) : "--"}
                    </Badge>
                 </div>
              </div>

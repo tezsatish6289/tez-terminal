@@ -11,8 +11,8 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, LineChart, Activity, Server, Clock, ArrowUpRight, ArrowDownRight, ExternalLink } from "lucide-react";
-import { format } from "date-fns";
+import { AlertCircle, LineChart, Activity, Server, Clock, ArrowUpRight, ArrowDownRight, ExternalLink, Timer } from "lucide-react";
+import { format, differenceInMinutes, differenceInHours, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, limit, orderBy, where } from "firebase/firestore";
@@ -23,10 +23,13 @@ export function SignalHistory() {
   const { user } = useUser();
   const firestore = useFirestore();
   const [mounted, setMounted] = useState(false);
+  const [now, setNow] = useState(new Date());
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
+    const interval = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(interval);
   }, []);
 
   const signalsQuery = useMemoFirebase(() => {
@@ -53,6 +56,22 @@ export function SignalHistory() {
       minimumFractionDigits: decimals, 
       maximumFractionDigits: decimals 
     });
+  };
+
+  const getRunningSince = (receivedAt: string) => {
+    const start = new Date(receivedAt);
+    const diffMins = differenceInMinutes(now, start);
+    
+    const days = Math.floor(diffMins / 1440);
+    const hours = Math.floor((diffMins % 1440) / 60);
+    const mins = diffMins % 60;
+
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    parts.push(`${mins}m`);
+    
+    return parts.join(" ");
   };
 
   if (error) {
@@ -94,22 +113,23 @@ export function SignalHistory() {
         <Table>
           <TableHeader className="bg-secondary/20 sticky top-0 z-10 backdrop-blur-md">
             <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-[10px] uppercase font-black py-3 pl-4 w-[120px]">Alert Time</TableHead>
+              <TableHead className="text-[10px] uppercase font-black py-3 pl-4 w-[110px]">Alert Time</TableHead>
+              <TableHead className="text-[10px] uppercase font-black py-3 w-[120px]">Running Since</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 w-[140px]">Asset Name</TableHead>
-              <TableHead className="text-[10px] uppercase font-black py-3 w-[100px]">Exchange</TableHead>
+              <TableHead className="text-[10px] uppercase font-black py-3 w-[90px]">Exchange</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[100px]">Deep Dive</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">Side</TableHead>
               <TableHead className="text-[10px] uppercase font-black py-3 text-right w-[110px]">Alert Price</TableHead>
               <TableHead className="text-[10px] uppercase font-black text-accent py-3 text-right w-[110px]">Latest Price</TableHead>
-              <TableHead className="text-[10px] uppercase font-black text-emerald-400 py-3 text-right w-[120px]">Max Upside</TableHead>
-              <TableHead className="text-[10px] uppercase font-black text-rose-400 py-3 text-right pr-4 w-[120px]">Max Drawdown</TableHead>
+              <TableHead className="text-[10px] uppercase font-black text-emerald-400 py-3 text-right w-[110px]">Max Upside</TableHead>
+              <TableHead className="text-[10px] uppercase font-black text-rose-400 py-3 text-right pr-4 w-[110px]">Max Drawdown</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (!signals || signals.length === 0) ? (
-              <TableRow><TableCell colSpan={9} className="text-center py-20 text-[11px] animate-pulse text-accent uppercase tracking-widest font-bold">Establishing Node Bridge...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="text-center py-20 text-[11px] animate-pulse text-accent uppercase tracking-widest font-bold">Establishing Node Bridge...</TableCell></TableRow>
             ) : signals?.length === 0 ? (
-              <TableRow><TableCell colSpan={9} className="text-center py-20 text-[11px] text-muted-foreground uppercase tracking-widest font-bold">No active signals found in the stream</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="text-center py-20 text-[11px] text-muted-foreground uppercase tracking-widest font-bold">No active signals found in the stream</TableCell></TableRow>
             ) : (
               signals?.map((signal) => {
                 const alertPrice = Number(signal.price || 0);
@@ -123,14 +143,22 @@ export function SignalHistory() {
                     key={signal.id} 
                     className="group border-border hover:bg-accent/5 transition-all"
                   >
-                    <TableCell className="text-[11px] font-mono text-muted-foreground py-4 pl-4">
-                      {mounted ? format(new Date(signal.receivedAt), 'yyyy/MM/dd HH:mm:ss') : "--"}
+                    <TableCell className="text-[11px] font-mono text-muted-foreground/60 py-4 pl-4 whitespace-nowrap">
+                      {mounted ? format(new Date(signal.receivedAt), 'HH:mm:ss') : "--"}
+                    </TableCell>
+                    <TableCell className="py-4">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Timer className="h-3 w-3 text-accent/50" />
+                        <span className="text-[11px] font-mono font-bold whitespace-nowrap">
+                          {mounted ? getRunningSince(signal.receivedAt) : "--"}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell className="py-4">
                       <span className="font-black text-[13px] text-white tracking-tight">{signal.symbol}</span>
                     </TableCell>
                     <TableCell className="py-4">
-                      <Badge className="bg-primary/40 text-accent border-accent/20 text-[9px] font-bold tracking-tighter h-5">
+                      <Badge className="bg-primary/40 text-accent border-accent/20 text-[9px] font-bold tracking-tighter h-5 px-1.5">
                         {signal.exchange || "BINANCE"}
                       </Badge>
                     </TableCell>

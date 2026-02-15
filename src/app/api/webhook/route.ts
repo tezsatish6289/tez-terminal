@@ -5,7 +5,7 @@ import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/fires
 
 /**
  * Production-Ready Ingestion Bridge.
- * Extracts metadata from multiple JSON formats and normalizes them for the global filter engine.
+ * Normalizes metadata across various market formats (Crypto, Indian Stocks, US Stocks).
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     try {
       body = JSON.parse(rawBody.trim());
     } catch (parseError: any) {
-      throw new Error(`Invalid JSON format. Body: ${rawBody}`);
+      throw new Error(`Invalid JSON format.`);
     }
 
     const configRef = doc(firestore, "webhooks", webhookId);
@@ -50,73 +50,61 @@ export async function POST(request: NextRequest) {
       throw new Error(`Authentication failure: Secret key mismatch.`);
     }
 
-    // 1. Symbol Detection
-    const symbol = (body.ticker || body.symbol || body.pair || body.asset || "UNKNOWN").toUpperCase();
+    // 1. Symbol Normalization
+    const symbol = (body.ticker || body.symbol || body.pair || "UNKNOWN").toUpperCase();
     const exchange = (body.exchange || body.market || "BINANCE").toUpperCase();
     
-    // 2. Asset Type Detection & Normalization (Crucial for filtering)
-    // We check all possible keys from various TradingView strategy versions
-    const rawAssetType = (body.assetType || body.asset_type || body.category || body.market_type || body.type_asset || "UNCLASSIFIED").toString().toUpperCase().trim();
-    
+    // 2. Asset Type Normalization (Resilient Extraction)
+    const rawAt = (body.asset_type || body.assetType || body.category || body.market_type || "UNCLASSIFIED").toString().toUpperCase().trim();
     let assetType = "UNCLASSIFIED";
-    if (rawAssetType.includes("INDIAN STOCK")) assetType = "INDIAN STOCKS";
-    else if (rawAssetType.includes("US STOCK")) assetType = "US STOCKS";
-    else if (rawAssetType.includes("CRYPTO")) assetType = "CRYPTO";
-    else assetType = rawAssetType;
+    if (rawAt.includes("INDIAN")) assetType = "INDIAN STOCKS";
+    else if (rawAt.includes("US") || rawAt.includes("NASDAQ") || rawAt.includes("NYSE")) assetType = "US STOCKS";
+    else if (rawAt.includes("CRYPTO")) assetType = "CRYPTO";
+    else assetType = rawAt;
 
-    // 3. Side Detection
+    // 3. Signal Type Detection
     let signalType = "NEUTRAL";
     const rawSide = (body.side || body.action || body.type || "").toString().toLowerCase();
     if (rawSide.includes("buy") || rawSide.includes("long")) signalType = "BUY";
     if (rawSide.includes("sell") || rawSide.includes("short")) signalType = "SELL";
 
     // 4. Price Detection
-    const rawPrice = body.price ?? body.close ?? body.price_at_alert ?? body.last_price ?? body.entry ?? body.open;
-    let price: number | null = null;
-    if (rawPrice !== undefined && rawPrice !== null && rawPrice !== "") {
-      const parsed = parseFloat(rawPrice.toString());
-      if (!isNaN(parsed)) {
-        price = parsed;
-      }
+    const rawPrice = body.price ?? body.close ?? body.price_at_alert ?? body.last_price ?? body.entry;
+    let price = 0;
+    if (rawPrice !== undefined && rawPrice !== null) {
+      price = parseFloat(rawPrice.toString());
     }
     
-    // 5. Timeframe Detection
-    let rawTf = (body.timeframe || body.interval || body.tf || "").toString().toUpperCase().trim();
+    // 5. Timeframe Mapping
+    let rawTf = (body.timeframe || body.interval || "15").toString().toUpperCase().trim();
     const tfMap: Record<string, string> = {
-      "1": "1", "1M": "1", "1MIN": "1", "1MINUTE": "1",
-      "5": "5", "5M": "5", "5MIN": "5", "5MINUTE": "5",
-      "15": "15", "15M": "15", "15MIN": "15", "15MINUTE": "15",
-      "60": "60", "1H": "60", "1HOUR": "60", "H": "60",
-      "240": "240", "4H": "240", "4HOUR": "240",
-      "D": "D", "1D": "D", "DAILY": "D", "DAY": "D",
-      "W": "W", "1W": "W", "WEEKLY": "W",
+      "1M": "1", "1": "1", "5M": "5", "5": "5", "15M": "15", "15": "15",
+      "1H": "60", "60": "60", "4H": "240", "240": "240", "D": "D", "1D": "D", "DAILY": "D"
     };
-    const cleanedTf = rawTf.replace(/[^A-Z0-9]/g, "");
-    const timeframe = tfMap[cleanedTf] || cleanedTf || "15";
+    const timeframe = tfMap[rawTf] || rawTf;
 
     const signalData = {
       webhookId,
       receivedAt: timestamp,
       serverTimestamp: serverTimestamp(),
-      payload: JSON.stringify(body),
+      payload: rawBody, // Store the raw payload for deep-parsing fallbacks
       symbol,
       exchange,
-      assetType, // Top-level promoted field for DB filtering
+      assetType, // Promoted top-level field for DB filtering
       type: signalType,
-      price, 
+      price: price, 
       currentPrice: price, 
       maxUpsidePrice: price, 
       maxDrawdownPrice: price, 
-      timeframe: timeframe.toString(),
-      note: body.note || `Indicator alert for ${symbol}`,
-      source: configData.name || "TradingView Indicator",
+      timeframe: timeframe,
+      note: body.note || `Alert for ${symbol}`,
+      source: configData.name || "TradingView",
     };
 
     await addDoc(signalsRef, signalData);
 
-    return NextResponse.json({ success: true, message: "Signal processed" });
+    return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error(`[Ingestion Error] ${error.message}`);
     try {
       await addDoc(logsRef, {
         timestamp,
@@ -128,8 +116,4 @@ export async function POST(request: NextRequest) {
     } catch (logErr) {}
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }
-}
-
-export async function GET() {
-  return NextResponse.json({ status: "online" });
 }

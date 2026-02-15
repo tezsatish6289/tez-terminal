@@ -21,7 +21,7 @@ import { useRouter } from "next/navigation";
 
 /**
  * PRODUCTION TERMINAL ENGINE
- * Uses Resilient Client-Side Filtering for 100% data coverage (legacy + new metadata).
+ * Features: Deep-Parsing Fallback for assetType, Client-Side Resilient Filtering, and Normalized Display.
  */
 export function SignalHistory() {
   const router = useRouter();
@@ -43,35 +43,33 @@ export function SignalHistory() {
     return query(
       collection(firestore, "signals"), 
       orderBy("receivedAt", "desc"), 
-      limit(150)
+      limit(200)
     );
   }, [user, firestore]);
 
   const { data: rawSignals, isLoading, error } = useCollection(signalsQuery);
 
   /**
-   * INTUITIVE METADATA EXTRACTION
-   * Scans both top-level fields and deep JSON payload to find the truth.
+   * DEEP-PARSING ENGINE
+   * Extracts assetType from top-level OR raw payload string, and normalizes values.
    */
   const getDisplayAssetType = (signal: any) => {
-    // 1. Check top-level promoted field first
+    // 1. Check top-level promoted field
     if (signal.assetType && signal.assetType !== "UNCLASSIFIED") return signal.assetType;
     
-    // 2. Deep Dive into payload string if top-level is missing
+    // 2. Dive into payload JSON
     try {
       const payload = typeof signal.payload === 'string' ? JSON.parse(signal.payload) : (signal.payload || {});
-      const raw = payload.assetType || payload.asset_type || payload.category || payload.market_type || payload.type_asset;
+      const raw = payload.asset_type || payload.assetType || payload.category || payload.market_type;
       
       if (raw) {
         const norm = raw.toString().toUpperCase().trim();
-        if (norm.includes("INDIAN STOCK")) return "INDIAN STOCKS";
-        if (norm.includes("US STOCK")) return "US STOCKS";
+        if (norm.includes("INDIAN")) return "INDIAN STOCKS";
+        if (norm.includes("US")) return "US STOCKS";
         if (norm.includes("CRYPTO")) return "CRYPTO";
         return norm;
       }
-    } catch (e) {
-      // Silently fail if JSON is malformed
-    }
+    } catch (e) {}
     
     return "UNCLASSIFIED";
   };
@@ -92,7 +90,7 @@ export function SignalHistory() {
   }, [rawSignals, activeAssetType, activeTimeframe]);
 
   const calculatePercent = (targetPrice: number | undefined | null, entry: number, type: string) => {
-    if (targetPrice === undefined || targetPrice === null || !entry || entry === 0) return null;
+    if (targetPrice === undefined || targetPrice === null || !entry || entry === 0) return "0.00";
     const diff = type === 'BUY' ? targetPrice - entry : entry - targetPrice;
     return ((diff / entry) * 100).toFixed(2);
   };
@@ -181,7 +179,7 @@ export function SignalHistory() {
       </div>
 
       <ScrollArea className="flex-1 w-full">
-        <Table className="min-w-[1250px] table-fixed border-collapse">
+        <Table className="min-w-[1200px] table-fixed border-collapse">
           <TableHeader className="bg-secondary/20 sticky top-0 z-10 backdrop-blur-md">
             <TableRow className="border-border hover:bg-transparent">
               <TableHead className="text-[10px] uppercase font-black py-3 text-center w-[80px]">TIME</TableHead>
@@ -202,19 +200,17 @@ export function SignalHistory() {
             ) : filteredSignals.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={10} className="text-center py-24">
-                  <div className="flex flex-col items-center gap-3">
-                    <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">No signals detected for current filters</p>
-                  </div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">No signals detected for current filters</p>
                 </TableCell>
               </TableRow>
             ) : (
               filteredSignals.map((signal) => {
                 const alertPrice = Number(signal.price || 0);
-                const currentPrice = signal.currentPrice ? Number(signal.currentPrice) : null;
+                const currentPrice = signal.currentPrice ? Number(signal.currentPrice) : alertPrice;
                 const livePnl = calculatePercent(currentPrice, alertPrice, signal.type);
                 const upsidePercent = calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type);
                 const drawdownPercent = calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type);
-                const isPnlPositive = livePnl ? Number(livePnl) > 0 : false;
+                const isPnlPositive = Number(livePnl) >= 0;
                 const displayAssetType = getDisplayAssetType(signal);
 
                 return (
@@ -271,12 +267,10 @@ export function SignalHistory() {
                       ${formatPrice(alertPrice)}
                     </TableCell>
                     <TableCell className="text-right py-3">
-                      {currentPrice ? (
                         <div className="flex flex-col items-end">
                           <div className={cn(
                             "font-mono text-[12px] font-black",
-                            (signal.type === 'BUY' && currentPrice >= alertPrice) || (signal.type === 'SELL' && currentPrice <= alertPrice) 
-                            ? "text-emerald-400" : "text-rose-400"
+                            isPnlPositive ? "text-emerald-400" : "text-rose-400"
                           )}>
                             ${formatPrice(currentPrice)}
                           </div>
@@ -288,19 +282,12 @@ export function SignalHistory() {
                             {livePnl}%
                           </div>
                         </div>
-                      ) : (
-                        <span className="text-muted-foreground font-mono text-[11px]">--</span>
-                      )}
                     </TableCell>
                     <TableCell className="text-right py-3">
                        <div className="flex flex-col items-end">
                          <span className="text-emerald-400 font-bold text-[12px] font-mono flex items-center gap-1">
-                           {upsidePercent && Number(upsidePercent) !== 0 ? (
-                             <>
-                               <ArrowUpRight className="h-3 w-3" />
-                               {upsidePercent}%
-                             </>
-                           ) : "0.00%"}
+                           <ArrowUpRight className="h-3 w-3" />
+                           {upsidePercent}%
                          </span>
                          <span className="text-[9px] text-muted-foreground font-mono opacity-60">
                            ${formatPrice(signal.maxUpsidePrice || alertPrice)}
@@ -310,12 +297,8 @@ export function SignalHistory() {
                     <TableCell className="text-center py-3 pr-6">
                        <div className="flex flex-col items-center">
                          <span className="text-rose-400 font-bold text-[12px] font-mono flex items-center gap-1">
-                           {drawdownPercent && Number(drawdownPercent) !== 0 ? (
-                             <>
-                               <ArrowDownRight className="h-3 w-3" />
-                               {drawdownPercent}%
-                             </>
-                           ) : "0.00%"}
+                           <ArrowDownRight className="h-3 w-3" />
+                           {drawdownPercent}%
                          </span>
                          <span className="text-[9px] text-muted-foreground font-mono opacity-60">
                            ${formatPrice(signal.maxDrawdownPrice || alertPrice)}

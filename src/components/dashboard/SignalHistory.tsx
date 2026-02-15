@@ -11,7 +11,7 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, LineChart, Activity, Server } from "lucide-react";
+import { AlertCircle, LineChart, Activity, Server, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
@@ -43,7 +43,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
   const { data: signals, isLoading, error } = useCollection(signalsQuery);
 
   const calculatePercent = (targetPrice: number | undefined, entry: number, type: string) => {
-    if (!targetPrice || !entry) return null;
+    if (!targetPrice || !entry || entry === 0) return null;
     // BUY: (current - entry) / entry
     // SELL: (entry - current) / entry
     const diff = type === 'BUY' ? targetPrice - entry : entry - targetPrice;
@@ -80,7 +80,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-[8px] h-4 border-emerald-500/20 text-emerald-400 gap-1 bg-emerald-500/5 uppercase font-bold">
-            <Activity className="h-2 w-2" /> Server Node Active
+            <Clock className="h-2 w-2" /> 5m SYNC ACTIVE
           </Badge>
         </div>
       </div>
@@ -94,27 +94,20 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
               <TableHead className="text-[9px] uppercase font-black py-2 text-center">Chart</TableHead>
               <TableHead className="text-[9px] uppercase font-black py-2 text-center">Side</TableHead>
               <TableHead className="text-[9px] uppercase font-black py-2 text-right">Alert Price</TableHead>
-              <TableHead className="text-[9px] uppercase font-black text-accent py-2 text-right">
-                <div className="flex flex-col items-end">
-                   <span>Latest Price</span>
-                   <Badge variant="outline" className="text-[7px] h-3 px-1 border-accent/30 text-accent font-mono mt-0.5">
-                     5M HEARTBEAT
-                   </Badge>
-                </div>
-              </TableHead>
+              <TableHead className="text-[9px] uppercase font-black text-accent py-2 text-right">Latest Price</TableHead>
               <TableHead className="text-[9px] uppercase font-black text-emerald-400 py-2 text-right">Max Upside</TableHead>
               <TableHead className="text-[9px] uppercase font-black text-rose-400 py-2 text-right">Max Drawdown</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (!signals || signals.length === 0) ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-20 text-[10px] animate-pulse text-accent">Listening to Global Data Feed...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center py-20 text-[10px] animate-pulse text-accent">Listening to Global Feed...</TableCell></TableRow>
             ) : signals?.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-20 text-[10px] text-muted-foreground">Waiting for fresh TradingView signals...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center py-20 text-[10px] text-muted-foreground">Waiting for fresh signals...</TableCell></TableRow>
             ) : (
               signals?.map((signal) => {
                 const alertPrice = Number(signal.price || 0);
-                const currentPrice = Number(signal.currentPrice || alertPrice);
+                const currentPrice = signal.currentPrice ? Number(signal.currentPrice) : null;
                 
                 const upsidePercent = calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type);
                 const drawdownPercent = calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type);
@@ -149,18 +142,22 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                       ${alertPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell className="text-right py-3">
-                      <div className={cn(
-                        "font-mono text-[11px] font-bold",
-                        (signal.type === 'BUY' && currentPrice >= alertPrice) || (signal.type === 'SELL' && currentPrice <= alertPrice) 
-                        ? "text-emerald-400" : "text-rose-400"
-                      )}>
-                        ${currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </div>
+                      {currentPrice ? (
+                        <div className={cn(
+                          "font-mono text-[11px] font-bold",
+                          (signal.type === 'BUY' && currentPrice >= alertPrice) || (signal.type === 'SELL' && currentPrice <= alertPrice) 
+                          ? "text-emerald-400" : "text-rose-400"
+                        )}>
+                          ${currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground font-mono text-[10px]">--</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right py-3">
                        <div className="flex flex-col items-end">
                          <span className="text-emerald-400 font-black text-[10px] font-mono">
-                           {upsidePercent && Number(upsidePercent) > 0 ? `+${upsidePercent}%` : "0.00%"}
+                           {upsidePercent && Number(upsidePercent) !== 0 ? `${Number(upsidePercent) > 0 ? '+' : ''}${upsidePercent}%` : "0.00%"}
                          </span>
                          <span className="text-[8px] text-muted-foreground font-mono">
                            ${(signal.maxUpsidePrice || alertPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -170,7 +167,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                     <TableCell className="text-right py-3">
                        <div className="flex flex-col items-end">
                          <span className="text-rose-400 font-black text-[10px] font-mono">
-                           {drawdownPercent && Number(drawdownPercent) < 0 ? `${drawdownPercent}%` : "0.00%"}
+                           {drawdownPercent && Number(drawdownPercent) !== 0 ? `${drawdownPercent}%` : "0.00%"}
                          </span>
                          <span className="text-[8px] text-muted-foreground font-mono">
                            ${(signal.maxDrawdownPrice || alertPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}

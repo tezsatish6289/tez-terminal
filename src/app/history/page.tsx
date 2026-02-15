@@ -4,7 +4,7 @@
 import { TopBar } from "@/components/dashboard/TopBar";
 import { SignalHistory } from "@/components/dashboard/SignalHistory";
 import { useUser, useAuth, useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, limit, getDocs, deleteDoc, writeBatch } from "firebase/firestore";
+import { collection, query, orderBy, limit, getDocs, writeBatch } from "firebase/firestore";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { History as HistoryIcon, Loader2, Lock, Terminal, ShieldAlert, AlertTriangle, Info, RefreshCw, Activity, Lightbulb, Trash2 } from "lucide-react";
+import { History as HistoryIcon, Loader2, Lock, Terminal, ShieldAlert, AlertTriangle, Info, RefreshCw, Activity, Lightbulb, Trash2, Zap } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ChromeIcon } from "@/components/icons";
@@ -24,6 +24,7 @@ export default function HistoryPage() {
   const auth = useAuth();
   const firestore = useFirestore();
   const [isPurging, setIsPurging] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [purgeInput, setPurgeInput] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
@@ -42,6 +43,31 @@ export default function HistoryPage() {
     }
   };
 
+  const handleForceSync = async () => {
+    if (!isAdmin) return;
+    setIsSyncing(true);
+    try {
+      const res = await fetch("/api/cron/sync-prices");
+      const data = await res.json();
+      if (data.success) {
+        toast({ 
+          title: "Global Sync Complete", 
+          description: `Updated prices and performance metrics for ${data.updated} signals.` 
+        });
+      } else {
+        throw new Error(data.error || "Sync failed");
+      }
+    } catch (e: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Sync Error", 
+        description: e.message 
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handlePurgeSignals = async () => {
     if (!isAdmin || !firestore || purgeInput.toLowerCase() !== "purge") return;
     
@@ -50,7 +76,6 @@ export default function HistoryPage() {
       const q = query(collection(firestore, "signals"));
       const snapshot = await getDocs(q);
       
-      // Use batches for efficiency if there are many signals
       const batch = writeBatch(firestore);
       snapshot.docs.forEach(docSnap => {
         batch.delete(docSnap.ref);
@@ -198,12 +223,24 @@ export default function HistoryPage() {
                 <CardHeader className="border-b border-border/50 pb-4 flex flex-row items-center justify-between">
                   <div>
                     <CardTitle className="text-lg">Technical Logs</CardTitle>
-                    <CardDescription className="text-xs">Live Ingestion Node (Admin Only)</CardDescription>
+                    <CardDescription className="text-xs">24/7 Global Sync Node (Admin Only)</CardDescription>
                   </div>
                   {isAdmin && (
-                    <div className="flex items-center gap-2 px-3 py-1 bg-accent/10 rounded-full border border-accent/20">
-                      <RefreshCw className="h-3 w-3 text-accent animate-spin-slow" />
-                      <span className="text-[10px] text-accent font-bold uppercase tracking-wider">Listening</span>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="gap-2 h-8 border-accent/30 text-accent hover:bg-accent/10"
+                        onClick={handleForceSync}
+                        disabled={isSyncing}
+                      >
+                        {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                        Force Global Sync
+                      </Button>
+                      <div className="flex items-center gap-2 px-3 py-1 bg-accent/10 rounded-full border border-accent/20">
+                        <RefreshCw className="h-3 w-3 text-accent animate-spin-slow" />
+                        <span className="text-[10px] text-accent font-bold uppercase tracking-wider">Active</span>
+                      </div>
                     </div>
                   )}
                 </CardHeader>
@@ -230,7 +267,7 @@ export default function HistoryPage() {
                       ) : logs?.length === 0 ? (
                         <div className="py-20 text-center">
                            <Info className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-                           <p className="text-muted-foreground">No ingestion hits detected yet.<br/>Ensure TradingView webhook URL and ID are correct.</p>
+                           <p className="text-muted-foreground">No sync heartbeat detected yet.<br/>Ensure the backend cron is running or click "Force Sync".</p>
                         </div>
                       ) : (
                         <div className="grid gap-4">
@@ -250,7 +287,7 @@ export default function HistoryPage() {
                                 )}>
                                   {log.level}
                                 </span>
-                                <span className="text-muted-foreground font-mono">{format(new Date(log.timestamp), 'HH:mm:ss')}</span>
+                                <span className="text-muted-foreground font-mono">{format(new Date(log.timestamp), 'yyyy-MM-dd HH:mm:ss')}</span>
                               </div>
                               <p className="text-white font-semibold text-sm leading-tight">{log.message}</p>
                               {log.details && (

@@ -115,8 +115,8 @@ export function SignalHistory() {
             <TableRow className="border-border hover:bg-transparent">
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Time</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">Age</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 w-[150px] pl-16">Asset</TableHead>
-              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[110px]">Exchange</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 w-[150px] pl-[61px]">Asset</TableHead>
+              <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[110px]">EXCHANGE</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[100px]">Chart</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-center w-[80px]">Side</TableHead>
               <TableHead className="text-[10px] uppercase font-bold py-3 text-right w-[110px]">Entry</TableHead>
@@ -158,7 +158,7 @@ export function SignalHistory() {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="py-3 pl-16">
+                    <TableCell className="py-3 pl-[61px]">
                       <span className="font-bold text-sm text-white tracking-tight uppercase">{signal.symbol}</span>
                     </TableCell>
                     <TableCell className="py-3 text-center">

@@ -52,7 +52,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
 
   const { data: signals, isLoading: isCollectionLoading, error } = useCollection(signalsQuery);
 
-  // Poll Binance API for latest prices
+  // Poll Binance Futures API for latest prices
   useEffect(() => {
     if (!signals || signals.length === 0) return;
 
@@ -66,10 +66,13 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
         try {
           // Binance expects symbols without slashes and uppercase (e.g. BTCUSDT)
           const cleanSym = sym.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-          const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${cleanSym}`);
+          // Use the specific Futures API endpoint requested by the user
+          const response = await fetch(`https://fapi.binance.com/fapi/v2/ticker/price?symbol=${cleanSym}`);
           if (response.ok) {
             const data = await response.json();
-            newPrices[sym] = parseFloat(data.price);
+            if (data && data.price) {
+              newPrices[sym] = parseFloat(data.price);
+            }
           }
         } catch (e) {
           // Silent fail for non-binance or non-existent symbols
@@ -165,6 +168,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
             <TableRow className="hover:bg-transparent border-border">
               <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold">Alert Time</TableHead>
               <TableHead className="w-[100px] px-2 text-[10px] uppercase font-bold">Asset Name</TableHead>
+              <TableHead className="w-[70px] px-2 text-[10px] uppercase font-bold text-center">Chart</TableHead>
               <TableHead className="w-[50px] px-1 text-[10px] uppercase font-bold text-center">Side</TableHead>
               <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold text-right">Alert Price</TableHead>
               <TableHead className="w-[80px] px-2 text-[10px] uppercase font-bold text-right">Latest Price</TableHead>
@@ -172,9 +176,9 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
           </TableHeader>
           <TableBody>
             {isLoading && (!signals || signals.length === 0) ? (
-              <TableRow><TableCell colSpan={5} className="text-center py-8 animate-pulse text-[10px]">Syncing...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="text-center py-8 animate-pulse text-[10px]">Syncing...</TableCell></TableRow>
             ) : !signals || signals.length === 0 ? (
-              <TableRow><TableCell colSpan={5} className="text-center py-12 text-[10px] opacity-20">No signals found.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="text-center py-12 text-[10px] opacity-20">No signals found.</TableCell></TableRow>
             ) : (
               signals.map((signal) => {
                 const data = parsePayload(signal.payload);
@@ -206,6 +210,8 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                     </TableCell>
                     <TableCell className="px-2">
                       <div className="font-bold text-xs text-white truncate max-w-[80px]">{signal.symbol}</div>
+                    </TableCell>
+                    <TableCell className="px-2 text-center">
                       <div className="text-[9px] text-muted-foreground font-medium uppercase">{formatTimeframe(signal.timeframe)}</div>
                     </TableCell>
                     <TableCell className="px-1 text-center">
@@ -228,7 +234,7 @@ export function SignalHistory({ onSignalSelect }: SignalHistoryProps) {
                           </div>
                         </div>
                       ) : (
-                        <span className="opacity-20">Live...</span>
+                        <span className="opacity-20 animate-pulse">Live...</span>
                       )}
                     </TableCell>
                   </TableRow>

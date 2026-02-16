@@ -1,36 +1,35 @@
-# TezTerminal - Singapore Migration Checklist
+# TezTerminal - Singapore Migration Guide (CLI)
 
-You have successfully added the configuration files. Now, you must copy the **`src`** folder to make the app functional. 
+Since your US-based server is currently blocked by Binance (`451`), you are migrating to **Singapore (asia-southeast1)**. Follow these steps using your Mac Terminal to push your code to your new GitHub account.
 
-### Step 1: Create these folders in GitHub
-Inside your `tez-terminal` repo, create this structure:
-- `src/`
-  - `ai/` (and its subfolders)
-  - `app/` (and its subfolders)
-  - `components/` (and its subfolders)
-  - `firebase/` (and its subfolders)
-  - `hooks/`
-  - `lib/`
+### Step 1: Initialize Git on your Mac
+Open your **Terminal** app, navigate to your project folder, and run:
+```bash
+git init
+git remote add origin https://github.com/tezsatish6289/tez-terminal.git
+git add .
+git commit -m "Initial Migration to Asia"
+git push -u origin main
+```
 
-### Step 2: Critical Files to Copy Now
-Open these files in the sidebar and copy their code into your GitHub repo:
+### Step 2: Critical Files Checklist
+Ensure these files are in your GitHub repo before deploying:
 
-**Core Logic:**
-1. `src/app/api/cron/sync-prices/route.ts` (The 24/7 Sync Engine)
-2. `src/app/api/webhook/route.ts` (The Ingestion Bridge)
-3. `src/firebase/index.ts` (Database Connection)
+**Infrastructure:**
+- `apphosting.yaml` (Must be set to `asia-southeast1`)
+- `package.json`
+- `next.config.ts`
 
-**UI & Pages:**
-4. `src/app/page.tsx` (Terminal Home)
-5. `src/app/history/page.tsx` (System Audit)
-6. `src/app/analytics/page.tsx` (Performance Node)
-7. `src/components/dashboard/SignalHistory.tsx` (The Live Stream)
+**Core Logic (src/):**
+- `src/app/api/cron/sync-prices/route.ts` (The 24/7 Sync Engine)
+- `src/app/api/webhook/route.ts` (The Ingestion Bridge)
+- `src/firebase/index.ts` (SDK Initialization)
 
-### Step 3: Finalize Deployment
-1. Go back to the **Firebase Console** -> **App Hosting**.
-2. Click **"Refresh"** on your GitHub connection.
-3. Once all files (including the `src` folder) are in GitHub, click **"Finish and Deploy"**.
-4. **IMPORTANT**: Ensure the region is set to **Singapore (asia-southeast1)**.
+### Step 3: Deploy in Firebase Console
+1. Go to **App Hosting** -> **Create New Backend**.
+2. Connect your GitHub account (`tezsatish6289`).
+3. Select the `tez-terminal` repository.
+4. **IMPORTANT**: In the "Region" dropdown, select **asia-southeast1 (Singapore)**.
+5. Click **Finish and Deploy**.
 
-### Why this works:
-Once the code is in Singapore, your `sync-prices` cron job will no longer see "451 Region Block" errors because Singapore is an approved region for Binance API access.
+Once deployed in Singapore, your terminal will regain 24/7 autonomous access to Binance without regional blocks.

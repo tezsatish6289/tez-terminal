@@ -3,7 +3,6 @@ runConfig:
   maxInstances: 3
   minInstances: 0
   memoryMiB: 512
-  # Increase timeout for video/heavy sync operations if needed
   timeoutSeconds: 60
 
 env:

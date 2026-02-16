@@ -22,6 +22,7 @@ Advanced Trading Terminal with Robust TradingView Ingestion and 24/7 Automated P
   "ticker": "{{ticker}}",
   "side": "{{strategy.order.action}}",
   "price": "{{close}}",
+  "stopLoss": "{{strategy.order.stoploss}}",
   "timeframe": "{{interval}}",
   "secretKey": "YOUR_KEY"
 }
@@ -29,5 +30,6 @@ Advanced Trading Terminal with Robust TradingView Ingestion and 24/7 Automated P
 
 ## Features
 - **Server-Driven Prices**: No client-side polling. Data is maintained by a 24/7 cron job.
-- **Performance Tracking**: Automatically records Max Upside and Max Drawdown achieved by every signal.
+- **Internal Lifecycle**: Signals automatically stop tracking and disappear from the feed once the internal Stop Loss is hit.
+- **Performance Tracking**: Automatically records Max Positive Move and Max Negative Move achieved by every signal.
 - **Admin Debugger**: Real-time technical logs of all bridge and sync activities.

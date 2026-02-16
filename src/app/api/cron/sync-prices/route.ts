@@ -35,7 +35,7 @@ export async function GET() {
 
     await Promise.all([processResults(futuresRes), processResults(spotRes)]);
 
-    // 2. Query ONLY active signals to optimize performance
+    // 2. Query ONLY active signals to optimize performance and tracking costs
     const signalsQuery = query(collection(firestore, "signals"), where("status", "==", "ACTIVE"));
     const signalsSnap = await getDocs(signalsQuery);
     
@@ -54,6 +54,8 @@ export async function GET() {
 
       const rawSymbol = signal.symbol || "";
       const base = rawSymbol.split(':').pop() || "";
+      
+      // Sanitize symbol: remove .P, .PERP, _PERP suffixes often sent by Bybit/TradingView
       const cleanedSymbol = base
         .replace(/\.P$|\.PERP$|_PERP$|-PERP$/i, '')
         .replace(/[^a-zA-Z0-9]/g, '')
@@ -73,6 +75,7 @@ export async function GET() {
       let newStatus = "ACTIVE";
 
       // 3. Internal Invalidation Check (Lifecycle Management)
+      // Stop tracking if price hits the SL level
       if (stopLoss > 0) {
         if (signal.type === 'BUY' && currentPrice <= stopLoss) {
           newStatus = "INACTIVE";
@@ -108,8 +111,8 @@ export async function GET() {
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
       level: missingSymbols.length > 0 ? "WARN" : "INFO",
-      message: `Sync Heartbeat: ${updateCount} Updated, ${stoppedCount} Stopped`,
-      details: `Processed ${updateCount} active signals. ${stoppedCount} reached stop loss. ${missingSymbols.length} missing mapping.`,
+      message: `Sync Node: ${updateCount} ACTIVE, ${stoppedCount} STOPPED`,
+      details: `Active tracking cycle complete. ${stoppedCount} signals reached internal SL and were retired.`,
       webhookId: "SYSTEM_CRON",
     });
 

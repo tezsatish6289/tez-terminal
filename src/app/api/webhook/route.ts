@@ -6,7 +6,7 @@ import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/fires
 /**
  * Production-Ready Ingestion Bridge.
  * Normalizes metadata across various market formats (Crypto, Indian Stocks, US Stocks).
- * Now supports internal Stop Loss tracking for signal lifecycle management.
+ * Supports internal Stop Loss tracking for signal lifecycle management.
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
@@ -100,9 +100,9 @@ export async function POST(request: NextRequest) {
       exchange,
       assetType,
       type: signalType,
-      status: "ACTIVE", // Signals start as Active
+      status: "ACTIVE",
       price: price, 
-      stopLoss: stopLoss, // Saved for internal invalidation
+      stopLoss: stopLoss, 
       currentPrice: price, 
       maxUpsidePrice: price, 
       maxDrawdownPrice: price, 

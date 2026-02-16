@@ -1,7 +1,7 @@
 # Optimized for Singapore (asia-southeast1) Deployment
 runConfig:
   maxInstances: 3
-  minInstances: 0
+  minInstances: 1
   memoryMiB: 512
   timeoutSeconds: 60
 

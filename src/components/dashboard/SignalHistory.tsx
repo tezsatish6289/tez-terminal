@@ -30,7 +30,7 @@ import { Button } from "@/components/ui/button";
 
 /**
  * PRODUCTION TERMINAL ENGINE - PERSISTENT STATE
- * Restored Max Upside/Drawdown for complete performance visibility.
+ * Focus: High-precision performance tracking with descriptive movement labels.
  */
 export function SignalHistory() {
   const router = useRouter();
@@ -358,13 +358,13 @@ export function SignalHistory() {
                                         <TrendingUp className="h-4 w-4 text-emerald-400" />
                                      </div>
                                      <div>
-                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Max Upside</p>
+                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Max Positive Move</p>
                                         <p className="text-xs font-mono font-black text-emerald-400">+{maxUpPnl}%</p>
                                      </div>
                                   </div>
                                   <div className="flex items-center gap-3 justify-end text-right">
                                      <div className="text-right">
-                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Max Drawdown</p>
+                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Max Negative Move</p>
                                         <p className="text-xs font-mono font-black text-rose-400">{maxDownPnl}%</p>
                                      </div>
                                      <div className="h-8 w-8 rounded-lg bg-rose-500/10 flex items-center justify-center border border-rose-500/20 shrink-0">

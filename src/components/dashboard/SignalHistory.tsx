@@ -15,7 +15,8 @@ import {
   ChevronDown,
   Zap,
   BarChart3,
-  Globe
+  Globe,
+  TrendingDown
 } from "lucide-react";
 import { format, differenceInMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -29,7 +30,7 @@ import { Button } from "@/components/ui/button";
 
 /**
  * PRODUCTION TERMINAL ENGINE - PERSISTENT STATE
- * Focus: Strategy Icons, Subtle Filters below header, and State Persistence.
+ * Restored Max Upside/Drawdown for complete performance visibility.
  */
 export function SignalHistory() {
   const router = useRouter();
@@ -313,6 +314,8 @@ export function SignalHistory() {
                         const alertPrice = Number(signal.price || 0);
                         const currentPrice = signal.currentPrice ? Number(signal.currentPrice) : alertPrice;
                         const livePnl = calculatePercent(currentPrice, alertPrice, signal.type);
+                        const maxUpPnl = calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type);
+                        const maxDownPnl = calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type);
                         const isBullish = signal.type === 'BUY';
 
                         return (
@@ -336,7 +339,7 @@ export function SignalHistory() {
                               <div className="flex items-center gap-2"><Clock className="h-4 w-4" /> {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"}</div>
                               <div className="flex items-center gap-2"><Timer className="h-4 w-4 text-accent" /> {mounted ? getRunningSince(signal.receivedAt) : "--"}</div>
                             </div>
-                            <CardContent className="p-6">
+                            <CardContent className="p-6 space-y-6">
                                <div className="grid grid-cols-2 gap-6">
                                   <div className="space-y-2">
                                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Entry</p>
@@ -346,6 +349,27 @@ export function SignalHistory() {
                                     <p className="text-[10px] font-black text-accent uppercase tracking-widest">Live</p>
                                     <p className={cn("text-lg font-mono font-black", Number(livePnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>${formatPrice(currentPrice)}</p>
                                     <div className={cn("text-[10px] font-black", Number(livePnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>{livePnl}% PNL</div>
+                                  </div>
+                               </div>
+
+                               <div className="pt-4 border-t border-white/5 grid grid-cols-2 gap-4">
+                                  <div className="flex items-center gap-3">
+                                     <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shrink-0">
+                                        <TrendingUp className="h-4 w-4 text-emerald-400" />
+                                     </div>
+                                     <div>
+                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Max Upside</p>
+                                        <p className="text-xs font-mono font-black text-emerald-400">+{maxUpPnl}%</p>
+                                     </div>
+                                  </div>
+                                  <div className="flex items-center gap-3 justify-end text-right">
+                                     <div className="text-right">
+                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Max Drawdown</p>
+                                        <p className="text-xs font-mono font-black text-rose-400">{maxDownPnl}%</p>
+                                     </div>
+                                     <div className="h-8 w-8 rounded-lg bg-rose-500/10 flex items-center justify-center border border-rose-500/20 shrink-0">
+                                        <TrendingDown className="h-4 w-4 text-rose-400" />
+                                     </div>
                                   </div>
                                </div>
                             </CardContent>

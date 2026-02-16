@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, getDocs, updateDoc, doc, addDoc } from "firebase/firestore";
 
-/**
- * CRITICAL: Force dynamic ensures Next.js does not cache the response of this API route.
- * Explicitly setting revalidate to 0 to prevent any stale data being served to the cron.
- */
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
@@ -24,69 +20,89 @@ export async function GET(request: NextRequest) {
   const { firestore } = initializeFirebase();
   const logsRef = collection(firestore, "logs");
   
+  // Binance Mirrors to try if the primary is blocked (451 error)
+  const mirrors = [
+    "https://api.binance.com",
+    "https://api1.binance.com",
+    "https://api2.binance.com",
+    "https://api3.binance.com",
+    "https://api.binance.me"
+  ];
+
+  const futuresMirrors = [
+    "https://fapi.binance.com",
+    "https://fapi1.binance.com",
+    "https://fapi2.binance.com",
+    "https://fapi3.binance.com"
+  ];
+
   try {
-    // Mimic a real browser to prevent exchange WAF from blocking automated hits
     const fetchOptions: RequestInit = {
       cache: 'no-store',
       headers: { 
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
+        'Accept': 'application/json'
       }
     };
 
-    const [futuresRes, spotRes] = await Promise.all([
-      fetch("https://fapi.binance.com/fapi/v2/ticker/price", fetchOptions),
-      fetch("https://api.binance.com/api/v3/ticker/price", fetchOptions)
-    ]);
-
-    const priceMap: Record<string, number> = {};
+    let priceMap: Record<string, number> = {};
     let futuresCount = 0;
     let spotCount = 0;
     let errorLog = "";
-    
-    const processResults = async (res: Response, label: string) => {
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          data.forEach((p: any) => {
-            if (p.symbol && p.price) {
-              const sym = p.symbol.toUpperCase();
-              priceMap[sym] = parseFloat(p.price);
-              if (label === 'futures') futuresCount++; else spotCount++;
-            }
-          });
+
+    // Helper to try mirrors sequentially
+    const fetchWithMirrors = async (baseUrls: string[], endpoint: string) => {
+      for (const baseUrl of baseUrls) {
+        try {
+          const res = await fetch(`${baseUrl}${endpoint}`, fetchOptions);
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data)) return data;
+          } else if (res.status === 451) {
+            errorLog += `Mirror ${baseUrl} returned 451 (Geo-blocked). `;
+          }
+        } catch (e) {
+          errorLog += `Mirror ${baseUrl} failed connection. `;
         }
-      } else {
-        errorLog += `${label.toUpperCase()} API returned ${res.status} ${res.statusText}. `;
       }
+      return null;
     };
 
-    await Promise.all([
-      processResults(futuresRes, 'futures'),
-      processResults(spotRes, 'spot')
+    const [futuresData, spotData] = await Promise.all([
+      fetchWithMirrors(futuresMirrors, "/fapi/v2/ticker/price"),
+      fetchWithMirrors(mirrors, "/api/v3/ticker/price")
     ]);
 
+    if (futuresData) {
+      futuresData.forEach((p: any) => {
+        if (p.symbol && p.price) {
+          priceMap[p.symbol.toUpperCase()] = parseFloat(p.price);
+          futuresCount++;
+        }
+      });
+    }
+
+    if (spotData) {
+      spotData.forEach((p: any) => {
+        if (p.symbol && p.price) {
+          priceMap[p.symbol.toUpperCase()] = parseFloat(p.price);
+          spotCount++;
+        }
+      });
+    }
+
     const signalsSnap = await getDocs(collection(firestore, "signals"));
-    
-    let activeInDB = 0;
     let updateCount = 0;
     let stoppedCount = 0;
     let failedSymbols: string[] = [];
     
     for (const signalDoc of signalsSnap.docs) {
       const signal = signalDoc.data();
-      const currentStatus = signal.status || "ACTIVE";
-      
-      if (currentStatus !== "ACTIVE") continue;
-      activeInDB++;
+      if (signal.status !== "ACTIVE") continue;
 
       const rawSymbol = (signal.symbol || "").toUpperCase();
       let base = rawSymbol.split(':').pop() || ""; 
-      
-      const variations = [
+      const symbolVariations = [
         base,
         base.replace(/\.P$|\.PERP$|_PERP$|-PERP$/i, ''),
         base.replace(/[^A-Z0-9]/g, ''),
@@ -94,14 +110,14 @@ export async function GET(request: NextRequest) {
       ];
 
       let currentPrice = 0;
-      for (const v of variations) {
+      for (const v of symbolVariations) {
         if (priceMap[v.toUpperCase()]) {
           currentPrice = priceMap[v.toUpperCase()];
           break;
         }
       }
       
-      if (!currentPrice || isNaN(currentPrice)) {
+      if (!currentPrice) {
         failedSymbols.push(rawSymbol);
         continue;
       }
@@ -110,16 +126,10 @@ export async function GET(request: NextRequest) {
       const stopLoss = Number(signal.stopLoss || 0);
       let newStatus = "ACTIVE";
 
-      // Check for Invalidation (Stop Loss)
       if (stopLoss > 0) {
-        if (signal.type === 'BUY' && currentPrice <= stopLoss) {
-          newStatus = "INACTIVE";
-          stoppedCount++;
-        }
-        else if (signal.type === 'SELL' && currentPrice >= stopLoss) {
-          newStatus = "INACTIVE";
-          stoppedCount++;
-        }
+        if (signal.type === 'BUY' && currentPrice <= stopLoss) newStatus = "INACTIVE";
+        else if (signal.type === 'SELL' && currentPrice >= stopLoss) newStatus = "INACTIVE";
+        if (newStatus === "INACTIVE") stoppedCount++;
       }
 
       let newMaxUpside = signal.maxUpsidePrice || alertPrice;
@@ -128,12 +138,11 @@ export async function GET(request: NextRequest) {
       if (signal.type === 'BUY') {
         if (currentPrice > newMaxUpside) newMaxUpside = currentPrice;
         if (currentPrice < newMaxDrawdown || newMaxDrawdown === 0) newMaxDrawdown = currentPrice;
-      } else if (signal.type === 'SELL') {
+      } else {
         if (currentPrice < newMaxUpside || newMaxUpside === 0) newMaxUpside = currentPrice;
         if (currentPrice > newMaxDrawdown) newMaxDrawdown = currentPrice;
       }
 
-      updateCount++;
       await updateDoc(doc(firestore, "signals", signalDoc.id), {
         currentPrice: currentPrice,
         maxUpsidePrice: newMaxUpside,
@@ -141,33 +150,21 @@ export async function GET(request: NextRequest) {
         status: newStatus,
         lastSyncAt: new Date().toISOString()
       });
+      updateCount++;
     }
 
-    const logMessage = `24/7 SYNC: ${updateCount}/${activeInDB} UPDATED`;
-    const logDetails = `Source: ${isCron ? 'AUTOMATED CRON' : 'MANUAL TRIGGER'}
-- Exchange Feed: ${futuresCount} Futures, ${spotCount} Spot
-- Signals in DB: ${signalsSnap.size}
-- Active Filtered: ${activeInDB}
-- Successfully Synced: ${updateCount}
-- Stopped Out (Moved to Inactive): ${stoppedCount}
-${errorLog ? `- ERRORS: ${errorLog}` : ''}
-${failedSymbols.length > 0 ? `- Missing Tickers: ${failedSymbols.slice(0, 10).join(', ')}` : ''}`;
+    const logMessage = `24/7 SYNC: ${updateCount} UPDATED`;
+    const logDetails = `Source: ${isCron ? 'CRON-JOB.ORG' : 'MANUAL'}\nFeed: ${futuresCount} Futures, ${spotCount} Spot\nStopped: ${stoppedCount}\n${errorLog}${failedSymbols.length > 0 ? '\nFailed: ' + failedSymbols.slice(0, 5).join(', ') : ''}`;
 
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
-      level: errorLog ? "WARN" : "INFO",
+      level: errorLog.includes("451") ? "WARN" : "INFO",
       message: logMessage,
       details: logDetails,
       webhookId: "SYSTEM_CRON",
     });
 
-    return NextResponse.json({ 
-      success: true, 
-      updated: updateCount, 
-      stopped: stoppedCount,
-      feed: { futures: futuresCount, spot: spotCount },
-      isCron 
-    });
+    return NextResponse.json({ success: true, updated: updateCount, stopped: stoppedCount });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

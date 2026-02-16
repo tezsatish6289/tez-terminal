@@ -12,8 +12,10 @@ To move the physical server to Asia:
 2.  **App Hosting**: Navigate to the **"App Hosting"** tab.
 3.  **Delete Backend**: Click the settings icon next to your current backend and select **"Delete Backend"**. (Note: This **DOES NOT** delete your signals, users, or settings—those are stored in Firestore/Auth).
 4.  **Create New Backend**: Click **"Create New Backend"**.
-5.  **Select Region**: During the setup process, when asked for a region, select **`asia-south1` (Mumbai)** or **`asia-southeast1` (Singapore)**.
-6.  **Redeploy**: Connect to the same repository and branch. Once deployed, your terminal will have an Asian IP and will never be blocked by Binance.
+5.  **Select Region**: Choose **`asia-southeast1` (Singapore)** or **`asia-south1` (Mumbai)**.
+6.  **Connect GitHub**: When prompted to "Import a GitHub repository", click "Connect to GitHub" and use your primary GitHub account.
+7.  **Select Repository**: Look for the repository named exactly after your Project ID: **`studio-6235588950-a15f2`**.
+8.  **Redeploy**: Connect to the `main` branch. Once deployed, your terminal will have an Asian IP and will never be blocked by Binance Global.
 
 ## Security & Privacy
 *   **MAC Address**: Your hardware MAC address is **NEVER** exposed. Web requests cannot transmit your MAC address.
@@ -30,9 +32,9 @@ Your terminal is designed to be fully autonomous. The **Cron Job** you set up at
 ## Step-by-Step Live Deployment (CRITICAL)
 
 1.  **Publish Changes**: Click the **"Publish"** button in the top right to deploy the latest code to your live URL.
-2.  **Verify Public URL**: Once published, your terminal will be live at: `https://studio--studio-6235588950-a15f2.us-central1.hosted.app`
+2.  **Verify Public URL**: Once published, your terminal will be live at: `https://studio--studio-6235588950-a15f2.us-central1.hosted.app` (This URL will change once you move to Asia).
 3.  **Setup 24/7 Cron**:
-    *   **Production Endpoint**: `https://studio--studio-6235588950-a15f2.us-central1.hosted.app/api/cron/sync-prices?key=ANTIGRAVITY_SYNC_TOKEN_2024`
+    *   **Production Endpoint**: `https://<YOUR_NEW_ASIA_URL>/api/cron/sync-prices?key=ANTIGRAVITY_SYNC_TOKEN_2024`
     *   **Go to [cron-job.org](https://cron-job.org)** and create a job targeting this URL.
     *   **Frequency**: Set to "Every 5 minutes".
 4.  **Confirm Sync**:

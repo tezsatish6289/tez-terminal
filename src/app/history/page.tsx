@@ -1,3 +1,4 @@
+
 "use client";
 
 import { TopBar } from "@/components/dashboard/TopBar";
@@ -30,7 +31,8 @@ import {
   ShieldCheck,
   Server,
   CloudOff,
-  Cpu
+  Cpu,
+  Monitor
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -93,20 +95,16 @@ export default function HistoryPage() {
         throw new Error(data.error || "Sync failed");
       }
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Server-Side Blocked (451)", description: "Binance is blocking the US server IP. Use Client-Side Sync instead." });
+      toast({ variant: "destructive", title: "Server-Side Blocked (451)", description: "Binance is blocking the US server IP." });
     } finally {
       setIsSyncing(false);
     }
   };
 
-  /**
-   * Bypasses the 451 Server-Side block by fetching prices from the user's browser.
-   */
   const handleClientSync = async () => {
     if (!isAdmin || !firestore) return;
     setIsClientSyncing(true);
     try {
-      // 1. Fetch from Binance via Browser (User is in India/Not-US)
       const [fRes, sRes] = await Promise.all([
         fetch("https://fapi.binance.com/fapi/v2/ticker/price"),
         fetch("https://api.binance.com/api/v3/ticker/price")
@@ -119,7 +117,6 @@ export default function HistoryPage() {
       const priceMap: Record<string, number> = {};
       [...fData, ...sData].forEach((p: any) => { priceMap[p.symbol.toUpperCase()] = parseFloat(p.price); });
 
-      // 2. Fetch Active Signals
       const snap = await getDocs(collection(firestore, "signals"));
       let count = 0;
 
@@ -143,7 +140,7 @@ export default function HistoryPage() {
         }
       }
 
-      toast({ title: "Client Bridge Success", description: `Updated ${count} signals from your local connection.` });
+      toast({ title: "Client Bridge Success", description: `Updated ${count} signals.` });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
     } finally {
@@ -230,7 +227,7 @@ export default function HistoryPage() {
                       <div><CardTitle className="text-lg">Technical Logs</CardTitle><CardDescription className="text-xs">Live 24/7 Node Synchronization Audit</CardDescription></div>
                       <div className="flex gap-2">
                          <Button variant="outline" size="sm" className="gap-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 h-8" onClick={handleClientSync} disabled={isClientSyncing}>
-                            {isClientSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Cpu className="h-3 w-3" />} Browser Sync
+                            {isClientSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Monitor className="h-3 w-3" />} Browser Sync
                          </Button>
                          <Button variant="outline" size="sm" className="gap-2 border-accent/30 text-accent hover:bg-accent/10 h-8" onClick={handleForceSync} disabled={isSyncing}>
                             {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />} Server Sync
@@ -238,6 +235,17 @@ export default function HistoryPage() {
                       </div>
                     </CardHeader>
                     <CardContent className="pt-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                         <div className="p-3 bg-emerald-500/5 rounded-lg border border-emerald-500/10">
+                            <p className="text-[10px] font-black text-emerald-400 uppercase mb-1 flex items-center gap-1.5"><Monitor className="h-3 w-3" /> Browser Sync (India)</p>
+                            <p className="text-[10px] text-muted-foreground leading-tight">Uses your local internet (Lucknow) to fetch prices. Bypasses all server blocks.</p>
+                         </div>
+                         <div className="p-3 bg-accent/5 rounded-lg border border-accent/10">
+                            <p className="text-[10px] font-black text-accent uppercase mb-1 flex items-center gap-1.5"><Zap className="h-3 w-3" /> Server Sync (US)</p>
+                            <p className="text-[10px] text-muted-foreground leading-tight">Tests the automated cron logic. Subject to Binance 451 geographic blocks.</p>
+                         </div>
+                      </div>
+
                       {!isAdmin ? <div className="py-20 text-center opacity-40"><ShieldAlert className="h-12 w-12 mx-auto mb-4" /><p>Logs available to administrators only.</p></div> : (
                         <div className="space-y-4">
                           {isLogsLoading ? <div className="space-y-4 animate-pulse">{[1,2,3].map(i => <div key={i} className="h-20 bg-white/5 rounded-lg" />)}</div> : logs?.length === 0 ? <div className="py-20 text-center opacity-40"><Info className="h-12 w-12 mx-auto mb-4" /><p>No sync activity detected yet.</p></div> : (
@@ -262,7 +270,7 @@ export default function HistoryPage() {
                     <CardHeader><div className="flex items-center gap-2"><CloudOff className="h-5 w-5 text-rose-400" /><CardTitle className="text-md font-bold text-white">451 Geo-Block Warning</CardTitle></div></CardHeader>
                     <CardContent className="text-[11px] text-muted-foreground space-y-3">
                        <p>Binance blocks requests from US-based servers (where Firebase is hosted). This causes the <b>451 Error</b>.</p>
-                       <p><b>Solution:</b> Use the "Browser Sync" button above. It uses your local connection (India) to bridge prices into the terminal.</p>
+                       <p><b>Solution:</b> Use the "Browser Sync" button. It uses your local connection (India) to bridge prices into the terminal.</p>
                     </CardContent>
                   </Card>
 

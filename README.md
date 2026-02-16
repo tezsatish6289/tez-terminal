@@ -2,15 +2,17 @@
 
 Advanced Trading Terminal with Robust TradingView Ingestion and 24/7 Automated Performance Tracking.
 
-## Step-by-Step Live Deployment (IMPORTANT)
+## Step-by-Step Live Deployment (CRITICAL)
+
+Your terminal requires an external "ping" every 5 minutes to update prices and check internal Stop Losses.
 
 1.  **Publish Changes**: Click the "Publish" button in the top right to deploy the latest code to your live URL.
 2.  **Verify Public URL**: Once published, your terminal will be live at: `https://studio--studio-6235588950-a15f2.us-central1.hosted.app`
 3.  **Setup 24/7 Cron (CRITICAL)**:
-    *   The terminal requires a "ping" every 5 minutes to update prices and check internal Stop Losses.
-    *   **Secure Endpoint**: `https://studio--studio-6235588950-a15f2.us-central1.hosted.app/api/cron/sync-prices?key=ANTIGRAVITY_SYNC_TOKEN_2024`
+    *   **Do NOT use the development URL** (ending in `.cloudworkstations.dev`). It will return a `302 Redirect`.
+    *   **Production Endpoint**: `https://studio--studio-6235588950-a15f2.us-central1.hosted.app/api/cron/sync-prices?key=ANTIGRAVITY_SYNC_TOKEN_2024`
     *   **Go to [cron-job.org](https://cron-job.org)**.
-    *   Create a job targeting the **Secure Endpoint** above.
+    *   Create a job targeting the **Production Endpoint** above.
     *   **Frequency**: Set to "Every 5 minutes".
 4.  **Confirm Sync is Working**:
     *   Log in to your terminal at `hello@tezterminal.com`.

@@ -48,12 +48,18 @@ export default function HistoryPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setOrigin(window.location.origin);
+      // Determine if we are in development (workstation) or production
+      const currentOrigin = window.location.origin;
+      if (currentOrigin.includes("cloudworkstations.dev") || currentOrigin.includes("9002")) {
+        // Hardcode the production URL for the user to copy
+        setOrigin("https://studio--studio-6235588950-a15f2.us-central1.hosted.app");
+      } else {
+        setOrigin(currentOrigin);
+      }
     }
   }, []);
 
   const isAdmin = user?.email === "hello@tezterminal.com";
-  // The secret is centralized here for the UI to display it correctly.
   const CRON_SECRET = "ANTIGRAVITY_SYNC_TOKEN_2024";
   const cronUrl = origin ? `${origin}/api/cron/sync-prices?key=${CRON_SECRET}` : "Generating secure URL...";
 
@@ -73,14 +79,16 @@ export default function HistoryPage() {
   const copyToClipboard = (text: string) => {
     if (!origin) return;
     navigator.clipboard.writeText(text);
-    toast({ title: "URL Copied", description: "This URL includes your secure sync token." });
+    toast({ title: "Production URL Copied", description: "Use this URL in cron-job.org for 24/7 sync." });
   };
 
   const handleForceSync = async () => {
     if (!isAdmin) return;
     setIsSyncing(true);
     try {
-      const res = await fetch(`/api/cron/sync-prices?key=${CRON_SECRET}`);
+      // Use the actual current origin for the immediate manual sync button
+      const currentOrigin = window.location.origin;
+      const res = await fetch(`${currentOrigin}/api/cron/sync-prices?key=${CRON_SECRET}`);
       const data = await res.json();
       if (data.success) {
         toast({ 
@@ -159,6 +167,8 @@ export default function HistoryPage() {
       </div>
     );
   }
+
+  const isDev = typeof window !== "undefined" && (window.location.hostname.includes("cloudworkstations.dev") || window.location.port === "9002");
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -315,8 +325,19 @@ export default function HistoryPage() {
                       <CardDescription className="text-xs">Schedule this URL to run every 5 minutes on cron-job.org.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      {isDev && (
+                        <div className="p-3 bg-amber-500/20 border border-amber-500/40 rounded-lg flex items-start gap-3 mb-4">
+                           <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+                           <div className="text-[10px] leading-tight text-amber-200">
+                             <b>Environment Warning:</b> You are in "Preview Mode". The URL below has been corrected to point to your <b>Public Published URL</b>.
+                           </div>
+                        </div>
+                      )}
                       <div className="space-y-2">
-                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Secure Sync Endpoint (Token Embedded)</Label>
+                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex justify-between">
+                          Public Sync Endpoint
+                          <span className="text-emerald-400">PRODUCTION</span>
+                        </Label>
                         <div className="flex gap-2">
                           <Input readOnly value={cronUrl} className="bg-background font-mono text-[10px] h-9 border-white/10" />
                           <Button variant="outline" size="icon" onClick={() => copyToClipboard(cronUrl)} className="h-9 w-9 shrink-0" disabled={!origin}>
@@ -332,15 +353,15 @@ export default function HistoryPage() {
                         <ul className="text-[11px] space-y-3 text-muted-foreground">
                           <li className="flex gap-2">
                             <div className="h-1 w-1 rounded-full bg-accent mt-1.5 shrink-0" />
-                            <span><b>Key Embedded:</b> The URL above already contains your private access key.</span>
+                            <span><b>Key Embedded:</b> The URL includes your secret `ANTIGRAVITY_SYNC_TOKEN_2024`.</span>
                           </li>
                           <li className="flex gap-2">
                             <div className="h-1 w-1 rounded-full bg-accent mt-1.5 shrink-0" />
-                            <span><b>Encryption:</b> Data is sent over SSL/TLS, protecting your token in transit.</span>
+                            <span><b>Encryption:</b> HTTPS is mandatory to protect your token from sniffing.</span>
                           </li>
                           <li className="flex gap-2">
                             <div className="h-1 w-1 rounded-full bg-accent mt-1.5 shrink-0" />
-                            <span><b>Self-Healing:</b> The node automatically repairs legacy signals on every ping.</span>
+                            <span><b>Success check:</b> Look for "24/7 SYNC SUCCESS" in logs after scheduling.</span>
                           </li>
                         </ul>
                         <Button asChild variant="outline" className="w-full h-9 border-accent/20 text-accent text-xs font-bold hover:bg-accent/10">

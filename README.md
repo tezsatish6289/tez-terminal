@@ -1,22 +1,43 @@
 # TezTerminal - Singapore Migration Guide (Zero-Copy)
 
-Your US-based server is currently blocked by Binance (`451`). We are migrating to **Singapore (asia-southeast1)** to restore 24/7 autonomous sync.
+Your US-based server is currently blocked by Binance (`451`). Use the **Integrated Terminal** in this IDE to push your code to GitHub and restore sync via Singapore.
 
-### The "IDE Pipe" Workflow
-You don't need to manually copy folders if you use the built-in "Publish" button.
+### The "Integrated Terminal" Pipe
+Since you see the prompt `studio-6235588950:~/studio/src{main}$`, follow these steps to push all files (including `src`) to GitHub without manual copying:
 
-1. **GitHub Setup**: You have already added the config files to `tezsatish6289/tez-terminal`. This is enough for Firebase to "see" the project.
-2. **Firebase Connection**: 
-   - Go to **App Hosting** in the Firebase Console.
-   - Select your repository.
-   - **CRITICAL**: Select **asia-southeast1 (Singapore)** as the region.
-3. **The Push**: Click the **Publish** button in this IDE. This is your "Pipe"—it will push all remaining folders (including `src`) to your GitHub repo.
-4. **Deploy**: Firebase will detect the new code and start the build in Singapore.
+1. **Go to Root**: In that terminal, type:
+   ```bash
+   cd ..
+   ```
+   (This moves you from the `src` folder to the main project folder).
 
-### Critical Files Checklist
-These are already prepared in your `src` folder:
-- `src/app/api/cron/sync-prices/route.ts`: Optimized for Asian Binance mirrors.
-- `src/app/api/webhook/route.ts`: Ingestion bridge for TradingView.
-- `apphosting.yaml`: Configured for Singapore residency.
+2. **Initialize Git**:
+   ```bash
+   git init
+   git remote add origin https://github.com/tezsatish6289/tez-terminal.git
+   ```
 
-Once the deployment finishes in Singapore, your terminal will regain 24/7 access to Binance without regional blocks.
+3. **Push to GitHub**:
+   ```bash
+   git add .
+   # Note: You may need to configure your GitHub email/name first
+   git config --global user.email "your-email@example.com"
+   git config --global user.name "TezSatish"
+   
+   git commit -m "Automated Migration to Asia"
+   
+   # This will ask for your GitHub username and Personal Access Token
+   git push -f origin main
+   ```
+
+### Firebase Setup (After Push)
+Once the terminal finishes pushing:
+1. Go to **App Hosting** in the Firebase Console.
+2. Re-create the backend using your `tez-terminal` repo.
+3. **CRITICAL**: Select **asia-southeast1 (Singapore)** or **asia-south1 (Mumbai)** as the region.
+4. Deploy.
+
+### Why this works:
+By pushing from the IDE's terminal, you are using the built-in Git CLI to transfer the entire project structure (all folders and files) to GitHub. Once it's in GitHub, the Singapore region can "see" the code and start the 24/7 sync engine.
+
+**Note on Security**: When the terminal asks for your password, use a **GitHub Personal Access Token**, not your account password.

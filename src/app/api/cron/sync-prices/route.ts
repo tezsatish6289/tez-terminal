@@ -5,6 +5,10 @@ import { collection, getDocs, updateDoc, doc, addDoc } from "firebase/firestore"
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+/**
+ * 24/7 PERFORMANCE SYNC ENGINE
+ * Hardened to bypass 451 Geo-blocks via Mirror Rotation and Fingerprinting.
+ */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const key = searchParams.get("key");
@@ -20,13 +24,13 @@ export async function GET(request: NextRequest) {
   const { firestore } = initializeFirebase();
   const logsRef = collection(firestore, "logs");
   
-  // Binance Mirrors to try if the primary is blocked (451 error)
+  // Rotating Mirrors to bypass geographic WAF blocks
   const mirrors = [
     "https://api.binance.com",
     "https://api1.binance.com",
     "https://api2.binance.com",
     "https://api3.binance.com",
-    "https://api.binance.me"
+    "https://api.binance.me" // Often bypasses restricted region filters
   ];
 
   const futuresMirrors = [
@@ -37,11 +41,15 @@ export async function GET(request: NextRequest) {
   ];
 
   try {
+    // Advanced browser fingerprinting headers
     const fetchOptions: RequestInit = {
       cache: 'no-store',
       headers: { 
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://www.binance.com/',
+        'Origin': 'https://www.binance.com'
       }
     };
 
@@ -50,7 +58,7 @@ export async function GET(request: NextRequest) {
     let spotCount = 0;
     let errorLog = "";
 
-    // Helper to try mirrors sequentially
+    // Sequential Mirror Fallback Strategy
     const fetchWithMirrors = async (baseUrls: string[], endpoint: string) => {
       for (const baseUrl of baseUrls) {
         try {
@@ -58,8 +66,8 @@ export async function GET(request: NextRequest) {
           if (res.ok) {
             const data = await res.json();
             if (Array.isArray(data)) return data;
-          } else if (res.status === 451) {
-            errorLog += `Mirror ${baseUrl} returned 451 (Geo-blocked). `;
+          } else {
+            errorLog += `Mirror ${baseUrl} returned ${res.status}. `;
           }
         } catch (e) {
           errorLog += `Mirror ${baseUrl} failed connection. `;
@@ -126,12 +134,14 @@ export async function GET(request: NextRequest) {
       const stopLoss = Number(signal.stopLoss || 0);
       let newStatus = "ACTIVE";
 
+      // Process Stop Loss logic
       if (stopLoss > 0) {
         if (signal.type === 'BUY' && currentPrice <= stopLoss) newStatus = "INACTIVE";
         else if (signal.type === 'SELL' && currentPrice >= stopLoss) newStatus = "INACTIVE";
         if (newStatus === "INACTIVE") stoppedCount++;
       }
 
+      // Track Max Positive/Negative Excursion
       let newMaxUpside = signal.maxUpsidePrice || alertPrice;
       let newMaxDrawdown = signal.maxDrawdownPrice || alertPrice;
 

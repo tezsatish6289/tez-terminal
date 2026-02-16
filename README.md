@@ -1,51 +1,47 @@
-# TezTerminal Antigravity
+# TezTerminal Antigravity - Migration Guide
 
-Advanced Trading Terminal with Robust TradingView Ingestion and 24/7 Automated Performance Tracking.
+Since your US-based server is blocked by Binance (`451` errors), follow these steps to move the terminal to **Singapore** or **Mumbai**.
 
-## Permanent Fix for 451 (Binance Blocks)
-If you see `451` errors in your logs, Binance is blocking your US-based server. You must move the server to Asia (Singapore/Mumbai).
+## Step 1: Prepare your Mac
+1. Create a new folder on your Desktop named `tez-terminal`.
+2. Inside that folder, create the following files by copying the code from the **Firebase Studio sidebar**:
+   - `package.json`
+   - `apphosting.yaml`
+   - `next.config.ts`
+   - `tailwind.config.ts`
+   - `tsconfig.json`
+   - `src/` (Mirror the entire folder structure and all files inside)
+   - `.env` (If you have any secrets)
 
-### Step 1: Create the GitHub Repository
-1.  Log in to your GitHub account: `tezsatish6289`.
-2.  Go to [github.com/new](https://github.com/new).
-3.  Repository Name: `tez-terminal`.
-4.  Visibility: **Public**.
-5.  Click **"Create repository"**.
-
-### Step 2: Push Code to GitHub (Mac Terminal)
-If you have the files on your Mac, open the **Terminal** app and run these commands:
+## Step 2: Push to GitHub (Mac Terminal)
+Open the **Terminal** app on your Mac and run these commands:
 
 ```bash
-# 1. Go to your project folder
-cd /path/to/your/tez-terminal-folder
+# 1. Navigate to your project folder
+cd ~/Desktop/tez-terminal
 
 # 2. Initialize Git
 git init
 
-# 3. Add your GitHub repository as the destination
+# 3. Connect to your new GitHub repo
 git remote add origin https://github.com/tezsatish6289/tez-terminal.git
 
-# 4. Stage all files
+# 4. Add and commit files
 git add .
+git commit -m "Migration to Asia server"
 
-# 5. Commit the changes
-git commit -m "Initial migration to Asia server"
-
-# 6. Push to GitHub
+# 5. Push to GitHub
 git branch -M main
 git push -u origin main
 ```
 
-**Note:** If you don't have the files locally yet, the easiest way is to use the "Add file" > "Upload files" button on the GitHub website and drag-and-drop your project folders there.
-
-### Step 3: Deploy to Asia
-1.  Go to the **Firebase Console** > **App Hosting**.
-2.  Click **"Create App Hosting Backend"**.
-3.  Connect your GitHub account and select the `tez-terminal` repository.
-4.  **CRITICAL**: Set the **Region** to **`asia-southeast1` (Singapore)** or **`asia-south1` (Mumbai)**.
-5.  Click **"Finish"**.
+## Step 3: Recreate Backend in Asia
+1. Go to the **Firebase Console** > **App Hosting**.
+2. Click **"Create App Hosting Backend"**.
+3. Connect your GitHub account and select `tezsatish6289/tez-terminal`.
+4. **CRITICAL**: Set the **Region** to **`asia-southeast1` (Singapore)**.
+5. Click **"Finish"**.
 
 ## Security & Privacy
-*   **MAC Address**: Your hardware MAC address is **NEVER** exposed. Web requests cannot transmit your MAC address.
-*   **IP Exposure**: During automated 24/7 syncs, only the **Firebase Server IP** is visible to Binance. Your personal IP remains private. 
-*   **Data Integrity**: Your unique `secretKey` ensures that only your authorized TradingView alerts can enter the terminal.
+*   **MAC Address**: Hardware identifiers are never transmitted.
+*   **IP Protection**: Your personal IP is hidden during 24/7 syncs. Only the Firebase Server IP in Singapore will be visible to Binance.

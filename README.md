@@ -1,4 +1,4 @@
-# TezTerminal Antigravity - Migration Guide
+# TezTerminal Antigravity - Singapore Migration Guide
 
 Since your US-based server is blocked by Binance (`451` errors), follow these steps to move the terminal to **Singapore** or **Mumbai**.
 

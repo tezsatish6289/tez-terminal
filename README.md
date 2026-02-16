@@ -6,27 +6,37 @@ Advanced Trading Terminal with Robust TradingView Ingestion and 24/7 Automated P
 If you see `451` errors in your logs, Binance is blocking your US-based server. You must move the server to Asia.
 
 ### Step 1: Create the GitHub Repository
-1.  Log in to your new GitHub account: `tezsatish6289`.
+1.  Log in to your GitHub account: `tezsatish6289`.
 2.  Go to [github.com/new](https://github.com/new).
 3.  Repository Name: `tez-terminal`.
 4.  Visibility: **Public**.
 5.  Click **"Create repository"**.
 
-### Step 2: Upload Files
-1.  In your new repository, look for the text: "Quick setup — if you’ve done this kind of thing before" or simply find the **"uploading an existing file"** link.
-2.  **How to get the files from this Studio**:
-    - Look at the file explorer on the left side of this Firebase Studio screen.
-    - For each file (especially `package.json`, `apphosting.yaml`, `next.config.ts`, and the entire `src` folder), you can copy the code and create a new file in your GitHub repo with the same name and content.
-    - **Pro Tip**: If there is a "Download" or "Export" icon in your Studio UI, use that to get a ZIP of all files at once.
+### Step 2: Transfer the Code (The "Manual Backup" Method)
+Since this environment is separate from your personal GitHub, you must copy the files manually:
+1.  In your new GitHub repo, click **"Add file"** > **"Create new file"**.
+2.  **For each file below**, copy the code from the editor on the left of your Firebase Studio and paste it into GitHub.
+
+#### 📁 Essential Root Files:
+- `package.json`
+- `apphosting.yaml`
+- `next.config.ts`
+- `tailwind.config.ts`
+- `tsconfig.json`
+- `components.json`
+
+#### 📁 Folders to Mirror:
+- `src/` (Copy all subfolders: `app`, `components`, `firebase`, `ai`, `lib`, `hooks`)
+- `docs/` (Specifically `backend.json`)
 
 ### Step 3: Connect to Asia
-1.  Go back to the **Firebase Console** (the screen in your screenshot).
-2.  Click **"Refresh list"**.
-3.  Select the `tez-terminal` repository.
-4.  **Region**: Ensure you have selected **`asia-southeast1` (Singapore)** or **`asia-south1` (Mumbai)**.
-5.  **Deploy**: Click "Finish" or "Deploy".
+1.  Go to the **Firebase Console** (App Hosting section).
+2.  Click **"Create App Hosting Backend"**.
+3.  Connect your GitHub account and select the `tez-terminal` repository.
+4.  **CRITICAL**: Set the **Region** to **`asia-southeast1` (Singapore)**.
+5.  Click **"Finish"**.
 
-Once deployed in Asia, your 24/7 cron job will never be blocked by Binance Global again.
+Once deployed in Asia, your 24/7 cron job will be "unblocked" and run autonomously.
 
 ## Security & Privacy
 *   **MAC Address**: Your hardware MAC address is **NEVER** exposed. Web requests cannot transmit your MAC address.

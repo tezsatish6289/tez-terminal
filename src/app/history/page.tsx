@@ -36,7 +36,8 @@ import {
   ArrowRight,
   Github,
   FileCode,
-  CheckCircle2
+  CheckCircle2,
+  FileText
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -156,23 +157,6 @@ export default function HistoryPage() {
     }
   };
 
-  const handlePurgeSignals = async () => {
-    if (!isAdmin || !firestore || purgeInput.toLowerCase() !== "purge") return;
-    setIsPurging(true);
-    try {
-      const snapshot = await getDocs(query(collection(firestore, "signals")));
-      const batch = writeBatch(firestore);
-      snapshot.docs.forEach(docSnap => batch.delete(docSnap.ref));
-      await batch.commit();
-      toast({ title: "History Purged" });
-      setIsDialogOpen(false);
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Purge Failed" });
-    } finally {
-      setIsPurging(false);
-    }
-  };
-
   if (isUserLoading) return <div className="flex h-screen items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-accent" /></div>;
 
   if (!user) {
@@ -204,72 +188,75 @@ export default function HistoryPage() {
               <h1 className="text-2xl font-bold tracking-tight text-white">Terminal Activity</h1>
               <p className="text-muted-foreground text-sm">Audit trail of market alerts and system sync heartbeats.</p>
             </div>
-            {isAdmin && (
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild><Button variant="destructive" size="sm" className="gap-2 font-bold h-9"><Trash2 className="h-4 w-4" /> Purge History</Button></DialogTrigger>
-                <DialogContent className="bg-card border-border">
-                  <DialogHeader><DialogTitle className="text-destructive flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> Confirm Purge</DialogTitle></DialogHeader>
-                  <DialogContent className="p-0">
-                    <div className="p-6 space-y-4">
-                      <p className="text-sm text-muted-foreground">This will permanently delete all signal records. System logs will remain.</p>
-                      <Input placeholder="Type 'purge'..." value={purgeInput} onChange={(e) => setPurgeInput(e.target.value)} className="bg-background" />
-                    </div>
-                  </DialogContent>
-                  <DialogFooter className="p-6 pt-0"><Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button><Button variant="destructive" onClick={handlePurgeSignals} disabled={purgeInput.toLowerCase() !== "purge" || isPurging}>{isPurging && <Loader2 className="h-4 w-4 animate-spin mr-2" />} Confirm</Button></DialogFooter>
-                </DialogContent>
-              </Dialog>
-            )}
+            <ShieldCheck className="h-8 w-8 text-emerald-400 opacity-20" />
           </div>
 
           {(hasRegionBlock || true) && (
-            <Card className="bg-rose-500/10 border-rose-500/30 shadow-[0_0_30px_rgba(244,63,94,0.1)]">
-               <CardHeader className="pb-3">
+            <Card className="bg-rose-500/10 border-rose-500/30 shadow-[0_0_30px_rgba(244,63,94,0.1)] overflow-hidden">
+               <CardHeader className="pb-3 border-b border-rose-500/20">
                   <div className="flex items-center gap-3">
-                    <div className="bg-rose-500 p-2.5 rounded-xl border border-rose-400/20"><MapPin className="h-6 w-6 text-white" /></div>
+                    <div className="bg-rose-500 p-2.5 rounded-xl border border-rose-400/20 shadow-lg shadow-rose-500/20"><MapPin className="h-6 w-6 text-white" /></div>
                     <div>
                        <CardTitle className="text-rose-400 text-xl font-black uppercase tracking-tighter">Migration Command Center</CardTitle>
-                       <CardDescription className="text-rose-300/60 font-bold uppercase text-[10px] tracking-widest">Restore 24/7 Autonomy by moving to Asia region.</CardDescription>
+                       <CardDescription className="text-rose-300/60 font-bold uppercase text-[10px] tracking-widest">Permanent bypass for Binance 451 Regional Blocks.</CardDescription>
                     </div>
                   </div>
                </CardHeader>
-               <CardContent className="space-y-6 pt-2">
-                  <div className="bg-black/40 p-5 rounded-2xl border border-rose-500/20 text-xs leading-relaxed space-y-4">
+               <CardContent className="space-y-6 pt-6">
+                  <div className="bg-black/40 p-5 rounded-2xl border border-rose-500/20 text-xs leading-relaxed space-y-5">
                      <p className="font-black text-rose-400 uppercase tracking-widest flex items-center gap-2">
-                       <ShieldAlert className="h-4 w-4" /> How to Transfer Code to GitHub
+                       <FileText className="h-4 w-4" /> Migration Checklist (Step-by-Step)
                      </p>
-                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-2">
-                           <div className="flex items-center gap-2">
-                             <div className="h-5 w-5 rounded-full bg-accent/20 flex items-center justify-center text-[10px] text-accent font-black">1</div>
-                             <p className="font-bold text-white uppercase text-[10px]">Copy Files</p>
+                     
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-4">
+                           <div className="flex gap-4">
+                              <div className="h-6 w-6 rounded-full bg-accent/20 flex items-center justify-center text-[10px] text-accent font-black shrink-0 border border-accent/20">1</div>
+                              <div className="space-y-1">
+                                 <p className="font-bold text-white uppercase text-[10px]">Create GitHub Repo</p>
+                                 <p className="text-muted-foreground text-[10px]">Go to your new GitHub account and create a repo named <span className="text-accent font-mono">tez-terminal</span>.</p>
+                              </div>
                            </div>
-                           <p className="text-muted-foreground text-[10px]">Use the file explorer on the left of your screen. Open each file and copy the text.</p>
+                           <div className="flex gap-4">
+                              <div className="h-6 w-6 rounded-full bg-accent/20 flex items-center justify-center text-[10px] text-accent font-black shrink-0 border border-accent/20">2</div>
+                              <div className="space-y-1">
+                                 <p className="font-bold text-white uppercase text-[10px]">Manual File Copy</p>
+                                 <p className="text-muted-foreground text-[10px]">Open the file explorer on the left. Copy the text from each file and paste it into GitHub.</p>
+                              </div>
+                           </div>
                         </div>
-                        <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-2">
-                           <div className="flex items-center gap-2">
-                             <div className="h-5 w-5 rounded-full bg-accent/20 flex items-center justify-center text-[10px] text-accent font-black">2</div>
-                             <p className="font-bold text-white uppercase text-[10px]">Paste to GitHub</p>
+                        <div className="space-y-4">
+                           <div className="flex gap-4">
+                              <div className="h-6 w-6 rounded-full bg-accent/20 flex items-center justify-center text-[10px] text-accent font-black shrink-0 border border-accent/20">3</div>
+                              <div className="space-y-1">
+                                 <p className="font-bold text-white uppercase text-[10px]">Connect to GitHub</p>
+                                 <p className="text-muted-foreground text-[10px]">In the Firebase Hosting setup, refresh the list and select your new repo.</p>
+                              </div>
                            </div>
-                           <p className="text-muted-foreground text-[10px]">In your new <span className="text-accent">tez-terminal</span> repo, click "Add file" &rarr; "Create new file" and paste the code.</p>
-                        </div>
-                        <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-2">
-                           <div className="flex items-center gap-2">
-                             <div className="h-5 w-5 rounded-full bg-accent/20 flex items-center justify-center text-[10px] text-accent font-black">3</div>
-                             <p className="font-bold text-white uppercase text-[10px]">Asia Deploy</p>
+                           <div className="flex gap-4">
+                              <div className="h-6 w-6 rounded-full bg-emerald-500/20 flex items-center justify-center text-[10px] text-emerald-400 font-black shrink-0 border border-emerald-500/20">4</div>
+                              <div className="space-y-1">
+                                 <p className="font-bold text-white uppercase text-[10px]">Select Asia Region</p>
+                                 <p className="text-muted-foreground text-[10px]">Choose <span className="text-emerald-400 font-mono">asia-southeast1</span> (Singapore) to finish. Block solved.</p>
+                              </div>
                            </div>
-                           <p className="text-muted-foreground text-[10px]">In the Firebase Console, select <span className="text-emerald-400 font-mono">asia-southeast1</span> (Singapore) to finish.</p>
                         </div>
                      </div>
-                     <div className="flex items-center gap-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                        <p className="text-[10px] text-emerald-300 font-medium">Your Database and Authentication will stay safe! Only the "Identity" of the server changes.</p>
+
+                     <div className="flex items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                        <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                        <div>
+                           <p className="text-[11px] text-emerald-300 font-black uppercase">Database Safety Guaranteed</p>
+                           <p className="text-[10px] text-emerald-300/60">Your existing signals and webhook settings are stored in Firestore and will remain safe after the move.</p>
+                        </div>
                      </div>
                   </div>
-                  <div className="flex gap-4">
-                     <Button onClick={handleClientSync} disabled={isClientSyncing} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-[10px] h-10 px-6 rounded-xl">
-                        {isClientSyncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Monitor className="h-4 w-4 mr-2" />} Browser Override (Lucknow)
+                  
+                  <div className="flex flex-wrap gap-4">
+                     <Button onClick={handleClientSync} disabled={isClientSyncing} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-[10px] h-10 px-8 rounded-xl shadow-lg shadow-emerald-500/20">
+                        {isClientSyncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Monitor className="h-4 w-4 mr-2" />} Browser Override (Live Fix)
                      </Button>
-                     <Button variant="outline" className="border-white/10 text-muted-foreground text-[10px] font-bold uppercase h-10 px-6 rounded-xl" asChild>
+                     <Button variant="outline" className="border-white/10 text-muted-foreground text-[10px] font-bold uppercase h-10 px-8 rounded-xl bg-white/5" asChild>
                         <a href="https://github.com/new" target="_blank">Go to GitHub <ExternalLink className="h-3 w-3 ml-2" /></a>
                      </Button>
                   </div>
@@ -277,7 +264,7 @@ export default function HistoryPage() {
             </Card>
           )}
 
-          <Tabs defaultValue="signals" className="w-full">
+          <Tabs defaultValue="debugger" className="w-full">
             <TabsList className="bg-secondary/30 border border-border mb-6">
               <TabsTrigger value="signals" className="gap-2"><Lightbulb className="h-4 w-4" /> Idea Stream</TabsTrigger>
               <TabsTrigger value="debugger" className="gap-2"><Terminal className="h-4 w-4" /> System Health</TabsTrigger>
@@ -304,17 +291,6 @@ export default function HistoryPage() {
                       </div>
                     </CardHeader>
                     <CardContent className="pt-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                         <div className="p-3 bg-emerald-500/5 rounded-lg border border-emerald-500/10">
-                            <p className="text-[10px] font-black text-emerald-400 uppercase mb-1 flex items-center gap-1.5"><Monitor className="h-3 w-3" /> Browser Override (Lucknow)</p>
-                            <p className="text-[10px] text-muted-foreground leading-tight">Uses your local connection to fetch prices. Bypasses all server-side blocks. Updates the database for everyone.</p>
-                         </div>
-                         <div className="p-3 bg-accent/5 rounded-lg border border-accent/10">
-                            <p className="text-[10px] font-black text-accent uppercase mb-1 flex items-center gap-1.5"><Zap className="h-3 w-3" /> Server Sync (Automated)</p>
-                            <p className="text-[10px] text-muted-foreground leading-tight">This is the code your 24/7 cron-job hits. If this is red, the server is blocked by Binance.</p>
-                         </div>
-                      </div>
-
                       {!isAdmin ? <div className="py-20 text-center opacity-40"><ShieldAlert className="h-12 w-12 mx-auto mb-4" /><p>Logs available to administrators only.</p></div> : (
                         <div className="space-y-4">
                           {isLogsLoading ? <div className="space-y-4 animate-pulse">{[1,2,3].map(i => <div key={i} className="h-20 bg-white/5 rounded-lg" />)}</div> : logs?.length === 0 ? <div className="py-20 text-center opacity-40"><Info className="h-12 w-12 mx-auto mb-4" /><p>Waiting for the first automated sync heartbeat...</p></div> : (
@@ -338,8 +314,8 @@ export default function HistoryPage() {
                   <Card className="bg-accent/5 border-accent/20">
                     <CardHeader><div className="flex items-center gap-2"><Server className="h-5 w-5 text-accent" /><CardTitle className="text-md font-bold text-white">Sync Architecture</CardTitle></div></CardHeader>
                     <CardContent className="text-[11px] text-muted-foreground space-y-3 leading-relaxed">
-                       <p><b>Automated Mode:</b> Next.js Server &rarr; Binance Mirrors. If all mirrors return 451, tracking stops.</p>
-                       <p><b>Manual Override:</b> Your Browser &rarr; Binance &rarr; Terminal Firestore. This updates prices for all users globally.</p>
+                       <p><b>Automated Mode:</b> Next.js Server (US) &rarr; Binance. If Binance returns 451, automated tracking fails.</p>
+                       <p><b>Manual Mode:</b> Browser (India) &rarr; Binance &rarr; Firestore. This updates the database for everyone globally.</p>
                     </CardContent>
                   </Card>
 

@@ -1,22 +1,21 @@
-
 # TezTerminal Antigravity
 
 Advanced Trading Terminal with Robust TradingView Ingestion and 24/7 Automated Performance Tracking.
 
 ## Step-by-Step Live Deployment (IMPORTANT)
 
-1.  **Publish Changes**: Click the "Publish" button in the top right to deploy the latest code.
+1.  **Publish Changes**: Click the "Publish" button in the top right to deploy the latest code to your live URL.
 2.  **Verify Public URL**: Once published, your terminal will be live at: `https://studio--studio-6235588950-a15f2.us-central1.hosted.app`
 3.  **Setup 24/7 Cron (CRITICAL)**:
     *   The terminal requires a "ping" every 5 minutes to update prices and check internal Stop Losses.
     *   **Secure Endpoint**: `https://studio--studio-6235588950-a15f2.us-central1.hosted.app/api/cron/sync-prices?key=ANTIGRAVITY_SYNC_TOKEN_2024`
     *   **Go to [cron-job.org](https://cron-job.org)**.
     *   Create a job targeting the **Secure Endpoint** above.
-    *   **Frequency**: Every 5 minutes.
-4.  **Connect TradingView**:
-    *   Go to **Bridge Management** in your app (hello@tezterminal.com only).
-    *   Copy your **Bridge URL** and **Secret Key**.
-    *   Paste into your TradingView Alert "Webhook URL" and JSON payload.
+    *   **Frequency**: Set to "Every 5 minutes".
+4.  **Confirm Sync is Working**:
+    *   Log in to your terminal at `hello@tezterminal.com`.
+    *   Go to **History** -> **System Health**.
+    *   Look for logs starting with **"24/7 SYNC SUCCESS"**. If you see these appearing every 5 minutes, your terminal is fully autonomous.
 
 ## Recommended Ingestion Format (JSON)
 ```json

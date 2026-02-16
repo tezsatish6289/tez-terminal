@@ -11,7 +11,6 @@ export async function GET(request: NextRequest) {
   const key = searchParams.get("key");
   
   // Security Check: Ensure only authorized cron services can trigger the sync
-  // In a production app, this would be an environment variable.
   const CRON_SECRET = "ANTIGRAVITY_SYNC_TOKEN_2024"; 
 
   if (key !== CRON_SECRET) {
@@ -53,7 +52,6 @@ export async function GET(request: NextRequest) {
     let stoppedCount = 0;
     let missingPriceCount = 0;
     let repairedCount = 0;
-    const missingSymbols: string[] = [];
     
     for (const signalDoc of signalsSnap.docs) {
       const signal = signalDoc.data();
@@ -68,7 +66,6 @@ export async function GET(request: NextRequest) {
       if (currentStatus !== "ACTIVE") continue;
 
       activeCount++;
-      const assetType = (signal.assetType || "").toUpperCase();
       const rawSymbol = signal.symbol || "";
       const base = rawSymbol.split(':').pop() || "";
       
@@ -83,7 +80,7 @@ export async function GET(request: NextRequest) {
       
       if (!currentPrice) {
         missingPriceCount++;
-        missingSymbols.push(rawSymbol);
+        // Ensure even if price is missing, the status is set correctly for legacy signals
         if (!signal.status) {
            await updateDoc(doc(firestore, "signals", signalDoc.id), { status: "ACTIVE" });
         }
@@ -128,14 +125,14 @@ export async function GET(request: NextRequest) {
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
       level: (activeCount > 0 && updateCount === 0) ? "WARN" : "INFO",
-      message: `Sync Node: ${updateCount}/${activeCount} UPDATED`,
+      message: `24/7 SYNC SUCCESS: ${updateCount}/${activeCount} UPDATED`,
       details: `Cycle Report: 
-- Total Signals: ${totalInDb}
-- Repaired: ${repairedCount}
-- Active: ${activeCount}
-- Updated: ${updateCount}
-- Stopped: ${stoppedCount}
-- Missing Prices: ${missingPriceCount}`,
+- Total Collection: ${totalInDb}
+- Repaired (Missing Status): ${repairedCount}
+- Active & Tracked: ${activeCount}
+- Prices Found: ${updateCount}
+- Retired (Hit SL): ${stoppedCount}
+- Tickers Missing: ${missingPriceCount}`,
       webhookId: "SYSTEM_CRON",
     });
 

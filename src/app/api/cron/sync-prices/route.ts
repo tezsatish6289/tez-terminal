@@ -5,21 +5,20 @@ import { collection, getDocs, updateDoc, doc, addDoc, query, where } from "fireb
 
 /**
  * 24/7 Global Synchronization Engine.
- * Optimized to only track ACTIVE signals and handle internal Stop Loss logic.
+ * Optimized for robustness and detailed technical audit trails.
  */
 export async function GET() {
   const { firestore } = initializeFirebase();
   const logsRef = collection(firestore, "logs");
   
   try {
-    // 1. Fetch from BOTH Futures and Spot to maximize coverage
+    // 1. Fetch live prices from Binance
     const [futuresRes, spotRes] = await Promise.all([
       fetch("https://fapi.binance.com/fapi/v2/ticker/price", { cache: 'no-store' }),
       fetch("https://api.binance.com/api/v3/ticker/price", { cache: 'no-store' })
     ]);
 
     const priceMap: Record<string, number> = {};
-
     const processResults = async (res: Response) => {
       if (res.ok) {
         const data = await res.json();
@@ -35,22 +34,24 @@ export async function GET() {
 
     await Promise.all([processResults(futuresRes), processResults(spotRes)]);
 
-    // 2. Query ONLY active signals
+    // 2. Diagnostics: Check total signals vs active signals
+    const allSignalsSnap = await getDocs(collection(firestore, "signals"));
+    const totalInDb = allSignalsSnap.size;
+
     const signalsQuery = query(collection(firestore, "signals"), where("status", "==", "ACTIVE"));
     const signalsSnap = await getDocs(signalsQuery);
     
-    let totalSignals = signalsSnap.size;
+    let activeCount = signalsSnap.size;
     let updateCount = 0;
     let stoppedCount = 0;
     let missingPriceCount = 0;
     const missingSymbols: string[] = [];
     
-    // Process signals sequentially for robust logging
     for (const signalDoc of signalsSnap.docs) {
       const signal = signalDoc.data();
       const assetType = (signal.assetType || "").toUpperCase();
 
-      // Only sync Crypto via Binance for now.
+      // We only sync Crypto via Binance for now.
       if (assetType !== "CRYPTO" && !signal.symbol?.includes("USDT")) {
         continue;
       }
@@ -58,7 +59,7 @@ export async function GET() {
       const rawSymbol = signal.symbol || "";
       const base = rawSymbol.split(':').pop() || "";
       
-      // Sanitize symbol: remove .P, .PERP, _PERP suffixes often sent by Bybit/TradingView
+      // Strip perpetual suffixes (.P, .PERP, etc) for Binance matching
       const cleanedSymbol = base
         .replace(/\.P$|\.PERP$|_PERP$|-PERP$/i, '')
         .replace(/[^a-zA-Z0-9]/g, '')
@@ -78,7 +79,7 @@ export async function GET() {
       const stopLoss = Number(signal.stopLoss || 0);
       let newStatus = "ACTIVE";
 
-      // 3. Internal Invalidation Check (Lifecycle Management)
+      // Internal Invalidation Check
       if (stopLoss > 0) {
         if (signal.type === 'BUY' && currentPrice <= stopLoss) {
           newStatus = "INACTIVE";
@@ -105,33 +106,44 @@ export async function GET() {
         currentPrice: currentPrice,
         maxUpsidePrice: newMaxUpside,
         maxDrawdownPrice: newMaxDrawdown,
-        status: newStatus
+        status: newStatus,
+        lastSyncAt: new Date().toISOString()
       });
     }
 
     // Comprehensive Heartbeat Log
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
-      level: missingPriceCount > 0 ? "WARN" : "INFO",
-      message: `Sync Node: ${updateCount}/${totalSignals} UPDATED, ${stoppedCount} STOPPED`,
+      level: (activeCount > 0 && updateCount === 0) ? "WARN" : "INFO",
+      message: `Sync Node: ${updateCount}/${activeCount} UPDATED`,
       details: `Cycle Report: 
-- Total Active in DB: ${totalSignals}
+- Total Signals in Collection: ${totalInDb}
+- Active Signals Filtered: ${activeCount}
 - Successfully Updated: ${updateCount}
 - Internal SL Triggered: ${stoppedCount}
 - Prices Missing on Exchange: ${missingPriceCount}
-${missingSymbols.length > 0 ? `\nSymbols failed: ${missingSymbols.join(", ")}` : ""}`,
+${missingSymbols.length > 0 ? `\nSymbols failed: ${missingSymbols.slice(0, 10).join(", ")}${missingSymbols.length > 10 ? '...' : ''}` : ""}`,
       webhookId: "SYSTEM_CRON",
     });
 
     return NextResponse.json({ 
       success: true, 
-      total: totalSignals,
+      total: activeCount,
       updated: updateCount,
       stopped: stoppedCount,
       missing: missingPriceCount
     });
   } catch (error: any) {
     console.error("[Sync Engine Error]", error);
+    try {
+        await addDoc(logsRef, {
+            timestamp: new Date().toISOString(),
+            level: "ERROR",
+            message: "Sync Engine Fatal Error",
+            details: error.message,
+            webhookId: "SYSTEM_CRON",
+        });
+    } catch (e) {}
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

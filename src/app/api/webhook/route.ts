@@ -5,8 +5,7 @@ import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/fires
 
 /**
  * Production-Ready Ingestion Bridge.
- * Normalizes metadata across various market formats (Crypto, Indian Stocks, US Stocks).
- * Supports internal Stop Loss tracking for signal lifecycle management.
+ * Hardened to handle Stop Loss lifecycle and robust error logging.
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
@@ -28,66 +27,52 @@ export async function POST(request: NextRequest) {
     }
 
     if (webhookId === "MISSING_ID") {
-      throw new Error("Missing 'id' parameter in Webhook URL.");
+      throw new Error("Critical: Missing 'id' parameter in Webhook URL.");
     }
 
     let body: any;
     try {
       body = JSON.parse(rawBody.trim());
     } catch (parseError: any) {
-      throw new Error(`Invalid JSON format.`);
+      throw new Error(`Invalid JSON: Ensure TradingView is sending valid JSON content.`);
     }
 
     const configRef = doc(firestore, "webhooks", webhookId);
     const configSnap = await getDoc(configRef);
 
     if (!configSnap.exists()) {
-      throw new Error(`Bridge ID '${webhookId}' not found.`);
+      throw new Error(`Bridge ID '${webhookId}' not found. Did you purge the webhooks collection?`);
     }
 
     const configData = configSnap.data();
     const providedKey = body.secretKey || searchParams.get("key");
     if (configData.secretKey && providedKey !== configData.secretKey) {
-      throw new Error(`Authentication failure: Secret key mismatch.`);
+      throw new Error(`Auth Failure: Secret key mismatch for bridge '${configData.name}'.`);
     }
 
-    // 1. Symbol Normalization
+    // Normalize Data
     const symbol = (body.ticker || body.symbol || body.pair || "UNKNOWN").toUpperCase();
     const exchange = (body.exchange || body.market || "BINANCE").toUpperCase();
     
-    // 2. Asset Type Normalization
-    const rawAt = (body.asset_type || body.assetType || body.category || body.market_type || "UNCLASSIFIED").toString().toUpperCase().trim();
-    let assetType = "UNCLASSIFIED";
+    const rawAt = (body.asset_type || body.assetType || body.category || "CRYPTO").toString().toUpperCase().trim();
+    let assetType = "CRYPTO";
     if (rawAt.includes("INDIAN")) assetType = "INDIAN STOCKS";
-    else if (rawAt.includes("US") || rawAt.includes("NASDAQ") || rawAt.includes("NYSE")) assetType = "US STOCKS";
-    else if (rawAt.includes("CRYPTO")) assetType = "CRYPTO";
-    else assetType = rawAt;
+    else if (rawAt.includes("US") || rawAt.includes("NASDAQ")) assetType = "US STOCKS";
 
-    // 3. Signal Type Detection
     let signalType = "NEUTRAL";
     const rawSide = (body.side || body.action || body.type || "").toString().toLowerCase();
     if (rawSide.includes("buy") || rawSide.includes("long")) signalType = "BUY";
     if (rawSide.includes("sell") || rawSide.includes("short")) signalType = "SELL";
 
-    // 4. Price Detection
-    const rawPrice = body.price ?? body.close ?? body.price_at_alert ?? body.last_price ?? body.entry;
-    let price = 0;
-    if (rawPrice !== undefined && rawPrice !== null) {
-      price = parseFloat(rawPrice.toString());
-    }
+    const rawPrice = body.price ?? body.close ?? body.entry;
+    const price = rawPrice ? parseFloat(rawPrice.toString()) : 0;
 
-    // 5. Internal Stop Loss Detection (Hidden from users)
-    const rawSL = body.sl ?? body.stopLoss ?? body.stop_loss ?? body.invalidation;
-    let stopLoss = 0;
-    if (rawSL !== undefined && rawSL !== null) {
-      stopLoss = parseFloat(rawSL.toString());
-    }
+    const rawSL = body.sl ?? body.stopLoss ?? body.stop_loss;
+    const stopLoss = rawSL ? parseFloat(rawSL.toString()) : 0;
     
-    // 6. Timeframe Mapping
-    let rawTf = (body.timeframe || body.interval || "15").toString().toUpperCase().trim();
+    const rawTf = (body.timeframe || body.interval || "15").toString().toUpperCase().trim();
     const tfMap: Record<string, string> = {
-      "1M": "1", "1": "1", "5M": "5", "5": "5", "15M": "15", "15": "15",
-      "1H": "60", "60": "60", "4H": "240", "240": "240", "D": "D", "1D": "D", "DAILY": "D"
+      "1M": "1", "5M": "5", "15M": "15", "1H": "60", "4H": "240", "D": "D", "1D": "D"
     };
     const timeframe = tfMap[rawTf] || rawTf;
 
@@ -100,7 +85,7 @@ export async function POST(request: NextRequest) {
       exchange,
       assetType,
       type: signalType,
-      status: "ACTIVE",
+      status: "ACTIVE", // This must be exactly "ACTIVE" for the Cron job to find it
       price: price, 
       stopLoss: stopLoss, 
       currentPrice: price, 
@@ -113,14 +98,15 @@ export async function POST(request: NextRequest) {
 
     await addDoc(signalsRef, signalData);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, message: "Signal ingested as ACTIVE" });
   } catch (error: any) {
+    console.error("[Webhook Bridge Error]", error.message);
     try {
       await addDoc(logsRef, {
         timestamp,
         level: "ERROR",
         message: "Ingestion Failure",
-        details: error.message,
+        details: `Body: ${rawBody}\nError: ${error.message}`,
         webhookId: webhookId || "UNKNOWN",
       });
     } catch (logErr) {}

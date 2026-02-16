@@ -7,7 +7,7 @@ export const revalidate = 0;
 
 /**
  * 24/7 PERFORMANCE SYNC ENGINE - AGGRESSIVE MIRROR ROTATION
- * Priority: Bypassing US (451) blocks by cycling through global mirrors.
+ * Optimized to bypass US (451) blocks by cycling through global mirrors with browser headers.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   const { firestore } = initializeFirebase();
   const logsRef = collection(firestore, "logs");
   
-  // SEQUENTIAL GLOBAL MIRRORS (Non-US targeted)
+  // SEQUENTIAL GLOBAL MIRRORS (Non-US targeted mirrors often have different WAF rules)
   const spotMirrors = [
     "https://api.binance.me",
     "https://api3.binance.com",
@@ -41,11 +41,15 @@ export async function GET(request: NextRequest) {
   try {
     const fetchOptions: RequestInit = {
       cache: 'no-store',
-      signal: AbortSignal.timeout(8000), // Prevent hanging requests
+      signal: AbortSignal.timeout(10000),
       headers: { 
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
         'Accept': 'application/json',
+        'Accept-Language': 'en-US,en;q=0.9',
         'Referer': 'https://www.binance.com/',
+        'Origin': 'https://www.binance.com',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
       }
     };
 
@@ -56,7 +60,9 @@ export async function GET(request: NextRequest) {
     const fetchWithFallback = async (mirrors: string[], endpoint: string) => {
       for (const baseUrl of mirrors) {
         try {
-          const res = await fetch(`${baseUrl}${endpoint}`, fetchOptions);
+          const res = await fetch(`${baseUrl}${endpoint}?_t=${Date.now()}`, fetchOptions);
+          const statusPrefix = baseUrl.split('//')[1].split('.')[0];
+          
           if (res.ok) {
             const data = await res.json();
             if (Array.isArray(data)) {
@@ -64,9 +70,9 @@ export async function GET(request: NextRequest) {
               return { data, source: baseUrl };
             }
           }
-          mirrorStatusLog += `[${baseUrl.split('//')[1]}: ${res.status}] `;
-        } catch (e) {
-          mirrorStatusLog += `[${baseUrl.split('//')[1]}: TIMEOUT] `;
+          mirrorStatusLog += `[${statusPrefix}: ${res.status}] `;
+        } catch (e: any) {
+          mirrorStatusLog += `[MIRROR_ERR: ${e.message.slice(0,10)}] `;
         }
       }
       return null;
@@ -150,21 +156,24 @@ export async function GET(request: NextRequest) {
       updateCount++;
     }
 
+    const source = request.headers.get("user-agent")?.includes("cron") ? "CRON_SERVICE" : "MANUAL_TRIGGER";
+
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
       level: "INFO",
-      message: `24/7 SYNC SUCCESS: ${updateCount} UPDATED`,
-      details: `Source: Automated Cron\nActive Mirror: ${successfulMirror}\nUpdated: ${updateCount}\nStopped: ${stoppedCount}\nFailed: ${failedTickers.slice(0,5).join(', ')}${failedTickers.length > 5 ? '...' : ''}`,
+      message: `24/7 SYNC: ${updateCount} UPDATED`,
+      details: `Source: ${source}\nActive Mirror: ${successfulMirror}\nUpdated: ${updateCount}\nStopped: ${stoppedCount}\nMirror Audit: ${mirrorStatusLog}\nFailed Tickers: ${failedTickers.slice(0,10).join(', ')}`,
       webhookId: "SYSTEM_CRON",
     });
 
     return NextResponse.json({ success: true, updated: updateCount, stopped: stoppedCount });
   } catch (error: any) {
+    const source = request.headers.get("user-agent")?.includes("cron") ? "CRON_SERVICE" : "MANUAL_TRIGGER";
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
       level: "ERROR",
       message: "Sync Failure - Mirror Exhaustion",
-      details: error.message,
+      details: `Source: ${source}\nError: ${error.message}`,
       webhookId: "SYSTEM_CRON",
     });
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

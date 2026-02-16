@@ -94,12 +94,12 @@ export default function HistoryPage() {
       const res = await fetch(`${window.location.origin}/api/cron/sync-prices?key=${CRON_SECRET}`);
       const data = await res.json();
       if (data.success) {
-        toast({ title: "Automated Sync Triggered", description: `Processed ${data.updated} signals.` });
+        toast({ title: "Server Sync Executed", description: `Updated ${data.updated} signals using server path.` });
       } else {
         throw new Error(data.error || "Sync failed");
       }
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Automated Path Blocked (451)", description: "Binance blocked the server path. Use Browser Sync." });
+      toast({ variant: "destructive", title: "Server Path Blocked (451)", description: "Binance is blocking the server identity. Use Browser Sync." });
     } finally {
       setIsSyncing(false);
     }
@@ -219,23 +219,18 @@ export default function HistoryPage() {
                     <div className="bg-rose-500 p-2 rounded-lg"><MapPin className="h-5 w-5 text-white" /></div>
                     <div>
                        <CardTitle className="text-rose-400">CRITICAL: Server Region Restricted (451)</CardTitle>
-                       <CardDescription className="text-rose-300/60 font-medium">Binance Global is blocking your US-based server. 24/7 Autonomy is Offline.</CardDescription>
+                       <CardDescription className="text-rose-300/60 font-medium">Binance is blocking the terminal server. 24/7 Autonomy is currently Offline.</CardDescription>
                     </div>
                   </div>
                </CardHeader>
                <CardContent className="space-y-4">
                   <div className="bg-black/40 p-4 rounded-xl border border-rose-500/20 text-xs text-rose-100/80 leading-relaxed">
-                     <p className="font-bold text-rose-400 mb-2">To restore 24/7 tracking, you must move the server to Asia:</p>
-                     <ol className="list-decimal list-inside space-y-1 ml-2">
-                        <li>Go to <b>Firebase Console</b> -> <b>App Hosting</b></li>
-                        <li>Delete the current Backend (Safe: Signals & users will not be deleted)</li>
-                        <li>Create a New Backend and select <b>asia-south1 (Mumbai)</b> region</li>
-                        <li>Redeploy from the same repo. Your terminal will then have an Indian IP.</li>
+                     <p className="font-bold text-rose-400 mb-2">How to restore 24/7 tracking:</p>
+                     <ol className="list-decimal list-inside space-y-2 ml-2">
+                        <li><b>Temporary Fix:</b> Use the <b>Browser Sync</b> button below while your computer is on. This uses your local IP (Lucknow) which is NOT blocked.</li>
+                        <li><b>Permanent Fix:</b> Move the server to <b>Mumbai (asia-south1)</b> via the Firebase Console. This gives the terminal an Indian identity.</li>
                      </ol>
                   </div>
-                  <Button variant="outline" className="w-full border-rose-500/40 text-rose-400 hover:bg-rose-500/10 gap-2 h-10" asChild>
-                     <a href="https://console.firebase.google.com" target="_blank">Open Firebase Console <ExternalLink className="h-4 w-4" /></a>
-                  </Button>
                </CardContent>
             </Card>
           )}
@@ -262,19 +257,19 @@ export default function HistoryPage() {
                             {isClientSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Monitor className="h-3 w-3" />} Browser Sync
                          </Button>
                          <Button variant="outline" size="sm" className="gap-2 border-accent/30 text-accent hover:bg-accent/10 h-8" onClick={handleForceSync} disabled={isSyncing}>
-                            {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />} Test Cron Path
+                            {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />} Test Server Sync
                          </Button>
                       </div>
                     </CardHeader>
                     <CardContent className="pt-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                          <div className="p-3 bg-emerald-500/5 rounded-lg border border-emerald-500/10">
-                            <p className="text-[10px] font-black text-emerald-400 uppercase mb-1 flex items-center gap-1.5"><Monitor className="h-3 w-3" /> Manual Override (India)</p>
-                            <p className="text-[10px] text-muted-foreground leading-tight">Uses your local internet to fetch prices. Bypasses all server-side blocks. Use this for emergency updates.</p>
+                            <p className="text-[10px] font-black text-emerald-400 uppercase mb-1 flex items-center gap-1.5"><Monitor className="h-3 w-3" /> Browser Override (Lucknow)</p>
+                            <p className="text-[10px] text-muted-foreground leading-tight">Uses your local connection to fetch prices. Bypasses all server-side blocks. Updates the database for everyone.</p>
                          </div>
                          <div className="p-3 bg-accent/5 rounded-lg border border-accent/10">
-                            <p className="text-[10px] font-black text-accent uppercase mb-1 flex items-center gap-1.5"><Zap className="h-3 w-3" /> Automated Engine (US)</p>
-                            <p className="text-[10px] text-muted-foreground leading-tight">This is what your 24/7 cron-job uses. It runs even when your computer is OFF.</p>
+                            <p className="text-[10px] font-black text-accent uppercase mb-1 flex items-center gap-1.5"><Zap className="h-3 w-3" /> Server Sync (Automated)</p>
+                            <p className="text-[10px] text-muted-foreground leading-tight">This is the code your 24/7 cron-job hits. If this is red, the server is blocked by Binance.</p>
                          </div>
                       </div>
 
@@ -298,11 +293,11 @@ export default function HistoryPage() {
                 </div>
 
                 <div className="space-y-6">
-                  <Card className="bg-rose-500/5 border-rose-500/20">
-                    <CardHeader><div className="flex items-center gap-2"><CloudOff className="h-5 w-5 text-rose-400" /><CardTitle className="text-md font-bold text-white">24/7 Sync Monitor</CardTitle></div></CardHeader>
-                    <CardContent className="text-[11px] text-muted-foreground space-y-3">
-                       <p>Your 24/7 Cron runs on the server. If Binance blocks the US server IP (Error 451), the "Automated Engine" log above will turn red.</p>
-                       <p><b>Note:</b> You do not need to stay logged in or keep the browser open for the 24/7 sync to work.</p>
+                  <Card className="bg-accent/5 border-accent/20">
+                    <CardHeader><div className="flex items-center gap-2"><Server className="h-5 w-5 text-accent" /><CardTitle className="text-md font-bold text-white">Sync Architecture</CardTitle></div></CardHeader>
+                    <CardContent className="text-[11px] text-muted-foreground space-y-3 leading-relaxed">
+                       <p><b>Automated Mode:</b> Next.js Server &rarr; Binance Mirrors. If all mirrors return 451, tracking stops.</p>
+                       <p><b>Manual Override:</b> Your Browser &rarr; Binance &rarr; Terminal Firestore. This updates prices for all users globally.</p>
                     </CardContent>
                   </Card>
 

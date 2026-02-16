@@ -8,11 +8,12 @@ This terminal tracks **Binance Global (Binance.com)** prices. It is optimized to
 ## Moving the Server to Asia (Permanent 451 Fix)
 If you see recurring `451` errors in the logs, it means Binance is blocking the US-based hosting region. 
 To move the physical server to Asia:
-1. Go to the **Firebase Console**.
-2. Delete the current **App Hosting Backend**.
-3. Create a new **App Hosting Backend**.
-4. During setup, select **`asia-south1` (Mumbai)** or **`asia-southeast1` (Singapore)** as the region.
-5. Your terminal will then have an Asian IP and will never be blocked by Binance.
+1.  **Firebase Console**: Go to the Firebase Console for your project.
+2.  **App Hosting**: Navigate to the "App Hosting" tab.
+3.  **Delete Backend**: Click the settings icon next to your current backend and select "Delete Backend". (Note: This **DOES NOT** delete your signals, users, or settings—those are stored in Firestore/Auth).
+4.  **Create New Backend**: Click "Create New Backend".
+5.  **Select Region**: During the setup process, when asked for a region, select **`asia-south1` (Mumbai)** or **`asia-southeast1` (Singapore)**.
+6.  **Redeploy**: Connect to the same repository and branch. Once deployed, your terminal will have an Asian IP and will never be blocked by Binance.
 
 ## Security & Privacy
 *   **MAC Address**: Your hardware MAC address is **NEVER** exposed. Web requests cannot transmit your MAC address.

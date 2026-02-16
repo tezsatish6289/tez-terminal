@@ -35,21 +35,24 @@ export async function GET() {
 
     await Promise.all([processResults(futuresRes), processResults(spotRes)]);
 
-    // 2. Query ONLY active signals to optimize performance and tracking costs
+    // 2. Query ONLY active signals
     const signalsQuery = query(collection(firestore, "signals"), where("status", "==", "ACTIVE"));
     const signalsSnap = await getDocs(signalsQuery);
     
+    let totalSignals = signalsSnap.size;
     let updateCount = 0;
     let stoppedCount = 0;
+    let missingPriceCount = 0;
     const missingSymbols: string[] = [];
     
-    const updates = signalsSnap.docs.map(async (signalDoc) => {
+    // Process signals sequentially for robust logging
+    for (const signalDoc of signalsSnap.docs) {
       const signal = signalDoc.data();
       const assetType = (signal.assetType || "").toUpperCase();
 
       // Only sync Crypto via Binance for now.
       if (assetType !== "CRYPTO" && !signal.symbol?.includes("USDT")) {
-        return;
+        continue;
       }
 
       const rawSymbol = signal.symbol || "";
@@ -66,8 +69,9 @@ export async function GET() {
       if (!currentPrice) currentPrice = priceMap[cleanedSymbol + 'BUSD'];
       
       if (!currentPrice) {
+        missingPriceCount++;
         missingSymbols.push(rawSymbol);
-        return;
+        continue;
       }
 
       const alertPrice = Number(signal.price);
@@ -75,7 +79,6 @@ export async function GET() {
       let newStatus = "ACTIVE";
 
       // 3. Internal Invalidation Check (Lifecycle Management)
-      // Stop tracking if price hits the SL level
       if (stopLoss > 0) {
         if (signal.type === 'BUY' && currentPrice <= stopLoss) {
           newStatus = "INACTIVE";
@@ -98,31 +101,37 @@ export async function GET() {
       }
 
       updateCount++;
-      return updateDoc(doc(firestore, "signals", signalDoc.id), {
+      await updateDoc(doc(firestore, "signals", signalDoc.id), {
         currentPrice: currentPrice,
         maxUpsidePrice: newMaxUpside,
         maxDrawdownPrice: newMaxDrawdown,
         status: newStatus
       });
-    });
+    }
 
-    await Promise.all(updates);
-
+    // Comprehensive Heartbeat Log
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
-      level: missingSymbols.length > 0 ? "WARN" : "INFO",
-      message: `Sync Node: ${updateCount} ACTIVE, ${stoppedCount} STOPPED`,
-      details: `Active tracking cycle complete. ${stoppedCount} signals reached internal SL and were retired.`,
+      level: missingPriceCount > 0 ? "WARN" : "INFO",
+      message: `Sync Node: ${updateCount}/${totalSignals} UPDATED, ${stoppedCount} STOPPED`,
+      details: `Cycle Report: 
+- Total Active in DB: ${totalSignals}
+- Successfully Updated: ${updateCount}
+- Internal SL Triggered: ${stoppedCount}
+- Prices Missing on Exchange: ${missingPriceCount}
+${missingSymbols.length > 0 ? `\nSymbols failed: ${missingSymbols.join(", ")}` : ""}`,
       webhookId: "SYSTEM_CRON",
     });
 
     return NextResponse.json({ 
       success: true, 
+      total: totalSignals,
       updated: updateCount,
       stopped: stoppedCount,
-      missing: missingSymbols.length
+      missing: missingPriceCount
     });
   } catch (error: any) {
+    console.error("[Sync Engine Error]", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

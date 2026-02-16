@@ -3,25 +3,28 @@
 Your US-based server is currently blocked by Binance (`451`). Use the **Integrated Terminal** at the bottom of this IDE to push your code to GitHub and restore sync via Singapore.
 
 ### The "Integrated Terminal" Pipe
-Since your terminal shows `~/studio/src{main}$`, you are already inside the project. Run these commands **one by one** to push everything to your GitHub:
+Follow these commands **one by one** exactly as written. If a command fails, do not proceed to the next one.
 
 1. **Go to Project Root**:
    `cd ~/studio`
 
-2. **Set your GitHub Destination**:
-   `git remote add origin https://github.com/tezsatish6289/tez-terminal.git`
-
-3. **Stage all files** (this picks up the `src` folder you need):
-   `git add .`
-
-4. **Identify yourself** (so GitHub accepts the push):
+2. **Set your Email (Run this first)**:
    `git config --global user.email "hello@tezterminal.com"`
+
+3. **Set your Name (Run this second)**:
    `git config --global user.name "TezSatish"`
 
-5. **Commit the changes**:
+4. **Set your GitHub Destination**:
+   `git remote add origin https://github.com/tezsatish6289/tez-terminal.git`
+   *(If it says "remote origin already exists", run: `git remote set-url origin https://github.com/tezsatish6289/tez-terminal.git`)*
+
+5. **Stage all files**:
+   `git add .`
+
+6. **Commit the changes**:
    `git commit -m "Automated Migration to Asia"`
 
-6. **Push to GitHub**:
+7. **Push to GitHub**:
    `git push -f origin main`
 
 ### Important Security Note:

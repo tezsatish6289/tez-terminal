@@ -27,7 +27,9 @@
         "assetType": { "type": "string", "description": "The type of asset (e.g., CRYPTO, FOREX, STOCKS, INDICES)." },
         "exchange": { "type": "string", "description": "The exchange for the asset (e.g., BINANCE, NSE, CRYPTO)." },
         "type": { "type": "string", "enum": ["BUY", "SELL", "NEUTRAL"] },
+        "status": { "type": "string", "enum": ["ACTIVE", "INACTIVE"], "description": "Operational status for price tracking." },
         "price": { "type": "number", "description": "The price at which the alert was triggered." },
+        "stopLoss": { "type": "number", "description": "Internal invalidation level. Not shown to users." },
         "currentPrice": { "type": "number", "description": "The most recent price recorded by the server cron." },
         "payload": { "type": "string" },
         "note": { "type": "string" },
@@ -36,7 +38,7 @@
         "maxUpsidePrice": { "type": "number", "description": "The best price achieved since the alert." },
         "maxDrawdownPrice": { "type": "number", "description": "The worst price reached since the alert." }
       },
-      "required": ["id", "symbol", "type", "receivedAt"]
+      "required": ["id", "symbol", "type", "receivedAt", "status"]
     },
     "SystemLog": {
       "title": "SystemLog",

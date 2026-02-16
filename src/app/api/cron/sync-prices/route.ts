@@ -1,10 +1,11 @@
+
 import { NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
-import { collection, getDocs, updateDoc, doc, addDoc } from "firebase/firestore";
+import { collection, getDocs, updateDoc, doc, addDoc, query, where } from "firebase/firestore";
 
 /**
  * 24/7 Global Synchronization Engine.
- * Enhanced matching logic to handle Perpetual suffixes (.P, .PERP, _PERP).
+ * Optimized to only track ACTIVE signals and handle internal Stop Loss logic.
  */
 export async function GET() {
   const { firestore } = initializeFirebase();
@@ -34,10 +35,13 @@ export async function GET() {
 
     await Promise.all([processResults(futuresRes), processResults(spotRes)]);
 
-    const signalsSnap = await getDocs(collection(firestore, "signals"));
+    // 2. Query ONLY active signals to optimize performance
+    const signalsQuery = query(collection(firestore, "signals"), where("status", "==", "ACTIVE"));
+    const signalsSnap = await getDocs(signalsQuery);
+    
     let updateCount = 0;
+    let stoppedCount = 0;
     const missingSymbols: string[] = [];
-    const skippedAssets: string[] = [];
     
     const updates = signalsSnap.docs.map(async (signalDoc) => {
       const signal = signalDoc.data();
@@ -45,19 +49,16 @@ export async function GET() {
 
       // Only sync Crypto via Binance for now.
       if (assetType !== "CRYPTO" && !signal.symbol?.includes("USDT")) {
-        skippedAssets.push(signal.symbol || "UNKNOWN");
         return;
       }
 
       const rawSymbol = signal.symbol || "";
-      // Strip common exchange suffixes and perpetual markers (e.g., BTCUSDT.P -> BTCUSDT)
       const base = rawSymbol.split(':').pop() || "";
       const cleanedSymbol = base
         .replace(/\.P$|\.PERP$|_PERP$|-PERP$/i, '')
         .replace(/[^a-zA-Z0-9]/g, '')
         .toUpperCase();
       
-      // Multi-layer matching: Direct -> +USDT -> +BUSD
       let currentPrice = priceMap[cleanedSymbol];
       if (!currentPrice) currentPrice = priceMap[cleanedSymbol + 'USDT'];
       if (!currentPrice) currentPrice = priceMap[cleanedSymbol + 'BUSD'];
@@ -67,9 +68,21 @@ export async function GET() {
         return;
       }
 
-      if (!signal.price) return;
-
       const alertPrice = Number(signal.price);
+      const stopLoss = Number(signal.stopLoss || 0);
+      let newStatus = "ACTIVE";
+
+      // 3. Internal Invalidation Check (Lifecycle Management)
+      if (stopLoss > 0) {
+        if (signal.type === 'BUY' && currentPrice <= stopLoss) {
+          newStatus = "INACTIVE";
+        } else if (signal.type === 'SELL' && currentPrice >= stopLoss) {
+          newStatus = "INACTIVE";
+        }
+      }
+
+      if (newStatus === "INACTIVE") stoppedCount++;
+
       let newMaxUpside = signal.maxUpsidePrice || alertPrice;
       let newMaxDrawdown = signal.maxDrawdownPrice || alertPrice;
 
@@ -85,7 +98,8 @@ export async function GET() {
       return updateDoc(doc(firestore, "signals", signalDoc.id), {
         currentPrice: currentPrice,
         maxUpsidePrice: newMaxUpside,
-        maxDrawdownPrice: newMaxDrawdown
+        maxDrawdownPrice: newMaxDrawdown,
+        status: newStatus
       });
     });
 
@@ -94,14 +108,15 @@ export async function GET() {
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
       level: missingSymbols.length > 0 ? "WARN" : "INFO",
-      message: `Sync Heartbeat: ${updateCount} Updated`,
-      details: `Processed ${updateCount} signals. ${missingSymbols.length} missing mapping. Missing: ${missingSymbols.join(', ')}`,
+      message: `Sync Heartbeat: ${updateCount} Updated, ${stoppedCount} Stopped`,
+      details: `Processed ${updateCount} active signals. ${stoppedCount} reached stop loss. ${missingSymbols.length} missing mapping.`,
       webhookId: "SYSTEM_CRON",
     });
 
     return NextResponse.json({ 
       success: true, 
       updated: updateCount,
+      stopped: stoppedCount,
       missing: missingSymbols.length
     });
   } catch (error: any) {

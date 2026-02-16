@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -30,7 +31,7 @@ import { Button } from "@/components/ui/button";
 
 /**
  * PRODUCTION TERMINAL ENGINE - PERSISTENT STATE
- * Focus: High-precision performance tracking with descriptive movement labels.
+ * Now exclusively displays ACTIVE signals for the live idea stream.
  */
 export function SignalHistory() {
   const router = useRouter();
@@ -58,7 +59,7 @@ export function SignalHistory() {
     "D": "all"
   });
 
-  // Initialization: Load state and handle scroll restoration
+  // Initialization
   useEffect(() => {
     setMounted(true);
     
@@ -71,7 +72,6 @@ export function SignalHistory() {
     if (savedTf) setSelectedTimeframes(JSON.parse(savedTf));
     if (savedStatus) setSectionStatusFilters(JSON.parse(savedStatus));
 
-    // Restore scroll after content mount
     if (savedScroll && scrollContainerRef.current) {
       setTimeout(() => {
         if (scrollContainerRef.current) {
@@ -84,7 +84,6 @@ export function SignalHistory() {
     return () => clearInterval(interval);
   }, []);
 
-  // Sync states to storage
   useEffect(() => {
     if (!mounted) return;
     sessionStorage.setItem(STORAGE_KEY_ASSET, String(activeAssetType));
@@ -136,6 +135,9 @@ export function SignalHistory() {
   const filteredSignals = useMemo(() => {
     if (!rawSignals) return [];
     return rawSignals.filter(signal => {
+      // Exclude INACTIVE (Stopped Out) signals from the live feed
+      if (signal.status === "INACTIVE") return false;
+      
       if (activeAssetType) {
         const displayAssetType = getDisplayAssetType(signal);
         if (displayAssetType !== activeAssetType) return false;

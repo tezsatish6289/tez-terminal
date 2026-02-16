@@ -6,6 +6,7 @@ import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/fires
 /**
  * Production-Ready Ingestion Bridge.
  * Normalizes metadata across various market formats (Crypto, Indian Stocks, US Stocks).
+ * Now supports internal Stop Loss tracking for signal lifecycle management.
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
     const symbol = (body.ticker || body.symbol || body.pair || "UNKNOWN").toUpperCase();
     const exchange = (body.exchange || body.market || "BINANCE").toUpperCase();
     
-    // 2. Asset Type Normalization (Resilient Extraction)
+    // 2. Asset Type Normalization
     const rawAt = (body.asset_type || body.assetType || body.category || body.market_type || "UNCLASSIFIED").toString().toUpperCase().trim();
     let assetType = "UNCLASSIFIED";
     if (rawAt.includes("INDIAN")) assetType = "INDIAN STOCKS";
@@ -74,8 +75,15 @@ export async function POST(request: NextRequest) {
     if (rawPrice !== undefined && rawPrice !== null) {
       price = parseFloat(rawPrice.toString());
     }
+
+    // 5. Internal Stop Loss Detection (Hidden from users)
+    const rawSL = body.sl ?? body.stopLoss ?? body.stop_loss ?? body.invalidation;
+    let stopLoss = 0;
+    if (rawSL !== undefined && rawSL !== null) {
+      stopLoss = parseFloat(rawSL.toString());
+    }
     
-    // 5. Timeframe Mapping
+    // 6. Timeframe Mapping
     let rawTf = (body.timeframe || body.interval || "15").toString().toUpperCase().trim();
     const tfMap: Record<string, string> = {
       "1M": "1", "1": "1", "5M": "5", "5": "5", "15M": "15", "15": "15",
@@ -87,12 +95,14 @@ export async function POST(request: NextRequest) {
       webhookId,
       receivedAt: timestamp,
       serverTimestamp: serverTimestamp(),
-      payload: rawBody, // Store the raw payload for deep-parsing fallbacks
+      payload: rawBody,
       symbol,
       exchange,
-      assetType, // Promoted top-level field for DB filtering
+      assetType,
       type: signalType,
+      status: "ACTIVE", // Signals start as Active
       price: price, 
+      stopLoss: stopLoss, // Saved for internal invalidation
       currentPrice: price, 
       maxUpsidePrice: price, 
       maxDrawdownPrice: price, 

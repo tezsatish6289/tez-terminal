@@ -9,6 +9,7 @@ export const revalidate = 0;
  * 24/7 PERFORMANCE SYNC ENGINE - GLOBAL BINANCE MIRROR STRATEGY
  * Priority: Binance Global (Rest of World)
  * Targeted to bypass 451 blocks by cycling through Global mirrors.
+ * Note: Requests originate from the Server IP, NOT the user's IP/MAC.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -24,7 +25,6 @@ export async function GET(request: NextRequest) {
   const logsRef = collection(firestore, "logs");
   
   // SEQUENTIAL MIRRORS FOR BINANCE GLOBAL (NOT US)
-  // api.binance.me is a primary circumvention mirror for global access.
   const spotMirrors = [
     "https://api.binance.me",
     "https://api3.binance.com",
@@ -53,7 +53,6 @@ export async function GET(request: NextRequest) {
     let priceMap: Record<string, number> = {};
     let mirrorStatusLog = "";
 
-    // Sequential Fallback Fetcher for Global Data
     const fetchWithFallback = async (mirrors: string[], endpoint: string) => {
       for (const baseUrl of mirrors) {
         try {
@@ -116,7 +115,6 @@ export async function GET(request: NextRequest) {
       const stopLoss = Number(signal.stopLoss || 0);
       let newStatus = "ACTIVE";
 
-      // Apply Internal Stop Loss Lifecycle
       if (stopLoss > 0) {
         if (signal.type === 'BUY' && currentPrice <= stopLoss) newStatus = "INACTIVE";
         else if (signal.type === 'SELL' && currentPrice >= stopLoss) newStatus = "INACTIVE";
@@ -147,8 +145,8 @@ export async function GET(request: NextRequest) {
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
       level: "INFO",
-      message: `24/7 SYNC: ${updateCount} UPDATED`,
-      details: `Exchange: Binance Global\nSource: ${futuresResult?.source || 'N/A'} (Futures), ${spotResult?.source || 'N/A'} (Spot)\nStatus: ${updateCount} updated, ${stoppedCount} stopped.`,
+      message: `24/7 SYNC SUCCESS: ${updateCount} UPDATED`,
+      details: `Source: Server (Private IP)\nExchange: Binance Global\nSync Nodes: ${futuresResult?.source || 'N/A'} (Futures), ${spotResult?.source || 'N/A'} (Spot)\nUpdated: ${updateCount}\nStopped: ${stoppedCount}`,
       webhookId: "SYSTEM_CRON",
     });
 
@@ -157,7 +155,7 @@ export async function GET(request: NextRequest) {
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
       level: "ERROR",
-      message: "Sync Failure - Region Blocked",
+      message: "Sync Failure - Region Restricted (451)",
       details: error.message,
       webhookId: "SYSTEM_CRON",
     });

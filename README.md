@@ -5,6 +5,11 @@ Advanced Trading Terminal with Robust TradingView Ingestion and 24/7 Automated P
 ## Important Note on Exchange Data
 This terminal tracks **Binance Global (Binance.com)** prices. It is optimized to fetch data from Global mirrors (like `binance.me`) to ensure Perpetual contracts (.P) and international liquidity are tracked even from US-based servers.
 
+## Security & Privacy (CRITICAL)
+*   **MAC Address**: Your hardware MAC address is **NEVER** exposed. It is physically impossible for web requests to transmit your MAC address to Binance or any other server.
+*   **IP Exposure**: During automated 24/7 syncs, only the **Firebase Server IP** is visible to Binance. Your personal IP remains private. 
+*   **Data Integrity**: Your unique `secretKey` ensures that only your authorized TradingView alerts can enter the terminal.
+
 ## Step-by-Step Live Deployment (CRITICAL)
 
 Your terminal requires an external "ping" every 5 minutes to update prices and check internal Stop Losses.

@@ -12,11 +12,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { History as HistoryIcon, Loader2, Lock, Terminal, ShieldAlert, AlertTriangle, Info, RefreshCw, Activity, Lightbulb, Trash2, Zap } from "lucide-react";
+import { 
+  History as HistoryIcon, 
+  Loader2, 
+  Lock, 
+  Terminal, 
+  ShieldAlert, 
+  AlertTriangle, 
+  Info, 
+  RefreshCw, 
+  Activity, 
+  Lightbulb, 
+  Trash2, 
+  Zap,
+  Copy,
+  ExternalLink,
+  Globe
+} from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ChromeIcon } from "@/components/icons";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 
 export default function HistoryPage() {
@@ -27,8 +43,16 @@ export default function HistoryPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [purgeInput, setPurgeInput] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setOrigin(window.location.origin);
+    }
+  }, []);
 
   const isAdmin = user?.email === "hello@tezterminal.com";
+  const cronUrl = `${origin}/api/cron/sync-prices`;
 
   const logsQuery = useMemoFirebase(() => {
     if (!firestore || !isAdmin) return null;
@@ -41,6 +65,11 @@ export default function HistoryPage() {
     if (auth) {
       initiateGoogleSignIn(auth);
     }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "URL Copied", description: "Use this in cron-job.org for 24/7 sync." });
   };
 
   const handleForceSync = async () => {
@@ -219,94 +248,129 @@ export default function HistoryPage() {
             </TabsContent>
 
             <TabsContent value="debugger" className="mt-0">
-              <Card className="bg-card border-border shadow-lg">
-                <CardHeader className="border-b border-border/50 pb-4 flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg">Technical Logs</CardTitle>
-                    <CardDescription className="text-xs">24/7 Global Sync Node (Admin Only)</CardDescription>
-                  </div>
-                  {isAdmin && (
-                    <div className="flex items-center gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="gap-2 h-8 border-accent/30 text-accent hover:bg-accent/10"
-                        onClick={handleForceSync}
-                        disabled={isSyncing}
-                      >
-                        {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
-                        Force Global Sync
-                      </Button>
-                      <div className="flex items-center gap-2 px-3 py-1 bg-accent/10 rounded-full border border-accent/20">
-                        <RefreshCw className="h-3 w-3 text-accent animate-spin-slow" />
-                        <span className="text-[10px] text-accent font-bold uppercase tracking-wider">Active</span>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                  <Card className="bg-card border-border shadow-lg">
+                    <CardHeader className="border-b border-border/50 pb-4 flex flex-row items-center justify-between">
+                      <div>
+                        <CardTitle className="text-lg">Technical Logs</CardTitle>
+                        <CardDescription className="text-xs">24/7 Global Sync Node (Admin Only)</CardDescription>
                       </div>
-                    </div>
-                  )}
-                </CardHeader>
-                <CardContent className="pt-6">
-                  {!isAdmin ? (
-                    <div className="py-20 text-center">
-                      <ShieldAlert className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-                      <h3 className="text-lg font-semibold text-white">Access Restricted</h3>
-                      <p className="text-sm text-muted-foreground">Only authorized terminal administrators can access debugging logs.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {logsError && (
-                        <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4" />
-                          Failed to load logs: {logsError.message}
+                      {isAdmin && (
+                        <div className="flex items-center gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="gap-2 h-8 border-accent/30 text-accent hover:bg-accent/10"
+                            onClick={handleForceSync}
+                            disabled={isSyncing}
+                          >
+                            {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                            Force Global Sync
+                          </Button>
                         </div>
                       )}
-
-                      {isLogsLoading ? (
-                        <div className="grid gap-4">
-                           {[1,2,3,4].map(i => <div key={i} className="h-24 animate-pulse bg-secondary/20 rounded-lg" />)}
-                        </div>
-                      ) : logs?.length === 0 ? (
+                    </CardHeader>
+                    <CardContent className="pt-6">
+                      {!isAdmin ? (
                         <div className="py-20 text-center">
-                           <Info className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-                           <p className="text-muted-foreground">No sync heartbeat detected yet.<br/>Ensure the backend cron is running or click "Force Sync".</p>
+                          <ShieldAlert className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
+                          <h3 className="text-lg font-semibold text-white">Access Restricted</h3>
+                          <p className="text-sm text-muted-foreground">Only authorized terminal administrators can access debugging logs.</p>
                         </div>
                       ) : (
-                        <div className="grid gap-4">
-                          {logs?.map((log) => (
-                            <div key={log.id} className={cn(
-                              "p-4 rounded-xl border text-[11px] space-y-3 transition-all hover:bg-secondary/20",
-                              log.level === 'ERROR' ? 'bg-rose-500/5 border-rose-500/20' : 
-                              log.level === 'WARN' ? 'bg-amber-500/5 border-amber-500/20' : 
-                              'bg-emerald-500/5 border-emerald-500/10'
-                            )}>
-                              <div className="flex justify-between items-center">
-                                <span className={cn(
-                                  "font-bold flex items-center gap-1 px-2 py-0.5 rounded text-[10px]",
-                                  log.level === 'ERROR' ? 'bg-rose-500/20 text-rose-400' : 
-                                  log.level === 'WARN' ? 'bg-amber-500/20 text-amber-400' : 
-                                  'bg-emerald-500/20 text-emerald-400'
-                                )}>
-                                  {log.level}
-                                </span>
-                                <span className="text-muted-foreground font-mono">{format(new Date(log.timestamp), 'yyyy-MM-dd HH:mm:ss')}</span>
-                              </div>
-                              <p className="text-white font-semibold text-sm leading-tight">{log.message}</p>
-                              {log.details && (
-                                <div className="bg-black/40 p-3 rounded-lg text-muted-foreground font-mono text-[10px] whitespace-pre-wrap break-all border border-white/5 overflow-x-hidden">
-                                  {log.details}
-                                </div>
-                              )}
-                              <div className="text-[9px] text-muted-foreground uppercase tracking-widest pt-2 border-t border-white/5 flex justify-between">
-                                <span>Bridge: {log.webhookId}</span>
-                                <span className="opacity-50 font-mono">{log.id}</span>
-                              </div>
+                        <div className="space-y-4">
+                          {logsError && (
+                            <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm flex items-center gap-2">
+                              <AlertTriangle className="h-4 w-4" />
+                              Failed to load logs: {logsError.message}
                             </div>
-                          ))}
+                          )}
+
+                          {isLogsLoading ? (
+                            <div className="grid gap-4">
+                               {[1,2,3,4].map(i => <div key={i} className="h-24 animate-pulse bg-secondary/20 rounded-lg" />)}
+                            </div>
+                          ) : logs?.length === 0 ? (
+                            <div className="py-20 text-center">
+                               <Info className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
+                               <p className="text-muted-foreground">No sync heartbeat detected yet.<br/>Ensure the backend cron is running or click "Force Sync".</p>
+                            </div>
+                          ) : (
+                            <div className="grid gap-4">
+                              {logs?.map((log) => (
+                                <div key={log.id} className={cn(
+                                  "p-4 rounded-xl border text-[11px] space-y-3 transition-all hover:bg-secondary/20",
+                                  log.level === 'ERROR' ? 'bg-rose-500/5 border-rose-500/20' : 
+                                  log.level === 'WARN' ? 'bg-amber-500/5 border-amber-500/20' : 
+                                  'bg-emerald-500/5 border-emerald-500/10'
+                                )}>
+                                  <div className="flex justify-between items-center">
+                                    <span className={cn(
+                                      "font-bold flex items-center gap-1 px-2 py-0.5 rounded text-[10px]",
+                                      log.level === 'ERROR' ? 'bg-rose-500/20 text-rose-400' : 
+                                      log.level === 'WARN' ? 'bg-amber-500/20 text-amber-400' : 
+                                      'bg-emerald-500/20 text-emerald-400'
+                                    )}>
+                                      {log.level}
+                                    </span>
+                                    <span className="text-muted-foreground font-mono">{format(new Date(log.timestamp), 'yyyy-MM-dd HH:mm:ss')}</span>
+                                  </div>
+                                  <p className="text-white font-semibold text-sm leading-tight">{log.message}</p>
+                                  {log.details && (
+                                    <div className="bg-black/40 p-3 rounded-lg text-muted-foreground font-mono text-[10px] whitespace-pre-wrap break-all border border-white/5 overflow-x-hidden">
+                                      {log.details}
+                                    </div>
+                                  )}
+                                  <div className="text-[9px] text-muted-foreground uppercase tracking-widest pt-2 border-t border-white/5 flex justify-between">
+                                    <span>Bridge: {log.webhookId}</span>
+                                    <span className="opacity-50 font-mono">{log.id}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="space-y-6">
+                  <Card className="bg-accent/5 border-accent/20">
+                    <CardHeader>
+                      <div className="flex items-center gap-2">
+                        <Globe className="h-5 w-5 text-accent" />
+                        <CardTitle className="text-md font-bold">Cron Live Sync</CardTitle>
+                      </div>
+                      <CardDescription className="text-xs">Schedule this endpoint 24/7 to maintain live price tracking.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Cron Endpoint URL</Label>
+                        <div className="flex gap-2">
+                          <Input readOnly value={cronUrl} className="bg-background font-mono text-[10px] h-9" />
+                          <Button variant="outline" size="icon" onClick={() => copyToClipboard(cronUrl)} className="h-9 w-9 shrink-0">
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="p-3 bg-white/5 rounded-lg border border-white/5 space-y-3">
+                        <p className="text-[10px] text-white/70 font-medium">Recommended Setup:</p>
+                        <ol className="text-[10px] space-y-2 text-muted-foreground list-decimal pl-4">
+                          <li>Go to <a href="https://cron-job.org" target="_blank" className="text-accent underline">cron-job.org</a></li>
+                          <li>Create a new "Job"</li>
+                          <li>Paste the URL above</li>
+                          <li>Set interval to <b>Every 5 minutes</b></li>
+                        </ol>
+                        <Button asChild variant="ghost" className="w-full h-8 text-accent text-[10px] hover:bg-accent/10">
+                          <a href="https://cron-job.org" target="_blank">Setup on Cron-Job.org <ExternalLink className="h-3 w-3 ml-2" /></a>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
         </div>

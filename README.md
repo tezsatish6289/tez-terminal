@@ -3,18 +3,20 @@
 
 Advanced Trading Terminal with Robust TradingView Ingestion and 24/7 Automated Performance Tracking.
 
-## Step-by-Step Deployment Instructions
+## Step-by-Step Live Deployment (IMPORTANT)
 
-1.  **Click "Publish"**: Live at: `https://studio--studio-6235588950-a15f2.us-central1.hosted.app`
-2.  **Schedule the Cron Job (CRITICAL)**:
-    *   The terminal uses a backend cron to sync prices 24/7.
-    *   Go to **[cron-job.org](https://cron-job.org)** or **Vercel Cron**.
-    *   Target URL: `https://YOUR_URL/api/cron/sync-prices`
-    *   Interval: **Every 5 minutes**.
-3.  **Update TradingView**: 
-    *   Go to **Bridge Management** in your app.
-    *   Copy the **Public Webhook URL**.
-    *   Paste it into your TradingView Alert.
+1.  **Publish Changes**: Click the "Publish" button in the top right to deploy the latest code.
+2.  **Verify Public URL**: Once published, your terminal will be live at: `https://studio--studio-6235588950-a15f2.us-central1.hosted.app`
+3.  **Setup 24/7 Cron (CRITICAL)**:
+    *   The terminal requires a "ping" every few minutes to update prices and check internal Stop Losses.
+    *   **Endpoint**: `https://studio--studio-6235588950-a15f2.us-central1.hosted.app/api/cron/sync-prices`
+    *   **Go to [cron-job.org](https://cron-job.org)** (or similar).
+    *   Create a job targeting the endpoint above.
+    *   **Frequency**: Every 5 minutes.
+4.  **Connect TradingView**:
+    *   Go to **Bridge Management** in your app (hello@tezterminal.com only).
+    *   Copy your **Bridge URL** and **Secret Key**.
+    *   Paste into your TradingView Alert "Webhook URL" and JSON payload.
 
 ## Recommended Ingestion Format (JSON)
 ```json
@@ -24,12 +26,14 @@ Advanced Trading Terminal with Robust TradingView Ingestion and 24/7 Automated P
   "price": "{{close}}",
   "stopLoss": "{{strategy.order.stoploss}}",
   "timeframe": "{{interval}}",
-  "secretKey": "YOUR_KEY"
+  "secretKey": "YOUR_UNIQUE_BRIDGE_KEY",
+  "exchange": "BINANCE",
+  "assetType": "CRYPTO"
 }
 ```
 
-## Features
-- **Server-Driven Prices**: No client-side polling. Data is maintained by a 24/7 cron job.
-- **Internal Lifecycle**: Signals automatically stop tracking and disappear from the feed once the internal Stop Loss is hit.
-- **Performance Tracking**: Automatically records Max Positive Move and Max Negative Move achieved by every signal.
-- **Admin Debugger**: Real-time technical logs of all bridge and sync activities.
+## Production Architecture
+- **Automatic Lifecycle**: Signals that hit their internal Stop Loss are automatically retired from the feed to save processing costs.
+- **Self-Healing Nodes**: The Sync Engine automatically repairs legacy signals that are missing technical metadata.
+- **State Persistence**: The terminal remembers your active filters and scroll position across all sessions.
+- **Deep Dive AI**: Integrated Gemini AI provides deep technical rationale and risk assessment for every signal.

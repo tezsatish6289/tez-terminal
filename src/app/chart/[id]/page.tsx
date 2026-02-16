@@ -23,7 +23,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Zap,
-  ExternalLink
+  ExternalLink,
+  TrendingDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -115,6 +116,9 @@ export default function DeepDiveChartPage() {
   }
 
   const livePnl = calculatePercent(signal?.currentPrice, signal?.price, signal?.type || "BUY");
+  const maxUpPnl = calculatePercent(signal?.maxUpsidePrice, signal?.price, signal?.type || "BUY");
+  const maxDownPnl = calculatePercent(signal?.maxDrawdownPrice, signal?.price, signal?.type || "BUY");
+  
   const tradingViewUrl = `https://www.tradingview.com/chart/?symbol=${signal?.exchange || 'BINANCE'}:${signal?.symbol}&interval=${signal?.timeframe || '15'}`;
 
   return (
@@ -123,7 +127,7 @@ export default function DeepDiveChartPage() {
       
       {/* Dynamic Header Strip */}
       <ScrollArea className="w-full bg-[#0a0a0c] border-b border-white/5 shrink-0 z-20">
-        <div className="h-24 flex items-center px-6 justify-between min-w-[1200px] gap-8">
+        <div className="h-24 flex items-center px-6 justify-between min-w-[1300px] gap-8">
           <div className="flex items-center gap-6">
             <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-muted-foreground"><ChevronLeft className="h-6 w-6" /></Button>
             <div className="flex items-center gap-4">
@@ -140,15 +144,34 @@ export default function DeepDiveChartPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-12 flex-1 justify-center">
+          <div className="flex items-center gap-10 flex-1 justify-center">
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground">Entry</span>
+              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Entry</span>
               <span className="text-xl font-mono font-bold text-white">${formatPrice(signal?.price)}</span>
             </div>
+            
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase font-bold text-accent">Latest Live</span>
+              <span className="text-[10px] uppercase font-bold text-accent tracking-widest">Latest Live</span>
               <span className={cn("text-xl font-mono font-black", Number(livePnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>${formatPrice(signal?.currentPrice)}</span>
               <span className={cn("text-[10px] font-mono font-black", Number(livePnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>{livePnl}% PNL</span>
+            </div>
+
+            <div className="h-10 w-px bg-white/5" />
+
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase font-bold text-emerald-400/60 tracking-widest">Max Positive Move</span>
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-emerald-400" />
+                <span className="text-xl font-mono font-bold text-emerald-400">+{maxUpPnl}%</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase font-bold text-rose-400/60 tracking-widest">Max Negative Move</span>
+              <div className="flex items-center gap-2">
+                <TrendingDown className="h-4 w-4 text-rose-400" />
+                <span className="text-xl font-mono font-bold text-rose-400">{maxDownPnl}%</span>
+              </div>
             </div>
           </div>
 

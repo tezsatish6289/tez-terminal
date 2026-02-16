@@ -32,7 +32,8 @@ import {
   CloudOff,
   Cpu,
   Monitor,
-  MapPin
+  MapPin,
+  ArrowRight
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -213,23 +214,46 @@ export default function HistoryPage() {
           </div>
 
           {hasRegionBlock && (
-            <Card className="bg-rose-500/10 border-rose-500/30">
+            <Card className="bg-rose-500/10 border-rose-500/30 shadow-[0_0_30px_rgba(244,63,94,0.1)]">
                <CardHeader className="pb-3">
                   <div className="flex items-center gap-3">
-                    <div className="bg-rose-500 p-2 rounded-lg"><MapPin className="h-5 w-5 text-white" /></div>
+                    <div className="bg-rose-500 p-2.5 rounded-xl border border-rose-400/20"><MapPin className="h-6 w-6 text-white" /></div>
                     <div>
-                       <CardTitle className="text-rose-400">CRITICAL: Server Region Restricted (451)</CardTitle>
-                       <CardDescription className="text-rose-300/60 font-medium">Binance is blocking the terminal server. 24/7 Autonomy is currently Offline.</CardDescription>
+                       <CardTitle className="text-rose-400 text-xl font-black uppercase tracking-tighter">Server Migration Required (451)</CardTitle>
+                       <CardDescription className="text-rose-300/60 font-bold uppercase text-[10px] tracking-widest">Binance is blocking the current US-based hosting region.</CardDescription>
                     </div>
                   </div>
                </CardHeader>
-               <CardContent className="space-y-4">
-                  <div className="bg-black/40 p-4 rounded-xl border border-rose-500/20 text-xs text-rose-100/80 leading-relaxed">
-                     <p className="font-bold text-rose-400 mb-2">How to restore 24/7 tracking:</p>
-                     <ol className="list-decimal list-inside space-y-2 ml-2">
-                        <li><b>Temporary Fix:</b> Use the <b>Browser Sync</b> button below while your computer is on. This uses your local IP (Lucknow) which is NOT blocked.</li>
-                        <li><b>Permanent Fix:</b> Move the server to <b>Mumbai (asia-south1)</b> via the Firebase Console. This gives the terminal an Indian identity.</li>
-                     </ol>
+               <CardContent className="space-y-6 pt-2">
+                  <div className="bg-black/40 p-5 rounded-2xl border border-rose-500/20 text-xs leading-relaxed space-y-4">
+                     <p className="font-black text-rose-400 uppercase tracking-widest flex items-center gap-2">
+                       <ShieldAlert className="h-4 w-4" /> The Plan to Restore 24/7 Autonomy
+                     </p>
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-2">
+                           <p className="font-bold text-white uppercase text-[10px]">1. GitHub Prep</p>
+                           <p className="text-muted-foreground text-[10px]">Create a GitHub account and push this code to a repo named <span className="text-accent font-mono">tez-terminal</span>.</p>
+                        </div>
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-2">
+                           <p className="font-bold text-white uppercase text-[10px]">2. Delete Backend</p>
+                           <p className="text-muted-foreground text-[10px]">Go to Firebase App Hosting and delete the current US backend.</p>
+                        </div>
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-2">
+                           <p className="font-bold text-white uppercase text-[10px]">3. Deploy Asia</p>
+                           <p className="text-muted-foreground text-[10px]">Create a new backend using <span className="text-emerald-400 font-mono">asia-south1</span> (Mumbai) pointed to your repo.</p>
+                        </div>
+                     </div>
+                     <p className="text-rose-300/60 text-[10px] font-medium italic">
+                       * Your data, signals, and login will NOT be lost during this move. Only the hosting region changes.
+                     </p>
+                  </div>
+                  <div className="flex gap-4">
+                     <Button onClick={handleClientSync} disabled={isClientSyncing} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-[10px] h-10 px-6 rounded-xl">
+                        {isClientSyncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Monitor className="h-4 w-4 mr-2" />} Browser Override (Lucknow)
+                     </Button>
+                     <Button variant="outline" className="border-white/10 text-muted-foreground text-[10px] font-bold uppercase h-10 px-6 rounded-xl" asChild>
+                        <a href="https://console.firebase.google.com" target="_blank">Go to Firebase Console <ArrowRight className="h-3 w-3 ml-2" /></a>
+                     </Button>
                   </div>
                </CardContent>
             </Card>

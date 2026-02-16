@@ -6,14 +6,12 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 /**
- * 24/7 PERFORMANCE SYNC ENGINE
- * Hardened to bypass 451 Geo-blocks via Mirror Rotation and Fingerprinting.
+ * 24/7 PERFORMANCE SYNC ENGINE - V2 HARDENED
+ * Sequential Mirror Fallback Strategy to bypass geographic (451) blocks.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const key = searchParams.get("key");
-  const userAgent = request.headers.get("user-agent") || "";
-  const isCron = userAgent.toLowerCase().includes("cron") || userAgent.toLowerCase().includes("job");
   
   const CRON_SECRET = "ANTIGRAVITY_SYNC_TOKEN_2024"; 
 
@@ -24,13 +22,13 @@ export async function GET(request: NextRequest) {
   const { firestore } = initializeFirebase();
   const logsRef = collection(firestore, "logs");
   
-  // Rotating Mirrors to bypass geographic WAF blocks
-  const mirrors = [
+  // Sequential Mirrors to bypass geographic WAF blocks
+  const spotMirrors = [
     "https://api.binance.com",
     "https://api1.binance.com",
     "https://api2.binance.com",
     "https://api3.binance.com",
-    "https://api.binance.me" // Often bypasses restricted region filters
+    "https://api.binance.me" // Primary mirror for restricted regions
   ];
 
   const futuresMirrors = [
@@ -41,7 +39,6 @@ export async function GET(request: NextRequest) {
   ];
 
   try {
-    // Advanced browser fingerprinting headers
     const fetchOptions: RequestInit = {
       cache: 'no-store',
       headers: { 
@@ -49,60 +46,48 @@ export async function GET(request: NextRequest) {
         'Accept': 'application/json',
         'Accept-Language': 'en-US,en;q=0.9',
         'Referer': 'https://www.binance.com/',
-        'Origin': 'https://www.binance.com'
       }
     };
 
     let priceMap: Record<string, number> = {};
-    let futuresCount = 0;
-    let spotCount = 0;
     let errorLog = "";
 
-    // Sequential Mirror Fallback Strategy
-    const fetchWithMirrors = async (baseUrls: string[], endpoint: string) => {
-      for (const baseUrl of baseUrls) {
+    // Sequential Fallback Fetcher
+    const fetchWithFallback = async (mirrors: string[], endpoint: string) => {
+      for (const baseUrl of mirrors) {
         try {
           const res = await fetch(`${baseUrl}${endpoint}`, fetchOptions);
           if (res.ok) {
             const data = await res.json();
             if (Array.isArray(data)) return data;
           } else {
-            errorLog += `Mirror ${baseUrl} returned ${res.status}. `;
+            errorLog += `[Mirror ${baseUrl.split('//')[1]} failed: ${res.status}] `;
           }
         } catch (e) {
-          errorLog += `Mirror ${baseUrl} failed connection. `;
+          errorLog += `[Mirror ${baseUrl.split('//')[1]} error] `;
         }
       }
       return null;
     };
 
     const [futuresData, spotData] = await Promise.all([
-      fetchWithMirrors(futuresMirrors, "/fapi/v2/ticker/price"),
-      fetchWithMirrors(mirrors, "/api/v3/ticker/price")
+      fetchWithFallback(futuresMirrors, "/fapi/v2/ticker/price"),
+      fetchWithFallback(spotMirrors, "/api/v3/ticker/price")
     ]);
 
-    if (futuresData) {
-      futuresData.forEach((p: any) => {
-        if (p.symbol && p.price) {
-          priceMap[p.symbol.toUpperCase()] = parseFloat(p.price);
-          futuresCount++;
-        }
-      });
+    if (!futuresData && !spotData) {
+      throw new Error(`CRITICAL: All Binance mirrors returned 451 or failed. Details: ${errorLog}`);
     }
 
-    if (spotData) {
-      spotData.forEach((p: any) => {
-        if (p.symbol && p.price) {
-          priceMap[p.symbol.toUpperCase()] = parseFloat(p.price);
-          spotCount++;
-        }
-      });
-    }
+    [...(futuresData || []), ...(spotData || [])].forEach((p: any) => {
+      if (p.symbol && p.price) {
+        priceMap[p.symbol.toUpperCase()] = parseFloat(p.price);
+      }
+    });
 
     const signalsSnap = await getDocs(collection(firestore, "signals"));
     let updateCount = 0;
     let stoppedCount = 0;
-    let failedSymbols: string[] = [];
     
     for (const signalDoc of signalsSnap.docs) {
       const signal = signalDoc.data();
@@ -113,7 +98,6 @@ export async function GET(request: NextRequest) {
       const symbolVariations = [
         base,
         base.replace(/\.P$|\.PERP$|_PERP$|-PERP$/i, ''),
-        base.replace(/[^A-Z0-9]/g, ''),
         base + "USDT"
       ];
 
@@ -125,23 +109,18 @@ export async function GET(request: NextRequest) {
         }
       }
       
-      if (!currentPrice) {
-        failedSymbols.push(rawSymbol);
-        continue;
-      }
+      if (!currentPrice) continue;
 
       const alertPrice = Number(signal.price);
       const stopLoss = Number(signal.stopLoss || 0);
       let newStatus = "ACTIVE";
 
-      // Process Stop Loss logic
       if (stopLoss > 0) {
         if (signal.type === 'BUY' && currentPrice <= stopLoss) newStatus = "INACTIVE";
         else if (signal.type === 'SELL' && currentPrice >= stopLoss) newStatus = "INACTIVE";
         if (newStatus === "INACTIVE") stoppedCount++;
       }
 
-      // Track Max Positive/Negative Excursion
       let newMaxUpside = signal.maxUpsidePrice || alertPrice;
       let newMaxDrawdown = signal.maxDrawdownPrice || alertPrice;
 
@@ -163,19 +142,23 @@ export async function GET(request: NextRequest) {
       updateCount++;
     }
 
-    const logMessage = `24/7 SYNC: ${updateCount} UPDATED`;
-    const logDetails = `Source: ${isCron ? 'CRON-JOB.ORG' : 'MANUAL'}\nFeed: ${futuresCount} Futures, ${spotCount} Spot\nStopped: ${stoppedCount}\n${errorLog}${failedSymbols.length > 0 ? '\nFailed: ' + failedSymbols.slice(0, 5).join(', ') : ''}`;
-
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
       level: errorLog.includes("451") ? "WARN" : "INFO",
-      message: logMessage,
-      details: logDetails,
+      message: `24/7 SYNC: ${updateCount} UPDATED`,
+      details: `Source: CRON-JOB.ORG\nStatus: ${updateCount} success, ${stoppedCount} stopped.\nMirrors: ${errorLog || 'All Healthy'}`,
       webhookId: "SYSTEM_CRON",
     });
 
     return NextResponse.json({ success: true, updated: updateCount, stopped: stoppedCount });
   } catch (error: any) {
+    await addDoc(logsRef, {
+      timestamp: new Date().toISOString(),
+      level: "ERROR",
+      message: "Sync Failure",
+      details: error.message,
+      webhookId: "SYSTEM_CRON",
+    });
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

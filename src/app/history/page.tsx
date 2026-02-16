@@ -3,41 +3,32 @@
 import { TopBar } from "@/components/dashboard/TopBar";
 import { SignalHistory } from "@/components/dashboard/SignalHistory";
 import { useUser, useAuth, useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, limit, getDocs, writeBatch, doc } from "firebase/firestore";
+import { collection, query, orderBy, limit, getDocs, doc } from "firebase/firestore";
 import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { 
-  History as HistoryIcon, 
   Loader2, 
   Lock, 
   Terminal, 
   ShieldAlert, 
-  AlertTriangle, 
   Info, 
   Activity, 
   Lightbulb, 
-  Trash2, 
   Zap,
   Copy,
   ExternalLink,
-  Globe,
   ShieldCheck,
   Server,
-  CloudOff,
-  Cpu,
   Monitor,
   MapPin,
-  ArrowRight,
-  Github,
-  FileCode,
   CheckCircle2,
-  FileText
+  FileText,
+  AlertTriangle
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -49,22 +40,15 @@ export default function HistoryPage() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
-  const [isPurging, setIsPurging] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isClientSyncing, setIsClientSyncing] = useState(false);
-  const [purgeInput, setPurgeInput] = useState("");
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [origin, setOrigin] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       const currentOrigin = window.location.origin;
-      if (currentOrigin.includes("cloudworkstations.dev") || currentOrigin.includes("9002")) {
-        setOrigin("https://studio--studio-6235588950-a15f2.us-central1.hosted.app");
-      } else {
-        setOrigin(currentOrigin);
-      }
+      setOrigin(currentOrigin);
     }
   }, []);
 
@@ -80,7 +64,7 @@ export default function HistoryPage() {
   const { data: logs, isLoading: isLogsLoading } = useCollection(logsQuery);
 
   const hasRegionBlock = useMemo(() => {
-    return logs?.some(log => log.level === 'ERROR' && (log.details?.includes('451') || log.message?.includes('Restricted')));
+    return logs?.some(log => log.level === 'ERROR' && (log.details?.includes('451') || log.message?.includes('Mirror Exhaustion')));
   }, [logs]);
 
   const handleGoogleLogin = () => {
@@ -89,7 +73,7 @@ export default function HistoryPage() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast({ title: "Copied", description: "URL copied to clipboard." });
+    toast({ title: "Copied", description: "Value copied to clipboard." });
   };
 
   const handleForceSync = async () => {
@@ -99,12 +83,12 @@ export default function HistoryPage() {
       const res = await fetch(`${window.location.origin}/api/cron/sync-prices?key=${CRON_SECRET}`);
       const data = await res.json();
       if (data.success) {
-        toast({ title: "Server Sync Executed", description: `Updated ${data.updated} signals using server path.` });
+        toast({ title: "Server Sync Executed", description: `Updated ${data.updated} signals.` });
       } else {
         throw new Error(data.error || "Sync failed");
       }
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Server Path Blocked (451)", description: "Binance is blocking the server identity. Use Browser Sync." });
+      toast({ variant: "destructive", title: "Server Blocked", description: "Binance is still blocking the US region." });
     } finally {
       setIsSyncing(false);
     }
@@ -119,10 +103,10 @@ export default function HistoryPage() {
         fetch("https://api.binance.com/api/v3/ticker/price")
       ]);
 
-      if (!fRes.ok || !sRes.ok) throw new Error("Binance API Blocked locally too.");
+      if (!fRes.ok || !sRes.ok) throw new Error("Binance API Blocked locally.");
 
-      const fData = await fRes.json();
-      const sData = await sRes.json();
+      const fData = await fRes.ok ? await fRes.json() : [];
+      const sData = await sRes.ok ? await sRes.json() : [];
       const priceMap: Record<string, number> = {};
       [...fData, ...sData].forEach((p: any) => { priceMap[p.symbol.toUpperCase()] = parseFloat(p.price); });
 
@@ -132,24 +116,18 @@ export default function HistoryPage() {
       for (const signalDoc of snap.docs) {
         const signal = signalDoc.data();
         if (signal.status !== "ACTIVE") continue;
-
         const base = (signal.symbol || "").split(':').pop() || "";
         const sym = base.replace(/\.P$|\.PERP$/i, '').toUpperCase();
-        const variations = [sym, sym + "USDT", base];
-        
-        let price = 0;
-        for (const v of variations) { if (priceMap[v]) { price = priceMap[v]; break; } }
-        
-        if (price) {
+        if (priceMap[sym]) {
           updateDocumentNonBlocking(doc(firestore, "signals", signalDoc.id), {
-            currentPrice: price,
+            currentPrice: priceMap[sym],
             lastSyncAt: new Date().toISOString()
           });
           count++;
         }
       }
 
-      toast({ title: "Browser Bridge Success", description: `Updated ${count} signals using your local IP.` });
+      toast({ title: "Browser Sync Success", description: `Updated ${count} signals using your local IP.` });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
     } finally {
@@ -162,11 +140,11 @@ export default function HistoryPage() {
   if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-6">
-        <Card className="max-w-md w-full border-accent/20 bg-card">
+        <Card className="max-w-md w-full border-accent/20 bg-card shadow-2xl">
           <CardHeader className="text-center">
             <Lock className="h-12 w-12 text-accent mx-auto mb-4" />
-            <CardTitle>Access Denied</CardTitle>
-            <CardDescription>Please sign in with your Google account.</CardDescription>
+            <CardTitle>Security Checkpoint</CardTitle>
+            <CardDescription>Sign in with your Google account to access history.</CardDescription>
           </CardHeader>
           <CardContent>
             <Button onClick={handleGoogleLogin} className="w-full h-12 gap-2 bg-white text-black hover:bg-white/90">
@@ -185,43 +163,43 @@ export default function HistoryPage() {
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white">Terminal Activity</h1>
-              <p className="text-muted-foreground text-sm">Audit trail of market alerts and system sync heartbeats.</p>
+              <h1 className="text-2xl font-bold tracking-tight text-white">System Audit Trail</h1>
+              <p className="text-muted-foreground text-sm">Monitoring sync health and signal ingestion metrics.</p>
             </div>
             <ShieldCheck className="h-8 w-8 text-emerald-400 opacity-20" />
           </div>
 
-          {(hasRegionBlock || true) && (
-            <Card className="bg-rose-500/10 border-rose-500/30 shadow-[0_0_30px_rgba(244,63,94,0.1)] overflow-hidden">
+          {hasRegionBlock && (
+            <Card className="bg-rose-500/10 border-rose-500/30 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-4">
                <CardHeader className="pb-3 border-b border-rose-500/20">
                   <div className="flex items-center gap-3">
-                    <div className="bg-rose-500 p-2.5 rounded-xl border border-rose-400/20 shadow-lg shadow-rose-500/20"><MapPin className="h-6 w-6 text-white" /></div>
+                    <div className="bg-rose-500 p-2.5 rounded-xl border border-rose-400/20"><AlertTriangle className="h-6 w-6 text-white" /></div>
                     <div>
                        <CardTitle className="text-rose-400 text-xl font-black uppercase tracking-tighter">Migration Command Center</CardTitle>
-                       <CardDescription className="text-rose-300/60 font-bold uppercase text-[10px] tracking-widest">Permanent bypass for Binance 451 Regional Blocks.</CardDescription>
+                       <CardDescription className="text-rose-300/60 font-bold uppercase text-[10px] tracking-widest">Permanent 451 Region Block detected. Migration to Asia required.</CardDescription>
                     </div>
                   </div>
                </CardHeader>
                <CardContent className="space-y-6 pt-6">
                   <div className="bg-black/40 p-5 rounded-2xl border border-rose-500/20 text-xs leading-relaxed space-y-5">
                      <p className="font-black text-rose-400 uppercase tracking-widest flex items-center gap-2">
-                       <FileText className="h-4 w-4" /> Migration Checklist (Step-by-Step)
+                       <FileText className="h-4 w-4" /> Code Migration Steps
                      </p>
                      
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-4">
                            <div className="flex gap-4">
                               <div className="h-6 w-6 rounded-full bg-accent/20 flex items-center justify-center text-[10px] text-accent font-black shrink-0 border border-accent/20">1</div>
                               <div className="space-y-1">
                                  <p className="font-bold text-white uppercase text-[10px]">Create GitHub Repo</p>
-                                 <p className="text-muted-foreground text-[10px]">Go to your new GitHub account and create a repo named <span className="text-accent font-mono">tez-terminal</span>.</p>
+                                 <p className="text-muted-foreground text-[10px]">Go to your GitHub and create a repo named <span className="text-accent font-mono">tez-terminal</span>.</p>
                               </div>
                            </div>
                            <div className="flex gap-4">
                               <div className="h-6 w-6 rounded-full bg-accent/20 flex items-center justify-center text-[10px] text-accent font-black shrink-0 border border-accent/20">2</div>
                               <div className="space-y-1">
-                                 <p className="font-bold text-white uppercase text-[10px]">Manual File Copy</p>
-                                 <p className="text-muted-foreground text-[10px]">Open the file explorer on the left. Copy the text from each file and paste it into GitHub.</p>
+                                 <p className="font-bold text-white uppercase text-[10px]">Manual File Sync</p>
+                                 <p className="text-muted-foreground text-[10px]">Copy the code from each file in the Studio explorer and paste into GitHub.</p>
                               </div>
                            </div>
                         </div>
@@ -229,32 +207,24 @@ export default function HistoryPage() {
                            <div className="flex gap-4">
                               <div className="h-6 w-6 rounded-full bg-accent/20 flex items-center justify-center text-[10px] text-accent font-black shrink-0 border border-accent/20">3</div>
                               <div className="space-y-1">
-                                 <p className="font-bold text-white uppercase text-[10px]">Connect to GitHub</p>
-                                 <p className="text-muted-foreground text-[10px]">In the Firebase Hosting setup, refresh the list and select your new repo.</p>
+                                 <p className="font-bold text-white uppercase text-[10px]">New Asia Backend</p>
+                                 <p className="text-muted-foreground text-[10px]">In Firebase App Hosting, create a new backend using the Singapore region.</p>
                               </div>
                            </div>
                            <div className="flex gap-4">
                               <div className="h-6 w-6 rounded-full bg-emerald-500/20 flex items-center justify-center text-[10px] text-emerald-400 font-black shrink-0 border border-emerald-500/20">4</div>
                               <div className="space-y-1">
-                                 <p className="font-bold text-white uppercase text-[10px]">Select Asia Region</p>
-                                 <p className="text-muted-foreground text-[10px]">Choose <span className="text-emerald-400 font-mono">asia-southeast1</span> (Singapore) to finish. Block solved.</p>
+                                 <p className="font-bold text-white uppercase text-[10px]">Done</p>
+                                 <p className="text-muted-foreground text-[10px]">Your Asian server will bypass the 451 block automatically.</p>
                               </div>
                            </div>
-                        </div>
-                     </div>
-
-                     <div className="flex items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                        <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-                        <div>
-                           <p className="text-[11px] text-emerald-300 font-black uppercase">Database Safety Guaranteed</p>
-                           <p className="text-[10px] text-emerald-300/60">Your existing signals and webhook settings are stored in Firestore and will remain safe after the move.</p>
                         </div>
                      </div>
                   </div>
                   
                   <div className="flex flex-wrap gap-4">
-                     <Button onClick={handleClientSync} disabled={isClientSyncing} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-[10px] h-10 px-8 rounded-xl shadow-lg shadow-emerald-500/20">
-                        {isClientSyncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Monitor className="h-4 w-4 mr-2" />} Browser Override (Live Fix)
+                     <Button onClick={handleClientSync} disabled={isClientSyncing} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-[10px] h-10 px-8 rounded-xl">
+                        {isClientSyncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Monitor className="h-4 w-4 mr-2" />} Browser Override (India)
                      </Button>
                      <Button variant="outline" className="border-white/10 text-muted-foreground text-[10px] font-bold uppercase h-10 px-8 rounded-xl bg-white/5" asChild>
                         <a href="https://github.com/new" target="_blank">Go to GitHub <ExternalLink className="h-3 w-3 ml-2" /></a>
@@ -266,13 +236,17 @@ export default function HistoryPage() {
 
           <Tabs defaultValue="debugger" className="w-full">
             <TabsList className="bg-secondary/30 border border-border mb-6">
-              <TabsTrigger value="signals" className="gap-2"><Lightbulb className="h-4 w-4" /> Idea Stream</TabsTrigger>
+              <TabsTrigger value="signals" className="gap-2"><Lightbulb className="h-4 w-4" /> Signal Audit</TabsTrigger>
               <TabsTrigger value="debugger" className="gap-2"><Terminal className="h-4 w-4" /> System Health</TabsTrigger>
             </TabsList>
 
             <TabsContent value="signals" className="mt-0">
-              <Card className="bg-card border-border shadow-lg"><CardHeader className="border-b border-border/50"><div className="flex items-center gap-2"><Activity className="h-5 w-5 text-accent" /><CardTitle className="text-lg">Recent Signals</CardTitle></div></CardHeader>
-              <CardContent className="pt-6 px-0"><SignalHistory /></CardContent></Card>
+              <Card className="bg-card border-border shadow-lg">
+                <CardHeader className="border-b border-border/50">
+                  <div className="flex items-center gap-2"><Activity className="h-5 w-5 text-accent" /><CardTitle className="text-lg">Recent Feed History</CardTitle></div>
+                </CardHeader>
+                <CardContent className="pt-6 px-0"><SignalHistory /></CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="debugger" className="mt-0">
@@ -280,23 +254,20 @@ export default function HistoryPage() {
                 <div className="lg:col-span-2 space-y-6">
                   <Card className="bg-card border-border shadow-lg">
                     <CardHeader className="border-b border-border/50 flex flex-row items-center justify-between">
-                      <div><CardTitle className="text-lg">Sync Audit Log</CardTitle><CardDescription className="text-xs">Monitoring the 24/7 background cron job</CardDescription></div>
+                      <div><CardTitle className="text-lg">Heartbeat Log</CardTitle><CardDescription className="text-xs">Audit of automated 24/7 cron syncs.</CardDescription></div>
                       <div className="flex gap-2">
-                         <Button variant="outline" size="sm" className="gap-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 h-8" onClick={handleClientSync} disabled={isClientSyncing}>
-                            {isClientSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Monitor className="h-3 w-3" />} Browser Sync
-                         </Button>
                          <Button variant="outline" size="sm" className="gap-2 border-accent/30 text-accent hover:bg-accent/10 h-8" onClick={handleForceSync} disabled={isSyncing}>
-                            {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />} Test Server Sync
+                            {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />} Test Server Path
                          </Button>
                       </div>
                     </CardHeader>
                     <CardContent className="pt-6">
-                      {!isAdmin ? <div className="py-20 text-center opacity-40"><ShieldAlert className="h-12 w-12 mx-auto mb-4" /><p>Logs available to administrators only.</p></div> : (
+                      {!isAdmin ? <div className="py-20 text-center opacity-40"><ShieldAlert className="h-12 w-12 mx-auto mb-4" /><p>Admin Access Only.</p></div> : (
                         <div className="space-y-4">
-                          {isLogsLoading ? <div className="space-y-4 animate-pulse">{[1,2,3].map(i => <div key={i} className="h-20 bg-white/5 rounded-lg" />)}</div> : logs?.length === 0 ? <div className="py-20 text-center opacity-40"><Info className="h-12 w-12 mx-auto mb-4" /><p>Waiting for the first automated sync heartbeat...</p></div> : (
+                          {isLogsLoading ? <div className="space-y-4 animate-pulse">{[1,2,3].map(i => <div key={i} className="h-20 bg-white/5 rounded-lg" />)}</div> : logs?.length === 0 ? <div className="py-20 text-center opacity-40"><Info className="h-12 w-12 mx-auto mb-4" /><p>Waiting for the first sync heartbeat...</p></div> : (
                             <div className="grid gap-4">
                               {logs?.map((log) => (
-                                <div key={log.id} className={cn("p-4 rounded-xl border text-[11px] space-y-3 transition-all", log.level === 'ERROR' || log.details?.includes('451') ? 'bg-rose-500/5 border-rose-500/20' : log.level === 'WARN' ? 'bg-amber-500/5 border-amber-500/20' : 'bg-emerald-500/5 border-emerald-500/10')}>
+                                <div key={log.id} className={cn("p-4 rounded-xl border text-[11px] space-y-3 transition-all", log.level === 'ERROR' ? 'bg-rose-500/5 border-rose-500/20' : 'bg-emerald-500/5 border-emerald-500/10')}>
                                   <div className="flex justify-between items-center opacity-60"><span className="font-bold uppercase">{log.level}</span><span className="font-mono">{format(new Date(log.timestamp), 'yyyy-MM-dd HH:mm:ss')}</span></div>
                                   <p className="text-white font-semibold text-sm leading-tight">{log.message}</p>
                                   {log.details && <div className="bg-black/40 p-3 rounded-lg text-muted-foreground font-mono text-[10px] whitespace-pre-wrap border border-white/5 overflow-x-hidden">{log.details}</div>}
@@ -312,26 +283,23 @@ export default function HistoryPage() {
 
                 <div className="space-y-6">
                   <Card className="bg-accent/5 border-accent/20">
-                    <CardHeader><div className="flex items-center gap-2"><Server className="h-5 w-5 text-accent" /><CardTitle className="text-md font-bold text-white">Sync Architecture</CardTitle></div></CardHeader>
+                    <CardHeader><div className="flex items-center gap-2"><Server className="h-5 w-5 text-accent" /><CardTitle className="text-md font-bold text-white">System Architecture</CardTitle></div></CardHeader>
                     <CardContent className="text-[11px] text-muted-foreground space-y-3 leading-relaxed">
-                       <p><b>Automated Mode:</b> Next.js Server (US) &rarr; Binance. If Binance returns 451, automated tracking fails.</p>
-                       <p><b>Manual Mode:</b> Browser (India) &rarr; Binance &rarr; Firestore. This updates the database for everyone globally.</p>
+                       <p><b>Server Sync:</b> US Cloud &rarr; Binance (Currently Blocked 451).</p>
+                       <p><b>Browser Sync:</b> Lucknow Local &rarr; Binance &rarr; Database (Always Works).</p>
                     </CardContent>
                   </Card>
 
                   <Card className="bg-emerald-500/5 border-emerald-500/20">
-                    <CardHeader><div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-emerald-400" /><CardTitle className="text-md font-bold text-white">Cron Configuration</CardTitle></div></CardHeader>
+                    <CardHeader><div className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-400" /><CardTitle className="text-md font-bold text-white">Cron Endpoint</CardTitle></div></CardHeader>
                     <CardContent className="space-y-4">
                       <div className="space-y-2">
-                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex justify-between">Public Sync Endpoint <span className="text-emerald-400">LIVE</span></Label>
+                        <Label className="text-[10px] font-bold text-muted-foreground uppercase flex justify-between">Public Sync URL</Label>
                         <div className="flex gap-2">
                           <Input readOnly value={cronUrl} className="bg-background font-mono text-[10px] h-9 border-white/10" />
-                          <Button variant="outline" size="icon" onClick={() => copyToClipboard(cronUrl)} className="h-9 w-9 shrink-0" disabled={!origin}><Copy className="h-4 w-4" /></Button>
+                          <Button variant="outline" size="icon" onClick={() => copyToClipboard(cronUrl)} className="h-9 w-9 shrink-0"><Copy className="h-4 w-4" /></Button>
                         </div>
                       </div>
-                      <Button asChild variant="outline" className="w-full h-9 border-accent/20 text-accent text-xs font-bold hover:bg-accent/10">
-                        <a href="https://cron-job.org" target="_blank">Verify Job on Cron-Job.org <ExternalLink className="h-3 w-3 ml-2" /></a>
-                      </Button>
                     </CardContent>
                   </Card>
                 </div>

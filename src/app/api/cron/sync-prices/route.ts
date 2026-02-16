@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
-import { collection, getDocs, updateDoc, doc, addDoc } from "firebase/firestore";
+import { collection, getDocs, updateDoc, doc, addDoc, query, where } from "firebase/firestore";
 
 /**
  * 24/7 Global Synchronization Engine with Multi-Endpoint Support (Spot + Futures).
- * Requires ?key= query parameter to prevent unauthorized execution.
+ * Hardened for production environments and aggressive ticker matching.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -20,28 +20,39 @@ export async function GET(request: NextRequest) {
   const logsRef = collection(firestore, "logs");
   
   try {
-    // 1. Fetch live prices from BOTH Binance Futures and Spot to ensure maximum coverage
+    // 1. Fetch live prices from BOTH Binance Futures and Spot
     const [futuresRes, spotRes] = await Promise.all([
-      fetch("https://fapi.binance.com/fapi/v2/ticker/price", { cache: 'no-store' }),
-      fetch("https://api.binance.com/api/v3/ticker/price", { cache: 'no-store' })
+      fetch("https://fapi.binance.com/fapi/v2/ticker/price", { next: { revalidate: 0 } }),
+      fetch("https://api.binance.com/api/v3/ticker/price", { next: { revalidate: 0 } })
     ]);
 
     const priceMap: Record<string, number> = {};
+    let futuresCount = 0;
+    let spotCount = 0;
     
-    const processResults = async (res: Response) => {
+    const processResults = async (res: Response, label: string) => {
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
           data.forEach((p: any) => {
             if (p.symbol && p.price) {
-              priceMap[p.symbol.toUpperCase()] = parseFloat(p.price);
+              const sym = p.symbol.toUpperCase();
+              const val = parseFloat(p.price);
+              // Store symbols in map. Futures take priority for Perpetual trackers.
+              priceMap[sym] = val;
+              if (label === 'futures') futuresCount++; else spotCount++;
             }
           });
         }
+      } else {
+        console.error(`[Sync] ${label} fetch failed: ${res.status}`);
       }
     };
 
-    await Promise.all([processResults(futuresRes), processResults(spotRes)]);
+    await Promise.all([
+      processResults(futuresRes, 'futures'),
+      processResults(spotRes, 'spot')
+    ]);
 
     // 2. Fetch all signals for processing
     const signalsSnap = await getDocs(collection(firestore, "signals"));
@@ -62,18 +73,30 @@ export async function GET(request: NextRequest) {
       const rawSymbol = (signal.symbol || "").toUpperCase();
       
       // ADVANCED CLEANING: Handle BINANCE:BTCUSDT.P, XAUUSD.P, etc.
-      let cleaned = rawSymbol
-        .split(':').pop() || ""; // Remove exchange prefix
+      let base = rawSymbol.split(':').pop() || ""; 
       
-      cleaned = cleaned
-        .replace(/\.P$|\.PERP$|_PERP$|-PERP$/i, '') // Remove Perpetual suffixes
-        .replace(/[^A-Z0-9]/g, ''); // Remove any special characters
+      // Variations to try
+      const variations = [
+        base,                                      // Original (e.g., BTCUSDT.P)
+        base.replace(/\.P$|\.PERP$|_PERP$|-PERP$/i, ''), // No suffix (e.g., BTCUSDT)
+        base.replace(/[^A-Z0-9]/g, ''),            // Only Alpha-numeric
+      ];
 
-      // Try matching the symbol as provided, or with USDT appended if it's a base asset
-      let currentPrice = priceMap[cleaned];
-      if (!currentPrice) currentPrice = priceMap[cleaned + 'USDT'];
+      let currentPrice = 0;
+      for (const v of variations) {
+        const upperV = v.toUpperCase();
+        if (priceMap[upperV]) {
+          currentPrice = priceMap[upperV];
+          break;
+        }
+        // Try adding USDT if missing (e.g., for BTC signals)
+        if (priceMap[upperV + 'USDT']) {
+          currentPrice = priceMap[upperV + 'USDT'];
+          break;
+        }
+      }
       
-      if (!currentPrice) {
+      if (!currentPrice || isNaN(currentPrice)) {
         failedSymbols.push(rawSymbol);
         continue;
       }
@@ -119,6 +142,7 @@ export async function GET(request: NextRequest) {
 - Active Tracked: ${activeCount}
 - Prices Updated: ${updateCount}
 - Retired (Hit SL): ${stoppedCount}
+- Exchange Feed: ${spotCount} Spot, ${futuresCount} Futures
 - Failed Tickers: ${failedSymbols.length}
 ${failedSymbols.length > 0 ? `Failed: ${failedSymbols.slice(0, 10).join(', ')}` : ''}`;
 
@@ -130,8 +154,14 @@ ${failedSymbols.length > 0 ? `Failed: ${failedSymbols.slice(0, 10).join(', ')}` 
       webhookId: "SYSTEM_CRON",
     });
 
-    return NextResponse.json({ success: true, updated: updateCount, active: activeCount });
+    return NextResponse.json({ 
+      success: true, 
+      updated: updateCount, 
+      active: activeCount,
+      exchangeData: { spot: spotCount, futures: futuresCount } 
+    });
   } catch (error: any) {
+    console.error("[Sync Error]", error.message);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

@@ -1,14 +1,13 @@
-# Settings to manage and configure a Firebase App Hosting backend.
-# https://firebase.google.com/docs/app-hosting/configure
-
+# Optimized for Singapore (asia-southeast1) Deployment
 runConfig:
-  # Increase this value if you'd like to automatically spin up
-  # more instances in response to increased traffic.
   maxInstances: 3
   minInstances: 0
   memoryMiB: 512
+  # Increase timeout for video/heavy sync operations if needed
+  timeoutSeconds: 60
 
-# Environment variables for production
 env:
   - variable: NODE_ENV
     value: production
+  - variable: NEXT_PUBLIC_REGION
+    value: asia-southeast1

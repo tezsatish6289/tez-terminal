@@ -6,7 +6,7 @@ Advanced Trading Terminal with Robust TradingView Ingestion and 24/7 Automated P
 
 Your terminal requires an external "ping" every 5 minutes to update prices and check internal Stop Losses.
 
-1.  **Publish Changes**: Click the "Publish" button in the top right to deploy the latest code to your live URL.
+1.  **Publish Changes**: Click the **"Publish"** button in the top right to deploy the latest code to your live URL. This is mandatory for the Cron to work!
 2.  **Verify Public URL**: Once published, your terminal will be live at: `https://studio--studio-6235588950-a15f2.us-central1.hosted.app`
 3.  **Setup 24/7 Cron (CRITICAL)**:
     *   **Do NOT use the development URL** (ending in `.cloudworkstations.dev`). It will return a `302 Redirect`.
@@ -17,7 +17,7 @@ Your terminal requires an external "ping" every 5 minutes to update prices and c
 4.  **Confirm Sync is Working**:
     *   Log in to your terminal at `hello@tezterminal.com`.
     *   Go to **History** -> **System Health**.
-    *   Look for logs starting with **"24/7 SYNC SUCCESS"**. If you see these appearing every 5 minutes, your terminal is fully autonomous.
+    *   Look for logs starting with **"24/7 SYNC"**. If you see these appearing every 5 minutes, your terminal is fully autonomous.
 
 ## Recommended Ingestion Format (JSON)
 ```json
@@ -32,9 +32,3 @@ Your terminal requires an external "ping" every 5 minutes to update prices and c
   "assetType": "CRYPTO"
 }
 ```
-
-## Production Architecture
-- **Automatic Lifecycle**: Signals that hit their internal Stop Loss are automatically retired from the feed to save processing costs.
-- **Self-Healing Nodes**: The Sync Engine automatically repairs legacy signals that are missing technical metadata.
-- **Security Hardening**: The Sync Cron is protected by a mandatory authorization token to prevent unauthorized execution.
-- **Deep Dive AI**: Integrated Gemini AI provides deep technical rationale and risk assessment for every signal.

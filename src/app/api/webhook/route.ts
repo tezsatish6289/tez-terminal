@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
       exchange,
       assetType,
       type: signalType,
-      status: "ACTIVE", // The Bridge initializes the lifecycle
+      status: "ACTIVE", // CRITICAL: This allows the Cron to see and sync the signal
       price: price, 
       stopLoss: stopLoss, 
       currentPrice: price, 

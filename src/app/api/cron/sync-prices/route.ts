@@ -4,8 +4,8 @@ import { initializeFirebase } from "@/firebase";
 import { collection, getDocs, updateDoc, doc, addDoc, query, where } from "firebase/firestore";
 
 /**
- * 24/7 Global Synchronization Engine.
- * Optimized for robustness and detailed technical audit trails.
+ * 24/7 Global Synchronization Engine with Self-Healing Logic.
+ * Optimized for robustness and legacy data migration.
  */
 export async function GET() {
   const { firestore } = initializeFirebase();
@@ -34,21 +34,33 @@ export async function GET() {
 
     await Promise.all([processResults(futuresRes), processResults(spotRes)]);
 
-    // 2. Diagnostics: Check total signals vs active signals
-    const allSignalsSnap = await getDocs(collection(firestore, "signals"));
-    const totalInDb = allSignalsSnap.size;
-
-    const signalsQuery = query(collection(firestore, "signals"), where("status", "==", "ACTIVE"));
-    const signalsSnap = await getDocs(signalsQuery);
+    // 2. Fetch signals. We fetch all to handle self-healing for signals missing the 'status' field.
+    const signalsSnap = await getDocs(collection(firestore, "signals"));
     
-    let activeCount = signalsSnap.size;
+    let totalInDb = signalsSnap.size;
+    let activeCount = 0;
     let updateCount = 0;
     let stoppedCount = 0;
     let missingPriceCount = 0;
+    let repairedCount = 0;
     const missingSymbols: string[] = [];
     
     for (const signalDoc of signalsSnap.docs) {
       const signal = signalDoc.data();
+      
+      // SELF-HEALING: If status is missing (legacy data), treat as ACTIVE and update DB
+      let currentStatus = signal.status;
+      if (!currentStatus) {
+        currentStatus = "ACTIVE";
+        repairedCount++;
+      }
+
+      // Skip non-active signals
+      if (currentStatus !== "ACTIVE") {
+        continue;
+      }
+
+      activeCount++;
       const assetType = (signal.assetType || "").toUpperCase();
 
       // We only sync Crypto via Binance for now.
@@ -72,6 +84,10 @@ export async function GET() {
       if (!currentPrice) {
         missingPriceCount++;
         missingSymbols.push(rawSymbol);
+        // Even if price is missing, we update the status if we repaired it
+        if (!signal.status) {
+           await updateDoc(doc(firestore, "signals", signalDoc.id), { status: "ACTIVE" });
+        }
         continue;
       }
 
@@ -118,7 +134,8 @@ export async function GET() {
       message: `Sync Node: ${updateCount}/${activeCount} UPDATED`,
       details: `Cycle Report: 
 - Total Signals in Collection: ${totalInDb}
-- Active Signals Filtered: ${activeCount}
+- Signals Repaired (Missing Status): ${repairedCount}
+- Active Signals (Processed): ${activeCount}
 - Successfully Updated: ${updateCount}
 - Internal SL Triggered: ${stoppedCount}
 - Prices Missing on Exchange: ${missingPriceCount}
@@ -128,10 +145,11 @@ ${missingSymbols.length > 0 ? `\nSymbols failed: ${missingSymbols.slice(0, 10).j
 
     return NextResponse.json({ 
       success: true, 
-      total: activeCount,
+      total: totalInDb,
+      active: activeCount,
       updated: updateCount,
-      stopped: stoppedCount,
-      missing: missingPriceCount
+      repaired: repairedCount,
+      stopped: stoppedCount
     });
   } catch (error: any) {
     console.error("[Sync Engine Error]", error);

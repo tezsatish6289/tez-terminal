@@ -31,12 +31,13 @@ import {
   Server,
   CloudOff,
   Cpu,
-  Monitor
+  Monitor,
+  MapPin
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ChromeIcon } from "@/components/icons";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function HistoryPage() {
@@ -72,6 +73,10 @@ export default function HistoryPage() {
   }, [firestore, isAdmin]);
 
   const { data: logs, isLoading: isLogsLoading } = useCollection(logsQuery);
+
+  const hasRegionBlock = useMemo(() => {
+    return logs?.some(log => log.level === 'ERROR' && (log.details?.includes('451') || log.message?.includes('Restricted')));
+  }, [logs]);
 
   const handleGoogleLogin = () => {
     if (auth) initiateGoogleSignIn(auth);
@@ -139,7 +144,7 @@ export default function HistoryPage() {
         }
       }
 
-      toast({ title: "Browser Bridge Success", description: `Updated ${count} signals using your India IP.` });
+      toast({ title: "Browser Bridge Success", description: `Updated ${count} signals using your local IP.` });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
     } finally {
@@ -206,6 +211,34 @@ export default function HistoryPage() {
               </Dialog>
             )}
           </div>
+
+          {hasRegionBlock && (
+            <Card className="bg-rose-500/10 border-rose-500/30">
+               <CardHeader className="pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-rose-500 p-2 rounded-lg"><MapPin className="h-5 w-5 text-white" /></div>
+                    <div>
+                       <CardTitle className="text-rose-400">CRITICAL: Server Region Restricted (451)</CardTitle>
+                       <CardDescription className="text-rose-300/60 font-medium">Binance Global is blocking your US-based server. 24/7 Autonomy is Offline.</CardDescription>
+                    </div>
+                  </div>
+               </CardHeader>
+               <CardContent className="space-y-4">
+                  <div className="bg-black/40 p-4 rounded-xl border border-rose-500/20 text-xs text-rose-100/80 leading-relaxed">
+                     <p className="font-bold text-rose-400 mb-2">To restore 24/7 tracking, you must move the server to Asia:</p>
+                     <ol className="list-decimal list-inside space-y-1 ml-2">
+                        <li>Go to <b>Firebase Console</b> -> <b>App Hosting</b></li>
+                        <li>Delete the current Backend (Safe: Signals & users will not be deleted)</li>
+                        <li>Create a New Backend and select <b>asia-south1 (Mumbai)</b> region</li>
+                        <li>Redeploy from the same repo. Your terminal will then have an Indian IP.</li>
+                     </ol>
+                  </div>
+                  <Button variant="outline" className="w-full border-rose-500/40 text-rose-400 hover:bg-rose-500/10 gap-2 h-10" asChild>
+                     <a href="https://console.firebase.google.com" target="_blank">Open Firebase Console <ExternalLink className="h-4 w-4" /></a>
+                  </Button>
+               </CardContent>
+            </Card>
+          )}
 
           <Tabs defaultValue="signals" className="w-full">
             <TabsList className="bg-secondary/30 border border-border mb-6">

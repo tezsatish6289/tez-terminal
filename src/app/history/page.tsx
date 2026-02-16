@@ -1,4 +1,3 @@
-
 "use client";
 
 import { TopBar } from "@/components/dashboard/TopBar";
@@ -90,12 +89,12 @@ export default function HistoryPage() {
       const res = await fetch(`${window.location.origin}/api/cron/sync-prices?key=${CRON_SECRET}`);
       const data = await res.json();
       if (data.success) {
-        toast({ title: "Server Sync Run", description: `Processed ${data.updated} signals.` });
+        toast({ title: "Automated Sync Triggered", description: `Processed ${data.updated} signals.` });
       } else {
         throw new Error(data.error || "Sync failed");
       }
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Server-Side Blocked (451)", description: "Binance is blocking the US server IP." });
+      toast({ variant: "destructive", title: "Automated Path Blocked (451)", description: "Binance blocked the server path. Use Browser Sync." });
     } finally {
       setIsSyncing(false);
     }
@@ -140,7 +139,7 @@ export default function HistoryPage() {
         }
       }
 
-      toast({ title: "Client Bridge Success", description: `Updated ${count} signals.` });
+      toast({ title: "Browser Bridge Success", description: `Updated ${count} signals using your India IP.` });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
     } finally {
@@ -224,31 +223,31 @@ export default function HistoryPage() {
                 <div className="lg:col-span-2 space-y-6">
                   <Card className="bg-card border-border shadow-lg">
                     <CardHeader className="border-b border-border/50 flex flex-row items-center justify-between">
-                      <div><CardTitle className="text-lg">Technical Logs</CardTitle><CardDescription className="text-xs">Live 24/7 Node Synchronization Audit</CardDescription></div>
+                      <div><CardTitle className="text-lg">Sync Audit Log</CardTitle><CardDescription className="text-xs">Monitoring the 24/7 background cron job</CardDescription></div>
                       <div className="flex gap-2">
                          <Button variant="outline" size="sm" className="gap-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 h-8" onClick={handleClientSync} disabled={isClientSyncing}>
                             {isClientSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Monitor className="h-3 w-3" />} Browser Sync
                          </Button>
                          <Button variant="outline" size="sm" className="gap-2 border-accent/30 text-accent hover:bg-accent/10 h-8" onClick={handleForceSync} disabled={isSyncing}>
-                            {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />} Server Sync
+                            {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />} Test Cron Path
                          </Button>
                       </div>
                     </CardHeader>
                     <CardContent className="pt-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                          <div className="p-3 bg-emerald-500/5 rounded-lg border border-emerald-500/10">
-                            <p className="text-[10px] font-black text-emerald-400 uppercase mb-1 flex items-center gap-1.5"><Monitor className="h-3 w-3" /> Browser Sync (India)</p>
-                            <p className="text-[10px] text-muted-foreground leading-tight">Uses your local internet (Lucknow) to fetch prices. Bypasses all server blocks.</p>
+                            <p className="text-[10px] font-black text-emerald-400 uppercase mb-1 flex items-center gap-1.5"><Monitor className="h-3 w-3" /> Manual Override (India)</p>
+                            <p className="text-[10px] text-muted-foreground leading-tight">Uses your local internet to fetch prices. Bypasses all server-side blocks. Use this for emergency updates.</p>
                          </div>
                          <div className="p-3 bg-accent/5 rounded-lg border border-accent/10">
-                            <p className="text-[10px] font-black text-accent uppercase mb-1 flex items-center gap-1.5"><Zap className="h-3 w-3" /> Server Sync (US)</p>
-                            <p className="text-[10px] text-muted-foreground leading-tight">Tests the automated cron logic. Subject to Binance 451 geographic blocks.</p>
+                            <p className="text-[10px] font-black text-accent uppercase mb-1 flex items-center gap-1.5"><Zap className="h-3 w-3" /> Automated Engine (US)</p>
+                            <p className="text-[10px] text-muted-foreground leading-tight">This is what your 24/7 cron-job uses. It runs even when your computer is OFF.</p>
                          </div>
                       </div>
 
                       {!isAdmin ? <div className="py-20 text-center opacity-40"><ShieldAlert className="h-12 w-12 mx-auto mb-4" /><p>Logs available to administrators only.</p></div> : (
                         <div className="space-y-4">
-                          {isLogsLoading ? <div className="space-y-4 animate-pulse">{[1,2,3].map(i => <div key={i} className="h-20 bg-white/5 rounded-lg" />)}</div> : logs?.length === 0 ? <div className="py-20 text-center opacity-40"><Info className="h-12 w-12 mx-auto mb-4" /><p>No sync activity detected yet.</p></div> : (
+                          {isLogsLoading ? <div className="space-y-4 animate-pulse">{[1,2,3].map(i => <div key={i} className="h-20 bg-white/5 rounded-lg" />)}</div> : logs?.length === 0 ? <div className="py-20 text-center opacity-40"><Info className="h-12 w-12 mx-auto mb-4" /><p>Waiting for the first automated sync heartbeat...</p></div> : (
                             <div className="grid gap-4">
                               {logs?.map((log) => (
                                 <div key={log.id} className={cn("p-4 rounded-xl border text-[11px] space-y-3 transition-all", log.level === 'ERROR' || log.details?.includes('451') ? 'bg-rose-500/5 border-rose-500/20' : log.level === 'WARN' ? 'bg-amber-500/5 border-amber-500/20' : 'bg-emerald-500/5 border-emerald-500/10')}>
@@ -267,25 +266,25 @@ export default function HistoryPage() {
 
                 <div className="space-y-6">
                   <Card className="bg-rose-500/5 border-rose-500/20">
-                    <CardHeader><div className="flex items-center gap-2"><CloudOff className="h-5 w-5 text-rose-400" /><CardTitle className="text-md font-bold text-white">451 Geo-Block Warning</CardTitle></div></CardHeader>
+                    <CardHeader><div className="flex items-center gap-2"><CloudOff className="h-5 w-5 text-rose-400" /><CardTitle className="text-md font-bold text-white">24/7 Sync Monitor</CardTitle></div></CardHeader>
                     <CardContent className="text-[11px] text-muted-foreground space-y-3">
-                       <p>Binance blocks requests from US-based servers (where Firebase is hosted). This causes the <b>451 Error</b>.</p>
-                       <p><b>Solution:</b> Use the "Browser Sync" button. It uses your local connection (India) to bridge prices into the terminal.</p>
+                       <p>Your 24/7 Cron runs on the server. If Binance blocks the US server IP (Error 451), the "Automated Engine" log above will turn red.</p>
+                       <p><b>Note:</b> You do not need to stay logged in or keep the browser open for the 24/7 sync to work.</p>
                     </CardContent>
                   </Card>
 
                   <Card className="bg-emerald-500/5 border-emerald-500/20">
-                    <CardHeader><div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-emerald-400" /><CardTitle className="text-md font-bold text-white">Cron Sync Setup</CardTitle></div></CardHeader>
+                    <CardHeader><div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-emerald-400" /><CardTitle className="text-md font-bold text-white">Cron Configuration</CardTitle></div></CardHeader>
                     <CardContent className="space-y-4">
                       <div className="space-y-2">
-                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex justify-between">Public Sync Endpoint <span className="text-emerald-400">PRODUCTION</span></Label>
+                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex justify-between">Public Sync Endpoint <span className="text-emerald-400">LIVE</span></Label>
                         <div className="flex gap-2">
                           <Input readOnly value={cronUrl} className="bg-background font-mono text-[10px] h-9 border-white/10" />
                           <Button variant="outline" size="icon" onClick={() => copyToClipboard(cronUrl)} className="h-9 w-9 shrink-0" disabled={!origin}><Copy className="h-4 w-4" /></Button>
                         </div>
                       </div>
                       <Button asChild variant="outline" className="w-full h-9 border-accent/20 text-accent text-xs font-bold hover:bg-accent/10">
-                        <a href="https://cron-job.org" target="_blank">Open Cron-Job.org <ExternalLink className="h-3 w-3 ml-2" /></a>
+                        <a href="https://cron-job.org" target="_blank">Verify Job on Cron-Job.org <ExternalLink className="h-3 w-3 ml-2" /></a>
                       </Button>
                     </CardContent>
                   </Card>

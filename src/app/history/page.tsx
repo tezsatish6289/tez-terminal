@@ -25,10 +25,11 @@ import {
   ShieldCheck,
   Server,
   Monitor,
-  MapPin,
   CheckCircle2,
   FileText,
-  AlertTriangle
+  AlertTriangle,
+  Github,
+  Code2
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -170,68 +171,70 @@ export default function HistoryPage() {
           </div>
 
           {hasRegionBlock && (
-            <Card className="bg-rose-500/10 border-rose-500/30 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-4">
-               <CardHeader className="pb-3 border-b border-rose-500/20">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-rose-500 p-2.5 rounded-xl border border-rose-400/20"><AlertTriangle className="h-6 w-6 text-white" /></div>
-                    <div>
-                       <CardTitle className="text-rose-400 text-xl font-black uppercase tracking-tighter">Migration Command Center</CardTitle>
-                       <CardDescription className="text-rose-300/60 font-bold uppercase text-[10px] tracking-widest">Permanent 451 Region Block detected. Migration to Asia required.</CardDescription>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="bg-rose-500/10 border-rose-500/30 shadow-2xl overflow-hidden">
+                 <CardHeader className="pb-3 border-b border-rose-500/20">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-rose-500 p-2.5 rounded-xl border border-rose-400/20"><AlertTriangle className="h-6 w-6 text-white" /></div>
+                      <div>
+                         <CardTitle className="text-rose-400 text-xl font-black uppercase tracking-tighter">Region Block: US-EAST</CardTitle>
+                         <CardDescription className="text-rose-300/60 font-bold uppercase text-[10px]">Binance has blocked your current cloud region (451).</CardDescription>
+                      </div>
                     </div>
-                  </div>
-               </CardHeader>
-               <CardContent className="space-y-6 pt-6">
-                  <div className="bg-black/40 p-5 rounded-2xl border border-rose-500/20 text-xs leading-relaxed space-y-5">
-                     <p className="font-black text-rose-400 uppercase tracking-widest flex items-center gap-2">
-                       <FileText className="h-4 w-4" /> Code Migration Steps
-                     </p>
-                     
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-4">
-                           <div className="flex gap-4">
-                              <div className="h-6 w-6 rounded-full bg-accent/20 flex items-center justify-center text-[10px] text-accent font-black shrink-0 border border-accent/20">1</div>
-                              <div className="space-y-1">
-                                 <p className="font-bold text-white uppercase text-[10px]">Create GitHub Repo</p>
-                                 <p className="text-muted-foreground text-[10px]">Go to your GitHub and create a repo named <span className="text-accent font-mono">tez-terminal</span>.</p>
-                              </div>
-                           </div>
-                           <div className="flex gap-4">
-                              <div className="h-6 w-6 rounded-full bg-accent/20 flex items-center justify-center text-[10px] text-accent font-black shrink-0 border border-accent/20">2</div>
-                              <div className="space-y-1">
-                                 <p className="font-bold text-white uppercase text-[10px]">Manual File Sync</p>
-                                 <p className="text-muted-foreground text-[10px]">Copy the code from each file in the Studio explorer and paste into GitHub.</p>
-                              </div>
-                           </div>
-                        </div>
-                        <div className="space-y-4">
-                           <div className="flex gap-4">
-                              <div className="h-6 w-6 rounded-full bg-accent/20 flex items-center justify-center text-[10px] text-accent font-black shrink-0 border border-accent/20">3</div>
-                              <div className="space-y-1">
-                                 <p className="font-bold text-white uppercase text-[10px]">New Asia Backend</p>
-                                 <p className="text-muted-foreground text-[10px]">In Firebase App Hosting, create a new backend using the Singapore region.</p>
-                              </div>
-                           </div>
-                           <div className="flex gap-4">
-                              <div className="h-6 w-6 rounded-full bg-emerald-500/20 flex items-center justify-center text-[10px] text-emerald-400 font-black shrink-0 border border-emerald-500/20">4</div>
-                              <div className="space-y-1">
-                                 <p className="font-bold text-white uppercase text-[10px]">Done</p>
-                                 <p className="text-muted-foreground text-[10px]">Your Asian server will bypass the 451 block automatically.</p>
-                              </div>
-                           </div>
-                        </div>
-                     </div>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-4">
-                     <Button onClick={handleClientSync} disabled={isClientSyncing} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-[10px] h-10 px-8 rounded-xl">
-                        {isClientSyncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Monitor className="h-4 w-4 mr-2" />} Browser Override (India)
-                     </Button>
-                     <Button variant="outline" className="border-white/10 text-muted-foreground text-[10px] font-bold uppercase h-10 px-8 rounded-xl bg-white/5" asChild>
-                        <a href="https://github.com/new" target="_blank">Go to GitHub <ExternalLink className="h-3 w-3 ml-2" /></a>
-                     </Button>
-                  </div>
-               </CardContent>
-            </Card>
+                 </CardHeader>
+                 <CardContent className="space-y-6 pt-6">
+                    <div className="space-y-4">
+                       <p className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                         <Github className="h-4 w-4 text-accent" /> GitHub Mirror Status
+                       </p>
+                       <div className="bg-black/40 p-4 rounded-xl border border-white/5 space-y-3">
+                          <div className="flex items-center justify-between text-[10px]">
+                             <span className="text-muted-foreground font-bold">REPOS:</span>
+                             <span className="text-white font-mono">tezsatish6289/tez-terminal</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[10px]">
+                             <span className="text-muted-foreground font-bold">STATUS:</span>
+                             <span className="text-amber-400 font-bold">WAITING FOR CODE</span>
+                          </div>
+                       </div>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-4">
+                       <Button onClick={handleClientSync} disabled={isClientSyncing} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-[10px] h-10 px-8 rounded-xl">
+                          {isClientSyncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Monitor className="h-4 w-4 mr-2" />} Lucknow Override
+                       </Button>
+                       <Button variant="outline" className="border-white/10 text-muted-foreground text-[10px] font-bold uppercase h-10 px-8 rounded-xl bg-white/5" asChild>
+                          <a href="https://github.com/tezsatish6289/tez-terminal" target="_blank">Open GitHub <ExternalLink className="h-3 w-3 ml-2" /></a>
+                       </Button>
+                    </div>
+                 </CardContent>
+              </Card>
+
+              <Card className="bg-accent/5 border-accent/20 shadow-2xl">
+                 <CardHeader className="pb-3 border-b border-accent/20">
+                    <div className="flex items-center gap-3">
+                       <div className="bg-accent p-2.5 rounded-xl border border-accent/20"><Code2 className="h-6 w-6 text-black" /></div>
+                       <div>
+                          <CardTitle className="text-accent text-xl font-black uppercase tracking-tighter">Terminal Workflow</CardTitle>
+                          <CardDescription className="text-accent/60 font-bold uppercase text-[10px]">Run these commands in your Mac Terminal.</CardDescription>
+                       </div>
+                    </div>
+                 </CardHeader>
+                 <CardContent className="pt-6">
+                    <div className="bg-black/60 p-4 rounded-xl border border-white/5 font-mono text-[10px] text-emerald-400 space-y-2 overflow-x-auto">
+                       <p className="text-muted-foreground"># Uploading your code to GitHub</p>
+                       <p>git init</p>
+                       <p>git remote add origin https://github.com/tezsatish6289/tez-terminal.git</p>
+                       <p>git add .</p>
+                       <p>git commit -m "Migration to Asia"</p>
+                       <p>git push -u origin main</p>
+                    </div>
+                    <div className="mt-4 p-3 bg-white/5 rounded-lg text-[10px] text-muted-foreground leading-relaxed">
+                       <p>Once pushed, select the <span className="text-white font-bold">Singapore</span> region in the Firebase Hosting setup to restore 24/7 sync.</p>
+                    </div>
+                 </CardContent>
+              </Card>
+            </div>
           )}
 
           <Tabs defaultValue="debugger" className="w-full">
@@ -285,8 +288,8 @@ export default function HistoryPage() {
                   <Card className="bg-accent/5 border-accent/20">
                     <CardHeader><div className="flex items-center gap-2"><Server className="h-5 w-5 text-accent" /><CardTitle className="text-md font-bold text-white">System Architecture</CardTitle></div></CardHeader>
                     <CardContent className="text-[11px] text-muted-foreground space-y-3 leading-relaxed">
-                       <p><b>Server Sync:</b> US Cloud &rarr; Binance (Currently Blocked 451).</p>
-                       <p><b>Browser Sync:</b> Lucknow Local &rarr; Binance &rarr; Database (Always Works).</p>
+                       <p><b>Server Sync:</b> Cloud Instance &rarr; Binance Mirrors.</p>
+                       <p><b>Browser Sync:</b> Manual Override &rarr; Binance &rarr; DB.</p>
                     </CardContent>
                   </Card>
 

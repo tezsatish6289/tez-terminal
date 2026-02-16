@@ -12,26 +12,31 @@ If you see `451` errors in your logs, Binance is blocking your US-based server. 
 4.  Visibility: **Public**.
 5.  Click **"Create repository"**.
 
-### Step 2: Transfer the Code (The "Manual Mirror" Method)
-Since I cannot generate a ZIP file, you must mirror the files manually. In your new GitHub repo, click **"Add file"** > **"Create new file"** for each of these:
+### Step 2: Push Code to GitHub (Mac Terminal)
+If you have the files on your Mac, open the **Terminal** app and run these commands:
 
-#### 📁 Essential Root Files:
-- `package.json`
-- `apphosting.yaml`
-- `next.config.ts`
-- `tailwind.config.ts`
-- `tsconfig.json`
-- `components.json`
-- `firestore.rules`
+```bash
+# 1. Go to your project folder
+cd /path/to/your/tez-terminal-folder
 
-#### 📁 Folders to Copy:
-- All files inside `src/app/` (including subfolders like `api/`, `chart/`, etc.)
-- All files inside `src/components/`
-- All files inside `src/firebase/`
-- All files inside `src/ai/`
-- All files inside `src/lib/`
-- All files inside `src/hooks/`
-- The file `docs/backend.json`
+# 2. Initialize Git
+git init
+
+# 3. Add your GitHub repository as the destination
+git remote add origin https://github.com/tezsatish6289/tez-terminal.git
+
+# 4. Stage all files
+git add .
+
+# 5. Commit the changes
+git commit -m "Initial migration to Asia server"
+
+# 6. Push to GitHub
+git branch -M main
+git push -u origin main
+```
+
+**Note:** If you don't have the files locally yet, the easiest way is to use the "Add file" > "Upload files" button on the GitHub website and drag-and-drop your project folders there.
 
 ### Step 3: Deploy to Asia
 1.  Go to the **Firebase Console** > **App Hosting**.

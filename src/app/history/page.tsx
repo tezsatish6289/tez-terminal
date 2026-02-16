@@ -34,7 +34,9 @@ import {
   Monitor,
   MapPin,
   ArrowRight,
-  Github
+  Github,
+  FileCode,
+  CheckCircle2
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -226,41 +228,41 @@ export default function HistoryPage() {
                     <div className="bg-rose-500 p-2.5 rounded-xl border border-rose-400/20"><MapPin className="h-6 w-6 text-white" /></div>
                     <div>
                        <CardTitle className="text-rose-400 text-xl font-black uppercase tracking-tighter">Migration Command Center</CardTitle>
-                       <CardDescription className="text-rose-300/60 font-bold uppercase text-[10px] tracking-widest">Connect GitHub to move the terminal to Singapore/Mumbai region.</CardDescription>
+                       <CardDescription className="text-rose-300/60 font-bold uppercase text-[10px] tracking-widest">Restore 24/7 Autonomy by moving to Asia region.</CardDescription>
                     </div>
                   </div>
                </CardHeader>
                <CardContent className="space-y-6 pt-2">
                   <div className="bg-black/40 p-5 rounded-2xl border border-rose-500/20 text-xs leading-relaxed space-y-4">
                      <p className="font-black text-rose-400 uppercase tracking-widest flex items-center gap-2">
-                       <ShieldAlert className="h-4 w-4" /> Fixing the "Empty Repository" List
+                       <ShieldAlert className="h-4 w-4" /> How to Transfer Code to GitHub
                      </p>
                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-2">
                            <div className="flex items-center gap-2">
                              <div className="h-5 w-5 rounded-full bg-accent/20 flex items-center justify-center text-[10px] text-accent font-black">1</div>
-                             <p className="font-bold text-white uppercase text-[10px]">Create Repo</p>
+                             <p className="font-bold text-white uppercase text-[10px]">Copy Files</p>
                            </div>
-                           <p className="text-muted-foreground text-[10px]">Go to <span className="text-accent font-mono">github.com/new</span> and create a repo named <span className="text-emerald-400 font-mono">tez-terminal</span>.</p>
+                           <p className="text-muted-foreground text-[10px]">Use the file explorer on the left of your screen. Open each file and copy the text.</p>
                         </div>
                         <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-2">
                            <div className="flex items-center gap-2">
                              <div className="h-5 w-5 rounded-full bg-accent/20 flex items-center justify-center text-[10px] text-accent font-black">2</div>
-                             <p className="font-bold text-white uppercase text-[10px]">Push Code</p>
+                             <p className="font-bold text-white uppercase text-[10px]">Paste to GitHub</p>
                            </div>
-                           <p className="text-muted-foreground text-[10px]">Upload the files from this studio to your new GitHub repo.</p>
+                           <p className="text-muted-foreground text-[10px]">In your new <span className="text-accent">tez-terminal</span> repo, click "Add file" &rarr; "Create new file" and paste the code.</p>
                         </div>
                         <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-2">
                            <div className="flex items-center gap-2">
                              <div className="h-5 w-5 rounded-full bg-accent/20 flex items-center justify-center text-[10px] text-accent font-black">3</div>
                              <p className="font-bold text-white uppercase text-[10px]">Asia Deploy</p>
                            </div>
-                           <p className="text-muted-foreground text-[10px]">Select <span className="text-emerald-400 font-mono">asia-southeast1</span> (Singapore) in the Firebase Setup.</p>
+                           <p className="text-muted-foreground text-[10px]">In the Firebase Console, select <span className="text-emerald-400 font-mono">asia-southeast1</span> (Singapore) to finish.</p>
                         </div>
                      </div>
                      <div className="flex items-center gap-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                        <Github className="h-4 w-4 text-emerald-400" />
-                        <p className="text-[10px] text-emerald-300 font-medium">Your GitHub account <span className="font-bold">tezsatish6289</span> is connected. Just create the repo and the list will populate!</p>
+                        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                        <p className="text-[10px] text-emerald-300 font-medium">Your Database and Authentication will stay safe! Only the "Identity" of the server changes.</p>
                      </div>
                   </div>
                   <div className="flex gap-4">
@@ -268,7 +270,7 @@ export default function HistoryPage() {
                         {isClientSyncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Monitor className="h-4 w-4 mr-2" />} Browser Override (Lucknow)
                      </Button>
                      <Button variant="outline" className="border-white/10 text-muted-foreground text-[10px] font-bold uppercase h-10 px-6 rounded-xl" asChild>
-                        <a href="https://github.com/new" target="_blank">Create GitHub Repo <ExternalLink className="h-3 w-3 ml-2" /></a>
+                        <a href="https://github.com/new" target="_blank">Go to GitHub <ExternalLink className="h-3 w-3 ml-2" /></a>
                      </Button>
                   </div>
                </CardContent>

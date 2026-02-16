@@ -14,8 +14,10 @@ If you see `451` errors in your logs, Binance is blocking your US-based server. 
 
 ### Step 2: Upload Files
 1.  In your new repository, look for the text: "Quick setup — if you’ve done this kind of thing before" or simply find the **"uploading an existing file"** link.
-2.  Download or copy the files from this Firebase Studio environment and upload them to your repository.
-3.  **Crucial Files**: Ensure `package.json`, `apphosting.yaml`, `next.config.ts`, and the `src` folder are all present.
+2.  **How to get the files from this Studio**:
+    - Look at the file explorer on the left side of this Firebase Studio screen.
+    - For each file (especially `package.json`, `apphosting.yaml`, `next.config.ts`, and the entire `src` folder), you can copy the code and create a new file in your GitHub repo with the same name and content.
+    - **Pro Tip**: If there is a "Download" or "Export" icon in your Studio UI, use that to get a ZIP of all files at once.
 
 ### Step 3: Connect to Asia
 1.  Go back to the **Firebase Console** (the screen in your screenshot).

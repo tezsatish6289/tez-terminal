@@ -17,7 +17,8 @@ import {
   Zap,
   BarChart3,
   Globe,
-  TrendingDown
+  TrendingDown,
+  Activity as PerformanceIcon
 } from "lucide-react";
 import { format, differenceInMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 /**
  * PRODUCTION TERMINAL ENGINE - PERSISTENT STATE
@@ -45,19 +47,13 @@ export function SignalHistory() {
   // Persistence Keys
   const STORAGE_KEY_ASSET = "tez_terminal_asset";
   const STORAGE_KEY_TF = "tez_terminal_tf";
-  const STORAGE_KEY_STATUS = "tez_terminal_status";
+  const STORAGE_KEY_GLOBAL_PERF = "tez_terminal_global_perf";
   const STORAGE_KEY_SCROLL = "tez_terminal_scroll";
 
   // Filtering States
   const [activeAssetType, setActiveAssetType] = useState<string | null>(null);
   const [selectedTimeframes, setSelectedTimeframes] = useState<string[]>(["5", "15", "60", "240", "D"]);
-  const [sectionStatusFilters, setSectionStatusFilters] = useState<Record<string, string>>({
-    "5": "all",
-    "15": "all",
-    "60": "all",
-    "240": "all",
-    "D": "all"
-  });
+  const [globalPerformanceFilter, setGlobalPerformanceFilter] = useState<string>("all");
 
   // Initialization
   useEffect(() => {
@@ -65,12 +61,12 @@ export function SignalHistory() {
     
     const savedAsset = sessionStorage.getItem(STORAGE_KEY_ASSET);
     const savedTf = sessionStorage.getItem(STORAGE_KEY_TF);
-    const savedStatus = sessionStorage.getItem(STORAGE_KEY_STATUS);
+    const savedPerf = sessionStorage.getItem(STORAGE_KEY_GLOBAL_PERF);
     const savedScroll = sessionStorage.getItem(STORAGE_KEY_SCROLL);
 
     if (savedAsset !== null) setActiveAssetType(savedAsset === "null" ? null : savedAsset);
     if (savedTf) setSelectedTimeframes(JSON.parse(savedTf));
-    if (savedStatus) setSectionStatusFilters(JSON.parse(savedStatus));
+    if (savedPerf) setGlobalPerformanceFilter(savedPerf);
 
     if (savedScroll && scrollContainerRef.current) {
       setTimeout(() => {
@@ -88,8 +84,8 @@ export function SignalHistory() {
     if (!mounted) return;
     sessionStorage.setItem(STORAGE_KEY_ASSET, String(activeAssetType));
     sessionStorage.setItem(STORAGE_KEY_TF, JSON.stringify(selectedTimeframes));
-    sessionStorage.setItem(STORAGE_KEY_STATUS, JSON.stringify(sectionStatusFilters));
-  }, [activeAssetType, selectedTimeframes, sectionStatusFilters, mounted]);
+    sessionStorage.setItem(STORAGE_KEY_GLOBAL_PERF, globalPerformanceFilter);
+  }, [activeAssetType, selectedTimeframes, globalPerformanceFilter, mounted]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     sessionStorage.setItem(STORAGE_KEY_SCROLL, e.currentTarget.scrollTop.toString());
@@ -126,6 +122,13 @@ export function SignalHistory() {
     { label: "US STOCKS", value: "US STOCKS" },
   ];
 
+  const performanceOptions = [
+    { label: "All Signals", value: "all" },
+    { label: "Working", value: "working" },
+    { label: "Neutral", value: "neutral" },
+    { label: "Not Working", value: "not-working" },
+  ];
+
   const calculatePercent = (targetPrice: number | undefined | null, entry: number, type: string) => {
     if (targetPrice === undefined || targetPrice === null || !entry || entry === 0) return "0.00";
     const diff = type === 'BUY' ? targetPrice - entry : entry - targetPrice;
@@ -142,9 +145,18 @@ export function SignalHistory() {
         const displayAssetType = getDisplayAssetType(signal);
         if (displayAssetType !== activeAssetType) return false;
       }
+
+      // Apply Global Performance Filter
+      if (globalPerformanceFilter !== "all") {
+        const pnl = Number(calculatePercent(signal.currentPrice, signal.price, signal.type));
+        if (globalPerformanceFilter === "working" && pnl <= 0.05) return false;
+        if (globalPerformanceFilter === "not-working" && pnl >= -0.05) return false;
+        if (globalPerformanceFilter === "neutral" && (pnl > 0.05 || pnl < -0.05)) return false;
+      }
+
       return true;
     });
-  }, [rawSignals, activeAssetType]);
+  }, [rawSignals, activeAssetType, globalPerformanceFilter]);
 
   const formatPrice = (price: number | null | undefined) => {
     if (price === null || price === undefined) return "--";
@@ -164,10 +176,6 @@ export function SignalHistory() {
     if (days > 0) return `${days}d ${hours}h`;
     if (hours > 0) return `${hours}h ${mins}m`;
     return `${mins}m`;
-  };
-
-  const updateSectionStatus = (tfId: string, status: string) => {
-    setSectionStatusFilters(prev => ({ ...prev, [tfId]: status }));
   };
 
   return (
@@ -192,42 +200,82 @@ export function SignalHistory() {
            </div>
         </div>
 
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9 gap-2 border-white/10 bg-[#121214] hover:bg-white/5 text-muted-foreground hover:text-white rounded-xl px-4">
-              <Filter className="h-4 w-4 text-accent" />
-              <span className="text-[10px] font-black uppercase tracking-wider">Analysis Filters</span>
-              <ChevronDown className="h-3 w-3 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-64 bg-[#121214] border-white/10 p-4 shadow-2xl">
-            <div className="space-y-4">
-              <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] pb-2 border-b border-white/5">DATA FEEDS</h3>
-              <div className="space-y-3">
-                {categories.map(cat => (
-                  <div key={cat.id} className="flex items-center space-x-3 group cursor-pointer" onClick={() => {
-                    setSelectedTimeframes(prev => 
-                      prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]
-                    );
-                  }}>
-                    <Checkbox 
-                      id={`filter-${cat.id}`} 
-                      checked={selectedTimeframes.includes(cat.id)}
-                      onCheckedChange={() => {}}
-                      className="border-white/20 data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground"
-                    />
-                    <Label 
-                      htmlFor={`filter-${cat.id}`} 
-                      className="flex-1 text-xs font-bold text-white/70 group-hover:text-white transition-colors cursor-pointer flex justify-between items-center"
-                    >
-                      <span className="uppercase tracking-wide">{cat.label} ENGINE</span>
-                    </Label>
-                  </div>
-                ))}
+        <div className="flex items-center gap-3">
+          {/* Analysis Filters Popover */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 gap-2 border-white/10 bg-[#121214] hover:bg-white/5 text-muted-foreground hover:text-white rounded-xl px-4">
+                <Filter className="h-4 w-4 text-accent" />
+                <span className="text-[10px] font-black uppercase tracking-wider">Analysis Filters</span>
+                <ChevronDown className="h-3 w-3 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-64 bg-[#121214] border-white/10 p-4 shadow-2xl">
+              <div className="space-y-4">
+                <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] pb-2 border-b border-white/5">DATA FEEDS</h3>
+                <div className="space-y-3">
+                  {categories.map(cat => (
+                    <div key={cat.id} className="flex items-center space-x-3 group cursor-pointer" onClick={() => {
+                      setSelectedTimeframes(prev => 
+                        prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]
+                      );
+                    }}>
+                      <Checkbox 
+                        id={`filter-${cat.id}`} 
+                        checked={selectedTimeframes.includes(cat.id)}
+                        onCheckedChange={() => {}}
+                        className="border-white/20 data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground"
+                      />
+                      <Label 
+                        htmlFor={`filter-${cat.id}`} 
+                        className="flex-1 text-xs font-bold text-white/70 group-hover:text-white transition-colors cursor-pointer flex justify-between items-center"
+                      >
+                        <span className="uppercase tracking-wide">{cat.label} ENGINE</span>
+                      </Label>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          </PopoverContent>
-        </Popover>
+            </PopoverContent>
+          </Popover>
+
+          {/* Performance Filter Popover */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 gap-2 border-white/10 bg-[#121214] hover:bg-white/5 text-muted-foreground hover:text-white rounded-xl px-4">
+                <PerformanceIcon className="h-4 w-4 text-accent" />
+                <span className="text-[10px] font-black uppercase tracking-wider">Performance Filter</span>
+                <ChevronDown className="h-3 w-3 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-64 bg-[#121214] border-white/10 p-4 shadow-2xl">
+              <div className="space-y-4">
+                <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] pb-2 border-b border-white/5">EXCURSION STATUS</h3>
+                <RadioGroup 
+                  value={globalPerformanceFilter} 
+                  onValueChange={setGlobalPerformanceFilter}
+                  className="space-y-3"
+                >
+                  {performanceOptions.map((opt) => (
+                    <div key={opt.value} className="flex items-center space-x-3 group cursor-pointer" onClick={() => setGlobalPerformanceFilter(opt.value)}>
+                      <RadioGroupItem 
+                        value={opt.value} 
+                        id={`perf-${opt.value}`}
+                        className="border-white/20 data-[state=checked]:border-accent data-[state=checked]:text-accent"
+                      />
+                      <Label 
+                        htmlFor={`perf-${opt.value}`} 
+                        className="flex-1 text-xs font-bold text-white/70 group-hover:text-white transition-colors cursor-pointer uppercase tracking-wide"
+                      >
+                        {opt.label}
+                      </Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
 
       <div 
@@ -249,20 +297,9 @@ export function SignalHistory() {
             categories.map(cat => {
               if (!selectedTimeframes.includes(cat.id)) return null;
 
-              let categorySignals = filteredSignals.filter(s => s.timeframe === cat.id);
-              const statusFilter = sectionStatusFilters[cat.id] || "all";
+              const categorySignals = filteredSignals.filter(s => s.timeframe === cat.id);
               
-              if (statusFilter !== "all") {
-                categorySignals = categorySignals.filter(s => {
-                  const pnl = Number(calculatePercent(s.currentPrice, s.price, s.type));
-                  if (statusFilter === "working") return pnl > 0.05;
-                  if (statusFilter === "not-working") return pnl < -0.05;
-                  if (statusFilter === "neutral") return pnl >= -0.05 && pnl <= 0.05;
-                  return true;
-                });
-              }
-
-              if (categorySignals.length === 0 && statusFilter === "all") return null;
+              if (categorySignals.length === 0 && globalPerformanceFilter === "all") return null;
 
               const SectionIcon = cat.icon;
 
@@ -280,28 +317,6 @@ export function SignalHistory() {
                         <p className="text-[10px] font-black text-accent uppercase tracking-[0.4em] opacity-80">
                           {cat.label} TECHNICAL CONTEXT
                         </p>
-                        
-                        <div className="flex items-center gap-4 pt-1">
-                          {[
-                            { id: 'all', label: 'All' },
-                            { id: 'working', label: 'Working' },
-                            { id: 'neutral', label: 'Neutral' },
-                            { id: 'not-working', label: 'Not Working' }
-                          ].map((status) => (
-                            <button
-                              key={status.id}
-                              onClick={() => updateSectionStatus(cat.id, status.id)}
-                              className={cn(
-                                "text-[9px] font-black uppercase tracking-wider transition-all",
-                                statusFilter === status.id 
-                                  ? "text-accent border-b border-accent pb-0.5" 
-                                  : "text-muted-foreground/30 hover:text-muted-foreground"
-                              )}
-                            >
-                              {status.label}
-                            </button>
-                          ))}
-                        </div>
                       </div>
                     </div>
                   </div>

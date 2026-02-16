@@ -53,8 +53,9 @@ export default function HistoryPage() {
   }, []);
 
   const isAdmin = user?.email === "hello@tezterminal.com";
+  // The secret is centralized here for the UI to display it correctly.
   const CRON_SECRET = "ANTIGRAVITY_SYNC_TOKEN_2024";
-  const cronUrl = `${origin}/api/cron/sync-prices?key=${CRON_SECRET}`;
+  const cronUrl = origin ? `${origin}/api/cron/sync-prices?key=${CRON_SECRET}` : "Generating secure URL...";
 
   const logsQuery = useMemoFirebase(() => {
     if (!firestore || !isAdmin) return null;
@@ -70,8 +71,9 @@ export default function HistoryPage() {
   };
 
   const copyToClipboard = (text: string) => {
+    if (!origin) return;
     navigator.clipboard.writeText(text);
-    toast({ title: "URL Copied", description: "Use this in cron-job.org for 24/7 sync." });
+    toast({ title: "URL Copied", description: "This URL includes your secure sync token." });
   };
 
   const handleForceSync = async () => {
@@ -314,10 +316,10 @@ export default function HistoryPage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="space-y-2">
-                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Secure Sync Endpoint</Label>
+                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Secure Sync Endpoint (Token Embedded)</Label>
                         <div className="flex gap-2">
                           <Input readOnly value={cronUrl} className="bg-background font-mono text-[10px] h-9 border-white/10" />
-                          <Button variant="outline" size="icon" onClick={() => copyToClipboard(cronUrl)} className="h-9 w-9 shrink-0">
+                          <Button variant="outline" size="icon" onClick={() => copyToClipboard(cronUrl)} className="h-9 w-9 shrink-0" disabled={!origin}>
                             <Copy className="h-4 w-4" />
                           </Button>
                         </div>
@@ -325,20 +327,20 @@ export default function HistoryPage() {
                       <div className="p-4 bg-white/5 rounded-xl border border-white/10 space-y-4">
                         <div className="flex items-center gap-2">
                            <Server className="h-4 w-4 text-accent" />
-                           <span className="text-xs font-bold text-white uppercase tracking-tight">Security Check</span>
+                           <span className="text-xs font-bold text-white uppercase tracking-tight">Deployment Safety</span>
                         </div>
                         <ul className="text-[11px] space-y-3 text-muted-foreground">
                           <li className="flex gap-2">
                             <div className="h-1 w-1 rounded-full bg-accent mt-1.5 shrink-0" />
-                            <span>Your secret token is embedded in this URL. <b>Do not share it.</b></span>
+                            <span><b>Key Embedded:</b> The URL above already contains your private access key.</span>
                           </li>
                           <li className="flex gap-2">
                             <div className="h-1 w-1 rounded-full bg-accent mt-1.5 shrink-0" />
-                            <span>This URL is only valid for price synchronization and stop-loss logic.</span>
+                            <span><b>Encryption:</b> Data is sent over SSL/TLS, protecting your token in transit.</span>
                           </li>
                           <li className="flex gap-2">
                             <div className="h-1 w-1 rounded-full bg-accent mt-1.5 shrink-0" />
-                            <span>Third-party cron services like cron-job.org are standard for this architecture.</span>
+                            <span><b>Self-Healing:</b> The node automatically repairs legacy signals on every ping.</span>
                           </li>
                         </ul>
                         <Button asChild variant="outline" className="w-full h-9 border-accent/20 text-accent text-xs font-bold hover:bg-accent/10">

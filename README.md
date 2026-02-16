@@ -3,41 +3,33 @@
 Your US-based server is currently blocked by Binance (`451`). Use the **Integrated Terminal** in this IDE to push your code to GitHub and restore sync via Singapore.
 
 ### The "Integrated Terminal" Pipe
-Since you see the prompt `studio-6235588950:~/studio/src{main}$`, follow these steps to push all files (including `src`) to GitHub without manual copying:
+Since you see the prompt `studio-6235588950:~/studio/src{main}$`, run these commands **one by one**. Do not copy the code blocks, just the text:
 
-1. **Go to Root**: In that terminal, type:
-   ```bash
+1. **Go to Root**:
    cd ..
-   ```
-   (This moves you from the `src` folder to the main project folder).
 
-2. **Initialize Git**:
-   ```bash
-   git init
+2. **Set your GitHub Destination**:
    git remote add origin https://github.com/tezsatish6289/tez-terminal.git
-   ```
 
-3. **Push to GitHub**:
-   ```bash
+3. **Stage all files** (including the `src` folder):
    git add .
-   # Note: You may need to configure your GitHub email/name first
+
+4. **Identify yourself** (so GitHub accepts the push):
    git config --global user.email "your-email@example.com"
    git config --global user.name "TezSatish"
-   
+
+5. **Commit the changes**:
    git commit -m "Automated Migration to Asia"
-   
-   # This will ask for your GitHub username and Personal Access Token
+
+6. **Push to GitHub**:
    git push -f origin main
-   ```
+
+### Important Security Note:
+When the terminal asks for your **Password**, do not use your GitHub login password. You must use a **GitHub Personal Access Token (PAT)**.
 
 ### Firebase Setup (After Push)
 Once the terminal finishes pushing:
 1. Go to **App Hosting** in the Firebase Console.
-2. Re-create the backend using your `tez-terminal` repo.
-3. **CRITICAL**: Select **asia-southeast1 (Singapore)** or **asia-south1 (Mumbai)** as the region.
+2. Create a new backend using your `tez-terminal` repo.
+3. **CRITICAL**: Select **asia-southeast1 (Singapore)** as the region.
 4. Deploy.
-
-### Why this works:
-By pushing from the IDE's terminal, you are using the built-in Git CLI to transfer the entire project structure (all folders and files) to GitHub. Once it's in GitHub, the Singapore region can "see" the code and start the 24/7 sync engine.
-
-**Note on Security**: When the terminal asks for your password, use a **GitHub Personal Access Token**, not your account password.

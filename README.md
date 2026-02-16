@@ -1,6 +1,6 @@
 # TezTerminal - Singapore Migration Checklist
 
-You have successfully added the configuration files. Now, you must copy the **`src`** folder to make the app functional.
+You have successfully added the configuration files. Now, you must copy the **`src`** folder to make the app functional. 
 
 ### Step 1: Create these folders in GitHub
 Inside your `tez-terminal` repo, create this structure:

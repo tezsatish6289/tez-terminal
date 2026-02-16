@@ -5,6 +5,15 @@ Advanced Trading Terminal with Robust TradingView Ingestion and 24/7 Automated P
 ## Important Note on Exchange Data
 This terminal tracks **Binance Global (Binance.com)** prices. It is optimized to fetch data from Global mirrors (like `binance.me`) to ensure Perpetual contracts (.P) and international liquidity are tracked even from US-based servers.
 
+## Moving the Server to Asia (Permanent 451 Fix)
+If you see recurring `451` errors in the logs, it means Binance is blocking the US-based hosting region. 
+To move the physical server to Asia:
+1. Go to the **Firebase Console**.
+2. Delete the current **App Hosting Backend**.
+3. Create a new **App Hosting Backend**.
+4. During setup, select **`asia-south1` (Mumbai)** or **`asia-southeast1` (Singapore)** as the region.
+5. Your terminal will then have an Asian IP and will never be blocked by Binance.
+
 ## Security & Privacy
 *   **MAC Address**: Your hardware MAC address is **NEVER** exposed. Web requests cannot transmit your MAC address.
 *   **IP Exposure**: During automated 24/7 syncs, only the **Firebase Server IP** is visible to Binance. Your personal IP remains private. 

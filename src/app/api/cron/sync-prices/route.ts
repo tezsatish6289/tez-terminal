@@ -6,15 +6,12 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 /**
- * 24/7 PERFORMANCE SYNC ENGINE - GLOBAL BINANCE MIRROR STRATEGY
- * Priority: Binance Global (Rest of World)
- * Targeted to bypass 451 blocks by cycling through Global mirrors.
- * Note: Requests originate from the Server IP, NOT the user's IP/MAC.
+ * 24/7 PERFORMANCE SYNC ENGINE - AGGRESSIVE MIRROR ROTATION
+ * Priority: Bypassing US (451) blocks by cycling through global mirrors.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const key = searchParams.get("key");
-  
   const CRON_SECRET = "ANTIGRAVITY_SYNC_TOKEN_2024"; 
 
   if (key !== CRON_SECRET) {
@@ -24,13 +21,14 @@ export async function GET(request: NextRequest) {
   const { firestore } = initializeFirebase();
   const logsRef = collection(firestore, "logs");
   
-  // SEQUENTIAL MIRRORS FOR BINANCE GLOBAL (NOT US)
+  // SEQUENTIAL GLOBAL MIRRORS (Non-US targeted)
   const spotMirrors = [
     "https://api.binance.me",
     "https://api3.binance.com",
     "https://api2.binance.com",
     "https://api1.binance.com",
-    "https://api.binance.com"
+    "https://api.binance.com",
+    "https://data-api.binance.vision"
   ];
 
   const futuresMirrors = [
@@ -43,6 +41,7 @@ export async function GET(request: NextRequest) {
   try {
     const fetchOptions: RequestInit = {
       cache: 'no-store',
+      signal: AbortSignal.timeout(8000), // Prevent hanging requests
       headers: { 
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
         'Accept': 'application/json',
@@ -52,6 +51,7 @@ export async function GET(request: NextRequest) {
 
     let priceMap: Record<string, number> = {};
     let mirrorStatusLog = "";
+    let successfulMirror = "NONE";
 
     const fetchWithFallback = async (mirrors: string[], endpoint: string) => {
       for (const baseUrl of mirrors) {
@@ -59,11 +59,14 @@ export async function GET(request: NextRequest) {
           const res = await fetch(`${baseUrl}${endpoint}`, fetchOptions);
           if (res.ok) {
             const data = await res.json();
-            if (Array.isArray(data)) return { data, source: baseUrl };
+            if (Array.isArray(data)) {
+              successfulMirror = baseUrl;
+              return { data, source: baseUrl };
+            }
           }
           mirrorStatusLog += `[${baseUrl.split('//')[1]}: ${res.status}] `;
         } catch (e) {
-          mirrorStatusLog += `[${baseUrl.split('//')[1]}: ERR] `;
+          mirrorStatusLog += `[${baseUrl.split('//')[1]}: TIMEOUT] `;
         }
       }
       return null;
@@ -75,7 +78,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     if (!futuresResult && !spotResult) {
-      throw new Error(`CRITICAL: All Global Binance mirrors blocked (451/WAF). Status: ${mirrorStatusLog}`);
+      throw new Error(`CRITICAL: All Global Binance mirrors blocked (451). Mirrors attempted: ${mirrorStatusLog}`);
     }
 
     const allPrices = [...(futuresResult?.data || []), ...(spotResult?.data || [])];
@@ -88,6 +91,7 @@ export async function GET(request: NextRequest) {
     const signalsSnap = await getDocs(collection(firestore, "signals"));
     let updateCount = 0;
     let stoppedCount = 0;
+    let failedTickers: string[] = [];
     
     for (const signalDoc of signalsSnap.docs) {
       const signal = signalDoc.data();
@@ -98,7 +102,8 @@ export async function GET(request: NextRequest) {
       const symbolVariations = [
         base,
         base.replace(/\.P$|\.PERP$|_PERP$|-PERP$/i, ''),
-        base + "USDT"
+        base + "USDT",
+        base.replace("USDT", "")
       ];
 
       let currentPrice = 0;
@@ -109,7 +114,10 @@ export async function GET(request: NextRequest) {
         }
       }
       
-      if (!currentPrice) continue;
+      if (!currentPrice) {
+        failedTickers.push(base);
+        continue;
+      }
 
       const alertPrice = Number(signal.price);
       const stopLoss = Number(signal.stopLoss || 0);
@@ -146,7 +154,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
       level: "INFO",
       message: `24/7 SYNC SUCCESS: ${updateCount} UPDATED`,
-      details: `Source: Server (Private IP)\nExchange: Binance Global\nSync Nodes: ${futuresResult?.source || 'N/A'} (Futures), ${spotResult?.source || 'N/A'} (Spot)\nUpdated: ${updateCount}\nStopped: ${stoppedCount}`,
+      details: `Source: Automated Cron\nActive Mirror: ${successfulMirror}\nUpdated: ${updateCount}\nStopped: ${stoppedCount}\nFailed: ${failedTickers.slice(0,5).join(', ')}${failedTickers.length > 5 ? '...' : ''}`,
       webhookId: "SYSTEM_CRON",
     });
 
@@ -155,7 +163,7 @@ export async function GET(request: NextRequest) {
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
       level: "ERROR",
-      message: "Sync Failure - Region Restricted (451)",
+      message: "Sync Failure - Mirror Exhaustion",
       details: error.message,
       webhookId: "SYSTEM_CRON",
     });

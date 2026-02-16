@@ -2,6 +2,9 @@
 
 Advanced Trading Terminal with Robust TradingView Ingestion and 24/7 Automated Performance Tracking.
 
+## Important Note on Exchange Data
+This terminal tracks **Binance Global (Binance.com)** prices. It is optimized to fetch data from Global mirrors (like `binance.me`) to ensure Perpetual contracts (.P) and international liquidity are tracked even from US-based servers.
+
 ## Step-by-Step Live Deployment (CRITICAL)
 
 Your terminal requires an external "ping" every 5 minutes to update prices and check internal Stop Losses.

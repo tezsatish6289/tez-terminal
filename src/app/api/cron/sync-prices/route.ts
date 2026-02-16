@@ -6,8 +6,9 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 /**
- * 24/7 PERFORMANCE SYNC ENGINE - V2 HARDENED
- * Sequential Mirror Fallback Strategy to bypass geographic (451) blocks.
+ * 24/7 PERFORMANCE SYNC ENGINE - GLOBAL BINANCE MIRROR STRATEGY
+ * Priority: Binance Global (Rest of World)
+ * Targeted to bypass 451 blocks by cycling through Global mirrors.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -22,13 +23,14 @@ export async function GET(request: NextRequest) {
   const { firestore } = initializeFirebase();
   const logsRef = collection(firestore, "logs");
   
-  // Sequential Mirrors to bypass geographic WAF blocks
+  // SEQUENTIAL MIRRORS FOR BINANCE GLOBAL (NOT US)
+  // api.binance.me is a primary circumvention mirror for global access.
   const spotMirrors = [
-    "https://api.binance.com",
-    "https://api1.binance.com",
-    "https://api2.binance.com",
+    "https://api.binance.me",
     "https://api3.binance.com",
-    "https://api.binance.me" // Primary mirror for restricted regions
+    "https://api2.binance.com",
+    "https://api1.binance.com",
+    "https://api.binance.com"
   ];
 
   const futuresMirrors = [
@@ -44,42 +46,41 @@ export async function GET(request: NextRequest) {
       headers: { 
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
         'Accept': 'application/json',
-        'Accept-Language': 'en-US,en;q=0.9',
         'Referer': 'https://www.binance.com/',
       }
     };
 
     let priceMap: Record<string, number> = {};
-    let errorLog = "";
+    let mirrorStatusLog = "";
 
-    // Sequential Fallback Fetcher
+    // Sequential Fallback Fetcher for Global Data
     const fetchWithFallback = async (mirrors: string[], endpoint: string) => {
       for (const baseUrl of mirrors) {
         try {
           const res = await fetch(`${baseUrl}${endpoint}`, fetchOptions);
           if (res.ok) {
             const data = await res.json();
-            if (Array.isArray(data)) return data;
-          } else {
-            errorLog += `[Mirror ${baseUrl.split('//')[1]} failed: ${res.status}] `;
+            if (Array.isArray(data)) return { data, source: baseUrl };
           }
+          mirrorStatusLog += `[${baseUrl.split('//')[1]}: ${res.status}] `;
         } catch (e) {
-          errorLog += `[Mirror ${baseUrl.split('//')[1]} error] `;
+          mirrorStatusLog += `[${baseUrl.split('//')[1]}: ERR] `;
         }
       }
       return null;
     };
 
-    const [futuresData, spotData] = await Promise.all([
+    const [futuresResult, spotResult] = await Promise.all([
       fetchWithFallback(futuresMirrors, "/fapi/v2/ticker/price"),
       fetchWithFallback(spotMirrors, "/api/v3/ticker/price")
     ]);
 
-    if (!futuresData && !spotData) {
-      throw new Error(`CRITICAL: All Binance mirrors returned 451 or failed. Details: ${errorLog}`);
+    if (!futuresResult && !spotResult) {
+      throw new Error(`CRITICAL: All Global Binance mirrors blocked (451/WAF). Status: ${mirrorStatusLog}`);
     }
 
-    [...(futuresData || []), ...(spotData || [])].forEach((p: any) => {
+    const allPrices = [...(futuresResult?.data || []), ...(spotResult?.data || [])];
+    allPrices.forEach((p: any) => {
       if (p.symbol && p.price) {
         priceMap[p.symbol.toUpperCase()] = parseFloat(p.price);
       }
@@ -115,6 +116,7 @@ export async function GET(request: NextRequest) {
       const stopLoss = Number(signal.stopLoss || 0);
       let newStatus = "ACTIVE";
 
+      // Apply Internal Stop Loss Lifecycle
       if (stopLoss > 0) {
         if (signal.type === 'BUY' && currentPrice <= stopLoss) newStatus = "INACTIVE";
         else if (signal.type === 'SELL' && currentPrice >= stopLoss) newStatus = "INACTIVE";
@@ -144,9 +146,9 @@ export async function GET(request: NextRequest) {
 
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
-      level: errorLog.includes("451") ? "WARN" : "INFO",
+      level: "INFO",
       message: `24/7 SYNC: ${updateCount} UPDATED`,
-      details: `Source: CRON-JOB.ORG\nStatus: ${updateCount} success, ${stoppedCount} stopped.\nMirrors: ${errorLog || 'All Healthy'}`,
+      details: `Exchange: Binance Global\nSource: ${futuresResult?.source || 'N/A'} (Futures), ${spotResult?.source || 'N/A'} (Spot)\nStatus: ${updateCount} updated, ${stoppedCount} stopped.`,
       webhookId: "SYSTEM_CRON",
     });
 
@@ -155,7 +157,7 @@ export async function GET(request: NextRequest) {
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
       level: "ERROR",
-      message: "Sync Failure",
+      message: "Sync Failure - Region Blocked",
       details: error.message,
       webhookId: "SYSTEM_CRON",
     });

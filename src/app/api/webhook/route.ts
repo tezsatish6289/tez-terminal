@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
     };
     const timeframe = tfMap[rawTf] || rawTf;
 
+    // MANDATORY INITIALIZATION: Every signal MUST start as ACTIVE
     const signalData = {
       webhookId,
       receivedAt: timestamp,
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
       exchange,
       assetType,
       type: signalType,
-      status: "ACTIVE", // This must be exactly "ACTIVE" for the Cron job to find it
+      status: "ACTIVE", // The Bridge initializes the lifecycle
       price: price, 
       stopLoss: stopLoss, 
       currentPrice: price, 

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { TopBar } from "@/components/dashboard/TopBar";
@@ -17,9 +16,10 @@ import {
   ArrowDownRight,
   ShieldCheck,
   Zap,
-  Info
+  Info,
+  Archive
 } from "lucide-react";
-import { format, differenceInMinutes, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -107,7 +107,7 @@ export default function AnalyticsPage() {
               <h1 className="text-3xl font-black text-white tracking-tighter uppercase">Closed Performance Node</h1>
            </div>
            <p className="text-muted-foreground text-sm max-w-2xl">
-             Quantitative review of signals retired from the live idea stream. Tracks win rate and execution accuracy.
+             Quantitative review of signals retired from the live idea stream. Tracks win rate and execution accuracy for Inactive signals.
            </p>
         </header>
 
@@ -197,8 +197,13 @@ export default function AnalyticsPage() {
                     <TableRow>
                       <TableCell colSpan={7} className="h-64 text-center">
                         <div className="flex flex-col items-center gap-4 opacity-40">
-                           <Activity className="h-12 w-12" />
-                           <p className="text-xs font-bold uppercase tracking-widest">No signals have been closed yet</p>
+                           <Archive className="h-12 w-12 text-muted-foreground" />
+                           <div className="space-y-1">
+                              <p className="text-xs font-bold uppercase tracking-widest text-white">No Inactive Signals Detected</p>
+                              <p className="text-[10px] text-muted-foreground max-w-xs mx-auto">
+                                Signals only appear here once they hit their **Stop Loss** level or are retired. All currently active ideas are visible in the main terminal.
+                              </p>
+                           </div>
                         </div>
                       </TableCell>
                     </TableRow>

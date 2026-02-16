@@ -110,12 +110,17 @@ export async function GET(request: NextRequest) {
       const stopLoss = Number(signal.stopLoss || 0);
       let newStatus = "ACTIVE";
 
+      // Check for Invalidation (Stop Loss)
       if (stopLoss > 0) {
-        if (signal.type === 'BUY' && currentPrice <= stopLoss) newStatus = "INACTIVE";
-        else if (signal.type === 'SELL' && currentPrice >= stopLoss) newStatus = "INACTIVE";
+        if (signal.type === 'BUY' && currentPrice <= stopLoss) {
+          newStatus = "INACTIVE";
+          stoppedCount++;
+        }
+        else if (signal.type === 'SELL' && currentPrice >= stopLoss) {
+          newStatus = "INACTIVE";
+          stoppedCount++;
+        }
       }
-
-      if (newStatus === "INACTIVE") stoppedCount++;
 
       let newMaxUpside = signal.maxUpsidePrice || alertPrice;
       let newMaxDrawdown = signal.maxDrawdownPrice || alertPrice;
@@ -144,6 +149,7 @@ export async function GET(request: NextRequest) {
 - Signals in DB: ${signalsSnap.size}
 - Active Filtered: ${activeInDB}
 - Successfully Synced: ${updateCount}
+- Stopped Out (Moved to Inactive): ${stoppedCount}
 ${errorLog ? `- ERRORS: ${errorLog}` : ''}
 ${failedSymbols.length > 0 ? `- Missing Tickers: ${failedSymbols.slice(0, 10).join(', ')}` : ''}`;
 
@@ -158,6 +164,7 @@ ${failedSymbols.length > 0 ? `- Missing Tickers: ${failedSymbols.slice(0, 10).jo
     return NextResponse.json({ 
       success: true, 
       updated: updateCount, 
+      stopped: stoppedCount,
       feed: { futures: futuresCount, spot: spotCount },
       isCron 
     });

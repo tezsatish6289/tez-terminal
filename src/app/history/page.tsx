@@ -33,7 +33,8 @@ import {
   Cpu,
   Monitor,
   MapPin,
-  ArrowRight
+  ArrowRight,
+  Github
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -206,53 +207,68 @@ export default function HistoryPage() {
                 <DialogTrigger asChild><Button variant="destructive" size="sm" className="gap-2 font-bold h-9"><Trash2 className="h-4 w-4" /> Purge History</Button></DialogTrigger>
                 <DialogContent className="bg-card border-border">
                   <DialogHeader><DialogTitle className="text-destructive flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> Confirm Purge</DialogTitle></DialogHeader>
-                  <Input placeholder="Type 'purge'..." value={purgeInput} onChange={(e) => setPurgeInput(e.target.value)} className="bg-background mt-4" />
-                  <DialogFooter className="mt-4"><Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button><Button variant="destructive" onClick={handlePurgeSignals} disabled={purgeInput.toLowerCase() !== "purge" || isPurging}>{isPurging && <Loader2 className="h-4 w-4 animate-spin mr-2" />} Confirm</Button></DialogFooter>
+                  <DialogContent className="p-0">
+                    <div className="p-6 space-y-4">
+                      <p className="text-sm text-muted-foreground">This will permanently delete all signal records. System logs will remain.</p>
+                      <Input placeholder="Type 'purge'..." value={purgeInput} onChange={(e) => setPurgeInput(e.target.value)} className="bg-background" />
+                    </div>
+                  </DialogContent>
+                  <DialogFooter className="p-6 pt-0"><Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button><Button variant="destructive" onClick={handlePurgeSignals} disabled={purgeInput.toLowerCase() !== "purge" || isPurging}>{isPurging && <Loader2 className="h-4 w-4 animate-spin mr-2" />} Confirm</Button></DialogFooter>
                 </DialogContent>
               </Dialog>
             )}
           </div>
 
-          {hasRegionBlock && (
+          {(hasRegionBlock || true) && (
             <Card className="bg-rose-500/10 border-rose-500/30 shadow-[0_0_30px_rgba(244,63,94,0.1)]">
                <CardHeader className="pb-3">
                   <div className="flex items-center gap-3">
                     <div className="bg-rose-500 p-2.5 rounded-xl border border-rose-400/20"><MapPin className="h-6 w-6 text-white" /></div>
                     <div>
-                       <CardTitle className="text-rose-400 text-xl font-black uppercase tracking-tighter">Server Migration Required (451)</CardTitle>
-                       <CardDescription className="text-rose-300/60 font-bold uppercase text-[10px] tracking-widest">Binance is blocking the current US-based hosting region.</CardDescription>
+                       <CardTitle className="text-rose-400 text-xl font-black uppercase tracking-tighter">Migration Command Center</CardTitle>
+                       <CardDescription className="text-rose-300/60 font-bold uppercase text-[10px] tracking-widest">Connect GitHub to move the terminal to Singapore/Mumbai region.</CardDescription>
                     </div>
                   </div>
                </CardHeader>
                <CardContent className="space-y-6 pt-2">
                   <div className="bg-black/40 p-5 rounded-2xl border border-rose-500/20 text-xs leading-relaxed space-y-4">
                      <p className="font-black text-rose-400 uppercase tracking-widest flex items-center gap-2">
-                       <ShieldAlert className="h-4 w-4" /> The Plan to Restore 24/7 Autonomy
+                       <ShieldAlert className="h-4 w-4" /> Fixing the "Empty Repository" List
                      </p>
                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-2">
-                           <p className="font-bold text-white uppercase text-[10px]">1. GitHub Prep</p>
-                           <p className="text-muted-foreground text-[10px]">Create a GitHub account and push this code to a repo named <span className="text-accent font-mono">tez-terminal</span>.</p>
+                           <div className="flex items-center gap-2">
+                             <div className="h-5 w-5 rounded-full bg-accent/20 flex items-center justify-center text-[10px] text-accent font-black">1</div>
+                             <p className="font-bold text-white uppercase text-[10px]">Create Repo</p>
+                           </div>
+                           <p className="text-muted-foreground text-[10px]">Go to <span className="text-accent font-mono">github.com/new</span> and create a repo named <span className="text-emerald-400 font-mono">tez-terminal</span>.</p>
                         </div>
                         <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-2">
-                           <p className="font-bold text-white uppercase text-[10px]">2. Delete Backend</p>
-                           <p className="text-muted-foreground text-[10px]">Go to Firebase App Hosting and delete the current US backend.</p>
+                           <div className="flex items-center gap-2">
+                             <div className="h-5 w-5 rounded-full bg-accent/20 flex items-center justify-center text-[10px] text-accent font-black">2</div>
+                             <p className="font-bold text-white uppercase text-[10px]">Push Code</p>
+                           </div>
+                           <p className="text-muted-foreground text-[10px]">Upload the files from this studio to your new GitHub repo.</p>
                         </div>
                         <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-2">
-                           <p className="font-bold text-white uppercase text-[10px]">3. Deploy Asia</p>
-                           <p className="text-muted-foreground text-[10px]">Create a new backend using <span className="text-emerald-400 font-mono">asia-south1</span> (Mumbai) pointed to your repo.</p>
+                           <div className="flex items-center gap-2">
+                             <div className="h-5 w-5 rounded-full bg-accent/20 flex items-center justify-center text-[10px] text-accent font-black">3</div>
+                             <p className="font-bold text-white uppercase text-[10px]">Asia Deploy</p>
+                           </div>
+                           <p className="text-muted-foreground text-[10px]">Select <span className="text-emerald-400 font-mono">asia-southeast1</span> (Singapore) in the Firebase Setup.</p>
                         </div>
                      </div>
-                     <p className="text-rose-300/60 text-[10px] font-medium italic">
-                       * Your data, signals, and login will NOT be lost during this move. Only the hosting region changes.
-                     </p>
+                     <div className="flex items-center gap-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                        <Github className="h-4 w-4 text-emerald-400" />
+                        <p className="text-[10px] text-emerald-300 font-medium">Your GitHub account <span className="font-bold">tezsatish6289</span> is connected. Just create the repo and the list will populate!</p>
+                     </div>
                   </div>
                   <div className="flex gap-4">
                      <Button onClick={handleClientSync} disabled={isClientSyncing} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase text-[10px] h-10 px-6 rounded-xl">
                         {isClientSyncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Monitor className="h-4 w-4 mr-2" />} Browser Override (Lucknow)
                      </Button>
                      <Button variant="outline" className="border-white/10 text-muted-foreground text-[10px] font-bold uppercase h-10 px-6 rounded-xl" asChild>
-                        <a href="https://console.firebase.google.com" target="_blank">Go to Firebase Console <ArrowRight className="h-3 w-3 ml-2" /></a>
+                        <a href="https://github.com/new" target="_blank">Create GitHub Repo <ExternalLink className="h-3 w-3 ml-2" /></a>
                      </Button>
                   </div>
                </CardContent>

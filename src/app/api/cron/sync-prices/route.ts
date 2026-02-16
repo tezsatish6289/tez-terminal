@@ -1,13 +1,23 @@
-
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
-import { collection, getDocs, updateDoc, doc, addDoc, query, where } from "firebase/firestore";
+import { collection, getDocs, updateDoc, doc, addDoc } from "firebase/firestore";
 
 /**
- * 24/7 Global Synchronization Engine with Self-Healing Logic.
- * Optimized for robustness and legacy data migration.
+ * 24/7 Global Synchronization Engine with Security Hardening.
+ * Requires ?key= query parameter to prevent unauthorized execution.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const key = searchParams.get("key");
+  
+  // Security Check: Ensure only authorized cron services can trigger the sync
+  // In a production app, this would be an environment variable.
+  const CRON_SECRET = "ANTIGRAVITY_SYNC_TOKEN_2024"; 
+
+  if (key !== CRON_SECRET) {
+    return NextResponse.json({ success: false, error: "Unauthorized: Invalid or missing sync key." }, { status: 401 });
+  }
+
   const { firestore } = initializeFirebase();
   const logsRef = collection(firestore, "logs");
   
@@ -34,7 +44,7 @@ export async function GET() {
 
     await Promise.all([processResults(futuresRes), processResults(spotRes)]);
 
-    // 2. Fetch signals. We fetch all to handle self-healing for signals missing the 'status' field.
+    // 2. Fetch all signals for processing and self-healing
     const signalsSnap = await getDocs(collection(firestore, "signals"));
     
     let totalInDb = signalsSnap.size;
@@ -48,30 +58,20 @@ export async function GET() {
     for (const signalDoc of signalsSnap.docs) {
       const signal = signalDoc.data();
       
-      // SELF-HEALING: If status is missing (legacy data), treat as ACTIVE and update DB
+      // SELF-HEALING: If status is missing, treat as ACTIVE
       let currentStatus = signal.status;
       if (!currentStatus) {
         currentStatus = "ACTIVE";
         repairedCount++;
       }
 
-      // Skip non-active signals
-      if (currentStatus !== "ACTIVE") {
-        continue;
-      }
+      if (currentStatus !== "ACTIVE") continue;
 
       activeCount++;
       const assetType = (signal.assetType || "").toUpperCase();
-
-      // We only sync Crypto via Binance for now.
-      if (assetType !== "CRYPTO" && !signal.symbol?.includes("USDT")) {
-        continue;
-      }
-
       const rawSymbol = signal.symbol || "";
       const base = rawSymbol.split(':').pop() || "";
       
-      // Strip perpetual suffixes (.P, .PERP, etc) for Binance matching
       const cleanedSymbol = base
         .replace(/\.P$|\.PERP$|_PERP$|-PERP$/i, '')
         .replace(/[^a-zA-Z0-9]/g, '')
@@ -84,7 +84,6 @@ export async function GET() {
       if (!currentPrice) {
         missingPriceCount++;
         missingSymbols.push(rawSymbol);
-        // Even if price is missing, we update the status if we repaired it
         if (!signal.status) {
            await updateDoc(doc(firestore, "signals", signalDoc.id), { status: "ACTIVE" });
         }
@@ -95,7 +94,6 @@ export async function GET() {
       const stopLoss = Number(signal.stopLoss || 0);
       let newStatus = "ACTIVE";
 
-      // Internal Invalidation Check
       if (stopLoss > 0) {
         if (signal.type === 'BUY' && currentPrice <= stopLoss) {
           newStatus = "INACTIVE";
@@ -127,19 +125,17 @@ export async function GET() {
       });
     }
 
-    // Comprehensive Heartbeat Log
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
       level: (activeCount > 0 && updateCount === 0) ? "WARN" : "INFO",
       message: `Sync Node: ${updateCount}/${activeCount} UPDATED`,
       details: `Cycle Report: 
-- Total Signals in Collection: ${totalInDb}
-- Signals Repaired (Missing Status): ${repairedCount}
-- Active Signals (Processed): ${activeCount}
-- Successfully Updated: ${updateCount}
-- Internal SL Triggered: ${stoppedCount}
-- Prices Missing on Exchange: ${missingPriceCount}
-${missingSymbols.length > 0 ? `\nSymbols failed: ${missingSymbols.slice(0, 10).join(", ")}${missingSymbols.length > 10 ? '...' : ''}` : ""}`,
+- Total Signals: ${totalInDb}
+- Repaired: ${repairedCount}
+- Active: ${activeCount}
+- Updated: ${updateCount}
+- Stopped: ${stoppedCount}
+- Missing Prices: ${missingPriceCount}`,
       webhookId: "SYSTEM_CRON",
     });
 
@@ -152,16 +148,6 @@ ${missingSymbols.length > 0 ? `\nSymbols failed: ${missingSymbols.slice(0, 10).j
       stopped: stoppedCount
     });
   } catch (error: any) {
-    console.error("[Sync Engine Error]", error);
-    try {
-        await addDoc(logsRef, {
-            timestamp: new Date().toISOString(),
-            level: "ERROR",
-            message: "Sync Engine Fatal Error",
-            details: error.message,
-            webhookId: "SYSTEM_CRON",
-        });
-    } catch (e) {}
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

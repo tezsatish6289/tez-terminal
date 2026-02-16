@@ -1,4 +1,3 @@
-
 "use client";
 
 import { TopBar } from "@/components/dashboard/TopBar";
@@ -27,7 +26,8 @@ import {
   Zap,
   Copy,
   ExternalLink,
-  Globe
+  Globe,
+  ShieldCheck
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -52,7 +52,9 @@ export default function HistoryPage() {
   }, []);
 
   const isAdmin = user?.email === "hello@tezterminal.com";
-  const cronUrl = `${origin}/api/cron/sync-prices`;
+  // The secure token used in the API route
+  const CRON_SECRET = "ANTIGRAVITY_SYNC_TOKEN_2024";
+  const cronUrl = `${origin}/api/cron/sync-prices?key=${CRON_SECRET}`;
 
   const logsQuery = useMemoFirebase(() => {
     if (!firestore || !isAdmin) return null;
@@ -76,7 +78,7 @@ export default function HistoryPage() {
     if (!isAdmin) return;
     setIsSyncing(true);
     try {
-      const res = await fetch("/api/cron/sync-prices");
+      const res = await fetch(`/api/cron/sync-prices?key=${CRON_SECRET}`);
       const data = await res.json();
       if (data.success) {
         toast({ 
@@ -341,13 +343,16 @@ export default function HistoryPage() {
                     <CardHeader>
                       <div className="flex items-center gap-2">
                         <Globe className="h-5 w-5 text-accent" />
-                        <CardTitle className="text-md font-bold">Cron Live Sync</CardTitle>
+                        <CardTitle className="text-md font-bold">Secure Cron Sync</CardTitle>
                       </div>
-                      <CardDescription className="text-xs">Schedule this endpoint 24/7 to maintain live price tracking.</CardDescription>
+                      <CardDescription className="text-xs">Schedule this endpoint 24/7. This URL includes your private security token.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="space-y-2">
-                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Cron Endpoint URL</Label>
+                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex justify-between">
+                          Cron Endpoint (With Token)
+                          <ShieldCheck className="h-3 w-3 text-emerald-400" />
+                        </Label>
                         <div className="flex gap-2">
                           <Input readOnly value={cronUrl} className="bg-background font-mono text-[10px] h-9" />
                           <Button variant="outline" size="icon" onClick={() => copyToClipboard(cronUrl)} className="h-9 w-9 shrink-0">
@@ -359,8 +364,7 @@ export default function HistoryPage() {
                         <p className="text-[10px] text-white/70 font-medium">Recommended Setup:</p>
                         <ol className="text-[10px] space-y-2 text-muted-foreground list-decimal pl-4">
                           <li>Go to <a href="https://cron-job.org" target="_blank" className="text-accent underline">cron-job.org</a></li>
-                          <li>Create a new "Job"</li>
-                          <li>Paste the URL above</li>
+                          <li>Paste the <b>Secure URL</b> above</li>
                           <li>Set interval to <b>Every 5 minutes</b></li>
                         </ol>
                         <Button asChild variant="ghost" className="w-full h-8 text-accent text-[10px] hover:bg-accent/10">

@@ -42,6 +42,12 @@ export default {
           DEFAULT: 'hsl(var(--accent))',
           foreground: 'hsl(var(--accent-foreground))',
         },
+        positive: {
+          DEFAULT: 'hsl(var(--positive))',
+        },
+        negative: {
+          DEFAULT: 'hsl(var(--negative))',
+        },
         destructive: {
           DEFAULT: 'hsl(var(--destructive))',
           foreground: 'hsl(var(--destructive-foreground))',

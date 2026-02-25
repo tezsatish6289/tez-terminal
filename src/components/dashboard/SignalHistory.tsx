@@ -352,7 +352,7 @@ export function SignalHistory() {
                           <Card 
                             key={signal.id} 
                             onClick={() => router.push(`/chart/${signal.id}`)}
-                            className="group bg-[#121214] border-white/5 hover:border-accent/40 transition-all duration-300 cursor-pointer shadow-2xl rounded-2xl flex flex-col w-[340px] shrink-0"
+                            className="group bg-[#121214] border-white/5 hover:border-accent/30 transition-all duration-300 cursor-pointer shadow-2xl rounded-2xl flex flex-col w-[340px] shrink-0"
                           >
                             <div className="p-6 border-b border-white/5 bg-white/[0.02]">
                               <div className="flex items-start justify-between">
@@ -360,7 +360,7 @@ export function SignalHistory() {
                                   <h3 className="text-2xl font-black text-white leading-none tracking-tighter uppercase mb-2">{signal.symbol}</h3>
                                   <span className="text-[10px] font-black text-accent uppercase tracking-widest">{getDisplayAssetType(signal)}</span>
                                 </div>
-                                <Badge className={cn("text-[10px] font-black border-none px-4 h-7 uppercase", isBullish ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400')}>
+                                <Badge className={cn("text-[10px] font-black border-none px-4 h-7 uppercase", isBullish ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative')}>
                                   {isBullish ? 'BULLISH' : 'BEARISH'}
                                 </Badge>
                               </div>
@@ -379,8 +379,8 @@ export function SignalHistory() {
                                     <p className="text-[10px] font-black text-accent uppercase tracking-widest">Current price</p>
                                     {hasCurrentPrice ? (
                                       <>
-                                        <p className={cn("text-lg font-mono font-black", Number(livePnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>${formatPrice(currentPrice)}</p>
-                                        <div className={cn("text-[10px] font-black", Number(livePnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>{livePnl}% PNL</div>
+                                        <p className={cn("text-lg font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>${formatPrice(currentPrice)}</p>
+                                        <div className={cn("text-[10px] font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>{livePnl}% PNL</div>
                                       </>
                                     ) : (
                                       <p className="text-sm font-mono text-muted-foreground">— Pending</p>
@@ -390,26 +390,26 @@ export function SignalHistory() {
 
                                <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest">
                                   <span>Last price fetch</span>
-                                  <span className={minutesSinceSync ? "text-accent/90" : "text-amber-500/90"}>{mounted && (minutesSinceSync ?? "Not synced yet")}</span>
+                                  <span className={minutesSinceSync ? "text-accent/80" : "text-amber-600/80"}>{mounted && (minutesSinceSync ?? "Not synced yet")}</span>
                                </div>
 
                                <div className="pt-4 border-t border-white/5 grid grid-cols-2 gap-4">
                                   <div className="flex items-center gap-3">
-                                     <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shrink-0">
-                                        <TrendingUp className="h-4 w-4 text-emerald-400" />
+                                     <div className="h-8 w-8 rounded-lg bg-positive/10 flex items-center justify-center border border-positive/20 shrink-0">
+                                        <TrendingUp className="h-4 w-4 text-positive" />
                                      </div>
                                      <div>
                                         <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Max Positive Move</p>
-                                        <p className="text-xs font-mono font-black text-emerald-400">+{maxUpPnl}%</p>
+                                        <p className="text-xs font-mono font-black text-positive">+{maxUpPnl}%</p>
                                      </div>
                                   </div>
                                   <div className="flex items-center gap-3 justify-end text-right">
                                      <div className="text-right">
                                         <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Max Negative Move</p>
-                                        <p className="text-xs font-mono font-black text-rose-400">{maxDownPnl}%</p>
+                                        <p className="text-xs font-mono font-black text-negative">{maxDownPnl}%</p>
                                      </div>
-                                     <div className="h-8 w-8 rounded-lg bg-rose-500/10 flex items-center justify-center border border-rose-500/20 shrink-0">
-                                        <TrendingDown className="h-4 w-4 text-rose-400" />
+                                     <div className="h-8 w-8 rounded-lg bg-negative/10 flex items-center justify-center border border-negative/20 shrink-0">
+                                        <TrendingDown className="h-4 w-4 text-negative" />
                                      </div>
                                   </div>
                                </div>

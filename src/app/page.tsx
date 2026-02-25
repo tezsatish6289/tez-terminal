@@ -96,7 +96,7 @@ export default function Home() {
               </h2>
               <div className="flex items-center gap-3">
                 <span className="text-[10px] text-muted-foreground font-mono uppercase">Full Node Stream</span>
-                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <div className="h-2 w-2 rounded-full bg-positive animate-pulse" />
               </div>
             </div>
             <div className="flex-1 min-h-0">

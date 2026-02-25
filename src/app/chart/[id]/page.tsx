@@ -135,7 +135,7 @@ export default function DeepDiveChartPage() {
                <div>
                   <h2 className="text-2xl font-black text-white leading-none uppercase tracking-tighter">{signal?.symbol}</h2>
                   <div className="flex items-center gap-2 mt-2">
-                     <Badge className={cn("text-[9px] h-4 font-bold px-1.5", signal?.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400')}>
+                     <Badge className={cn("text-[9px] h-4 font-bold px-1.5", signal?.type === 'BUY' ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative')}>
                         {signal?.type === 'BUY' ? 'BULLISH' : 'BEARISH'}
                      </Badge>
                      <div className="text-[10px] font-bold text-muted-foreground/60"><Timer className="h-3 w-3 inline mr-1" /> {differenceInMinutes(now, new Date(signal?.receivedAt))}m</div>
@@ -152,31 +152,31 @@ export default function DeepDiveChartPage() {
             
             <div className="flex flex-col gap-1">
               <span className="text-[10px] uppercase font-bold text-accent tracking-widest">Latest Live</span>
-              <span className={cn("text-xl font-mono font-black", Number(livePnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>${formatPrice(signal?.currentPrice)}</span>
-              <span className={cn("text-[10px] font-mono font-black", Number(livePnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>{livePnl}% PNL</span>
+              <span className={cn("text-xl font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>${formatPrice(signal?.currentPrice)}</span>
+              <span className={cn("text-[10px] font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>{livePnl}% PNL</span>
             </div>
 
             <div className="h-10 w-px bg-white/5" />
 
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase font-bold text-emerald-400/60 tracking-widest">Max Positive Move</span>
+              <span className="text-[10px] uppercase font-bold text-positive/80 tracking-widest">Max Positive Move</span>
               <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-emerald-400" />
-                <span className="text-xl font-mono font-bold text-emerald-400">+{maxUpPnl}%</span>
+                <TrendingUp className="h-4 w-4 text-positive" />
+                <span className="text-xl font-mono font-bold text-positive">+{maxUpPnl}%</span>
               </div>
             </div>
 
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase font-bold text-rose-400/60 tracking-widest">Max Negative Move</span>
+              <span className="text-[10px] uppercase font-bold text-negative/80 tracking-widest">Max Negative Move</span>
               <div className="flex items-center gap-2">
-                <TrendingDown className="h-4 w-4 text-rose-400" />
-                <span className="text-xl font-mono font-bold text-rose-400">{maxDownPnl}%</span>
+                <TrendingDown className="h-4 w-4 text-negative" />
+                <span className="text-xl font-mono font-bold text-negative">{maxDownPnl}%</span>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 h-6 px-3"><Zap className="h-3 w-3 mr-2 animate-pulse fill-emerald-400" /> LIVE NODE</Badge>
+            <Badge variant="outline" className="border-positive/30 text-positive h-6 px-3"><Zap className="h-3 w-3 mr-2 animate-pulse fill-positive" /> LIVE NODE</Badge>
             <Button onClick={handleAIAnalysis} disabled={isAnalyzing} className="bg-accent text-accent-foreground font-bold h-11 px-6">
               {isAnalyzing ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <BrainCircuit className="h-5 w-5 mr-2" />} Gemini AI Insight
             </Button>
@@ -224,16 +224,16 @@ export default function DeepDiveChartPage() {
                       <p className="text-xs text-white/70 leading-relaxed font-medium bg-white/5 p-3 rounded-lg">{analysis.technicalReasoning}</p>
                     </div>
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase"><ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />Risk Audit</div>
-                      <p className="text-xs text-white/70 leading-relaxed font-medium bg-emerald-500/5 p-3 rounded-lg border border-emerald-500/10">{analysis.riskAssessment}</p>
+                      <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase"><ShieldCheck className="h-3.5 w-3.5 text-positive" />Risk Audit</div>
+                      <p className="text-xs text-white/70 leading-relaxed font-medium bg-positive/5 p-3 rounded-lg border border-positive/10">{analysis.riskAssessment}</p>
                     </div>
                     <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/10">
-                       <div className="bg-rose-500/5 border border-rose-500/20 rounded-xl p-3">
-                          <div className="text-[9px] font-black text-rose-400 uppercase mb-1">Stop Loss</div>
+                       <div className="bg-negative/5 border border-negative/20 rounded-xl p-3">
+                          <div className="text-[9px] font-black text-negative uppercase mb-1">Stop Loss</div>
                           <div className="text-sm font-mono font-bold text-white">${formatPrice(analysis.suggestedStopLoss)}</div>
                        </div>
-                       <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">
-                          <div className="text-[9px] font-black text-emerald-400 uppercase mb-1">Take Profit</div>
+                       <div className="bg-positive/5 border border-positive/20 rounded-xl p-3">
+                          <div className="text-[9px] font-black text-positive uppercase mb-1">Take Profit</div>
                           <div className="text-sm font-mono font-bold text-white">${formatPrice(analysis.suggestedTakeProfit)}</div>
                        </div>
                     </div>

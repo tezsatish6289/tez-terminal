@@ -11,27 +11,31 @@
     --popover: 249 20% 8%;
     --popover-foreground: 210 20% 98%;
     --primary: 258 21% 24%;
-    --primary-foreground: 182 100% 75%;
+    --primary-foreground: 182 45% 65%;
     --secondary: 258 15% 15%;
     --secondary-foreground: 210 20% 98%;
     --muted: 258 15% 15%;
     --muted-foreground: 210 10% 70%;
-    --accent: 182 100% 75%;
+    /* Softer accent: less saturation, no neon */
+    --accent: 185 35% 58%;
     --accent-foreground: 249 20% 8%;
-    --destructive: 0 84% 60%;
+    --destructive: 0 50% 52%;
     --destructive-foreground: 210 20% 98%;
     --border: 258 21% 20%;
     --input: 258 21% 20%;
-    --ring: 182 100% 75%;
+    --ring: 185 35% 58%;
     --radius: 0.75rem;
+    /* Softer positive/negative for PNL, badges, moves */
+    --positive: 152 40% 52%;
+    --negative: 0 42% 52%;
     --sidebar-background: 249 20% 6%;
     --sidebar-foreground: 210 20% 90%;
-    --sidebar-primary: 182 100% 75%;
+    --sidebar-primary: 185 35% 58%;
     --sidebar-primary-foreground: 249 20% 8%;
     --sidebar-accent: 258 21% 24%;
-    --sidebar-accent-foreground: 182 100% 75%;
+    --sidebar-accent-foreground: 185 35% 58%;
     --sidebar-border: 258 21% 15%;
-    --sidebar-ring: 182 100% 75%;
+    --sidebar-ring: 185 35% 58%;
   }
 }
 
@@ -62,5 +66,5 @@
   border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #7df9ff;
+  background: hsl(185 35% 45%);
 }

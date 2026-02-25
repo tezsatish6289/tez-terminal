@@ -102,7 +102,7 @@ export function LeftSidebar() {
                 </div>
                 <div className={cn(
                   "text-[10px]",
-                  item.change.startsWith('+') ? "text-emerald-400" : "text-rose-400"
+                  item.change.startsWith('+') ? "text-positive" : "text-negative"
                 )}>
                   {item.change}
                 </div>

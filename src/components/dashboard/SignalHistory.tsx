@@ -17,7 +17,6 @@ import {
   Zap,
   BarChart3,
   Globe,
-  TrendingDown,
   Activity as PerformanceIcon
 } from "lucide-react";
 import { format, differenceInMinutes } from "date-fns";
@@ -380,7 +379,7 @@ export function SignalHistory() {
                                     {hasCurrentPrice ? (
                                       <>
                                         <p className={cn("text-lg font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>${formatPrice(currentPrice)}</p>
-                                        <div className={cn("text-[10px] font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>{livePnl}% PNL</div>
+                                        <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-black w-fit", Number(livePnl) >= 0 ? "bg-positive/25 text-positive" : "bg-negative/25 text-negative")}>{livePnl}% PNL</span>
                                       </>
                                     ) : (
                                       <p className="text-sm font-mono text-muted-foreground">— Pending</p>
@@ -393,25 +392,15 @@ export function SignalHistory() {
                                   <span className={minutesSinceSync ? "text-accent/80" : "text-amber-600/80"}>{mounted && (minutesSinceSync ?? "Not synced yet")}</span>
                                </div>
 
-                               {/* Key metrics: excursion highlight */}
-                               <div className="pt-4 mt-4 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-4 grid grid-cols-2 gap-4">
-                                  <div className="flex items-center gap-4">
-                                     <div className="h-11 w-11 rounded-xl bg-positive/15 flex items-center justify-center border border-positive/30 shrink-0 ring-1 ring-positive/10">
-                                        <TrendingUp className="h-6 w-6 text-positive" />
-                                     </div>
-                                     <div>
-                                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Max Positive Move</p>
-                                        <p className="text-lg font-mono font-black text-positive leading-none">+{maxUpPnl}%</p>
-                                     </div>
+                               {/* Max Positive / Max Negative — same treatment as deep-dive header */}
+                               <div className="pt-4 mt-4 grid grid-cols-2 gap-3">
+                                  <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-positive/10 border border-positive/20">
+                                    <span className="text-[9px] uppercase font-black text-positive/90 tracking-widest">Max Positive</span>
+                                    <span className="text-base font-mono font-black text-positive leading-none">+{maxUpPnl}%</span>
                                   </div>
-                                  <div className="flex items-center gap-4 justify-end text-right">
-                                     <div className="text-right">
-                                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Max Negative Move</p>
-                                        <p className="text-lg font-mono font-black text-negative leading-none">{maxDownPnl}%</p>
-                                     </div>
-                                     <div className="h-11 w-11 rounded-xl bg-negative/15 flex items-center justify-center border border-negative/30 shrink-0 ring-1 ring-negative/10">
-                                        <TrendingDown className="h-6 w-6 text-negative" />
-                                     </div>
+                                  <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-negative/10 border border-negative/20">
+                                    <span className="text-[9px] uppercase font-black text-negative/90 tracking-widest">Max Negative</span>
+                                    <span className="text-base font-mono font-black text-negative leading-none">{maxDownPnl}%</span>
                                   </div>
                                </div>
                             </CardContent>

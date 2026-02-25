@@ -133,21 +133,24 @@ export default function DeepDiveChartPage() {
 
           <div className="h-8 w-px bg-white/10 shrink-0" />
 
-          <div className="flex items-center gap-8 flex-1">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Entry</span>
-              <span className="text-lg font-mono font-bold text-foreground">${formatPrice(signal?.price)}</span>
+          <div className="flex items-center justify-evenly flex-1 min-w-0">
+            <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-white/5 border border-white/10 shrink-0">
+              <span className="text-[9px] uppercase font-black text-muted-foreground tracking-widest">Entry</span>
+              <span className="text-lg font-mono font-black text-foreground">${formatPrice(signal?.price)}</span>
             </div>
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Latest Live</span>
+            <div className={cn("flex flex-col gap-0.5 px-3 py-2 rounded-lg border shrink-0", Number(livePnl) >= 0 ? "bg-positive/10 border-positive/20" : "bg-negative/10 border-negative/20")}>
+              <span className={cn("text-[9px] uppercase font-black tracking-widest", Number(livePnl) >= 0 ? "text-positive/90" : "text-negative/90")}>Latest Live</span>
               <span className={cn("text-lg font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>${formatPrice(signal?.currentPrice)}</span>
-              <span className={cn("text-[10px] font-mono font-bold", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>{livePnl}% PNL</span>
             </div>
-            <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-positive/10 border border-positive/20">
+            <div className={cn("flex flex-col gap-0.5 px-3 py-2 rounded-lg border shrink-0", Number(livePnl) >= 0 ? "bg-positive/10 border-positive/20" : "bg-negative/10 border-negative/20")}>
+              <span className={cn("text-[9px] uppercase font-black tracking-widest", Number(livePnl) >= 0 ? "text-positive/90" : "text-negative/90")}>PNL</span>
+              <span className={cn("text-lg font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>{Number(livePnl) >= 0 ? "+" : ""}{livePnl}%</span>
+            </div>
+            <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-positive/10 border border-positive/20 shrink-0">
               <span className="text-[9px] uppercase font-black text-positive/90 tracking-widest">Max Positive</span>
               <span className="text-lg font-mono font-black text-positive">+{maxUpPnl}%</span>
             </div>
-            <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-negative/10 border border-negative/20">
+            <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-negative/10 border border-negative/20 shrink-0">
               <span className="text-[9px] uppercase font-black text-negative/90 tracking-widest">Max Negative</span>
               <span className="text-lg font-mono font-black text-negative">{maxDownPnl}%</span>
             </div>

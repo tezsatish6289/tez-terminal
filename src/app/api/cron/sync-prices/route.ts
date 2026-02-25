@@ -21,47 +21,41 @@ export async function GET(request: NextRequest) {
   const { firestore } = initializeFirebase();
   const logsRef = collection(firestore, "logs");
   
-  // High-availability Asian mirrors for Binance
-  const mirrors = [
-    "https://api.binance.com/api/v3/ticker/price",
-    "https://fapi.binance.com/fapi/v2/ticker/price",
-    "https://api1.binance.com/api/v3/ticker/price",
-    "https://api2.binance.com/api/v3/ticker/price",
-    "https://api3.binance.com/api/v3/ticker/price"
-  ];
+  const spotPriceMap: Record<string, number> = {};
+  const perpetualsPriceMap: Record<string, number> = {};
+  const fetchOptions = { cache: 'no-store' as RequestCache, headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' } };
+
+  const fillPriceMap = (data: any[], map: Record<string, number>) => {
+    if (!Array.isArray(data)) return;
+    data.forEach((p: any) => {
+      if (p.symbol && p.price) map[p.symbol.toUpperCase()] = parseFloat(p.price);
+    });
+  };
 
   try {
-    // Attempt to fetch from primary mirror
-    const res = await fetch(mirrors[0], { 
-      cache: 'no-store',
-      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' }
-    });
+    const spotUrl = "https://api.binance.com/api/v3/ticker/price";
+    const perpetualsUrl = "https://fapi.binance.com/fapi/v2/ticker/price";
 
-    if (!res.ok) {
-      throw new Error(`Mirror 0 blocked with status ${res.status}`);
-    }
+    const spotRes = await fetch(spotUrl, fetchOptions);
+    if (spotRes.ok) fillPriceMap(await spotRes.json(), spotPriceMap);
 
-    const data = await res.json();
-    const priceMap: Record<string, number> = {};
-
-    data.forEach((p: any) => {
-      if (p.symbol && p.price) {
-        priceMap[p.symbol.toUpperCase()] = parseFloat(p.price);
-      }
-    });
+    const perpetualsRes = await fetch(perpetualsUrl, fetchOptions);
+    if (perpetualsRes.ok) fillPriceMap(await perpetualsRes.json(), perpetualsPriceMap);
 
     const signalsSnap = await getDocs(collection(firestore, "signals"));
     let updateCount = 0;
-    
+
     for (const signalDoc of signalsSnap.docs) {
       const signal = signalDoc.data();
       if (signal.status !== "ACTIVE") continue;
 
-      const base = (signal.symbol || "").split(':').pop() || "";
-      const symbol = base.replace(/\.P$|\.PERP$/i, '').toUpperCase();
-      
-      const currentPrice = priceMap[symbol] || priceMap[symbol + "USDT"];
-      
+      const rawSymbol = (signal.symbol || "").split(':').pop() || "";
+      const isPerpetual = /\.P$|\.PERP$/i.test(rawSymbol);
+      const symbol = rawSymbol.replace(/\.P$|\.PERP$/i, '').toUpperCase();
+
+      const priceMap = isPerpetual ? perpetualsPriceMap : spotPriceMap;
+      const currentPrice = priceMap[symbol] ?? priceMap[symbol + "USDT"];
+
       if (!currentPrice) continue;
 
       const alertPrice = Number(signal.price);

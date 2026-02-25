@@ -4,8 +4,9 @@ import { initializeFirebase } from "@/firebase";
 import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
 
 /**
- * Production-Ready Ingestion Bridge.
- * Hardened to handle Stop Loss lifecycle and robust error logging.
+ * Webhook ingestion for TradingView alerts.
+ * Expects a fixed JSON payload (from Pine script):
+ *   ticker, side, exchange, timeframe, asset_type, note, price_at_alert, stopLoss, secretKey
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
@@ -50,27 +51,28 @@ export async function POST(request: NextRequest) {
       throw new Error(`Auth Failure: Secret key mismatch for bridge '${configData.name}'.`);
     }
 
-    // Normalize Data
-    const symbol = (body.ticker || body.symbol || body.pair || "UNKNOWN").toUpperCase();
-    const exchange = (body.exchange || body.market || "BINANCE").toUpperCase();
-    
-    const rawAt = (body.asset_type || body.assetType || body.category || "CRYPTO").toString().toUpperCase().trim();
+    // Fixed payload schema from Pine: ticker, side, exchange, timeframe, asset_type, note, price_at_alert, stopLoss, secretKey
+    const symbol = String(body.ticker ?? "UNKNOWN").toUpperCase();
+    const exchange = String(body.exchange ?? "BINANCE").toUpperCase();
+    const rawAt = String(body.asset_type ?? "CRYPTO").toUpperCase().trim();
     let assetType = "CRYPTO";
     if (rawAt.includes("INDIAN")) assetType = "INDIAN STOCKS";
     else if (rawAt.includes("US") || rawAt.includes("NASDAQ")) assetType = "US STOCKS";
 
-    let signalType = "NEUTRAL";
-    const rawSide = (body.side || body.action || body.type || "").toString().toLowerCase();
-    if (rawSide.includes("buy") || rawSide.includes("long")) signalType = "BUY";
-    if (rawSide.includes("sell") || rawSide.includes("short")) signalType = "SELL";
+    const rawSide = String(body.side ?? "").toLowerCase();
+    const signalType = rawSide.includes("sell") ? "SELL" : rawSide.includes("buy") ? "BUY" : "NEUTRAL";
 
-    const rawPrice = body.price ?? body.close ?? body.entry;
-    const price = rawPrice ? parseFloat(rawPrice.toString()) : 0;
+    const rawPrice = body.price_at_alert;
+    let price = 0;
+    if (rawPrice != null && rawPrice !== "") {
+      const parsed = parseFloat(String(rawPrice).trim());
+      if (!Number.isNaN(parsed)) price = parsed;
+    }
 
-    const rawSL = body.sl ?? body.stopLoss ?? body.stop_loss;
-    const stopLoss = rawSL ? parseFloat(rawSL.toString()) : 0;
-    
-    const rawTf = (body.timeframe || body.interval || "15").toString().toUpperCase().trim();
+    const rawSL = body.stopLoss;
+    const stopLoss = rawSL != null && rawSL !== "" ? parseFloat(String(rawSL).trim()) : 0;
+
+    const rawTf = String(body.timeframe ?? "15").toUpperCase().trim();
     const tfMap: Record<string, string> = {
       "1M": "1", "5M": "5", "15M": "15", "1H": "60", "4H": "240", "D": "D", "1D": "D"
     };

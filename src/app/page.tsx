@@ -73,6 +73,9 @@ export default function Home() {
             <p className="text-center text-xs text-muted-foreground px-6">
               Administrator login: <span className="text-accent font-mono">hello@tezterminal.com</span>
             </p>
+            <p className="text-center text-[10px] text-muted-foreground/70 px-6 pt-2">
+              If sign-in fails or pops up blank, try <a href="?auth=redirect" className="text-accent underline">?auth=redirect</a> or use an incognito window.
+            </p>
           </CardContent>
         </Card>
       </div>

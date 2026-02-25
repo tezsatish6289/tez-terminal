@@ -178,6 +178,17 @@ export function SignalHistory() {
     return `${mins}m`;
   };
 
+  const getMinutesSinceSync = (lastSyncAt: string | undefined) => {
+    if (!lastSyncAt) return null;
+    const synced = new Date(lastSyncAt);
+    const diffMins = differenceInMinutes(now, synced);
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const hours = Math.floor(diffMins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  };
+
   return (
     <div className="flex flex-col h-full bg-[#0a0a0c]">
       <div className="p-4 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
@@ -329,11 +340,13 @@ export function SignalHistory() {
                     ) : (
                       categorySignals.map((signal) => {
                         const alertPrice = Number(signal.price || 0);
-                        const currentPrice = signal.currentPrice ? Number(signal.currentPrice) : alertPrice;
+                        const hasCurrentPrice = signal.currentPrice != null && signal.currentPrice !== "";
+                        const currentPrice = hasCurrentPrice ? Number(signal.currentPrice) : alertPrice;
                         const livePnl = calculatePercent(currentPrice, alertPrice, signal.type);
                         const maxUpPnl = calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type);
                         const maxDownPnl = calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type);
                         const isBullish = signal.type === 'BUY';
+                        const minutesSinceSync = getMinutesSinceSync(signal.lastSyncAt);
 
                         return (
                           <Card 
@@ -359,14 +372,25 @@ export function SignalHistory() {
                             <CardContent className="p-6 space-y-6">
                                <div className="grid grid-cols-2 gap-6">
                                   <div className="space-y-2">
-                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Entry</p>
+                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Alert price</p>
                                     <p className="text-lg font-mono font-bold text-white">${formatPrice(alertPrice)}</p>
                                   </div>
                                   <div className="space-y-2 text-right">
-                                    <p className="text-[10px] font-black text-accent uppercase tracking-widest">Live</p>
-                                    <p className={cn("text-lg font-mono font-black", Number(livePnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>${formatPrice(currentPrice)}</p>
-                                    <div className={cn("text-[10px] font-black", Number(livePnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>{livePnl}% PNL</div>
+                                    <p className="text-[10px] font-black text-accent uppercase tracking-widest">Current price</p>
+                                    {hasCurrentPrice ? (
+                                      <>
+                                        <p className={cn("text-lg font-mono font-black", Number(livePnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>${formatPrice(currentPrice)}</p>
+                                        <div className={cn("text-[10px] font-black", Number(livePnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>{livePnl}% PNL</div>
+                                      </>
+                                    ) : (
+                                      <p className="text-sm font-mono text-muted-foreground">— Pending</p>
+                                    )}
                                   </div>
+                               </div>
+
+                               <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest">
+                                  <span>Last price fetch</span>
+                                  <span className={minutesSinceSync ? "text-accent/90" : "text-amber-500/90"}>{mounted && (minutesSinceSync ?? "Not synced yet")}</span>
                                </div>
 
                                <div className="pt-4 border-t border-white/5 grid grid-cols-2 gap-4">

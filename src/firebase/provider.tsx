@@ -4,7 +4,8 @@ import React, { DependencyList, createContext, useContext, ReactNode, useMemo, u
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
-import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
+import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
+import { handleRedirectResult, ensureAuthPersistence } from '@/firebase/non-blocking-login';
 
 interface FirebaseProviderProps {
   children: ReactNode;
@@ -67,27 +68,41 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     userError: null,
   });
 
-  // Effect to subscribe to Firebase auth state changes
+  // Effect: complete redirect sign-in first, then subscribe to auth state (avoids "bounce" to login)
   useEffect(() => {
-    if (!auth) { // If no Auth service instance, cannot determine user state
+    if (!auth) {
       setUserAuthState({ user: null, isUserLoading: false, userError: new Error("Auth service not provided.") });
       return;
     }
 
-    setUserAuthState({ user: null, isUserLoading: true, userError: null }); // Reset on auth instance change
+    setUserAuthState({ user: null, isUserLoading: true, userError: null });
 
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      (firebaseUser) => { // Auth state determined
-        setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
-      },
-      (error) => { // Auth listener error
-        console.error("FirebaseProvider: onAuthStateChanged error:", error);
-        setUserAuthState({ user: null, isUserLoading: false, userError: error });
-      }
-    );
-    return () => unsubscribe(); // Cleanup
-  }, [auth]); // Depends on the auth instance
+    let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
+
+    (async () => {
+      await ensureAuthPersistence(auth);
+      if (cancelled) return;
+      await handleRedirectResult(auth);
+      if (cancelled) return;
+
+      unsubscribe = onAuthStateChanged(
+        auth,
+        (firebaseUser) => {
+          if (!cancelled) setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
+        },
+        (error) => {
+          console.error("FirebaseProvider: onAuthStateChanged error:", error);
+          if (!cancelled) setUserAuthState({ user: null, isUserLoading: false, userError: error });
+        }
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [auth]);
 
   // Memoize the context value
   const contextValue = useMemo((): FirebaseContextState => {

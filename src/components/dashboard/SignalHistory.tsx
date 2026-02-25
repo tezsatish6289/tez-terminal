@@ -53,7 +53,7 @@ export function SignalHistory() {
   // Filtering States
   const [activeAssetType, setActiveAssetType] = useState<string | null>(null);
   const [selectedTimeframes, setSelectedTimeframes] = useState<string[]>(["5", "15", "60", "240", "D"]);
-  const [globalPerformanceFilter, setGlobalPerformanceFilter] = useState<string>("all");
+  const [globalPerformanceFilter, setGlobalPerformanceFilter] = useState<string>("working");
 
   // Initialization
   useEffect(() => {
@@ -215,7 +215,7 @@ export function SignalHistory() {
           {/* Analysis Filters Popover */}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 gap-2 border-white/10 bg-[#121214] hover:bg-white/5 text-muted-foreground hover:text-white rounded-xl px-4">
+              <Button variant="outline" size="sm" className="h-9 gap-2 border-white/10 bg-[#121214] hover:bg-white/5 text-muted-foreground hover:text-foreground rounded-xl px-4">
                 <Filter className="h-4 w-4 text-accent" />
                 <span className="text-[10px] font-black uppercase tracking-wider">Analysis Filters</span>
                 <ChevronDown className="h-3 w-3 opacity-50" />
@@ -239,7 +239,7 @@ export function SignalHistory() {
                       />
                       <Label 
                         htmlFor={`filter-${cat.id}`} 
-                        className="flex-1 text-xs font-bold text-white/70 group-hover:text-white transition-colors cursor-pointer flex justify-between items-center"
+                        className="flex-1 text-xs font-bold text-foreground/80 group-hover:text-foreground transition-colors cursor-pointer flex justify-between items-center"
                       >
                         <span className="uppercase tracking-wide">{cat.label} ENGINE</span>
                       </Label>
@@ -253,7 +253,7 @@ export function SignalHistory() {
           {/* Performance Filter Popover */}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 gap-2 border-white/10 bg-[#121214] hover:bg-white/5 text-muted-foreground hover:text-white rounded-xl px-4">
+              <Button variant="outline" size="sm" className="h-9 gap-2 border-white/10 bg-[#121214] hover:bg-white/5 text-muted-foreground hover:text-foreground rounded-xl px-4">
                 <PerformanceIcon className="h-4 w-4 text-accent" />
                 <span className="text-[10px] font-black uppercase tracking-wider">Performance Filter</span>
                 <ChevronDown className="h-3 w-3 opacity-50" />
@@ -276,7 +276,7 @@ export function SignalHistory() {
                       />
                       <Label 
                         htmlFor={`perf-${opt.value}`} 
-                        className="flex-1 text-xs font-bold text-white/70 group-hover:text-white transition-colors cursor-pointer uppercase tracking-wide"
+                        className="flex-1 text-xs font-bold text-foreground/80 group-hover:text-foreground transition-colors cursor-pointer uppercase tracking-wide"
                       >
                         {opt.label}
                       </Label>
@@ -322,7 +322,7 @@ export function SignalHistory() {
                         <SectionIcon className="h-6 w-6 text-accent" />
                       </div>
                       <div className="space-y-1.5">
-                        <h2 className="text-2xl font-black text-white uppercase tracking-tighter leading-none">
+                        <h2 className="text-2xl font-black text-foreground uppercase tracking-tighter leading-none">
                           {cat.title}
                         </h2>
                         <p className="text-[10px] font-black text-accent uppercase tracking-[0.4em] opacity-80">
@@ -357,7 +357,7 @@ export function SignalHistory() {
                             <div className="p-6 border-b border-white/5 bg-white/[0.02]">
                               <div className="flex items-start justify-between">
                                 <div className="flex flex-col">
-                                  <h3 className="text-2xl font-black text-white leading-none tracking-tighter uppercase mb-2">{signal.symbol}</h3>
+                                  <h3 className="text-2xl font-black text-foreground leading-none tracking-tighter uppercase mb-2">{signal.symbol}</h3>
                                   <span className="text-[10px] font-black text-accent uppercase tracking-widest">{getDisplayAssetType(signal)}</span>
                                 </div>
                                 <Badge className={cn("text-[10px] font-black border-none px-4 h-7 uppercase", isBullish ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative')}>
@@ -373,7 +373,7 @@ export function SignalHistory() {
                                <div className="grid grid-cols-2 gap-6">
                                   <div className="space-y-2">
                                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Alert price</p>
-                                    <p className="text-lg font-mono font-bold text-white">${formatPrice(alertPrice)}</p>
+                                    <p className="text-lg font-mono font-bold text-foreground">${formatPrice(alertPrice)}</p>
                                   </div>
                                   <div className="space-y-2 text-right">
                                     <p className="text-[10px] font-black text-accent uppercase tracking-widest">Current price</p>
@@ -415,7 +415,7 @@ export function SignalHistory() {
                                </div>
                             </CardContent>
                             <div className="px-6 py-4 border-t border-white/5 bg-white/[0.01] flex items-center justify-between group-hover:bg-accent/[0.05] transition-colors">
-                              <span className="text-[10px] font-black text-muted-foreground uppercase group-hover:text-white transition-colors">Analyze Chart</span>
+                              <span className="text-[10px] font-black text-muted-foreground uppercase group-hover:text-foreground transition-colors">Analyze Chart</span>
                               <LineChart className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
                             </div>
                           </Card>

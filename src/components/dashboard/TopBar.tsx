@@ -134,7 +134,7 @@ export function TopBar() {
                      <User className="h-4 w-4 text-accent" />
                    </div>
                    <div className="flex-1 overflow-hidden">
-                     <p className="text-xs font-medium truncate text-white">{isAdmin ? 'Turbo Admin' : 'Trader'}</p>
+                     <p className="text-xs font-medium truncate text-foreground">{isAdmin ? 'Turbo Admin' : 'Trader'}</p>
                      <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
                    </div>
                  </div>
@@ -180,7 +180,7 @@ export function TopBar() {
               <DropdownMenuLabel className="text-xs font-bold text-muted-foreground uppercase">Terminal Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <div className="px-2 py-1.5">
-                <p className="text-sm font-medium text-white truncate">{user?.displayName || 'Anonymous'}</p>
+                <p className="text-sm font-medium text-foreground truncate">{user?.displayName || 'Anonymous'}</p>
                 <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
               </div>
               <DropdownMenuSeparator />

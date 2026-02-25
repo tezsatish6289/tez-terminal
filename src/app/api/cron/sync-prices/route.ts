@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
 
     const signalsSnap = await getDocs(collection(firestore, "signals"));
     let updateCount = 0;
+    let skipCount = 0;
 
     for (const signalDoc of signalsSnap.docs) {
       const signal = signalDoc.data();
@@ -56,7 +57,17 @@ export async function GET(request: NextRequest) {
       const priceMap = isPerpetual ? perpetualsPriceMap : spotPriceMap;
       const currentPrice = priceMap[symbol] ?? priceMap[symbol + "USDT"];
 
-      if (!currentPrice) continue;
+      if (!currentPrice) {
+        skipCount++;
+        await addDoc(logsRef, {
+          timestamp: new Date().toISOString(),
+          level: "WARN",
+          message: "Symbol not in Binance feed",
+          details: `signalId=${signalDoc.id} symbol=${rawSymbol} normalized=${symbol} feed=${isPerpetual ? "perpetuals" : "spot"}`,
+          webhookId: "SYSTEM_CRON",
+        });
+        continue;
+      }
 
       const alertPrice = Number(signal.price);
       const stopLoss = Number(signal.stopLoss || 0);
@@ -93,11 +104,11 @@ export async function GET(request: NextRequest) {
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
       level: "INFO",
-      message: `ASIA SYNC SUCCESS: ${updateCount} ACTIVE`,
+      message: `ASIA SYNC: updated=${updateCount} skipped=${skipCount} (symbol not in Binance feed)`,
       webhookId: "SYSTEM_CRON",
     });
 
-    return NextResponse.json({ success: true, updated: updateCount });
+    return NextResponse.json({ success: true, updated: updateCount, skipped: skipCount });
   } catch (error: any) {
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),

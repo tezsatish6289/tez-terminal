@@ -133,7 +133,7 @@ export default function DeepDiveChartPage() {
             <div className="flex items-center gap-4">
                <div className="bg-primary/20 p-2 rounded-xl border border-white/5"><BarChart3 className="h-6 w-6 text-accent" /></div>
                <div>
-                  <h2 className="text-2xl font-black text-white leading-none uppercase tracking-tighter">{signal?.symbol}</h2>
+                  <h2 className="text-2xl font-black text-foreground leading-none uppercase tracking-tighter">{signal?.symbol}</h2>
                   <div className="flex items-center gap-2 mt-2">
                      <Badge className={cn("text-[9px] h-4 font-bold px-1.5", signal?.type === 'BUY' ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative')}>
                         {signal?.type === 'BUY' ? 'BULLISH' : 'BEARISH'}
@@ -147,7 +147,7 @@ export default function DeepDiveChartPage() {
           <div className="flex items-center gap-10 flex-1 justify-center">
             <div className="flex flex-col gap-1">
               <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Entry</span>
-              <span className="text-xl font-mono font-bold text-white">${formatPrice(signal?.price)}</span>
+              <span className="text-xl font-mono font-bold text-foreground">${formatPrice(signal?.price)}</span>
             </div>
             
             <div className="flex flex-col gap-1">
@@ -204,7 +204,7 @@ export default function DeepDiveChartPage() {
           <ScrollArea className="flex-1">
             <div className="p-6 space-y-6">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><BrainCircuit className="h-5 w-5 text-accent" /><h3 className="font-bold text-sm uppercase text-white">AI Analysis</h3></div>
+                <div className="flex items-center gap-2"><BrainCircuit className="h-5 w-5 text-accent" /><h3 className="font-bold text-sm uppercase text-foreground">AI Analysis</h3></div>
                 <Button variant="ghost" size="icon" onClick={() => setAnalysis(null)} className="h-6 w-6"><ChevronRight className="h-4 w-4" /></Button>
               </div>
               {isAnalyzing ? (
@@ -216,25 +216,25 @@ export default function DeepDiveChartPage() {
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
                   <div className="bg-accent/5 border border-accent/20 rounded-xl p-4">
                     <span className="text-[10px] font-bold text-accent uppercase mb-2 block">RECOMMENDATION</span>
-                    <div className="text-2xl font-black text-white uppercase">{analysis.recommendation}</div>
+                    <div className="text-2xl font-black text-foreground uppercase">{analysis.recommendation}</div>
                   </div>
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase"><Info className="h-3.5 w-3.5" />Technical Rationale</div>
-                      <p className="text-xs text-white/70 leading-relaxed font-medium bg-white/5 p-3 rounded-lg">{analysis.technicalReasoning}</p>
+                      <p className="text-xs text-foreground/80 leading-relaxed font-medium bg-white/5 p-3 rounded-lg">{analysis.technicalReasoning}</p>
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase"><ShieldCheck className="h-3.5 w-3.5 text-positive" />Risk Audit</div>
-                      <p className="text-xs text-white/70 leading-relaxed font-medium bg-positive/5 p-3 rounded-lg border border-positive/10">{analysis.riskAssessment}</p>
+                      <p className="text-xs text-foreground/80 leading-relaxed font-medium bg-positive/5 p-3 rounded-lg border border-positive/10">{analysis.riskAssessment}</p>
                     </div>
                     <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/10">
                        <div className="bg-negative/5 border border-negative/20 rounded-xl p-3">
                           <div className="text-[9px] font-black text-negative uppercase mb-1">Stop Loss</div>
-                          <div className="text-sm font-mono font-bold text-white">${formatPrice(analysis.suggestedStopLoss)}</div>
+                          <div className="text-sm font-mono font-bold text-foreground">${formatPrice(analysis.suggestedStopLoss)}</div>
                        </div>
                        <div className="bg-positive/5 border border-positive/20 rounded-xl p-3">
                           <div className="text-[9px] font-black text-positive uppercase mb-1">Take Profit</div>
-                          <div className="text-sm font-mono font-bold text-white">${formatPrice(analysis.suggestedTakeProfit)}</div>
+                          <div className="text-sm font-mono font-bold text-foreground">${formatPrice(analysis.suggestedTakeProfit)}</div>
                        </div>
                     </div>
                   </div>

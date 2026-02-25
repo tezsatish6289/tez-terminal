@@ -49,7 +49,7 @@ export default function Home() {
             <div className="bg-primary p-4 rounded-2xl border border-accent/20 inline-block mx-auto mb-6">
               <Zap className="h-10 w-10 text-accent fill-accent/20" />
             </div>
-            <CardTitle className="text-3xl font-bold tracking-tighter text-white">TezTerminal</CardTitle>
+            <CardTitle className="text-3xl font-bold tracking-tighter text-foreground">TezTerminal</CardTitle>
             <CardDescription className="text-base mt-2">
               India's Premier Antigravity Trading Hub. 
               Sign in with Google to access the live idea stream.

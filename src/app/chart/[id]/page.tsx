@@ -10,21 +10,14 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { 
   ChevronLeft, 
-  BarChart3, 
   Loader2,
   AlertTriangle,
   Timer,
-  TrendingUp,
   BrainCircuit,
   ShieldCheck,
-  Target,
   Info,
   ChevronRight,
-  ArrowUpRight,
-  ArrowDownRight,
-  Zap,
   ExternalLink,
-  TrendingDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -125,61 +118,39 @@ export default function DeepDiveChartPage() {
     <div className="flex flex-col h-screen bg-[#0a0a0c] text-foreground overflow-hidden">
       <TopBar />
       
-      {/* Dynamic Header Strip */}
+      {/* Header Strip: back, symbol + tag + time, then metrics */}
       <ScrollArea className="w-full bg-[#0a0a0c] border-b border-white/5 shrink-0 z-20">
-        <div className="h-24 flex items-center px-6 justify-between min-w-[1300px] gap-8">
-          <div className="flex items-center gap-6">
-            <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-muted-foreground"><ChevronLeft className="h-6 w-6" /></Button>
-            <div className="flex items-center gap-4">
-               <div className="bg-primary/20 p-2 rounded-xl border border-white/5"><BarChart3 className="h-6 w-6 text-accent" /></div>
-               <div>
-                  <h2 className="text-2xl font-black text-foreground leading-none uppercase tracking-tighter">{signal?.symbol}</h2>
-                  <div className="flex items-center gap-2 mt-2">
-                     <Badge className={cn("text-[9px] h-4 font-bold px-1.5", signal?.type === 'BUY' ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative')}>
-                        {signal?.type === 'BUY' ? 'BULLISH' : 'BEARISH'}
-                     </Badge>
-                     <div className="text-[10px] font-bold text-muted-foreground/60"><Timer className="h-3 w-3 inline mr-1" /> {differenceInMinutes(now, new Date(signal?.receivedAt))}m</div>
-                  </div>
-               </div>
-            </div>
+        <div className="h-20 flex items-center px-6 gap-8 min-w-[1000px]">
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-muted-foreground shrink-0"><ChevronLeft className="h-5 w-5" /></Button>
+
+          <div className="flex items-center gap-4 shrink-0">
+            <h2 className="text-xl font-black text-foreground leading-none uppercase tracking-tighter">{signal?.symbol}</h2>
+            <Badge className={cn("text-xs font-black px-3 py-1.5 uppercase tracking-wider", signal?.type === 'BUY' ? 'bg-positive/25 text-positive border border-positive/40' : 'bg-negative/25 text-negative border border-negative/40')}>
+              {signal?.type === 'BUY' ? 'BULLISH' : 'BEARISH'}
+            </Badge>
+            <span className="text-[10px] font-bold text-muted-foreground"><Timer className="h-3 w-3 inline mr-1" />{differenceInMinutes(now, new Date(signal?.receivedAt))}m</span>
           </div>
 
-          <div className="flex items-center gap-10 flex-1 justify-center">
-            <div className="flex flex-col gap-1">
+          <div className="h-8 w-px bg-white/10 shrink-0" />
+
+          <div className="flex items-center gap-8 flex-1">
+            <div className="flex flex-col gap-0.5">
               <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Entry</span>
-              <span className="text-xl font-mono font-bold text-foreground">${formatPrice(signal?.price)}</span>
+              <span className="text-lg font-mono font-bold text-foreground">${formatPrice(signal?.price)}</span>
             </div>
-            
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase font-bold text-accent tracking-widest">Latest Live</span>
-              <span className={cn("text-xl font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>${formatPrice(signal?.currentPrice)}</span>
-              <span className={cn("text-[10px] font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>{livePnl}% PNL</span>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Latest Live</span>
+              <span className={cn("text-lg font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>${formatPrice(signal?.currentPrice)}</span>
+              <span className={cn("text-[10px] font-mono font-bold", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>{livePnl}% PNL</span>
             </div>
-
-            <div className="h-10 w-px bg-white/5" />
-
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase font-bold text-positive/80 tracking-widest">Max Positive Move</span>
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-positive" />
-                <span className="text-xl font-mono font-bold text-positive">+{maxUpPnl}%</span>
-              </div>
+            <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-positive/10 border border-positive/20">
+              <span className="text-[9px] uppercase font-black text-positive/90 tracking-widest">Max Positive</span>
+              <span className="text-lg font-mono font-black text-positive">+{maxUpPnl}%</span>
             </div>
-
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase font-bold text-negative/80 tracking-widest">Max Negative Move</span>
-              <div className="flex items-center gap-2">
-                <TrendingDown className="h-4 w-4 text-negative" />
-                <span className="text-xl font-mono font-bold text-negative">{maxDownPnl}%</span>
-              </div>
+            <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-negative/10 border border-negative/20">
+              <span className="text-[9px] uppercase font-black text-negative/90 tracking-widest">Max Negative</span>
+              <span className="text-lg font-mono font-black text-negative">{maxDownPnl}%</span>
             </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="border-positive/30 text-positive h-6 px-3"><Zap className="h-3 w-3 mr-2 animate-pulse fill-positive" /> LIVE NODE</Badge>
-            <Button onClick={handleAIAnalysis} disabled={isAnalyzing} className="bg-accent text-accent-foreground font-bold h-11 px-6">
-              {isAnalyzing ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <BrainCircuit className="h-5 w-5 mr-2" />} Gemini AI Insight
-            </Button>
           </div>
         </div>
         <ScrollBar orientation="horizontal" />

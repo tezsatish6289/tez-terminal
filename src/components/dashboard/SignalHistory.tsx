@@ -393,23 +393,24 @@ export function SignalHistory() {
                                   <span className={minutesSinceSync ? "text-accent/80" : "text-amber-600/80"}>{mounted && (minutesSinceSync ?? "Not synced yet")}</span>
                                </div>
 
-                               <div className="pt-4 border-t border-white/5 grid grid-cols-2 gap-4">
-                                  <div className="flex items-center gap-3">
-                                     <div className="h-8 w-8 rounded-lg bg-positive/10 flex items-center justify-center border border-positive/20 shrink-0">
-                                        <TrendingUp className="h-4 w-4 text-positive" />
+                               {/* Key metrics: excursion highlight */}
+                               <div className="pt-4 mt-4 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-4 grid grid-cols-2 gap-4">
+                                  <div className="flex items-center gap-4">
+                                     <div className="h-11 w-11 rounded-xl bg-positive/15 flex items-center justify-center border border-positive/30 shrink-0 ring-1 ring-positive/10">
+                                        <TrendingUp className="h-6 w-6 text-positive" />
                                      </div>
                                      <div>
-                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Max Positive Move</p>
-                                        <p className="text-xs font-mono font-black text-positive">+{maxUpPnl}%</p>
+                                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Max Positive Move</p>
+                                        <p className="text-lg font-mono font-black text-positive leading-none">+{maxUpPnl}%</p>
                                      </div>
                                   </div>
-                                  <div className="flex items-center gap-3 justify-end text-right">
+                                  <div className="flex items-center gap-4 justify-end text-right">
                                      <div className="text-right">
-                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Max Negative Move</p>
-                                        <p className="text-xs font-mono font-black text-negative">{maxDownPnl}%</p>
+                                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Max Negative Move</p>
+                                        <p className="text-lg font-mono font-black text-negative leading-none">{maxDownPnl}%</p>
                                      </div>
-                                     <div className="h-8 w-8 rounded-lg bg-negative/10 flex items-center justify-center border border-negative/20 shrink-0">
-                                        <TrendingDown className="h-4 w-4 text-negative" />
+                                     <div className="h-11 w-11 rounded-xl bg-negative/15 flex items-center justify-center border border-negative/30 shrink-0 ring-1 ring-negative/10">
+                                        <TrendingDown className="h-6 w-6 text-negative" />
                                      </div>
                                   </div>
                                </div>

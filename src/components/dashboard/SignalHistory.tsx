@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, limit, orderBy } from "firebase/firestore";
 import { useRouter } from "next/navigation";
+import { getLeverage, getLeverageLabel } from "@/lib/leverage";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -328,6 +329,8 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                         const hasCurrentPrice = signal.currentPrice != null && signal.currentPrice !== "";
                         const currentPrice = hasCurrentPrice ? Number(signal.currentPrice) : alertPrice;
                         const livePnl = calculatePercent(currentPrice, alertPrice, signal.type);
+                        const leverage = getLeverage(signal.timeframe);
+                        const leveragedPnl = (Number(livePnl) * leverage).toFixed(2);
                         const maxUpPnl = calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type);
                         const maxDownPnl = calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type);
                         const isBullish = signal.type === 'BUY';
@@ -382,8 +385,11 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                                <div className="flex flex-col gap-3 pt-2">
                                  {hasCurrentPrice && (
                                    <div className="w-full rounded-lg border bg-white/5 border-white/10 px-4 py-2 flex items-center justify-between gap-4">
-                                     <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Live PNL</span>
-                                     <span className={cn("text-base font-mono font-bold", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>{Number(livePnl) >= 0 ? "+" : ""}{livePnl}%</span>
+                                     <div className="flex flex-col">
+                                       <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Live PNL</span>
+                                       <span className="text-[9px] uppercase font-bold tracking-wider text-accent/70">Leverage: {leverage}x</span>
+                                     </div>
+                                     <span className={cn("text-base font-mono font-bold", Number(leveragedPnl) >= 0 ? "text-positive" : "text-negative")}>{Number(leveragedPnl) >= 0 ? "+" : ""}{leveragedPnl}%</span>
                                    </div>
                                  )}
                                  <div className="grid grid-cols-2 gap-3 w-full">

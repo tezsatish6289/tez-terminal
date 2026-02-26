@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { getLeverage, getLeverageLabel } from "@/lib/leverage";
 
 const OPPORTUNITY_CATEGORIES = [
   { id: "5", name: "Scalping", chart: "5 min", windowHours: 24, windowLabel: "in 24h", leverage: "10x" },
@@ -96,11 +97,13 @@ function formatNarrationPrice(price: number | null | undefined): string {
 function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal | null; open: boolean; onClose: () => void }) {
   if (!signal) return null;
 
+  const leverage = getLeverage(signal.timeframe);
   const isBullish = signal.type === "BUY";
   const direction = isBullish ? "bullish" : "bearish";
   const directionLabel = isBullish ? "LONG" : "SHORT";
   const maxUpPnl = calculatePercent(signal.maxUpsidePrice, signal.price, signal.type);
   const maxDownPnl = calculatePercent(signal.maxDrawdownPrice, signal.price, signal.type);
+  const leveragedPnl = signal.pnl * leverage;
   const slDistance = signal.stopLoss ? calculatePercent(signal.stopLoss, signal.price, signal.type) : null;
 
   const hasMaxUpside = signal.maxUpsidePrice != null && signal.maxUpsidePrice > 0;
@@ -152,9 +155,12 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
             </div>
 
             <div className="rounded-lg border bg-white/5 border-white/10 px-4 py-2.5 flex items-center justify-between">
-              <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Live PNL</span>
-              <span className={cn("text-xl font-mono font-black", signal.pnl >= 0 ? "text-positive" : "text-negative")}>
-                {signal.pnl >= 0 ? "+" : ""}{signal.pnl.toFixed(2)}%
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Live PNL</span>
+                <span className="text-[9px] uppercase font-bold tracking-wider text-accent/70">Leverage: {leverage}x</span>
+              </div>
+              <span className={cn("text-xl font-mono font-black", leveragedPnl >= 0 ? "text-positive" : "text-negative")}>
+                {leveragedPnl >= 0 ? "+" : ""}{leveragedPnl.toFixed(2)}%
               </span>
             </div>
 
@@ -245,9 +251,9 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
                 </div>
                 <p className="text-sm text-muted-foreground leading-relaxed pl-7">
                   Currently trading at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.currentPrice)}</span>, delivering{" "}
-                  <span className={cn("font-mono font-black text-base", signal.pnl >= 0 ? "text-positive" : "text-negative")}>
-                    {signal.pnl >= 0 ? "+" : ""}{signal.pnl.toFixed(2)}%
-                  </span>{" "}returns.
+                  <span className={cn("font-mono font-black text-base", leveragedPnl >= 0 ? "text-positive" : "text-negative")}>
+                    {leveragedPnl >= 0 ? "+" : ""}{leveragedPnl.toFixed(2)}%
+                  </span>{" "}returns at <span className="font-bold text-accent">{leverage}x</span> leverage.
                 </p>
               </div>
             </div>
@@ -258,7 +264,7 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
   );
 }
 
-function WinnersTicker({ winners, windowLabel, onSelect }: { winners: WinnerSignal[]; windowLabel: string; onSelect: (w: WinnerSignal) => void }) {
+function WinnersTicker({ winners, windowLabel, leverage, onSelect }: { winners: WinnerSignal[]; windowLabel: string; leverage: number; onSelect: (w: WinnerSignal) => void }) {
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
@@ -301,7 +307,7 @@ function WinnersTicker({ winners, windowLabel, onSelect }: { winners: WinnerSign
         className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-amber-500/[0.05] transition-colors cursor-pointer"
       >
         <span className="text-xs font-bold text-foreground uppercase tracking-wider truncate">{winner.symbol}</span>
-        <span className="text-base font-black font-mono text-amber-400 animate-pulse">+{winner.pnl.toFixed(2)}%</span>
+        <span className="text-base font-black font-mono text-amber-400 animate-pulse">+{(winner.pnl * leverage).toFixed(2)}%</span>
       </button>
     </div>
   );
@@ -490,7 +496,7 @@ export default function Home() {
                         </div>
                       </CardHeader>
                       <CardContent className="pt-4 space-y-5">
-                        <WinnersTicker winners={topWinners[cat.id] ?? []} windowLabel={cat.windowLabel} onSelect={setSelectedWinner} />
+                        <WinnersTicker winners={topWinners[cat.id] ?? []} windowLabel={cat.windowLabel} leverage={getLeverage(cat.id)} onSelect={setSelectedWinner} />
                         <div className="space-y-3">
                           <div className="flex items-center gap-2">
                             <TrendingUp className="h-4 w-4 text-positive" />

@@ -25,6 +25,7 @@ import { analyzeSignal, type AnalyzeSignalOutput } from "@/ai/flows/analyze-sign
 import { Progress } from "@/components/ui/progress";
 import { format, differenceInMinutes } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { getLeverage } from "@/lib/leverage";
 
 /**
  * Deep Dive Analysis Page.
@@ -109,6 +110,8 @@ export default function DeepDiveChartPage() {
   }
 
   const livePnl = calculatePercent(signal?.currentPrice, signal?.price, signal?.type || "BUY");
+  const leverage = getLeverage(signal?.timeframe);
+  const leveragedPnl = (Number(livePnl) * leverage).toFixed(2);
   const maxUpPnl = calculatePercent(signal?.maxUpsidePrice, signal?.price, signal?.type || "BUY");
   const maxDownPnl = calculatePercent(signal?.maxDrawdownPrice, signal?.price, signal?.type || "BUY");
   
@@ -142,9 +145,12 @@ export default function DeepDiveChartPage() {
               <span className={cn("text-[9px] uppercase font-black tracking-widest", Number(livePnl) >= 0 ? "text-positive/90" : "text-negative/90")}>Latest Live</span>
               <span className={cn("text-lg font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>${formatPrice(signal?.currentPrice)}</span>
             </div>
-            <div className={cn("flex flex-col gap-0.5 px-3 py-2 rounded-lg border shrink-0", Number(livePnl) >= 0 ? "bg-positive/10 border-positive/20" : "bg-negative/10 border-negative/20")}>
-              <span className={cn("text-[9px] uppercase font-black tracking-widest", Number(livePnl) >= 0 ? "text-positive/90" : "text-negative/90")}>PNL</span>
-              <span className={cn("text-lg font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>{Number(livePnl) >= 0 ? "+" : ""}{livePnl}%</span>
+            <div className={cn("flex flex-col gap-0.5 px-3 py-2 rounded-lg border shrink-0", Number(leveragedPnl) >= 0 ? "bg-positive/10 border-positive/20" : "bg-negative/10 border-negative/20")}>
+              <div className="flex items-center gap-2">
+                <span className={cn("text-[9px] uppercase font-black tracking-widest", Number(leveragedPnl) >= 0 ? "text-positive/90" : "text-negative/90")}>PNL</span>
+                <span className="text-[8px] uppercase font-bold tracking-wider text-accent/70">{leverage}x</span>
+              </div>
+              <span className={cn("text-lg font-mono font-black", Number(leveragedPnl) >= 0 ? "text-positive" : "text-negative")}>{Number(leveragedPnl) >= 0 ? "+" : ""}{leveragedPnl}%</span>
             </div>
             <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-positive/10 border border-positive/20 shrink-0">
               <span className="text-[9px] uppercase font-black text-positive/90 tracking-widest">Max Positive</span>

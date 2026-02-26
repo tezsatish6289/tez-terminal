@@ -160,32 +160,32 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <div className="h-5 w-5 rounded-full bg-accent/20 flex items-center justify-center text-[9px] font-black text-accent">1</div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-accent">The Call</span>
+                  <div className="h-5 w-5 rounded-full bg-amber-400/10 flex items-center justify-center text-[9px] font-black text-amber-400/70">1</div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-400/70">The Call</span>
                 </div>
                 <p className="text-sm text-muted-foreground leading-relaxed pl-7">
-                  TezTerminal identified a <span className={cn("font-bold", isBullish ? "text-positive" : "text-negative")}>{direction}</span> opportunity on{" "}
+                  TezTerminal identified a <span className="font-bold text-foreground">{direction}</span> opportunity on{" "}
                   <span className="font-bold text-foreground">{signal.symbol}</span> at{" "}
                   <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.price)}</span> on{" "}
-                  <span className="text-foreground">{entryDate}</span>.
+                  <span className="font-bold text-foreground">{entryDate}</span>.
                 </p>
               </div>
 
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <div className="h-5 w-5 rounded-full bg-accent/20 flex items-center justify-center text-[9px] font-black text-accent">2</div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-accent">The Journey</span>
+                  <div className="h-5 w-5 rounded-full bg-amber-400/10 flex items-center justify-center text-[9px] font-black text-amber-400/70">2</div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-400/70">The Journey</span>
                 </div>
                 <p className="text-sm text-muted-foreground leading-relaxed pl-7">
                   {hasMaxUpside ? (
-                    <>Since entry, price surged to a peak of <span className="font-mono font-bold text-positive">${formatNarrationPrice(signal.maxUpsidePrice)}</span>{" "}
-                    (<span className="font-bold text-positive">+{maxUpPnl.toFixed(2)}%</span> max favorable excursion)</>
+                    <>Since entry, price surged to a peak of <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.maxUpsidePrice)}</span>{" "}
+                    (<span className="font-mono font-bold text-foreground">+{maxUpPnl.toFixed(2)}%</span> max favorable excursion)</>
                   ) : (
                     <>Peak upside data is still being tracked</>
                   )}
                   {hasMaxDrawdown ? (
-                    <>, while the deepest pullback was to <span className="font-mono font-bold text-negative">${formatNarrationPrice(signal.maxDrawdownPrice)}</span>{" "}
-                    (<span className="font-bold text-negative">{maxDownPnl.toFixed(2)}%</span>).</>
+                    <>, while the deepest pullback was to <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.maxDrawdownPrice)}</span>{" "}
+                    (<span className="font-mono font-bold text-foreground">{maxDownPnl.toFixed(2)}%</span>).</>
                   ) : (
                     <>. Drawdown data is still being tracked.</>
                   )}
@@ -195,25 +195,21 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
               {hasStopLoss && (
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
-                    <div className="h-5 w-5 rounded-full bg-accent/20 flex items-center justify-center text-[9px] font-black text-accent">3</div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-accent">Risk Discipline</span>
+                    <div className="h-5 w-5 rounded-full bg-amber-400/10 flex items-center justify-center text-[9px] font-black text-amber-400/70">3</div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-400/70">Risk Discipline</span>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed pl-7">
                     Stop loss was set at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.stopLoss)}</span>{" "}
-                    (<span className="font-mono text-foreground">{slDistance?.toFixed(2)}%</span> from entry).{" "}
-                    {slWasThreatened ? (
-                      <span className="text-amber-400 font-bold">The stop zone was tested during the trade.</span>
-                    ) : (
-                      <span className="text-positive font-bold">It was never threatened.</span>
-                    )}
+                    (<span className="font-mono font-bold text-foreground">{slDistance?.toFixed(2)}%</span> from entry).{" "}
+                    <span className="font-bold text-foreground">{slWasThreatened ? "The stop zone was tested during the trade." : "It was never threatened."}</span>
                   </p>
                 </div>
               )}
 
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <div className="h-5 w-5 rounded-full bg-positive/20 flex items-center justify-center text-[9px] font-black text-positive">{hasStopLoss ? "4" : "3"}</div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-positive">The Result</span>
+                  <div className="h-5 w-5 rounded-full bg-amber-400/10 flex items-center justify-center text-[9px] font-black text-amber-400/70">{hasStopLoss ? "4" : "3"}</div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-400/70">The Result</span>
                 </div>
                 <p className="text-sm text-muted-foreground leading-relaxed pl-7">
                   Currently trading at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.currentPrice)}</span>, delivering{" "}

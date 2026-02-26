@@ -118,41 +118,50 @@ export default function DeepDiveChartPage() {
     <div className="flex flex-col h-screen bg-[#0a0a0c] text-foreground overflow-hidden">
       <TopBar />
       
-      {/* Header Strip: back, symbol + tag + time, then metrics */}
+      {/* Header Strip: back, symbol + tag + time, then metrics; PNL box centered above Max Positive/Negative */}
       <ScrollArea className="w-full bg-[#0a0a0c] border-b border-white/5 shrink-0 z-20">
-        <div className="h-20 flex items-center px-6 gap-8 min-w-[1000px]">
-          <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-muted-foreground shrink-0"><ChevronLeft className="h-5 w-5" /></Button>
+        <div className="min-w-[1000px] px-6 pb-4">
+          {/* Row 1: back, symbol, Entry, Latest Live */}
+          <div className="h-16 flex items-center gap-8">
+            <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-muted-foreground shrink-0"><ChevronLeft className="h-5 w-5" /></Button>
 
-          <div className="flex items-center gap-4 shrink-0">
-            <h2 className="text-xl font-black text-foreground leading-none uppercase tracking-tighter">{signal?.symbol}</h2>
-            <Badge className={cn("text-xs font-black px-3 py-1.5 uppercase tracking-wider", signal?.type === 'BUY' ? 'bg-positive/25 text-positive border border-positive/40' : 'bg-negative/25 text-negative border border-negative/40')}>
-              {signal?.type === 'BUY' ? 'BULLISH' : 'BEARISH'}
-            </Badge>
-            <span className="text-[10px] font-bold text-muted-foreground"><Timer className="h-3 w-3 inline mr-1" />{differenceInMinutes(now, new Date(signal?.receivedAt))}m</span>
+            <div className="flex items-center gap-4 shrink-0">
+              <h2 className="text-xl font-black text-foreground leading-none uppercase tracking-tighter">{signal?.symbol}</h2>
+              <Badge className={cn("text-xs font-black px-3 py-1.5 uppercase tracking-wider", signal?.type === 'BUY' ? 'bg-positive/25 text-positive border border-positive/40' : 'bg-negative/25 text-negative border border-negative/40')}>
+                {signal?.type === 'BUY' ? 'BULLISH' : 'BEARISH'}
+              </Badge>
+              <span className="text-[10px] font-bold text-muted-foreground"><Timer className="h-3 w-3 inline mr-1" />{differenceInMinutes(now, new Date(signal?.receivedAt))}m</span>
+            </div>
+
+            <div className="h-8 w-px bg-white/10 shrink-0" />
+
+            <div className="flex items-center gap-6 flex-1 min-w-0">
+              <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-white/5 border border-white/10 shrink-0">
+                <span className="text-[9px] uppercase font-black text-muted-foreground tracking-widest">Entry</span>
+                <span className="text-lg font-mono font-black text-foreground">${formatPrice(signal?.price)}</span>
+              </div>
+              <div className={cn("flex flex-col gap-0.5 px-3 py-2 rounded-lg border shrink-0", Number(livePnl) >= 0 ? "bg-positive/10 border-positive/20" : "bg-negative/10 border-negative/20")}>
+                <span className={cn("text-[9px] uppercase font-black tracking-widest", Number(livePnl) >= 0 ? "text-positive/90" : "text-negative/90")}>Latest Live</span>
+                <span className={cn("text-lg font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>${formatPrice(signal?.currentPrice)}</span>
+              </div>
+            </div>
           </div>
 
-          <div className="h-8 w-px bg-white/10 shrink-0" />
-
-          <div className="flex items-center justify-evenly flex-1 min-w-0">
-            <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-white/5 border border-white/10 shrink-0">
-              <span className="text-[9px] uppercase font-black text-muted-foreground tracking-widest">Entry</span>
-              <span className="text-lg font-mono font-black text-foreground">${formatPrice(signal?.price)}</span>
+          {/* Row 2: centered PNL box above Max Positive / Max Negative */}
+          <div className="flex flex-col items-center gap-3">
+            <div className={cn("rounded-xl border-2 px-6 py-3 min-w-[140px] text-center", Number(livePnl) >= 0 ? "bg-positive/15 border-positive/40" : "bg-negative/15 border-negative/40")}>
+              <span className={cn("text-[10px] uppercase font-black tracking-widest block mb-1", Number(livePnl) >= 0 ? "text-positive/90" : "text-negative/90")}>PNL</span>
+              <span className={cn("text-2xl font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>{Number(livePnl) >= 0 ? "+" : ""}{livePnl}%</span>
             </div>
-            <div className={cn("flex flex-col gap-0.5 px-3 py-2 rounded-lg border shrink-0", Number(livePnl) >= 0 ? "bg-positive/10 border-positive/20" : "bg-negative/10 border-negative/20")}>
-              <span className={cn("text-[9px] uppercase font-black tracking-widest", Number(livePnl) >= 0 ? "text-positive/90" : "text-negative/90")}>Latest Live</span>
-              <span className={cn("text-lg font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>${formatPrice(signal?.currentPrice)}</span>
-            </div>
-            <div className={cn("flex flex-col gap-0.5 px-3 py-2 rounded-lg border shrink-0", Number(livePnl) >= 0 ? "bg-positive/10 border-positive/20" : "bg-negative/10 border-negative/20")}>
-              <span className={cn("text-[9px] uppercase font-black tracking-widest", Number(livePnl) >= 0 ? "text-positive/90" : "text-negative/90")}>PNL</span>
-              <span className={cn("text-lg font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>{Number(livePnl) >= 0 ? "+" : ""}{livePnl}%</span>
-            </div>
-            <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-positive/10 border border-positive/20 shrink-0">
-              <span className="text-[9px] uppercase font-black text-positive/90 tracking-widest">Max Positive</span>
-              <span className="text-lg font-mono font-black text-positive">+{maxUpPnl}%</span>
-            </div>
-            <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-negative/10 border border-negative/20 shrink-0">
-              <span className="text-[9px] uppercase font-black text-negative/90 tracking-widest">Max Negative</span>
-              <span className="text-lg font-mono font-black text-negative">{maxDownPnl}%</span>
+            <div className="flex items-center gap-4">
+              <div className="flex flex-col gap-0.5 px-4 py-2.5 rounded-lg bg-positive/10 border border-positive/20 shrink-0">
+                <span className="text-[9px] uppercase font-black text-positive/90 tracking-widest">Max Positive</span>
+                <span className="text-lg font-mono font-black text-positive">+{maxUpPnl}%</span>
+              </div>
+              <div className="flex flex-col gap-0.5 px-4 py-2.5 rounded-lg bg-negative/10 border border-negative/20 shrink-0">
+                <span className="text-[9px] uppercase font-black text-negative/90 tracking-widest">Max Negative</span>
+                <span className="text-lg font-mono font-black text-negative">{maxDownPnl}%</span>
+              </div>
             </div>
           </div>
         </div>

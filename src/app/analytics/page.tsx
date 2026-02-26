@@ -325,10 +325,10 @@ export default function AnalyticsPage() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-4">
-                               <div className="flex items-center gap-1 font-mono text-xs font-bold text-emerald-400/60">
+                               <div className="flex items-center gap-1 font-mono text-xs font-bold text-emerald-400">
                                   <ArrowUpRight className="h-3 w-3" /> {maxUp.toFixed(1)}%
                                </div>
-                               <div className="flex items-center gap-1 font-mono text-xs font-bold text-rose-400/60">
+                               <div className="flex items-center gap-1 font-mono text-xs font-bold text-rose-400">
                                   <ArrowDownRight className="h-3 w-3" /> {maxDown.toFixed(1)}%
                                </div>
                             </div>

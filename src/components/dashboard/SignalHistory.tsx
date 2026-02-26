@@ -392,9 +392,9 @@ export function SignalHistory() {
                                {/* PNL box centered above Max Positive / Max Negative */}
                                <div className="flex flex-col items-center gap-3 pt-2">
                                  {hasCurrentPrice && (
-                                   <div className={cn("rounded-xl border-2 px-5 py-2.5 min-w-[120px] text-center", Number(livePnl) >= 0 ? "bg-positive/15 border-positive/40" : "bg-negative/15 border-negative/40")}>
-                                     <span className={cn("text-[10px] uppercase font-black tracking-widest block mb-0.5", Number(livePnl) >= 0 ? "text-positive/90" : "text-negative/90")}>PNL</span>
-                                     <span className={cn("text-xl font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>{Number(livePnl) >= 0 ? "+" : ""}{livePnl}%</span>
+                                   <div className={cn("rounded-lg border px-4 py-2 min-w-[140px] flex items-center justify-between gap-4", Number(livePnl) >= 0 ? "bg-positive/10 border-positive/20" : "bg-negative/10 border-negative/20")}>
+                                     <span className={cn("text-[10px] uppercase font-black tracking-widest", Number(livePnl) >= 0 ? "text-positive/80" : "text-negative/80")}>Live PNL</span>
+                                     <span className={cn("text-base font-mono font-bold", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>{Number(livePnl) >= 0 ? "+" : ""}{livePnl}%</span>
                                    </div>
                                  )}
                                  <div className="grid grid-cols-2 gap-3 w-full">

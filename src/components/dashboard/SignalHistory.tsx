@@ -343,7 +343,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                             onClick={() => router.push(`/chart/${signal.id}`)}
                             className={cn(
                               "group bg-[#121214] border-white/5 hover:border-accent/30 transition-all duration-300 cursor-pointer shadow-2xl rounded-2xl flex flex-col",
-                              hideFilters ? "w-full" : "w-[340px] shrink-0"
+                              hideFilters ? "w-full" : "w-[340px] min-h-[540px] shrink-0"
                             )}
                           >
                             <div className="px-5 py-4 border-b border-white/5 bg-white/[0.02]">

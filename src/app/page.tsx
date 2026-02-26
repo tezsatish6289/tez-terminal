@@ -255,13 +255,16 @@ function WinnersTicker({ winners, windowLabel, onSelect }: { winners: WinnerSign
 
   if (winners.length === 0) {
     return (
-      <div className="rounded-lg border border-amber-500/10 bg-amber-500/[0.03] px-4 py-3">
-        <div className="flex items-center gap-2">
+      <div className="rounded-lg border border-amber-500/10 bg-amber-500/[0.03]">
+        <div className="flex items-center gap-1.5 px-4 py-2 border-b border-amber-500/5">
           <Trophy className="h-3.5 w-3.5 text-amber-500/40" />
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Top Winning Trades</span>
-            <span className="text-[9px] text-muted-foreground/30 uppercase tracking-wider">No winners {windowLabel}</span>
+            <span className="text-[9px] text-muted-foreground/30 uppercase tracking-wider">{windowLabel}</span>
           </div>
+        </div>
+        <div className="px-4 py-2.5 text-center">
+          <span className="text-[10px] text-muted-foreground/30 uppercase tracking-wider">No winners yet</span>
         </div>
       </div>
     );

@@ -47,10 +47,26 @@ function getMarketSentiment(bullWin: number, bullLose: number, bearWin: number, 
   const bearTotal = bearWin + bearLose;
   if (bullTotal + bearTotal < 2) return { label: "No clear winner", color: "text-muted-foreground" };
 
-  const bullRate = bullTotal > 0 ? bullWin / bullTotal : 0;
-  const bearRate = bearTotal > 0 ? bearWin / bearTotal : 0;
-  const gap = bullRate - bearRate;
+  const bullRate = bullTotal > 0 ? bullWin / bullTotal : -1;
+  const bearRate = bearTotal > 0 ? bearWin / bearTotal : -1;
 
+  // One side has no trades — infer from the other side's performance
+  if (bearTotal === 0 && bullTotal > 0) {
+    if (bullRate >= 0.65) return { label: "Bulls in control", color: "text-positive" };
+    if (bullRate >= 0.50) return { label: "Bulls taking over", color: "text-positive/70" };
+    if (bullRate < 0.30) return { label: "Bears in control", color: "text-negative" };
+    if (bullRate < 0.45) return { label: "Bears taking over", color: "text-negative/70" };
+    return { label: "No clear winner", color: "text-muted-foreground" };
+  }
+  if (bullTotal === 0 && bearTotal > 0) {
+    if (bearRate >= 0.65) return { label: "Bears in control", color: "text-negative" };
+    if (bearRate >= 0.50) return { label: "Bears taking over", color: "text-negative/70" };
+    if (bearRate < 0.30) return { label: "Bulls in control", color: "text-positive" };
+    if (bearRate < 0.45) return { label: "Bulls taking over", color: "text-positive/70" };
+    return { label: "No clear winner", color: "text-muted-foreground" };
+  }
+
+  const gap = bullRate - bearRate;
   if (gap > 0.25) return { label: "Bulls in control", color: "text-positive" };
   if (gap > 0.10) return { label: "Bulls taking over", color: "text-positive/70" };
   if (gap < -0.25) return { label: "Bears in control", color: "text-negative" };

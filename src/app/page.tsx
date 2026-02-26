@@ -452,7 +452,7 @@ export default function Home() {
       <main className="flex-1 flex flex-col min-w-0 h-full">
         <TopBar />
         <div className="flex-1 overflow-y-auto">
-          <div className="px-4 py-6 md:py-8 space-y-8">
+          <div className="pl-16 pr-4 py-6 md:py-8 max-w-6xl space-y-8">
 
             <div>
               <h1 className="text-xl font-black tracking-tight">Opportunity Finder</h1>

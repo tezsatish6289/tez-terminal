@@ -377,10 +377,7 @@ export function SignalHistory() {
                                   <div className="space-y-2 text-right">
                                     <p className="text-[10px] font-black text-accent uppercase tracking-widest">Current price</p>
                                     {hasCurrentPrice ? (
-                                      <>
-                                        <p className={cn("text-lg font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>${formatPrice(currentPrice)}</p>
-                                        <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-black w-fit", Number(livePnl) >= 0 ? "bg-positive/25 text-positive" : "bg-negative/25 text-negative")}>{livePnl}% PNL</span>
-                                      </>
+                                      <p className={cn("text-lg font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>${formatPrice(currentPrice)}</p>
                                     ) : (
                                       <p className="text-sm font-mono text-muted-foreground">— Pending</p>
                                     )}
@@ -392,16 +389,24 @@ export function SignalHistory() {
                                   <span className={minutesSinceSync ? "text-accent/80" : "text-amber-600/80"}>{mounted && (minutesSinceSync ?? "Not synced yet")}</span>
                                </div>
 
-                               {/* Max Positive / Max Negative — same treatment as deep-dive header */}
-                               <div className="pt-4 mt-4 grid grid-cols-2 gap-3">
-                                  <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-positive/10 border border-positive/20">
-                                    <span className="text-[9px] uppercase font-black text-positive/90 tracking-widest">Max Positive</span>
-                                    <span className="text-base font-mono font-black text-positive leading-none">+{maxUpPnl}%</span>
-                                  </div>
-                                  <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-negative/10 border border-negative/20">
-                                    <span className="text-[9px] uppercase font-black text-negative/90 tracking-widest">Max Negative</span>
-                                    <span className="text-base font-mono font-black text-negative leading-none">{maxDownPnl}%</span>
-                                  </div>
+                               {/* PNL box centered above Max Positive / Max Negative */}
+                               <div className="flex flex-col items-center gap-3 pt-2">
+                                 {hasCurrentPrice && (
+                                   <div className={cn("rounded-xl border-2 px-5 py-2.5 min-w-[120px] text-center", Number(livePnl) >= 0 ? "bg-positive/15 border-positive/40" : "bg-negative/15 border-negative/40")}>
+                                     <span className={cn("text-[10px] uppercase font-black tracking-widest block mb-0.5", Number(livePnl) >= 0 ? "text-positive/90" : "text-negative/90")}>PNL</span>
+                                     <span className={cn("text-xl font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>{Number(livePnl) >= 0 ? "+" : ""}{livePnl}%</span>
+                                   </div>
+                                 )}
+                                 <div className="grid grid-cols-2 gap-3 w-full">
+                                   <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-positive/10 border border-positive/20">
+                                     <span className="text-[9px] uppercase font-black text-positive/90 tracking-widest">Max Positive</span>
+                                     <span className="text-base font-mono font-black text-positive leading-none">+{maxUpPnl}%</span>
+                                   </div>
+                                   <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-negative/10 border border-negative/20">
+                                     <span className="text-[9px] uppercase font-black text-negative/90 tracking-widest">Max Negative</span>
+                                     <span className="text-base font-mono font-black text-negative leading-none">{maxDownPnl}%</span>
+                                   </div>
+                                 </div>
                                </div>
                             </CardContent>
                             <div className="px-6 py-4 border-t border-white/5 bg-white/[0.01] flex items-center justify-between group-hover:bg-accent/[0.05] transition-colors">

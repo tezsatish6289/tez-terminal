@@ -6,12 +6,12 @@ import { useUser, useAuth } from "@/firebase";
 import { useSearchParams } from "next/navigation";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Zap, Loader2, Chrome } from "lucide-react";
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-export default function TerminalPage() {
+function TerminalContent() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const searchParams = useSearchParams();
@@ -101,5 +101,13 @@ export default function TerminalPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function TerminalPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-accent" /></div>}>
+      <TerminalContent />
+    </Suspense>
   );
 }

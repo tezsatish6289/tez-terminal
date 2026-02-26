@@ -454,9 +454,9 @@ export default function Home() {
         <div className="flex-1 overflow-y-auto">
           <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-8">
 
-            <div className="rounded-xl border border-white/10 bg-card/50 px-6 py-5 text-center">
+            <div>
               <h1 className="text-xl font-black tracking-tight">Opportunity Finder</h1>
-              <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
+              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
                 Live-tracked crypto signals across Scalping, Intraday, BTST, Swing, and Buy &amp; Hold timeframes. Click any card to explore.
               </p>
             </div>

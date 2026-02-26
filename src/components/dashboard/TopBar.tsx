@@ -55,11 +55,7 @@ export function TopBar() {
   return (
     <header className="h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 w-full">
       <div className="relative flex h-full items-center px-4 justify-between gap-4">
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none">
-          <span className="font-black text-lg text-accent tracking-tight leading-tight">TezTerminal.com</span>
-          <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Find Winning Opportunities</span>
-        </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="text-accent hover:bg-accent/10">
@@ -143,6 +139,10 @@ export function TopBar() {
               </div>
             </SheetContent>
           </Sheet>
+          <div className="flex flex-col">
+            <span className="font-black text-lg text-accent tracking-tight leading-tight">TezTerminal.com</span>
+            <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Find Winning Opportunities</span>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">

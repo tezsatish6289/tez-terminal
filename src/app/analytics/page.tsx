@@ -6,24 +6,17 @@ import { collection, query, orderBy, limit } from "firebase/firestore";
 import { 
   TrendingUp, 
   TrendingDown, 
-  Target, 
-  Activity, 
   BarChart3, 
   Loader2, 
   History,
-  Clock,
   ArrowUpRight,
   ArrowDownRight,
-  ShieldCheck,
-  Zap,
-  Info,
   Archive
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useMemo } from "react";
 
@@ -47,38 +40,66 @@ export default function AnalyticsPage() {
   const { data: allSignals, isLoading } = useCollection(signalsQuery);
 
   const calculatePercent = (exit: number | undefined, entry: number, type: string) => {
-    if (!exit || !entry) return 0;
+    if (exit == null || entry == null || entry === 0) return 0;
     const diff = type === 'BUY' ? exit - entry : entry - exit;
     return (diff / entry) * 100;
   };
+
+  const median = (arr: number[]) => {
+    if (arr.length === 0) return 0;
+    const sorted = [...arr].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  };
+
+  const hasUpsideData = (s: { maxUpsidePrice?: number | null }) =>
+    s.maxUpsidePrice != null && s.maxUpsidePrice !== undefined;
+  const hasDownsideData = (s: { maxDrawdownPrice?: number | null }) =>
+    s.maxDrawdownPrice != null && s.maxDrawdownPrice !== undefined;
 
   const closedSignals = useMemo(() => {
     if (!allSignals) return [];
     return allSignals.filter(s => s.status === "INACTIVE");
   }, [allSignals]);
 
-  const stats = useMemo(() => {
-    if (closedSignals.length === 0) return { winRate: 0, totalPnl: 0, avgPnl: 0, best: 0, worst: 0 };
-    
-    let wins = 0;
-    let totalPnl = 0;
-    let best = -Infinity;
-    let worst = Infinity;
+  const sideStats = useMemo(() => {
+    const bullish = closedSignals.filter(s => s.type === "BUY");
+    const bearish = closedSignals.filter(s => s.type === "SELL");
 
-    closedSignals.forEach(s => {
-      const pnl = calculatePercent(s.currentPrice, s.price, s.type);
-      if (pnl > 0) wins++;
-      totalPnl += pnl;
-      if (pnl > best) best = pnl;
-      if (pnl < worst) worst = pnl;
-    });
+    const computeUpsideStats = (signals: typeof closedSignals) => {
+      const withUpside = signals.filter(hasUpsideData);
+      if (withUpside.length === 0) return { count: 0, max: 0, median: 0, avg: 0 };
+      const values = withUpside.map(s => calculatePercent(s.maxUpsidePrice, s.price, s.type));
+      return {
+        count: withUpside.length,
+        max: Math.max(...values),
+        median: median(values),
+        avg: values.reduce((a, b) => a + b, 0) / values.length
+      };
+    };
+    const computeDownsideStats = (signals: typeof closedSignals) => {
+      const withDownside = signals.filter(hasDownsideData);
+      if (withDownside.length === 0) return { count: 0, max: 0, median: 0, avg: 0 };
+      const values = withDownside.map(s => calculatePercent(s.maxDrawdownPrice, s.price, s.type));
+      return {
+        count: withDownside.length,
+        max: Math.min(...values),
+        median: median(values),
+        avg: values.reduce((a, b) => a + b, 0) / values.length
+      };
+    };
 
     return {
-      winRate: (wins / closedSignals.length) * 100,
-      totalPnl,
-      avgPnl: totalPnl / closedSignals.length,
-      best: best === -Infinity ? 0 : best,
-      worst: worst === Infinity ? 0 : worst
+      bullish: {
+        count: bullish.length,
+        profit: computeUpsideStats(bullish),
+        loss: computeDownsideStats(bullish)
+      },
+      bearish: {
+        count: bearish.length,
+        profit: computeUpsideStats(bearish),
+        loss: computeDownsideStats(bearish)
+      }
     };
   }, [closedSignals]);
 
@@ -111,58 +132,124 @@ export default function AnalyticsPage() {
            </p>
         </header>
 
-        {/* Aggregate Metrics Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="bg-card/50 border-white/5 shadow-xl">
-             <CardHeader className="pb-2">
-               <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                 <Target className="h-3 w-3 text-accent" /> Sample Size
-               </CardDescription>
-               <CardTitle className="text-4xl font-black text-white font-mono">{closedSignals.length}</CardTitle>
-             </CardHeader>
-             <CardContent>
-                <div className="text-[10px] font-bold text-accent uppercase">Retired Trades</div>
-             </CardContent>
-          </Card>
-
-          <Card className="bg-card/50 border-white/5 shadow-xl">
-             <CardHeader className="pb-2">
-               <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                 <ShieldCheck className="h-3 w-3 text-emerald-400" /> Success Rate
-               </CardDescription>
-               <CardTitle className="text-4xl font-black text-emerald-400 font-mono">{stats.winRate.toFixed(1)}%</CardTitle>
-             </CardHeader>
-             <CardContent>
-                <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden mt-1">
-                   <div className="h-full bg-emerald-500" style={{ width: `${stats.winRate}%` }} />
+        {/* Bullish / Bearish sections — in-trade excursion stats (signals without data excluded) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Bullish (BUY) */}
+          <Card className="bg-card/50 border-white/5 shadow-xl border-emerald-500/20">
+            <CardHeader className="pb-3 border-b border-white/5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-emerald-500/20 p-2 rounded-xl"><TrendingUp className="h-5 w-5 text-emerald-400" /></div>
+                  <div>
+                    <CardTitle className="text-lg font-black text-white uppercase tracking-tighter">Bullish</CardTitle>
+                    <CardDescription className="text-[10px] font-bold text-muted-foreground uppercase">BUY · In-trade max upside / max downside</CardDescription>
+                  </div>
                 </div>
-             </CardContent>
+                <div className="text-right">
+                  <div className="text-2xl font-black font-mono text-white">{sideStats.bullish.count}</div>
+                  <div className="text-[10px] font-bold text-accent uppercase">Retired Trades</div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Max profit</div>
+                  <div className={cn("text-xl font-black font-mono", sideStats.bullish.profit.max >= 0 ? "text-emerald-400" : "text-white")}>
+                    {sideStats.bullish.profit.count ? `${sideStats.bullish.profit.max >= 0 ? '+' : ''}${sideStats.bullish.profit.max.toFixed(2)}%` : "--"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Median profit</div>
+                  <div className={cn("text-xl font-black font-mono", sideStats.bullish.profit.median >= 0 ? "text-emerald-400" : "text-white")}>
+                    {sideStats.bullish.profit.count ? `${sideStats.bullish.profit.median >= 0 ? '+' : ''}${sideStats.bullish.profit.median.toFixed(2)}%` : "--"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Avg profit</div>
+                  <div className={cn("text-xl font-black font-mono", sideStats.bullish.profit.avg >= 0 ? "text-emerald-400" : "text-white")}>
+                    {sideStats.bullish.profit.count ? `${sideStats.bullish.profit.avg >= 0 ? '+' : ''}${sideStats.bullish.profit.avg.toFixed(2)}%` : "--"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Max loss</div>
+                  <div className="text-xl font-black font-mono text-rose-400">
+                    {sideStats.bullish.loss.count ? `${sideStats.bullish.loss.max.toFixed(2)}%` : "--"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Median loss</div>
+                  <div className="text-xl font-black font-mono text-rose-400">
+                    {sideStats.bullish.loss.count ? `${sideStats.bullish.loss.median.toFixed(2)}%` : "--"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Avg loss</div>
+                  <div className="text-xl font-black font-mono text-rose-400">
+                    {sideStats.bullish.loss.count ? `${sideStats.bullish.loss.avg.toFixed(2)}%` : "--"}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
           </Card>
 
-          <Card className="bg-card/50 border-white/5 shadow-xl">
-             <CardHeader className="pb-2">
-               <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                 <Activity className="h-3 w-3 text-accent" /> Mean Return
-               </CardDescription>
-               <CardTitle className={cn("text-4xl font-black font-mono", stats.avgPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                 {stats.avgPnl >= 0 ? '+' : ''}{stats.avgPnl.toFixed(2)}%
-               </CardTitle>
-             </CardHeader>
-             <CardContent>
-                <div className="text-[10px] font-bold text-muted-foreground uppercase">Average Profit/Trade</div>
-             </CardContent>
-          </Card>
-
-          <Card className="bg-card/50 border-white/5 shadow-xl">
-             <CardHeader className="pb-2">
-               <CardDescription className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                 <Zap className="h-3 w-3 text-amber-400" /> Extreme Move
-               </CardDescription>
-               <CardTitle className="text-4xl font-black text-white font-mono">{stats.best.toFixed(1)}%</CardTitle>
-             </CardHeader>
-             <CardContent>
-                <div className="text-[10px] font-bold text-emerald-400 uppercase">Max Observed Upside</div>
-             </CardContent>
+          {/* Bearish (SELL) */}
+          <Card className="bg-card/50 border-white/5 shadow-xl border-rose-500/20">
+            <CardHeader className="pb-3 border-b border-white/5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-rose-500/20 p-2 rounded-xl"><TrendingDown className="h-5 w-5 text-rose-400" /></div>
+                  <div>
+                    <CardTitle className="text-lg font-black text-white uppercase tracking-tighter">Bearish</CardTitle>
+                    <CardDescription className="text-[10px] font-bold text-muted-foreground uppercase">SELL · In-trade max upside / max downside</CardDescription>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-black font-mono text-white">{sideStats.bearish.count}</div>
+                  <div className="text-[10px] font-bold text-accent uppercase">Retired Trades</div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Max profit</div>
+                  <div className={cn("text-xl font-black font-mono", sideStats.bearish.profit.max >= 0 ? "text-emerald-400" : "text-white")}>
+                    {sideStats.bearish.profit.count ? `${sideStats.bearish.profit.max >= 0 ? '+' : ''}${sideStats.bearish.profit.max.toFixed(2)}%` : "--"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Median profit</div>
+                  <div className={cn("text-xl font-black font-mono", sideStats.bearish.profit.median >= 0 ? "text-emerald-400" : "text-white")}>
+                    {sideStats.bearish.profit.count ? `${sideStats.bearish.profit.median >= 0 ? '+' : ''}${sideStats.bearish.profit.median.toFixed(2)}%` : "--"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Avg profit</div>
+                  <div className={cn("text-xl font-black font-mono", sideStats.bearish.profit.avg >= 0 ? "text-emerald-400" : "text-white")}>
+                    {sideStats.bearish.profit.count ? `${sideStats.bearish.profit.avg >= 0 ? '+' : ''}${sideStats.bearish.profit.avg.toFixed(2)}%` : "--"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Max loss</div>
+                  <div className="text-xl font-black font-mono text-rose-400">
+                    {sideStats.bearish.loss.count ? `${sideStats.bearish.loss.max.toFixed(2)}%` : "--"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Median loss</div>
+                  <div className="text-xl font-black font-mono text-rose-400">
+                    {sideStats.bearish.loss.count ? `${sideStats.bearish.loss.median.toFixed(2)}%` : "--"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Avg loss</div>
+                  <div className="text-xl font-black font-mono text-rose-400">
+                    {sideStats.bearish.loss.count ? `${sideStats.bearish.loss.avg.toFixed(2)}%` : "--"}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
           </Card>
         </div>
 
@@ -187,6 +274,7 @@ export default function AnalyticsPage() {
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Side</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Entry</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Exit Price</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">SL</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Net PNL</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Max Excursion</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 text-right">Date Closed</TableHead>
@@ -195,7 +283,7 @@ export default function AnalyticsPage() {
                 <TableBody>
                   {closedSignals.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-64 text-center">
+                      <TableCell colSpan={8} className="h-64 text-center">
                         <div className="flex flex-col items-center gap-4 opacity-40">
                            <Archive className="h-12 w-12 text-muted-foreground" />
                            <div className="space-y-1">
@@ -228,6 +316,7 @@ export default function AnalyticsPage() {
                           </TableCell>
                           <TableCell className="font-mono text-xs font-bold text-white/60">${formatPrice(signal.price)}</TableCell>
                           <TableCell className="font-mono text-xs font-bold text-white">${formatPrice(signal.currentPrice)}</TableCell>
+                          <TableCell className="font-mono text-xs font-bold text-amber-400/90">{signal.stopLoss != null && signal.stopLoss > 0 ? `$${formatPrice(signal.stopLoss)}` : "--"}</TableCell>
                           <TableCell>
                             <div className={cn("flex items-center gap-1.5 font-mono text-xs font-black", pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
                                {pnl >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}

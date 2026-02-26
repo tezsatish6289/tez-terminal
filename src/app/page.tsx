@@ -15,11 +15,11 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const OPPORTUNITY_CATEGORIES = [
-  { id: "5", name: "Scalping", chart: "5 min", windowHours: 24, windowLabel: "in 24h" },
-  { id: "15", name: "Intraday", chart: "15 min", windowHours: 48, windowLabel: "in 48h" },
-  { id: "60", name: "BTST", chart: "1 hr", windowHours: 168, windowLabel: "in 7d" },
-  { id: "240", name: "Swing", chart: "4 hr", windowHours: 720, windowLabel: "in 30d" },
-  { id: "D", name: "Buy and hold", chart: "Daily", windowHours: 2160, windowLabel: "in 90d" },
+  { id: "5", name: "Scalping", chart: "5 min", windowHours: 24, windowLabel: "in 24h", leverage: "10x" },
+  { id: "15", name: "Intraday", chart: "15 min", windowHours: 48, windowLabel: "in 48h", leverage: "5x" },
+  { id: "60", name: "BTST", chart: "1 hr", windowHours: 168, windowLabel: "in 7d", leverage: "3x" },
+  { id: "240", name: "Swing", chart: "4 hr", windowHours: 720, windowLabel: "in 30d", leverage: "3x" },
+  { id: "D", name: "Buy and hold", chart: "Daily", windowHours: 2160, windowLabel: "in 90d", leverage: "1x" },
 ] as const;
 
 type StatusKey = "working" | "not-working" | "neutral";
@@ -478,8 +478,16 @@ export default function Home() {
                   return (
                     <Card key={cat.id} className="bg-card/50 border-white/5 shadow-xl overflow-hidden min-w-[360px] aspect-[2/3] shrink-0">
                       <CardHeader className="pb-3 border-b border-white/5">
-                        <CardTitle className="text-lg font-black uppercase tracking-tight">{cat.name}</CardTitle>
-                        <CardDescription className="text-[10px] font-bold uppercase text-muted-foreground">{cat.chart} chart</CardDescription>
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <CardTitle className="text-lg font-black uppercase tracking-tight">{cat.name}</CardTitle>
+                            <CardDescription className="text-[10px] font-bold uppercase text-muted-foreground">{cat.chart} chart</CardDescription>
+                          </div>
+                          <div className="rounded-md border border-accent/20 bg-accent/10 px-2.5 py-1 text-right shrink-0">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground block">Leverage</span>
+                            <span className="text-sm font-black text-accent">{cat.leverage}</span>
+                          </div>
+                        </div>
                       </CardHeader>
                       <CardContent className="pt-4 space-y-5">
                         <WinnersTicker winners={topWinners[cat.id] ?? []} windowLabel={cat.windowLabel} onSelect={setSelectedWinner} />

@@ -389,11 +389,11 @@ export function SignalHistory() {
                                   <span className={minutesSinceSync ? "text-accent/80" : "text-amber-600/80"}>{mounted && (minutesSinceSync ?? "Not synced yet")}</span>
                                </div>
 
-                               {/* PNL box centered above Max Positive / Max Negative */}
-                               <div className="flex flex-col items-center gap-3 pt-2">
+                               {/* Live PNL full-width bar above Max Positive / Max Negative */}
+                               <div className="flex flex-col gap-3 pt-2">
                                  {hasCurrentPrice && (
-                                   <div className={cn("rounded-lg border px-4 py-2 min-w-[140px] flex items-center justify-between gap-4", Number(livePnl) >= 0 ? "bg-positive/10 border-positive/20" : "bg-negative/10 border-negative/20")}>
-                                     <span className={cn("text-[10px] uppercase font-black tracking-widest", Number(livePnl) >= 0 ? "text-positive/80" : "text-negative/80")}>Live PNL</span>
+                                   <div className="w-full rounded-lg border bg-white/5 border-white/10 px-4 py-2 flex items-center justify-between gap-4">
+                                     <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Live PNL</span>
                                      <span className={cn("text-base font-mono font-bold", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>{Number(livePnl) >= 0 ? "+" : ""}{livePnl}%</span>
                                    </div>
                                  )}

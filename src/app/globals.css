@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --background: 0 0% 4%;
+    --background: 240 10% 4%;
     --foreground: 210 12% 88%;
     --card: 240 5% 7%;
     --card-foreground: 210 12% 88%;
@@ -50,8 +50,8 @@
 }
 
 .trading-view-container {
-  background: #13111a;
-  border: 1px solid #38304a;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
 }
 
 ::-webkit-scrollbar {

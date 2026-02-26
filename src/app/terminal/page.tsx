@@ -116,7 +116,7 @@ function TerminalContent() {
         <TopBar />
 
         {/* Drill-down context header */}
-        <div className="px-6 py-5 border-b border-white/5 bg-[#0a0a0c] shrink-0">
+        <div className="px-6 py-5 border-b border-white/5 bg-background shrink-0">
           <div className="flex items-center justify-between max-w-6xl">
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm">
@@ -163,7 +163,7 @@ function TerminalContent() {
           </section>
 
           {/* Sticky bottom CTA */}
-          <div className="sticky bottom-0 w-full border-t border-accent/20 bg-[#0a0a0c]/95 backdrop-blur-md py-4 px-6 z-30">
+          <div className="sticky bottom-0 w-full border-t border-accent/20 bg-background/95 backdrop-blur-md py-4 px-6 z-30">
             <Link href="/" className="block max-w-md mx-auto">
               <Button className="w-full h-12 gap-3 bg-accent/15 text-accent border-2 border-accent/40 hover:bg-accent/25 font-black uppercase text-sm tracking-wider rounded-xl shadow-lg shadow-accent/10">
                 <Target className="h-5 w-5" />

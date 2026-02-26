@@ -24,8 +24,8 @@ export function ChartPane({ symbol = "BTCUSDT", interval = "15", exchange = "BIN
   const tvInterval = interval === "0" ? "1" : interval;
 
   return (
-    <div className="w-full h-full bg-[#13111a] relative flex flex-col">
-      <div className="flex-1 w-full h-full bg-[#13111a]">
+    <div className="w-full h-full bg-background relative flex flex-col">
+      <div className="flex-1 w-full h-full bg-background">
         {mounted ? (
           <iframe
             key={`${formattedSymbol}-${tvInterval}`}

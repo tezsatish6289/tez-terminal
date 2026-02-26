@@ -188,9 +188,9 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#0a0a0c]">
+    <div className="flex flex-col h-full bg-background">
       {!hideFilters && (
-        <div className="p-4 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
+        <div className="p-4 border-b border-white/5 bg-background/80 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
           <div className="flex items-center gap-4">
             <div className="flex gap-2">
               {timeframeTabs.map(tab => (
@@ -272,7 +272,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
       <div 
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto w-full bg-[#0a0a0c]"
+        className="flex-1 overflow-y-auto w-full bg-background"
       >
         <div className="pt-6 pb-8 space-y-16">
           {isLoading ? (

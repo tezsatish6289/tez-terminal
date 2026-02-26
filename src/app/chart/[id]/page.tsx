@@ -102,12 +102,12 @@ export default function DeepDiveChartPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[#0a0a0c] text-foreground overflow-hidden">
+    <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
       <TopBar />
 
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Signal Card */}
-        <div className="w-[380px] shrink-0 border-r border-white/5 bg-[#0a0a0c] flex flex-col overflow-y-auto">
+        <div className="w-[380px] shrink-0 border-r border-white/5 bg-background flex flex-col overflow-y-auto">
           <div className="p-4">
             <Button variant="ghost" size="sm" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground gap-1 -ml-2 mb-4">
               <ChevronLeft className="h-4 w-4" /> Back
@@ -205,7 +205,7 @@ export default function DeepDiveChartPage() {
         </div>
 
         {/* Right: Chart */}
-        <div className="flex-1 relative bg-[#13111a] flex flex-col">
+        <div className="flex-1 relative bg-background flex flex-col">
           <div className="flex-1 min-h-0">
             <ChartPane symbol={signal?.symbol} interval={signal?.timeframe} exchange={signal?.exchange} />
           </div>

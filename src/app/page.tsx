@@ -230,7 +230,7 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
   );
 }
 
-function WinnersTicker({ winners, onSelect }: { winners: WinnerSignal[]; onSelect: (w: WinnerSignal) => void }) {
+function WinnersTicker({ winners, totalWinning, onSelect }: { winners: WinnerSignal[]; totalWinning: number; onSelect: (w: WinnerSignal) => void }) {
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
@@ -243,10 +243,10 @@ function WinnersTicker({ winners, onSelect }: { winners: WinnerSignal[]; onSelec
 
   if (winners.length === 0) {
     return (
-      <div className="space-y-1.5">
-        <p className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest">Latest winning trades</p>
-        <div className="h-8 flex items-center justify-center text-[10px] text-muted-foreground/50 uppercase tracking-wider">
-          No active winners yet
+      <div className="rounded-lg border border-amber-500/10 bg-amber-500/[0.03] px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Trophy className="h-3.5 w-3.5 text-amber-500/40" />
+          <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">No winning trades yet</span>
         </div>
       </div>
     );
@@ -254,14 +254,20 @@ function WinnersTicker({ winners, onSelect }: { winners: WinnerSignal[]; onSelec
 
   const winner = winners[activeIndex];
   return (
-    <div className="space-y-1.5">
-      <p className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest">Latest winning trades</p>
+    <div className="rounded-lg border border-amber-500/20 bg-gradient-to-r from-amber-500/[0.08] to-amber-600/[0.03] shadow-[0_0_15px_-3px_rgba(245,158,11,0.1)]">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-amber-500/10">
+        <div className="flex items-center gap-1.5">
+          <Trophy className="h-3.5 w-3.5 text-amber-400" />
+          <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">{totalWinning} Winning Trade{totalWinning !== 1 ? "s" : ""}</span>
+        </div>
+        <span className="text-[9px] text-amber-400/50 uppercase tracking-wider">Click to verify</span>
+      </div>
       <button
         onClick={(e) => { e.preventDefault(); onSelect(winner); }}
-        className="w-full h-8 flex items-center justify-between px-3 rounded-md bg-positive/5 border border-positive/10 overflow-hidden hover:bg-positive/10 transition-colors cursor-pointer"
+        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-amber-500/[0.05] transition-colors cursor-pointer"
       >
-        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider truncate">{winner.symbol}</span>
-        <span className="text-xs font-black font-mono text-positive animate-pulse">+{winner.pnl.toFixed(2)}%</span>
+        <span className="text-xs font-bold text-foreground uppercase tracking-wider truncate">{winner.symbol}</span>
+        <span className="text-base font-black font-mono text-amber-400 animate-pulse">+{winner.pnl.toFixed(2)}%</span>
       </button>
     </div>
   );
@@ -420,15 +426,14 @@ export default function Home() {
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {OPPORTUNITY_CATEGORIES.map((cat) => {
                   const c = counts[cat.id] ?? { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
-                  const totalBull = c.BUY.working + c.BUY["not-working"] + c.BUY.neutral;
-                  const totalBear = c.SELL.working + c.SELL["not-working"] + c.SELL.neutral;
                   return (
                     <Card key={cat.id} className="bg-card/50 border-white/5 shadow-xl overflow-hidden">
                       <CardHeader className="pb-3 border-b border-white/5">
                         <CardTitle className="text-lg font-black uppercase tracking-tight">{cat.name}</CardTitle>
                         <CardDescription className="text-[10px] font-bold uppercase text-muted-foreground">{cat.chart} chart</CardDescription>
                       </CardHeader>
-                      <CardContent className="pt-4 space-y-6">
+                      <CardContent className="pt-4 space-y-5">
+                        <WinnersTicker winners={topWinners[cat.id] ?? []} totalWinning={c.BUY.working + c.SELL.working} onSelect={setSelectedWinner} />
                         <div className="space-y-3">
                           <div className="flex items-center gap-2">
                             <TrendingUp className="h-4 w-4 text-positive" />
@@ -469,7 +474,6 @@ export default function Home() {
                             </Link>
                           </div>
                         </div>
-                        <WinnersTicker winners={topWinners[cat.id] ?? []} onSelect={setSelectedWinner} />
                       </CardContent>
                     </Card>
                   );

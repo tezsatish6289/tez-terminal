@@ -4,8 +4,8 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy, limit } from "firebase/firestore";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Zap, Loader2, Chrome, TrendingUp, TrendingDown, BarChart3, Target } from "lucide-react";
-import { useState, useMemo } from "react";
+import { Zap, Loader2, Chrome, TrendingUp, TrendingDown } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +40,34 @@ function calculatePercent(currentPrice: number | undefined | null, entry: number
   return (diff / entry) * 100;
 }
 
+function WinnersTicker({ winners }: { winners: { symbol: string; pnl: number }[] }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    if (winners.length <= 1) return;
+    const interval = setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % winners.length);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [winners.length]);
+
+  if (winners.length === 0) {
+    return (
+      <div className="h-8 flex items-center justify-center text-[10px] text-muted-foreground/50 uppercase tracking-wider">
+        No active winners yet
+      </div>
+    );
+  }
+
+  const winner = winners[activeIndex];
+  return (
+    <div className="h-8 flex items-center justify-between px-3 rounded-md bg-positive/5 border border-positive/10 overflow-hidden">
+      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider truncate">{winner.symbol}</span>
+      <span className="text-xs font-black font-mono text-positive animate-pulse">+{winner.pnl.toFixed(2)}%</span>
+    </div>
+  );
+}
+
 export default function Home() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
@@ -69,6 +97,28 @@ export default function Home() {
       const status = getPnlStatus(pnl);
       const side = signal.type === "BUY" ? "BUY" : "SELL";
       map[cat][side][status]++;
+    });
+    return map;
+  }, [rawSignals]);
+
+  const topWinners = useMemo(() => {
+    const map: Record<string, { symbol: string; pnl: number }[]> = {};
+    OPPORTUNITY_CATEGORIES.forEach((c) => { map[c.id] = []; });
+    if (!rawSignals) return map;
+    rawSignals.forEach((signal: any) => {
+      if (signal.status === "INACTIVE") return;
+      if (getDisplayAssetType(signal) !== "CRYPTO") return;
+      const tf = String(signal.timeframe || "").toUpperCase();
+      const cat = tf === "D" ? "D" : tf;
+      if (!map[cat]) return;
+      const pnl = calculatePercent(signal.currentPrice, signal.price, signal.type);
+      if (pnl > 0.05) {
+        map[cat].push({ symbol: signal.symbol || "???", pnl });
+      }
+    });
+    Object.keys(map).forEach((k) => {
+      map[k].sort((a, b) => b.pnl - a.pnl);
+      map[k] = map[k].slice(0, 5);
     });
     return map;
   }, [rawSignals]);
@@ -145,17 +195,6 @@ export default function Home() {
         <TopBar />
         <div className="flex-1 overflow-y-auto">
           <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-8">
-            <header className="space-y-2">
-              <div className="flex items-center gap-3">
-                <div className="bg-primary/20 p-2.5 rounded-xl border border-white/10">
-                  <Target className="h-6 w-6 text-accent" />
-                </div>
-                <h1 className="text-2xl md:text-3xl font-black text-foreground uppercase tracking-tighter">Opportunity Finder</h1>
-              </div>
-              <p className="text-sm text-muted-foreground max-w-xl">
-                Live crypto signals by timeframe. Bullish and bearish opportunities with working, not working, and neutral counts.
-              </p>
-            </header>
 
             {isLoading ? (
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -219,12 +258,7 @@ export default function Home() {
                             </Link>
                           </div>
                         </div>
-                        <Link
-                          href={`/terminal?timeframe=${cat.id}`}
-                          className="block w-full rounded-lg border border-accent/30 bg-accent/5 py-2 text-center text-[10px] font-black uppercase text-accent hover:bg-accent/10 transition-colors"
-                        >
-                          Open terminal →
-                        </Link>
+                        <WinnersTicker winners={topWinners[cat.id] ?? []} />
                       </CardContent>
                     </Card>
                   );

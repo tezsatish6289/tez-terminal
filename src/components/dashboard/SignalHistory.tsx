@@ -32,13 +32,14 @@ type SignalHistoryProps = {
   initialTimeframeTab?: string | null;
   initialPerformanceFilter?: string | null;
   initialSideFilter?: string | null;
+  hideFilters?: boolean;
 };
 
 /**
  * PRODUCTION TERMINAL ENGINE - PERSISTENT STATE
  * Now exclusively displays ACTIVE signals for the live idea stream.
  */
-export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, initialSideFilter }: SignalHistoryProps = {}) {
+export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, initialSideFilter, hideFilters }: SignalHistoryProps = {}) {
   const router = useRouter();
   const { user } = useUser();
   const firestore = useFirestore();
@@ -186,84 +187,85 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
 
   return (
     <div className="flex flex-col h-full bg-[#0a0a0c]">
-      <div className="p-4 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
-        <div className="flex items-center gap-4">
-          <div className="flex gap-2">
-            {timeframeTabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTimeframeTab(tab.id)}
-                className={cn(
-                  "px-4 py-1.5 text-[10px] font-black rounded-lg uppercase transition-all whitespace-nowrap border",
-                  activeTimeframeTab === tab.id
-                    ? "bg-primary text-primary-foreground border-primary/50"
-                    : "bg-white/5 text-muted-foreground border-white/5 hover:bg-white/10"
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          <div className="h-6 w-px bg-white/10" />
-          <div className="flex gap-1.5">
-            {([{ id: "all", label: "ALL" }, { id: "BUY", label: "BULLISH" }, { id: "SELL", label: "BEARISH" }] as const).map(s => (
-              <button
-                key={s.id}
-                onClick={() => setActiveSideFilter(s.id)}
-                className={cn(
-                  "px-3 py-1.5 text-[10px] font-black rounded-lg uppercase transition-all whitespace-nowrap border",
-                  activeSideFilter === s.id
-                    ? s.id === "BUY" ? "bg-positive/20 text-positive border-positive/40"
-                      : s.id === "SELL" ? "bg-negative/20 text-negative border-negative/40"
-                      : "bg-primary text-primary-foreground border-primary/50"
-                    : "bg-white/5 text-muted-foreground border-white/5 hover:bg-white/10"
-                )}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Performance Filter Popover */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 gap-2 border-white/10 bg-[#121214] hover:bg-white/5 text-muted-foreground hover:text-foreground rounded-xl px-4">
-                <PerformanceIcon className="h-4 w-4 text-accent" />
-                <span className="text-[10px] font-black uppercase tracking-wider">Performance Filter</span>
-                <ChevronDown className="h-3 w-3 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-64 bg-[#121214] border-white/10 p-4 shadow-2xl">
-              <div className="space-y-4">
-                <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] pb-2 border-b border-white/5">EXCURSION STATUS</h3>
-                <RadioGroup 
-                  value={globalPerformanceFilter} 
-                  onValueChange={setGlobalPerformanceFilter}
-                  className="space-y-3"
+      {!hideFilters && (
+        <div className="p-4 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
+          <div className="flex items-center gap-4">
+            <div className="flex gap-2">
+              {timeframeTabs.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTimeframeTab(tab.id)}
+                  className={cn(
+                    "px-4 py-1.5 text-[10px] font-black rounded-lg uppercase transition-all whitespace-nowrap border",
+                    activeTimeframeTab === tab.id
+                      ? "bg-primary text-primary-foreground border-primary/50"
+                      : "bg-white/5 text-muted-foreground border-white/5 hover:bg-white/10"
+                  )}
                 >
-                  {performanceOptions.map((opt) => (
-                    <div key={opt.value} className="flex items-center space-x-3 group cursor-pointer" onClick={() => setGlobalPerformanceFilter(opt.value)}>
-                      <RadioGroupItem 
-                        value={opt.value} 
-                        id={`perf-${opt.value}`}
-                        className="border-white/20 data-[state=checked]:border-accent data-[state=checked]:text-accent"
-                      />
-                      <Label 
-                        htmlFor={`perf-${opt.value}`} 
-                        className="flex-1 text-xs font-bold text-foreground/80 group-hover:text-foreground transition-colors cursor-pointer uppercase tracking-wide"
-                      >
-                        {opt.label}
-                      </Label>
-                    </div>
-                  ))}
-                </RadioGroup>
-              </div>
-            </PopoverContent>
-          </Popover>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <div className="h-6 w-px bg-white/10" />
+            <div className="flex gap-1.5">
+              {([{ id: "all", label: "ALL" }, { id: "BUY", label: "BULLISH" }, { id: "SELL", label: "BEARISH" }] as const).map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => setActiveSideFilter(s.id)}
+                  className={cn(
+                    "px-3 py-1.5 text-[10px] font-black rounded-lg uppercase transition-all whitespace-nowrap border",
+                    activeSideFilter === s.id
+                      ? s.id === "BUY" ? "bg-positive/20 text-positive border-positive/40"
+                        : s.id === "SELL" ? "bg-negative/20 text-negative border-negative/40"
+                        : "bg-primary text-primary-foreground border-primary/50"
+                      : "bg-white/5 text-muted-foreground border-white/5 hover:bg-white/10"
+                  )}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 gap-2 border-white/10 bg-[#121214] hover:bg-white/5 text-muted-foreground hover:text-foreground rounded-xl px-4">
+                  <PerformanceIcon className="h-4 w-4 text-accent" />
+                  <span className="text-[10px] font-black uppercase tracking-wider">Performance Filter</span>
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-64 bg-[#121214] border-white/10 p-4 shadow-2xl">
+                <div className="space-y-4">
+                  <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] pb-2 border-b border-white/5">EXCURSION STATUS</h3>
+                  <RadioGroup 
+                    value={globalPerformanceFilter} 
+                    onValueChange={setGlobalPerformanceFilter}
+                    className="space-y-3"
+                  >
+                    {performanceOptions.map((opt) => (
+                      <div key={opt.value} className="flex items-center space-x-3 group cursor-pointer" onClick={() => setGlobalPerformanceFilter(opt.value)}>
+                        <RadioGroupItem 
+                          value={opt.value} 
+                          id={`perf-${opt.value}`}
+                          className="border-white/20 data-[state=checked]:border-accent data-[state=checked]:text-accent"
+                        />
+                        <Label 
+                          htmlFor={`perf-${opt.value}`} 
+                          className="flex-1 text-xs font-bold text-foreground/80 group-hover:text-foreground transition-colors cursor-pointer uppercase tracking-wide"
+                        >
+                          {opt.label}
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
-      </div>
+      )}
 
       <div 
         ref={scrollContainerRef}

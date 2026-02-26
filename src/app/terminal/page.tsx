@@ -5,20 +5,47 @@ import { SignalHistory } from "@/components/dashboard/SignalHistory";
 import { useUser, useAuth } from "@/firebase";
 import { useSearchParams } from "next/navigation";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Zap, Loader2, Chrome } from "lucide-react";
+import { Zap, Loader2, Chrome, ChevronRight, Target } from "lucide-react";
 import { useState, Suspense } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
+import { cn } from "@/lib/utils";
+
+const CATEGORY_LABELS: Record<string, string> = {
+  "5": "Scalping",
+  "15": "Intraday",
+  "60": "BTST",
+  "240": "Swing",
+  "D": "Buy & Hold",
+};
+
+const SIDE_LABELS: Record<string, string> = {
+  "BUY": "Bullish",
+  "SELL": "Bearish",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  "working": "Working",
+  "not-working": "Not Working",
+  "neutral": "Neutral",
+  "all": "All Signals",
+};
 
 function TerminalContent() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const searchParams = useSearchParams();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+
   const timeframe = searchParams.get("timeframe");
   const status = searchParams.get("status");
   const side = searchParams.get("side");
+
+  const categoryLabel = timeframe ? CATEGORY_LABELS[timeframe] || timeframe : "All";
+  const sideLabel = side ? SIDE_LABELS[side] || side : null;
+  const statusLabel = status ? STATUS_LABELS[status] || status : null;
 
   const handleGoogleLogin = async () => {
     if (auth) {
@@ -77,9 +104,6 @@ function TerminalContent() {
             <p className="text-center text-xs text-muted-foreground px-6">
               Administrator login: <span className="text-accent font-mono">hello@tezterminal.com</span>
             </p>
-            <p className="text-center text-[10px] text-muted-foreground/70 px-6 pt-2">
-              If sign-in fails or pops up blank, try <a href="?auth=redirect" className="text-accent underline">?auth=redirect</a> or use an incognito window.
-            </p>
           </CardContent>
         </Card>
       </div>
@@ -90,6 +114,48 @@ function TerminalContent() {
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
       <main className="flex-1 flex flex-col min-w-0 h-full">
         <TopBar />
+
+        {/* Drill-down context header */}
+        <div className="px-6 py-5 border-b border-white/5 bg-[#0a0a0c] shrink-0">
+          <div className="flex items-center justify-between max-w-6xl">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm">
+                <Link href="/" className="text-accent hover:underline font-bold">Opportunities</Link>
+                {sideLabel && (
+                  <>
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="font-black uppercase tracking-tight text-foreground">{categoryLabel}</span>
+                  </>
+                )}
+                {sideLabel && (
+                  <>
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className={cn("font-black uppercase tracking-tight", side === "BUY" ? "text-positive" : "text-negative")}>{sideLabel}</span>
+                  </>
+                )}
+                {statusLabel && (
+                  <>
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className={cn(
+                      "font-black uppercase tracking-tight",
+                      status === "working" ? "text-positive" : status === "not-working" ? "text-negative" : "text-foreground"
+                    )}>{statusLabel}</span>
+                  </>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                Showing {sideLabel?.toLowerCase() || "all"} {categoryLabel?.toLowerCase()} opportunities{statusLabel ? ` that are ${statusLabel.toLowerCase()}` : ""}
+              </p>
+            </div>
+            <Link href="/" className="shrink-0">
+              <Button className="gap-2 bg-accent/10 text-accent border border-accent/30 hover:bg-accent/20 font-black uppercase text-xs tracking-wider rounded-xl px-5 h-10">
+                <Target className="h-4 w-4" />
+                Find More Opportunities
+              </Button>
+            </Link>
+          </div>
+        </div>
+
         <div className="flex-1 flex flex-col min-h-0">
           <section className="flex-1 flex flex-col bg-card/30 overflow-hidden">
             <div className="flex-1 min-h-0">
@@ -97,6 +163,7 @@ function TerminalContent() {
                 initialTimeframeTab={timeframe ?? undefined}
                 initialPerformanceFilter={status ?? undefined}
                 initialSideFilter={side ?? undefined}
+                hideFilters
               />
             </div>
           </section>

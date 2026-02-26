@@ -12,7 +12,6 @@ import {
   TrendingUp,
   Clock,
   Activity,
-  Filter,
   ChevronDown,
   Zap,
   BarChart3,
@@ -25,7 +24,6 @@ import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebas
 import { collection, query, limit, orderBy } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -44,47 +42,36 @@ export function SignalHistory() {
   const [now, setNow] = useState(new Date());
   
   // Persistence Keys
-  const STORAGE_KEY_ASSET = "tez_terminal_asset";
-  const STORAGE_KEY_TF = "tez_terminal_tf";
+  const STORAGE_KEY_TAB = "tez_terminal_timeframe_tab";
   const STORAGE_KEY_GLOBAL_PERF = "tez_terminal_global_perf";
   const STORAGE_KEY_SCROLL = "tez_terminal_scroll";
 
-  // Filtering States
-  const [activeAssetType, setActiveAssetType] = useState<string | null>(null);
-  const [selectedTimeframes, setSelectedTimeframes] = useState<string[]>(["5", "15", "60", "240", "D"]);
+  // Filtering States — crypto only; single active timeframe tab
+  const [activeTimeframeTab, setActiveTimeframeTab] = useState<string>("all");
   const [globalPerformanceFilter, setGlobalPerformanceFilter] = useState<string>("working");
 
   // Initialization
   useEffect(() => {
     setMounted(true);
-    
-    const savedAsset = sessionStorage.getItem(STORAGE_KEY_ASSET);
-    const savedTf = sessionStorage.getItem(STORAGE_KEY_TF);
+    const savedTab = sessionStorage.getItem(STORAGE_KEY_TAB);
     const savedPerf = sessionStorage.getItem(STORAGE_KEY_GLOBAL_PERF);
     const savedScroll = sessionStorage.getItem(STORAGE_KEY_SCROLL);
-
-    if (savedAsset !== null) setActiveAssetType(savedAsset === "null" ? null : savedAsset);
-    if (savedTf) setSelectedTimeframes(JSON.parse(savedTf));
+    if (savedTab) setActiveTimeframeTab(savedTab);
     if (savedPerf) setGlobalPerformanceFilter(savedPerf);
-
     if (savedScroll && scrollContainerRef.current) {
       setTimeout(() => {
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = parseInt(savedScroll, 10);
-        }
+        if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = parseInt(savedScroll, 10);
       }, 200);
     }
-
     const interval = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
     if (!mounted) return;
-    sessionStorage.setItem(STORAGE_KEY_ASSET, String(activeAssetType));
-    sessionStorage.setItem(STORAGE_KEY_TF, JSON.stringify(selectedTimeframes));
+    sessionStorage.setItem(STORAGE_KEY_TAB, activeTimeframeTab);
     sessionStorage.setItem(STORAGE_KEY_GLOBAL_PERF, globalPerformanceFilter);
-  }, [activeAssetType, selectedTimeframes, globalPerformanceFilter, mounted]);
+  }, [activeTimeframeTab, globalPerformanceFilter, mounted]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     sessionStorage.setItem(STORAGE_KEY_SCROLL, e.currentTarget.scrollTop.toString());
@@ -114,11 +101,9 @@ export function SignalHistory() {
     { id: "D", title: "Macro-Bias Terminal", label: "DAILY", icon: Globe },
   ];
 
-  const assetTypes = [
-    { label: "ALL ASSETS", value: null },
-    { label: "CRYPTO", value: "CRYPTO" },
-    { label: "INDIAN STOCKS", value: "INDIAN STOCKS" },
-    { label: "US STOCKS", value: "US STOCKS" },
+  const timeframeTabs = [
+    { id: "all", label: "ALL" },
+    ...categories.map(c => ({ id: c.id, label: c.label })),
   ];
 
   const performanceOptions = [
@@ -137,25 +122,17 @@ export function SignalHistory() {
   const filteredSignals = useMemo(() => {
     if (!rawSignals) return [];
     return rawSignals.filter(signal => {
-      // Exclude INACTIVE (Stopped Out) signals from the live feed
       if (signal.status === "INACTIVE") return false;
-      
-      if (activeAssetType) {
-        const displayAssetType = getDisplayAssetType(signal);
-        if (displayAssetType !== activeAssetType) return false;
-      }
-
-      // Apply Global Performance Filter
+      if (getDisplayAssetType(signal) !== "CRYPTO") return false;
       if (globalPerformanceFilter !== "all") {
         const pnl = Number(calculatePercent(signal.currentPrice, signal.price, signal.type));
         if (globalPerformanceFilter === "working" && pnl <= 0.05) return false;
         if (globalPerformanceFilter === "not-working" && pnl >= -0.05) return false;
         if (globalPerformanceFilter === "neutral" && (pnl > 0.05 || pnl < -0.05)) return false;
       }
-
       return true;
     });
-  }, [rawSignals, activeAssetType, globalPerformanceFilter]);
+  }, [rawSignals, globalPerformanceFilter]);
 
   const formatPrice = (price: number | null | undefined) => {
     if (price === null || price === undefined) return "--";
@@ -191,64 +168,24 @@ export function SignalHistory() {
   return (
     <div className="flex flex-col h-full bg-[#0a0a0c]">
       <div className="p-4 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
-        <div className="flex items-center gap-6">
-           <div className="flex gap-2">
-              {assetTypes.map(asset => (
-                <button
-                  key={asset.label}
-                  onClick={() => setActiveAssetType(asset.value)}
-                  className={cn(
-                    "px-4 py-1.5 text-[10px] font-black rounded-lg uppercase transition-all whitespace-nowrap border",
-                    activeAssetType === asset.value 
-                      ? "bg-primary text-primary-foreground border-primary/50" 
-                      : "bg-white/5 text-muted-foreground border-white/5 hover:bg-white/10"
-                  )}
-                >
-                  {asset.label}
-                </button>
-              ))}
-           </div>
+        <div className="flex gap-2">
+          {timeframeTabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTimeframeTab(tab.id)}
+              className={cn(
+                "px-4 py-1.5 text-[10px] font-black rounded-lg uppercase transition-all whitespace-nowrap border",
+                activeTimeframeTab === tab.id
+                  ? "bg-primary text-primary-foreground border-primary/50"
+                  : "bg-white/5 text-muted-foreground border-white/5 hover:bg-white/10"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Analysis Filters Popover */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 gap-2 border-white/10 bg-[#121214] hover:bg-white/5 text-muted-foreground hover:text-foreground rounded-xl px-4">
-                <Filter className="h-4 w-4 text-accent" />
-                <span className="text-[10px] font-black uppercase tracking-wider">Analysis Filters</span>
-                <ChevronDown className="h-3 w-3 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-64 bg-[#121214] border-white/10 p-4 shadow-2xl">
-              <div className="space-y-4">
-                <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] pb-2 border-b border-white/5">DATA FEEDS</h3>
-                <div className="space-y-3">
-                  {categories.map(cat => (
-                    <div key={cat.id} className="flex items-center space-x-3 group cursor-pointer" onClick={() => {
-                      setSelectedTimeframes(prev => 
-                        prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]
-                      );
-                    }}>
-                      <Checkbox 
-                        id={`filter-${cat.id}`} 
-                        checked={selectedTimeframes.includes(cat.id)}
-                        onCheckedChange={() => {}}
-                        className="border-white/20 data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground"
-                      />
-                      <Label 
-                        htmlFor={`filter-${cat.id}`} 
-                        className="flex-1 text-xs font-bold text-foreground/80 group-hover:text-foreground transition-colors cursor-pointer flex justify-between items-center"
-                      >
-                        <span className="uppercase tracking-wide">{cat.label} ENGINE</span>
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-
           {/* Performance Filter Popover */}
           <Popover>
             <PopoverTrigger asChild>
@@ -305,7 +242,7 @@ export function SignalHistory() {
             </div>
           ) : (
             categories.map(cat => {
-              if (!selectedTimeframes.includes(cat.id)) return null;
+              if (activeTimeframeTab !== "all" && activeTimeframeTab !== cat.id) return null;
 
               const categorySignals = filteredSignals.filter(s => s.timeframe === cat.id);
               

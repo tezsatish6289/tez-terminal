@@ -136,8 +136,13 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
                   {directionLabel}
                 </span>
               </div>
-              <div className={cn("px-3 py-1 rounded-lg text-xs font-black uppercase", isBullish ? "bg-positive/20 text-positive" : "bg-negative/20 text-negative")}>
-                {isBullish ? "Bullish" : "Bearish"}
+              <div className="flex flex-col items-end gap-1.5">
+                <div className={cn("px-3 py-1 rounded-lg text-xs font-black uppercase", isBullish ? "bg-positive/20 text-positive" : "bg-negative/20 text-negative")}>
+                  {isBullish ? "Bullish" : "Bearish"}
+                </div>
+                <div className="px-3 py-1 rounded-lg text-xs font-black uppercase bg-accent/15 text-accent">
+                  {leverage}x
+                </div>
               </div>
             </div>
 
@@ -154,28 +159,27 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
               </div>
             </div>
 
-            <div className="rounded-lg border bg-white/5 border-white/10 px-4 py-2.5 flex items-center justify-between">
-              <div className="flex flex-col">
+            <div className="rounded-xl border border-accent/15 bg-accent/[0.03] p-3 space-y-3">
+              <span className="text-[9px] uppercase font-black tracking-widest text-accent block text-center">Returns at {leverage}x Leverage</span>
+              <div className="rounded-lg border bg-white/5 border-white/10 px-4 py-2.5 flex items-center justify-between">
                 <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Live PNL</span>
-                <span className="text-[9px] uppercase font-bold tracking-wider text-accent/70">Leverage: {leverage}x</span>
-              </div>
-              <span className={cn("text-xl font-mono font-black", leveragedPnl >= 0 ? "text-positive" : "text-negative")}>
-                {leveragedPnl >= 0 ? "+" : ""}{leveragedPnl.toFixed(2)}%
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-positive/10 border border-positive/20">
-                <span className="text-[9px] uppercase font-black text-positive/90 tracking-widest">Peak Upside</span>
-                <span className="text-base font-mono font-black text-positive">
-                  {hasMaxUpside ? `+${maxUpPnl.toFixed(2)}%` : "—"}
+                <span className={cn("text-xl font-mono font-black", leveragedPnl >= 0 ? "text-positive" : "text-negative")}>
+                  {leveragedPnl >= 0 ? "+" : ""}{leveragedPnl.toFixed(2)}%
                 </span>
               </div>
-              <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-negative/10 border border-negative/20">
-                <span className="text-[9px] uppercase font-black text-negative/90 tracking-widest">Max Drawdown</span>
-                <span className="text-base font-mono font-black text-negative">
-                  {hasMaxDrawdown ? `${maxDownPnl.toFixed(2)}%` : "—"}
-                </span>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-positive/10 border border-positive/20">
+                  <span className="text-[9px] uppercase font-black text-positive/90 tracking-widest">Peak Upside</span>
+                  <span className="text-base font-mono font-black text-positive">
+                    {hasMaxUpside ? `+${(maxUpPnl * leverage).toFixed(2)}%` : "—"}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-negative/10 border border-negative/20">
+                  <span className="text-[9px] uppercase font-black text-negative/90 tracking-widest">Max Drawdown</span>
+                  <span className="text-base font-mono font-black text-negative">
+                    {hasMaxDrawdown ? `${(maxDownPnl * leverage).toFixed(2)}%` : "—"}
+                  </span>
+                </div>
               </div>
             </div>
 

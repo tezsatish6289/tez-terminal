@@ -16,7 +16,8 @@ import {
   Zap,
   BarChart3,
   Globe,
-  Activity as PerformanceIcon
+  Activity as PerformanceIcon,
+  Shield
 } from "lucide-react";
 import { format, differenceInMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -351,7 +352,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                                   <h3 className="text-2xl font-black text-foreground leading-none tracking-tighter uppercase mb-2">{signal.symbol}</h3>
                                   <span className="text-[10px] font-black text-accent uppercase tracking-widest">{getDisplayAssetType(signal)}</span>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-col items-end gap-1.5">
                                   <Badge className={cn("text-[10px] font-black border-none px-4 h-7 uppercase", isBullish ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative')}>
                                     {isBullish ? 'BULLISH' : 'BEARISH'}
                                   </Badge>
@@ -387,7 +388,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                                </div>
 
                                <div className="rounded-xl border border-accent/15 bg-accent/[0.03] p-3 space-y-3">
-                                 <span className="text-[9px] uppercase font-black tracking-widest text-accent">Returns at {leverage}x Leverage</span>
+                                 <span className="text-[9px] uppercase font-black tracking-widest text-accent block text-center">Returns at {leverage}x Leverage</span>
                                  {hasCurrentPrice && (
                                    <div className="w-full rounded-lg border bg-white/5 border-white/10 px-4 py-2 flex items-center justify-between gap-4">
                                      <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Live PNL</span>
@@ -405,6 +406,13 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                                    </div>
                                  </div>
                                </div>
+                               {signal.stopLoss != null && signal.stopLoss > 0 && (
+                                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03]">
+                                   <Shield className="h-3.5 w-3.5 text-amber-400" />
+                                   <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Stop Loss</span>
+                                   <span className="ml-auto font-mono text-sm font-bold">${formatPrice(signal.stopLoss)}</span>
+                                 </div>
+                               )}
                             </CardContent>
                             <div className="px-6 py-4 border-t border-white/5 bg-white/[0.01] flex items-center justify-between group-hover:bg-accent/[0.05] transition-colors">
                               <span className="text-[10px] font-black text-muted-foreground uppercase group-hover:text-foreground transition-colors">Analyze Chart</span>

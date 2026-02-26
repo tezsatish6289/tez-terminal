@@ -4,7 +4,7 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy, limit } from "firebase/firestore";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Zap, Loader2, Chrome, TrendingUp, TrendingDown, Shield, Trophy } from "lucide-react";
+import { Zap, Loader2, Chrome, TrendingUp, TrendingDown, Shield, Trophy, Crosshair } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
@@ -453,6 +453,18 @@ export default function Home() {
         <TopBar />
         <div className="flex-1 overflow-y-auto">
           <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-8">
+
+            <div className="flex items-start gap-4">
+              <div className="rounded-xl bg-accent/10 border border-accent/20 p-2.5 mt-0.5 shrink-0">
+                <Crosshair className="h-5 w-5 text-accent" />
+              </div>
+              <div>
+                <h1 className="text-xl font-black tracking-tight">Opportunity Finder</h1>
+                <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                  Live-tracked crypto signals across Scalping, Intraday, BTST, Swing, and Buy &amp; Hold timeframes. Click any card to explore.
+                </p>
+              </div>
+            </div>
 
             {isLoading ? (
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

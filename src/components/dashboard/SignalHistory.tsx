@@ -31,13 +31,14 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 type SignalHistoryProps = {
   initialTimeframeTab?: string | null;
   initialPerformanceFilter?: string | null;
+  initialSideFilter?: string | null;
 };
 
 /**
  * PRODUCTION TERMINAL ENGINE - PERSISTENT STATE
  * Now exclusively displays ACTIVE signals for the live idea stream.
  */
-export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter }: SignalHistoryProps = {}) {
+export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, initialSideFilter }: SignalHistoryProps = {}) {
   const router = useRouter();
   const { user } = useUser();
   const firestore = useFirestore();
@@ -54,6 +55,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter }:
   // Filtering States — crypto only; single active timeframe tab
   const [activeTimeframeTab, setActiveTimeframeTab] = useState<string>("all");
   const [globalPerformanceFilter, setGlobalPerformanceFilter] = useState<string>("working");
+  const [activeSideFilter, setActiveSideFilter] = useState<string>("all");
 
   // Initialization — URL params (from Opportunity Finder links) override sessionStorage
   useEffect(() => {
@@ -70,6 +72,9 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter }:
       setGlobalPerformanceFilter(initialPerformanceFilter);
     } else if (savedPerf) {
       setGlobalPerformanceFilter(savedPerf);
+    }
+    if (initialSideFilter != null && initialSideFilter !== "") {
+      setActiveSideFilter(initialSideFilter);
     }
     if (savedScroll && scrollContainerRef.current) {
       setTimeout(() => {
@@ -137,6 +142,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter }:
     return rawSignals.filter(signal => {
       if (signal.status === "INACTIVE") return false;
       if (getDisplayAssetType(signal) !== "CRYPTO") return false;
+      if (activeSideFilter !== "all" && signal.type !== activeSideFilter) return false;
       if (globalPerformanceFilter !== "all") {
         const pnl = Number(calculatePercent(signal.currentPrice, signal.price, signal.type));
         if (globalPerformanceFilter === "working" && pnl <= 0.05) return false;
@@ -145,7 +151,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter }:
       }
       return true;
     });
-  }, [rawSignals, globalPerformanceFilter]);
+  }, [rawSignals, globalPerformanceFilter, activeSideFilter]);
 
   const formatPrice = (price: number | null | undefined) => {
     if (price === null || price === undefined) return "--";
@@ -181,21 +187,42 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter }:
   return (
     <div className="flex flex-col h-full bg-[#0a0a0c]">
       <div className="p-4 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
-        <div className="flex gap-2">
-          {timeframeTabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTimeframeTab(tab.id)}
-              className={cn(
-                "px-4 py-1.5 text-[10px] font-black rounded-lg uppercase transition-all whitespace-nowrap border",
-                activeTimeframeTab === tab.id
-                  ? "bg-primary text-primary-foreground border-primary/50"
-                  : "bg-white/5 text-muted-foreground border-white/5 hover:bg-white/10"
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-4">
+          <div className="flex gap-2">
+            {timeframeTabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTimeframeTab(tab.id)}
+                className={cn(
+                  "px-4 py-1.5 text-[10px] font-black rounded-lg uppercase transition-all whitespace-nowrap border",
+                  activeTimeframeTab === tab.id
+                    ? "bg-primary text-primary-foreground border-primary/50"
+                    : "bg-white/5 text-muted-foreground border-white/5 hover:bg-white/10"
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <div className="h-6 w-px bg-white/10" />
+          <div className="flex gap-1.5">
+            {([{ id: "all", label: "ALL" }, { id: "BUY", label: "BULLISH" }, { id: "SELL", label: "BEARISH" }] as const).map(s => (
+              <button
+                key={s.id}
+                onClick={() => setActiveSideFilter(s.id)}
+                className={cn(
+                  "px-3 py-1.5 text-[10px] font-black rounded-lg uppercase transition-all whitespace-nowrap border",
+                  activeSideFilter === s.id
+                    ? s.id === "BUY" ? "bg-positive/20 text-positive border-positive/40"
+                      : s.id === "SELL" ? "bg-negative/20 text-negative border-negative/40"
+                      : "bg-primary text-primary-foreground border-primary/50"
+                    : "bg-white/5 text-muted-foreground border-white/5 hover:bg-white/10"
+                )}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex items-center gap-3">

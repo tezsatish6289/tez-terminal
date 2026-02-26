@@ -18,6 +18,7 @@ function TerminalContent() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const timeframe = searchParams.get("timeframe");
   const status = searchParams.get("status");
+  const side = searchParams.get("side");
 
   const handleGoogleLogin = async () => {
     if (auth) {
@@ -95,6 +96,7 @@ function TerminalContent() {
               <SignalHistory
                 initialTimeframeTab={timeframe ?? undefined}
                 initialPerformanceFilter={status ?? undefined}
+                initialSideFilter={side ?? undefined}
               />
             </div>
           </section>

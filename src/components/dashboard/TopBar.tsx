@@ -1,7 +1,7 @@
 
 "use client";
 
-import { Bell, User, LayoutDashboard, LogOut, Menu, Zap, History, LineChart, Webhook, X } from "lucide-react";
+import { Bell, User, LayoutDashboard, LogOut, Menu, Zap, History, LineChart, Webhook, X, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUser, useAuth } from "@/firebase";
 import { initiateSignOut } from "@/firebase/non-blocking-login";
@@ -139,6 +139,7 @@ export function TopBar() {
               </div>
             </SheetContent>
           </Sheet>
+          <Target className="h-5 w-5 text-accent" />
           <span className="font-black text-lg text-accent tracking-tight leading-tight">TezTerminal.com</span>
         </div>
 

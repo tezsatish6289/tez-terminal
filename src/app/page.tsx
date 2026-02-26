@@ -476,7 +476,7 @@ export default function Home() {
                   const c = counts[cat.id] ?? { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
                   const sentiment = getMarketSentiment(c.BUY.working, c.BUY["not-working"], c.SELL.working, c.SELL["not-working"]);
                   return (
-                    <Card key={cat.id} className="bg-card/50 border-white/5 shadow-xl overflow-hidden min-w-[320px] shrink-0">
+                    <Card key={cat.id} className="bg-card/50 border-white/5 shadow-xl overflow-hidden min-w-[360px] aspect-[2/3] shrink-0">
                       <CardHeader className="pb-3 border-b border-white/5">
                         <CardTitle className="text-lg font-black uppercase tracking-tight">{cat.name}</CardTitle>
                         <CardDescription className="text-[10px] font-bold uppercase text-muted-foreground">{cat.chart} chart</CardDescription>

@@ -1,5 +1,15 @@
 import { SVGProps } from "react";
 
+export function TradingViewIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 36 28" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <rect width="36" height="28" rx="4" fill="#2962FF" />
+      <path d="M6 20L13 13l4 4 7-10 6 6" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="30" cy="13" r="2" fill="#fff" />
+    </svg>
+  );
+}
+
 export function BinanceIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 127 113" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>

@@ -7,27 +7,18 @@ import { ChartPane } from "@/components/dashboard/ChartPane";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { 
   ChevronLeft, 
   Loader2,
   AlertTriangle,
   Timer,
-  BrainCircuit,
-  ShieldCheck,
   Shield,
-  Info,
-  ChevronRight,
-  ExternalLink,
   Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BinanceIcon, MexcIcon, PionexIcon } from "@/components/icons/exchange-icons";
+import { BinanceIcon, MexcIcon, PionexIcon, TradingViewIcon } from "@/components/icons/exchange-icons";
 import { useEffect, useState } from "react";
-import { analyzeSignal, type AnalyzeSignalOutput } from "@/ai/flows/analyze-signal-flow";
-import { Progress } from "@/components/ui/progress";
 import { format, differenceInMinutes } from "date-fns";
-import { useToast } from "@/hooks/use-toast";
 import { getLeverage } from "@/lib/leverage";
 
 /**
@@ -38,14 +29,9 @@ export default function DeepDiveChartPage() {
   const { id } = useParams();
   const router = useRouter();
   const firestore = useFirestore();
-  const { toast } = useToast();
   const { user, isUserLoading } = useUser();
   const [mounted, setMounted] = useState(false);
   const [now, setNow] = useState(new Date());
-  
-  // AI States
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysis, setAnalysis] = useState<AnalyzeSignalOutput | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -66,30 +52,6 @@ export default function DeepDiveChartPage() {
     if (!e || isNaN(t)) return "0.00";
     const diff = type === 'BUY' ? t - e : e - t;
     return ((diff / e) * 100).toFixed(2);
-  };
-
-  const handleAIAnalysis = async () => {
-    if (!signal) return;
-    setIsAnalyzing(true);
-    setAnalysis(null);
-    try {
-      const result = await analyzeSignal({
-        symbol: signal.symbol,
-        type: signal.type,
-        entryPrice: Number(signal.price),
-        currentPrice: Number(signal.currentPrice || signal.price),
-        timeframe: signal.timeframe,
-        maxUpside: Number(calculatePercent(signal.maxUpsidePrice, signal.price, signal.type)),
-        maxDrawdown: Number(calculatePercent(signal.maxDrawdownPrice, signal.price, signal.type)),
-        assetType: signal.assetType,
-        exchange: signal.exchange
-      });
-      setAnalysis(result);
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "AI Analysis Offline", description: err.message });
-    } finally {
-      setIsAnalyzing(false);
-    }
   };
 
   const formatPrice = (p: number | null | undefined) => {
@@ -213,57 +175,11 @@ export default function DeepDiveChartPage() {
                 )}
               </div>
 
-              <div className="px-6 py-4 border-t border-white/5">
-                <Button
-                  onClick={handleAIAnalysis}
-                  disabled={isAnalyzing}
-                  className="w-full gap-2 bg-accent/15 text-accent border border-accent/30 hover:bg-accent/25 font-bold uppercase text-xs tracking-wider"
-                >
-                  <BrainCircuit className="h-4 w-4" />
-                  {isAnalyzing ? "Analyzing..." : "AI Analysis"}
-                </Button>
-              </div>
-
-              {(isAnalyzing || analysis) && (
-                <div className="px-6 pb-6 space-y-4">
-                  {isAnalyzing ? (
-                    <div className="py-8 flex flex-col items-center justify-center gap-3 text-center">
-                      <BrainCircuit className="h-10 w-10 text-accent animate-pulse" />
-                      <p className="text-xs font-bold text-muted-foreground uppercase animate-pulse">Scanning Technicals...</p>
-                    </div>
-                  ) : (analysis && (
-                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-                      <div className="bg-accent/5 border border-accent/20 rounded-xl p-4">
-                        <span className="text-[10px] font-bold text-accent uppercase mb-1 block">Recommendation</span>
-                        <div className="text-xl font-black text-foreground uppercase">{analysis.recommendation}</div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase"><Info className="h-3.5 w-3.5" />Technical Rationale</div>
-                        <p className="text-xs text-foreground/80 leading-relaxed font-medium bg-white/5 p-3 rounded-lg">{analysis.technicalReasoning}</p>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase"><ShieldCheck className="h-3.5 w-3.5 text-positive" />Risk Audit</div>
-                        <p className="text-xs text-foreground/80 leading-relaxed font-medium bg-positive/5 p-3 rounded-lg border border-positive/10">{analysis.riskAssessment}</p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/10">
-                        <div className="bg-negative/5 border border-negative/20 rounded-xl p-3">
-                          <div className="text-[9px] font-black text-negative uppercase mb-1">Stop Loss</div>
-                          <div className="text-sm font-mono font-bold text-foreground">${formatPrice(analysis.suggestedStopLoss)}</div>
-                        </div>
-                        <div className="bg-positive/5 border border-positive/20 rounded-xl p-3">
-                          <div className="text-[9px] font-black text-positive uppercase mb-1">Take Profit</div>
-                          <div className="text-sm font-mono font-bold text-foreground">${formatPrice(analysis.suggestedTakeProfit)}</div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 
-          <div className="px-4 pt-2 pb-4">
-            <span className="text-[9px] font-black text-muted-foreground/50 uppercase tracking-widest block text-center mb-3">Trade on</span>
+          <div className="px-4 pt-2 pb-4 space-y-3">
+            <span className="text-[9px] font-black text-muted-foreground/50 uppercase tracking-widest block text-center">Trade on</span>
             <div className="flex gap-2">
               {tradeLinks.map((exchange) => (
                 <Button
@@ -279,6 +195,12 @@ export default function DeepDiveChartPage() {
                 </Button>
               ))}
             </div>
+            <Button asChild size="sm" className="w-full font-bold text-xs uppercase tracking-wide border rounded-lg h-9 gap-2 bg-[#2962FF]/15 text-[#2962FF] border-[#2962FF]/30 hover:bg-[#2962FF]/25">
+              <a href={tradingViewUrl} target="_blank" rel="noopener noreferrer">
+                <TradingViewIcon className="h-4 w-4" />
+                View on TradingView
+              </a>
+            </Button>
           </div>
         </div>
 
@@ -286,11 +208,6 @@ export default function DeepDiveChartPage() {
         <div className="flex-1 relative bg-[#13111a] flex flex-col">
           <div className="flex-1 min-h-0">
             <ChartPane symbol={signal?.symbol} interval={signal?.timeframe} exchange={signal?.exchange} />
-          </div>
-          <div className="py-3 flex items-center justify-center bg-[#0a0a0c] border-t border-white/5">
-            <Button asChild variant="outline" size="sm" className="border-accent/30 text-accent hover:bg-accent/10 font-bold uppercase tracking-tight h-8 px-6 rounded-lg">
-              <a href={tradingViewUrl} target="_blank" rel="noopener noreferrer">View In Tradingview <ExternalLink className="ml-2 h-3.5 w-3.5" /></a>
-            </Button>
           </div>
         </div>
       </div>

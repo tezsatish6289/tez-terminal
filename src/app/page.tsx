@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -474,7 +475,7 @@ export default function Home() {
             {isLoading ? (
               <div className="flex gap-6 overflow-x-auto pb-4">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <Card key={i} className="bg-card/50 border-white/5 animate-pulse min-w-[320px] shrink-0">
+                  <Card key={i} className="bg-[#121214] border-white/5 animate-pulse min-w-[320px] shrink-0 rounded-2xl">
                     <CardHeader className="pb-2"><div className="h-6 w-32 bg-white/10 rounded" /></CardHeader>
                     <CardContent><div className="h-32 bg-white/5 rounded" /></CardContent>
                   </Card>
@@ -486,20 +487,19 @@ export default function Home() {
                   const c = counts[cat.id] ?? { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
                   const sentiment = getMarketSentiment(c.BUY.working, c.BUY["not-working"], c.SELL.working, c.SELL["not-working"]);
                   return (
-                    <Card key={cat.id} className="bg-card/50 border-white/5 shadow-xl overflow-hidden min-w-[360px] aspect-[2/3] shrink-0">
-                      <CardHeader className="pb-3 border-b border-white/5">
+                    <Card key={cat.id} className="bg-[#121214] border-white/5 shadow-2xl overflow-hidden min-w-[360px] aspect-[2/3] shrink-0 rounded-2xl">
+                      <div className="p-6 border-b border-white/5">
                         <div className="flex items-start justify-between">
                           <div>
-                            <CardTitle className="text-lg font-black uppercase tracking-tight">{cat.name}</CardTitle>
-                            <CardDescription className="text-[10px] font-bold uppercase text-muted-foreground">{cat.chart} chart</CardDescription>
+                            <CardTitle className="text-2xl font-black uppercase tracking-tighter">{cat.name}</CardTitle>
+                            <CardDescription className="text-[10px] font-black uppercase text-accent tracking-widest">{cat.chart} chart</CardDescription>
                           </div>
-                          <div className="rounded-md border border-accent/20 bg-accent/10 px-2.5 py-1 text-right shrink-0">
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground block">Leverage</span>
-                            <span className="text-sm font-black text-accent">{cat.leverage}</span>
-                          </div>
+                          <Badge className="text-[10px] font-black border-none px-3 h-7 uppercase bg-accent/15 text-accent">
+                            {cat.leverage}
+                          </Badge>
                         </div>
-                      </CardHeader>
-                      <CardContent className="pt-4 space-y-5">
+                      </div>
+                      <CardContent className="p-6 space-y-5">
                         <WinnersTicker winners={topWinners[cat.id] ?? []} windowLabel={cat.windowLabel} leverage={getLeverage(cat.id)} onSelect={setSelectedWinner} />
                         <div className="space-y-3">
                           <div className="flex items-center gap-2">
@@ -542,7 +542,7 @@ export default function Home() {
                           </div>
                         </div>
                       </CardContent>
-                      <div className="px-6 py-3 border-t border-white/5 text-center">
+                      <div className="px-6 py-3 bg-black/40 border-t border-white/5 text-center">
                         <span className={cn("text-[10px] font-black uppercase tracking-widest", sentiment.color)}>{sentiment.label}</span>
                       </div>
                     </Card>

@@ -27,8 +27,8 @@ const SIDE_LABELS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  "working": "Working",
-  "not-working": "Not Working",
+  "working": "Winning",
+  "not-working": "Losing",
   "neutral": "Neutral",
   "all": "All Signals",
 };

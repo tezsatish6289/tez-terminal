@@ -452,11 +452,11 @@ export default function Home() {
                           <div className="grid grid-cols-3 gap-2">
                             <Link href={`/terminal?timeframe=${cat.id}&side=BUY&status=working`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-positive/10 border-positive/20 hover:bg-positive/20")}>
                               <div className="text-lg font-black font-mono text-positive">{c.BUY.working}</div>
-                              <div className="text-[9px] font-bold uppercase text-positive/80">Working</div>
+                              <div className="text-[9px] font-bold uppercase text-positive/80">Winning</div>
                             </Link>
                             <Link href={`/terminal?timeframe=${cat.id}&side=BUY&status=not-working`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-negative/10 border-negative/20 hover:bg-negative/20")}>
                               <div className="text-lg font-black font-mono text-negative">{c.BUY["not-working"]}</div>
-                              <div className="text-[9px] font-bold uppercase text-negative/80">Not working</div>
+                              <div className="text-[9px] font-bold uppercase text-negative/80">Losing</div>
                             </Link>
                             <Link href={`/terminal?timeframe=${cat.id}&side=BUY&status=neutral`} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center hover:bg-white/10 transition-colors">
                               <div className="text-lg font-black font-mono text-foreground">{c.BUY.neutral}</div>
@@ -472,11 +472,11 @@ export default function Home() {
                           <div className="grid grid-cols-3 gap-2">
                             <Link href={`/terminal?timeframe=${cat.id}&side=SELL&status=working`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-positive/10 border-positive/20 hover:bg-positive/20")}>
                               <div className="text-lg font-black font-mono text-positive">{c.SELL.working}</div>
-                              <div className="text-[9px] font-bold uppercase text-positive/80">Working</div>
+                              <div className="text-[9px] font-bold uppercase text-positive/80">Winning</div>
                             </Link>
                             <Link href={`/terminal?timeframe=${cat.id}&side=SELL&status=not-working`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-negative/10 border-negative/20 hover:bg-negative/20")}>
                               <div className="text-lg font-black font-mono text-negative">{c.SELL["not-working"]}</div>
-                              <div className="text-[9px] font-bold uppercase text-negative/80">Not working</div>
+                              <div className="text-[9px] font-bold uppercase text-negative/80">Losing</div>
                             </Link>
                             <Link href={`/terminal?timeframe=${cat.id}&side=SELL&status=neutral`} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center hover:bg-white/10 transition-colors">
                               <div className="text-lg font-black font-mono text-foreground">{c.SELL.neutral}</div>

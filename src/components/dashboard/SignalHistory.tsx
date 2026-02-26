@@ -127,9 +127,9 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
 
   const performanceOptions = [
     { label: "All Signals", value: "all" },
-    { label: "Working", value: "working" },
+    { label: "Winning", value: "working" },
     { label: "Neutral", value: "neutral" },
-    { label: "Not Working", value: "not-working" },
+    { label: "Losing", value: "not-working" },
   ];
 
   const calculatePercent = (targetPrice: number | undefined | null, entry: number, type: string) => {

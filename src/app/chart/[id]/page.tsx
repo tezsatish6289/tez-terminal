@@ -22,6 +22,7 @@ import {
   Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BinanceIcon, MexcIcon, PionexIcon } from "@/components/icons/exchange-icons";
 import { useEffect, useState } from "react";
 import { analyzeSignal, type AnalyzeSignalOutput } from "@/ai/flows/analyze-signal-flow";
 import { Progress } from "@/components/ui/progress";
@@ -120,6 +121,13 @@ export default function DeepDiveChartPage() {
   const hasStopLoss = signal?.stopLoss != null && signal?.stopLoss > 0;
   
   const tradingViewUrl = `https://www.tradingview.com/chart/?symbol=${signal?.exchange || 'BINANCE'}:${signal?.symbol}&interval=${signal?.timeframe || '15'}`;
+
+  const cleanSymbol = (signal?.symbol || "").replace(/\.P$/i, "");
+  const tradeLinks = [
+    { name: "Binance", icon: BinanceIcon, url: `https://www.binance.com/en/futures/${cleanSymbol}`, color: "bg-[#F0B90B]/15 text-[#F0B90B] border-[#F0B90B]/30 hover:bg-[#F0B90B]/25" },
+    { name: "MEXC", icon: MexcIcon, url: `https://futures.mexc.com/exchange/${cleanSymbol}`, color: "bg-[#2EBD85]/15 text-[#2EBD85] border-[#2EBD85]/30 hover:bg-[#2EBD85]/25" },
+    { name: "Pionex", icon: PionexIcon, url: `https://www.pionex.com/en/futures/${cleanSymbol}`, color: "bg-[#E8B342]/15 text-[#E8B342] border-[#E8B342]/30 hover:bg-[#E8B342]/25" },
+  ];
 
   const getRunningSince = (receivedAt: string) => {
     const diffMins = differenceInMinutes(now, new Date(receivedAt));
@@ -251,6 +259,25 @@ export default function DeepDiveChartPage() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+
+          <div className="px-4 pt-2 pb-4">
+            <span className="text-[9px] font-black text-muted-foreground/50 uppercase tracking-widest block text-center mb-3">Trade on</span>
+            <div className="flex gap-2">
+              {tradeLinks.map((exchange) => (
+                <Button
+                  key={exchange.name}
+                  asChild
+                  size="sm"
+                  className={cn("flex-1 font-bold text-xs uppercase tracking-wide border rounded-lg h-9 gap-2", exchange.color)}
+                >
+                  <a href={exchange.url} target="_blank" rel="noopener noreferrer">
+                    <exchange.icon className="h-3.5 w-3.5" />
+                    {exchange.name}
+                  </a>
+                </Button>
+              ))}
             </div>
           </div>
         </div>

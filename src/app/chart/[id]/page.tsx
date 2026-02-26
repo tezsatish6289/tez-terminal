@@ -114,7 +114,7 @@ export default function DeepDiveChartPage() {
             </Button>
 
             <div className="bg-[#121214] rounded-2xl border border-white/5 flex flex-col">
-              <div className="p-6 border-b border-white/5 bg-white/[0.02] rounded-t-2xl">
+              <div className="p-6 border-b border-white/5 rounded-t-2xl">
                 <div className="flex items-start justify-between">
                   <div className="flex flex-col">
                     <h3 className="text-2xl font-black text-foreground leading-none tracking-tighter uppercase mb-2">{signal?.symbol}</h3>
@@ -195,7 +195,7 @@ export default function DeepDiveChartPage() {
                 </Button>
               ))}
             </div>
-            <Button asChild size="sm" className="w-full font-bold text-xs uppercase tracking-wide border rounded-lg h-9 gap-2 bg-[#2962FF]/15 text-[#2962FF] border-[#2962FF]/30 hover:bg-[#2962FF]/25">
+            <Button asChild size="sm" className="w-full font-bold text-xs uppercase tracking-wide border rounded-lg h-9 gap-2 bg-black text-white border-white/30 hover:bg-white/10">
               <a href={tradingViewUrl} target="_blank" rel="noopener noreferrer">
                 <TradingViewIcon className="h-4 w-4" />
                 View on TradingView

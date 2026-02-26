@@ -346,7 +346,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                               hideFilters ? "w-full" : "w-[340px] shrink-0"
                             )}
                           >
-                            <div className="p-6 border-b border-white/5 bg-white/[0.02]">
+                            <div className="p-6 border-b border-white/5">
                               <div className="flex items-start justify-between">
                                 <div className="flex flex-col">
                                   <h3 className="text-2xl font-black text-foreground leading-none tracking-tighter uppercase mb-2">{signal.symbol}</h3>

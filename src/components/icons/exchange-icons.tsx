@@ -2,10 +2,9 @@ import { SVGProps } from "react";
 
 export function TradingViewIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg viewBox="0 0 36 28" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
-      <rect width="36" height="28" rx="4" fill="#2962FF" />
-      <path d="M6 20L13 13l4 4 7-10 6 6" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="30" cy="13" r="2" fill="#fff" />
+    <svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path d="M0 96C0 42.98 42.98 0 96 0h320c53.02 0 96 42.98 96 96v320c0 53.02-42.98 96-96 96H96c-53.02 0-96-42.98-96-96V96z" fill="#131722" />
+      <path fillRule="evenodd" clipRule="evenodd" d="M331 199.5c0 23.47-19.03 42.5-42.5 42.5S246 222.97 246 199.5 265.03 157 288.5 157 331 176.03 331 199.5zM225 160H56v85h84V371h85V160zm149 0h98l-88.5 211h-98L374 160z" fill="#fff" />
     </svg>
   );
 }

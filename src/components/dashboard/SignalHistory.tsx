@@ -331,8 +331,8 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                         const livePnl = calculatePercent(currentPrice, alertPrice, signal.type);
                         const leverage = getLeverage(signal.timeframe);
                         const leveragedPnl = (Number(livePnl) * leverage).toFixed(2);
-                        const maxUpPnl = calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type);
-                        const maxDownPnl = calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type);
+                        const maxUpPnl = (Number(calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type)) * leverage).toFixed(2);
+                        const maxDownPnl = (Number(calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type)) * leverage).toFixed(2);
                         const isBullish = signal.type === 'BUY';
                         const minutesSinceSync = getMinutesSinceSync(signal.lastSyncAt);
 

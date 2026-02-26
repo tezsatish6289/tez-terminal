@@ -112,8 +112,8 @@ export default function DeepDiveChartPage() {
   const livePnl = calculatePercent(signal?.currentPrice, signal?.price, signal?.type || "BUY");
   const leverage = getLeverage(signal?.timeframe);
   const leveragedPnl = (Number(livePnl) * leverage).toFixed(2);
-  const maxUpPnl = calculatePercent(signal?.maxUpsidePrice, signal?.price, signal?.type || "BUY");
-  const maxDownPnl = calculatePercent(signal?.maxDrawdownPrice, signal?.price, signal?.type || "BUY");
+  const maxUpPnl = (Number(calculatePercent(signal?.maxUpsidePrice, signal?.price, signal?.type || "BUY")) * leverage).toFixed(2);
+  const maxDownPnl = (Number(calculatePercent(signal?.maxDrawdownPrice, signal?.price, signal?.type || "BUY")) * leverage).toFixed(2);
   
   const tradingViewUrl = `https://www.tradingview.com/chart/?symbol=${signal?.exchange || 'BINANCE'}:${signal?.symbol}&interval=${signal?.timeframe || '15'}`;
 

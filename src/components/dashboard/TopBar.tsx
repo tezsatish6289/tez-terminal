@@ -139,10 +139,7 @@ export function TopBar() {
               </div>
             </SheetContent>
           </Sheet>
-          <div className="flex flex-col">
-            <span className="font-black text-lg text-accent tracking-tight leading-tight">TezTerminal.com</span>
-            <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Find Winning Opportunities</span>
-          </div>
+          <span className="font-black text-lg text-accent tracking-tight leading-tight">TezTerminal.com</span>
         </div>
 
         <div className="flex items-center gap-3">

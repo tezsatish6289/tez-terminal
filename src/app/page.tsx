@@ -452,7 +452,7 @@ export default function Home() {
       <main className="flex-1 flex flex-col min-w-0 h-full">
         <TopBar />
         <div className="flex-1 overflow-y-auto">
-          <div className="pl-16 pr-4 py-6 md:py-8 max-w-6xl space-y-8">
+          <div className="pl-16 pr-4 py-6 md:py-8 space-y-8">
 
             <div>
               <h1 className="text-xl font-black tracking-tight">Opportunity Finder</h1>
@@ -462,21 +462,21 @@ export default function Home() {
             </div>
 
             {isLoading ? (
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {[1, 2, 3].map((i) => (
-                  <Card key={i} className="bg-card/50 border-white/5 animate-pulse">
+              <div className="flex gap-6 overflow-x-auto pb-4">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <Card key={i} className="bg-card/50 border-white/5 animate-pulse min-w-[320px] shrink-0">
                     <CardHeader className="pb-2"><div className="h-6 w-32 bg-white/10 rounded" /></CardHeader>
                     <CardContent><div className="h-32 bg-white/5 rounded" /></CardContent>
                   </Card>
                 ))}
               </div>
             ) : (
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <div className="flex gap-6 overflow-x-auto pb-4">
                 {OPPORTUNITY_CATEGORIES.map((cat) => {
                   const c = counts[cat.id] ?? { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
                   const sentiment = getMarketSentiment(c.BUY.working, c.BUY["not-working"], c.SELL.working, c.SELL["not-working"]);
                   return (
-                    <Card key={cat.id} className="bg-card/50 border-white/5 shadow-xl overflow-hidden">
+                    <Card key={cat.id} className="bg-card/50 border-white/5 shadow-xl overflow-hidden min-w-[320px] shrink-0">
                       <CardHeader className="pb-3 border-b border-white/5">
                         <CardTitle className="text-lg font-black uppercase tracking-tight">{cat.name}</CardTitle>
                         <CardDescription className="text-[10px] font-bold uppercase text-muted-foreground">{cat.chart} chart</CardDescription>

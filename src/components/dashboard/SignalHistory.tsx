@@ -28,11 +28,16 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
+type SignalHistoryProps = {
+  initialTimeframeTab?: string | null;
+  initialPerformanceFilter?: string | null;
+};
+
 /**
  * PRODUCTION TERMINAL ENGINE - PERSISTENT STATE
  * Now exclusively displays ACTIVE signals for the live idea stream.
  */
-export function SignalHistory() {
+export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter }: SignalHistoryProps = {}) {
   const router = useRouter();
   const { user } = useUser();
   const firestore = useFirestore();
@@ -50,14 +55,22 @@ export function SignalHistory() {
   const [activeTimeframeTab, setActiveTimeframeTab] = useState<string>("all");
   const [globalPerformanceFilter, setGlobalPerformanceFilter] = useState<string>("working");
 
-  // Initialization
+  // Initialization — URL params (from Opportunity Finder links) override sessionStorage
   useEffect(() => {
     setMounted(true);
     const savedTab = sessionStorage.getItem(STORAGE_KEY_TAB);
     const savedPerf = sessionStorage.getItem(STORAGE_KEY_GLOBAL_PERF);
     const savedScroll = sessionStorage.getItem(STORAGE_KEY_SCROLL);
-    if (savedTab) setActiveTimeframeTab(savedTab);
-    if (savedPerf) setGlobalPerformanceFilter(savedPerf);
+    if (initialTimeframeTab != null && initialTimeframeTab !== "") {
+      setActiveTimeframeTab(initialTimeframeTab);
+    } else if (savedTab) {
+      setActiveTimeframeTab(savedTab);
+    }
+    if (initialPerformanceFilter != null && initialPerformanceFilter !== "") {
+      setGlobalPerformanceFilter(initialPerformanceFilter);
+    } else if (savedPerf) {
+      setGlobalPerformanceFilter(savedPerf);
+    }
     if (savedScroll && scrollContainerRef.current) {
       setTimeout(() => {
         if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = parseInt(savedScroll, 10);

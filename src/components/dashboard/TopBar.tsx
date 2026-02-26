@@ -45,7 +45,8 @@ export function TopBar() {
   };
 
   const navItems = [
-    { name: "Terminal", icon: LayoutDashboard, href: "/" },
+    { name: "Opportunity Finder", icon: Zap, href: "/" },
+    { name: "Terminal", icon: LayoutDashboard, href: "/terminal" },
     { name: "Analytics", icon: LineChart, href: "/analytics" },
     { name: "History", icon: History, href: "/history" },
   ];

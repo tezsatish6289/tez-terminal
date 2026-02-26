@@ -5,7 +5,7 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { SignalHistory } from "@/components/dashboard/SignalHistory";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Zap, Loader2, Chrome, Lightbulb } from "lucide-react";
+import { Zap, Loader2, Chrome } from "lucide-react";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -89,16 +89,6 @@ export default function Home() {
         
         <div className="flex-1 flex flex-col min-h-0">
           <section className="flex-1 flex flex-col bg-card/30 overflow-hidden">
-            <div className="p-4 border-b border-border bg-background/50 flex items-center justify-between shrink-0">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                <Lightbulb className="h-3 w-3 text-accent" />
-                Live Performance Terminal
-              </h2>
-              <div className="flex items-center gap-3">
-                <span className="text-[10px] text-muted-foreground font-mono uppercase">Full Node Stream</span>
-                <div className="h-2 w-2 rounded-full bg-positive animate-pulse" />
-              </div>
-            </div>
             <div className="flex-1 min-h-0">
               <SignalHistory />
             </div>

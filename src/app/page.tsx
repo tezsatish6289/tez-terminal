@@ -4,11 +4,13 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy, limit } from "firebase/firestore";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Zap, Loader2, Chrome, TrendingUp, TrendingDown } from "lucide-react";
+import { Zap, Loader2, Chrome, TrendingUp, TrendingDown, Shield, Trophy } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
+import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +42,195 @@ function calculatePercent(currentPrice: number | undefined | null, entry: number
   return (diff / entry) * 100;
 }
 
-function WinnersTicker({ winners }: { winners: { symbol: string; pnl: number }[] }) {
+interface WinnerSignal {
+  symbol: string;
+  pnl: number;
+  type: string;
+  price: number;
+  currentPrice: number | null;
+  maxUpsidePrice: number | null;
+  maxDrawdownPrice: number | null;
+  stopLoss: number | null;
+  receivedAt: string;
+  timeframe: string;
+}
+
+function formatNarrationPrice(price: number | null | undefined): string {
+  if (price == null) return "--";
+  const decimals = price < 1 ? 6 : 2;
+  return price.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal | null; open: boolean; onClose: () => void }) {
+  if (!signal) return null;
+
+  const isBullish = signal.type === "BUY";
+  const direction = isBullish ? "bullish" : "bearish";
+  const directionLabel = isBullish ? "LONG" : "SHORT";
+  const maxUpPnl = calculatePercent(signal.maxUpsidePrice, signal.price, signal.type);
+  const maxDownPnl = calculatePercent(signal.maxDrawdownPrice, signal.price, signal.type);
+  const slDistance = signal.stopLoss ? calculatePercent(signal.stopLoss, signal.price, signal.type) : null;
+
+  const hasMaxUpside = signal.maxUpsidePrice != null && signal.maxUpsidePrice > 0;
+  const hasMaxDrawdown = signal.maxDrawdownPrice != null && signal.maxDrawdownPrice > 0;
+  const hasStopLoss = signal.stopLoss != null && signal.stopLoss > 0;
+
+  let entryDate = "";
+  try { entryDate = format(new Date(signal.receivedAt), "MMM dd, h:mm a"); } catch { entryDate = "—"; }
+
+  const slWasThreatened = hasStopLoss && hasMaxDrawdown && (
+    isBullish
+      ? signal.maxDrawdownPrice! <= signal.stopLoss!
+      : signal.maxDrawdownPrice! >= signal.stopLoss!
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-3xl bg-card border-white/10 p-0 overflow-hidden">
+        <DialogHeader className="sr-only">
+          <DialogTitle>{signal.symbol} Trade Details</DialogTitle>
+          <DialogDescription>Detailed narration of the {signal.symbol} trade</DialogDescription>
+        </DialogHeader>
+        <div className="grid md:grid-cols-2 divide-x divide-white/5">
+          {/* Left: Signal Card */}
+          <div className="p-6 space-y-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-xl font-black uppercase tracking-tighter">{signal.symbol}</h3>
+                <span className={cn("text-[10px] font-black uppercase tracking-widest", isBullish ? "text-positive" : "text-negative")}>
+                  {directionLabel}
+                </span>
+              </div>
+              <div className={cn("px-3 py-1 rounded-lg text-xs font-black uppercase", isBullish ? "bg-positive/20 text-positive" : "bg-negative/20 text-negative")}>
+                {isBullish ? "Bullish" : "Bearish"}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Entry Price</p>
+                <p className="text-lg font-mono font-bold">${formatNarrationPrice(signal.price)}</p>
+              </div>
+              <div className="space-y-1 text-right">
+                <p className="text-[10px] font-bold text-accent uppercase tracking-widest">Current Price</p>
+                <p className={cn("text-lg font-mono font-black", signal.pnl >= 0 ? "text-positive" : "text-negative")}>
+                  ${formatNarrationPrice(signal.currentPrice)}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border bg-white/5 border-white/10 px-4 py-2.5 flex items-center justify-between">
+              <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Live PNL</span>
+              <span className={cn("text-xl font-mono font-black", signal.pnl >= 0 ? "text-positive" : "text-negative")}>
+                {signal.pnl >= 0 ? "+" : ""}{signal.pnl.toFixed(2)}%
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-positive/10 border border-positive/20">
+                <span className="text-[9px] uppercase font-black text-positive/90 tracking-widest">Peak Upside</span>
+                <span className="text-base font-mono font-black text-positive">
+                  {hasMaxUpside ? `+${maxUpPnl.toFixed(2)}%` : "—"}
+                </span>
+              </div>
+              <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-negative/10 border border-negative/20">
+                <span className="text-[9px] uppercase font-black text-negative/90 tracking-widest">Max Drawdown</span>
+                <span className="text-base font-mono font-black text-negative">
+                  {hasMaxDrawdown ? `${maxDownPnl.toFixed(2)}%` : "—"}
+                </span>
+              </div>
+            </div>
+
+            {hasStopLoss && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03]">
+                <Shield className="h-3.5 w-3.5 text-amber-400" />
+                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Stop Loss</span>
+                <span className="ml-auto font-mono text-sm font-bold">${formatNarrationPrice(signal.stopLoss)}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Right: Narration */}
+          <div className="p-6 space-y-5 bg-white/[0.01]">
+            <div className="flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-amber-400" />
+              <h4 className="text-xs font-black uppercase tracking-wider text-foreground">Trade Narration</h4>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <div className="h-5 w-5 rounded-full bg-accent/20 flex items-center justify-center text-[9px] font-black text-accent">1</div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-accent">The Call</span>
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed pl-7">
+                  TezTerminal identified a <span className={cn("font-bold", isBullish ? "text-positive" : "text-negative")}>{direction}</span> opportunity on{" "}
+                  <span className="font-bold text-foreground">{signal.symbol}</span> at{" "}
+                  <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.price)}</span> on{" "}
+                  <span className="text-foreground">{entryDate}</span>.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <div className="h-5 w-5 rounded-full bg-accent/20 flex items-center justify-center text-[9px] font-black text-accent">2</div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-accent">The Journey</span>
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed pl-7">
+                  {hasMaxUpside ? (
+                    <>Since entry, price surged to a peak of <span className="font-mono font-bold text-positive">${formatNarrationPrice(signal.maxUpsidePrice)}</span>{" "}
+                    (<span className="font-bold text-positive">+{maxUpPnl.toFixed(2)}%</span> max favorable excursion)</>
+                  ) : (
+                    <>Peak upside data is still being tracked</>
+                  )}
+                  {hasMaxDrawdown ? (
+                    <>, while the deepest pullback was to <span className="font-mono font-bold text-negative">${formatNarrationPrice(signal.maxDrawdownPrice)}</span>{" "}
+                    (<span className="font-bold text-negative">{maxDownPnl.toFixed(2)}%</span>).</>
+                  ) : (
+                    <>. Drawdown data is still being tracked.</>
+                  )}
+                </p>
+              </div>
+
+              {hasStopLoss && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="h-5 w-5 rounded-full bg-accent/20 flex items-center justify-center text-[9px] font-black text-accent">3</div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-accent">Risk Discipline</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed pl-7">
+                    Stop loss was set at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.stopLoss)}</span>{" "}
+                    (<span className="font-mono text-foreground">{slDistance?.toFixed(2)}%</span> from entry).{" "}
+                    {slWasThreatened ? (
+                      <span className="text-amber-400 font-bold">The stop zone was tested during the trade.</span>
+                    ) : (
+                      <span className="text-positive font-bold">It was never threatened.</span>
+                    )}
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <div className="h-5 w-5 rounded-full bg-positive/20 flex items-center justify-center text-[9px] font-black text-positive">{hasStopLoss ? "4" : "3"}</div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-positive">The Result</span>
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed pl-7">
+                  Currently trading at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.currentPrice)}</span>, delivering{" "}
+                  <span className={cn("font-mono font-black text-base", signal.pnl >= 0 ? "text-positive" : "text-negative")}>
+                    {signal.pnl >= 0 ? "+" : ""}{signal.pnl.toFixed(2)}%
+                  </span>{" "}returns.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function WinnersTicker({ winners, onSelect }: { winners: WinnerSignal[]; onSelect: (w: WinnerSignal) => void }) {
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
@@ -53,17 +243,26 @@ function WinnersTicker({ winners }: { winners: { symbol: string; pnl: number }[]
 
   if (winners.length === 0) {
     return (
-      <div className="h-8 flex items-center justify-center text-[10px] text-muted-foreground/50 uppercase tracking-wider">
-        No active winners yet
+      <div className="space-y-1.5">
+        <p className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest">Latest winning trades</p>
+        <div className="h-8 flex items-center justify-center text-[10px] text-muted-foreground/50 uppercase tracking-wider">
+          No active winners yet
+        </div>
       </div>
     );
   }
 
   const winner = winners[activeIndex];
   return (
-    <div className="h-8 flex items-center justify-between px-3 rounded-md bg-positive/5 border border-positive/10 overflow-hidden">
-      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider truncate">{winner.symbol}</span>
-      <span className="text-xs font-black font-mono text-positive animate-pulse">+{winner.pnl.toFixed(2)}%</span>
+    <div className="space-y-1.5">
+      <p className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest">Latest winning trades</p>
+      <button
+        onClick={(e) => { e.preventDefault(); onSelect(winner); }}
+        className="w-full h-8 flex items-center justify-between px-3 rounded-md bg-positive/5 border border-positive/10 overflow-hidden hover:bg-positive/10 transition-colors cursor-pointer"
+      >
+        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider truncate">{winner.symbol}</span>
+        <span className="text-xs font-black font-mono text-positive animate-pulse">+{winner.pnl.toFixed(2)}%</span>
+      </button>
     </div>
   );
 }
@@ -73,6 +272,7 @@ export default function Home() {
   const auth = useAuth();
   const firestore = useFirestore();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [selectedWinner, setSelectedWinner] = useState<WinnerSignal | null>(null);
 
   const signalsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -102,7 +302,7 @@ export default function Home() {
   }, [rawSignals]);
 
   const topWinners = useMemo(() => {
-    const map: Record<string, { symbol: string; pnl: number }[]> = {};
+    const map: Record<string, WinnerSignal[]> = {};
     OPPORTUNITY_CATEGORIES.forEach((c) => { map[c.id] = []; });
     if (!rawSignals) return map;
     rawSignals.forEach((signal: any) => {
@@ -113,7 +313,18 @@ export default function Home() {
       if (!map[cat]) return;
       const pnl = calculatePercent(signal.currentPrice, signal.price, signal.type);
       if (pnl > 0.05) {
-        map[cat].push({ symbol: signal.symbol || "???", pnl });
+        map[cat].push({
+          symbol: signal.symbol || "???",
+          pnl,
+          type: signal.type,
+          price: Number(signal.price || 0),
+          currentPrice: signal.currentPrice != null ? Number(signal.currentPrice) : null,
+          maxUpsidePrice: signal.maxUpsidePrice ?? null,
+          maxDrawdownPrice: signal.maxDrawdownPrice ?? null,
+          stopLoss: signal.stopLoss ?? null,
+          receivedAt: signal.receivedAt,
+          timeframe: signal.timeframe,
+        });
       }
     });
     Object.keys(map).forEach((k) => {
@@ -258,7 +469,7 @@ export default function Home() {
                             </Link>
                           </div>
                         </div>
-                        <WinnersTicker winners={topWinners[cat.id] ?? []} />
+                        <WinnersTicker winners={topWinners[cat.id] ?? []} onSelect={setSelectedWinner} />
                       </CardContent>
                     </Card>
                   );
@@ -267,6 +478,7 @@ export default function Home() {
             )}
           </div>
         </div>
+        <TradeNarrationDialog signal={selectedWinner} open={!!selectedWinner} onClose={() => setSelectedWinner(null)} />
       </main>
     </div>
   );

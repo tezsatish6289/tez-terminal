@@ -351,9 +351,14 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                                   <h3 className="text-2xl font-black text-foreground leading-none tracking-tighter uppercase mb-2">{signal.symbol}</h3>
                                   <span className="text-[10px] font-black text-accent uppercase tracking-widest">{getDisplayAssetType(signal)}</span>
                                 </div>
-                                <Badge className={cn("text-[10px] font-black border-none px-4 h-7 uppercase", isBullish ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative')}>
-                                  {isBullish ? 'BULLISH' : 'BEARISH'}
-                                </Badge>
+                                <div className="flex items-center gap-2">
+                                  <Badge className={cn("text-[10px] font-black border-none px-4 h-7 uppercase", isBullish ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative')}>
+                                    {isBullish ? 'BULLISH' : 'BEARISH'}
+                                  </Badge>
+                                  <Badge className="text-[10px] font-black border-none px-3 h-7 uppercase bg-accent/15 text-accent">
+                                    {leverage}x
+                                  </Badge>
+                                </div>
                               </div>
                             </div>
                             <div className="px-6 py-3 bg-black/40 flex items-center justify-between border-b border-white/5 text-[10px] font-black text-muted-foreground/40 uppercase">

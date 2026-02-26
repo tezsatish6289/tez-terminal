@@ -1,9 +1,9 @@
 
 "use client";
 
-import { Bell, Search, User, Settings, LayoutDashboard, LogOut, Menu, Zap, History, LineChart, Webhook, X } from "lucide-react";
+import { Bell, User, Settings, LayoutDashboard, LogOut, Menu, Zap, History, LineChart, Webhook, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+
 import { Badge } from "@/components/ui/badge";
 import { useUser, useAuth } from "@/firebase";
 import { initiateSignOut } from "@/firebase/non-blocking-login";
@@ -146,14 +146,6 @@ export function TopBar() {
              <span className="font-bold text-lg text-accent tracking-tighter hidden sm:inline-block">TezTerminal</span>
           </div>
 
-          <div className="relative w-full max-w-sm hidden md:block">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search pairs..."
-              className="pl-8 bg-secondary/30 border-none focus-visible:ring-1 focus-visible:ring-accent h-9"
-            />
-          </div>
         </div>
 
         <div className="flex items-center gap-3">

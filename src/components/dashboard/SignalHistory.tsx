@@ -293,26 +293,33 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
               const SectionIcon = cat.icon;
 
               return (
-                <section key={cat.id} className="space-y-8">
-                  <div className="px-6">
-                    <div className="flex items-center gap-4">
-                      <div className="bg-primary/20 p-2.5 rounded-xl border border-white/10 shrink-0">
-                        <SectionIcon className="h-6 w-6 text-accent" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <h2 className="text-2xl font-black text-foreground uppercase tracking-tighter leading-none">
-                          {cat.title}
-                        </h2>
-                        <p className="text-[10px] font-black text-accent uppercase tracking-[0.4em] opacity-80">
-                          {cat.label} TECHNICAL CONTEXT
-                        </p>
+                <section key={cat.id} className={hideFilters ? "space-y-4" : "space-y-8"}>
+                  {!hideFilters && (
+                    <div className="px-6">
+                      <div className="flex items-center gap-4">
+                        <div className="bg-primary/20 p-2.5 rounded-xl border border-white/10 shrink-0">
+                          <SectionIcon className="h-6 w-6 text-accent" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <h2 className="text-2xl font-black text-foreground uppercase tracking-tighter leading-none">
+                            {cat.title}
+                          </h2>
+                          <p className="text-[10px] font-black text-accent uppercase tracking-[0.4em] opacity-80">
+                            {cat.label} TECHNICAL CONTEXT
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
 
-                  <div className="w-full overflow-x-auto flex flex-row gap-6 px-6 pb-6">
+                  <div className={cn(
+                    "px-6 pb-6",
+                    hideFilters
+                      ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                      : "w-full overflow-x-auto flex flex-row gap-6"
+                  )}>
                     {categorySignals.length === 0 ? (
-                      <div className="w-full py-12 text-center bg-white/[0.01] border border-dashed border-white/5 rounded-2xl">
+                      <div className={cn("py-12 text-center bg-white/[0.01] border border-dashed border-white/5 rounded-2xl", hideFilters ? "col-span-full" : "w-full")}>
                         <p className="text-[10px] font-black text-muted-foreground/40 uppercase tracking-widest">No matching signals</p>
                       </div>
                     ) : (
@@ -330,7 +337,10 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                           <Card 
                             key={signal.id} 
                             onClick={() => router.push(`/chart/${signal.id}`)}
-                            className="group bg-[#121214] border-white/5 hover:border-accent/30 transition-all duration-300 cursor-pointer shadow-2xl rounded-2xl flex flex-col w-[340px] shrink-0"
+                            className={cn(
+                              "group bg-[#121214] border-white/5 hover:border-accent/30 transition-all duration-300 cursor-pointer shadow-2xl rounded-2xl flex flex-col",
+                              hideFilters ? "w-full" : "w-[340px] shrink-0"
+                            )}
                           >
                             <div className="p-6 border-b border-white/5 bg-white/[0.02]">
                               <div className="flex items-start justify-between">

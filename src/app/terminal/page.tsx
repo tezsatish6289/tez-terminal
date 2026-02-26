@@ -147,16 +147,10 @@ function TerminalContent() {
                 Showing {sideLabel?.toLowerCase() || "all"} {categoryLabel?.toLowerCase()} opportunities{statusLabel ? ` that are ${statusLabel.toLowerCase()}` : ""}
               </p>
             </div>
-            <Link href="/" className="shrink-0">
-              <Button className="gap-2 bg-accent/10 text-accent border border-accent/30 hover:bg-accent/20 font-black uppercase text-xs tracking-wider rounded-xl px-5 h-10">
-                <Target className="h-4 w-4" />
-                Find More Opportunities
-              </Button>
-            </Link>
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 relative">
           <section className="flex-1 flex flex-col bg-card/30 overflow-hidden">
             <div className="flex-1 min-h-0">
               <SignalHistory
@@ -167,6 +161,16 @@ function TerminalContent() {
               />
             </div>
           </section>
+
+          {/* Sticky bottom CTA */}
+          <div className="sticky bottom-0 w-full border-t border-accent/20 bg-[#0a0a0c]/95 backdrop-blur-md py-4 px-6 z-30">
+            <Link href="/" className="block max-w-md mx-auto">
+              <Button className="w-full h-12 gap-3 bg-accent/15 text-accent border-2 border-accent/40 hover:bg-accent/25 font-black uppercase text-sm tracking-wider rounded-xl shadow-lg shadow-accent/10">
+                <Target className="h-5 w-5" />
+                Find More Opportunities
+              </Button>
+            </Link>
+          </div>
         </div>
       </main>
     </div>

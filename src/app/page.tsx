@@ -15,11 +15,11 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const OPPORTUNITY_CATEGORIES = [
-  { id: "5", name: "Scalping", chart: "5 min" },
-  { id: "15", name: "Intraday", chart: "15 min" },
-  { id: "60", name: "BTST", chart: "1 hr" },
-  { id: "240", name: "Swing", chart: "4 hr" },
-  { id: "D", name: "Buy and hold", chart: "Daily" },
+  { id: "5", name: "Scalping", chart: "5 min", windowHours: 24, windowLabel: "in 24h" },
+  { id: "15", name: "Intraday", chart: "15 min", windowHours: 48, windowLabel: "in 48h" },
+  { id: "60", name: "BTST", chart: "1 hr", windowHours: 168, windowLabel: "in 7d" },
+  { id: "240", name: "Swing", chart: "4 hr", windowHours: 720, windowLabel: "in 30d" },
+  { id: "D", name: "Buy and hold", chart: "Daily", windowHours: 2160, windowLabel: "in 90d" },
 ] as const;
 
 type StatusKey = "working" | "not-working" | "neutral";
@@ -230,7 +230,7 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
   );
 }
 
-function WinnersTicker({ winners, totalWinning, onSelect }: { winners: WinnerSignal[]; totalWinning: number; onSelect: (w: WinnerSignal) => void }) {
+function WinnersTicker({ winners, windowLabel, onSelect }: { winners: WinnerSignal[]; windowLabel: string; onSelect: (w: WinnerSignal) => void }) {
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
@@ -246,7 +246,10 @@ function WinnersTicker({ winners, totalWinning, onSelect }: { winners: WinnerSig
       <div className="rounded-lg border border-amber-500/10 bg-amber-500/[0.03] px-4 py-3">
         <div className="flex items-center gap-2">
           <Trophy className="h-3.5 w-3.5 text-amber-500/40" />
-          <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">No winning trades yet</span>
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Top Winning Trades</span>
+            <span className="text-[9px] text-muted-foreground/30 uppercase tracking-wider">No winners {windowLabel}</span>
+          </div>
         </div>
       </div>
     );
@@ -255,12 +258,12 @@ function WinnersTicker({ winners, totalWinning, onSelect }: { winners: WinnerSig
   const winner = winners[activeIndex];
   return (
     <div className="rounded-lg border border-amber-500/20 bg-gradient-to-r from-amber-500/[0.08] to-amber-600/[0.03] shadow-[0_0_15px_-3px_rgba(245,158,11,0.1)]">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-amber-500/10">
-        <div className="flex items-center gap-1.5">
-          <Trophy className="h-3.5 w-3.5 text-amber-400" />
-          <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">{totalWinning} Winning Trade{totalWinning !== 1 ? "s" : ""}</span>
+      <div className="flex items-center gap-1.5 px-4 py-2 border-b border-amber-500/10">
+        <Trophy className="h-3.5 w-3.5 text-amber-400" />
+        <div className="flex flex-col">
+          <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Top Winning Trades</span>
+          <span className="text-[9px] text-amber-400/50 uppercase tracking-wider">{windowLabel}</span>
         </div>
-        <span className="text-[9px] text-amber-400/50 uppercase tracking-wider">Click to verify</span>
       </div>
       <button
         onClick={(e) => { e.preventDefault(); onSelect(winner); }}
@@ -309,7 +312,12 @@ export default function Home() {
 
   const topWinners = useMemo(() => {
     const map: Record<string, WinnerSignal[]> = {};
-    OPPORTUNITY_CATEGORIES.forEach((c) => { map[c.id] = []; });
+    const windowMs: Record<string, number> = {};
+    const now = Date.now();
+    OPPORTUNITY_CATEGORIES.forEach((c) => {
+      map[c.id] = [];
+      windowMs[c.id] = c.windowHours * 60 * 60 * 1000;
+    });
     if (!rawSignals) return map;
     rawSignals.forEach((signal: any) => {
       if (signal.status === "INACTIVE") return;
@@ -317,6 +325,8 @@ export default function Home() {
       const tf = String(signal.timeframe || "").toUpperCase();
       const cat = tf === "D" ? "D" : tf;
       if (!map[cat]) return;
+      const signalTime = new Date(signal.receivedAt).getTime();
+      if (now - signalTime > windowMs[cat]) return;
       const pnl = calculatePercent(signal.currentPrice, signal.price, signal.type);
       if (pnl > 0.05) {
         map[cat].push({
@@ -433,7 +443,7 @@ export default function Home() {
                         <CardDescription className="text-[10px] font-bold uppercase text-muted-foreground">{cat.chart} chart</CardDescription>
                       </CardHeader>
                       <CardContent className="pt-4 space-y-5">
-                        <WinnersTicker winners={topWinners[cat.id] ?? []} totalWinning={c.BUY.working + c.SELL.working} onSelect={setSelectedWinner} />
+                        <WinnersTicker winners={topWinners[cat.id] ?? []} windowLabel={cat.windowLabel} onSelect={setSelectedWinner} />
                         <div className="space-y-3">
                           <div className="flex items-center gap-2">
                             <TrendingUp className="h-4 w-4 text-positive" />

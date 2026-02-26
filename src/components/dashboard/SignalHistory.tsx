@@ -343,7 +343,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                             onClick={() => router.push(`/chart/${signal.id}`)}
                             className={cn(
                               "group bg-[#121214] border-white/5 hover:border-accent/30 transition-all duration-300 cursor-pointer shadow-2xl rounded-2xl flex flex-col",
-                              hideFilters ? "w-full" : "w-[340px] shrink-0"
+                              hideFilters ? "w-full" : "w-[340px] aspect-[2/3] shrink-0"
                             )}
                           >
                             <div className="p-6 border-b border-white/5 bg-white/[0.02]">
@@ -387,7 +387,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                                   <span className={minutesSinceSync ? "text-accent/80" : "text-amber-600/80"}>{mounted && (minutesSinceSync ?? "Not synced yet")}</span>
                                </div>
 
-                               <div className="rounded-xl border border-accent/15 bg-accent/[0.03] p-3 space-y-3">
+                               <div className="rounded-xl border border-accent/15 bg-accent/[0.03] p-3 space-y-3 mt-5">
                                  <span className="text-[9px] uppercase font-black tracking-widest text-accent block text-center">Returns at {leverage}x Leverage</span>
                                  {hasCurrentPrice && (
                                    <div className="w-full rounded-lg border bg-white/5 border-white/10 px-4 py-2 flex items-center justify-between gap-4">

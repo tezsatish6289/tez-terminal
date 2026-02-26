@@ -274,7 +274,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto w-full bg-[#0a0a0c]"
       >
-        <div className="py-8 space-y-16">
+        <div className="pt-6 pb-8 space-y-16">
           {isLoading ? (
             <div className="px-6 space-y-8">
                {[1,2].map(i => (

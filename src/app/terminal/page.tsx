@@ -22,8 +22,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const SIDE_LABELS: Record<string, string> = {
-  "BUY": "Bullish",
-  "SELL": "Bearish",
+  "BUY": "Bulls",
+  "SELL": "Bears",
 };
 
 const STATUS_LABELS: Record<string, string> = {

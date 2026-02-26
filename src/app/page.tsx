@@ -42,6 +42,22 @@ function calculatePercent(currentPrice: number | undefined | null, entry: number
   return (diff / entry) * 100;
 }
 
+function getMarketSentiment(bullWin: number, bullLose: number, bearWin: number, bearLose: number): { label: string; color: string } {
+  const bullTotal = bullWin + bullLose;
+  const bearTotal = bearWin + bearLose;
+  if (bullTotal + bearTotal < 2) return { label: "No clear winner", color: "text-muted-foreground" };
+
+  const bullRate = bullTotal > 0 ? bullWin / bullTotal : 0;
+  const bearRate = bearTotal > 0 ? bearWin / bearTotal : 0;
+  const gap = bullRate - bearRate;
+
+  if (gap > 0.25) return { label: "Bulls in control", color: "text-positive" };
+  if (gap > 0.10) return { label: "Bulls taking over", color: "text-positive/70" };
+  if (gap < -0.25) return { label: "Bears in control", color: "text-negative" };
+  if (gap < -0.10) return { label: "Bears taking over", color: "text-negative/70" };
+  return { label: "No clear winner", color: "text-muted-foreground" };
+}
+
 interface WinnerSignal {
   symbol: string;
   pnl: number;
@@ -432,6 +448,7 @@ export default function Home() {
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {OPPORTUNITY_CATEGORIES.map((cat) => {
                   const c = counts[cat.id] ?? { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
+                  const sentiment = getMarketSentiment(c.BUY.working, c.BUY["not-working"], c.SELL.working, c.SELL["not-working"]);
                   return (
                     <Card key={cat.id} className="bg-card/50 border-white/5 shadow-xl overflow-hidden">
                       <CardHeader className="pb-3 border-b border-white/5">
@@ -481,6 +498,9 @@ export default function Home() {
                           </div>
                         </div>
                       </CardContent>
+                      <div className="px-6 py-3 border-t border-white/5 text-center">
+                        <span className={cn("text-[10px] font-black uppercase tracking-widest", sentiment.color)}>{sentiment.label}</span>
+                      </div>
                     </Card>
                   );
                 })}

@@ -289,17 +289,13 @@ function WinnersTicker({ winners, windowLabel, leverage, onSelect }: { winners: 
   );
 }
 
-function OpportunityCard({ cat, counts, premiumCounts, sentimentByTimeframe, topWinners, onSelectWinner, premiumMode, onTogglePremium }: {
+function OpportunityCard({ cat, activeCounts, sentimentByTimeframe, topWinners, onSelectWinner }: {
   cat: typeof OPPORTUNITY_CATEGORIES[number];
-  counts: Record<string, Record<SideKey, Record<StatusKey, number>>>;
-  premiumCounts: Record<string, Record<SideKey, Record<StatusKey, number>>>;
+  activeCounts: Record<string, Record<SideKey, Record<StatusKey, number>>>;
   sentimentByTimeframe: Record<string, ReturnType<typeof computeSentiment>>;
   topWinners: Record<string, WinnerSignal[]>;
   onSelectWinner: (w: WinnerSignal) => void;
-  premiumMode: boolean;
-  onTogglePremium: () => void;
 }) {
-  const activeCounts = premiumMode ? premiumCounts : counts;
   const c = activeCounts[cat.id] ?? { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
   const sentiment = sentimentByTimeframe[cat.id] ?? { label: "No clear trend", color: "text-muted-foreground" };
   return (
@@ -310,23 +306,9 @@ function OpportunityCard({ cat, counts, premiumCounts, sentimentByTimeframe, top
             <CardTitle className="text-2xl font-black uppercase tracking-tighter">{cat.name}</CardTitle>
             <CardDescription className="text-[10px] font-black uppercase text-accent tracking-widest">{cat.chart} chart</CardDescription>
           </div>
-          <div className="flex flex-col items-end gap-1.5">
-            <Badge className="text-[10px] font-black border-none px-3 h-7 uppercase bg-accent/15 text-accent">
-              {cat.leverage}
-            </Badge>
-            <button
-              onClick={onTogglePremium}
-              className={cn(
-                "flex items-center gap-1.5 px-3 h-7 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border",
-                premiumMode
-                  ? "bg-amber-400/15 text-amber-400 border-amber-400/30"
-                  : "bg-white/5 text-muted-foreground/50 border-white/10 hover:text-muted-foreground",
-              )}
-            >
-              <Crown className="h-3 w-3" />
-              Premium
-            </button>
-          </div>
+          <Badge className="text-[10px] font-black border-none px-3 h-7 uppercase bg-accent/15 text-accent">
+            {cat.leverage}
+          </Badge>
         </div>
       </div>
       <CardContent className="p-6 space-y-5">
@@ -636,11 +618,38 @@ export default function Home() {
         <div className="flex-1 overflow-y-auto">
           <div className="px-4 py-6 md:px-6 md:py-8 space-y-8">
 
-            <div>
-              <h1 className="text-xl font-black tracking-tight">Opportunity Finder</h1>
-              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                Live-tracked crypto signals across Scalping, Intraday, BTST, Swing, and Buy &amp; Hold timeframes. Click any card to explore.
-              </p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h1 className="text-xl font-black tracking-tight">Opportunity Finder</h1>
+                <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                  Live-tracked crypto signals across Scalping, Intraday, BTST, Swing, and Buy &amp; Hold timeframes. Click any card to explore.
+                </p>
+              </div>
+              <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-1 shrink-0">
+                <button
+                  onClick={() => setPremiumMode(false)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all",
+                    !premiumMode
+                      ? "bg-accent/15 text-accent shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setPremiumMode(true)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all",
+                    premiumMode
+                      ? "bg-amber-400/15 text-amber-400 shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Crown className="h-3.5 w-3.5" />
+                  Premium
+                </button>
+              </div>
             </div>
 
             {/* Mobile: sticky filter chips + vertical scroll with scroll-spy */}
@@ -677,7 +686,7 @@ export default function Home() {
                 <div className="space-y-4">
                   {OPPORTUNITY_CATEGORIES.map((cat) => (
                     <div key={cat.id} ref={(el) => { cardRefs.current[cat.id] = el; }}>
-                      <OpportunityCard cat={cat} counts={counts} premiumCounts={premiumCounts} sentimentByTimeframe={sentimentByTimeframe} topWinners={topWinners} onSelectWinner={setSelectedWinner} premiumMode={premiumMode} onTogglePremium={() => setPremiumMode(p => !p)} />
+                      <OpportunityCard cat={cat} activeCounts={premiumMode ? premiumCounts : counts} sentimentByTimeframe={sentimentByTimeframe} topWinners={topWinners} onSelectWinner={setSelectedWinner} />
                     </div>
                   ))}
                 </div>
@@ -698,7 +707,7 @@ export default function Home() {
               ) : (
                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
                   {OPPORTUNITY_CATEGORIES.map((cat) => (
-                    <OpportunityCard key={cat.id} cat={cat} counts={counts} premiumCounts={premiumCounts} sentimentByTimeframe={sentimentByTimeframe} topWinners={topWinners} onSelectWinner={setSelectedWinner} premiumMode={premiumMode} onTogglePremium={() => setPremiumMode(p => !p)} />
+                    <OpportunityCard key={cat.id} cat={cat} activeCounts={premiumMode ? premiumCounts : counts} sentimentByTimeframe={sentimentByTimeframe} topWinners={topWinners} onSelectWinner={setSelectedWinner} />
                   ))}
                 </div>
               )}

@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useCollection, useUser, useMemoFirebase, useFirestore, useAuth } from "@/firebase";
-import { collection, query, orderBy } from "firebase/firestore";
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { useCollection, useDoc, useUser, useMemoFirebase, useFirestore, useAuth } from "@/firebase";
+import { collection, query, orderBy, doc } from "firebase/firestore";
+import { addDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Lock, Copy, AlertTriangle, Code, Globe, Zap, ExternalLink, Info, Rocket, CheckCircle2, TrendingUp, TrendingDown } from "lucide-react";
+import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Lock, Copy, AlertTriangle, Code, Globe, Zap, ExternalLink, Info, Rocket, CheckCircle2, TrendingUp, TrendingDown, Settings } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { ChromeIcon } from "@/components/icons";
@@ -38,6 +38,31 @@ export default function WebhooksPage() {
   }, [firestore, isAdmin]);
 
   const { data: webhooks, isLoading: isWebhooksLoading } = useCollection(webhooksQuery);
+
+  const configDocRef = useMemoFirebase(() => {
+    if (!firestore || !isAdmin) return null;
+    return doc(firestore, "config", "sentiment");
+  }, [firestore, isAdmin]);
+  const { data: sentimentConfig } = useDoc<{ k?: number }>(configDocRef);
+  const [kInput, setKInput] = useState("");
+
+  useEffect(() => {
+    if (sentimentConfig?.k != null) {
+      setKInput(String(sentimentConfig.k));
+    }
+  }, [sentimentConfig?.k]);
+
+  const handleSaveK = () => {
+    if (!firestore || !isAdmin) return;
+    const val = parseFloat(kInput);
+    if (isNaN(val) || val <= 0 || val > 100) {
+      toast({ variant: "destructive", title: "Invalid K", description: "K must be between 0.1 and 100." });
+      return;
+    }
+    const docRef = doc(firestore, "config", "sentiment");
+    setDocumentNonBlocking(docRef, { k: val }, { merge: true });
+    toast({ title: "Saved", description: `Sentiment decay K updated to ${val}.` });
+  };
 
   const handleAddWebhook = () => {
     if (!user || !newWebhookName.trim() || !firestore || !isAdmin) return;
@@ -229,6 +254,41 @@ export default function WebhooksPage() {
               </CardContent>
             </Card>
           </div>
+
+          <Card className="bg-secondary/20 border-accent/20">
+            <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+              <Settings className="h-5 w-5 text-accent" />
+              <div>
+                <CardTitle className="text-lg">Sentiment Engine</CardTitle>
+                <CardDescription>Tune the exponential decay constant (K) for market sentiment labels.</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col md:flex-row gap-4 items-end">
+                <div className="flex-1 space-y-1.5">
+                  <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                    Decay Multiplier (K)
+                  </Label>
+                  <Input
+                    type="number"
+                    step="1"
+                    min="1"
+                    max="100"
+                    placeholder="7"
+                    value={kInput}
+                    onChange={(e) => setKInput(e.target.value)}
+                    className="bg-background border-border w-40 font-mono"
+                  />
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    Lower = faster reaction (noisier). Higher = smoother (slower). Default: 7.
+                  </p>
+                </div>
+                <Button onClick={handleSaveK} className="bg-accent text-accent-foreground h-9">
+                  Save
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="grid gap-6 pb-20">
             {isWebhooksLoading ? (

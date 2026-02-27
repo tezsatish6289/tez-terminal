@@ -1,8 +1,8 @@
 "use client";
 
 import { TopBar } from "@/components/dashboard/TopBar";
-import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, limit } from "firebase/firestore";
+import { useUser, useAuth, useFirestore, useCollection, useDoc, useMemoFirebase } from "@/firebase";
+import { collection, query, orderBy, limit, doc } from "firebase/firestore";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Zap, Loader2, Chrome, TrendingUp, TrendingDown, Shield, Trophy } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { getLeverage, getLeverageLabel } from "@/lib/leverage";
+import { computeSentiment, type SignalForSentiment } from "@/lib/sentiment";
 
 const OPPORTUNITY_CATEGORIES = [
   { id: "5", name: "Scalping", chart: "5 min", windowHours: 24, windowLabel: "in 24h", leverage: "10x" },
@@ -44,37 +45,6 @@ function calculatePercent(currentPrice: number | undefined | null, entry: number
   return (diff / entry) * 100;
 }
 
-function getMarketSentiment(bullWin: number, bullLose: number, bearWin: number, bearLose: number): { label: string; color: string } {
-  const bullTotal = bullWin + bullLose;
-  const bearTotal = bearWin + bearLose;
-  if (bullTotal + bearTotal < 2) return { label: "No clear winner", color: "text-muted-foreground" };
-
-  const bullRate = bullTotal > 0 ? bullWin / bullTotal : -1;
-  const bearRate = bearTotal > 0 ? bearWin / bearTotal : -1;
-
-  // One side has no trades — infer from the other side's performance
-  if (bearTotal === 0 && bullTotal > 0) {
-    if (bullRate >= 0.65) return { label: "Bulls in control", color: "text-positive" };
-    if (bullRate >= 0.50) return { label: "Bulls taking over", color: "text-positive/70" };
-    if (bullRate < 0.30) return { label: "Bears in control", color: "text-negative" };
-    if (bullRate < 0.45) return { label: "Bears taking over", color: "text-negative/70" };
-    return { label: "No clear winner", color: "text-muted-foreground" };
-  }
-  if (bullTotal === 0 && bearTotal > 0) {
-    if (bearRate >= 0.65) return { label: "Bears in control", color: "text-negative" };
-    if (bearRate >= 0.50) return { label: "Bears taking over", color: "text-negative/70" };
-    if (bearRate < 0.30) return { label: "Bulls in control", color: "text-positive" };
-    if (bearRate < 0.45) return { label: "Bulls taking over", color: "text-positive/70" };
-    return { label: "No clear winner", color: "text-muted-foreground" };
-  }
-
-  const gap = bullRate - bearRate;
-  if (gap > 0.25) return { label: "Bulls in control", color: "text-positive" };
-  if (gap > 0.10) return { label: "Bulls taking over", color: "text-positive/70" };
-  if (gap < -0.25) return { label: "Bears in control", color: "text-negative" };
-  if (gap < -0.10) return { label: "Bears taking over", color: "text-negative/70" };
-  return { label: "No clear winner", color: "text-muted-foreground" };
-}
 
 interface WinnerSignal {
   symbol: string;
@@ -332,6 +302,40 @@ export default function Home() {
 
   const { data: rawSignals, isLoading } = useCollection(signalsQuery);
 
+  const configDocRef = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return doc(firestore, "config", "sentiment");
+  }, [firestore]);
+  const { data: sentimentConfig } = useDoc<{ k?: number }>(configDocRef);
+  const sentimentK = sentimentConfig?.k ?? 7;
+
+  const sentimentByTimeframe = useMemo(() => {
+    const result: Record<string, ReturnType<typeof computeSentiment>> = {};
+    if (!rawSignals) return result;
+
+    const signalsByTf: Record<string, SignalForSentiment[]> = {};
+    OPPORTUNITY_CATEGORIES.forEach((c) => { signalsByTf[c.id] = []; });
+
+    rawSignals.forEach((signal: any) => {
+      if (signal.status === "INACTIVE") return;
+      if (getDisplayAssetType(signal) !== "CRYPTO") return;
+      const tf = String(signal.timeframe || "").toUpperCase();
+      const cat = tf === "D" ? "D" : tf;
+      if (!signalsByTf[cat]) return;
+      signalsByTf[cat].push({
+        type: signal.type === "BUY" ? "BUY" : "SELL",
+        receivedAt: signal.receivedAt,
+        currentPrice: signal.currentPrice ?? null,
+        price: Number(signal.price || 0),
+      });
+    });
+
+    OPPORTUNITY_CATEGORIES.forEach((c) => {
+      result[c.id] = computeSentiment(signalsByTf[c.id], c.id, sentimentK);
+    });
+    return result;
+  }, [rawSignals, sentimentK]);
+
   const counts = useMemo(() => {
     const map: Record<string, Record<SideKey, Record<StatusKey, number>>> = {};
     OPPORTUNITY_CATEGORIES.forEach((c) => {
@@ -485,7 +489,7 @@ export default function Home() {
               <div className="flex gap-6 overflow-x-auto pb-4">
                 {OPPORTUNITY_CATEGORIES.map((cat) => {
                   const c = counts[cat.id] ?? { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
-                  const sentiment = getMarketSentiment(c.BUY.working, c.BUY["not-working"], c.SELL.working, c.SELL["not-working"]);
+                  const sentiment = sentimentByTimeframe[cat.id] ?? { label: "No clear trend", color: "text-muted-foreground" };
                   return (
                     <Card key={cat.id} className="bg-[#121214] border-white/5 shadow-2xl overflow-hidden min-w-[360px] aspect-[2/3] shrink-0 rounded-2xl">
                       <div className="p-6 border-b border-white/5">

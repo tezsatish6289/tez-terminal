@@ -27,6 +27,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // App Configuration (sentiment K value, thresholds, etc.)
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // Logs: Technical audit trail.
     match /logs/{logId} {
       allow list, get: if isAdmin();

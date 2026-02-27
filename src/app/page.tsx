@@ -4,7 +4,7 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy, limit, doc, getDoc } from "firebase/firestore";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Zap, Loader2, Chrome, TrendingUp, TrendingDown, Shield, Trophy, Bell, BellRing } from "lucide-react";
+import { Zap, Loader2, Chrome, TrendingUp, TrendingDown, Shield, Trophy } from "lucide-react";
 import { useTradeAlerts } from "@/hooks/use-trade-alerts";
 import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
@@ -343,7 +343,7 @@ export default function Home() {
     return result;
   }, [rawSignals, sentimentK]);
 
-  const { alertsEnabled, requestPermission, disable: disableAlerts } = useTradeAlerts(rawSignals, sentimentByTimeframe);
+  useTradeAlerts(rawSignals, sentimentByTimeframe);
 
   const counts = useMemo(() => {
     const map: Record<string, Record<SideKey, Record<StatusKey, number>>> = {};
@@ -478,29 +478,11 @@ export default function Home() {
         <div className="flex-1 overflow-y-auto">
           <div className="pl-16 pr-4 py-6 md:py-8 space-y-8">
 
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h1 className="text-xl font-black tracking-tight">Opportunity Finder</h1>
-                <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                  Live-tracked crypto signals across Scalping, Intraday, BTST, Swing, and Buy &amp; Hold timeframes. Click any card to explore.
-                </p>
-              </div>
-              <button
-                onClick={alertsEnabled ? disableAlerts : requestPermission}
-                className={cn(
-                  "shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold uppercase tracking-wider transition-all",
-                  alertsEnabled
-                    ? "border-accent/30 bg-accent/10 text-accent hover:bg-accent/20"
-                    : "border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground",
-                )}
-              >
-                {alertsEnabled ? (
-                  <BellRing className="h-4 w-4 animate-[pulse_2s_ease-in-out_infinite]" />
-                ) : (
-                  <Bell className="h-4 w-4" />
-                )}
-                {alertsEnabled ? "Alerts on" : "Enable alerts"}
-              </button>
+            <div>
+              <h1 className="text-xl font-black tracking-tight">Opportunity Finder</h1>
+              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                Live-tracked crypto signals across Scalping, Intraday, BTST, Swing, and Buy &amp; Hold timeframes. Click any card to explore.
+              </p>
             </div>
 
             {isLoading ? (

@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
+import { useTradeAlertsContext, type TradeAlert } from "@/contexts/trade-alerts-context";
 import type { SentimentResult } from "@/lib/sentiment";
 
 export interface AlertableSignal {
@@ -36,7 +37,6 @@ function playChime() {
     const ctx = new AC();
     const now = ctx.currentTime;
 
-    // Three ascending tones: E5 → G5 → C6 (a major arpeggio — pleasant "opportunity" chime)
     const notes = [
       { freq: 659.25, start: 0, dur: 0.25, vol: 0.3 },
       { freq: 783.99, start: 0.15, dur: 0.25, vol: 0.3 },
@@ -83,54 +83,20 @@ function showBrowserNotification(signal: AlertableSignal, sentimentLabel: string
 /**
  * Monitors the real-time signal stream for new trades that are aligned with
  * the current market sentiment. When a bullish trade arrives during a bullish
- * market (or bearish during bearish), fires a browser push notification and
- * plays an ascending chime.
+ * market (or bearish during bearish), fires a browser push notification,
+ * plays an ascending chime, and logs the alert to history.
  */
 export function useTradeAlerts(
   signals: AlertableSignal[] | null,
   sentimentByTimeframe: Record<string, SentimentResult>,
 ) {
+  const { enabled, addAlert } = useTradeAlertsContext();
   const seenRef = useRef<Set<string>>(new Set());
   const readyRef = useRef(false);
-  const [enabled, setEnabled] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window) {
-      setEnabled(Notification.permission === "granted");
-    }
-  }, []);
-
-  const requestPermission = useCallback(async () => {
-    if (typeof window === "undefined" || !("Notification" in window)) return false;
-
-    if (Notification.permission === "granted") {
-      setEnabled(true);
-      playChime();
-      return true;
-    }
-    if (Notification.permission === "denied") {
-      toast({
-        variant: "destructive",
-        title: "Notifications blocked",
-        description:
-          "Browser notifications are blocked. Enable them in your browser settings and try again.",
-      });
-      return false;
-    }
-
-    const result = await Notification.requestPermission();
-    const ok = result === "granted";
-    setEnabled(ok);
-    if (ok) playChime();
-    return ok;
-  }, []);
-
-  const disable = useCallback(() => setEnabled(false), []);
 
   useEffect(() => {
     if (!signals || signals.length === 0) return;
 
-    // On first data load, record all existing IDs — don't alert for them
     if (!readyRef.current) {
       for (const s of signals) seenRef.current.add(s.id);
       readyRef.current = true;
@@ -156,11 +122,20 @@ export function useTradeAlerts(
       if (!sentiment) continue;
 
       if (isAligned(signal.type, sentiment.label)) {
+        const direction = signal.type === "BUY" ? "Bullish" : "Bearish";
+        const tfName = TIMEFRAME_NAMES[signal.timeframe] || signal.timeframe;
+
         playChime();
         showBrowserNotification(signal, sentiment.label);
 
-        const direction = signal.type === "BUY" ? "Bullish" : "Bearish";
-        const tfName = TIMEFRAME_NAMES[signal.timeframe] || signal.timeframe;
+        addAlert({
+          id: signal.id,
+          symbol: signal.symbol,
+          direction: direction as "Bullish" | "Bearish",
+          timeframeName: tfName,
+          sentimentLabel: sentiment.label,
+          timestamp: Date.now(),
+        });
 
         toast({
           title: `Aligned Trade: ${signal.symbol}`,
@@ -168,7 +143,5 @@ export function useTradeAlerts(
         });
       }
     }
-  }, [signals, sentimentByTimeframe, enabled]);
-
-  return { alertsEnabled: enabled, requestPermission, disable };
+  }, [signals, sentimentByTimeframe, enabled, addAlert]);
 }

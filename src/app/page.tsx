@@ -6,7 +6,7 @@ import { collection, query, orderBy, limit, doc, getDoc } from "firebase/firesto
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Zap, Loader2, Chrome, TrendingUp, TrendingDown, Shield, Trophy } from "lucide-react";
 import { useTradeAlerts } from "@/hooks/use-trade-alerts";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -289,12 +289,98 @@ function WinnersTicker({ winners, windowLabel, leverage, onSelect }: { winners: 
   );
 }
 
+function OpportunityCard({ cat, counts, sentimentByTimeframe, topWinners, onSelectWinner }: {
+  cat: typeof OPPORTUNITY_CATEGORIES[number];
+  counts: Record<string, Record<SideKey, Record<StatusKey, number>>>;
+  sentimentByTimeframe: Record<string, ReturnType<typeof computeSentiment>>;
+  topWinners: Record<string, WinnerSignal[]>;
+  onSelectWinner: (w: WinnerSignal) => void;
+}) {
+  const c = counts[cat.id] ?? { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
+  const sentiment = sentimentByTimeframe[cat.id] ?? { label: "No clear trend", color: "text-muted-foreground" };
+  return (
+    <Card className="bg-[#121214] border-white/5 shadow-2xl overflow-hidden rounded-2xl">
+      <div className="p-6 border-b border-white/5">
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle className="text-2xl font-black uppercase tracking-tighter">{cat.name}</CardTitle>
+            <CardDescription className="text-[10px] font-black uppercase text-accent tracking-widest">{cat.chart} chart</CardDescription>
+          </div>
+          <Badge className="text-[10px] font-black border-none px-3 h-7 uppercase bg-accent/15 text-accent">
+            {cat.leverage}
+          </Badge>
+        </div>
+      </div>
+      <CardContent className="p-6 space-y-5">
+        <WinnersTicker winners={topWinners[cat.id] ?? []} windowLabel={cat.windowLabel} leverage={getLeverage(cat.id)} onSelect={onSelectWinner} />
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-positive" />
+            <span className="text-[10px] font-black uppercase tracking-wider text-positive">Bulls</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <Link href={`/terminal?timeframe=${cat.id}&side=BUY&status=working`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-positive/10 border-positive/20 hover:bg-positive/20")}>
+              <div className="text-lg font-black font-mono text-positive">{c.BUY.working}</div>
+              <div className="text-[9px] font-bold uppercase text-positive/80">Winning</div>
+            </Link>
+            <Link href={`/terminal?timeframe=${cat.id}&side=BUY&status=not-working`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-negative/10 border-negative/20 hover:bg-negative/20")}>
+              <div className="text-lg font-black font-mono text-negative">{c.BUY["not-working"]}</div>
+              <div className="text-[9px] font-bold uppercase text-negative/80">Losing</div>
+            </Link>
+            <Link href={`/terminal?timeframe=${cat.id}&side=BUY&status=neutral`} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center hover:bg-white/10 transition-colors">
+              <div className="text-lg font-black font-mono text-foreground">{c.BUY.neutral}</div>
+              <div className="text-[9px] font-bold uppercase text-muted-foreground">Neutral</div>
+            </Link>
+          </div>
+        </div>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <TrendingDown className="h-4 w-4 text-negative" />
+            <span className="text-[10px] font-black uppercase tracking-wider text-negative">Bears</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <Link href={`/terminal?timeframe=${cat.id}&side=SELL&status=working`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-positive/10 border-positive/20 hover:bg-positive/20")}>
+              <div className="text-lg font-black font-mono text-positive">{c.SELL.working}</div>
+              <div className="text-[9px] font-bold uppercase text-positive/80">Winning</div>
+            </Link>
+            <Link href={`/terminal?timeframe=${cat.id}&side=SELL&status=not-working`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-negative/10 border-negative/20 hover:bg-negative/20")}>
+              <div className="text-lg font-black font-mono text-negative">{c.SELL["not-working"]}</div>
+              <div className="text-[9px] font-bold uppercase text-negative/80">Losing</div>
+            </Link>
+            <Link href={`/terminal?timeframe=${cat.id}&side=SELL&status=neutral`} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center hover:bg-white/10 transition-colors">
+              <div className="text-lg font-black font-mono text-foreground">{c.SELL.neutral}</div>
+              <div className="text-[9px] font-bold uppercase text-muted-foreground">Neutral</div>
+            </Link>
+          </div>
+        </div>
+      </CardContent>
+      <div className="px-6 py-3 bg-black/40 border-t border-white/5 text-center">
+        <span className={cn("text-[10px] font-black uppercase tracking-widest", sentiment.color)}>{sentiment.label}</span>
+      </div>
+    </Card>
+  );
+}
+
 export default function Home() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [selectedWinner, setSelectedWinner] = useState<WinnerSignal | null>(null);
+  const [selectedTimeframe, setSelectedTimeframe] = useState(OPPORTUNITY_CATEGORIES[0].id);
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const chipsContainerRef = useRef<HTMLDivElement>(null);
+  const isScrollingFromChip = useRef(false);
+
+  const handleChipClick = useCallback((id: string) => {
+    setSelectedTimeframe(id);
+    const el = cardRefs.current[id];
+    if (el) {
+      isScrollingFromChip.current = true;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => { isScrollingFromChip.current = false; }, 800);
+    }
+  }, []);
 
   const signalsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -302,6 +388,38 @@ export default function Home() {
   }, [user, firestore]);
 
   const { data: rawSignals, isLoading } = useCollection(signalsQuery);
+
+  useEffect(() => {
+    if (isLoading) return;
+    const entries = Object.entries(cardRefs.current).filter(([, el]) => el != null);
+    if (entries.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (observed) => {
+        if (isScrollingFromChip.current) return;
+        let best: { id: string; ratio: number } | null = null;
+        for (const entry of observed) {
+          const id = entry.target.getAttribute("data-tf");
+          if (!id) continue;
+          if (!best || entry.intersectionRatio > best.ratio) {
+            best = { id, ratio: entry.intersectionRatio };
+          }
+        }
+        if (best && best.ratio > 0) {
+          setSelectedTimeframe(best.id);
+        }
+      },
+      { threshold: [0, 0.25, 0.5, 0.75, 1] }
+    );
+
+    entries.forEach(([id, el]) => {
+      if (el) {
+        el.setAttribute("data-tf", id);
+        observer.observe(el);
+      }
+    });
+    return () => observer.disconnect();
+  }, [isLoading]);
 
   const [sentimentK, setSentimentK] = useState(7);
   useEffect(() => {
@@ -485,84 +603,66 @@ export default function Home() {
               </p>
             </div>
 
-            {isLoading ? (
-              <div className="flex gap-6 overflow-x-auto pb-4">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <Card key={i} className="bg-[#121214] border-white/5 animate-pulse min-w-[320px] shrink-0 rounded-2xl">
-                    <CardHeader className="pb-2"><div className="h-6 w-32 bg-white/10 rounded" /></CardHeader>
-                    <CardContent><div className="h-32 bg-white/5 rounded" /></CardContent>
-                  </Card>
-                ))}
+            {/* Mobile: sticky filter chips + vertical scroll with scroll-spy */}
+            <div className="md:hidden space-y-4">
+              <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md pb-3 -mx-4 px-4 pt-1">
+                <div className="flex flex-wrap gap-2" ref={chipsContainerRef}>
+                  {OPPORTUNITY_CATEGORIES.map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => handleChipClick(cat.id)}
+                      className={cn(
+                        "px-4 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all border",
+                        selectedTimeframe === cat.id
+                          ? "bg-accent/20 border-accent/40 text-accent shadow-[0_0_12px_-2px_rgba(var(--accent-rgb,245,158,11),0.3)]"
+                          : "bg-white/[0.04] border-white/10 text-muted-foreground hover:bg-white/[0.08] hover:border-white/20 hover:text-foreground"
+                      )}
+                    >
+                      {cat.chart}
+                    </button>
+                  ))}
+                </div>
               </div>
-            ) : (
-              <div className="flex gap-6 overflow-x-auto pb-4">
-                {OPPORTUNITY_CATEGORIES.map((cat) => {
-                  const c = counts[cat.id] ?? { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
-                  const sentiment = sentimentByTimeframe[cat.id] ?? { label: "No clear trend", color: "text-muted-foreground" };
-                  return (
-                    <Card key={cat.id} className="bg-[#121214] border-white/5 shadow-2xl overflow-hidden min-w-[360px] aspect-[2/3] shrink-0 rounded-2xl">
-                      <div className="p-6 border-b border-white/5">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <CardTitle className="text-2xl font-black uppercase tracking-tighter">{cat.name}</CardTitle>
-                            <CardDescription className="text-[10px] font-black uppercase text-accent tracking-widest">{cat.chart} chart</CardDescription>
-                          </div>
-                          <Badge className="text-[10px] font-black border-none px-3 h-7 uppercase bg-accent/15 text-accent">
-                            {cat.leverage}
-                          </Badge>
-                        </div>
-                      </div>
-                      <CardContent className="p-6 space-y-5">
-                        <WinnersTicker winners={topWinners[cat.id] ?? []} windowLabel={cat.windowLabel} leverage={getLeverage(cat.id)} onSelect={setSelectedWinner} />
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2">
-                            <TrendingUp className="h-4 w-4 text-positive" />
-                            <span className="text-[10px] font-black uppercase tracking-wider text-positive">Bulls</span>
-                          </div>
-                          <div className="grid grid-cols-3 gap-2">
-                            <Link href={`/terminal?timeframe=${cat.id}&side=BUY&status=working`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-positive/10 border-positive/20 hover:bg-positive/20")}>
-                              <div className="text-lg font-black font-mono text-positive">{c.BUY.working}</div>
-                              <div className="text-[9px] font-bold uppercase text-positive/80">Winning</div>
-                            </Link>
-                            <Link href={`/terminal?timeframe=${cat.id}&side=BUY&status=not-working`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-negative/10 border-negative/20 hover:bg-negative/20")}>
-                              <div className="text-lg font-black font-mono text-negative">{c.BUY["not-working"]}</div>
-                              <div className="text-[9px] font-bold uppercase text-negative/80">Losing</div>
-                            </Link>
-                            <Link href={`/terminal?timeframe=${cat.id}&side=BUY&status=neutral`} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center hover:bg-white/10 transition-colors">
-                              <div className="text-lg font-black font-mono text-foreground">{c.BUY.neutral}</div>
-                              <div className="text-[9px] font-bold uppercase text-muted-foreground">Neutral</div>
-                            </Link>
-                          </div>
-                        </div>
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2">
-                            <TrendingDown className="h-4 w-4 text-negative" />
-                            <span className="text-[10px] font-black uppercase tracking-wider text-negative">Bears</span>
-                          </div>
-                          <div className="grid grid-cols-3 gap-2">
-                            <Link href={`/terminal?timeframe=${cat.id}&side=SELL&status=working`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-positive/10 border-positive/20 hover:bg-positive/20")}>
-                              <div className="text-lg font-black font-mono text-positive">{c.SELL.working}</div>
-                              <div className="text-[9px] font-bold uppercase text-positive/80">Winning</div>
-                            </Link>
-                            <Link href={`/terminal?timeframe=${cat.id}&side=SELL&status=not-working`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-negative/10 border-negative/20 hover:bg-negative/20")}>
-                              <div className="text-lg font-black font-mono text-negative">{c.SELL["not-working"]}</div>
-                              <div className="text-[9px] font-bold uppercase text-negative/80">Losing</div>
-                            </Link>
-                            <Link href={`/terminal?timeframe=${cat.id}&side=SELL&status=neutral`} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center hover:bg-white/10 transition-colors">
-                              <div className="text-lg font-black font-mono text-foreground">{c.SELL.neutral}</div>
-                              <div className="text-[9px] font-bold uppercase text-muted-foreground">Neutral</div>
-                            </Link>
-                          </div>
-                        </div>
-                      </CardContent>
-                      <div className="px-6 py-3 bg-black/40 border-t border-white/5 text-center">
-                        <span className={cn("text-[10px] font-black uppercase tracking-widest", sentiment.color)}>{sentiment.label}</span>
-                      </div>
+
+              {isLoading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <Card key={i} className="bg-[#121214] border-white/5 animate-pulse rounded-2xl">
+                      <CardHeader className="pb-2"><div className="h-6 w-32 bg-white/10 rounded" /></CardHeader>
+                      <CardContent><div className="h-48 bg-white/5 rounded" /></CardContent>
                     </Card>
-                  );
-                })}
-              </div>
-            )}
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {OPPORTUNITY_CATEGORIES.map((cat) => (
+                    <div key={cat.id} ref={(el) => { cardRefs.current[cat.id] = el; }}>
+                      <OpportunityCard cat={cat} counts={counts} sentimentByTimeframe={sentimentByTimeframe} topWinners={topWinners} onSelectWinner={setSelectedWinner} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Desktop: grid of all cards */}
+            <div className="hidden md:block">
+              {isLoading ? (
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Card key={i} className="bg-[#121214] border-white/5 animate-pulse rounded-2xl">
+                      <CardHeader className="pb-2"><div className="h-6 w-32 bg-white/10 rounded" /></CardHeader>
+                      <CardContent><div className="h-48 bg-white/5 rounded" /></CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                  {OPPORTUNITY_CATEGORIES.map((cat) => (
+                    <OpportunityCard key={cat.id} cat={cat} counts={counts} sentimentByTimeframe={sentimentByTimeframe} topWinners={topWinners} onSelectWinner={setSelectedWinner} />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <TradeNarrationDialog signal={selectedWinner} open={!!selectedWinner} onClose={() => setSelectedWinner(null)} />

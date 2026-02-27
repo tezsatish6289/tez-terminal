@@ -652,7 +652,7 @@ export default function Home() {
                 </div>
               </div>
               <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                Live-tracked crypto signals across Scalping, Intraday, BTST, Swing, and Buy &amp; Hold timeframes. Click any card to explore.
+                We scan the cryptoverse 24/7 to deliver the most profitable opportunities—so you can focus on stacking gains while we hunt the next big move.
               </p>
             </div>
 

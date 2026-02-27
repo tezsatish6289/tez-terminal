@@ -618,38 +618,42 @@ export default function Home() {
         <div className="flex-1 overflow-y-auto">
           <div className="px-4 py-6 md:px-6 md:py-8 space-y-8">
 
-            <div className="flex items-start justify-between gap-4">
-              <div>
+            <div>
+              <div className="flex items-center gap-4">
                 <h1 className="text-xl font-black tracking-tight">Opportunity Finder</h1>
-                <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                  Live-tracked crypto signals across Scalping, Intraday, BTST, Swing, and Buy &amp; Hold timeframes. Click any card to explore.
-                </p>
+                <div className="relative flex items-center h-9 rounded-full bg-white/[0.06] border border-white/10 p-0.5 w-[220px]">
+                  <div
+                    className={cn(
+                      "absolute top-0.5 h-[calc(100%-4px)] w-[calc(50%-2px)] rounded-full transition-all duration-300 ease-out",
+                      premiumMode
+                        ? "left-[calc(50%+1px)] bg-gradient-to-r from-amber-500 to-amber-400 shadow-[0_0_16px_-2px_rgba(245,158,11,0.5)]"
+                        : "left-0.5 bg-accent shadow-[0_0_16px_-2px_rgba(var(--accent-rgb,100,200,255),0.4)]",
+                    )}
+                  />
+                  <button
+                    onClick={() => setPremiumMode(false)}
+                    className={cn(
+                      "relative z-10 flex-1 text-center text-xs font-black uppercase tracking-wider transition-colors duration-200",
+                      !premiumMode ? "text-white" : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setPremiumMode(true)}
+                    className={cn(
+                      "relative z-10 flex-1 flex items-center justify-center gap-1.5 text-xs font-black uppercase tracking-wider transition-colors duration-200",
+                      premiumMode ? "text-white" : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <Crown className="h-3 w-3" />
+                    Premium
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-1 shrink-0">
-                <button
-                  onClick={() => setPremiumMode(false)}
-                  className={cn(
-                    "px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all",
-                    !premiumMode
-                      ? "bg-accent/15 text-accent shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  All
-                </button>
-                <button
-                  onClick={() => setPremiumMode(true)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all",
-                    premiumMode
-                      ? "bg-amber-400/15 text-amber-400 shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <Crown className="h-3.5 w-3.5" />
-                  Premium
-                </button>
-              </div>
+              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                Live-tracked crypto signals across Scalping, Intraday, BTST, Swing, and Buy &amp; Hold timeframes. Click any card to explore.
+              </p>
             </div>
 
             {/* Mobile: sticky filter chips + vertical scroll with scroll-spy */}

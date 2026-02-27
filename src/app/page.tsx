@@ -1,8 +1,8 @@
 "use client";
 
 import { TopBar } from "@/components/dashboard/TopBar";
-import { useUser, useAuth, useFirestore, useCollection, useDoc, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, limit, doc } from "firebase/firestore";
+import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { collection, query, orderBy, limit, doc, getDoc } from "firebase/firestore";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Zap, Loader2, Chrome, TrendingUp, TrendingDown, Shield, Trophy } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
@@ -302,12 +302,18 @@ export default function Home() {
 
   const { data: rawSignals, isLoading } = useCollection(signalsQuery);
 
-  const configDocRef = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return doc(firestore, "config", "sentiment");
+  const [sentimentK, setSentimentK] = useState(7);
+  useEffect(() => {
+    if (!firestore) return;
+    getDoc(doc(firestore, "config", "sentiment"))
+      .then((snap) => {
+        if (snap.exists()) {
+          const k = snap.data()?.k;
+          if (typeof k === "number" && k > 0) setSentimentK(k);
+        }
+      })
+      .catch(() => {});
   }, [firestore]);
-  const { data: sentimentConfig } = useDoc<{ k?: number }>(configDocRef);
-  const sentimentK = sentimentConfig?.k ?? 7;
 
   const sentimentByTimeframe = useMemo(() => {
     const result: Record<string, ReturnType<typeof computeSentiment>> = {};

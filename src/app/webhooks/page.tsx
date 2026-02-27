@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useCollection, useDoc, useUser, useMemoFirebase, useFirestore, useAuth } from "@/firebase";
-import { collection, query, orderBy, doc } from "firebase/firestore";
+import { useCollection, useUser, useMemoFirebase, useFirestore, useAuth } from "@/firebase";
+import { collection, query, orderBy, doc, getDoc } from "firebase/firestore";
 import { addDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Lock, Copy, AlertTriangle, Code, Globe, Zap, ExternalLink, Info, Rocket, CheckCircle2, TrendingUp, TrendingDown, Settings } from "lucide-react";
@@ -39,18 +39,19 @@ export default function WebhooksPage() {
 
   const { data: webhooks, isLoading: isWebhooksLoading } = useCollection(webhooksQuery);
 
-  const configDocRef = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null;
-    return doc(firestore, "config", "sentiment");
-  }, [firestore, isAdmin]);
-  const { data: sentimentConfig } = useDoc<{ k?: number }>(configDocRef);
   const [kInput, setKInput] = useState("");
 
   useEffect(() => {
-    if (sentimentConfig?.k != null) {
-      setKInput(String(sentimentConfig.k));
-    }
-  }, [sentimentConfig?.k]);
+    if (!firestore || !isAdmin) return;
+    getDoc(doc(firestore, "config", "sentiment"))
+      .then((snap) => {
+        if (snap.exists()) {
+          const k = snap.data()?.k;
+          if (typeof k === "number" && k > 0) setKInput(String(k));
+        }
+      })
+      .catch(() => {});
+  }, [firestore, isAdmin]);
 
   const handleSaveK = () => {
     if (!firestore || !isAdmin) return;

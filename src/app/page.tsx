@@ -289,6 +289,53 @@ function WinnersTicker({ winners, windowLabel, leverage, onSelect }: { winners: 
   );
 }
 
+const TAGLINES = [
+  "Scanning the cryptoverse.",
+  "Filtering the noise.",
+  "Dropping high-probability setups.",
+];
+
+function TypewriterTagline() {
+  const [lineIndex, setLineIndex] = useState(0);
+  const [charIndex, setCharIndex] = useState(0);
+  const [phase, setPhase] = useState<"typing" | "hold" | "fading">("typing");
+  const [opacity, setOpacity] = useState(1);
+
+  const line = TAGLINES[lineIndex];
+
+  useEffect(() => {
+    if (phase === "typing") {
+      if (charIndex < line.length) {
+        const timeout = setTimeout(() => setCharIndex((c) => c + 1), 45);
+        return () => clearTimeout(timeout);
+      }
+      setPhase("hold");
+    } else if (phase === "hold") {
+      const timeout = setTimeout(() => setPhase("fading"), 1800);
+      return () => clearTimeout(timeout);
+    } else if (phase === "fading") {
+      setOpacity(0);
+      const timeout = setTimeout(() => {
+        setLineIndex((i) => (i + 1) % TAGLINES.length);
+        setCharIndex(0);
+        setOpacity(1);
+        setPhase("typing");
+      }, 500);
+      return () => clearTimeout(timeout);
+    }
+  }, [phase, charIndex, line.length]);
+
+  return (
+    <p
+      className="text-sm text-muted-foreground mt-1 h-6 font-mono transition-opacity duration-500"
+      style={{ opacity }}
+    >
+      {line.slice(0, charIndex)}
+      <span className="inline-block w-[2px] h-[14px] bg-accent/70 ml-0.5 align-middle animate-[pulse_0.8s_ease-in-out_infinite]" />
+    </p>
+  );
+}
+
 function OpportunityCard({ cat, activeCounts, sentimentByTimeframe, topWinners, onSelectWinner }: {
   cat: typeof OPPORTUNITY_CATEGORIES[number];
   activeCounts: Record<string, Record<SideKey, Record<StatusKey, number>>>;
@@ -651,9 +698,7 @@ export default function Home() {
                   </button>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                We scan the cryptoverse 24/7 to deliver the most profitable opportunities—so you can focus on stacking gains while we hunt the next big move.
-              </p>
+              <TypewriterTagline />
             </div>
 
             {/* Mobile: sticky filter chips + vertical scroll with scroll-spy */}

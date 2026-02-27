@@ -1,7 +1,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
-import { collection, addDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, doc, getDoc, getDocs, query, where, limit, serverTimestamp } from "firebase/firestore";
+import { computeSentiment, type SignalForSentiment } from "@/lib/sentiment";
 
 /**
  * Webhook ingestion for TradingView alerts.
@@ -78,6 +79,51 @@ export async function POST(request: NextRequest) {
     };
     const timeframe = tfMap[rawTf] || rawTf;
 
+    // Compute alignment with current market sentiment
+    let aligned = false;
+    let sentimentAtEntry = "";
+    try {
+      if (signalType !== "NEUTRAL" && assetType === "CRYPTO") {
+        const activeSnap = await getDocs(
+          query(collection(firestore, "signals"), where("status", "==", "ACTIVE"), limit(200))
+        );
+
+        let k = 7;
+        try {
+          const sentimentConfig = await getDoc(doc(firestore, "config", "sentiment"));
+          if (sentimentConfig.exists()) {
+            const ck = sentimentConfig.data()?.k;
+            if (typeof ck === "number" && ck > 0) k = ck;
+          }
+        } catch {}
+
+        const tfSignals: SignalForSentiment[] = [];
+        for (const d of activeSnap.docs) {
+          const s = d.data();
+          const sTf = String(s.timeframe || "").toUpperCase();
+          if (sTf !== timeframe.toUpperCase()) continue;
+          const sAt = String(s.assetType || "CRYPTO").toUpperCase();
+          if (!sAt.includes("CRYPTO") && sAt !== "CRYPTO") continue;
+          tfSignals.push({
+            type: s.type === "BUY" ? "BUY" : "SELL",
+            receivedAt: s.receivedAt,
+            currentPrice: s.currentPrice ?? null,
+            price: Number(s.price || 0),
+          });
+        }
+
+        const sentiment = computeSentiment(tfSignals, timeframe, k);
+        sentimentAtEntry = sentiment.label;
+
+        const bullish = sentiment.label === "Bulls in control" || sentiment.label === "Bulls taking over";
+        const bearish = sentiment.label === "Bears in control" || sentiment.label === "Bears taking over";
+        if (signalType === "BUY" && bullish) aligned = true;
+        if (signalType === "SELL" && bearish) aligned = true;
+      }
+    } catch {
+      // Never let alignment computation break signal ingestion
+    }
+
     // MANDATORY INITIALIZATION: Every signal MUST start as ACTIVE
     const signalData = {
       webhookId,
@@ -88,7 +134,7 @@ export async function POST(request: NextRequest) {
       exchange,
       assetType,
       type: signalType,
-      status: "ACTIVE", // CRITICAL: This allows the Cron to see and sync the signal
+      status: "ACTIVE",
       price: price, 
       stopLoss: stopLoss, 
       currentPrice: price, 
@@ -97,6 +143,8 @@ export async function POST(request: NextRequest) {
       timeframe: timeframe,
       note: body.note || `Alert for ${symbol}`,
       source: configData.name || "TradingView",
+      aligned,
+      sentimentAtEntry,
     };
 
     await addDoc(signalsRef, signalData);

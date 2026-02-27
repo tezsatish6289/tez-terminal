@@ -666,9 +666,9 @@ export default function Home() {
           <div className="px-4 py-6 md:px-6 md:py-8 space-y-8">
 
             <div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-start gap-3">
                 <h1 className="text-xl font-black tracking-tight">Opportunity Finder</h1>
-                <div className="relative flex items-center h-7 rounded-full bg-white/[0.06] border border-white/10 p-0.5 w-[190px]">
+                <div className="relative flex items-center h-7 mt-[3px] rounded-full bg-white/[0.06] border border-white/10 p-0.5 w-[190px] shrink-0">
                   <div
                     className={cn(
                       "absolute top-0.5 h-[calc(100%-4px)] w-[calc(50%-2px)] rounded-full transition-all duration-300 ease-out",

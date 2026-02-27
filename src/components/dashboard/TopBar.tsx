@@ -32,7 +32,7 @@ export function TopBar() {
   const auth = useAuth();
   const pathname = usePathname();
   const isAdmin = user?.email === "hello@tezterminal.com";
-  const { enabled, history, requestPermission, disable, clearHistory } = useTradeAlertsContext();
+  const { enabled, history, enable, disable, clearHistory } = useTradeAlertsContext();
   const unreadCount = history.length;
 
   const handleLogout = () => {
@@ -91,7 +91,7 @@ export function TopBar() {
               <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
                 <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Trade Alerts</span>
                 <button
-                  onClick={enabled ? disable : requestPermission}
+                  onClick={enabled ? disable : enable}
                   className={cn(
                     "text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded transition-colors",
                     enabled

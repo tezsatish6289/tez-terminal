@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, useCallback, useState, type ReactNode } from "react";
-import { toast } from "@/hooks/use-toast";
 
 export interface TradeAlert {
   id: string;
@@ -15,7 +14,7 @@ export interface TradeAlert {
 interface TradeAlertsState {
   enabled: boolean;
   history: TradeAlert[];
-  requestPermission: () => Promise<boolean>;
+  enable: () => void;
   disable: () => void;
   addAlert: (alert: TradeAlert) => void;
   clearHistory: () => void;
@@ -24,36 +23,16 @@ interface TradeAlertsState {
 const TradeAlertsContext = createContext<TradeAlertsState | null>(null);
 
 export function TradeAlertsProvider({ children }: { children: ReactNode }) {
-  const [enabled, setEnabled] = useState(() => {
-    if (typeof window !== "undefined" && "Notification" in window) {
-      return Notification.permission === "granted";
-    }
-    return false;
-  });
-
+  const [enabled, setEnabled] = useState(false);
   const [history, setHistory] = useState<TradeAlert[]>([]);
 
-  const requestPermission = useCallback(async () => {
-    if (typeof window === "undefined" || !("Notification" in window)) return false;
+  const enable = useCallback(() => {
+    setEnabled(true);
 
-    if (Notification.permission === "granted") {
-      setEnabled(true);
-      return true;
+    // Request browser notification permission as a bonus — not required for alerts to work
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
     }
-    if (Notification.permission === "denied") {
-      toast({
-        variant: "destructive",
-        title: "Notifications blocked",
-        description:
-          "Browser notifications are blocked. Enable them in your browser settings and try again.",
-      });
-      return false;
-    }
-
-    const result = await Notification.requestPermission();
-    const ok = result === "granted";
-    setEnabled(ok);
-    return ok;
   }, []);
 
   const disable = useCallback(() => setEnabled(false), []);
@@ -66,7 +45,7 @@ export function TradeAlertsProvider({ children }: { children: ReactNode }) {
 
   return (
     <TradeAlertsContext.Provider
-      value={{ enabled, history, requestPermission, disable, addAlert, clearHistory }}
+      value={{ enabled, history, enable, disable, addAlert, clearHistory }}
     >
       {children}
     </TradeAlertsContext.Provider>

@@ -214,7 +214,11 @@ export function TopBar() {
                 <>
                   <div className="max-h-72 overflow-y-auto divide-y divide-border/30">
                     {history.map((alert) => (
-                      <div key={alert.id + alert.timestamp} className="px-4 py-3 hover:bg-white/[0.02] transition-colors">
+                      <Link
+                        key={alert.id + alert.timestamp}
+                        href={`/chart/${alert.id}`}
+                        className="block px-4 py-3 hover:bg-white/[0.04] transition-colors"
+                      >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
                             {alert.direction === "Bullish" ? (
@@ -229,7 +233,7 @@ export function TopBar() {
                         <p className="text-[11px] text-muted-foreground mt-1 pl-[22px]">
                           {alert.direction} {alert.timeframeName} — {alert.sentimentLabel}
                         </p>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                   <div className="px-4 py-2 border-t border-border/50">

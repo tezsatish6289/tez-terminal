@@ -619,21 +619,21 @@ export default function Home() {
           <div className="px-4 py-6 md:px-6 md:py-8 space-y-8">
 
             <div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <h1 className="text-xl font-black tracking-tight">Opportunity Finder</h1>
-                <div className="relative flex items-center h-9 rounded-full bg-white/[0.06] border border-white/10 p-0.5 w-[220px]">
+                <div className="relative flex items-center h-7 rounded-full bg-white/[0.06] border border-white/10 p-0.5 w-[150px]">
                   <div
                     className={cn(
                       "absolute top-0.5 h-[calc(100%-4px)] w-[calc(50%-2px)] rounded-full transition-all duration-300 ease-out",
                       premiumMode
-                        ? "left-[calc(50%+1px)] bg-gradient-to-r from-amber-500 to-amber-400 shadow-[0_0_16px_-2px_rgba(245,158,11,0.5)]"
-                        : "left-0.5 bg-accent shadow-[0_0_16px_-2px_rgba(var(--accent-rgb,100,200,255),0.4)]",
+                        ? "left-[calc(50%+1px)] bg-gradient-to-r from-amber-500 to-amber-400 shadow-[0_0_12px_-2px_rgba(245,158,11,0.4)]"
+                        : "left-0.5 bg-accent shadow-[0_0_12px_-2px_rgba(var(--accent-rgb,100,200,255),0.3)]",
                     )}
                   />
                   <button
                     onClick={() => setPremiumMode(false)}
                     className={cn(
-                      "relative z-10 flex-1 text-center text-xs font-black uppercase tracking-wider transition-colors duration-200",
+                      "relative z-10 flex-1 text-center text-[10px] font-black uppercase tracking-wider transition-colors duration-200",
                       !premiumMode ? "text-white" : "text-muted-foreground hover:text-foreground",
                     )}
                   >
@@ -642,11 +642,11 @@ export default function Home() {
                   <button
                     onClick={() => setPremiumMode(true)}
                     className={cn(
-                      "relative z-10 flex-1 flex items-center justify-center gap-1.5 text-xs font-black uppercase tracking-wider transition-colors duration-200",
+                      "relative z-10 flex-1 flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-wider transition-colors duration-200",
                       premiumMode ? "text-white" : "text-muted-foreground hover:text-foreground",
                     )}
                   >
-                    <Crown className="h-3 w-3" />
+                    <Crown className="h-2.5 w-2.5" />
                     Premium
                   </button>
                 </div>

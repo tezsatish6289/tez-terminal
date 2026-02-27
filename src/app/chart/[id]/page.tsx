@@ -14,6 +14,7 @@ import {
   Timer,
   Shield,
   Clock,
+  Crown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BinanceIcon, MexcIcon, PionexIcon, TradingViewIcon } from "@/components/icons/exchange-icons";
@@ -119,6 +120,11 @@ export default function DeepDiveChartPage() {
                   <div className="flex flex-col">
                     <h3 className="text-2xl font-black text-foreground leading-none tracking-tighter uppercase mb-2">{signal?.symbol}</h3>
                     <span className="text-[10px] font-black text-accent uppercase tracking-widest">CRYPTO</span>
+                    {signal?.aligned === true && (
+                      <span className="flex items-center gap-1 mt-1.5 text-[9px] font-black text-amber-400 uppercase tracking-widest">
+                        <Crown className="h-3 w-3" /> Premium
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-col items-end gap-1.5">
                     <Badge className={cn("text-[10px] font-black border-none px-4 h-7 uppercase", isBullish ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative')}>

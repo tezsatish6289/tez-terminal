@@ -4,7 +4,7 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy, limit, doc, getDoc } from "firebase/firestore";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Zap, Loader2, Chrome, TrendingUp, TrendingDown, Shield, Trophy } from "lucide-react";
+import { Zap, Loader2, Chrome, TrendingUp, TrendingDown, Shield, Trophy, Crown } from "lucide-react";
 import { useTradeAlerts } from "@/hooks/use-trade-alerts";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { format } from "date-fns";
@@ -289,14 +289,18 @@ function WinnersTicker({ winners, windowLabel, leverage, onSelect }: { winners: 
   );
 }
 
-function OpportunityCard({ cat, counts, sentimentByTimeframe, topWinners, onSelectWinner }: {
+function OpportunityCard({ cat, counts, premiumCounts, sentimentByTimeframe, topWinners, onSelectWinner, premiumMode, onTogglePremium }: {
   cat: typeof OPPORTUNITY_CATEGORIES[number];
   counts: Record<string, Record<SideKey, Record<StatusKey, number>>>;
+  premiumCounts: Record<string, Record<SideKey, Record<StatusKey, number>>>;
   sentimentByTimeframe: Record<string, ReturnType<typeof computeSentiment>>;
   topWinners: Record<string, WinnerSignal[]>;
   onSelectWinner: (w: WinnerSignal) => void;
+  premiumMode: boolean;
+  onTogglePremium: () => void;
 }) {
-  const c = counts[cat.id] ?? { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
+  const activeCounts = premiumMode ? premiumCounts : counts;
+  const c = activeCounts[cat.id] ?? { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
   const sentiment = sentimentByTimeframe[cat.id] ?? { label: "No clear trend", color: "text-muted-foreground" };
   return (
     <Card className="bg-[#121214] border-white/5 shadow-2xl overflow-hidden rounded-2xl">
@@ -306,9 +310,23 @@ function OpportunityCard({ cat, counts, sentimentByTimeframe, topWinners, onSele
             <CardTitle className="text-2xl font-black uppercase tracking-tighter">{cat.name}</CardTitle>
             <CardDescription className="text-[10px] font-black uppercase text-accent tracking-widest">{cat.chart} chart</CardDescription>
           </div>
-          <Badge className="text-[10px] font-black border-none px-3 h-7 uppercase bg-accent/15 text-accent">
-            {cat.leverage}
-          </Badge>
+          <div className="flex flex-col items-end gap-1.5">
+            <Badge className="text-[10px] font-black border-none px-3 h-7 uppercase bg-accent/15 text-accent">
+              {cat.leverage}
+            </Badge>
+            <button
+              onClick={onTogglePremium}
+              className={cn(
+                "flex items-center gap-1.5 px-3 h-7 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border",
+                premiumMode
+                  ? "bg-amber-400/15 text-amber-400 border-amber-400/30"
+                  : "bg-white/5 text-muted-foreground/50 border-white/10 hover:text-muted-foreground",
+              )}
+            >
+              <Crown className="h-3 w-3" />
+              Premium
+            </button>
+          </div>
         </div>
       </div>
       <CardContent className="p-6 space-y-5">
@@ -367,6 +385,7 @@ export default function Home() {
   const firestore = useFirestore();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [selectedWinner, setSelectedWinner] = useState<WinnerSignal | null>(null);
+  const [premiumMode, setPremiumMode] = useState(false);
   const [selectedTimeframe, setSelectedTimeframe] = useState(OPPORTUNITY_CATEGORIES[0].id);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const chipsContainerRef = useRef<HTMLDivElement>(null);
@@ -471,6 +490,27 @@ export default function Home() {
     if (!rawSignals) return map;
     rawSignals.forEach((signal: any) => {
       if (signal.status === "INACTIVE") return;
+      if (getDisplayAssetType(signal) !== "CRYPTO") return;
+      const tf = String(signal.timeframe || "").toUpperCase();
+      const cat = tf === "D" ? "D" : tf;
+      if (!map[cat]) return;
+      const pnl = calculatePercent(signal.currentPrice, signal.price, signal.type);
+      const status = getPnlStatus(pnl);
+      const side = signal.type === "BUY" ? "BUY" : "SELL";
+      map[cat][side][status]++;
+    });
+    return map;
+  }, [rawSignals]);
+
+  const premiumCounts = useMemo(() => {
+    const map: Record<string, Record<SideKey, Record<StatusKey, number>>> = {};
+    OPPORTUNITY_CATEGORIES.forEach((c) => {
+      map[c.id] = { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
+    });
+    if (!rawSignals) return map;
+    rawSignals.forEach((signal: any) => {
+      if (signal.status === "INACTIVE") return;
+      if (signal.aligned !== true) return;
       if (getDisplayAssetType(signal) !== "CRYPTO") return;
       const tf = String(signal.timeframe || "").toUpperCase();
       const cat = tf === "D" ? "D" : tf;
@@ -637,7 +677,7 @@ export default function Home() {
                 <div className="space-y-4">
                   {OPPORTUNITY_CATEGORIES.map((cat) => (
                     <div key={cat.id} ref={(el) => { cardRefs.current[cat.id] = el; }}>
-                      <OpportunityCard cat={cat} counts={counts} sentimentByTimeframe={sentimentByTimeframe} topWinners={topWinners} onSelectWinner={setSelectedWinner} />
+                      <OpportunityCard cat={cat} counts={counts} premiumCounts={premiumCounts} sentimentByTimeframe={sentimentByTimeframe} topWinners={topWinners} onSelectWinner={setSelectedWinner} premiumMode={premiumMode} onTogglePremium={() => setPremiumMode(p => !p)} />
                     </div>
                   ))}
                 </div>
@@ -658,7 +698,7 @@ export default function Home() {
               ) : (
                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
                   {OPPORTUNITY_CATEGORIES.map((cat) => (
-                    <OpportunityCard key={cat.id} cat={cat} counts={counts} sentimentByTimeframe={sentimentByTimeframe} topWinners={topWinners} onSelectWinner={setSelectedWinner} />
+                    <OpportunityCard key={cat.id} cat={cat} counts={counts} premiumCounts={premiumCounts} sentimentByTimeframe={sentimentByTimeframe} topWinners={topWinners} onSelectWinner={setSelectedWinner} premiumMode={premiumMode} onTogglePremium={() => setPremiumMode(p => !p)} />
                   ))}
                 </div>
               )}

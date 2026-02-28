@@ -360,16 +360,18 @@ function FreshnessDot() {
   );
 }
 
-function OpportunityCard({ cat, activeCounts, sentimentByTimeframe, topWinners, onSelectWinner, freshSignal }: {
+function OpportunityCard({ cat, activeCounts, sentimentByTimeframe, topWinners, onSelectWinner, freshSignal, premiumMode }: {
   cat: typeof OPPORTUNITY_CATEGORIES[number];
   activeCounts: Record<string, Record<SideKey, Record<StatusKey, number>>>;
   sentimentByTimeframe: Record<string, ReturnType<typeof computeSentiment>>;
   topWinners: Record<string, WinnerSignal[]>;
   onSelectWinner: (w: WinnerSignal) => void;
   freshSignal?: { id: string; ticker: string; type: string; receivedAt: string } | null;
+  premiumMode?: boolean;
 }) {
   const c = activeCounts[cat.id] ?? { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
   const sentiment = sentimentByTimeframe[cat.id] ?? { label: "No clear trend", color: "text-muted-foreground" };
+  const alignedParam = premiumMode ? "&aligned=true" : "";
   return (
     <Card className="bg-[#121214] border-white/5 shadow-2xl overflow-hidden rounded-2xl">
       <div className="p-6 border-b border-white/5">
@@ -402,15 +404,15 @@ function OpportunityCard({ cat, activeCounts, sentimentByTimeframe, topWinners, 
             <span className="text-[10px] font-black uppercase tracking-wider text-positive">Bulls</span>
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <Link href={`/terminal?timeframe=${cat.id}&side=BUY&status=working`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-positive/10 border-positive/20 hover:bg-positive/20")}>
+            <Link href={`/terminal?timeframe=${cat.id}&side=BUY&status=working${alignedParam}`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-positive/10 border-positive/20 hover:bg-positive/20")}>
               <div className="text-lg font-black font-mono text-positive">{c.BUY.working}</div>
               <div className="text-[9px] font-bold uppercase text-positive/80">Winning</div>
             </Link>
-            <Link href={`/terminal?timeframe=${cat.id}&side=BUY&status=not-working`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-negative/10 border-negative/20 hover:bg-negative/20")}>
+            <Link href={`/terminal?timeframe=${cat.id}&side=BUY&status=not-working${alignedParam}`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-negative/10 border-negative/20 hover:bg-negative/20")}>
               <div className="text-lg font-black font-mono text-negative">{c.BUY["not-working"]}</div>
               <div className="text-[9px] font-bold uppercase text-negative/80">Losing</div>
             </Link>
-            <Link href={`/terminal?timeframe=${cat.id}&side=BUY&status=neutral`} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center hover:bg-white/10 transition-colors">
+            <Link href={`/terminal?timeframe=${cat.id}&side=BUY&status=neutral${alignedParam}`} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center hover:bg-white/10 transition-colors">
               <div className="text-lg font-black font-mono text-foreground">{c.BUY.neutral}</div>
               <div className="text-[9px] font-bold uppercase text-muted-foreground">Neutral</div>
             </Link>
@@ -422,15 +424,15 @@ function OpportunityCard({ cat, activeCounts, sentimentByTimeframe, topWinners, 
             <span className="text-[10px] font-black uppercase tracking-wider text-negative">Bears</span>
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <Link href={`/terminal?timeframe=${cat.id}&side=SELL&status=working`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-positive/10 border-positive/20 hover:bg-positive/20")}>
+            <Link href={`/terminal?timeframe=${cat.id}&side=SELL&status=working${alignedParam}`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-positive/10 border-positive/20 hover:bg-positive/20")}>
               <div className="text-lg font-black font-mono text-positive">{c.SELL.working}</div>
               <div className="text-[9px] font-bold uppercase text-positive/80">Winning</div>
             </Link>
-            <Link href={`/terminal?timeframe=${cat.id}&side=SELL&status=not-working`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-negative/10 border-negative/20 hover:bg-negative/20")}>
+            <Link href={`/terminal?timeframe=${cat.id}&side=SELL&status=not-working${alignedParam}`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-negative/10 border-negative/20 hover:bg-negative/20")}>
               <div className="text-lg font-black font-mono text-negative">{c.SELL["not-working"]}</div>
               <div className="text-[9px] font-bold uppercase text-negative/80">Losing</div>
             </Link>
-            <Link href={`/terminal?timeframe=${cat.id}&side=SELL&status=neutral`} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center hover:bg-white/10 transition-colors">
+            <Link href={`/terminal?timeframe=${cat.id}&side=SELL&status=neutral${alignedParam}`} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center hover:bg-white/10 transition-colors">
               <div className="text-lg font-black font-mono text-foreground">{c.SELL.neutral}</div>
               <div className="text-[9px] font-bold uppercase text-muted-foreground">Neutral</div>
             </Link>
@@ -590,11 +592,12 @@ export default function Home() {
 
   const FRESHNESS_MINUTES: Record<string, number> = { "5": 5, "15": 15, "60": 60, "240": 240, "D": 1440 };
 
-  const latestSignalByTf = useMemo(() => {
+  const computeLatestByTf = useCallback((signals: any[] | null, onlyAligned: boolean) => {
     const m: Record<string, { id: string; ticker: string; type: string; receivedAt: string; ts: number }> = {};
-    if (!rawSignals) return m;
-    rawSignals.forEach((signal: any) => {
+    if (!signals) return m;
+    signals.forEach((signal: any) => {
       if (signal.status === "INACTIVE") return;
+      if (onlyAligned && signal.aligned !== true) return;
       if (getDisplayAssetType(signal) !== "CRYPTO") return;
       const tf = String(signal.timeframe || "").toUpperCase();
       const cat = tf === "D" ? "D" : tf;
@@ -604,7 +607,10 @@ export default function Home() {
       }
     });
     return m;
-  }, [rawSignals]);
+  }, []);
+
+  const latestSignalByTf = useMemo(() => computeLatestByTf(rawSignals, false), [rawSignals, computeLatestByTf]);
+  const premiumLatestSignalByTf = useMemo(() => computeLatestByTf(rawSignals, true), [rawSignals, computeLatestByTf]);
 
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -612,19 +618,23 @@ export default function Home() {
     return () => clearInterval(id);
   }, []);
 
-  const freshSignals = useMemo(() => {
+  const computeFreshSignals = useCallback((latestMap: Record<string, { id: string; ticker: string; type: string; receivedAt: string; ts: number }>) => {
     const result: Record<string, { id: string; ticker: string; type: string; receivedAt: string } | null> = {};
     const now = Date.now();
     OPPORTUNITY_CATEGORIES.forEach((c) => {
-      const latest = latestSignalByTf[c.id];
+      const latest = latestMap[c.id];
       const windowMs = (FRESHNESS_MINUTES[c.id] ?? 15) * 60 * 1000;
       result[c.id] = latest && (now - latest.ts) < windowMs ? latest : null;
     });
     return result;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestSignalByTf, tick]);
+  }, []);
 
-  const topWinners = useMemo(() => {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const freshSignals = useMemo(() => computeFreshSignals(latestSignalByTf), [latestSignalByTf, tick, computeFreshSignals]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const premiumFreshSignals = useMemo(() => computeFreshSignals(premiumLatestSignalByTf), [premiumLatestSignalByTf, tick, computeFreshSignals]);
+
+  const computeTopWinners = useCallback((signals: any[] | null, onlyAligned: boolean) => {
     const map: Record<string, WinnerSignal[]> = {};
     const windowMs: Record<string, number> = {};
     const now = Date.now();
@@ -632,9 +642,10 @@ export default function Home() {
       map[c.id] = [];
       windowMs[c.id] = c.windowHours * 60 * 60 * 1000;
     });
-    if (!rawSignals) return map;
-    rawSignals.forEach((signal: any) => {
+    if (!signals) return map;
+    signals.forEach((signal: any) => {
       if (signal.status === "INACTIVE") return;
+      if (onlyAligned && signal.aligned !== true) return;
       if (getDisplayAssetType(signal) !== "CRYPTO") return;
       const tf = String(signal.timeframe || "").toUpperCase();
       const cat = tf === "D" ? "D" : tf;
@@ -662,7 +673,10 @@ export default function Home() {
       map[k] = map[k].slice(0, 5);
     });
     return map;
-  }, [rawSignals]);
+  }, []);
+
+  const topWinners = useMemo(() => computeTopWinners(rawSignals, false), [rawSignals, computeTopWinners]);
+  const premiumTopWinners = useMemo(() => computeTopWinners(rawSignals, true), [rawSignals, computeTopWinners]);
 
   const handleGoogleLogin = async () => {
     if (auth) {
@@ -807,7 +821,7 @@ export default function Home() {
                 <div className="space-y-4">
                   {OPPORTUNITY_CATEGORIES.map((cat) => (
                     <div key={cat.id} ref={(el) => { cardRefs.current[cat.id] = el; }}>
-                      <OpportunityCard cat={cat} activeCounts={premiumMode ? premiumCounts : counts} sentimentByTimeframe={sentimentByTimeframe} topWinners={topWinners} onSelectWinner={setSelectedWinner} freshSignal={freshSignals[cat.id]} />
+                      <OpportunityCard cat={cat} activeCounts={premiumMode ? premiumCounts : counts} sentimentByTimeframe={sentimentByTimeframe} topWinners={premiumMode ? premiumTopWinners : topWinners} onSelectWinner={setSelectedWinner} freshSignal={premiumMode ? premiumFreshSignals[cat.id] : freshSignals[cat.id]} premiumMode={premiumMode} />
                     </div>
                   ))}
                 </div>
@@ -828,7 +842,7 @@ export default function Home() {
               ) : (
                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
                   {OPPORTUNITY_CATEGORIES.map((cat) => (
-                    <OpportunityCard key={cat.id} cat={cat} activeCounts={premiumMode ? premiumCounts : counts} sentimentByTimeframe={sentimentByTimeframe} topWinners={topWinners} onSelectWinner={setSelectedWinner} freshSignal={freshSignals[cat.id]} />
+                    <OpportunityCard key={cat.id} cat={cat} activeCounts={premiumMode ? premiumCounts : counts} sentimentByTimeframe={sentimentByTimeframe} topWinners={premiumMode ? premiumTopWinners : topWinners} onSelectWinner={setSelectedWinner} freshSignal={premiumMode ? premiumFreshSignals[cat.id] : freshSignals[cat.id]} premiumMode={premiumMode} />
                   ))}
                 </div>
               )}

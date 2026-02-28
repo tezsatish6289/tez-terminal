@@ -35,6 +35,7 @@ type SignalHistoryProps = {
   initialTimeframeTab?: string | null;
   initialPerformanceFilter?: string | null;
   initialSideFilter?: string | null;
+  initialAlignedFilter?: boolean;
   hideFilters?: boolean;
 };
 
@@ -42,7 +43,7 @@ type SignalHistoryProps = {
  * PRODUCTION TERMINAL ENGINE - PERSISTENT STATE
  * Now exclusively displays ACTIVE signals for the live idea stream.
  */
-export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, initialSideFilter, hideFilters }: SignalHistoryProps = {}) {
+export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, initialSideFilter, initialAlignedFilter, hideFilters }: SignalHistoryProps = {}) {
   const router = useRouter();
   const { user } = useUser();
   const firestore = useFirestore();
@@ -146,6 +147,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
     return rawSignals.filter(signal => {
       if (signal.status === "INACTIVE") return false;
       if (getDisplayAssetType(signal) !== "CRYPTO") return false;
+      if (initialAlignedFilter && signal.aligned !== true) return false;
       if (activeSideFilter !== "all" && signal.type !== activeSideFilter) return false;
       if (globalPerformanceFilter !== "all") {
         const pnl = Number(calculatePercent(signal.currentPrice, signal.price, signal.type));
@@ -155,7 +157,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
       }
       return true;
     });
-  }, [rawSignals, globalPerformanceFilter, activeSideFilter]);
+  }, [rawSignals, globalPerformanceFilter, activeSideFilter, initialAlignedFilter]);
 
   const formatPrice = (price: number | null | undefined) => {
     if (price === null || price === undefined) return "--";

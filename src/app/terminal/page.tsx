@@ -42,6 +42,7 @@ function TerminalContent() {
   const timeframe = searchParams.get("timeframe");
   const status = searchParams.get("status");
   const side = searchParams.get("side");
+  const aligned = searchParams.get("aligned") === "true";
 
   const categoryLabel = timeframe ? CATEGORY_LABELS[timeframe] || timeframe : "All";
   const sideLabel = side ? SIDE_LABELS[side] || side : null;
@@ -144,7 +145,7 @@ function TerminalContent() {
                 )}
               </div>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                Showing {sideLabel?.toLowerCase() || "all"} {categoryLabel?.toLowerCase()} opportunities{statusLabel ? ` that are ${statusLabel.toLowerCase()}` : ""}
+                Showing {aligned ? "premium " : ""}{sideLabel?.toLowerCase() || "all"} {categoryLabel?.toLowerCase()} opportunities{statusLabel ? ` that are ${statusLabel.toLowerCase()}` : ""}
               </p>
             </div>
           </div>
@@ -157,13 +158,14 @@ function TerminalContent() {
                 initialTimeframeTab={timeframe ?? undefined}
                 initialPerformanceFilter={status ?? undefined}
                 initialSideFilter={side ?? undefined}
+                initialAlignedFilter={aligned}
                 hideFilters
               />
             </div>
           </section>
 
           {/* Sticky bottom CTA */}
-          <div className="sticky bottom-0 w-full border-t border-accent/20 bg-background/95 backdrop-blur-md py-4 px-6 z-30">
+          <div className="sticky bottom-0 w-full border-t border-accent/20 bg-background/95 backdrop-blur-md pt-4 px-6 z-30 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
             <Link href="/" className="block max-w-md mx-auto">
               <Button className="w-full h-12 gap-3 bg-accent/15 text-accent border-2 border-accent/40 hover:bg-accent/25 font-black uppercase text-sm tracking-wider rounded-xl shadow-lg shadow-accent/10">
                 <Target className="h-5 w-5" />

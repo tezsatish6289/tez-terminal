@@ -21,7 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useMemo, useState } from "react";
-import { getLeverage, getLeverageLabel } from "@/lib/leverage";
+import { getLeverage } from "@/lib/leverage";
 
 /**
  * Closed Performance Analytics Page.
@@ -91,40 +91,47 @@ export default function AnalyticsPage() {
     return closedSignals;
   }, [closedSignals, filterMode]);
 
-  const computeExcursionStats = (signals: typeof closedSignals) => {
-    const computeUpsideStats = (sigs: typeof closedSignals) => {
-      const withUpside = sigs.filter(hasUpsideData);
-      if (withUpside.length === 0) return { count: 0, max: 0, median: 0, avg: 0 };
-      const values = withUpside.map(s => calculatePercent(s.maxUpsidePrice, s.price, s.type) * getLeverage(s.timeframe));
-      return {
-        count: withUpside.length,
-        max: Math.max(...values),
-        median: median(values),
-        avg: values.reduce((a, b) => a + b, 0) / values.length
-      };
-    };
-    const computeDownsideStats = (sigs: typeof closedSignals) => {
-      const withDownside = sigs.filter(hasDownsideData);
-      if (withDownside.length === 0) return { count: 0, max: 0, median: 0, avg: 0 };
-      const values = withDownside.map(s => calculatePercent(s.maxDrawdownPrice, s.price, s.type) * getLeverage(s.timeframe));
-      return {
-        count: withDownside.length,
-        max: Math.min(...values),
-        median: median(values),
-        avg: values.reduce((a, b) => a + b, 0) / values.length
-      };
-    };
-    const bullish = signals.filter(s => s.type === "BUY");
-    const bearish = signals.filter(s => s.type === "SELL");
+  const TIMEFRAMES = [
+    { id: "5", name: "Scalping", chart: "5m" },
+    { id: "15", name: "Intraday", chart: "15m" },
+    { id: "60", name: "BTST", chart: "1h" },
+    { id: "240", name: "Swing", chart: "4h" },
+    { id: "D", name: "Buy & Hold", chart: "1D" },
+  ];
+
+  type SideStats = { count: number; profit: { count: number; max: number; median: number; avg: number }; loss: { count: number; max: number; median: number; avg: number } };
+
+  const computeSideStats = (sigs: typeof closedSignals, lev: number): SideStats => {
+    const withUpside = sigs.filter(hasUpsideData);
+    const upsideValues = withUpside.map(s => calculatePercent(s.maxUpsidePrice, s.price, s.type) * lev);
+    const withDownside = sigs.filter(hasDownsideData);
+    const downsideValues = withDownside.map(s => calculatePercent(s.maxDrawdownPrice, s.price, s.type) * lev);
     return {
-      bullish: { count: bullish.length, profit: computeUpsideStats(bullish), loss: computeDownsideStats(bullish) },
-      bearish: { count: bearish.length, profit: computeUpsideStats(bearish), loss: computeDownsideStats(bearish) },
+      count: sigs.length,
+      profit: upsideValues.length > 0
+        ? { count: upsideValues.length, max: Math.max(...upsideValues), median: median(upsideValues), avg: upsideValues.reduce((a, b) => a + b, 0) / upsideValues.length }
+        : { count: 0, max: 0, median: 0, avg: 0 },
+      loss: downsideValues.length > 0
+        ? { count: downsideValues.length, max: Math.min(...downsideValues), median: median(downsideValues), avg: downsideValues.reduce((a, b) => a + b, 0) / downsideValues.length }
+        : { count: 0, max: 0, median: 0, avg: 0 },
     };
   };
 
-  const allStats = useMemo(() => computeExcursionStats(closedSignals), [closedSignals]);
-  const alignedStats = useMemo(() => computeExcursionStats(closedSignals.filter(s => s.aligned === true)), [closedSignals]);
-  const sideStats = useMemo(() => computeExcursionStats(filteredClosedSignals), [filteredClosedSignals]);
+  const tfStats = useMemo(() => {
+    const result: Record<string, { all: { bullish: SideStats; bearish: SideStats }; premium: { bullish: SideStats; bearish: SideStats }; total: number; premiumTotal: number }> = {};
+    TIMEFRAMES.forEach(tf => {
+      const lev = getLeverage(tf.id);
+      const tfSignals = closedSignals.filter(s => String(s.timeframe).toUpperCase() === tf.id);
+      const premiumSignals = tfSignals.filter(s => s.aligned === true);
+      result[tf.id] = {
+        all: { bullish: computeSideStats(tfSignals.filter(s => s.type === "BUY"), lev), bearish: computeSideStats(tfSignals.filter(s => s.type === "SELL"), lev) },
+        premium: { bullish: computeSideStats(premiumSignals.filter(s => s.type === "BUY"), lev), bearish: computeSideStats(premiumSignals.filter(s => s.type === "SELL"), lev) },
+        total: tfSignals.length,
+        premiumTotal: premiumSignals.length,
+      };
+    });
+    return result;
+  }, [closedSignals]);
 
   const formatPrice = (p: number | null | undefined) => {
     if (p === null || p === undefined) return "--";
@@ -185,92 +192,109 @@ export default function AnalyticsPage() {
            )}
         </header>
 
-        {/* Bullish / Bearish — comparison: All vs Aligned */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {([
-            { side: "bullish" as const, label: "Bullish", sideLabel: "BUY", icon: TrendingUp, borderColor: "border-emerald-500/20", iconBg: "bg-emerald-500/20", iconColor: "text-emerald-400" },
-            { side: "bearish" as const, label: "Bearish", sideLabel: "SELL", icon: TrendingDown, borderColor: "border-rose-500/20", iconBg: "bg-rose-500/20", iconColor: "text-rose-400" },
-          ]).map(({ side, label, sideLabel, icon: SideIcon, borderColor, iconBg, iconColor }) => {
-            const stats = sideStats[side];
-            const all = allStats[side];
-            const aligned = alignedStats[side];
-            const hasAlignedData = aligned.count > 0;
+        {/* Per-timeframe analytics with All vs Premium comparison */}
+        <div className="space-y-6">
+          {TIMEFRAMES.map(tf => {
+            const data = tfStats[tf.id];
+            if (!data || data.total === 0) return null;
+            const lev = getLeverage(tf.id);
+
+            const renderSideBlock = (label: string, sideKey: "bullish" | "bearish", icon: typeof TrendingUp, iconColor: string) => {
+              const all = data.all[sideKey];
+              const prem = data.premium[sideKey];
+              const hasPrem = prem.count > 0;
+
+              const renderVal = (v: number, hasData: boolean, isProfit: boolean) => {
+                if (!hasData) return <span className="text-muted-foreground/30">--</span>;
+                return <span className={cn("font-mono font-black", isProfit ? "text-emerald-400" : "text-rose-400")}>{isProfit && v >= 0 ? "+" : ""}{v.toFixed(2)}%</span>;
+              };
+
+              return (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    {icon === TrendingUp ? <TrendingUp className={cn("h-4 w-4", iconColor)} /> : <TrendingDown className={cn("h-4 w-4", iconColor)} />}
+                    <span className={cn("text-[10px] font-black uppercase tracking-wider", iconColor)}>{label}</span>
+                    <span className="text-[10px] text-muted-foreground ml-auto">{all.count} trades{hasPrem ? ` · ${prem.count} premium` : ""}</span>
+                  </div>
+                  {all.count === 0 ? (
+                    <div className="text-[10px] text-muted-foreground/40 text-center py-3">No {label.toLowerCase()} trades</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-[11px]">
+                        <thead>
+                          <tr className="border-b border-white/5">
+                            <th className="text-left font-bold text-muted-foreground/60 uppercase tracking-wider py-1.5 pr-2" />
+                            <th className="text-center font-bold text-muted-foreground uppercase tracking-wider py-1.5 px-2">Avg Profit</th>
+                            <th className="text-center font-bold text-muted-foreground uppercase tracking-wider py-1.5 px-2">Max Profit</th>
+                            <th className="text-center font-bold text-muted-foreground uppercase tracking-wider py-1.5 px-2">Avg Loss</th>
+                            <th className="text-center font-bold text-muted-foreground uppercase tracking-wider py-1.5 px-2">Max Loss</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="border-b border-white/5">
+                            <td className="py-2 pr-2 text-[10px] font-bold text-muted-foreground uppercase">All</td>
+                            <td className="py-2 px-2 text-center text-sm">{renderVal(all.profit.avg, all.profit.count > 0, true)}</td>
+                            <td className="py-2 px-2 text-center text-sm">{renderVal(all.profit.max, all.profit.count > 0, true)}</td>
+                            <td className="py-2 px-2 text-center text-sm">{renderVal(all.loss.avg, all.loss.count > 0, false)}</td>
+                            <td className="py-2 px-2 text-center text-sm">{renderVal(all.loss.max, all.loss.count > 0, false)}</td>
+                          </tr>
+                          {hasPrem && (
+                            <>
+                              <tr className="border-b border-white/5">
+                                <td className="py-2 pr-2 text-[10px] font-bold text-accent uppercase">Premium</td>
+                                <td className="py-2 px-2 text-center text-sm">{renderVal(prem.profit.avg, prem.profit.count > 0, true)}</td>
+                                <td className="py-2 px-2 text-center text-sm">{renderVal(prem.profit.max, prem.profit.count > 0, true)}</td>
+                                <td className="py-2 px-2 text-center text-sm">{renderVal(prem.loss.avg, prem.loss.count > 0, false)}</td>
+                                <td className="py-2 px-2 text-center text-sm">{renderVal(prem.loss.max, prem.loss.count > 0, false)}</td>
+                              </tr>
+                              <tr>
+                                <td className="py-2 pr-2 text-[10px] font-bold text-accent/50 uppercase">Edge</td>
+                                {(() => {
+                                  const profitEdge = all.profit.count > 0 && prem.profit.count > 0 ? prem.profit.avg - all.profit.avg : null;
+                                  const maxProfitEdge = all.profit.count > 0 && prem.profit.count > 0 ? prem.profit.max - all.profit.max : null;
+                                  const lossEdge = all.loss.count > 0 && prem.loss.count > 0 ? all.loss.avg - prem.loss.avg : null;
+                                  const maxLossEdge = all.loss.count > 0 && prem.loss.count > 0 ? all.loss.max - prem.loss.max : null;
+                                  const edgeCell = (edge: number | null) => (
+                                    <td className={cn("py-2 px-2 text-center text-sm font-mono font-black", edge != null && edge > 0 ? "text-accent" : "text-muted-foreground/30")}>
+                                      {edge != null ? `${edge >= 0 ? "+" : ""}${edge.toFixed(2)}%` : "--"}
+                                    </td>
+                                  );
+                                  return <>{edgeCell(profitEdge)}{edgeCell(maxProfitEdge)}{edgeCell(lossEdge)}{edgeCell(maxLossEdge)}</>;
+                                })()}
+                              </tr>
+                            </>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            };
 
             return (
-              <Card key={side} className={cn("bg-card/50 border-white/5 shadow-xl", borderColor)}>
+              <Card key={tf.id} className="bg-card/50 border-white/5 shadow-xl">
                 <CardHeader className="pb-3 border-b border-white/5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className={cn("p-2 rounded-xl", iconBg)}><SideIcon className={cn("h-5 w-5", iconColor)} /></div>
+                      <div className="bg-accent/10 p-2 rounded-xl border border-accent/10">
+                        <BarChart3 className="h-5 w-5 text-accent" />
+                      </div>
                       <div>
-                        <CardTitle className="text-lg font-black text-white uppercase tracking-tighter">{label}</CardTitle>
-                        <CardDescription className="text-[10px] font-bold text-muted-foreground uppercase">{sideLabel} · Leveraged in-trade max upside / max downside</CardDescription>
+                        <CardTitle className="text-lg font-black text-white uppercase tracking-tighter">{tf.name}</CardTitle>
+                        <CardDescription className="text-[10px] font-bold text-muted-foreground uppercase">{tf.chart} chart · {lev}x leverage · Leveraged returns</CardDescription>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-2xl font-black font-mono text-white">{stats.count}</div>
-                      <div className="text-[10px] font-bold text-accent uppercase">
-                        {filterMode === "all" ? "Retired Trades" : filterMode === "aligned" ? "Aligned" : "Non-aligned"}
-                      </div>
+                      <div className="text-2xl font-black font-mono text-white">{data.total}</div>
+                      <div className="text-[10px] font-bold text-accent uppercase">Retired Trades</div>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-6 space-y-6">
-                  {/* Main stats grid */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {([
-                      { label: "Max profit", value: stats.profit.max, hasData: stats.profit.count > 0, isProfit: true },
-                      { label: "Median profit", value: stats.profit.median, hasData: stats.profit.count > 0, isProfit: true },
-                      { label: "Avg profit", value: stats.profit.avg, hasData: stats.profit.count > 0, isProfit: true },
-                      { label: "Max loss", value: stats.loss.max, hasData: stats.loss.count > 0, isProfit: false },
-                      { label: "Median loss", value: stats.loss.median, hasData: stats.loss.count > 0, isProfit: false },
-                      { label: "Avg loss", value: stats.loss.avg, hasData: stats.loss.count > 0, isProfit: false },
-                    ]).map((metric) => (
-                      <div key={metric.label}>
-                        <div className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">{metric.label}</div>
-                        <div className={cn("text-xl font-black font-mono", metric.isProfit ? (metric.value >= 0 ? "text-emerald-400" : "text-white") : "text-rose-400")}>
-                          {metric.hasData ? `${metric.isProfit && metric.value >= 0 ? '+' : ''}${metric.value.toFixed(2)}%` : "--"}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Comparison: All vs Premium */}
-                  {hasAlignedData && (
-                    <div className="rounded-xl border border-accent/10 bg-accent/[0.02] p-4 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <Filter className="h-3 w-3 text-accent" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-accent">All vs Premium</span>
-                      </div>
-                      <div className="grid grid-cols-4 gap-2 text-center">
-                        <div className="text-[9px] font-bold uppercase text-muted-foreground/60" />
-                        <div className="text-[9px] font-bold uppercase text-muted-foreground">All ({all.count})</div>
-                        <div className="text-[9px] font-bold uppercase text-accent">Aligned ({aligned.count})</div>
-                        <div className="text-[9px] font-bold uppercase text-muted-foreground/60">Edge</div>
-
-                        {([
-                          { label: "Avg Profit", allVal: all.profit.avg, alignedVal: aligned.profit.avg, allHas: all.profit.count > 0, alignedHas: aligned.profit.count > 0, isProfit: true },
-                          { label: "Avg Loss", allVal: all.loss.avg, alignedVal: aligned.loss.avg, allHas: all.loss.count > 0, alignedHas: aligned.loss.count > 0, isProfit: false },
-                        ]).map((row) => {
-                          const edge = row.allHas && row.alignedHas
-                            ? row.isProfit ? row.alignedVal - row.allVal : row.allVal - row.alignedVal
-                            : null;
-                          return [
-                            <div key={`${row.label}-label`} className="text-[10px] font-bold text-muted-foreground text-left py-1.5">{row.label}</div>,
-                            <div key={`${row.label}-all`} className={cn("text-sm font-black font-mono py-1.5", row.isProfit ? "text-emerald-400/60" : "text-rose-400/60")}>
-                              {row.allHas ? `${row.allVal.toFixed(2)}%` : "--"}
-                            </div>,
-                            <div key={`${row.label}-aligned`} className={cn("text-sm font-black font-mono py-1.5", row.isProfit ? "text-emerald-400" : "text-rose-400")}>
-                              {row.alignedHas ? `${row.alignedVal.toFixed(2)}%` : "--"}
-                            </div>,
-                            <div key={`${row.label}-edge`} className={cn("text-sm font-black font-mono py-1.5", edge != null && edge > 0 ? "text-accent" : "text-muted-foreground/40")}>
-                              {edge != null ? `${edge >= 0 ? '+' : ''}${edge.toFixed(2)}%` : "--"}
-                            </div>,
-                          ];
-                        })}
-                      </div>
-                    </div>
-                  )}
+                <CardContent className="pt-5 space-y-5">
+                  {renderSideBlock("Bulls", "bullish", TrendingUp, "text-emerald-400")}
+                  <div className="border-t border-white/5" />
+                  {renderSideBlock("Bears", "bearish", TrendingDown, "text-rose-400")}
                 </CardContent>
               </Card>
             );

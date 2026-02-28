@@ -336,12 +336,37 @@ function TypewriterTagline() {
   );
 }
 
-function OpportunityCard({ cat, activeCounts, sentimentByTimeframe, topWinners, onSelectWinner }: {
+function formatTimeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function FreshnessDot() {
+  const [pinging, setPinging] = useState(true);
+  useEffect(() => {
+    const timer = setTimeout(() => setPinging(false), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+  return (
+    <span className="relative flex h-2.5 w-2.5">
+      {pinging && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75" />}
+      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-accent shadow-[0_0_6px_theme(colors.accent)]" />
+    </span>
+  );
+}
+
+function OpportunityCard({ cat, activeCounts, sentimentByTimeframe, topWinners, onSelectWinner, freshSignal }: {
   cat: typeof OPPORTUNITY_CATEGORIES[number];
   activeCounts: Record<string, Record<SideKey, Record<StatusKey, number>>>;
   sentimentByTimeframe: Record<string, ReturnType<typeof computeSentiment>>;
   topWinners: Record<string, WinnerSignal[]>;
   onSelectWinner: (w: WinnerSignal) => void;
+  freshSignal?: { id: string; ticker: string; type: string; receivedAt: string } | null;
 }) {
   const c = activeCounts[cat.id] ?? { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
   const sentiment = sentimentByTimeframe[cat.id] ?? { label: "No clear trend", color: "text-muted-foreground" };
@@ -350,8 +375,19 @@ function OpportunityCard({ cat, activeCounts, sentimentByTimeframe, topWinners, 
       <div className="p-6 border-b border-white/5">
         <div className="flex items-start justify-between">
           <div>
-            <CardTitle className="text-2xl font-black uppercase tracking-tighter">{cat.name}</CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-2xl font-black uppercase tracking-tighter">{cat.name}</CardTitle>
+              {freshSignal && <FreshnessDot />}
+            </div>
             <CardDescription className="text-[10px] font-black uppercase text-accent tracking-widest">{cat.chart} chart</CardDescription>
+            {freshSignal && (
+              <Link href={`/chart/${freshSignal.id}`} className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-accent/10 border border-accent/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-accent hover:bg-accent/20 transition-colors">
+                <span className={freshSignal.type === "BUY" ? "text-positive" : "text-negative"}>{freshSignal.type === "BUY" ? "▲" : "▼"}</span>
+                <span>{freshSignal.ticker}</span>
+                <span className="text-accent/50">·</span>
+                <span className="text-accent/70">{formatTimeAgo(freshSignal.receivedAt)}</span>
+              </Link>
+            )}
           </div>
           <Badge className="text-[10px] font-black border-none px-3 h-7 uppercase bg-accent/15 text-accent">
             {cat.leverage}
@@ -552,6 +588,42 @@ export default function Home() {
     return map;
   }, [rawSignals]);
 
+  const FRESHNESS_MINUTES: Record<string, number> = { "5": 5, "15": 15, "60": 60, "240": 240, "D": 1440 };
+
+  const latestSignalByTf = useMemo(() => {
+    const m: Record<string, { id: string; ticker: string; type: string; receivedAt: string; ts: number }> = {};
+    if (!rawSignals) return m;
+    rawSignals.forEach((signal: any) => {
+      if (signal.status === "INACTIVE") return;
+      if (getDisplayAssetType(signal) !== "CRYPTO") return;
+      const tf = String(signal.timeframe || "").toUpperCase();
+      const cat = tf === "D" ? "D" : tf;
+      const ts = new Date(signal.receivedAt).getTime();
+      if (!m[cat] || ts > m[cat].ts) {
+        m[cat] = { id: signal.id, ticker: signal.ticker, type: signal.type, receivedAt: signal.receivedAt, ts };
+      }
+    });
+    return m;
+  }, [rawSignals]);
+
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const freshSignals = useMemo(() => {
+    const result: Record<string, { id: string; ticker: string; type: string; receivedAt: string } | null> = {};
+    const now = Date.now();
+    OPPORTUNITY_CATEGORIES.forEach((c) => {
+      const latest = latestSignalByTf[c.id];
+      const windowMs = (FRESHNESS_MINUTES[c.id] ?? 15) * 60 * 1000;
+      result[c.id] = latest && (now - latest.ts) < windowMs ? latest : null;
+    });
+    return result;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestSignalByTf, tick]);
+
   const topWinners = useMemo(() => {
     const map: Record<string, WinnerSignal[]> = {};
     const windowMs: Record<string, number> = {};
@@ -735,7 +807,7 @@ export default function Home() {
                 <div className="space-y-4">
                   {OPPORTUNITY_CATEGORIES.map((cat) => (
                     <div key={cat.id} ref={(el) => { cardRefs.current[cat.id] = el; }}>
-                      <OpportunityCard cat={cat} activeCounts={premiumMode ? premiumCounts : counts} sentimentByTimeframe={sentimentByTimeframe} topWinners={topWinners} onSelectWinner={setSelectedWinner} />
+                      <OpportunityCard cat={cat} activeCounts={premiumMode ? premiumCounts : counts} sentimentByTimeframe={sentimentByTimeframe} topWinners={topWinners} onSelectWinner={setSelectedWinner} freshSignal={freshSignals[cat.id]} />
                     </div>
                   ))}
                 </div>
@@ -756,7 +828,7 @@ export default function Home() {
               ) : (
                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
                   {OPPORTUNITY_CATEGORIES.map((cat) => (
-                    <OpportunityCard key={cat.id} cat={cat} activeCounts={premiumMode ? premiumCounts : counts} sentimentByTimeframe={sentimentByTimeframe} topWinners={topWinners} onSelectWinner={setSelectedWinner} />
+                    <OpportunityCard key={cat.id} cat={cat} activeCounts={premiumMode ? premiumCounts : counts} sentimentByTimeframe={sentimentByTimeframe} topWinners={topWinners} onSelectWinner={setSelectedWinner} freshSignal={freshSignals[cat.id]} />
                   ))}
                 </div>
               )}

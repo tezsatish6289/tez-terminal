@@ -24,8 +24,11 @@ const TradeAlertsContext = createContext<TradeAlertsState | null>(null);
 
 export function TradeAlertsProvider({ children }: { children: ReactNode }) {
   const [enabled, setEnabled] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("tez_alerts_enabled") === "true";
-    return false;
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("tez_alerts_enabled");
+      return stored === null ? true : stored === "true";
+    }
+    return true;
   });
   const [history, setHistory] = useState<TradeAlert[]>([]);
 

@@ -71,7 +71,6 @@ export async function GET(request: NextRequest) {
 
       const alertPrice = Number(signal.price);
       const stopLoss = Number(signal.stopLoss || 0);
-      let newStatus = "ACTIVE";
 
       // Track Extreme Excursions
       let newMaxUpside = signal.maxUpsidePrice || alertPrice;

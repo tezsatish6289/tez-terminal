@@ -83,7 +83,6 @@ export default function AnalyticsPage() {
     return allSignals.filter(s => s.status === "INACTIVE");
   }, [allSignals]);
 
-  const alignedCount = useMemo(() => closedSignals.filter(s => s.aligned === true).length, [closedSignals]);
 
   const filteredClosedSignals = useMemo(() => {
     if (filterMode === "aligned") return closedSignals.filter(s => s.aligned === true);
@@ -152,44 +151,14 @@ export default function AnalyticsPage() {
       <TopBar />
       
       <main className="flex-1 overflow-y-auto p-6 space-y-8">
-        <header className="flex flex-col gap-4">
-           <div className="flex items-start justify-between gap-4">
-             <div className="space-y-2">
-               <div className="flex items-center gap-3">
-                 <div className="bg-primary/20 p-2 rounded-xl border border-white/5"><BarChart3 className="h-6 w-6 text-accent" /></div>
-                 <h1 className="text-3xl font-black text-white tracking-tighter uppercase">Closed Performance Node</h1>
-               </div>
-               <p className="text-muted-foreground text-sm max-w-2xl">
-                 Quantitative review of signals retired from the live idea stream. Tracks win rate and execution accuracy for Inactive signals.
-               </p>
-             </div>
-             <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-1 shrink-0">
-               {([
-                 { key: "all" as FilterMode, label: "All", icon: Layers },
-                 { key: "aligned" as FilterMode, label: "Premium", icon: Filter },
-               ]).map(({ key, label, icon: Icon }) => (
-                 <button
-                   key={key}
-                   onClick={() => setFilterMode(key)}
-                   className={cn(
-                     "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all",
-                     filterMode === key
-                       ? "bg-accent/15 text-accent shadow-sm"
-                       : "text-muted-foreground hover:text-foreground",
-                   )}
-                 >
-                   <Icon className="h-3.5 w-3.5" />
-                   {label}
-                 </button>
-               ))}
-             </div>
+        <header className="space-y-2">
+           <div className="flex items-center gap-3">
+             <div className="bg-primary/20 p-2 rounded-xl border border-white/5"><BarChart3 className="h-6 w-6 text-accent" /></div>
+             <h1 className="text-3xl font-black text-white tracking-tighter uppercase">Closed Performance Node</h1>
            </div>
-           {alignedCount > 0 && (
-             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-               <Filter className="h-3 w-3 text-accent" />
-               <span><span className="text-accent font-bold">{alignedCount}</span> aligned trades out of <span className="font-bold text-foreground">{closedSignals.length}</span> total retired signals</span>
-             </div>
-           )}
+           <p className="text-muted-foreground text-sm max-w-2xl">
+             Quantitative review of signals retired from the live idea stream. Tracks win rate and execution accuracy for Inactive signals.
+           </p>
         </header>
 
         {/* Per-timeframe analytics with All vs Premium comparison */}
@@ -214,7 +183,7 @@ export default function AnalyticsPage() {
                   <div className="flex items-center gap-2">
                     {icon === TrendingUp ? <TrendingUp className={cn("h-4 w-4", iconColor)} /> : <TrendingDown className={cn("h-4 w-4", iconColor)} />}
                     <span className={cn("text-[10px] font-black uppercase tracking-wider", iconColor)}>{label}</span>
-                    <span className="text-[10px] text-muted-foreground ml-auto">{all.count} trades{hasPrem ? ` · ${prem.count} premium` : ""}</span>
+                    <span className="text-[10px] text-muted-foreground ml-auto">{all.count} total{hasPrem ? ` · ${prem.count} premium` : ""}</span>
                   </div>
                   {all.count === 0 ? (
                     <div className="text-[10px] text-muted-foreground/40 text-center py-3">No {label.toLowerCase()} trades</div>
@@ -224,6 +193,7 @@ export default function AnalyticsPage() {
                         <thead>
                           <tr className="border-b border-white/5">
                             <th className="text-left font-bold text-muted-foreground/60 uppercase tracking-wider py-1.5 pr-2" />
+                            <th className="text-center font-bold text-muted-foreground uppercase tracking-wider py-1.5 px-2">Trades</th>
                             <th className="text-center font-bold text-muted-foreground uppercase tracking-wider py-1.5 px-2">Avg Profit</th>
                             <th className="text-center font-bold text-muted-foreground uppercase tracking-wider py-1.5 px-2">Max Profit</th>
                             <th className="text-center font-bold text-muted-foreground uppercase tracking-wider py-1.5 px-2">Avg Loss</th>
@@ -233,6 +203,7 @@ export default function AnalyticsPage() {
                         <tbody>
                           <tr className="border-b border-white/5">
                             <td className="py-2 pr-2 text-[10px] font-bold text-muted-foreground uppercase">All</td>
+                            <td className="py-2 px-2 text-center text-sm font-mono font-black text-white">{all.count}</td>
                             <td className="py-2 px-2 text-center text-sm">{renderVal(all.profit.avg, all.profit.count > 0, true)}</td>
                             <td className="py-2 px-2 text-center text-sm">{renderVal(all.profit.max, all.profit.count > 0, true)}</td>
                             <td className="py-2 px-2 text-center text-sm">{renderVal(all.loss.avg, all.loss.count > 0, false)}</td>
@@ -242,6 +213,7 @@ export default function AnalyticsPage() {
                             <>
                               <tr className="border-b border-white/5">
                                 <td className="py-2 pr-2 text-[10px] font-bold text-accent uppercase">Premium</td>
+                                <td className="py-2 px-2 text-center text-sm font-mono font-black text-accent">{prem.count}</td>
                                 <td className="py-2 px-2 text-center text-sm">{renderVal(prem.profit.avg, prem.profit.count > 0, true)}</td>
                                 <td className="py-2 px-2 text-center text-sm">{renderVal(prem.profit.max, prem.profit.count > 0, true)}</td>
                                 <td className="py-2 px-2 text-center text-sm">{renderVal(prem.loss.avg, prem.loss.count > 0, false)}</td>
@@ -249,11 +221,12 @@ export default function AnalyticsPage() {
                               </tr>
                               <tr>
                                 <td className="py-2 pr-2 text-[10px] font-bold text-accent/50 uppercase">Edge</td>
+                                <td className="py-2 px-2" />
                                 {(() => {
                                   const profitEdge = all.profit.count > 0 && prem.profit.count > 0 ? prem.profit.avg - all.profit.avg : null;
                                   const maxProfitEdge = all.profit.count > 0 && prem.profit.count > 0 ? prem.profit.max - all.profit.max : null;
-                                  const lossEdge = all.loss.count > 0 && prem.loss.count > 0 ? all.loss.avg - prem.loss.avg : null;
-                                  const maxLossEdge = all.loss.count > 0 && prem.loss.count > 0 ? all.loss.max - prem.loss.max : null;
+                                  const lossEdge = all.loss.count > 0 && prem.loss.count > 0 ? prem.loss.avg - all.loss.avg : null;
+                                  const maxLossEdge = all.loss.count > 0 && prem.loss.count > 0 ? prem.loss.max - all.loss.max : null;
                                   const edgeCell = (edge: number | null) => (
                                     <td className={cn("py-2 px-2 text-center text-sm font-mono font-black", edge != null && edge > 0 ? "text-accent" : "text-muted-foreground/30")}>
                                       {edge != null ? `${edge >= 0 ? "+" : ""}${edge.toFixed(2)}%` : "--"}
@@ -308,9 +281,31 @@ export default function AnalyticsPage() {
                   <CardTitle className="text-sm uppercase tracking-widest text-white">Closed Ideas Audit</CardTitle>
                   <CardDescription className="text-[10px] font-bold">Comprehensive trade log for retired setups</CardDescription>
                </div>
-               <Badge variant="outline" className="border-white/10 text-muted-foreground bg-white/5">
-                 <History className="h-3 w-3 mr-2" /> DATA LOADED: {filteredClosedSignals.length}
-               </Badge>
+               <div className="flex items-center gap-3">
+                 <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-1">
+                   {([
+                     { key: "all" as FilterMode, label: "All", icon: Layers },
+                     { key: "aligned" as FilterMode, label: "Premium", icon: Filter },
+                   ]).map(({ key, label, icon: Icon }) => (
+                     <button
+                       key={key}
+                       onClick={() => setFilterMode(key)}
+                       className={cn(
+                         "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
+                         filterMode === key
+                           ? "bg-accent/15 text-accent shadow-sm"
+                           : "text-muted-foreground hover:text-foreground",
+                       )}
+                     >
+                       <Icon className="h-3 w-3" />
+                       {label}
+                     </button>
+                   ))}
+                 </div>
+                 <Badge variant="outline" className="border-white/10 text-muted-foreground bg-white/5">
+                   <History className="h-3 w-3 mr-2" /> {filteredClosedSignals.length}
+                 </Badge>
+               </div>
             </div>
           </CardHeader>
           <CardContent className="p-0">

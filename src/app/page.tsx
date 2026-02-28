@@ -46,10 +46,26 @@ function calculatePercent(currentPrice: number | undefined | null, entry: number
   return (diff / entry) * 100;
 }
 
+function hit2xTarget(signal: { price: number; stopLoss: number | null; maxUpsidePrice: number | null; type: string }): boolean {
+  if (!signal.stopLoss || !signal.maxUpsidePrice) return false;
+  const risk = Math.abs(signal.price - signal.stopLoss);
+  if (risk === 0) return false;
+  const target = signal.type === "BUY" ? signal.price + 2 * risk : signal.price - 2 * risk;
+  return signal.type === "BUY" ? signal.maxUpsidePrice >= target : signal.maxUpsidePrice <= target;
+}
+
+function effectivePnl(signal: { price: number; stopLoss: number | null; maxUpsidePrice: number | null; currentPrice: number | null; type: string }): number {
+  const raw = calculatePercent(signal.currentPrice, signal.price, signal.type);
+  if (raw >= 0) return raw;
+  if (hit2xTarget(signal)) return 0;
+  return raw;
+}
+
 
 interface WinnerSignal {
   symbol: string;
   pnl: number;
+  maxPnl: number;
   type: string;
   price: number;
   currentPrice: number | null;
@@ -283,7 +299,7 @@ function WinnersTicker({ winners, windowLabel, leverage, onSelect }: { winners: 
         className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-amber-500/[0.05] transition-colors cursor-pointer"
       >
         <span className="text-xs font-bold text-foreground uppercase tracking-wider truncate">{winner.symbol}</span>
-        <span className="text-base font-black font-mono text-amber-400 animate-pulse">+{(winner.pnl * leverage).toFixed(2)}%</span>
+        <span className="text-base font-black font-mono text-amber-400 animate-pulse">+{(winner.maxPnl * leverage).toFixed(2)}%</span>
       </button>
     </div>
   );
@@ -568,7 +584,7 @@ export default function Home() {
       const tf = String(signal.timeframe || "").toUpperCase();
       const cat = tf === "D" ? "D" : tf;
       if (!map[cat]) return;
-      const pnl = calculatePercent(signal.currentPrice, signal.price, signal.type);
+      const pnl = effectivePnl(signal);
       const status = getPnlStatus(pnl);
       const side = signal.type === "BUY" ? "BUY" : "SELL";
       map[cat][side][status]++;
@@ -589,7 +605,7 @@ export default function Home() {
       const tf = String(signal.timeframe || "").toUpperCase();
       const cat = tf === "D" ? "D" : tf;
       if (!map[cat]) return;
-      const pnl = calculatePercent(signal.currentPrice, signal.price, signal.type);
+      const pnl = effectivePnl(signal);
       const status = getPnlStatus(pnl);
       const side = signal.type === "BUY" ? "BUY" : "SELL";
       map[cat][side][status]++;
@@ -659,11 +675,13 @@ export default function Home() {
       if (!map[cat]) return;
       const signalTime = new Date(signal.receivedAt).getTime();
       if (now - signalTime > windowMs[cat]) return;
-      const pnl = calculatePercent(signal.currentPrice, signal.price, signal.type);
-      if (pnl > 0.05) {
+      const maxPnl = calculatePercent(signal.maxUpsidePrice, signal.price, signal.type);
+      if (maxPnl > 0.05) {
+        const pnl = calculatePercent(signal.currentPrice, signal.price, signal.type);
         map[cat].push({
           symbol: signal.symbol || "???",
           pnl,
+          maxPnl,
           type: signal.type,
           price: Number(signal.price || 0),
           currentPrice: signal.currentPrice != null ? Number(signal.currentPrice) : null,
@@ -676,7 +694,7 @@ export default function Home() {
       }
     });
     Object.keys(map).forEach((k) => {
-      map[k].sort((a, b) => b.pnl - a.pnl);
+      map[k].sort((a, b) => b.maxPnl - a.maxPnl);
       map[k] = map[k].slice(0, 5);
     });
     return map;

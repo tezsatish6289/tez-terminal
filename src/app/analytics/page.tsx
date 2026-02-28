@@ -47,6 +47,21 @@ export default function AnalyticsPage() {
     return (diff / entry) * 100;
   };
 
+  const didHit2x = (signal: any): boolean => {
+    const sl = signal.originalStopLoss ?? signal.stopLoss;
+    if (!sl || !signal.maxUpsidePrice) return false;
+    const risk = Math.abs(signal.price - sl);
+    if (risk === 0) return false;
+    const target = signal.type === "BUY" ? signal.price + 2 * risk : signal.price - 2 * risk;
+    return signal.type === "BUY" ? signal.maxUpsidePrice >= target : signal.maxUpsidePrice <= target;
+  };
+
+  const effectivePnl = (signal: any): number => {
+    const raw = calculatePercent(signal.currentPrice, signal.price, signal.type);
+    if (raw >= 0) return raw;
+    return didHit2x(signal) ? 0 : raw;
+  };
+
   const median = (arr: number[]) => {
     if (arr.length === 0) return 0;
     const sorted = [...arr].sort((a, b) => a - b);
@@ -306,9 +321,10 @@ export default function AnalyticsPage() {
                     </TableRow>
                   ) : (
                     filteredClosedSignals.map((signal) => {
-                      const pnl = calculatePercent(signal.currentPrice, signal.price, signal.type);
+                      const pnl = effectivePnl(signal);
                       const maxUp = calculatePercent(signal.maxUpsidePrice, signal.price, signal.type);
                       const maxDown = calculatePercent(signal.maxDrawdownPrice, signal.price, signal.type);
+                      const slAtCost = didHit2x(signal);
 
                       return (
                         <TableRow key={signal.id} className="border-white/5 hover:bg-white/[0.02] transition-colors group">
@@ -325,7 +341,15 @@ export default function AnalyticsPage() {
                           </TableCell>
                           <TableCell className="font-mono text-xs font-bold text-white/60">${formatPrice(signal.price)}</TableCell>
                           <TableCell className="font-mono text-xs font-bold text-white">${formatPrice(signal.currentPrice)}</TableCell>
-                          <TableCell className="font-mono text-xs font-bold text-amber-400/90">{signal.stopLoss != null && signal.stopLoss > 0 ? `$${formatPrice(signal.stopLoss)}` : "--"}</TableCell>
+                          <TableCell className="font-mono text-xs font-bold">
+                            {signal.stopLoss != null && signal.stopLoss > 0 ? (
+                              slAtCost ? (
+                                <span className="text-positive" title="SL moved to cost (2x risk achieved)">${formatPrice(signal.price)}</span>
+                              ) : (
+                                <span className="text-amber-400/90">${formatPrice(signal.stopLoss)}</span>
+                              )
+                            ) : "--"}
+                          </TableCell>
                           <TableCell>
                             <div className={cn("flex items-center gap-1.5 font-mono text-xs font-black", pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
                                {pnl >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}

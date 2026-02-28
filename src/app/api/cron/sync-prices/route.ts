@@ -73,12 +73,6 @@ export async function GET(request: NextRequest) {
       const stopLoss = Number(signal.stopLoss || 0);
       let newStatus = "ACTIVE";
 
-      // Stop Loss Logic
-      if (stopLoss > 0) {
-        if (signal.type === 'BUY' && currentPrice <= stopLoss) newStatus = "INACTIVE";
-        else if (signal.type === 'SELL' && currentPrice >= stopLoss) newStatus = "INACTIVE";
-      }
-
       // Track Extreme Excursions
       let newMaxUpside = signal.maxUpsidePrice || alertPrice;
       let newMaxDrawdown = signal.maxDrawdownPrice || alertPrice;
@@ -91,13 +85,40 @@ export async function GET(request: NextRequest) {
         if (currentPrice > newMaxDrawdown) newMaxDrawdown = currentPrice;
       }
 
-      await updateDoc(doc(firestore, "signals", signalDoc.id), {
+      // Move SL to cost (entry) when 2x risk target is achieved
+      let effectiveSL = stopLoss;
+      if (stopLoss > 0 && !signal.slMovedToCost) {
+        const risk = Math.abs(alertPrice - stopLoss);
+        if (risk > 0) {
+          const target2x = signal.type === 'BUY' ? alertPrice + 2 * risk : alertPrice - 2 * risk;
+          const hit2x = signal.type === 'BUY' ? newMaxUpside >= target2x : newMaxUpside <= target2x;
+          if (hit2x) {
+            effectiveSL = alertPrice;
+          }
+        }
+      }
+
+      // Stop Loss Logic (uses effective SL which may be at cost)
+      let newStatus = "ACTIVE";
+      if (effectiveSL > 0) {
+        if (signal.type === 'BUY' && currentPrice <= effectiveSL) newStatus = "INACTIVE";
+        else if (signal.type === 'SELL' && currentPrice >= effectiveSL) newStatus = "INACTIVE";
+      }
+
+      const updateData: Record<string, any> = {
         currentPrice: currentPrice,
         maxUpsidePrice: newMaxUpside,
         maxDrawdownPrice: newMaxDrawdown,
         status: newStatus,
         lastSyncAt: new Date().toISOString()
-      });
+      };
+      if (effectiveSL !== stopLoss) {
+        updateData.stopLoss = effectiveSL;
+        updateData.originalStopLoss = stopLoss;
+        updateData.slMovedToCost = true;
+      }
+
+      await updateDoc(doc(firestore, "signals", signalDoc.id), updateData);
       updateCount++;
     }
 

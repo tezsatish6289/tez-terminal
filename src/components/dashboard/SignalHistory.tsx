@@ -142,6 +142,20 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
     return ((diff / entry) * 100).toFixed(2);
   };
 
+  const didHit2x = (signal: any): boolean => {
+    if (!signal.stopLoss || !signal.maxUpsidePrice) return false;
+    const risk = Math.abs(signal.price - signal.stopLoss);
+    if (risk === 0) return false;
+    const target = signal.type === "BUY" ? signal.price + 2 * risk : signal.price - 2 * risk;
+    return signal.type === "BUY" ? signal.maxUpsidePrice >= target : signal.maxUpsidePrice <= target;
+  };
+
+  const getEffectivePnl = (signal: any): number => {
+    const raw = Number(calculatePercent(signal.currentPrice, signal.price, signal.type));
+    if (raw >= 0) return raw;
+    return didHit2x(signal) ? 0 : raw;
+  };
+
   const filteredSignals = useMemo(() => {
     if (!rawSignals) return [];
     return rawSignals.filter(signal => {
@@ -150,7 +164,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
       if (initialAlignedFilter && signal.aligned !== true) return false;
       if (activeSideFilter !== "all" && signal.type !== activeSideFilter) return false;
       if (globalPerformanceFilter !== "all") {
-        const pnl = Number(calculatePercent(signal.currentPrice, signal.price, signal.type));
+        const pnl = getEffectivePnl(signal);
         if (globalPerformanceFilter === "working" && pnl <= 0.05) return false;
         if (globalPerformanceFilter === "not-working" && pnl >= -0.05) return false;
         if (globalPerformanceFilter === "neutral" && (pnl > 0.05 || pnl < -0.05)) return false;
@@ -332,7 +346,9 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                         const alertPrice = Number(signal.price || 0);
                         const hasCurrentPrice = signal.currentPrice != null && signal.currentPrice !== "";
                         const currentPrice = hasCurrentPrice ? Number(signal.currentPrice) : alertPrice;
-                        const livePnl = calculatePercent(currentPrice, alertPrice, signal.type);
+                        const rawPnl = calculatePercent(currentPrice, alertPrice, signal.type);
+                        const slAtCost = didHit2x(signal);
+                        const livePnl = (Number(rawPnl) < 0 && slAtCost) ? "0.00" : rawPnl;
                         const leverage = getLeverage(signal.timeframe);
                         const leveragedPnl = (Number(livePnl) * leverage).toFixed(2);
                         const maxUpPnl = (Number(calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type)) * leverage).toFixed(2);
@@ -415,10 +431,17 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                                  </div>
                                </div>
                                {signal.stopLoss != null && signal.stopLoss > 0 && (
-                                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03]">
-                                   <Shield className="h-3.5 w-3.5 text-amber-400" />
+                                 <div className={cn("flex items-center gap-2 px-3 py-2 rounded-lg border", slAtCost ? "border-positive/20 bg-positive/[0.05]" : "border-white/10 bg-white/[0.03]")}>
+                                   <Shield className={cn("h-3.5 w-3.5", slAtCost ? "text-positive" : "text-amber-400")} />
                                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Stop Loss</span>
-                                   <span className="ml-auto font-mono text-sm font-bold">${formatPrice(signal.stopLoss)}</span>
+                                   {slAtCost ? (
+                                     <span className="ml-auto flex items-center gap-1.5">
+                                       <span className="font-mono text-sm font-bold line-through text-muted-foreground/50">${formatPrice(signal.stopLoss)}</span>
+                                       <span className="font-mono text-sm font-bold text-positive">${formatPrice(alertPrice)}</span>
+                                     </span>
+                                   ) : (
+                                     <span className="ml-auto font-mono text-sm font-bold">${formatPrice(signal.stopLoss)}</span>
+                                   )}
                                  </div>
                                )}
                             </CardContent>

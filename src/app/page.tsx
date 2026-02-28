@@ -452,7 +452,14 @@ export default function Home() {
   const firestore = useFirestore();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [selectedWinner, setSelectedWinner] = useState<WinnerSignal | null>(null);
-  const [premiumMode, setPremiumMode] = useState(false);
+  const [premiumMode, setPremiumModeRaw] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("tez_premium_mode") === "true";
+    return false;
+  });
+  const setPremiumMode = useCallback((v: boolean) => {
+    setPremiumModeRaw(v);
+    localStorage.setItem("tez_premium_mode", String(v));
+  }, []);
   const [selectedTimeframe, setSelectedTimeframe] = useState(OPPORTUNITY_CATEGORIES[0].id);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const chipsContainerRef = useRef<HTMLDivElement>(null);

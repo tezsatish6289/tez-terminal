@@ -158,8 +158,8 @@ export default function AnalyticsPage() {
              </div>
              <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-1 shrink-0">
                {([
-                 { key: "all" as FilterMode, label: "Unfiltered", icon: Layers },
-                 { key: "aligned" as FilterMode, label: "Filtered", icon: Filter },
+                 { key: "all" as FilterMode, label: "All", icon: Layers },
+                 { key: "aligned" as FilterMode, label: "Premium", icon: Filter },
                ]).map(({ key, label, icon: Icon }) => (
                  <button
                    key={key}
@@ -235,12 +235,12 @@ export default function AnalyticsPage() {
                     ))}
                   </div>
 
-                  {/* Comparison: Unfiltered vs Filtered */}
+                  {/* Comparison: All vs Premium */}
                   {hasAlignedData && (
                     <div className="rounded-xl border border-accent/10 bg-accent/[0.02] p-4 space-y-3">
                       <div className="flex items-center gap-2">
                         <Filter className="h-3 w-3 text-accent" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-accent">Unfiltered vs Filtered</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-accent">All vs Premium</span>
                       </div>
                       <div className="grid grid-cols-4 gap-2 text-center">
                         <div className="text-[9px] font-bold uppercase text-muted-foreground/60" />

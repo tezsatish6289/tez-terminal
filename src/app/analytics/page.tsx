@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useMemo, useState } from "react";
+import { getLeverage, getLeverageLabel } from "@/lib/leverage";
 
 /**
  * Closed Performance Analytics Page.
@@ -94,7 +95,7 @@ export default function AnalyticsPage() {
     const computeUpsideStats = (sigs: typeof closedSignals) => {
       const withUpside = sigs.filter(hasUpsideData);
       if (withUpside.length === 0) return { count: 0, max: 0, median: 0, avg: 0 };
-      const values = withUpside.map(s => calculatePercent(s.maxUpsidePrice, s.price, s.type));
+      const values = withUpside.map(s => calculatePercent(s.maxUpsidePrice, s.price, s.type) * getLeverage(s.timeframe));
       return {
         count: withUpside.length,
         max: Math.max(...values),
@@ -105,7 +106,7 @@ export default function AnalyticsPage() {
     const computeDownsideStats = (sigs: typeof closedSignals) => {
       const withDownside = sigs.filter(hasDownsideData);
       if (withDownside.length === 0) return { count: 0, max: 0, median: 0, avg: 0 };
-      const values = withDownside.map(s => calculatePercent(s.maxDrawdownPrice, s.price, s.type));
+      const values = withDownside.map(s => calculatePercent(s.maxDrawdownPrice, s.price, s.type) * getLeverage(s.timeframe));
       return {
         count: withDownside.length,
         max: Math.min(...values),
@@ -203,7 +204,7 @@ export default function AnalyticsPage() {
                       <div className={cn("p-2 rounded-xl", iconBg)}><SideIcon className={cn("h-5 w-5", iconColor)} /></div>
                       <div>
                         <CardTitle className="text-lg font-black text-white uppercase tracking-tighter">{label}</CardTitle>
-                        <CardDescription className="text-[10px] font-bold text-muted-foreground uppercase">{sideLabel} · In-trade max upside / max downside</CardDescription>
+                        <CardDescription className="text-[10px] font-bold text-muted-foreground uppercase">{sideLabel} · Leveraged in-trade max upside / max downside</CardDescription>
                       </div>
                     </div>
                     <div className="text-right">
@@ -295,6 +296,8 @@ export default function AnalyticsPage() {
                   <TableRow className="hover:bg-transparent border-white/5">
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Symbol</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Side</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Chart</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Lev.</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Entry</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Exit Price</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">SL</TableHead>
@@ -307,7 +310,7 @@ export default function AnalyticsPage() {
                 <TableBody>
                   {closedSignals.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="h-64 text-center">
+                      <TableCell colSpan={11} className="h-64 text-center">
                         <div className="flex flex-col items-center gap-4 opacity-40">
                            <Archive className="h-12 w-12 text-muted-foreground" />
                            <div className="space-y-1">
@@ -321,23 +324,27 @@ export default function AnalyticsPage() {
                     </TableRow>
                   ) : (
                     filteredClosedSignals.map((signal) => {
-                      const pnl = effectivePnl(signal);
-                      const maxUp = calculatePercent(signal.maxUpsidePrice, signal.price, signal.type);
-                      const maxDown = calculatePercent(signal.maxDrawdownPrice, signal.price, signal.type);
+                      const leverage = getLeverage(signal.timeframe);
+                      const pnl = effectivePnl(signal) * leverage;
+                      const maxUp = calculatePercent(signal.maxUpsidePrice, signal.price, signal.type) * leverage;
+                      const maxDown = calculatePercent(signal.maxDrawdownPrice, signal.price, signal.type) * leverage;
                       const slAtCost = didHit2x(signal);
+                      const tfLabel: Record<string, string> = { "5": "5m", "15": "15m", "60": "1h", "240": "4h", "D": "1D" };
+                      const chartLabel = tfLabel[String(signal.timeframe).toUpperCase()] ?? `${signal.timeframe}m`;
 
                       return (
                         <TableRow key={signal.id} className="border-white/5 hover:bg-white/[0.02] transition-colors group">
                           <TableCell className="py-4">
-                            <div className="flex flex-col">
-                               <span className="text-sm font-black text-white leading-none uppercase tracking-tighter mb-1">{signal.symbol}</span>
-                               <span className="text-[9px] font-bold text-muted-foreground uppercase">{signal.timeframe}m Terminal</span>
-                            </div>
+                            <span className="text-sm font-black text-white leading-none uppercase tracking-tighter">{signal.symbol}</span>
                           </TableCell>
                           <TableCell>
                             <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", signal.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400')}>
                               {signal.type}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs font-bold text-muted-foreground uppercase">{chartLabel}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-[9px] font-black h-5 px-1.5 border-accent/20 text-accent">{leverage}x</Badge>
                           </TableCell>
                           <TableCell className="font-mono text-xs font-bold text-white/60">${formatPrice(signal.price)}</TableCell>
                           <TableCell className="font-mono text-xs font-bold text-white">${formatPrice(signal.currentPrice)}</TableCell>

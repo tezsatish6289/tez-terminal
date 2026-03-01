@@ -268,43 +268,23 @@ function WinnersTicker({ winners, windowLabel, leverage, onSelect }: { winners: 
     return () => clearInterval(interval);
   }, [winners.length]);
 
-  if (winners.length === 0) {
-    return (
-      <div className="rounded-lg border border-amber-500/10 bg-amber-500/[0.03]">
-        <div className="flex items-center gap-1.5 px-4 py-2 border-b border-amber-500/5">
-          <Trophy className="h-3.5 w-3.5 text-amber-500/40" />
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Top Winning Trades</span>
-            <span className="text-[9px] text-muted-foreground/30 uppercase tracking-wider">{windowLabel}</span>
-          </div>
-        </div>
-        <div className="px-4 py-2.5 text-center">
-          <span className="text-[10px] text-muted-foreground/30 uppercase tracking-wider">No winners yet</span>
-        </div>
-      </div>
-    );
-  }
+  if (winners.length === 0) return null;
 
   const winner = winners[activeIndex];
   const isBuy = winner.type === "BUY";
   return (
-    <div className="rounded-lg border border-amber-500/20 bg-gradient-to-r from-amber-500/[0.08] to-amber-600/[0.03] shadow-[0_0_15px_-3px_rgba(245,158,11,0.1)]">
-      <div className="flex items-center gap-1.5 px-4 py-2 border-b border-amber-500/10">
-        <Trophy className="h-3.5 w-3.5 text-amber-400" />
-        <div className="flex flex-col">
-          <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Top Winning Trades</span>
-          <span className="text-[9px] text-amber-400/50 uppercase tracking-wider">{windowLabel}</span>
-        </div>
-      </div>
+    <div>
+      <span className="text-[9px] font-bold uppercase tracking-widest text-amber-400/50">Top winner · {windowLabel}</span>
       <button
         onClick={(e) => { e.preventDefault(); onSelect(winner); }}
-        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-amber-500/[0.05] transition-colors cursor-pointer"
+        className="w-full flex items-center justify-between mt-0.5 hover:bg-amber-500/[0.05] rounded-md px-1 py-0.5 transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-2">
+          <Trophy className="h-3.5 w-3.5 text-amber-400" />
           <span className={cn("text-sm font-black", isBuy ? "text-positive" : "text-negative")}>{isBuy ? "▲" : "▼"}</span>
           <span className="text-sm font-black text-foreground uppercase tracking-wider truncate">{winner.symbol}</span>
         </div>
-        <span className="text-xl font-black font-mono text-amber-400">+{(winner.maxPnl * leverage).toFixed(2)}%</span>
+        <span className="text-lg font-black font-mono text-amber-400">+{(winner.maxPnl * leverage).toFixed(2)}%</span>
       </button>
     </div>
   );
@@ -462,6 +442,24 @@ function OpportunityCard({ cat, activeCounts, signalIds, sentimentByTimeframe, t
         )}
       </div>
 
+      {/* Momentum bar */}
+      <div className="px-6 py-3 border-b border-white/5 space-y-1.5">
+        <div className="relative h-2 rounded-full overflow-hidden bg-gradient-to-r from-negative/25 via-white/5 to-positive/25">
+          <div
+            className="absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 rounded-full border-2 border-white/80 shadow-lg transition-all duration-700"
+            style={{
+              left: `calc(${mPos}% - 7px)`,
+              backgroundColor: mPos > 60 ? "var(--positive)" : mPos < 40 ? "var(--negative)" : "var(--muted-foreground)",
+            }}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-negative/50">Bears</span>
+          <span className={cn("text-[10px] font-black uppercase tracking-widest", sentiment.color)}>{sentiment.label}</span>
+          <span className="text-[9px] font-bold uppercase tracking-wider text-positive/50">Bulls</span>
+        </div>
+      </div>
+
       <CardContent className="p-6 space-y-5">
         {/* Top Winners */}
         <WinnersTicker winners={topWinners[cat.id] ?? []} windowLabel={cat.windowLabel} leverage={getLeverage(cat.id)} onSelect={onSelectWinner} />
@@ -494,24 +492,6 @@ function OpportunityCard({ cat, activeCounts, signalIds, sentimentByTimeframe, t
           <SideBarRow label="Neutral" count={c.SELL.neutral} maxCount={bearMax} href={boxHref("SELL", "neutral")} color="muted" />
         </div>
       </CardContent>
-
-      {/* Momentum bar */}
-      <div className="px-6 py-4 bg-black/40 border-t border-white/5 space-y-2">
-        <div className="relative h-2 rounded-full overflow-hidden bg-gradient-to-r from-negative/25 via-white/5 to-positive/25">
-          <div
-            className="absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 rounded-full border-2 border-white/80 shadow-lg transition-all duration-700"
-            style={{
-              left: `calc(${mPos}% - 7px)`,
-              backgroundColor: mPos > 60 ? "var(--positive)" : mPos < 40 ? "var(--negative)" : "var(--muted-foreground)",
-            }}
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-[9px] font-bold uppercase tracking-wider text-negative/50">Bears</span>
-          <span className={cn("text-[10px] font-black uppercase tracking-widest", sentiment.color)}>{sentiment.label}</span>
-          <span className="text-[9px] font-bold uppercase tracking-wider text-positive/50">Bulls</span>
-        </div>
-      </div>
     </Card>
   );
 }

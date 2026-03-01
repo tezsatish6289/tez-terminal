@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Zap,
@@ -26,7 +26,6 @@ const STATS = [
   { value: "500+", label: "Trades Tracked" },
   { value: "5", label: "Timeframes" },
   { value: "24/7", label: "Market Scanning" },
-  { value: "3", label: "Exchanges" },
 ];
 
 const STEPS = [
@@ -61,14 +60,14 @@ const TIMEFRAMES = [
   { name: "Buy & Hold", chart: "Daily", leverage: "1x", window: "90d", desc: "Long-term conviction plays for investors", icon: "💎" },
 ];
 
-const TOP_WINNERS = [
-  { symbol: "SOPH", type: "BUY", timeframe: "Scalping", maxReturn: "+81.70%", leverage: "10x", status: "active" },
-  { symbol: "XAI", type: "BUY", timeframe: "BTST", maxReturn: "+27.87%", leverage: "3x", status: "active" },
-  { symbol: "VIRTUAL", type: "SELL", timeframe: "Intraday", maxReturn: "+63.20%", leverage: "5x", status: "retired" },
-  { symbol: "KAITO", type: "BUY", timeframe: "Scalping", maxReturn: "+279.53%", leverage: "10x", status: "retired" },
-  { symbol: "BERA", type: "SELL", timeframe: "Swing", maxReturn: "+42.15%", leverage: "3x", status: "retired" },
-  { symbol: "IP", type: "BUY", timeframe: "Intraday", maxReturn: "+35.29%", leverage: "5x", status: "retired" },
-];
+interface TopWinner {
+  symbol: string;
+  type: "LONG" | "SHORT";
+  timeframe: string;
+  maxReturn: string;
+  leverage: string;
+  ago: string;
+}
 
 const FEATURES = [
   {
@@ -121,6 +120,15 @@ interface LandingPageProps {
 }
 
 export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
+  const [topWinners, setTopWinners] = useState<TopWinner[]>([]);
+
+  useEffect(() => {
+    fetch("/api/top-winners")
+      .then((r) => r.json())
+      .then((data) => setTopWinners(data))
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
       {/* Nav */}
@@ -188,7 +196,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
           </div>
 
           {/* Stats Bar */}
-          <div className="mt-12 sm:mt-16 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl mx-auto">
+          <div className="mt-12 sm:mt-16 grid grid-cols-3 gap-4 max-w-xl mx-auto">
             {STATS.map((s) => (
               <div key={s.label} className="text-center px-4 py-3 rounded-xl border border-white/5 bg-white/[0.02]">
                 <p className="text-2xl sm:text-3xl font-black text-accent tracking-tight">{s.value}</p>
@@ -285,44 +293,53 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
-            {TOP_WINNERS.map((w) => (
-              <div
-                key={w.symbol}
-                className="rounded-2xl border border-white/5 bg-card p-5 hover:border-positive/20 transition-all"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    {w.type === "BUY" ? (
-                      <TrendingUp className="h-4 w-4 text-positive" />
-                    ) : (
-                      <TrendingDown className="h-4 w-4 text-negative" />
-                    )}
-                    <span className="text-lg font-black uppercase tracking-tight">{w.symbol}USDT.P</span>
+          {topWinners.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
+              {topWinners.map((w) => (
+                <div
+                  key={w.symbol}
+                  className="rounded-2xl border border-white/5 bg-card p-5 hover:border-positive/20 transition-all"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      {w.type === "LONG" ? (
+                        <TrendingUp className="h-4 w-4 text-positive" />
+                      ) : (
+                        <TrendingDown className="h-4 w-4 text-negative" />
+                      )}
+                      <span className="text-lg font-black uppercase tracking-tight">{w.symbol}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground/50">{w.ago}</span>
+                      <Crown className="h-3.5 w-3.5 text-amber-400" />
+                    </div>
                   </div>
-                  <Crown className="h-3.5 w-3.5 text-amber-400" />
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-positive tracking-tighter">{w.maxReturn}</span>
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase">peak return</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-3">
+                    <span className={cn(
+                      "text-[10px] font-bold px-2 py-0.5 rounded-md border",
+                      w.type === "LONG" ? "bg-positive/10 text-positive border-positive/20" : "bg-negative/10 text-negative border-negative/20"
+                    )}>
+                      {w.type}
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-accent/10 text-accent border border-accent/20">
+                      {w.timeframe}
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/5 text-muted-foreground border border-white/10">
+                      {w.leverage}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-black text-positive tracking-tighter">{w.maxReturn}</span>
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase">peak return</span>
-                </div>
-                <div className="flex items-center gap-2 mt-3">
-                  <span className={cn(
-                    "text-[10px] font-bold px-2 py-0.5 rounded-md border",
-                    w.type === "BUY" ? "bg-positive/10 text-positive border-positive/20" : "bg-negative/10 text-negative border-negative/20"
-                  )}>
-                    {w.type === "BUY" ? "LONG" : "SHORT"}
-                  </span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-accent/10 text-accent border border-accent/20">
-                    {w.timeframe}
-                  </span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/5 text-muted-foreground border border-white/10">
-                    {w.leverage}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-accent" />
+            </div>
+          )}
         </div>
       </section>
 

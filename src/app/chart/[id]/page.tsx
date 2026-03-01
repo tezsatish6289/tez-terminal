@@ -8,13 +8,13 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
-  ChevronLeft, 
   Loader2,
   AlertTriangle,
   Timer,
   Shield,
   Clock,
   Crown,
+  Crosshair,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BinanceIcon, MexcIcon, PionexIcon, TradingViewIcon } from "@/components/icons/exchange-icons";
@@ -110,10 +110,6 @@ export default function DeepDiveChartPage() {
         {/* Left: Signal Card */}
         <div className="w-[380px] shrink-0 border-r border-white/5 bg-background flex flex-col overflow-y-auto">
           <div className="p-4">
-            <Button variant="ghost" size="sm" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground gap-1 -ml-2 mb-4">
-              <ChevronLeft className="h-4 w-4" /> Back
-            </Button>
-
             <div className="bg-[#121214] rounded-2xl border border-white/5 flex flex-col">
               <div className="p-6 border-b border-white/5 rounded-t-2xl">
                 <div className="flex items-start justify-between">
@@ -206,6 +202,14 @@ export default function DeepDiveChartPage() {
                 <TradingViewIcon className="h-4 w-4" />
                 View on TradingView
               </a>
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => router.push("/")}
+              className="w-full font-bold text-xs uppercase tracking-wide border rounded-lg h-9 gap-2 bg-accent/5 text-accent border-accent/25 hover:bg-accent/15"
+            >
+              <Crosshair className="h-4 w-4" />
+              Find More Opportunities
             </Button>
           </div>
         </div>

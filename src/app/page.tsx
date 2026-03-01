@@ -397,7 +397,7 @@ function OpportunityCard({ cat, activeCounts, signalIds, sentimentByTimeframe, t
     return `/terminal?timeframe=${cat.id}&side=${side}&status=${status}${alignedParam}`;
   };
   return (
-    <Card className="bg-[#121214] border-white/5 shadow-2xl overflow-hidden rounded-2xl">
+    <Card className="bg-gradient-to-b from-[#141416] to-[#101012] border-white/5 shadow-2xl shadow-accent/5 overflow-hidden rounded-2xl transition-all duration-200 hover:translate-y-[-2px] hover:shadow-accent/10">
       <div className="p-6 border-b border-white/5">
         <div className="flex items-start justify-between">
           <div>
@@ -428,17 +428,17 @@ function OpportunityCard({ cat, activeCounts, signalIds, sentimentByTimeframe, t
             <span className="text-[10px] font-black uppercase tracking-wider text-positive">Bulls</span>
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <Link href={boxHref("BUY", "working")} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-positive/10 border-positive/20 hover:bg-positive/20")}>
+            <Link href={boxHref("BUY", "working")} className="rounded-lg border border-positive/15 px-3 py-2 text-center transition-colors hover:bg-positive/5 shadow-inner shadow-black/20">
               <div className="text-lg font-black font-mono text-positive">{c.BUY.working}</div>
-              <div className="text-[9px] font-bold uppercase text-positive/80">Winning</div>
+              <div className="text-[9px] font-bold uppercase text-positive/60">Winning</div>
             </Link>
-            <Link href={boxHref("BUY", "not-working")} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-negative/10 border-negative/20 hover:bg-negative/20")}>
+            <Link href={boxHref("BUY", "not-working")} className="rounded-lg border border-negative/15 px-3 py-2 text-center transition-colors hover:bg-negative/5 shadow-inner shadow-black/20">
               <div className="text-lg font-black font-mono text-negative">{c.BUY["not-working"]}</div>
-              <div className="text-[9px] font-bold uppercase text-negative/80">Losing</div>
+              <div className="text-[9px] font-bold uppercase text-negative/60">Losing</div>
             </Link>
-            <Link href={boxHref("BUY", "neutral")} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center hover:bg-white/10 transition-colors">
-              <div className="text-lg font-black font-mono text-foreground">{c.BUY.neutral}</div>
-              <div className="text-[9px] font-bold uppercase text-muted-foreground">Neutral</div>
+            <Link href={boxHref("BUY", "neutral")} className="rounded-lg border border-white/8 px-3 py-2 text-center transition-colors hover:bg-white/5 shadow-inner shadow-black/20">
+              <div className="text-lg font-black font-mono text-muted-foreground">{c.BUY.neutral}</div>
+              <div className="text-[9px] font-bold uppercase text-muted-foreground/50">Neutral</div>
             </Link>
           </div>
         </div>
@@ -448,17 +448,17 @@ function OpportunityCard({ cat, activeCounts, signalIds, sentimentByTimeframe, t
             <span className="text-[10px] font-black uppercase tracking-wider text-negative">Bears</span>
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <Link href={boxHref("SELL", "working")} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-positive/10 border-positive/20 hover:bg-positive/20")}>
+            <Link href={boxHref("SELL", "working")} className="rounded-lg border border-positive/15 px-3 py-2 text-center transition-colors hover:bg-positive/5 shadow-inner shadow-black/20">
               <div className="text-lg font-black font-mono text-positive">{c.SELL.working}</div>
-              <div className="text-[9px] font-bold uppercase text-positive/80">Winning</div>
+              <div className="text-[9px] font-bold uppercase text-positive/60">Winning</div>
             </Link>
-            <Link href={boxHref("SELL", "not-working")} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-negative/10 border-negative/20 hover:bg-negative/20")}>
+            <Link href={boxHref("SELL", "not-working")} className="rounded-lg border border-negative/15 px-3 py-2 text-center transition-colors hover:bg-negative/5 shadow-inner shadow-black/20">
               <div className="text-lg font-black font-mono text-negative">{c.SELL["not-working"]}</div>
-              <div className="text-[9px] font-bold uppercase text-negative/80">Losing</div>
+              <div className="text-[9px] font-bold uppercase text-negative/60">Losing</div>
             </Link>
-            <Link href={boxHref("SELL", "neutral")} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center hover:bg-white/10 transition-colors">
-              <div className="text-lg font-black font-mono text-foreground">{c.SELL.neutral}</div>
-              <div className="text-[9px] font-bold uppercase text-muted-foreground">Neutral</div>
+            <Link href={boxHref("SELL", "neutral")} className="rounded-lg border border-white/8 px-3 py-2 text-center transition-colors hover:bg-white/5 shadow-inner shadow-black/20">
+              <div className="text-lg font-black font-mono text-muted-foreground">{c.SELL.neutral}</div>
+              <div className="text-[9px] font-bold uppercase text-muted-foreground/50">Neutral</div>
             </Link>
           </div>
         </div>

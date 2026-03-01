@@ -286,6 +286,7 @@ function WinnersTicker({ winners, windowLabel, leverage, onSelect }: { winners: 
   }
 
   const winner = winners[activeIndex];
+  const isBuy = winner.type === "BUY";
   return (
     <div className="rounded-lg border border-amber-500/20 bg-gradient-to-r from-amber-500/[0.08] to-amber-600/[0.03] shadow-[0_0_15px_-3px_rgba(245,158,11,0.1)]">
       <div className="flex items-center gap-1.5 px-4 py-2 border-b border-amber-500/10">
@@ -299,8 +300,11 @@ function WinnersTicker({ winners, windowLabel, leverage, onSelect }: { winners: 
         onClick={(e) => { e.preventDefault(); onSelect(winner); }}
         className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-amber-500/[0.05] transition-colors cursor-pointer"
       >
-        <span className="text-xs font-bold text-foreground uppercase tracking-wider truncate">{winner.symbol}</span>
-        <span className="text-base font-black font-mono text-amber-400 animate-pulse">+{(winner.maxPnl * leverage).toFixed(2)}%</span>
+        <div className="flex items-center gap-2">
+          <span className={cn("text-sm font-black", isBuy ? "text-positive" : "text-negative")}>{isBuy ? "▲" : "▼"}</span>
+          <span className="text-sm font-black text-foreground uppercase tracking-wider truncate">{winner.symbol}</span>
+        </div>
+        <span className="text-xl font-black font-mono text-amber-400">+{(winner.maxPnl * leverage).toFixed(2)}%</span>
       </button>
     </div>
   );
@@ -377,6 +381,38 @@ function FreshnessDot() {
   );
 }
 
+function SideBarRow({ label, count, maxCount, href, color }: { label: string; count: number; maxCount: number; href: string; color: "positive" | "negative" | "muted" }) {
+  const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+  const colorMap = {
+    positive: { bar: "bg-positive/30", text: "text-positive", hover: "hover:bg-positive/5" },
+    negative: { bar: "bg-negative/30", text: "text-negative", hover: "hover:bg-negative/5" },
+    muted: { bar: "bg-white/10", text: "text-muted-foreground", hover: "hover:bg-white/5" },
+  };
+  const s = colorMap[color];
+  return (
+    <Link href={href} className={cn("flex items-center gap-3 px-3 py-1.5 rounded-md transition-colors", s.hover)}>
+      <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 w-[52px] shrink-0">{label}</span>
+      <span className={cn("text-sm font-black font-mono w-[28px] text-right shrink-0", s.text)}>{count}</span>
+      <div className="flex-1 h-2 rounded-full bg-white/[0.04] overflow-hidden">
+        <div className={cn("h-full rounded-full transition-all duration-500", s.bar)} style={{ width: `${Math.max(pct, count > 0 ? 4 : 0)}%` }} />
+      </div>
+    </Link>
+  );
+}
+
+function sentimentPosition(label: string): number {
+  const map: Record<string, number> = {
+    "Bulls in control": 85,
+    "Bulls taking over": 72,
+    "Both winning": 50,
+    "Choppy market": 50,
+    "No clear trend": 50,
+    "Bears taking over": 28,
+    "Bears in control": 15,
+  };
+  return map[label] ?? 50;
+}
+
 function OpportunityCard({ cat, activeCounts, signalIds, sentimentByTimeframe, topWinners, onSelectWinner, freshSignal, premiumMode }: {
   cat: typeof OPPORTUNITY_CATEGORIES[number];
   activeCounts: Record<string, Record<SideKey, Record<StatusKey, number>>>;
@@ -396,75 +432,85 @@ function OpportunityCard({ cat, activeCounts, signalIds, sentimentByTimeframe, t
     if (arr.length === 1) return `/chart/${arr[0]}`;
     return `/terminal?timeframe=${cat.id}&side=${side}&status=${status}${alignedParam}`;
   };
+
+  const bullTotal = c.BUY.working + c.BUY["not-working"] + c.BUY.neutral;
+  const bearTotal = c.SELL.working + c.SELL["not-working"] + c.SELL.neutral;
+  const bullMax = Math.max(c.BUY.working, c.BUY["not-working"], c.BUY.neutral, 1);
+  const bearMax = Math.max(c.SELL.working, c.SELL["not-working"], c.SELL.neutral, 1);
+  const mPos = sentimentPosition(sentiment.label);
+
   return (
     <Card className="bg-gradient-to-b from-[#141416] to-[#101012] border-white/5 shadow-2xl shadow-accent/5 overflow-hidden rounded-2xl transition-all duration-200 hover:translate-y-[-2px] hover:shadow-accent/10">
-      <div className="p-6 border-b border-white/5">
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-2xl font-black uppercase tracking-tighter">{cat.name}</CardTitle>
-              {freshSignal && <FreshnessDot />}
-            </div>
-            <CardDescription className="text-[10px] font-black uppercase text-accent tracking-widest">{cat.chart} chart</CardDescription>
-            {freshSignal && (
-              <Link href={`/chart/${freshSignal.id}`} className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-accent/10 border border-accent/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-accent hover:bg-accent/20 transition-colors">
-                <span className={freshSignal.type === "BUY" ? "text-positive" : "text-negative"}>{freshSignal.type === "BUY" ? "▲" : "▼"}</span>
-                <span>{freshSignal.ticker}</span>
-                <span className="text-accent/50">·</span>
-                <span className="text-accent/70">{formatTimeAgo(freshSignal.receivedAt)}</span>
-              </Link>
-            )}
+      {/* Header strip */}
+      <div className="px-6 py-4 border-b border-white/5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="text-2xl font-black uppercase tracking-tighter">{cat.name}</span>
+            {freshSignal && <FreshnessDot />}
+            <span className="text-white/15">·</span>
+            <span className="text-[10px] font-bold uppercase text-accent/80 tracking-widest">{cat.chart}</span>
           </div>
-          <Badge className="text-[10px] font-black border-none px-3 h-7 uppercase bg-accent/15 text-accent">
-            {cat.leverage}
-          </Badge>
+          <span className="text-xs font-black uppercase text-accent tracking-wider">{cat.leverage}</span>
         </div>
+        {freshSignal && (
+          <Link href={`/chart/${freshSignal.id}`} className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-accent/10 border border-accent/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-accent hover:bg-accent/20 transition-colors">
+            <span className={freshSignal.type === "BUY" ? "text-positive" : "text-negative"}>{freshSignal.type === "BUY" ? "▲" : "▼"}</span>
+            <span>{freshSignal.ticker}</span>
+            <span className="text-accent/50">·</span>
+            <span className="text-accent/70">{formatTimeAgo(freshSignal.receivedAt)}</span>
+          </Link>
+        )}
       </div>
+
       <CardContent className="p-6 space-y-5">
+        {/* Top Winners */}
         <WinnersTicker winners={topWinners[cat.id] ?? []} windowLabel={cat.windowLabel} leverage={getLeverage(cat.id)} onSelect={onSelectWinner} />
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-positive" />
-            <span className="text-[10px] font-black uppercase tracking-wider text-positive">Bulls</span>
+
+        {/* Bulls */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between px-3 mb-1">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-3.5 w-3.5 text-positive" />
+              <span className="text-[10px] font-black uppercase tracking-wider text-positive">Bulls</span>
+            </div>
+            <span className="text-[10px] font-bold text-muted-foreground/40">{bullTotal} trades</span>
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            <Link href={boxHref("BUY", "working")} className="rounded-lg border border-positive/15 px-3 py-2 text-center transition-colors hover:bg-positive/5 shadow-inner shadow-black/20">
-              <div className="text-lg font-black font-mono text-positive">{c.BUY.working}</div>
-              <div className="text-[9px] font-bold uppercase text-positive/60">Winning</div>
-            </Link>
-            <Link href={boxHref("BUY", "not-working")} className="rounded-lg border border-negative/15 px-3 py-2 text-center transition-colors hover:bg-negative/5 shadow-inner shadow-black/20">
-              <div className="text-lg font-black font-mono text-negative">{c.BUY["not-working"]}</div>
-              <div className="text-[9px] font-bold uppercase text-negative/60">Losing</div>
-            </Link>
-            <Link href={boxHref("BUY", "neutral")} className="rounded-lg border border-white/8 px-3 py-2 text-center transition-colors hover:bg-white/5 shadow-inner shadow-black/20">
-              <div className="text-lg font-black font-mono text-muted-foreground">{c.BUY.neutral}</div>
-              <div className="text-[9px] font-bold uppercase text-muted-foreground/50">Neutral</div>
-            </Link>
-          </div>
+          <SideBarRow label="Winning" count={c.BUY.working} maxCount={bullMax} href={boxHref("BUY", "working")} color="positive" />
+          <SideBarRow label="Losing" count={c.BUY["not-working"]} maxCount={bullMax} href={boxHref("BUY", "not-working")} color="negative" />
+          <SideBarRow label="Neutral" count={c.BUY.neutral} maxCount={bullMax} href={boxHref("BUY", "neutral")} color="muted" />
         </div>
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <TrendingDown className="h-4 w-4 text-negative" />
-            <span className="text-[10px] font-black uppercase tracking-wider text-negative">Bears</span>
+
+        {/* Bears */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between px-3 mb-1">
+            <div className="flex items-center gap-2">
+              <TrendingDown className="h-3.5 w-3.5 text-negative" />
+              <span className="text-[10px] font-black uppercase tracking-wider text-negative">Bears</span>
+            </div>
+            <span className="text-[10px] font-bold text-muted-foreground/40">{bearTotal} trades</span>
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            <Link href={boxHref("SELL", "working")} className="rounded-lg border border-positive/15 px-3 py-2 text-center transition-colors hover:bg-positive/5 shadow-inner shadow-black/20">
-              <div className="text-lg font-black font-mono text-positive">{c.SELL.working}</div>
-              <div className="text-[9px] font-bold uppercase text-positive/60">Winning</div>
-            </Link>
-            <Link href={boxHref("SELL", "not-working")} className="rounded-lg border border-negative/15 px-3 py-2 text-center transition-colors hover:bg-negative/5 shadow-inner shadow-black/20">
-              <div className="text-lg font-black font-mono text-negative">{c.SELL["not-working"]}</div>
-              <div className="text-[9px] font-bold uppercase text-negative/60">Losing</div>
-            </Link>
-            <Link href={boxHref("SELL", "neutral")} className="rounded-lg border border-white/8 px-3 py-2 text-center transition-colors hover:bg-white/5 shadow-inner shadow-black/20">
-              <div className="text-lg font-black font-mono text-muted-foreground">{c.SELL.neutral}</div>
-              <div className="text-[9px] font-bold uppercase text-muted-foreground/50">Neutral</div>
-            </Link>
-          </div>
+          <SideBarRow label="Winning" count={c.SELL.working} maxCount={bearMax} href={boxHref("SELL", "working")} color="positive" />
+          <SideBarRow label="Losing" count={c.SELL["not-working"]} maxCount={bearMax} href={boxHref("SELL", "not-working")} color="negative" />
+          <SideBarRow label="Neutral" count={c.SELL.neutral} maxCount={bearMax} href={boxHref("SELL", "neutral")} color="muted" />
         </div>
       </CardContent>
-      <div className="px-6 py-3 bg-black/40 border-t border-white/5 text-center">
-        <span className={cn("text-[10px] font-black uppercase tracking-widest", sentiment.color)}>{sentiment.label}</span>
+
+      {/* Momentum bar */}
+      <div className="px-6 py-4 bg-black/40 border-t border-white/5 space-y-2">
+        <div className="relative h-2 rounded-full overflow-hidden bg-gradient-to-r from-negative/25 via-white/5 to-positive/25">
+          <div
+            className="absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 rounded-full border-2 border-white/80 shadow-lg transition-all duration-700"
+            style={{
+              left: `calc(${mPos}% - 7px)`,
+              backgroundColor: mPos > 60 ? "var(--positive)" : mPos < 40 ? "var(--negative)" : "var(--muted-foreground)",
+            }}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-negative/50">Bears</span>
+          <span className={cn("text-[10px] font-black uppercase tracking-widest", sentiment.color)}>{sentiment.label}</span>
+          <span className="text-[9px] font-bold uppercase tracking-wider text-positive/50">Bulls</span>
+        </div>
       </div>
     </Card>
   );

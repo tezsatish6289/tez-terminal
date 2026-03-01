@@ -17,9 +17,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BinanceIcon, MexcIcon, PionexIcon, TradingViewIcon } from "@/components/icons/exchange-icons";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format, differenceInMinutes } from "date-fns";
 import { getLeverage } from "@/lib/leverage";
+import { Switch } from "@/components/ui/switch";
 
 /**
  * Deep Dive Analysis Page.
@@ -32,11 +33,24 @@ export default function DeepDiveChartPage() {
   const { user, isUserLoading } = useUser();
   const [mounted, setMounted] = useState(false);
   const [now, setNow] = useState(new Date());
+  const [showBtc, setShowBtc] = useState(false);
+  const leftPanelRef = useRef<HTMLDivElement>(null);
+  const [leftHeight, setLeftHeight] = useState<number | null>(null);
 
   useEffect(() => {
     setMounted(true);
     const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const el = leftPanelRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      setLeftHeight(entries[0].contentRect.height);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
   const signalRef = useMemoFirebase(() => {
@@ -107,7 +121,7 @@ export default function DeepDiveChartPage() {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Signal Card */}
-        <div className="w-[380px] shrink-0 border-r border-white/5 bg-background flex flex-col overflow-y-auto">
+        <div ref={leftPanelRef} className="w-[380px] shrink-0 border-r border-white/5 bg-background flex flex-col overflow-y-auto">
           <div className="p-4 pt-2">
             <Button variant="ghost" size="sm" onClick={() => router.back()} className="text-muted-foreground hover:text-foreground gap-1 -ml-2 mb-2">
               <ChevronLeft className="h-4 w-4" /> Back
@@ -218,10 +232,21 @@ export default function DeepDiveChartPage() {
           </div>
         </div>
 
-        {/* Right: Chart */}
-        <div className="flex-1 relative bg-background flex flex-col">
-          <div className="flex-1 min-h-0">
-            <ChartPane symbol={signal?.symbol} interval={signal?.timeframe} exchange={signal?.exchange} />
+        {/* Right: Chart(s) + BTC toggle */}
+        <div className="flex-1 bg-background flex flex-col overflow-hidden">
+          <div className="flex-1 min-h-0 flex flex-col" style={leftHeight ? { maxHeight: `${leftHeight}px` } : undefined}>
+            <div className={cn("min-h-0", showBtc ? "h-1/2" : "flex-1")}>
+              <ChartPane symbol={signal?.symbol} interval={signal?.timeframe} exchange={signal?.exchange} />
+            </div>
+            {showBtc && (
+              <div className="h-1/2 min-h-0 border-t border-white/10">
+                <ChartPane symbol="BTCUSDT.P" interval={signal?.timeframe} exchange={signal?.exchange} />
+              </div>
+            )}
+          </div>
+          <div className="px-4 py-2 border-t border-white/5 flex items-center justify-center gap-2.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">BTC Reference</span>
+            <Switch checked={showBtc} onCheckedChange={setShowBtc} className="data-[state=checked]:bg-accent" />
           </div>
         </div>
       </div>

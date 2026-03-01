@@ -351,105 +351,58 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                         const livePnl = (Number(rawPnl) < 0 && slAtCost) ? "0.00" : rawPnl;
                         const leverage = getLeverage(signal.timeframe);
                         const leveragedPnl = (Number(livePnl) * leverage).toFixed(2);
-                        const maxUpPnl = (Number(calculatePercent(signal.maxUpsidePrice, alertPrice, signal.type)) * leverage).toFixed(2);
-                        const maxDownPnl = (Number(calculatePercent(signal.maxDrawdownPrice, alertPrice, signal.type)) * leverage).toFixed(2);
                         const isBullish = signal.type === 'BUY';
-                        const minutesSinceSync = getMinutesSinceSync(signal.lastSyncAt);
+                        const tfName = ({ "5": "Scalping", "15": "Intraday", "60": "BTST", "240": "Swing", "D": "Buy & Hold" } as Record<string, string>)[signal.timeframe] || signal.timeframe;
 
                         return (
-                          <Card 
-                            key={signal.id} 
+                          <div
+                            key={signal.id}
                             onClick={() => router.push(`/chart/${signal.id}`)}
                             className={cn(
-                              "group bg-[#121214] border-white/5 hover:border-accent/30 transition-all duration-300 cursor-pointer shadow-2xl rounded-2xl flex flex-col",
-                              hideFilters ? "w-full" : "w-[340px] shrink-0"
+                              "group bg-[#121214] border border-white/5 hover:border-accent/30 transition-all duration-200 cursor-pointer rounded-2xl p-5 space-y-3",
+                              hideFilters ? "w-full" : "w-[280px] shrink-0"
                             )}
                           >
-                            <div className="p-6 border-b border-white/5">
-                              <div className="flex items-start justify-between">
-                                <div className="flex flex-col">
-                                  <h3 className="text-2xl font-black text-foreground leading-none tracking-tighter uppercase mb-2">{signal.symbol}</h3>
-                                  <span className="text-[10px] font-black text-accent uppercase tracking-widest">{getDisplayAssetType(signal)}</span>
-                                  {signal.aligned === true && (
-                                    <span className="flex items-center gap-1 mt-1.5 text-[9px] font-black text-amber-400 uppercase tracking-widest">
-                                      <Crown className="h-3 w-3" /> Premium
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex flex-col items-end gap-1.5">
-                                  <Badge className={cn("text-[10px] font-black border-none px-4 h-7 uppercase", isBullish ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative')}>
-                                    {isBullish ? 'BULLISH' : 'BEARISH'}
-                                  </Badge>
-                                  <Badge className="text-[10px] font-black border-none px-3 h-7 uppercase bg-accent/15 text-accent">
-                                    {leverage}x
-                                  </Badge>
-                                </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                {isBullish ? (
+                                  <TrendingUp className="h-4 w-4 text-positive" />
+                                ) : (
+                                  <ArrowDownRight className="h-4 w-4 text-negative" />
+                                )}
+                                <span className="text-lg font-black uppercase tracking-tight">{signal.symbol}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-muted-foreground/50">{mounted ? getRunningSince(signal.receivedAt) : "--"}</span>
+                                {signal.aligned === true && <Crown className="h-3.5 w-3.5 text-amber-400" />}
                               </div>
                             </div>
-                            <div className="px-6 py-3 bg-black/40 flex items-center justify-between border-b border-white/5 text-[10px] font-black text-muted-foreground/40 uppercase">
-                              <div className="flex items-center gap-2"><Clock className="h-4 w-4" /> {mounted ? format(new Date(signal.receivedAt), 'HH:mm') : "--"}</div>
-                              <div className="flex items-center gap-2"><Timer className="h-4 w-4 text-accent" /> {mounted ? getRunningSince(signal.receivedAt) : "--"}</div>
-                            </div>
-                            <CardContent className="p-6 space-y-5 flex-1">
-                               <div className="grid grid-cols-2 gap-6">
-                                  <div className="space-y-2">
-                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Alert price</p>
-                                    <p className="text-lg font-mono font-bold text-foreground">${formatPrice(alertPrice)}</p>
-                                  </div>
-                                  <div className="space-y-2 text-right">
-                                    <p className="text-[10px] font-black text-accent uppercase tracking-widest">Current price</p>
-                                    {hasCurrentPrice ? (
-                                      <p className={cn("text-lg font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>${formatPrice(currentPrice)}</p>
-                                    ) : (
-                                      <p className="text-sm font-mono text-muted-foreground">— Pending</p>
-                                    )}
-                                  </div>
-                               </div>
 
-                               <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest">
-                                  <span>Last price fetch</span>
-                                  <span className={minutesSinceSync ? "text-accent/80" : "text-amber-600/80"}>{mounted && (minutesSinceSync ?? "Not synced yet")}</span>
-                               </div>
-
-                               <div className="rounded-xl border border-accent/15 bg-accent/[0.03] p-3 space-y-3">
-                                 <span className="text-[9px] uppercase font-black tracking-widest text-accent block text-center">Returns at {leverage}x Leverage</span>
-                                 {hasCurrentPrice && (
-                                   <div className="w-full rounded-lg border bg-white/5 border-white/10 px-4 py-2 flex items-center justify-between gap-4">
-                                     <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Live PNL</span>
-                                     <span className={cn("text-base font-mono font-bold", Number(leveragedPnl) >= 0 ? "text-positive" : "text-negative")}>{Number(leveragedPnl) >= 0 ? "+" : ""}{leveragedPnl}%</span>
-                                   </div>
-                                 )}
-                                 <div className="grid grid-cols-2 gap-3 w-full">
-                                   <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-positive/10 border border-positive/20">
-                                     <span className="text-[9px] uppercase font-black text-positive/90 tracking-widest">Max Positive</span>
-                                     <span className="text-base font-mono font-black text-positive leading-none">+{maxUpPnl}%</span>
-                                   </div>
-                                   <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-negative/10 border border-negative/20">
-                                     <span className="text-[9px] uppercase font-black text-negative/90 tracking-widest">Max Negative</span>
-                                     <span className="text-base font-mono font-black text-negative leading-none">{maxDownPnl}%</span>
-                                   </div>
-                                 </div>
-                               </div>
-                               {signal.stopLoss != null && signal.stopLoss > 0 && (
-                                 <div className={cn("flex items-center gap-2 px-3 py-2 rounded-lg border", slAtCost ? "border-positive/20 bg-positive/[0.05]" : "border-white/10 bg-white/[0.03]")}>
-                                   <Shield className={cn("h-3.5 w-3.5", slAtCost ? "text-positive" : "text-amber-400")} />
-                                   <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Stop Loss</span>
-                                   {slAtCost ? (
-                                     <span className="ml-auto flex items-center gap-1.5">
-                                       <span className="font-mono text-sm font-bold line-through text-muted-foreground/50">${formatPrice(signal.stopLoss)}</span>
-                                       <span className="font-mono text-sm font-bold text-positive">${formatPrice(alertPrice)}</span>
-                                     </span>
-                                   ) : (
-                                     <span className="ml-auto font-mono text-sm font-bold">${formatPrice(signal.stopLoss)}</span>
-                                   )}
-                                 </div>
-                               )}
-                            </CardContent>
-                            <div className="mt-auto px-6 py-4 border-t border-white/5 bg-white/[0.01] flex items-center justify-between group-hover:bg-accent/[0.05] transition-colors">
-                              <span className="text-[10px] font-black text-muted-foreground uppercase group-hover:text-foreground transition-colors">Analyze Chart</span>
-                              <LineChart className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
+                            <div className="flex items-baseline gap-2">
+                              <span className={cn(
+                                "text-3xl font-black tracking-tighter font-mono",
+                                Number(leveragedPnl) >= 0 ? "text-positive" : "text-negative"
+                              )}>
+                                {Number(leveragedPnl) >= 0 ? "+" : ""}{leveragedPnl}%
+                              </span>
+                              <span className="text-[10px] font-bold text-muted-foreground uppercase">Live PnL</span>
                             </div>
-                          </Card>
+
+                            <div className="flex items-center gap-2">
+                              <span className={cn(
+                                "text-[10px] font-bold px-2 py-0.5 rounded-md border",
+                                isBullish ? "bg-positive/10 text-positive border-positive/20" : "bg-negative/10 text-negative border-negative/20"
+                              )}>
+                                {isBullish ? "LONG" : "SHORT"}
+                              </span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-accent/10 text-accent border border-accent/20">
+                                {tfName}
+                              </span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/5 text-muted-foreground border border-white/10">
+                                {leverage}x
+                              </span>
+                            </div>
+                          </div>
                         );
                       })
                     )}

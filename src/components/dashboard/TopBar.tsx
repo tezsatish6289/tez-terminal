@@ -1,7 +1,8 @@
 
 "use client";
 
-import { User, LogOut, Zap, History, LineChart, Webhook, Target, BellRing, BellOff, Trash2, TrendingUp, TrendingDown, Crown } from "lucide-react";
+import { User, LogOut, Zap, History, LineChart, Webhook, BellRing, BellOff, Trash2, TrendingUp, TrendingDown, Crown } from "lucide-react";
+import { RadarIcon } from "@/components/icons/RadarIcon";
 import { Button } from "@/components/ui/button";
 import { useUser, useAuth } from "@/firebase";
 import { initiateSignOut } from "@/firebase/non-blocking-login";
@@ -59,7 +60,7 @@ export function TopBar() {
     <header className="h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 w-full">
       <div className="relative flex h-full items-center px-4 justify-between gap-4">
         <Link href="/" className="flex items-center gap-2.5">
-          <Target className="h-5 w-5 text-accent" />
+          <RadarIcon className="h-5 w-5 text-accent" />
           <span className="font-black text-lg text-accent tracking-tight leading-tight">TezTerminal.com</span>
         </Link>
 

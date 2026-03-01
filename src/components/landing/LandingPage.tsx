@@ -14,13 +14,13 @@ import {
   Timer,
   Loader2,
   ChevronRight,
-  Target,
   ScanSearch,
   Filter,
   Crosshair,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Chrome } from "lucide-react";
+import { RadarIcon } from "@/components/icons/RadarIcon";
 
 const STATS = [
   { value: "500+", label: "Trades Tracked" },
@@ -135,7 +135,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
       <nav className="sticky top-0 z-50 border-b border-white/5 bg-background/80 backdrop-blur-xl">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Target className="h-5 w-5 text-accent" />
+            <RadarIcon className="h-5 w-5 text-accent" />
             <span className="font-black text-lg text-accent tracking-tight">TezTerminal</span>
           </div>
           <Button
@@ -409,7 +409,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
       <footer className="border-t border-white/5 py-6">
         <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Target className="h-4 w-4 text-accent" />
+            <RadarIcon className="h-4 w-4 text-accent" />
             <span className="font-bold text-sm text-accent">TezTerminal</span>
           </div>
           <p className="text-[11px] text-muted-foreground/50">

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
-import { collection, getDocs, query, orderBy, limit as fbLimit } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { getLeverage } from "@/lib/leverage";
+
+export const dynamic = "force-dynamic";
 
 const TIMEFRAME_NAMES: Record<string, string> = {
   "5": "Scalping",
@@ -43,7 +45,7 @@ function formatAgo(receivedAt: string): string {
   return `${days}d ago`;
 }
 
-let cache: { data: Omit<Winner, "maxReturnNum" | "timeframeId">[]; ts: number } | null = null;
+let cache: { data: any[]; ts: number } | null = null;
 const CACHE_TTL = 5 * 60 * 1000;
 
 export async function GET() {
@@ -51,140 +53,124 @@ export async function GET() {
     return NextResponse.json(cache.data);
   }
 
-  const { firestore } = initializeFirebase();
-  const signalsRef = collection(firestore, "signals");
-
-  let signals: any[] = [];
   try {
-    const snapshot = await getDocs(
-      query(signalsRef, orderBy("receivedAt", "desc"), fbLimit(500))
-    );
-    signals = snapshot.docs
-      .map((d) => ({ id: d.id, ...d.data() }))
-      .filter((s: any) => s.asset_type === "CRYPTO");
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message, count: 0 }, { status: 500 });
-  }
+    const { firestore } = initializeFirebase();
 
-  const now = Date.now();
+    const snapshot = await getDocs(collection(firestore, "signals"));
 
-  // Debug: check data shape
-  const debug = {
-    totalSignals: signals.length,
-    withMaxUpside: signals.filter((s: any) => s.maxUpsidePrice != null).length,
-    withPrice: signals.filter((s: any) => s.price != null).length,
-    timeframes: [...new Set(signals.map((s: any) => s.timeframe))],
-    sampleFields: signals[0] ? Object.keys(signals[0]) : [],
-    sample: signals[0] ? { price: signals[0].price, maxUpsidePrice: signals[0].maxUpsidePrice, timeframe: signals[0].timeframe, type: signals[0].type, receivedAt: signals[0].receivedAt } : null,
-  };
+    const signals = snapshot.docs
+      .map((d) => ({ id: d.id, ...d.data() })) as any[];
 
-  if (signals.length === 0) {
-    return NextResponse.json({ winners: [], debug });
-  }
+    const now = Date.now();
+    const bestByTfAndDir: Record<string, Record<string, Winner>> = {};
 
-  const bestByTfAndDir: Record<string, Record<string, Winner>> = {};
+    for (const s of signals) {
+      if (s.asset_type !== "CRYPTO") continue;
 
-  for (const s of signals) {
-    const tf = String(s.timeframe || "");
-    if (!TIMEFRAME_IDS.includes(tf)) continue;
+      const tf = String(s.timeframe || "");
+      if (!TIMEFRAME_IDS.includes(tf)) continue;
 
-    const windowDays = ROLLING_WINDOW_DAYS[tf] || 30;
-    const cutoff = now - windowDays * 24 * 60 * 60 * 1000;
-    const signalTime = new Date(s.receivedAt).getTime();
-    if (signalTime < cutoff) continue;
+      if (!s.receivedAt) continue;
+      const windowDays = ROLLING_WINDOW_DAYS[tf] || 30;
+      const cutoff = now - windowDays * 24 * 60 * 60 * 1000;
+      const signalTime = new Date(s.receivedAt).getTime();
+      if (isNaN(signalTime) || signalTime < cutoff) continue;
 
-    const entry = Number(s.price);
-    const maxUpside = Number(s.maxUpsidePrice);
-    if (!entry || !maxUpside || isNaN(entry) || isNaN(maxUpside)) continue;
+      const entry = Number(s.price);
+      const maxUpside = Number(s.maxUpsidePrice);
+      if (!entry || isNaN(entry)) continue;
+      if (!maxUpside || isNaN(maxUpside)) continue;
 
-    const isBuy = s.type === "BUY";
-    const rawPnl = isBuy ? (maxUpside - entry) / entry : (entry - maxUpside) / entry;
-    if (rawPnl <= 0) continue;
+      const isBuy = s.type === "BUY";
+      const rawPnl = isBuy ? (maxUpside - entry) / entry : (entry - maxUpside) / entry;
+      if (rawPnl <= 0) continue;
 
-    const leverage = getLeverage(tf);
-    const leveragedReturn = rawPnl * 100 * leverage;
+      const leverage = getLeverage(tf);
+      const leveragedReturn = rawPnl * 100 * leverage;
 
-    const dir = isBuy ? "LONG" : "SHORT";
+      const dir = isBuy ? "LONG" : "SHORT";
 
-    if (!bestByTfAndDir[tf]) bestByTfAndDir[tf] = {};
+      if (!bestByTfAndDir[tf]) bestByTfAndDir[tf] = {};
 
-    const existing = bestByTfAndDir[tf][dir];
-    if (!existing || leveragedReturn > existing.maxReturnNum) {
-      bestByTfAndDir[tf][dir] = {
-        symbol: s.symbol || "",
-        type: dir,
-        timeframe: TIMEFRAME_NAMES[tf] || tf,
-        timeframeId: tf,
-        maxReturn: `+${leveragedReturn.toFixed(2)}%`,
-        maxReturnNum: leveragedReturn,
-        leverage: `${leverage}x`,
-        receivedAt: s.receivedAt,
-        ago: formatAgo(s.receivedAt),
-      };
+      const existing = bestByTfAndDir[tf][dir];
+      if (!existing || leveragedReturn > existing.maxReturnNum) {
+        bestByTfAndDir[tf][dir] = {
+          symbol: s.symbol || "",
+          type: dir,
+          timeframe: TIMEFRAME_NAMES[tf] || tf,
+          timeframeId: tf,
+          maxReturn: `+${leveragedReturn.toFixed(2)}%`,
+          maxReturnNum: leveragedReturn,
+          leverage: `${leverage}x`,
+          receivedAt: s.receivedAt,
+          ago: formatAgo(s.receivedAt),
+        };
+      }
     }
-  }
 
-  const pool: Winner[] = [];
-  for (const tf of TIMEFRAME_IDS) {
-    const dirs = bestByTfAndDir[tf];
-    if (!dirs) continue;
-    if (dirs["LONG"]) pool.push(dirs["LONG"]);
-    if (dirs["SHORT"]) pool.push(dirs["SHORT"]);
-  }
-
-  const picked: Winner[] = [];
-
-  // Round 1: best from each timeframe
-  for (const tf of TIMEFRAME_IDS) {
-    const dirs = bestByTfAndDir[tf];
-    if (!dirs) continue;
-    const candidates = Object.values(dirs).sort((a, b) => b.maxReturnNum - a.maxReturnNum);
-    if (candidates.length > 0) {
-      picked.push(candidates[0]);
+    const pool: Winner[] = [];
+    for (const tf of TIMEFRAME_IDS) {
+      const dirs = bestByTfAndDir[tf];
+      if (!dirs) continue;
+      if (dirs["LONG"]) pool.push(dirs["LONG"]);
+      if (dirs["SHORT"]) pool.push(dirs["SHORT"]);
     }
-  }
 
-  // Direction balance: ensure at least 2 of each direction
-  const longs = picked.filter((w) => w.type === "LONG").length;
-  const shorts = picked.filter((w) => w.type === "SHORT").length;
-  const minDir = longs < shorts ? "LONG" : "SHORT";
-  const maxDir = minDir === "LONG" ? "SHORT" : "LONG";
-  const minCount = Math.min(longs, shorts);
+    const picked: Winner[] = [];
 
-  if (minCount < 2 && picked.length >= 3) {
-    const dominantSorted = picked
-      .filter((w) => w.type === maxDir)
-      .sort((a, b) => a.maxReturnNum - b.maxReturnNum);
+    for (const tf of TIMEFRAME_IDS) {
+      const dirs = bestByTfAndDir[tf];
+      if (!dirs) continue;
+      const candidates = Object.values(dirs).sort((a, b) => b.maxReturnNum - a.maxReturnNum);
+      if (candidates.length > 0) {
+        picked.push(candidates[0]);
+      }
+    }
 
-    for (const weakest of dominantSorted) {
-      const currentMin = picked.filter((w) => w.type === minDir).length;
-      if (currentMin >= 2) break;
-      const alt = bestByTfAndDir[weakest.timeframeId]?.[minDir];
-      if (alt) {
-        const idx = picked.findIndex((w) => w === weakest);
-        if (idx !== -1) {
-          picked[idx] = alt;
+    // Direction balance: ensure at least 2 of each direction
+    const longs = picked.filter((w) => w.type === "LONG").length;
+    const shorts = picked.filter((w) => w.type === "SHORT").length;
+    const minDir = longs < shorts ? "LONG" : "SHORT";
+    const maxDir = minDir === "LONG" ? "SHORT" : "LONG";
+    const minCount = Math.min(longs, shorts);
+
+    if (minCount < 2 && picked.length >= 3) {
+      const dominantSorted = picked
+        .filter((w) => w.type === maxDir)
+        .sort((a, b) => a.maxReturnNum - b.maxReturnNum);
+
+      for (const weakest of dominantSorted) {
+        const currentMin = picked.filter((w) => w.type === minDir).length;
+        if (currentMin >= 2) break;
+        const alt = bestByTfAndDir[weakest.timeframeId]?.[minDir];
+        if (alt) {
+          const idx = picked.findIndex((w) => w === weakest);
+          if (idx !== -1) {
+            picked[idx] = alt;
+          }
         }
       }
     }
+
+    // Fill to 6 from remaining pool
+    const pickedSymbols = new Set(picked.map((w) => w.symbol));
+    const remaining = pool
+      .filter((w) => !pickedSymbols.has(w.symbol))
+      .sort((a, b) => b.maxReturnNum - a.maxReturnNum);
+
+    for (const r of remaining) {
+      if (picked.length >= 6) break;
+      picked.push(r);
+    }
+
+    picked.sort((a, b) => b.maxReturnNum - a.maxReturnNum);
+
+    const result = picked.slice(0, 6).map(({ maxReturnNum, timeframeId, ...rest }) => rest);
+
+    cache = { data: result, ts: Date.now() };
+
+    return NextResponse.json(result);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
-
-  // Round 2: fill to 6 from remaining pool
-  const pickedSymbols = new Set(picked.map((w) => w.symbol));
-  const remaining = pool
-    .filter((w) => !pickedSymbols.has(w.symbol))
-    .sort((a, b) => b.maxReturnNum - a.maxReturnNum);
-
-  for (const r of remaining) {
-    if (picked.length >= 6) break;
-    picked.push(r);
-  }
-
-  picked.sort((a, b) => b.maxReturnNum - a.maxReturnNum);
-
-  const result = picked.slice(0, 6).map(({ maxReturnNum, timeframeId, ...rest }) => rest);
-
-  cache = { data: result, ts: Date.now() };
-
-  return NextResponse.json({ winners: result, debug });
 }

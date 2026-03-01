@@ -1,6 +1,7 @@
 "use client";
 
 import { TopBar } from "@/components/dashboard/TopBar";
+import { LandingPage } from "@/components/landing/LandingPage";
 import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy, limit, doc, getDoc } from "firebase/firestore";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
@@ -725,44 +726,7 @@ export default function Home() {
   }
 
   if (!user) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background p-6">
-        <Card className="max-w-md w-full border-accent/20 bg-card shadow-2xl">
-          <CardHeader className="text-center">
-            <div className="bg-primary p-4 rounded-2xl border border-accent/20 inline-block mx-auto mb-6">
-              <Zap className="h-10 w-10 text-accent fill-accent/20" />
-            </div>
-            <CardTitle className="text-3xl font-bold tracking-tighter text-foreground">TezTerminal</CardTitle>
-            <CardDescription className="text-base mt-2">
-              India's Premier Antigravity Trading Hub.
-              Sign in with Google to access the live idea stream.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Button
-              onClick={handleGoogleLogin}
-              disabled={isLoggingIn}
-              className="w-full h-14 gap-3 bg-white text-black hover:bg-white/90 text-lg font-semibold"
-            >
-              {isLoggingIn ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              ) : (
-                <>
-                  <Chrome className="h-6 w-6" />
-                  Sign in with Google
-                </>
-              )}
-            </Button>
-            <p className="text-center text-xs text-muted-foreground px-6">
-              Administrator login: <span className="text-accent font-mono">hello@tezterminal.com</span>
-            </p>
-            <p className="text-center text-[10px] text-muted-foreground/70 px-6 pt-2">
-              If sign-in fails or pops up blank, try <a href="?auth=redirect" className="text-accent underline">?auth=redirect</a> or use an incognito window.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <LandingPage onLogin={handleGoogleLogin} isLoggingIn={isLoggingIn} />;
   }
 
   return (

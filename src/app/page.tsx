@@ -376,9 +376,10 @@ function FreshnessDot() {
   );
 }
 
-function OpportunityCard({ cat, activeCounts, sentimentByTimeframe, topWinners, onSelectWinner, freshSignal, premiumMode }: {
+function OpportunityCard({ cat, activeCounts, signalIds, sentimentByTimeframe, topWinners, onSelectWinner, freshSignal, premiumMode }: {
   cat: typeof OPPORTUNITY_CATEGORIES[number];
   activeCounts: Record<string, Record<SideKey, Record<StatusKey, number>>>;
+  signalIds: Record<string, Record<SideKey, Record<StatusKey, string[]>>>;
   sentimentByTimeframe: Record<string, ReturnType<typeof computeSentiment>>;
   topWinners: Record<string, WinnerSignal[]>;
   onSelectWinner: (w: WinnerSignal) => void;
@@ -386,8 +387,14 @@ function OpportunityCard({ cat, activeCounts, sentimentByTimeframe, topWinners, 
   premiumMode?: boolean;
 }) {
   const c = activeCounts[cat.id] ?? { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
+  const ids = signalIds[cat.id] ?? { BUY: { working: [], "not-working": [], neutral: [] }, SELL: { working: [], "not-working": [], neutral: [] } };
   const sentiment = sentimentByTimeframe[cat.id] ?? { label: "No clear trend", color: "text-muted-foreground" };
   const alignedParam = premiumMode ? "&aligned=true" : "";
+  const boxHref = (side: SideKey, status: StatusKey) => {
+    const arr = ids[side][status];
+    if (arr.length === 1) return `/chart/${arr[0]}`;
+    return `/terminal?timeframe=${cat.id}&side=${side}&status=${status}${alignedParam}`;
+  };
   return (
     <Card className="bg-[#121214] border-white/5 shadow-2xl overflow-hidden rounded-2xl">
       <div className="p-6 border-b border-white/5">
@@ -420,15 +427,15 @@ function OpportunityCard({ cat, activeCounts, sentimentByTimeframe, topWinners, 
             <span className="text-[10px] font-black uppercase tracking-wider text-positive">Bulls</span>
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <Link href={`/terminal?timeframe=${cat.id}&side=BUY&status=working${alignedParam}`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-positive/10 border-positive/20 hover:bg-positive/20")}>
+            <Link href={boxHref("BUY", "working")} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-positive/10 border-positive/20 hover:bg-positive/20")}>
               <div className="text-lg font-black font-mono text-positive">{c.BUY.working}</div>
               <div className="text-[9px] font-bold uppercase text-positive/80">Winning</div>
             </Link>
-            <Link href={`/terminal?timeframe=${cat.id}&side=BUY&status=not-working${alignedParam}`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-negative/10 border-negative/20 hover:bg-negative/20")}>
+            <Link href={boxHref("BUY", "not-working")} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-negative/10 border-negative/20 hover:bg-negative/20")}>
               <div className="text-lg font-black font-mono text-negative">{c.BUY["not-working"]}</div>
               <div className="text-[9px] font-bold uppercase text-negative/80">Losing</div>
             </Link>
-            <Link href={`/terminal?timeframe=${cat.id}&side=BUY&status=neutral${alignedParam}`} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center hover:bg-white/10 transition-colors">
+            <Link href={boxHref("BUY", "neutral")} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center hover:bg-white/10 transition-colors">
               <div className="text-lg font-black font-mono text-foreground">{c.BUY.neutral}</div>
               <div className="text-[9px] font-bold uppercase text-muted-foreground">Neutral</div>
             </Link>
@@ -440,15 +447,15 @@ function OpportunityCard({ cat, activeCounts, sentimentByTimeframe, topWinners, 
             <span className="text-[10px] font-black uppercase tracking-wider text-negative">Bears</span>
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <Link href={`/terminal?timeframe=${cat.id}&side=SELL&status=working${alignedParam}`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-positive/10 border-positive/20 hover:bg-positive/20")}>
+            <Link href={boxHref("SELL", "working")} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-positive/10 border-positive/20 hover:bg-positive/20")}>
               <div className="text-lg font-black font-mono text-positive">{c.SELL.working}</div>
               <div className="text-[9px] font-bold uppercase text-positive/80">Winning</div>
             </Link>
-            <Link href={`/terminal?timeframe=${cat.id}&side=SELL&status=not-working${alignedParam}`} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-negative/10 border-negative/20 hover:bg-negative/20")}>
+            <Link href={boxHref("SELL", "not-working")} className={cn("rounded-lg border px-3 py-2 text-center transition-colors", "bg-negative/10 border-negative/20 hover:bg-negative/20")}>
               <div className="text-lg font-black font-mono text-negative">{c.SELL["not-working"]}</div>
               <div className="text-[9px] font-bold uppercase text-negative/80">Losing</div>
             </Link>
-            <Link href={`/terminal?timeframe=${cat.id}&side=SELL&status=neutral${alignedParam}`} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center hover:bg-white/10 transition-colors">
+            <Link href={boxHref("SELL", "neutral")} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center hover:bg-white/10 transition-colors">
               <div className="text-lg font-black font-mono text-foreground">{c.SELL.neutral}</div>
               <div className="text-[9px] font-bold uppercase text-muted-foreground">Neutral</div>
             </Link>
@@ -572,46 +579,35 @@ export default function Home() {
 
   useTradeAlerts(rawSignals, sentimentByTimeframe);
 
-  const counts = useMemo(() => {
-    const map: Record<string, Record<SideKey, Record<StatusKey, number>>> = {};
-    OPPORTUNITY_CATEGORIES.forEach((c) => {
-      map[c.id] = { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
-    });
-    if (!rawSignals) return map;
-    rawSignals.forEach((signal: any) => {
-      if (signal.status === "INACTIVE") return;
-      if (getDisplayAssetType(signal) !== "CRYPTO") return;
-      const tf = String(signal.timeframe || "").toUpperCase();
-      const cat = tf === "D" ? "D" : tf;
-      if (!map[cat]) return;
-      const pnl = effectivePnl(signal);
-      const status = getPnlStatus(pnl);
-      const side = signal.type === "BUY" ? "BUY" : "SELL";
-      map[cat][side][status]++;
-    });
-    return map;
-  }, [rawSignals]);
+  type CountsMap = Record<string, Record<SideKey, Record<StatusKey, number>>>;
+  type IdsMap = Record<string, Record<SideKey, Record<StatusKey, string[]>>>;
 
-  const premiumCounts = useMemo(() => {
-    const map: Record<string, Record<SideKey, Record<StatusKey, number>>> = {};
+  const buildCountsAndIds = useCallback((signals: any[] | null, onlyAligned: boolean) => {
+    const countMap: CountsMap = {};
+    const idsMap: IdsMap = {};
     OPPORTUNITY_CATEGORIES.forEach((c) => {
-      map[c.id] = { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
+      countMap[c.id] = { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
+      idsMap[c.id] = { BUY: { working: [], "not-working": [], neutral: [] }, SELL: { working: [], "not-working": [], neutral: [] } };
     });
-    if (!rawSignals) return map;
-    rawSignals.forEach((signal: any) => {
+    if (!signals) return { counts: countMap, ids: idsMap };
+    signals.forEach((signal: any) => {
       if (signal.status === "INACTIVE") return;
-      if (signal.aligned !== true) return;
+      if (onlyAligned && signal.aligned !== true) return;
       if (getDisplayAssetType(signal) !== "CRYPTO") return;
       const tf = String(signal.timeframe || "").toUpperCase();
       const cat = tf === "D" ? "D" : tf;
-      if (!map[cat]) return;
+      if (!countMap[cat]) return;
       const pnl = effectivePnl(signal);
       const status = getPnlStatus(pnl);
-      const side = signal.type === "BUY" ? "BUY" : "SELL";
-      map[cat][side][status]++;
+      const side: SideKey = signal.type === "BUY" ? "BUY" : "SELL";
+      countMap[cat][side][status]++;
+      idsMap[cat][side][status].push(signal.id);
     });
-    return map;
-  }, [rawSignals]);
+    return { counts: countMap, ids: idsMap };
+  }, []);
+
+  const { counts, ids: signalIds } = useMemo(() => buildCountsAndIds(rawSignals, false), [rawSignals, buildCountsAndIds]);
+  const { counts: premiumCounts, ids: premiumSignalIds } = useMemo(() => buildCountsAndIds(rawSignals, true), [rawSignals, buildCountsAndIds]);
 
   const FRESHNESS_MINUTES: Record<string, number> = { "5": 5, "15": 15, "60": 60, "240": 240, "D": 1440 };
 
@@ -846,7 +842,7 @@ export default function Home() {
                 <div className="space-y-4">
                   {OPPORTUNITY_CATEGORIES.map((cat) => (
                     <div key={cat.id} ref={(el) => { cardRefs.current[cat.id] = el; }}>
-                      <OpportunityCard cat={cat} activeCounts={premiumMode ? premiumCounts : counts} sentimentByTimeframe={sentimentByTimeframe} topWinners={premiumMode ? premiumTopWinners : topWinners} onSelectWinner={setSelectedWinner} freshSignal={premiumMode ? premiumFreshSignals[cat.id] : freshSignals[cat.id]} premiumMode={premiumMode} />
+                      <OpportunityCard cat={cat} activeCounts={premiumMode ? premiumCounts : counts} signalIds={premiumMode ? premiumSignalIds : signalIds} sentimentByTimeframe={sentimentByTimeframe} topWinners={premiumMode ? premiumTopWinners : topWinners} onSelectWinner={setSelectedWinner} freshSignal={premiumMode ? premiumFreshSignals[cat.id] : freshSignals[cat.id]} premiumMode={premiumMode} />
                     </div>
                   ))}
                 </div>
@@ -867,7 +863,7 @@ export default function Home() {
               ) : (
                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
                   {OPPORTUNITY_CATEGORIES.map((cat) => (
-                    <OpportunityCard key={cat.id} cat={cat} activeCounts={premiumMode ? premiumCounts : counts} sentimentByTimeframe={sentimentByTimeframe} topWinners={premiumMode ? premiumTopWinners : topWinners} onSelectWinner={setSelectedWinner} freshSignal={premiumMode ? premiumFreshSignals[cat.id] : freshSignals[cat.id]} premiumMode={premiumMode} />
+                    <OpportunityCard key={cat.id} cat={cat} activeCounts={premiumMode ? premiumCounts : counts} signalIds={premiumMode ? premiumSignalIds : signalIds} sentimentByTimeframe={sentimentByTimeframe} topWinners={premiumMode ? premiumTopWinners : topWinners} onSelectWinner={setSelectedWinner} freshSignal={premiumMode ? premiumFreshSignals[cat.id] : freshSignals[cat.id]} premiumMode={premiumMode} />
                   ))}
                 </div>
               )}

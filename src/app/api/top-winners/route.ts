@@ -54,14 +54,33 @@ export async function GET() {
   const { firestore } = initializeFirebase();
   const signalsRef = collection(firestore, "signals");
 
-  const snapshot = await getDocs(
-    query(signalsRef, orderBy("receivedAt", "desc"), fbLimit(500))
-  );
+  let signals: any[] = [];
+  try {
+    const snapshot = await getDocs(
+      query(signalsRef, orderBy("receivedAt", "desc"), fbLimit(500))
+    );
+    signals = snapshot.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((s: any) => s.asset_type === "CRYPTO");
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message, count: 0 }, { status: 500 });
+  }
 
-  const signals = snapshot.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((s: any) => s.asset_type === "CRYPTO") as any[];
   const now = Date.now();
+
+  // Debug: check data shape
+  const debug = {
+    totalSignals: signals.length,
+    withMaxUpside: signals.filter((s: any) => s.maxUpsidePrice != null).length,
+    withPrice: signals.filter((s: any) => s.price != null).length,
+    timeframes: [...new Set(signals.map((s: any) => s.timeframe))],
+    sampleFields: signals[0] ? Object.keys(signals[0]) : [],
+    sample: signals[0] ? { price: signals[0].price, maxUpsidePrice: signals[0].maxUpsidePrice, timeframe: signals[0].timeframe, type: signals[0].type, receivedAt: signals[0].receivedAt } : null,
+  };
+
+  if (signals.length === 0) {
+    return NextResponse.json({ winners: [], debug });
+  }
 
   const bestByTfAndDir: Record<string, Record<string, Winner>> = {};
 
@@ -167,5 +186,5 @@ export async function GET() {
 
   cache = { data: result, ts: Date.now() };
 
-  return NextResponse.json(result);
+  return NextResponse.json({ winners: result, debug });
 }

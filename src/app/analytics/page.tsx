@@ -157,7 +157,7 @@ export default function AnalyticsPage() {
 
   const renderVal = (v: number, hasData: boolean, isProfit: boolean) => {
     if (!hasData) return <span className="text-muted-foreground/30">--</span>;
-    return <span className={cn("font-mono font-black", isProfit ? "text-emerald-400" : "text-rose-400")}>{isProfit && v >= 0 ? "+" : ""}{v.toFixed(2)}%</span>;
+    return <span className={cn("font-mono font-black", isProfit ? "text-emerald-400" : "text-rose-400")}>{Math.abs(v).toFixed(2)}%</span>;
   };
 
   const renderMetricBlock = (

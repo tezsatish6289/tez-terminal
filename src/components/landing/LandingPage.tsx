@@ -22,11 +22,10 @@ import { cn } from "@/lib/utils";
 import { Chrome } from "lucide-react";
 import { RadarIcon } from "@/components/icons/RadarIcon";
 
-const STATS = [
-  { value: "500+", label: "Trades Tracked" },
-  { value: "5", label: "Timeframes" },
-  { value: "24/7", label: "Market Scanning" },
-];
+interface PlatformStats {
+  totalTrades: number;
+  days: number;
+}
 
 const STEPS = [
   {
@@ -121,11 +120,15 @@ interface LandingPageProps {
 
 export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
   const [topWinners, setTopWinners] = useState<TopWinner[]>([]);
+  const [stats, setStats] = useState<PlatformStats | null>(null);
 
   useEffect(() => {
     fetch("/api/top-winners")
       .then((r) => r.json())
-      .then((data) => setTopWinners(data))
+      .then((data) => {
+        setTopWinners(data.winners || []);
+        setStats(data.stats || null);
+      })
       .catch(() => {});
   }, []);
 
@@ -196,8 +199,13 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
           </div>
 
           {/* Stats Bar */}
-          <div className="mt-12 sm:mt-16 grid grid-cols-3 gap-4 max-w-xl mx-auto">
-            {STATS.map((s) => (
+          <div className="mt-12 sm:mt-16 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl mx-auto">
+            {[
+              { value: stats ? `${stats.totalTrades}+` : "—", label: "Trades Tracked" },
+              { value: "5", label: "Timeframes" },
+              { value: "24/7", label: "Market Scanning" },
+              { value: stats ? `${stats.days}` : "—", label: "Days" },
+            ].map((s) => (
               <div key={s.label} className="text-center px-4 py-3 rounded-xl border border-white/5 bg-white/[0.02]">
                 <p className="text-2xl sm:text-3xl font-black text-accent tracking-tight">{s.value}</p>
                 <p className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">{s.label}</p>

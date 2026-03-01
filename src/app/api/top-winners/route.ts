@@ -45,7 +45,7 @@ function formatAgo(receivedAt: string): string {
   return `${days}d ago`;
 }
 
-let cache: { data: any[]; ts: number } | null = null;
+let cache: { data: any; ts: number } | null = null;
 const CACHE_TTL = 5 * 60 * 1000;
 
 export async function GET() {
@@ -58,13 +58,32 @@ export async function GET() {
 
     const snapshot = await getDocs(collection(firestore, "signals"));
 
-    const signals = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
+    const allDocs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
+
+    const cryptoSignals = allDocs.filter(
+      (s: any) => s.assetType === "CRYPTO" || s.asset_type === "CRYPTO"
+    );
+
+    // Stats: total crypto signals + days since platform start
+    let earliestMs = Infinity;
+    for (const s of cryptoSignals) {
+      if (s.receivedAt) {
+        const t = new Date(s.receivedAt).getTime();
+        if (!isNaN(t) && t < earliestMs) earliestMs = t;
+      }
+    }
 
     const now = Date.now();
+    const daysSinceStart = earliestMs < Infinity ? Math.floor((now - earliestMs) / (1000 * 60 * 60 * 24)) : 0;
+
+    const stats = {
+      totalTrades: cryptoSignals.length,
+      days: daysSinceStart,
+    };
+
     const bestByTfAndDir: Record<string, Record<string, Winner>> = {};
 
-    for (const s of signals) {
-      if (s.assetType !== "CRYPTO" && s.asset_type !== "CRYPTO") continue;
+    for (const s of cryptoSignals) {
 
       const tf = String(s.timeframe || "");
       if (!TIMEFRAME_IDS.includes(tf)) continue;
@@ -166,9 +185,10 @@ export async function GET() {
 
     const result = picked.slice(0, 6).map(({ maxReturnNum, timeframeId, ...rest }) => rest);
 
-    cache = { data: result, ts: Date.now() };
+    const response = { winners: result, stats };
+    cache = { data: response, ts: Date.now() };
 
-    return NextResponse.json(result);
+    return NextResponse.json(response);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

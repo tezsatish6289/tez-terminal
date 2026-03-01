@@ -11,6 +11,7 @@ export interface AlertableSignal {
   timeframe: string;
   symbol: string;
   status: string;
+  receivedAt?: string;
 }
 
 const BULLISH_LABELS = new Set(["Bulls in control", "Bulls taking over"]);
@@ -113,8 +114,15 @@ export function useTradeAlerts(
 
     if (!enabled || fresh.length === 0) return;
 
+    const FRESHNESS_MS = 5 * 60 * 1000;
+
     for (const signal of fresh) {
       if (signal.status !== "ACTIVE") continue;
+
+      if (signal.receivedAt) {
+        const age = Date.now() - new Date(signal.receivedAt).getTime();
+        if (age > FRESHNESS_MS) continue;
+      }
 
       const tf = String(signal.timeframe || "").toUpperCase();
       const tfKey = tf === "D" ? "D" : tf;

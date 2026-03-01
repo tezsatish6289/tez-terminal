@@ -1,7 +1,7 @@
 
 "use client";
 
-import { User, LogOut, Zap, History, LineChart, Webhook, Target, BellRing, BellOff, Trash2, TrendingUp, TrendingDown } from "lucide-react";
+import { User, LogOut, Zap, History, LineChart, Webhook, Target, BellRing, BellOff, Trash2, TrendingUp, TrendingDown, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUser, useAuth } from "@/firebase";
 import { initiateSignOut } from "@/firebase/non-blocking-login";
@@ -139,9 +139,12 @@ export function TopBar() {
                           </div>
                           <span className="text-[10px] text-muted-foreground/60 shrink-0">{formatAlertTime(alert.timestamp)}</span>
                         </div>
-                        <p className="text-[11px] text-muted-foreground mt-1 pl-[22px]">
-                          {alert.direction} {alert.timeframeName} — {alert.sentimentLabel}
-                        </p>
+                        <div className="flex items-center gap-1.5 mt-1 pl-[22px]">
+                          <Crown className="h-3 w-3 text-amber-400 shrink-0" />
+                          <p className="text-[11px] text-muted-foreground">
+                            {alert.direction} {alert.timeframeName} — {alert.sentimentLabel}
+                          </p>
+                        </div>
                       </Link>
                     ))}
                   </div>

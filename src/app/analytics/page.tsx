@@ -13,7 +13,9 @@ import {
   ArrowDownRight,
   Archive,
   Filter,
-  Layers
+  Layers,
+  Zap,
+  Clock
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -75,20 +77,29 @@ export default function AnalyticsPage() {
   const hasDownsideData = (s: { maxDrawdownPrice?: number | null }) =>
     s.maxDrawdownPrice != null && s.maxDrawdownPrice !== undefined;
 
+  type ViewMode = "active" | "retired";
+  const [viewMode, setViewMode] = useState<ViewMode>("active");
+
   type FilterMode = "all" | "aligned" | "non-aligned";
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
+
+  const activeSignals = useMemo(() => {
+    if (!allSignals) return [];
+    return allSignals.filter(s => s.status !== "INACTIVE");
+  }, [allSignals]);
 
   const closedSignals = useMemo(() => {
     if (!allSignals) return [];
     return allSignals.filter(s => s.status === "INACTIVE");
   }, [allSignals]);
 
-
   const filteredClosedSignals = useMemo(() => {
     if (filterMode === "aligned") return closedSignals.filter(s => s.aligned === true);
     if (filterMode === "non-aligned") return closedSignals.filter(s => s.aligned === false);
     return closedSignals;
   }, [closedSignals, filterMode]);
+
+  const currentSignals = viewMode === "active" ? activeSignals : closedSignals;
 
   const TIMEFRAMES = [
     { id: "5", name: "Scalping", chart: "5m" },
@@ -120,7 +131,7 @@ export default function AnalyticsPage() {
     const result: Record<string, { all: { bullish: SideStats; bearish: SideStats }; premium: { bullish: SideStats; bearish: SideStats }; total: number; premiumTotal: number }> = {};
     TIMEFRAMES.forEach(tf => {
       const lev = getLeverage(tf.id);
-      const tfSignals = closedSignals.filter(s => String(s.timeframe).toUpperCase() === tf.id);
+      const tfSignals = currentSignals.filter(s => String(s.timeframe).toUpperCase() === tf.id);
       const premiumSignals = tfSignals.filter(s => s.aligned === true);
       result[tf.id] = {
         all: { bullish: computeSideStats(tfSignals.filter(s => s.type === "BUY"), lev), bearish: computeSideStats(tfSignals.filter(s => s.type === "SELL"), lev) },
@@ -130,7 +141,7 @@ export default function AnalyticsPage() {
       };
     });
     return result;
-  }, [closedSignals]);
+  }, [currentSignals]);
 
   const formatPrice = (p: number | null | undefined) => {
     if (p === null || p === undefined) return "--";
@@ -151,14 +162,40 @@ export default function AnalyticsPage() {
       <TopBar />
       
       <main className="flex-1 overflow-y-auto p-6 space-y-8">
-        <header className="space-y-2">
-           <div className="flex items-center gap-3">
-             <div className="bg-primary/20 p-2 rounded-xl border border-white/5"><BarChart3 className="h-6 w-6 text-accent" /></div>
-             <h1 className="text-3xl font-black text-white tracking-tighter uppercase">Closed Performance Node</h1>
+        <header className="flex items-start justify-between gap-4">
+           <div className="space-y-2">
+             <div className="flex items-center gap-3">
+               <div className="bg-primary/20 p-2 rounded-xl border border-white/5"><BarChart3 className="h-6 w-6 text-accent" /></div>
+               <h1 className="text-3xl font-black text-white tracking-tighter uppercase">
+                 {viewMode === "active" ? "Live Performance Node" : "Closed Performance Node"}
+               </h1>
+             </div>
+             <p className="text-muted-foreground text-sm max-w-2xl">
+               {viewMode === "active"
+                 ? "Real-time analytics for signals currently in play. Numbers update with every price tick."
+                 : "Retrospective analysis of signals retired from the live idea stream."}
+             </p>
            </div>
-           <p className="text-muted-foreground text-sm max-w-2xl">
-             Quantitative review of signals retired from the live idea stream. Tracks win rate and execution accuracy for Inactive signals.
-           </p>
+           <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-1 shrink-0">
+             {([
+               { key: "active" as ViewMode, label: "Active", icon: Zap },
+               { key: "retired" as ViewMode, label: "Retired", icon: Clock },
+             ]).map(({ key, label, icon: Icon }) => (
+               <button
+                 key={key}
+                 onClick={() => setViewMode(key)}
+                 className={cn(
+                   "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all",
+                   viewMode === key
+                     ? "bg-accent/15 text-accent shadow-sm"
+                     : "text-muted-foreground hover:text-foreground",
+                 )}
+               >
+                 <Icon className="h-3.5 w-3.5" />
+                 {label}
+               </button>
+             ))}
+           </div>
         </header>
 
         {/* Per-timeframe analytics with All vs Premium comparison */}
@@ -260,7 +297,7 @@ export default function AnalyticsPage() {
                     </div>
                     <div className="text-right">
                       <div className="text-2xl font-black font-mono text-white">{data.total}</div>
-                      <div className="text-[10px] font-bold text-accent uppercase">Retired Trades</div>
+                      <div className="text-[10px] font-bold text-accent uppercase">{viewMode === "active" ? "Active Trades" : "Retired Trades"}</div>
                     </div>
                   </div>
                 </CardHeader>
@@ -274,7 +311,7 @@ export default function AnalyticsPage() {
           })}
         </div>
 
-        <Card className="bg-card border-white/5 overflow-hidden">
+        {viewMode === "retired" && <Card className="bg-card border-white/5 overflow-hidden">
           <CardHeader className="bg-white/[0.02] border-b border-white/5">
             <div className="flex items-center justify-between">
                <div className="space-y-1">
@@ -415,7 +452,7 @@ export default function AnalyticsPage() {
               </Table>
             </div>
           </CardContent>
-        </Card>
+        </Card>}
       </main>
     </div>
   );

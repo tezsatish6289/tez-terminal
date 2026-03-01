@@ -5,7 +5,8 @@ import { SignalHistory } from "@/components/dashboard/SignalHistory";
 import { useUser, useAuth } from "@/firebase";
 import { useSearchParams } from "next/navigation";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Zap, Loader2, Chrome, ChevronRight, Target } from "lucide-react";
+import { Zap, Loader2, Chrome, ChevronRight } from "lucide-react";
+import { RadarIcon } from "@/components/icons/RadarIcon";
 import { useState, Suspense } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -168,7 +169,7 @@ function TerminalContent() {
           <div className="sticky bottom-0 w-full border-t border-accent/20 bg-background/95 backdrop-blur-md pt-4 px-6 z-30 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
             <Link href="/" className="block max-w-md mx-auto">
               <Button className="w-full h-12 gap-3 bg-accent/15 text-accent border-2 border-accent/40 hover:bg-accent/25 font-black uppercase text-sm tracking-wider rounded-xl shadow-lg shadow-accent/10">
-                <Target className="h-5 w-5" />
+                <RadarIcon className="h-5 w-5" />
                 Find More Opportunities
               </Button>
             </Link>

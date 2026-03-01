@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
-import { collection, getDocs, query, where, orderBy, limit as fbLimit } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, limit as fbLimit } from "firebase/firestore";
 import { getLeverage } from "@/lib/leverage";
 
 const TIMEFRAME_NAMES: Record<string, string> = {
@@ -55,10 +55,12 @@ export async function GET() {
   const signalsRef = collection(firestore, "signals");
 
   const snapshot = await getDocs(
-    query(signalsRef, where("asset_type", "==", "CRYPTO"), orderBy("receivedAt", "desc"), fbLimit(500))
+    query(signalsRef, orderBy("receivedAt", "desc"), fbLimit(500))
   );
 
-  const signals = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
+  const signals = snapshot.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((s: any) => s.asset_type === "CRYPTO") as any[];
   const now = Date.now();
 
   const bestByTfAndDir: Record<string, Record<string, Winner>> = {};

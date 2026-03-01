@@ -12,24 +12,39 @@ interface ChartPaneProps {
 
 export function ChartPane({ symbol = "BTCUSDT", interval = "15", exchange = "BINANCE" }: ChartPaneProps) {
   const [mounted, setMounted] = useState(false);
+  const [userTz, setUserTz] = useState("Etc/UTC");
 
   useEffect(() => {
+    setUserTz(Intl.DateTimeFormat().resolvedOptions().timeZone);
     setMounted(true);
   }, []);
 
-  // Clean symbol to ensure TradingView compatibility (e.g., BINANCE:BTCUSDT)
   const formattedSymbol = symbol.includes(":") ? symbol : `${exchange.toUpperCase()}:${symbol.toUpperCase()}`;
-  
   const tvInterval = interval === "0" ? "1" : interval;
-  const userTz = typeof window !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "Etc/UTC";
+
+  const widgetConfig = JSON.stringify({
+    symbol: formattedSymbol,
+    interval: tvInterval,
+    timezone: userTz,
+    theme: "dark",
+    style: "1",
+    locale: "en",
+    toolbar_bg: "#f1f3f6",
+    enable_publishing: false,
+    hide_side_toolbar: false,
+    allow_symbol_change: true,
+    save_image: true,
+    width: "100%",
+    height: "100%",
+  });
 
   return (
     <div className="w-full h-full bg-background relative flex flex-col">
       <div className="flex-1 w-full h-full bg-background">
         {mounted ? (
           <iframe
-            key={`${formattedSymbol}-${tvInterval}`}
-            src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_762c4&symbol=${formattedSymbol}&interval=${tvInterval}&hidesidetoolbar=1&hidetoptoolbar=0&symboledit=1&saveimage=1&toolbarbg=f1f3f6&theme=dark&style=1&timezone=${encodeURIComponent(userTz)}&studies_overrides={}&overrides={}&enabled_features=[]&disabled_features=[]&locale=en`}
+            key={`${formattedSymbol}-${tvInterval}-${userTz}`}
+            src={`https://www.tradingview-widget.com/embed-widget/advanced-chart/?locale=en#${encodeURIComponent(widgetConfig)}`}
             className="w-full h-full border-none"
             allowFullScreen
           />

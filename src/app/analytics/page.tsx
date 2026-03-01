@@ -14,7 +14,8 @@ import {
   Filter,
   Layers,
   Zap,
-  Clock
+  Clock,
+  Crown
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -179,9 +180,13 @@ export default function AnalyticsPage() {
             <div className="text-sm">{renderVal(activeAll.val, activeAll.has, isProfit)}</div>
           )}
           {activePrem && (
-            <div className={cn("text-[10px] mt-0.5", isCount ? "font-mono font-bold text-accent" : "")}>
-              {isCount ? activePrem.val : renderVal(activePrem.val, activePrem.has, isProfit)}
-              <span className="text-[8px] text-accent/50 ml-1">prem</span>
+            <div className={cn("flex items-center justify-center gap-1 mt-1", isCount ? "font-mono font-bold text-accent" : "")}>
+              <Crown className="h-3 w-3 text-accent/60 shrink-0" />
+              {isCount ? (
+                <span className="text-lg font-black font-mono text-accent">{activePrem.val}</span>
+              ) : (
+                <span className="text-sm">{renderVal(activePrem.val, activePrem.has, isProfit)}</span>
+              )}
             </div>
           )}
         </div>
@@ -193,9 +198,13 @@ export default function AnalyticsPage() {
             <div className="text-sm">{renderVal(retiredAll.val, retiredAll.has, isProfit)}</div>
           )}
           {retiredPrem && (
-            <div className={cn("text-[10px] mt-0.5", isCount ? "font-mono font-bold text-accent" : "")}>
-              {isCount ? retiredPrem.val : renderVal(retiredPrem.val, retiredPrem.has, isProfit)}
-              <span className="text-[8px] text-accent/50 ml-1">prem</span>
+            <div className={cn("flex items-center justify-center gap-1 mt-1", isCount ? "font-mono font-bold text-accent" : "")}>
+              <Crown className="h-3 w-3 text-accent/60 shrink-0" />
+              {isCount ? (
+                <span className="text-lg font-black font-mono text-accent">{retiredPrem.val}</span>
+              ) : (
+                <span className="text-sm">{renderVal(retiredPrem.val, retiredPrem.has, isProfit)}</span>
+              )}
             </div>
           )}
         </div>

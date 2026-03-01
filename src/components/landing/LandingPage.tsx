@@ -25,6 +25,7 @@ import { RadarIcon } from "@/components/icons/RadarIcon";
 interface PlatformStats {
   totalTrades: number;
   days: number;
+  hours: number;
 }
 
 const STEPS = [
@@ -199,12 +200,11 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
           </div>
 
           {/* Stats Bar */}
-          <div className="mt-12 sm:mt-16 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl mx-auto">
+          <div className="mt-12 sm:mt-16 grid grid-cols-3 gap-4 max-w-xl mx-auto">
             {[
-              { value: stats ? `${stats.totalTrades}+` : "—", label: "Trades Tracked" },
+              { value: stats ? `${stats.totalTrades}` : "—", label: "Trades" },
               { value: "5", label: "Timeframes" },
-              { value: "24/7", label: "Market Scanning" },
-              { value: stats ? `${stats.days}` : "—", label: "Days" },
+              { value: "24/7", label: "Scanning" },
             ].map((s) => (
               <div key={s.label} className="text-center px-4 py-3 rounded-xl border border-white/5 bg-white/[0.02]">
                 <p className="text-2xl sm:text-3xl font-black text-accent tracking-tight">{s.value}</p>

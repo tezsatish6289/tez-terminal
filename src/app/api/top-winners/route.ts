@@ -74,11 +74,14 @@ export async function GET() {
     }
 
     const now = Date.now();
-    const daysSinceStart = earliestMs < Infinity ? Math.floor((now - earliestMs) / (1000 * 60 * 60 * 24)) : 0;
+    const msSinceStart = earliestMs < Infinity ? now - earliestMs : 0;
+    const daysSinceStart = Math.floor(msSinceStart / (1000 * 60 * 60 * 24));
+    const hoursSinceStart = Math.floor(msSinceStart / (1000 * 60 * 60));
 
     const stats = {
       totalTrades: cryptoSignals.length,
       days: daysSinceStart,
+      hours: hoursSinceStart,
     };
 
     const bestByTfAndDir: Record<string, Record<string, Winner>> = {};

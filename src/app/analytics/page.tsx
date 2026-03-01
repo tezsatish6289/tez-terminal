@@ -24,10 +24,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useMemo, useState } from "react";
 import { getLeverage } from "@/lib/leverage";
 
-/**
- * Closed Performance Analytics Page.
- * Focus: Retrospective analysis of signals that have hit Stop Loss or been retired.
- */
 export default function AnalyticsPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
@@ -76,8 +72,8 @@ export default function AnalyticsPage() {
   const hasDownsideData = (s: { maxDrawdownPrice?: number | null }) =>
     s.maxDrawdownPrice != null && s.maxDrawdownPrice !== undefined;
 
-  type ViewMode = "active" | "retired";
-  const [viewMode, setViewMode] = useState<ViewMode>("active");
+  type TableViewMode = "active" | "retired";
+  const [tableViewMode, setTableViewMode] = useState<TableViewMode>("active");
 
   type FilterMode = "all" | "aligned";
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
@@ -94,14 +90,12 @@ export default function AnalyticsPage() {
     return allSignals.filter(s => s.status === "INACTIVE");
   }, [allSignals]);
 
-  const currentSignals = viewMode === "active" ? activeSignals : closedSignals;
-
   const tableSignals = useMemo(() => {
-    let sigs = currentSignals;
+    let sigs = tableViewMode === "active" ? activeSignals : closedSignals;
     if (selectedTf !== "all") sigs = sigs.filter(s => String(s.timeframe).toUpperCase() === selectedTf);
     if (filterMode === "aligned") sigs = sigs.filter(s => s.aligned === true);
     return sigs;
-  }, [currentSignals, selectedTf, filterMode]);
+  }, [tableViewMode, activeSignals, closedSignals, selectedTf, filterMode]);
 
   const TIMEFRAMES = [
     { id: "5", name: "Scalping", chart: "5m" },
@@ -113,7 +107,7 @@ export default function AnalyticsPage() {
 
   type SideStats = { count: number; profit: { count: number; max: number; median: number; avg: number }; loss: { count: number; max: number; median: number; avg: number } };
 
-  const computeSideStats = (sigs: typeof closedSignals, lev: number): SideStats => {
+  const computeSideStats = (sigs: any[], lev: number): SideStats => {
     const withUpside = sigs.filter(hasUpsideData);
     const upsideValues = withUpside.map(s => calculatePercent(s.maxUpsidePrice, s.price, s.type) * lev);
     const withDownside = sigs.filter(hasDownsideData);
@@ -129,27 +123,147 @@ export default function AnalyticsPage() {
     };
   };
 
+  type TfData = {
+    active: { all: { bullish: SideStats; bearish: SideStats }; premium: { bullish: SideStats; bearish: SideStats }; total: number };
+    retired: { all: { bullish: SideStats; bearish: SideStats }; premium: { bullish: SideStats; bearish: SideStats }; total: number };
+    combined: number;
+  };
+
   const tfStats = useMemo(() => {
-    const result: Record<string, { all: { bullish: SideStats; bearish: SideStats }; premium: { bullish: SideStats; bearish: SideStats }; total: number; premiumTotal: number }> = {};
+    const result: Record<string, TfData> = {};
     TIMEFRAMES.forEach(tf => {
       const lev = getLeverage(tf.id);
-      const tfSignals = currentSignals.filter(s => String(s.timeframe).toUpperCase() === tf.id);
-      const premiumSignals = tfSignals.filter(s => s.aligned === true);
-      result[tf.id] = {
-        all: { bullish: computeSideStats(tfSignals.filter(s => s.type === "BUY"), lev), bearish: computeSideStats(tfSignals.filter(s => s.type === "SELL"), lev) },
-        premium: { bullish: computeSideStats(premiumSignals.filter(s => s.type === "BUY"), lev), bearish: computeSideStats(premiumSignals.filter(s => s.type === "SELL"), lev) },
-        total: tfSignals.length,
-        premiumTotal: premiumSignals.length,
+      const activeTf = activeSignals.filter(s => String(s.timeframe).toUpperCase() === tf.id);
+      const retiredTf = closedSignals.filter(s => String(s.timeframe).toUpperCase() === tf.id);
+      const buildGroup = (sigs: any[]) => {
+        const prem = sigs.filter(s => s.aligned === true);
+        return {
+          all: { bullish: computeSideStats(sigs.filter(s => s.type === "BUY"), lev), bearish: computeSideStats(sigs.filter(s => s.type === "SELL"), lev) },
+          premium: { bullish: computeSideStats(prem.filter(s => s.type === "BUY"), lev), bearish: computeSideStats(prem.filter(s => s.type === "SELL"), lev) },
+          total: sigs.length,
+        };
       };
+      result[tf.id] = { active: buildGroup(activeTf), retired: buildGroup(retiredTf), combined: activeTf.length + retiredTf.length };
     });
     return result;
-  }, [currentSignals]);
+  }, [activeSignals, closedSignals]);
 
   const formatPrice = (p: number | null | undefined) => {
     if (p === null || p === undefined) return "--";
     const decimals = p < 1 ? 6 : 2;
     return p.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   };
+
+  const renderVal = (v: number, hasData: boolean, isProfit: boolean) => {
+    if (!hasData) return <span className="text-muted-foreground/30">--</span>;
+    return <span className={cn("font-mono font-black", isProfit ? "text-emerald-400" : "text-rose-400")}>{isProfit && v >= 0 ? "+" : ""}{v.toFixed(2)}%</span>;
+  };
+
+  const renderMetricBlock = (
+    label: string,
+    activeAll: { val: number; has: boolean },
+    activePrem: { val: number; has: boolean } | null,
+    retiredAll: { val: number; has: boolean },
+    retiredPrem: { val: number; has: boolean } | null,
+    isProfit: boolean,
+    isCount?: boolean,
+  ) => (
+    <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3 space-y-2">
+      <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground text-center">{label}</div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="text-center">
+          <div className="text-[8px] font-bold uppercase text-emerald-400/60 mb-1 flex items-center justify-center gap-1"><Zap className="h-2.5 w-2.5" />Active</div>
+          {isCount ? (
+            <div className="text-lg font-black font-mono text-white">{activeAll.val}</div>
+          ) : (
+            <div className="text-sm">{renderVal(activeAll.val, activeAll.has, isProfit)}</div>
+          )}
+          {activePrem && (
+            <div className={cn("text-[10px] mt-0.5", isCount ? "font-mono font-bold text-accent" : "")}>
+              {isCount ? activePrem.val : renderVal(activePrem.val, activePrem.has, isProfit)}
+              <span className="text-[8px] text-accent/50 ml-1">prem</span>
+            </div>
+          )}
+        </div>
+        <div className="text-center border-l border-white/5">
+          <div className="text-[8px] font-bold uppercase text-amber-400/60 mb-1 flex items-center justify-center gap-1"><Clock className="h-2.5 w-2.5" />Retired</div>
+          {isCount ? (
+            <div className="text-lg font-black font-mono text-white">{retiredAll.val}</div>
+          ) : (
+            <div className="text-sm">{renderVal(retiredAll.val, retiredAll.has, isProfit)}</div>
+          )}
+          {retiredPrem && (
+            <div className={cn("text-[10px] mt-0.5", isCount ? "font-mono font-bold text-accent" : "")}>
+              {isCount ? retiredPrem.val : renderVal(retiredPrem.val, retiredPrem.has, isProfit)}
+              <span className="text-[8px] text-accent/50 ml-1">prem</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderSideBlock = (data: TfData, label: string, sideKey: "bullish" | "bearish", icon: typeof TrendingUp, iconColor: string) => {
+    const aa = data.active.all[sideKey];
+    const ap = data.active.premium[sideKey];
+    const ra = data.retired.all[sideKey];
+    const rp = data.retired.premium[sideKey];
+    const hasActivePrem = ap.count > 0;
+    const hasRetiredPrem = rp.count > 0;
+    const hasPrem = hasActivePrem || hasRetiredPrem;
+
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          {icon === TrendingUp ? <TrendingUp className={cn("h-4 w-4", iconColor)} /> : <TrendingDown className={cn("h-4 w-4", iconColor)} />}
+          <span className={cn("text-[10px] font-black uppercase tracking-wider", iconColor)}>{label}</span>
+        </div>
+        {aa.count === 0 && ra.count === 0 ? (
+          <div className="text-[10px] text-muted-foreground/40 text-center py-3">No {label.toLowerCase()} trades</div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+            {renderMetricBlock("Trades",
+              { val: aa.count, has: true },
+              hasPrem ? { val: ap.count, has: true } : null,
+              { val: ra.count, has: true },
+              hasPrem ? { val: rp.count, has: true } : null,
+              true, true,
+            )}
+            {renderMetricBlock("Avg Profit",
+              { val: aa.profit.avg, has: aa.profit.count > 0 },
+              hasPrem ? { val: ap.profit.avg, has: ap.profit.count > 0 } : null,
+              { val: ra.profit.avg, has: ra.profit.count > 0 },
+              hasPrem ? { val: rp.profit.avg, has: rp.profit.count > 0 } : null,
+              true,
+            )}
+            {renderMetricBlock("Max Profit",
+              { val: aa.profit.max, has: aa.profit.count > 0 },
+              hasPrem ? { val: ap.profit.max, has: ap.profit.count > 0 } : null,
+              { val: ra.profit.max, has: ra.profit.count > 0 },
+              hasPrem ? { val: rp.profit.max, has: rp.profit.count > 0 } : null,
+              true,
+            )}
+            {renderMetricBlock("Avg Loss",
+              { val: aa.loss.avg, has: aa.loss.count > 0 },
+              hasPrem ? { val: ap.loss.avg, has: ap.loss.count > 0 } : null,
+              { val: ra.loss.avg, has: ra.loss.count > 0 },
+              hasPrem ? { val: rp.loss.avg, has: rp.loss.count > 0 } : null,
+              false,
+            )}
+            {renderMetricBlock("Max Loss",
+              { val: aa.loss.max, has: aa.loss.count > 0 },
+              hasPrem ? { val: ap.loss.max, has: ap.loss.count > 0 } : null,
+              { val: ra.loss.max, has: ra.loss.count > 0 },
+              hasPrem ? { val: rp.loss.max, has: rp.loss.count > 0 } : null,
+              false,
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const tfLabelMap: Record<string, string> = { "5": "5m", "15": "15m", "60": "1h", "240": "4h", "D": "1D" };
 
   if (isUserLoading || (isLoading && !allSignals)) {
     return (
@@ -159,122 +273,16 @@ export default function AnalyticsPage() {
     );
   }
 
-  const renderSideBlock = (data: { all: { bullish: SideStats; bearish: SideStats }; premium: { bullish: SideStats; bearish: SideStats } }, label: string, sideKey: "bullish" | "bearish", icon: typeof TrendingUp, iconColor: string) => {
-    const all = data.all[sideKey];
-    const prem = data.premium[sideKey];
-    const hasPrem = prem.count > 0;
-
-    const renderVal = (v: number, hasData: boolean, isProfit: boolean) => {
-      if (!hasData) return <span className="text-muted-foreground/30">--</span>;
-      return <span className={cn("font-mono font-black", isProfit ? "text-emerald-400" : "text-rose-400")}>{isProfit && v >= 0 ? "+" : ""}{v.toFixed(2)}%</span>;
-    };
-
-    return (
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          {icon === TrendingUp ? <TrendingUp className={cn("h-4 w-4", iconColor)} /> : <TrendingDown className={cn("h-4 w-4", iconColor)} />}
-          <span className={cn("text-[10px] font-black uppercase tracking-wider", iconColor)}>{label}</span>
-          <span className="text-[10px] text-muted-foreground ml-auto">{all.count} total{hasPrem ? ` · ${prem.count} premium` : ""}</span>
-        </div>
-        {all.count === 0 ? (
-          <div className="text-[10px] text-muted-foreground/40 text-center py-3">No {label.toLowerCase()} trades</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className="border-b border-white/5">
-                  <th className="text-left font-bold text-muted-foreground/60 uppercase tracking-wider py-1.5 pr-2" />
-                  <th className="text-center font-bold text-muted-foreground uppercase tracking-wider py-1.5 px-2">Trades</th>
-                  <th className="text-center font-bold text-muted-foreground uppercase tracking-wider py-1.5 px-2">Avg Profit</th>
-                  <th className="text-center font-bold text-muted-foreground uppercase tracking-wider py-1.5 px-2">Max Profit</th>
-                  <th className="text-center font-bold text-muted-foreground uppercase tracking-wider py-1.5 px-2">Avg Loss</th>
-                  <th className="text-center font-bold text-muted-foreground uppercase tracking-wider py-1.5 px-2">Max Loss</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-white/5">
-                  <td className="py-2 pr-2 text-[10px] font-bold text-muted-foreground uppercase">All</td>
-                  <td className="py-2 px-2 text-center text-sm font-mono font-black text-white">{all.count}</td>
-                  <td className="py-2 px-2 text-center text-sm">{renderVal(all.profit.avg, all.profit.count > 0, true)}</td>
-                  <td className="py-2 px-2 text-center text-sm">{renderVal(all.profit.max, all.profit.count > 0, true)}</td>
-                  <td className="py-2 px-2 text-center text-sm">{renderVal(all.loss.avg, all.loss.count > 0, false)}</td>
-                  <td className="py-2 px-2 text-center text-sm">{renderVal(all.loss.max, all.loss.count > 0, false)}</td>
-                </tr>
-                {hasPrem && (
-                  <>
-                    <tr className="border-b border-white/5">
-                      <td className="py-2 pr-2 text-[10px] font-bold text-accent uppercase">Premium</td>
-                      <td className="py-2 px-2 text-center text-sm font-mono font-black text-accent">{prem.count}</td>
-                      <td className="py-2 px-2 text-center text-sm">{renderVal(prem.profit.avg, prem.profit.count > 0, true)}</td>
-                      <td className="py-2 px-2 text-center text-sm">{renderVal(prem.profit.max, prem.profit.count > 0, true)}</td>
-                      <td className="py-2 px-2 text-center text-sm">{renderVal(prem.loss.avg, prem.loss.count > 0, false)}</td>
-                      <td className="py-2 px-2 text-center text-sm">{renderVal(prem.loss.max, prem.loss.count > 0, false)}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2 pr-2 text-[10px] font-bold text-accent/50 uppercase">Edge</td>
-                      <td className="py-2 px-2" />
-                      {(() => {
-                        const profitEdge = all.profit.count > 0 && prem.profit.count > 0 ? prem.profit.avg - all.profit.avg : null;
-                        const maxProfitEdge = all.profit.count > 0 && prem.profit.count > 0 ? prem.profit.max - all.profit.max : null;
-                        const lossEdge = all.loss.count > 0 && prem.loss.count > 0 ? prem.loss.avg - all.loss.avg : null;
-                        const maxLossEdge = all.loss.count > 0 && prem.loss.count > 0 ? prem.loss.max - all.loss.max : null;
-                        const edgeCell = (edge: number | null) => (
-                          <td className={cn("py-2 px-2 text-center text-sm font-mono font-black", edge != null && edge > 0 ? "text-accent" : "text-muted-foreground/30")}>
-                            {edge != null ? `${edge >= 0 ? "+" : ""}${edge.toFixed(2)}%` : "--"}
-                          </td>
-                        );
-                        return <>{edgeCell(profitEdge)}{edgeCell(maxProfitEdge)}{edgeCell(lossEdge)}{edgeCell(maxLossEdge)}</>;
-                      })()}
-                    </tr>
-                  </>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const tfLabelMap: Record<string, string> = { "5": "5m", "15": "15m", "60": "1h", "240": "4h", "D": "1D" };
-
   return (
     <div className="flex flex-col h-screen bg-background text-foreground">
       <TopBar />
       
       <main className="flex-1 overflow-y-auto p-6 space-y-6">
-        {/* Header */}
-        <header className="flex items-start justify-between gap-4">
-           <div className="space-y-2">
-             <h1 className="text-3xl font-black text-white tracking-tighter uppercase">
-               {viewMode === "active" ? "Live Performance Node" : "Closed Performance Node"}
-             </h1>
-             <p className="text-muted-foreground text-sm max-w-2xl">
-               {viewMode === "active"
-                 ? "Real-time analytics for signals currently in play. Numbers update with every price tick."
-                 : "Retrospective analysis of signals retired from the live idea stream."}
-             </p>
-           </div>
-           <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-1 shrink-0">
-             {([
-               { key: "active" as ViewMode, label: "Active", icon: Zap },
-               { key: "retired" as ViewMode, label: "Retired", icon: Clock },
-             ]).map(({ key, label, icon: Icon }) => (
-               <button
-                 key={key}
-                 onClick={() => setViewMode(key)}
-                 className={cn(
-                   "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all",
-                   viewMode === key
-                     ? "bg-accent/15 text-accent shadow-sm"
-                     : "text-muted-foreground hover:text-foreground",
-                 )}
-               >
-                 <Icon className="h-3.5 w-3.5" />
-                 {label}
-               </button>
-             ))}
-           </div>
+        <header className="space-y-2">
+          <h1 className="text-3xl font-black text-white tracking-tighter uppercase">Performance Node</h1>
+          <p className="text-muted-foreground text-sm max-w-2xl">
+            Side-by-side analytics for active and retired signals across all timeframes.
+          </p>
         </header>
 
         {/* Timeframe filter chips */}
@@ -291,7 +299,7 @@ export default function AnalyticsPage() {
             All
           </button>
           {TIMEFRAMES.map(tf => {
-            const count = tfStats[tf.id]?.total ?? 0;
+            const count = tfStats[tf.id]?.combined ?? 0;
             return (
               <button
                 key={tf.id}
@@ -314,7 +322,7 @@ export default function AnalyticsPage() {
           {TIMEFRAMES.map(tf => {
             if (selectedTf !== "all" && selectedTf !== tf.id) return null;
             const data = tfStats[tf.id];
-            if (!data || data.total === 0) return null;
+            if (!data || data.combined === 0) return null;
             const lev = getLeverage(tf.id);
 
             return (
@@ -325,9 +333,15 @@ export default function AnalyticsPage() {
                       <CardTitle className="text-lg font-black text-white uppercase tracking-tighter">{tf.name}</CardTitle>
                       <CardDescription className="text-[10px] font-bold text-muted-foreground uppercase">{tf.chart} chart · {lev}x leverage · Leveraged returns</CardDescription>
                     </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-black font-mono text-white">{data.total}</div>
-                      <div className="text-[10px] font-bold text-accent uppercase">{viewMode === "active" ? "Active Trades" : "Retired Trades"}</div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-center">
+                        <div className="text-lg font-black font-mono text-white">{data.active.total}</div>
+                        <div className="text-[9px] font-bold text-emerald-400/60 uppercase">Active</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-black font-mono text-white">{data.retired.total}</div>
+                        <div className="text-[9px] font-bold text-amber-400/60 uppercase">Retired</div>
+                      </div>
                     </div>
                   </div>
                 </CardHeader>
@@ -341,19 +355,35 @@ export default function AnalyticsPage() {
           })}
         </div>
 
-        {/* Trade audit table — shown for both active and retired */}
+        {/* Trade audit table */}
         <Card className="bg-card border-white/5 overflow-hidden">
           <CardHeader className="bg-white/[0.02] border-b border-white/5">
             <div className="flex items-center justify-between">
                <div className="space-y-1">
-                  <CardTitle className="text-sm uppercase tracking-widest text-white">
-                    {viewMode === "active" ? "Live Trades" : "Closed Ideas Audit"}
-                  </CardTitle>
-                  <CardDescription className="text-[10px] font-bold">
-                    {viewMode === "active" ? "Individual active signals with live performance" : "Comprehensive trade log for retired setups"}
-                  </CardDescription>
+                  <CardTitle className="text-sm uppercase tracking-widest text-white">Trade Audit</CardTitle>
+                  <CardDescription className="text-[10px] font-bold">Individual signal details</CardDescription>
                </div>
                <div className="flex items-center gap-3">
+                 <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-1">
+                   {([
+                     { key: "active" as TableViewMode, label: "Active", icon: Zap },
+                     { key: "retired" as TableViewMode, label: "Retired", icon: Clock },
+                   ]).map(({ key, label, icon: Icon }) => (
+                     <button
+                       key={key}
+                       onClick={() => setTableViewMode(key)}
+                       className={cn(
+                         "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
+                         tableViewMode === key
+                           ? "bg-accent/15 text-accent shadow-sm"
+                           : "text-muted-foreground hover:text-foreground",
+                       )}
+                     >
+                       <Icon className="h-3 w-3" />
+                       {label}
+                     </button>
+                   ))}
+                 </div>
                  <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-1">
                    {([
                      { key: "all" as FilterMode, label: "All", icon: Layers },
@@ -390,12 +420,12 @@ export default function AnalyticsPage() {
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Chart</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Lev.</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Entry</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">{viewMode === "active" ? "Current Price" : "Exit Price"}</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">{tableViewMode === "active" ? "Current Price" : "Exit Price"}</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">SL</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Net PNL</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Aligned</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Max Excursion</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 text-right">{viewMode === "active" ? "Date Opened" : "Date Closed"}</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 text-right">{tableViewMode === "active" ? "Date Opened" : "Date Closed"}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -405,13 +435,9 @@ export default function AnalyticsPage() {
                         <div className="flex flex-col items-center gap-4 opacity-40">
                            <Archive className="h-12 w-12 text-muted-foreground" />
                            <div className="space-y-1">
-                              <p className="text-xs font-bold uppercase tracking-widest text-white">
-                                {viewMode === "active" ? "No Active Signals" : "No Retired Signals"}
-                              </p>
+                              <p className="text-xs font-bold uppercase tracking-widest text-white">No Signals Found</p>
                               <p className="text-[10px] text-muted-foreground max-w-xs mx-auto">
-                                {viewMode === "active"
-                                  ? "No active signals match the current filters."
-                                  : "Signals appear here once they hit Stop Loss or are retired."}
+                                No signals match the current filters.
                               </p>
                            </div>
                         </div>

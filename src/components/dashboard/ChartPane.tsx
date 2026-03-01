@@ -28,11 +28,17 @@ export function ChartPane({ symbol = "BTCUSDT", interval = "15", exchange = "BIN
 
     const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
+    const widgetDiv = document.createElement("div");
+    widgetDiv.className = "tradingview-widget-container__widget";
+    widgetDiv.style.height = "100%";
+    widgetDiv.style.width = "100%";
+    container.appendChild(widgetDiv);
+
     const script = document.createElement("script");
     script.src = "https://s.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
     script.type = "text/javascript";
     script.async = true;
-    script.innerHTML = JSON.stringify({
+    script.textContent = JSON.stringify({
       symbol: formattedSymbol,
       interval: tvInterval,
       timezone: userTz,
@@ -61,7 +67,8 @@ export function ChartPane({ symbol = "BTCUSDT", interval = "15", exchange = "BIN
         {mounted ? (
           <div
             ref={containerRef}
-            className="tradingview-widget-container w-full h-full"
+            className="tradingview-widget-container"
+            style={{ height: "100%", width: "100%" }}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full gap-4">

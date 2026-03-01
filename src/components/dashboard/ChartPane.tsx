@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Zap } from "lucide-react";
 
 interface ChartPaneProps {
@@ -10,65 +10,44 @@ interface ChartPaneProps {
 }
 
 export function ChartPane({ symbol = "BTCUSDT", interval = "15", exchange = "BINANCE" }: ChartPaneProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
+  const [userTz, setUserTz] = useState("Etc/UTC");
+
+  useEffect(() => {
+    setUserTz(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    setMounted(true);
+  }, []);
 
   const formattedSymbol = symbol.includes(":") ? symbol : `${exchange.toUpperCase()}:${symbol.toUpperCase()}`;
   const tvInterval = interval === "0" ? "1" : interval;
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const widgetConfig = {
+    symbol: formattedSymbol,
+    interval: tvInterval,
+    timezone: userTz,
+    theme: "dark",
+    style: "1",
+    locale: "en",
+    toolbar_bg: "#f1f3f6",
+    enable_publishing: false,
+    hide_side_toolbar: false,
+    allow_symbol_change: true,
+    save_image: true,
+    width: "100%",
+    height: "100%",
+  };
 
-  useEffect(() => {
-    if (!mounted || !containerRef.current) return;
-
-    const container = containerRef.current;
-    container.innerHTML = "";
-
-    const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-    const widgetDiv = document.createElement("div");
-    widgetDiv.className = "tradingview-widget-container__widget";
-    widgetDiv.style.height = "100%";
-    widgetDiv.style.width = "100%";
-    container.appendChild(widgetDiv);
-
-    const script = document.createElement("script");
-    script.src = "https://s.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-    script.type = "text/javascript";
-    script.async = true;
-    script.textContent = JSON.stringify({
-      symbol: formattedSymbol,
-      interval: tvInterval,
-      timezone: userTz,
-      theme: "dark",
-      style: "1",
-      locale: "en",
-      toolbar_bg: "#f1f3f6",
-      enable_publishing: false,
-      hide_side_toolbar: false,
-      allow_symbol_change: true,
-      save_image: true,
-      width: "100%",
-      height: "100%",
-    });
-
-    container.appendChild(script);
-
-    return () => {
-      container.innerHTML = "";
-    };
-  }, [mounted, formattedSymbol, tvInterval]);
+  const src = `https://s.tradingview.com/embed-widget/advanced-chart/?locale=en#${encodeURIComponent(JSON.stringify(widgetConfig))}`;
 
   return (
     <div className="w-full h-full bg-background relative flex flex-col">
       <div className="flex-1 w-full h-full bg-background">
         {mounted ? (
-          <div
-            ref={containerRef}
-            className="tradingview-widget-container"
-            style={{ height: "100%", width: "100%" }}
+          <iframe
+            key={`${formattedSymbol}-${tvInterval}-${userTz}`}
+            src={src}
+            className="w-full h-full border-none"
+            allowFullScreen
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full gap-4">

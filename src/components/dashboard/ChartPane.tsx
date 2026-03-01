@@ -20,8 +20,8 @@ export function ChartPane({ symbol = "BTCUSDT", interval = "15", exchange = "BIN
   // Clean symbol to ensure TradingView compatibility (e.g., BINANCE:BTCUSDT)
   const formattedSymbol = symbol.includes(":") ? symbol : `${exchange.toUpperCase()}:${symbol.toUpperCase()}`;
   
-  // Map intervals if they are coming as numbers but need to be strings for TV
   const tvInterval = interval === "0" ? "1" : interval;
+  const userTz = typeof window !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "Etc/UTC";
 
   return (
     <div className="w-full h-full bg-background relative flex flex-col">
@@ -29,7 +29,7 @@ export function ChartPane({ symbol = "BTCUSDT", interval = "15", exchange = "BIN
         {mounted ? (
           <iframe
             key={`${formattedSymbol}-${tvInterval}`}
-            src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_762c4&symbol=${formattedSymbol}&interval=${tvInterval}&hidesidetoolbar=1&hidetoptoolbar=0&symboledit=1&saveimage=1&toolbarbg=f1f3f6&theme=dark&style=1&timezone=Etc/UTC&studies_overrides={}&overrides={}&enabled_features=[]&disabled_features=[]&locale=en`}
+            src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_762c4&symbol=${formattedSymbol}&interval=${tvInterval}&hidesidetoolbar=1&hidetoptoolbar=0&symboledit=1&saveimage=1&toolbarbg=f1f3f6&theme=dark&style=1&timezone=${encodeURIComponent(userTz)}&studies_overrides={}&overrides={}&enabled_features=[]&disabled_features=[]&locale=en`}
             className="w-full h-full border-none"
             allowFullScreen
           />

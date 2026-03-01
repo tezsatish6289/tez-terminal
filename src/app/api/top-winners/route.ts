@@ -58,14 +58,13 @@ export async function GET() {
 
     const snapshot = await getDocs(collection(firestore, "signals"));
 
-    const signals = snapshot.docs
-      .map((d) => ({ id: d.id, ...d.data() })) as any[];
+    const signals = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
 
     const now = Date.now();
     const bestByTfAndDir: Record<string, Record<string, Winner>> = {};
 
     for (const s of signals) {
-      if (s.asset_type !== "CRYPTO") continue;
+      if (s.assetType !== "CRYPTO" && s.asset_type !== "CRYPTO") continue;
 
       const tf = String(s.timeframe || "");
       if (!TIMEFRAME_IDS.includes(tf)) continue;

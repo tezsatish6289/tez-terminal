@@ -256,18 +256,12 @@ export default function DeepDiveChartPage() {
                     </Button>
                   ))}
                 </div>
-                <Button asChild size="sm" className="w-full font-bold text-xs uppercase tracking-wide border rounded-lg h-9 gap-2 bg-white/[0.03] text-foreground/60 border-white/10 hover:bg-white/[0.06]">
-                  <a href={tradingViewUrl} target="_blank" rel="noopener noreferrer">
-                    <TradingViewIcon className="h-4 w-4" />
-                    View on TradingView
-                  </a>
-                </Button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Right: Chart(s) + BTC toggle */}
+        {/* Right: Chart(s) + controls */}
         <div className="flex-1 bg-background flex flex-col overflow-hidden">
           <div className="flex-1 min-h-0 flex flex-col" style={leftHeight ? { maxHeight: `${leftHeight}px` } : undefined}>
             <div className={cn("min-h-0", showBtc ? "h-1/2" : "flex-1")}>
@@ -279,9 +273,25 @@ export default function DeepDiveChartPage() {
               </div>
             )}
           </div>
-          <div className="px-4 py-2 border-t border-white/5 flex items-center justify-center gap-2.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">BTC Reference</span>
-            <Switch checked={showBtc} onCheckedChange={setShowBtc} className="data-[state=checked]:bg-accent" />
+          <div className="px-4 py-2.5 border-t border-white/5 flex items-center justify-between gap-3">
+            <button
+              onClick={() => setShowBtc(!showBtc)}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all",
+                showBtc
+                  ? "border-accent/30 bg-accent/10 text-accent"
+                  : "border-white/10 bg-white/[0.03] text-muted-foreground/50 hover:bg-white/[0.06] hover:text-muted-foreground"
+              )}
+            >
+              <Switch checked={showBtc} onCheckedChange={setShowBtc} className="data-[state=checked]:bg-accent scale-75" />
+              Compare with BTC
+            </button>
+            <Button asChild size="sm" className="font-bold text-[10px] uppercase tracking-wider border rounded-lg h-8 gap-2 px-4 border-white/10 bg-white/[0.03] text-muted-foreground/50 hover:bg-white/[0.06] hover:text-muted-foreground">
+              <a href={tradingViewUrl} target="_blank" rel="noopener noreferrer">
+                <TradingViewIcon className="h-3.5 w-3.5" />
+                View on TradingView
+              </a>
+            </Button>
           </div>
         </div>
       </div>

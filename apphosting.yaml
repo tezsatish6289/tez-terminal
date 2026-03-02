@@ -2,7 +2,7 @@
 runConfig:
   maxInstances: 3
   minInstances: 1
-  memoryMiB: 512
+  memoryMiB: 1024
   timeoutSeconds: 60
 
 env:

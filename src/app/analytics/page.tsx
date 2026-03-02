@@ -94,11 +94,20 @@ export default function AnalyticsPage() {
     { id: "D", name: "Buy & Hold", chart: "1D" },
   ];
 
-  type SideStats = { count: number; winCount: number; netPnl: number; profit: { count: number; max: number; median: number; avg: number }; loss: { count: number; max: number; median: number; avg: number } };
+  type SideStats = {
+    count: number; winCount: number; netPnl: number;
+    tp1Count: number; tp2Count: number; tp3Count: number; slCount: number;
+    profit: { count: number; max: number; median: number; avg: number };
+    loss: { count: number; max: number; median: number; avg: number };
+  };
 
   const computeSideStats = (sigs: any[], lev: number): SideStats => {
     const winCount = sigs.filter(s => effectivePnl(s) >= 0).length;
     const netPnl = sigs.reduce((sum, s) => sum + effectivePnl(s) * lev, 0);
+    const tp1Count = sigs.filter(s => s.tp1Hit === true).length;
+    const tp2Count = sigs.filter(s => s.tp2Hit === true).length;
+    const tp3Count = sigs.filter(s => s.tp3Hit === true).length;
+    const slCount = sigs.filter(s => s.slHitAt != null).length;
     const withUpside = sigs.filter(hasUpsideData);
     const upsideValues = withUpside.map(s => calculatePercent(s.maxUpsidePrice, s.price, s.type) * lev);
     const withDownside = sigs.filter(hasDownsideData);
@@ -107,6 +116,7 @@ export default function AnalyticsPage() {
       count: sigs.length,
       winCount,
       netPnl,
+      tp1Count, tp2Count, tp3Count, slCount,
       profit: upsideValues.length > 0
         ? { count: upsideValues.length, max: Math.max(...upsideValues), median: median(upsideValues), avg: upsideValues.reduce((a, b) => a + b, 0) / upsideValues.length }
         : { count: 0, max: 0, median: 0, avg: 0 },
@@ -225,7 +235,7 @@ export default function AnalyticsPage() {
         {aa.count === 0 && ra.count === 0 ? (
           <div className="text-[10px] text-muted-foreground/40 text-center py-3">No {label.toLowerCase()} trades</div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
             {renderMetricBlock("Trades",
               { val: aa.count, has: true },
               hasPrem ? { val: ap.count, has: true } : null,
@@ -275,6 +285,54 @@ export default function AnalyticsPage() {
               hasPrem ? { val: rp.loss.max, has: rp.loss.count > 0 } : null,
               false,
             )}
+            {/* TP/SL Hit Counts */}
+            <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3 space-y-2">
+              <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground text-center">Exits</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="text-center">
+                  <div className="text-[8px] font-bold uppercase text-emerald-400/60 mb-1 flex items-center justify-center gap-1"><Zap className="h-2.5 w-2.5" />Active</div>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[8px] font-bold text-positive/60 uppercase">TP1</span>
+                      <span className="text-xs font-black font-mono text-positive">{aa.tp1Count}</span>
+                    </div>
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[8px] font-bold text-positive/60 uppercase">TP2</span>
+                      <span className="text-xs font-black font-mono text-positive">{aa.tp2Count}</span>
+                    </div>
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[8px] font-bold text-positive/60 uppercase">TP3</span>
+                      <span className="text-xs font-black font-mono text-positive">{aa.tp3Count}</span>
+                    </div>
+                    <div className="flex items-center justify-between px-1 border-t border-white/5 pt-1">
+                      <span className="text-[8px] font-bold text-negative/60 uppercase">SL</span>
+                      <span className="text-xs font-black font-mono text-negative">{aa.slCount}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-center border-l border-white/5">
+                  <div className="text-[8px] font-bold uppercase text-amber-400/60 mb-1 flex items-center justify-center gap-1"><Clock className="h-2.5 w-2.5" />Retired</div>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[8px] font-bold text-positive/60 uppercase">TP1</span>
+                      <span className="text-xs font-black font-mono text-positive">{ra.tp1Count}</span>
+                    </div>
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[8px] font-bold text-positive/60 uppercase">TP2</span>
+                      <span className="text-xs font-black font-mono text-positive">{ra.tp2Count}</span>
+                    </div>
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[8px] font-bold text-positive/60 uppercase">TP3</span>
+                      <span className="text-xs font-black font-mono text-positive">{ra.tp3Count}</span>
+                    </div>
+                    <div className="flex items-center justify-between px-1 border-t border-white/5 pt-1">
+                      <span className="text-[8px] font-bold text-negative/60 uppercase">SL</span>
+                      <span className="text-xs font-black font-mono text-negative">{ra.slCount}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

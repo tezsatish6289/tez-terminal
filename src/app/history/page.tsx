@@ -157,6 +157,20 @@ export default function HistoryPage() {
     );
   }
 
+  if (!isAdmin) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <Card className="max-w-md w-full border-accent/20 bg-card shadow-2xl">
+          <CardHeader className="text-center">
+            <ShieldAlert className="h-12 w-12 text-rose-400 mx-auto mb-4" />
+            <CardTitle>Access Restricted</CardTitle>
+            <CardDescription>This page is only available to administrators.</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">

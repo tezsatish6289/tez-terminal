@@ -73,6 +73,11 @@ export async function POST(request: NextRequest) {
     const rawSL = body.stopLoss;
     const stopLoss = rawSL != null && rawSL !== "" ? parseFloat(String(rawSL).trim()) : 0;
 
+    const rawTp1 = body.tp1;
+    const tp1 = rawTp1 != null && rawTp1 !== "" ? parseFloat(String(rawTp1).trim()) : null;
+    const rawTp2 = body.tp2;
+    const tp2 = rawTp2 != null && rawTp2 !== "" ? parseFloat(String(rawTp2).trim()) : null;
+
     const rawTf = String(body.timeframe ?? "15").toUpperCase().trim();
     const tfMap: Record<string, string> = {
       "1M": "1", "5M": "5", "15M": "15", "1H": "60", "4H": "240", "D": "D", "1D": "D"
@@ -125,7 +130,7 @@ export async function POST(request: NextRequest) {
     }
 
     // MANDATORY INITIALIZATION: Every signal MUST start as ACTIVE
-    const signalData = {
+    const signalData: Record<string, any> = {
       webhookId,
       receivedAt: timestamp,
       serverTimestamp: serverTimestamp(),
@@ -136,7 +141,8 @@ export async function POST(request: NextRequest) {
       type: signalType,
       status: "ACTIVE",
       price: price, 
-      stopLoss: stopLoss, 
+      stopLoss: stopLoss,
+      originalStopLoss: stopLoss,
       currentPrice: price, 
       maxUpsidePrice: price, 
       maxDrawdownPrice: price, 
@@ -145,6 +151,17 @@ export async function POST(request: NextRequest) {
       source: configData.name || "TradingView",
       aligned,
       sentimentAtEntry,
+      tp1: tp1,
+      tp2: tp2,
+      tp1Hit: false,
+      tp2Hit: false,
+      tp1HitAt: null,
+      tp2HitAt: null,
+      slHitAt: null,
+      tp1BookedPnl: null,
+      tp2BookedPnl: null,
+      slBookedPnl: null,
+      totalBookedPnl: null,
     };
 
     await addDoc(signalsRef, signalData);

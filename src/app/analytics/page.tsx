@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useMemo, useState } from "react";
 import { getLeverage } from "@/lib/leverage";
+import { getEffectivePnl as getEffectivePnlShared } from "@/lib/pnl";
 
 export default function AnalyticsPage() {
   const { user, isUserLoading } = useUser();
@@ -46,20 +47,7 @@ export default function AnalyticsPage() {
     return (diff / entry) * 100;
   };
 
-  const didHit2x = (signal: any): boolean => {
-    const sl = signal.originalStopLoss ?? signal.stopLoss;
-    if (!sl || !signal.maxUpsidePrice) return false;
-    const risk = Math.abs(signal.price - sl);
-    if (risk === 0) return false;
-    const target = signal.type === "BUY" ? signal.price + 2 * risk : signal.price - 2 * risk;
-    return signal.type === "BUY" ? signal.maxUpsidePrice >= target : signal.maxUpsidePrice <= target;
-  };
-
-  const effectivePnl = (signal: any): number => {
-    const raw = calculatePercent(signal.currentPrice, signal.price, signal.type);
-    if (raw >= 0) return raw;
-    return didHit2x(signal) ? 0 : raw;
-  };
+  const effectivePnl = (signal: any): number => getEffectivePnlShared(signal);
 
   const median = (arr: number[]) => {
     if (arr.length === 0) return 0;
@@ -441,7 +429,7 @@ export default function AnalyticsPage() {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="min-w-[1000px]">
+            <div className="min-w-[1100px]">
               <Table>
                 <TableHeader className="bg-black/20">
                   <TableRow className="hover:bg-transparent border-white/5">
@@ -452,6 +440,7 @@ export default function AnalyticsPage() {
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Entry</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">{tableViewMode === "active" ? "Current Price" : "Exit Price"}</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">SL</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">TP1 / TP2</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Net PNL</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Aligned</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Max Excursion</TableHead>
@@ -461,7 +450,7 @@ export default function AnalyticsPage() {
                 <TableBody>
                   {tableSignals.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="h-64 text-center">
+                      <TableCell colSpan={12} className="h-64 text-center">
                         <div className="flex flex-col items-center gap-4 opacity-40">
                            <Archive className="h-12 w-12 text-muted-foreground" />
                            <div className="space-y-1">
@@ -479,8 +468,9 @@ export default function AnalyticsPage() {
                       const pnl = effectivePnl(signal) * leverage;
                       const maxUp = calculatePercent(signal.maxUpsidePrice, signal.price, signal.type) * leverage;
                       const maxDown = calculatePercent(signal.maxDrawdownPrice, signal.price, signal.type) * leverage;
-                      const slAtCost = didHit2x(signal);
                       const chartLabel = tfLabelMap[String(signal.timeframe).toUpperCase()] ?? `${signal.timeframe}m`;
+                      const hasTp = signal.tp1 != null && signal.tp2 != null;
+                      const slMovedToCost = signal.tp1Hit === true;
 
                       return (
                         <TableRow key={signal.id} className="border-white/5 hover:bg-white/[0.02] transition-colors group">
@@ -500,17 +490,31 @@ export default function AnalyticsPage() {
                           <TableCell className="font-mono text-xs font-bold text-white">${formatPrice(signal.currentPrice)}</TableCell>
                           <TableCell className="font-mono text-xs font-bold">
                             {signal.stopLoss != null && signal.stopLoss > 0 ? (
-                              slAtCost ? (
-                                <span className="text-positive" title="SL moved to cost (2x risk achieved)">${formatPrice(signal.price)}</span>
+                              slMovedToCost ? (
+                                <span className="text-positive" title="SL moved to cost (TP1 achieved)">${formatPrice(signal.price)}</span>
                               ) : (
                                 <span className="text-amber-400/90">${formatPrice(signal.stopLoss)}</span>
                               )
                             ) : "--"}
                           </TableCell>
                           <TableCell>
+                            {hasTp ? (
+                              <div className="flex items-center gap-2 text-[9px] font-bold uppercase">
+                                <span className={cn("px-1 py-0.5 rounded", signal.tp1Hit ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-muted-foreground/40")}>
+                                  TP1 {signal.tp1Hit ? "✓" : "—"}
+                                </span>
+                                <span className={cn("px-1 py-0.5 rounded", signal.tp2Hit ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-muted-foreground/40")}>
+                                  TP2 {signal.tp2Hit ? "✓" : "—"}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground/30">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
                             <div className={cn("flex items-center gap-1.5 font-mono text-xs font-black", pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
                                {pnl >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                               {pnl.toFixed(2)}%
+                               {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}%
                             </div>
                           </TableCell>
                           <TableCell>

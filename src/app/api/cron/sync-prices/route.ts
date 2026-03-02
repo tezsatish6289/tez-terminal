@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, getDocs, updateDoc, doc, addDoc } from "firebase/firestore";
+import { rawPnlPercent, calcBookedPnl } from "@/lib/pnl";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -84,38 +85,84 @@ export async function GET(request: NextRequest) {
         if (currentPrice > newMaxDrawdown) newMaxDrawdown = currentPrice;
       }
 
-      // Move SL to cost (entry) when 2x risk target is achieved
-      let effectiveSL = stopLoss;
-      if (stopLoss > 0 && !signal.slMovedToCost) {
-        const risk = Math.abs(alertPrice - stopLoss);
-        if (risk > 0) {
-          const target2x = signal.type === 'BUY' ? alertPrice + 2 * risk : alertPrice - 2 * risk;
-          const hit2x = signal.type === 'BUY' ? newMaxUpside >= target2x : newMaxUpside <= target2x;
-          if (hit2x) {
-            effectiveSL = alertPrice;
-          }
-        }
-      }
-
-      // Stop Loss Logic (uses effective SL which may be at cost)
-      let newStatus = "ACTIVE";
-      if (effectiveSL > 0) {
-        if (signal.type === 'BUY' && currentPrice <= effectiveSL) newStatus = "INACTIVE";
-        else if (signal.type === 'SELL' && currentPrice >= effectiveSL) newStatus = "INACTIVE";
-      }
-
       const updateData: Record<string, any> = {
         currentPrice: currentPrice,
         maxUpsidePrice: newMaxUpside,
         maxDrawdownPrice: newMaxDrawdown,
-        status: newStatus,
         lastSyncAt: new Date().toISOString()
       };
-      if (effectiveSL !== stopLoss) {
-        updateData.stopLoss = effectiveSL;
-        updateData.originalStopLoss = stopLoss;
-        updateData.slMovedToCost = true;
+
+      const tp1 = signal.tp1 != null ? Number(signal.tp1) : null;
+      const tp2 = signal.tp2 != null ? Number(signal.tp2) : null;
+      const isBuy = signal.type === "BUY";
+      const nowISO = new Date().toISOString();
+      let newStatus = "ACTIVE";
+
+      if (tp1 != null && tp2 != null) {
+        // ── TP1/TP2 Exit Strategy ──
+        const tp1AlreadyHit = signal.tp1Hit === true;
+        const tp2AlreadyHit = signal.tp2Hit === true;
+
+        // Check TP1
+        if (!tp1AlreadyHit) {
+          const hitTp1 = isBuy ? currentPrice >= tp1 : currentPrice <= tp1;
+          if (hitTp1) {
+            updateData.tp1Hit = true;
+            updateData.tp1HitAt = nowISO;
+            updateData.tp1BookedPnl = calcBookedPnl(tp1, alertPrice, signal.type, 0.5);
+            updateData.stopLoss = alertPrice;
+            updateData.originalStopLoss = stopLoss;
+          }
+        }
+
+        // Check TP2 (only if TP1 already hit — either previously or just now)
+        const tp1IsHit = tp1AlreadyHit || updateData.tp1Hit === true;
+        if (tp1IsHit && !tp2AlreadyHit) {
+          const hitTp2 = isBuy ? currentPrice >= tp2 : currentPrice <= tp2;
+          if (hitTp2) {
+            const tp1Pnl = signal.tp1BookedPnl ?? updateData.tp1BookedPnl ?? 0;
+            updateData.tp2Hit = true;
+            updateData.tp2HitAt = nowISO;
+            updateData.tp2BookedPnl = calcBookedPnl(tp2, alertPrice, signal.type, 0.5);
+            updateData.totalBookedPnl = tp1Pnl + updateData.tp2BookedPnl;
+            newStatus = "INACTIVE";
+          }
+        }
+
+        // Check SL (uses effective SL — moved to cost after tp1, otherwise original)
+        if (newStatus === "ACTIVE") {
+          const effectiveSL = (tp1IsHit) ? alertPrice : stopLoss;
+          if (effectiveSL > 0) {
+            const hitSL = isBuy ? currentPrice <= effectiveSL : currentPrice >= effectiveSL;
+            if (hitSL) {
+              const tp1Pnl = signal.tp1BookedPnl ?? updateData.tp1BookedPnl ?? 0;
+              updateData.slHitAt = nowISO;
+              if (tp1IsHit) {
+                updateData.slBookedPnl = 0;
+                updateData.totalBookedPnl = tp1Pnl;
+              } else {
+                const slLoss = rawPnlPercent(effectiveSL, alertPrice, signal.type);
+                updateData.slBookedPnl = slLoss;
+                updateData.totalBookedPnl = slLoss;
+              }
+              newStatus = "INACTIVE";
+            }
+          }
+        }
+      } else {
+        // ── Fallback: no tp1/tp2 on signal ──
+        if (stopLoss > 0) {
+          const hitSL = isBuy ? currentPrice <= stopLoss : currentPrice >= stopLoss;
+          if (hitSL) {
+            updateData.slHitAt = nowISO;
+            updateData.slBookedPnl = rawPnlPercent(stopLoss, alertPrice, signal.type);
+            updateData.totalBookedPnl = updateData.slBookedPnl;
+            newStatus = "INACTIVE";
+          }
+        }
       }
+
+      updateData.status = newStatus;
 
       await updateDoc(doc(firestore, "signals", signalDoc.id), updateData);
       updateCount++;

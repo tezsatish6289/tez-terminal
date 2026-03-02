@@ -21,6 +21,7 @@ import { useEffect, useRef, useState } from "react";
 import { format, differenceInMinutes } from "date-fns";
 import { getLeverage } from "@/lib/leverage";
 import { Switch } from "@/components/ui/switch";
+import { getEffectivePnl } from "@/lib/pnl";
 
 /**
  * Deep Dive Analysis Page.
@@ -89,12 +90,14 @@ export default function DeepDiveChartPage() {
   }
 
   const isBullish = signal?.type === "BUY";
-  const livePnl = calculatePercent(signal?.currentPrice, signal?.price, signal?.type || "BUY");
   const leverage = getLeverage(signal?.timeframe);
-  const leveragedPnl = (Number(livePnl) * leverage).toFixed(2);
+  const effectivePnlVal = signal ? getEffectivePnl(signal) : 0;
+  const leveragedPnl = (effectivePnlVal * leverage).toFixed(2);
   const maxUpPnl = (Number(calculatePercent(signal?.maxUpsidePrice, signal?.price, signal?.type || "BUY")) * leverage).toFixed(2);
   const maxDownPnl = (Number(calculatePercent(signal?.maxDrawdownPrice, signal?.price, signal?.type || "BUY")) * leverage).toFixed(2);
   const hasStopLoss = signal?.stopLoss != null && signal?.stopLoss > 0;
+  const hasTp = signal?.tp1 != null && signal?.tp2 != null;
+  const pnlLabel = signal?.totalBookedPnl != null ? "Booked PnL" : signal?.tp1Hit ? "Partial + Live" : "Live PnL";
   
   const tradingViewUrl = `https://www.tradingview.com/chart/?symbol=${signal?.exchange || 'BINANCE'}:${signal?.symbol}&interval=${signal?.timeframe || '15'}`;
 
@@ -154,7 +157,7 @@ export default function DeepDiveChartPage() {
 
               {/* Hero PnL */}
               <div className="px-6 py-5 text-center border-b border-white/5">
-                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40 block mb-1">Live PnL · {leverage}x Leverage</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40 block mb-1">{pnlLabel} · {leverage}x Leverage</span>
                 <span className={cn("text-4xl font-black font-mono", Number(leveragedPnl) >= 0 ? "text-positive" : "text-negative")}>
                   {Number(leveragedPnl) >= 0 ? "+" : ""}{leveragedPnl}%
                 </span>
@@ -173,6 +176,36 @@ export default function DeepDiveChartPage() {
                     <span className={cn("text-sm font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>${formatPrice(signal?.currentPrice)}</span>
                   </div>
                 </div>
+
+                {/* TP1/TP2 targets */}
+                {hasTp && (
+                  <div className="space-y-2">
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30 block">Targets</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className={cn("px-3 py-2 rounded-lg border", signal?.tp1Hit ? "border-positive/20 bg-positive/5" : "border-white/5 bg-white/[0.02]")}>
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">TP1</span>
+                        <span className="text-sm font-mono font-bold">${formatPrice(signal?.tp1)}</span>
+                        <span className={cn("text-[9px] font-bold uppercase block mt-0.5", signal?.tp1Hit ? "text-positive" : "text-muted-foreground/30")}>
+                          {signal?.tp1Hit ? `✓ Hit · +${(signal?.tp1BookedPnl ?? 0).toFixed(2)}%` : "Pending"}
+                        </span>
+                      </div>
+                      <div className={cn("px-3 py-2 rounded-lg border", signal?.tp2Hit ? "border-positive/20 bg-positive/5" : "border-white/5 bg-white/[0.02]")}>
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">TP2</span>
+                        <span className="text-sm font-mono font-bold">${formatPrice(signal?.tp2)}</span>
+                        <span className={cn("text-[9px] font-bold uppercase block mt-0.5", signal?.tp2Hit ? "text-positive" : "text-muted-foreground/30")}>
+                          {signal?.tp2Hit ? `✓ Hit · +${(signal?.tp2BookedPnl ?? 0).toFixed(2)}%` : "Pending"}
+                        </span>
+                      </div>
+                    </div>
+                    {signal?.slHitAt && !signal?.tp2Hit && (
+                      <div className="px-3 py-2 rounded-lg border border-negative/20 bg-negative/5 text-center">
+                        <span className="text-[9px] font-bold uppercase text-negative">
+                          {signal?.tp1Hit ? "SL hit at cost — remaining closed at breakeven" : "SL hit — trade closed"}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Excursion bars */}
                 <div className="space-y-2">

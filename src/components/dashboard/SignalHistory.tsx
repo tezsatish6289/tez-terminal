@@ -26,6 +26,7 @@ import { useCollection, useUser, useFirestore, useMemoFirebase } from "@/firebas
 import { collection, query, limit, orderBy } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { getLeverage, getLeverageLabel } from "@/lib/leverage";
+import { getEffectivePnl as getEffectivePnlShared } from "@/lib/pnl";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -142,19 +143,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
     return ((diff / entry) * 100).toFixed(2);
   };
 
-  const didHit2x = (signal: any): boolean => {
-    if (!signal.stopLoss || !signal.maxUpsidePrice) return false;
-    const risk = Math.abs(signal.price - signal.stopLoss);
-    if (risk === 0) return false;
-    const target = signal.type === "BUY" ? signal.price + 2 * risk : signal.price - 2 * risk;
-    return signal.type === "BUY" ? signal.maxUpsidePrice >= target : signal.maxUpsidePrice <= target;
-  };
-
-  const getEffectivePnl = (signal: any): number => {
-    const raw = Number(calculatePercent(signal.currentPrice, signal.price, signal.type));
-    if (raw >= 0) return raw;
-    return didHit2x(signal) ? 0 : raw;
-  };
+  const getEffectivePnl = (signal: any): number => getEffectivePnlShared(signal);
 
   const filteredSignals = useMemo(() => {
     if (!rawSignals) return [];
@@ -343,16 +332,13 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                       </div>
                     ) : (
                       categorySignals.map((signal) => {
-                        const alertPrice = Number(signal.price || 0);
-                        const hasCurrentPrice = signal.currentPrice != null && signal.currentPrice !== "";
-                        const currentPrice = hasCurrentPrice ? Number(signal.currentPrice) : alertPrice;
-                        const rawPnl = calculatePercent(currentPrice, alertPrice, signal.type);
-                        const slAtCost = didHit2x(signal);
-                        const livePnl = (Number(rawPnl) < 0 && slAtCost) ? "0.00" : rawPnl;
+                        const effectivePnlVal = getEffectivePnl(signal);
                         const leverage = getLeverage(signal.timeframe);
-                        const leveragedPnl = (Number(livePnl) * leverage).toFixed(2);
+                        const leveragedPnl = (effectivePnlVal * leverage).toFixed(2);
                         const isBullish = signal.type === 'BUY';
                         const tfName = ({ "5": "Scalping", "15": "Intraday", "60": "BTST", "240": "Swing", "D": "Buy & Hold" } as Record<string, string>)[signal.timeframe] || signal.timeframe;
+                        const hasTp = signal.tp1 != null && signal.tp2 != null;
+                        const pnlLabel = signal.totalBookedPnl != null ? "Booked PnL" : signal.tp1Hit ? "Partial + Live" : "Live PnL";
 
                         return (
                           <div
@@ -385,7 +371,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                               )}>
                                 {Number(leveragedPnl) >= 0 ? "+" : ""}{leveragedPnl}%
                               </span>
-                              <span className="text-[10px] font-bold text-muted-foreground uppercase">Live PnL</span>
+                              <span className="text-[10px] font-bold text-muted-foreground uppercase">{pnlLabel}</span>
                             </div>
 
                             <div className="flex items-center gap-2">
@@ -402,6 +388,20 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                                 {leverage}x
                               </span>
                             </div>
+
+                            {hasTp && (
+                              <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-wider">
+                                <span className={cn("px-1.5 py-0.5 rounded", signal.tp1Hit ? "bg-positive/20 text-positive" : "bg-white/5 text-muted-foreground/40")}>
+                                  TP1 {signal.tp1Hit ? "✓" : "—"}
+                                </span>
+                                <span className={cn("px-1.5 py-0.5 rounded", signal.tp2Hit ? "bg-positive/20 text-positive" : "bg-white/5 text-muted-foreground/40")}>
+                                  TP2 {signal.tp2Hit ? "✓" : "—"}
+                                </span>
+                                {signal.slHitAt && (
+                                  <span className="px-1.5 py-0.5 rounded bg-negative/20 text-negative">SL ✗</span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })

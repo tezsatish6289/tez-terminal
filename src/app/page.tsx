@@ -18,6 +18,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { getLeverage, getLeverageLabel } from "@/lib/leverage";
 import { computeSentiment, type SignalForSentiment } from "@/lib/sentiment";
+import { getEffectivePnl as getEffectivePnlShared } from "@/lib/pnl";
 
 const OPPORTUNITY_CATEGORIES = [
   { id: "5", name: "Scalping", chart: "5 min", windowHours: 24, windowLabel: "in 24h", leverage: "10x" },
@@ -47,19 +48,8 @@ function calculatePercent(currentPrice: number | undefined | null, entry: number
   return (diff / entry) * 100;
 }
 
-function hit2xTarget(signal: { price: number; stopLoss: number | null; maxUpsidePrice: number | null; type: string }): boolean {
-  if (!signal.stopLoss || !signal.maxUpsidePrice) return false;
-  const risk = Math.abs(signal.price - signal.stopLoss);
-  if (risk === 0) return false;
-  const target = signal.type === "BUY" ? signal.price + 2 * risk : signal.price - 2 * risk;
-  return signal.type === "BUY" ? signal.maxUpsidePrice >= target : signal.maxUpsidePrice <= target;
-}
-
-function effectivePnl(signal: { price: number; stopLoss: number | null; maxUpsidePrice: number | null; currentPrice: number | null; type: string }): number {
-  const raw = calculatePercent(signal.currentPrice, signal.price, signal.type);
-  if (raw >= 0) return raw;
-  if (hit2xTarget(signal)) return 0;
-  return raw;
+function effectivePnl(signal: any): number {
+  return getEffectivePnlShared(signal);
 }
 
 
@@ -75,6 +65,14 @@ interface WinnerSignal {
   stopLoss: number | null;
   receivedAt: string;
   timeframe: string;
+  tp1?: number | null;
+  tp2?: number | null;
+  tp1Hit?: boolean;
+  tp2Hit?: boolean;
+  tp1BookedPnl?: number | null;
+  tp2BookedPnl?: number | null;
+  totalBookedPnl?: number | null;
+  slHitAt?: string | null;
 }
 
 function formatNarrationPrice(price: number | null | undefined): string {
@@ -92,12 +90,15 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
   const directionLabel = isBullish ? "LONG" : "SHORT";
   const maxUpPnl = calculatePercent(signal.maxUpsidePrice, signal.price, signal.type);
   const maxDownPnl = calculatePercent(signal.maxDrawdownPrice, signal.price, signal.type);
-  const leveragedPnl = signal.pnl * leverage;
+  const pnlVal = effectivePnl(signal);
+  const leveragedPnl = pnlVal * leverage;
   const slDistance = signal.stopLoss ? calculatePercent(signal.stopLoss, signal.price, signal.type) : null;
 
   const hasMaxUpside = signal.maxUpsidePrice != null && signal.maxUpsidePrice > 0;
   const hasMaxDrawdown = signal.maxDrawdownPrice != null && signal.maxDrawdownPrice > 0;
   const hasStopLoss = signal.stopLoss != null && signal.stopLoss > 0;
+  const hasTp = signal.tp1 != null && signal.tp2 != null;
+  const pnlLabel = signal.totalBookedPnl != null ? "Booked PNL" : signal.tp1Hit ? "Partial + Live" : "Live PNL";
 
   let entryDate = "";
   try { entryDate = format(new Date(signal.receivedAt), "MMM dd, h:mm a"); } catch { entryDate = "—"; }
@@ -107,6 +108,8 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
       ? signal.maxDrawdownPrice! <= signal.stopLoss!
       : signal.maxDrawdownPrice! >= signal.stopLoss!
   );
+
+  let stepNum = 1;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -142,16 +145,37 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
               </div>
               <div className="space-y-1 text-right">
                 <p className="text-[10px] font-bold text-accent uppercase tracking-widest">Current Price</p>
-                <p className={cn("text-lg font-mono font-black", signal.pnl >= 0 ? "text-positive" : "text-negative")}>
+                <p className={cn("text-lg font-mono font-black", pnlVal >= 0 ? "text-positive" : "text-negative")}>
                   ${formatNarrationPrice(signal.currentPrice)}
                 </p>
               </div>
             </div>
 
+            {hasTp && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03]">
+                  <span className="text-[9px] uppercase font-black text-muted-foreground/60 tracking-widest">TP1</span>
+                  <span className="text-sm font-mono font-bold">${formatNarrationPrice(signal.tp1)}</span>
+                  <span className={cn("text-[9px] font-bold uppercase", signal.tp1Hit ? "text-positive" : "text-muted-foreground/40")}>
+                    {signal.tp1Hit ? "✓ Hit" : "Pending"}
+                    {signal.tp1BookedPnl != null && ` (+${signal.tp1BookedPnl.toFixed(2)}%)`}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03]">
+                  <span className="text-[9px] uppercase font-black text-muted-foreground/60 tracking-widest">TP2</span>
+                  <span className="text-sm font-mono font-bold">${formatNarrationPrice(signal.tp2)}</span>
+                  <span className={cn("text-[9px] font-bold uppercase", signal.tp2Hit ? "text-positive" : "text-muted-foreground/40")}>
+                    {signal.tp2Hit ? "✓ Hit" : "Pending"}
+                    {signal.tp2BookedPnl != null && ` (+${signal.tp2BookedPnl.toFixed(2)}%)`}
+                  </span>
+                </div>
+              </div>
+            )}
+
             <div className="rounded-xl border border-accent/15 bg-accent/[0.03] p-3 space-y-3">
               <span className="text-[9px] uppercase font-black tracking-widest text-accent block text-center">Returns at {leverage}x Leverage</span>
               <div className="rounded-lg border bg-white/5 border-white/10 px-4 py-2.5 flex items-center justify-between">
-                <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Live PNL</span>
+                <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">{pnlLabel}</span>
                 <span className={cn("text-xl font-mono font-black", leveragedPnl >= 0 ? "text-positive" : "text-negative")}>
                   {leveragedPnl >= 0 ? "+" : ""}{leveragedPnl.toFixed(2)}%
                 </span>
@@ -189,9 +213,10 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
             </div>
 
             <div className="space-y-4">
+              {/* Step 1: The Call */}
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <div className="h-5 w-5 rounded-full bg-amber-400/10 flex items-center justify-center text-[9px] font-black text-amber-400/70">1</div>
+                  <div className="h-5 w-5 rounded-full bg-amber-400/10 flex items-center justify-center text-[9px] font-black text-amber-400/70">{stepNum++}</div>
                   <span className="text-[10px] font-black uppercase tracking-wider text-amber-400/70">The Call</span>
                 </div>
                 <p className="text-sm text-muted-foreground leading-relaxed pl-7">
@@ -199,12 +224,17 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
                   <span className="font-bold text-foreground">{signal.symbol}</span> at{" "}
                   <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.price)}</span> on{" "}
                   <span className="font-bold text-foreground">{entryDate}</span>.
+                  {hasTp && (
+                    <> Targets set at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.tp1)}</span> (TP1)
+                    {" "}and <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.tp2)}</span> (TP2).</>
+                  )}
                 </p>
               </div>
 
+              {/* Step 2: The Journey */}
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <div className="h-5 w-5 rounded-full bg-amber-400/10 flex items-center justify-center text-[9px] font-black text-amber-400/70">2</div>
+                  <div className="h-5 w-5 rounded-full bg-amber-400/10 flex items-center justify-center text-[9px] font-black text-amber-400/70">{stepNum++}</div>
                   <span className="text-[10px] font-black uppercase tracking-wider text-amber-400/70">The Journey</span>
                 </div>
                 <p className="text-sm text-muted-foreground leading-relaxed pl-7">
@@ -223,10 +253,40 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
                 </p>
               </div>
 
-              {hasStopLoss && (
+              {/* Step 3: Strategy Execution (only for tp1/tp2 trades) */}
+              {hasTp && (
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
-                    <div className="h-5 w-5 rounded-full bg-amber-400/10 flex items-center justify-center text-[9px] font-black text-amber-400/70">3</div>
+                    <div className="h-5 w-5 rounded-full bg-amber-400/10 flex items-center justify-center text-[9px] font-black text-amber-400/70">{stepNum++}</div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-400/70">Strategy Execution</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed pl-7">
+                    {signal.tp1Hit ? (
+                      <>TP1 at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.tp1)}</span> was hit — 50% booked at{" "}
+                      <span className="font-mono font-bold text-positive">+{(signal.tp1BookedPnl ?? 0).toFixed(2)}%</span>, stop loss moved to entry.{" "}
+                      {signal.tp2Hit ? (
+                        <>TP2 at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.tp2)}</span> was also hit — remaining 50% booked at{" "}
+                        <span className="font-mono font-bold text-positive">+{(signal.tp2BookedPnl ?? 0).toFixed(2)}%</span>. Trade fully closed.</>
+                      ) : signal.slHitAt ? (
+                        <>Remaining position was stopped out at cost (breakeven). No additional loss.</>
+                      ) : (
+                        <>Remaining 50% still running with stop at entry (risk-free).</>
+                      )}</>
+                    ) : signal.slHitAt ? (
+                      <>TP1 was not reached. Stop loss was triggered — trade closed with a loss of{" "}
+                      <span className="font-mono font-bold text-negative">{(signal.totalBookedPnl ?? pnlVal).toFixed(2)}%</span>.</>
+                    ) : (
+                      <>Both targets are still pending. Stop loss at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.stopLoss)}</span> is protecting the position.</>
+                    )}
+                  </p>
+                </div>
+              )}
+
+              {/* Risk Discipline (non-tp strategy or always) */}
+              {hasStopLoss && !hasTp && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="h-5 w-5 rounded-full bg-amber-400/10 flex items-center justify-center text-[9px] font-black text-amber-400/70">{stepNum++}</div>
                     <span className="text-[10px] font-black uppercase tracking-wider text-amber-400/70">Risk Discipline</span>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed pl-7">
@@ -237,16 +297,24 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
                 </div>
               )}
 
+              {/* The Result */}
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <div className="h-5 w-5 rounded-full bg-amber-400/10 flex items-center justify-center text-[9px] font-black text-amber-400/70">{hasStopLoss ? "4" : "3"}</div>
+                  <div className="h-5 w-5 rounded-full bg-amber-400/10 flex items-center justify-center text-[9px] font-black text-amber-400/70">{stepNum}</div>
                   <span className="text-[10px] font-black uppercase tracking-wider text-amber-400/70">The Result</span>
                 </div>
                 <p className="text-sm text-muted-foreground leading-relaxed pl-7">
-                  Currently trading at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.currentPrice)}</span>, delivering{" "}
-                  <span className={cn("font-mono font-black text-base", leveragedPnl >= 0 ? "text-positive" : "text-negative")}>
-                    {leveragedPnl >= 0 ? "+" : ""}{leveragedPnl.toFixed(2)}%
-                  </span>{" "}returns at <span className="font-bold text-accent">{leverage}x</span> leverage.
+                  {signal.totalBookedPnl != null ? (
+                    <>Trade closed with a total booked return of{" "}
+                    <span className={cn("font-mono font-black text-base", leveragedPnl >= 0 ? "text-positive" : "text-negative")}>
+                      {leveragedPnl >= 0 ? "+" : ""}{leveragedPnl.toFixed(2)}%
+                    </span>{" "}at <span className="font-bold text-accent">{leverage}x</span> leverage.</>
+                  ) : (
+                    <>Currently trading at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.currentPrice)}</span>, delivering{" "}
+                    <span className={cn("font-mono font-black text-base", leveragedPnl >= 0 ? "text-positive" : "text-negative")}>
+                      {leveragedPnl >= 0 ? "+" : ""}{leveragedPnl.toFixed(2)}%
+                    </span>{" "}returns at <span className="font-bold text-accent">{leverage}x</span> leverage.</>
+                  )}
                 </p>
               </div>
             </div>
@@ -698,9 +766,9 @@ export default function Home() {
       if (!map[cat]) return;
       const signalTime = new Date(signal.receivedAt).getTime();
       if (now - signalTime > windowMs[cat]) return;
+      const pnl = effectivePnl(signal);
       const maxPnl = calculatePercent(signal.maxUpsidePrice, signal.price, signal.type);
-      if (maxPnl > 0.05) {
-        const pnl = calculatePercent(signal.currentPrice, signal.price, signal.type);
+      if (pnl > 0.05 || maxPnl > 0.05) {
         map[cat].push({
           symbol: signal.symbol || "???",
           pnl,
@@ -713,6 +781,14 @@ export default function Home() {
           stopLoss: signal.stopLoss ?? null,
           receivedAt: signal.receivedAt,
           timeframe: signal.timeframe,
+          tp1: signal.tp1 ?? null,
+          tp2: signal.tp2 ?? null,
+          tp1Hit: signal.tp1Hit ?? false,
+          tp2Hit: signal.tp2Hit ?? false,
+          tp1BookedPnl: signal.tp1BookedPnl ?? null,
+          tp2BookedPnl: signal.tp2BookedPnl ?? null,
+          totalBookedPnl: signal.totalBookedPnl ?? null,
+          slHitAt: signal.slHitAt ?? null,
         });
       }
     });

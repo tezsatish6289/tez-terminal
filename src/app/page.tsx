@@ -3,10 +3,9 @@
 import { TopBar } from "@/components/dashboard/TopBar";
 import { LandingPage } from "@/components/landing/LandingPage";
 import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, limit, doc, getDoc } from "firebase/firestore";
+import { collection, query, orderBy, limit } from "firebase/firestore";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Zap, Loader2, Chrome, TrendingUp, TrendingDown, Shield, Trophy, Crown } from "lucide-react";
-import { useTradeAlerts } from "@/hooks/use-trade-alerts";
+import { Zap, Loader2, Chrome, TrendingUp, TrendingDown, Shield, Trophy } from "lucide-react";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
@@ -17,7 +16,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { getLeverage, getLeverageLabel } from "@/lib/leverage";
-import { computeSentiment, type SignalForSentiment } from "@/lib/sentiment";
 import { getEffectivePnl as getEffectivePnlShared } from "@/lib/pnl";
 
 const OPPORTUNITY_CATEGORIES = [
@@ -354,15 +352,11 @@ function WinnersTicker({ winners, windowLabel, leverage, onSelect }: { winners: 
   const winner = winners[activeIndex];
   const isBuy = winner.type === "BUY";
   const isRetired = winner.status === "INACTIVE";
-  const tpBadges = winner.tp1 != null ? [
-    ...(winner.tp1Hit ? ["TP1"] : []),
-    ...(winner.tp2Hit ? ["TP2"] : []),
-    ...(winner.tp3Hit ? ["TP3"] : []),
-  ] : [];
+  const hasTp = winner.tp1 != null;
 
   return (
     <div>
-      <span className="text-[9px] font-bold uppercase tracking-widest text-amber-400/50">Top winner · {windowLabel}</span>
+      <span className="text-[9px] font-bold uppercase tracking-widest text-amber-400/50">Top Winners · {windowLabel}</span>
       <button
         onClick={(e) => { e.preventDefault(); onSelect(winner); }}
         className="w-full flex items-center justify-between mt-0.5 hover:bg-amber-500/[0.05] rounded-md px-1 py-0.5 transition-colors cursor-pointer"
@@ -371,8 +365,16 @@ function WinnersTicker({ winners, windowLabel, leverage, onSelect }: { winners: 
           <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />
           <span className={cn("text-sm font-black shrink-0", isBuy ? "text-positive" : "text-negative")}>{isBuy ? "▲" : "▼"}</span>
           <span className="text-sm font-black text-foreground uppercase tracking-wider truncate">{winner.symbol}</span>
-          {tpBadges.length > 0 && (
-            <span className="text-[8px] font-black text-positive/80 shrink-0">{tpBadges.join("·")}</span>
+          {hasTp && (
+            <span className="text-[9px] font-bold shrink-0">
+              {([
+                { hit: winner.tp1Hit, label: "TP1" },
+                { hit: winner.tp2Hit, label: "TP2" },
+                { hit: winner.tp3Hit, label: "TP3" },
+              ]).filter(tp => tp.hit).map((tp, i) => (
+                <span key={tp.label}><span className="text-positive">✓</span><span className="text-positive/60">{tp.label}</span>{i < [winner.tp1Hit, winner.tp2Hit, winner.tp3Hit].filter(Boolean).length - 1 ? <span className="text-muted-foreground/20"> </span> : null}</span>
+              ))}
+            </span>
           )}
           {isRetired && <span className="text-[8px] font-black text-muted-foreground/40 shrink-0">CLOSED</span>}
         </div>
@@ -472,44 +474,26 @@ function SideBarRow({ label, count, maxCount, href, color }: { label: string; co
   );
 }
 
-function sentimentPosition(label: string): number {
-  const map: Record<string, number> = {
-    "Bulls in control": 85,
-    "Bulls taking over": 72,
-    "Both winning": 50,
-    "Choppy market": 50,
-    "No clear trend": 50,
-    "Bears taking over": 28,
-    "Bears in control": 15,
-  };
-  return map[label] ?? 50;
-}
-
-function OpportunityCard({ cat, activeCounts, signalIds, sentimentByTimeframe, topWinners, onSelectWinner, freshSignal, premiumMode }: {
+function OpportunityCard({ cat, activeCounts, signalIds, topWinners, onSelectWinner, freshSignal }: {
   cat: typeof OPPORTUNITY_CATEGORIES[number];
   activeCounts: Record<string, Record<SideKey, Record<StatusKey, number>>>;
   signalIds: Record<string, Record<SideKey, Record<StatusKey, string[]>>>;
-  sentimentByTimeframe: Record<string, ReturnType<typeof computeSentiment>>;
   topWinners: Record<string, WinnerSignal[]>;
   onSelectWinner: (w: WinnerSignal) => void;
   freshSignal?: { id: string; ticker: string; type: string; receivedAt: string } | null;
-  premiumMode?: boolean;
 }) {
   const c = activeCounts[cat.id] ?? { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
   const ids = signalIds[cat.id] ?? { BUY: { working: [], "not-working": [], neutral: [] }, SELL: { working: [], "not-working": [], neutral: [] } };
-  const sentiment = sentimentByTimeframe[cat.id] ?? { label: "No clear trend", color: "text-muted-foreground" };
-  const alignedParam = premiumMode ? "&aligned=true" : "";
   const boxHref = (side: SideKey, status: StatusKey) => {
     const arr = ids[side][status];
     if (arr.length === 1) return `/chart/${arr[0]}`;
-    return `/terminal?timeframe=${cat.id}&side=${side}&status=${status}${alignedParam}`;
+    return `/terminal?timeframe=${cat.id}&side=${side}&status=${status}`;
   };
 
   const bullTotal = c.BUY.working + c.BUY["not-working"] + c.BUY.neutral;
   const bearTotal = c.SELL.working + c.SELL["not-working"] + c.SELL.neutral;
   const bullMax = Math.max(c.BUY.working, c.BUY["not-working"], c.BUY.neutral, 1);
   const bearMax = Math.max(c.SELL.working, c.SELL["not-working"], c.SELL.neutral, 1);
-  const mPos = sentimentPosition(sentiment.label);
 
   return (
     <Card className="bg-gradient-to-b from-[#141416] to-[#101012] border-white/5 shadow-2xl shadow-accent/5 overflow-hidden rounded-2xl transition-all duration-200 hover:translate-y-[-2px] hover:shadow-accent/10">
@@ -532,24 +516,6 @@ function OpportunityCard({ cat, activeCounts, signalIds, sentimentByTimeframe, t
             <span className="text-accent/70">{formatTimeAgo(freshSignal.receivedAt)}</span>
           </Link>
         )}
-      </div>
-
-      {/* Momentum bar */}
-      <div className="px-6 py-3 border-b border-white/5 space-y-1.5">
-        <div className="relative h-2 rounded-full overflow-hidden bg-gradient-to-r from-negative/25 via-white/5 to-positive/25">
-          <div
-            className="absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 rounded-full border-2 border-white/80 shadow-lg transition-all duration-700"
-            style={{
-              left: `calc(${mPos}% - 7px)`,
-              backgroundColor: mPos > 60 ? "var(--positive)" : mPos < 40 ? "var(--negative)" : "var(--muted-foreground)",
-            }}
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-[9px] font-bold uppercase tracking-wider text-negative/50">Bears</span>
-          <span className={cn("text-[10px] font-black uppercase tracking-widest", sentiment.color)}>{sentiment.label}</span>
-          <span className="text-[9px] font-bold uppercase tracking-wider text-positive/50">Bulls</span>
-        </div>
       </div>
 
       <CardContent className="p-6 space-y-5">
@@ -594,14 +560,6 @@ export default function Home() {
   const firestore = useFirestore();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [selectedWinner, setSelectedWinner] = useState<WinnerSignal | null>(null);
-  const [premiumMode, setPremiumModeRaw] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("tez_premium_mode") === "true";
-    return false;
-  });
-  const setPremiumMode = useCallback((v: boolean) => {
-    setPremiumModeRaw(v);
-    localStorage.setItem("tez_premium_mode", String(v));
-  }, []);
   const [selectedTimeframe, setSelectedTimeframe] = useState(OPPORTUNITY_CATEGORIES[0].id);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const chipsContainerRef = useRef<HTMLDivElement>(null);
@@ -656,52 +614,10 @@ export default function Home() {
     return () => observer.disconnect();
   }, [isLoading]);
 
-  const [sentimentK, setSentimentK] = useState(7);
-  useEffect(() => {
-    if (!firestore) return;
-    getDoc(doc(firestore, "config", "sentiment"))
-      .then((snap) => {
-        if (snap.exists()) {
-          const k = snap.data()?.k;
-          if (typeof k === "number" && k > 0) setSentimentK(k);
-        }
-      })
-      .catch(() => {});
-  }, [firestore]);
-
-  const sentimentByTimeframe = useMemo(() => {
-    const result: Record<string, ReturnType<typeof computeSentiment>> = {};
-    if (!rawSignals) return result;
-
-    const signalsByTf: Record<string, SignalForSentiment[]> = {};
-    OPPORTUNITY_CATEGORIES.forEach((c) => { signalsByTf[c.id] = []; });
-
-    rawSignals.forEach((signal: any) => {
-      if (signal.status === "INACTIVE") return;
-      if (getDisplayAssetType(signal) !== "CRYPTO") return;
-      const tf = String(signal.timeframe || "").toUpperCase();
-      const cat = tf === "D" ? "D" : tf;
-      if (!signalsByTf[cat]) return;
-      signalsByTf[cat].push({
-        type: signal.type === "BUY" ? "BUY" : "SELL",
-        receivedAt: signal.receivedAt,
-        currentPrice: signal.currentPrice ?? null,
-        price: Number(signal.price || 0),
-      });
-    });
-
-    OPPORTUNITY_CATEGORIES.forEach((c) => {
-      result[c.id] = computeSentiment(signalsByTf[c.id], c.id, sentimentK);
-    });
-    return result;
-  }, [rawSignals, sentimentK]);
-
-  useTradeAlerts(rawSignals, sentimentByTimeframe);
-
   type CountsMap = Record<string, Record<SideKey, Record<StatusKey, number>>>;
   type IdsMap = Record<string, Record<SideKey, Record<StatusKey, string[]>>>;
 
-  const buildCountsAndIds = useCallback((signals: any[] | null, onlyAligned: boolean) => {
+  const buildCountsAndIds = useCallback((signals: any[] | null) => {
     const countMap: CountsMap = {};
     const idsMap: IdsMap = {};
     OPPORTUNITY_CATEGORIES.forEach((c) => {
@@ -711,7 +627,6 @@ export default function Home() {
     if (!signals) return { counts: countMap, ids: idsMap };
     signals.forEach((signal: any) => {
       if (signal.status === "INACTIVE") return;
-      if (onlyAligned && signal.aligned !== true) return;
       if (getDisplayAssetType(signal) !== "CRYPTO") return;
       const tf = String(signal.timeframe || "").toUpperCase();
       const cat = tf === "D" ? "D" : tf;
@@ -725,17 +640,15 @@ export default function Home() {
     return { counts: countMap, ids: idsMap };
   }, []);
 
-  const { counts, ids: signalIds } = useMemo(() => buildCountsAndIds(rawSignals, false), [rawSignals, buildCountsAndIds]);
-  const { counts: premiumCounts, ids: premiumSignalIds } = useMemo(() => buildCountsAndIds(rawSignals, true), [rawSignals, buildCountsAndIds]);
+  const { counts, ids: signalIds } = useMemo(() => buildCountsAndIds(rawSignals), [rawSignals, buildCountsAndIds]);
 
   const FRESHNESS_MINUTES: Record<string, number> = { "5": 5, "15": 15, "60": 60, "240": 240, "D": 1440 };
 
-  const computeLatestByTf = useCallback((signals: any[] | null, onlyAligned: boolean) => {
+  const computeLatestByTf = useCallback((signals: any[] | null) => {
     const m: Record<string, { id: string; ticker: string; type: string; receivedAt: string; ts: number }> = {};
     if (!signals) return m;
     signals.forEach((signal: any) => {
       if (signal.status === "INACTIVE") return;
-      if (onlyAligned && signal.aligned !== true) return;
       if (getDisplayAssetType(signal) !== "CRYPTO") return;
       const tf = String(signal.timeframe || "").toUpperCase();
       const cat = tf === "D" ? "D" : tf;
@@ -747,8 +660,7 @@ export default function Home() {
     return m;
   }, []);
 
-  const latestSignalByTf = useMemo(() => computeLatestByTf(rawSignals, false), [rawSignals, computeLatestByTf]);
-  const premiumLatestSignalByTf = useMemo(() => computeLatestByTf(rawSignals, true), [rawSignals, computeLatestByTf]);
+  const latestSignalByTf = useMemo(() => computeLatestByTf(rawSignals), [rawSignals, computeLatestByTf]);
 
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -769,10 +681,8 @@ export default function Home() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const freshSignals = useMemo(() => computeFreshSignals(latestSignalByTf), [latestSignalByTf, tick, computeFreshSignals]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const premiumFreshSignals = useMemo(() => computeFreshSignals(premiumLatestSignalByTf), [premiumLatestSignalByTf, tick, computeFreshSignals]);
 
-  const computeTopWinners = useCallback((signals: any[] | null, onlyAligned: boolean) => {
+  const computeTopWinners = useCallback((signals: any[] | null) => {
     const map: Record<string, WinnerSignal[]> = {};
     const windowMs: Record<string, number> = {};
     const now = Date.now();
@@ -782,7 +692,6 @@ export default function Home() {
     });
     if (!signals) return map;
     signals.forEach((signal: any) => {
-      if (onlyAligned && signal.aligned !== true) return;
       if (getDisplayAssetType(signal) !== "CRYPTO") return;
       const tf = String(signal.timeframe || "").toUpperCase();
       const cat = tf === "D" ? "D" : tf;
@@ -825,8 +734,7 @@ export default function Home() {
     return map;
   }, []);
 
-  const topWinners = useMemo(() => computeTopWinners(rawSignals, false), [rawSignals, computeTopWinners]);
-  const premiumTopWinners = useMemo(() => computeTopWinners(rawSignals, true), [rawSignals, computeTopWinners]);
+  const topWinners = useMemo(() => computeTopWinners(rawSignals), [rawSignals, computeTopWinners]);
 
   const handleGoogleLogin = async () => {
     if (auth) {
@@ -865,38 +773,7 @@ export default function Home() {
           <div className="px-4 py-6 md:px-6 md:py-8 space-y-8">
 
             <div>
-              <div className="flex items-start gap-3">
-                <h1 className="text-xl font-black tracking-tight">Opportunity Finder</h1>
-                <div className="relative flex items-center h-7 mt-[3px] rounded-full bg-white/[0.06] border border-white/10 p-0.5 w-[190px] shrink-0">
-                  <div
-                    className={cn(
-                      "absolute top-0.5 h-[calc(100%-4px)] w-[calc(50%-2px)] rounded-full transition-all duration-300 ease-out",
-                      premiumMode
-                        ? "left-[calc(50%+1px)] bg-gradient-to-r from-amber-500 to-amber-400 shadow-[0_0_12px_-2px_rgba(245,158,11,0.4)]"
-                        : "left-0.5 bg-accent shadow-[0_0_12px_-2px_rgba(var(--accent-rgb,100,200,255),0.3)]",
-                    )}
-                  />
-                  <button
-                    onClick={() => setPremiumMode(false)}
-                    className={cn(
-                      "relative z-10 flex-1 text-center text-[10px] font-black uppercase tracking-wider transition-colors duration-200",
-                      !premiumMode ? "text-white" : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    All
-                  </button>
-                  <button
-                    onClick={() => setPremiumMode(true)}
-                    className={cn(
-                      "relative z-10 flex-1 flex items-center justify-center gap-1 text-[10px] font-black uppercase tracking-wider transition-colors duration-200",
-                      premiumMode ? "text-white" : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <Crown className="h-2.5 w-2.5" />
-                    Premium
-                  </button>
-                </div>
-              </div>
+              <h1 className="text-xl font-black tracking-tight">Opportunity Finder</h1>
               <TypewriterTagline />
             </div>
 
@@ -934,7 +811,7 @@ export default function Home() {
                 <div className="space-y-4">
                   {OPPORTUNITY_CATEGORIES.map((cat) => (
                     <div key={cat.id} ref={(el) => { cardRefs.current[cat.id] = el; }}>
-                      <OpportunityCard cat={cat} activeCounts={premiumMode ? premiumCounts : counts} signalIds={premiumMode ? premiumSignalIds : signalIds} sentimentByTimeframe={sentimentByTimeframe} topWinners={premiumMode ? premiumTopWinners : topWinners} onSelectWinner={setSelectedWinner} freshSignal={premiumMode ? premiumFreshSignals[cat.id] : freshSignals[cat.id]} premiumMode={premiumMode} />
+                      <OpportunityCard cat={cat} activeCounts={counts} signalIds={signalIds} topWinners={topWinners} onSelectWinner={setSelectedWinner} freshSignal={freshSignals[cat.id]} />
                     </div>
                   ))}
                 </div>
@@ -955,7 +832,7 @@ export default function Home() {
               ) : (
                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
                   {OPPORTUNITY_CATEGORIES.map((cat) => (
-                    <OpportunityCard key={cat.id} cat={cat} activeCounts={premiumMode ? premiumCounts : counts} signalIds={premiumMode ? premiumSignalIds : signalIds} sentimentByTimeframe={sentimentByTimeframe} topWinners={premiumMode ? premiumTopWinners : topWinners} onSelectWinner={setSelectedWinner} freshSignal={premiumMode ? premiumFreshSignals[cat.id] : freshSignals[cat.id]} premiumMode={premiumMode} />
+                    <OpportunityCard key={cat.id} cat={cat} activeCounts={counts} signalIds={signalIds} topWinners={topWinners} onSelectWinner={setSelectedWinner} freshSignal={freshSignals[cat.id]} />
                   ))}
                 </div>
               )}

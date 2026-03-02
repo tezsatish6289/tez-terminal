@@ -18,7 +18,6 @@ import {
   Globe,
   Activity as PerformanceIcon,
   Shield,
-  Crown
 } from "lucide-react";
 import { format, differenceInMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -36,7 +35,6 @@ type SignalHistoryProps = {
   initialTimeframeTab?: string | null;
   initialPerformanceFilter?: string | null;
   initialSideFilter?: string | null;
-  initialAlignedFilter?: boolean;
   hideFilters?: boolean;
 };
 
@@ -44,7 +42,7 @@ type SignalHistoryProps = {
  * PRODUCTION TERMINAL ENGINE - PERSISTENT STATE
  * Now exclusively displays ACTIVE signals for the live idea stream.
  */
-export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, initialSideFilter, initialAlignedFilter, hideFilters }: SignalHistoryProps = {}) {
+export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, initialSideFilter, hideFilters }: SignalHistoryProps = {}) {
   const router = useRouter();
   const { user } = useUser();
   const firestore = useFirestore();
@@ -144,7 +142,8 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
     return rawSignals.filter(signal => {
       if (signal.status === "INACTIVE") return false;
       if (getDisplayAssetType(signal) !== "CRYPTO") return false;
-      if (initialAlignedFilter && signal.aligned !== true) return false;
+
+
       if (activeSideFilter !== "all" && signal.type !== activeSideFilter) return false;
       if (globalPerformanceFilter !== "all") {
         const pnl = getEffectivePnl(signal);
@@ -154,7 +153,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
       }
       return true;
     });
-  }, [rawSignals, globalPerformanceFilter, activeSideFilter, initialAlignedFilter]);
+  }, [rawSignals, globalPerformanceFilter, activeSideFilter]);
 
   const formatPrice = (price: number | null | undefined) => {
     if (price === null || price === undefined) return "--";
@@ -354,7 +353,8 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-[10px] text-muted-foreground/50">{mounted ? getRunningSince(signal.receivedAt) : "--"}</span>
-                                {signal.aligned === true && <Crown className="h-3.5 w-3.5 text-amber-400" />}
+
+
                               </div>
                             </div>
 

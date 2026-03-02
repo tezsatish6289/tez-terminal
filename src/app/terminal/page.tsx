@@ -43,8 +43,6 @@ function TerminalContent() {
   const timeframe = searchParams.get("timeframe");
   const status = searchParams.get("status");
   const side = searchParams.get("side");
-  const aligned = searchParams.get("aligned") === "true";
-
   const categoryLabel = timeframe ? CATEGORY_LABELS[timeframe] || timeframe : "All";
   const sideLabel = side ? SIDE_LABELS[side] || side : null;
   const statusLabel = status ? STATUS_LABELS[status] || status : null;
@@ -146,7 +144,7 @@ function TerminalContent() {
                 )}
               </div>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                Showing {aligned ? "premium " : ""}{sideLabel?.toLowerCase() || "all"} {categoryLabel?.toLowerCase()} opportunities{statusLabel ? ` that are ${statusLabel.toLowerCase()}` : ""}
+                Showing {sideLabel?.toLowerCase() || "all"} {categoryLabel?.toLowerCase()} opportunities{statusLabel ? ` that are ${statusLabel.toLowerCase()}` : ""}
               </p>
             </div>
           </div>
@@ -159,7 +157,6 @@ function TerminalContent() {
                 initialTimeframeTab={timeframe ?? undefined}
                 initialPerformanceFilter={status ?? undefined}
                 initialSideFilter={side ?? undefined}
-                initialAlignedFilter={aligned}
                 hideFilters
               />
             </div>

@@ -11,8 +11,6 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Archive,
-  Filter,
-  Layers,
   Zap,
   Clock,
 } from "lucide-react";
@@ -63,9 +61,6 @@ export default function AnalyticsPage() {
   type TableViewMode = "active" | "retired";
   const [tableViewMode, setTableViewMode] = useState<TableViewMode>("active");
 
-  type FilterMode = "all" | "aligned";
-  const [filterMode, setFilterMode] = useState<FilterMode>("all");
-
   const [selectedTf, setSelectedTf] = useState<string>("all");
 
   const activeSignals = useMemo(() => {
@@ -81,9 +76,8 @@ export default function AnalyticsPage() {
   const tableSignals = useMemo(() => {
     let sigs = tableViewMode === "active" ? activeSignals : closedSignals;
     if (selectedTf !== "all") sigs = sigs.filter(s => String(s.timeframe).toUpperCase() === selectedTf);
-    if (filterMode === "aligned") sigs = sigs.filter(s => s.aligned === true);
     return sigs;
-  }, [tableViewMode, activeSignals, closedSignals, selectedTf, filterMode]);
+  }, [tableViewMode, activeSignals, closedSignals, selectedTf]);
 
   const TIMEFRAMES = [
     { id: "5", name: "Scalping", chart: "5m" },
@@ -126,8 +120,8 @@ export default function AnalyticsPage() {
   };
 
   type TfData = {
-    active: { all: { bullish: SideStats; bearish: SideStats }; premium: { bullish: SideStats; bearish: SideStats }; total: number };
-    retired: { all: { bullish: SideStats; bearish: SideStats }; premium: { bullish: SideStats; bearish: SideStats }; total: number };
+    active: { bullish: SideStats; bearish: SideStats; total: number };
+    retired: { bullish: SideStats; bearish: SideStats; total: number };
     combined: number;
   };
 
@@ -137,14 +131,11 @@ export default function AnalyticsPage() {
       const lev = getLeverage(tf.id);
       const activeTf = activeSignals.filter(s => String(s.timeframe).toUpperCase() === tf.id);
       const retiredTf = closedSignals.filter(s => String(s.timeframe).toUpperCase() === tf.id);
-      const buildGroup = (sigs: any[]) => {
-        const prem = sigs.filter(s => s.aligned === true);
-        return {
-          all: { bullish: computeSideStats(sigs.filter(s => s.type === "BUY"), lev), bearish: computeSideStats(sigs.filter(s => s.type === "SELL"), lev) },
-          premium: { bullish: computeSideStats(prem.filter(s => s.type === "BUY"), lev), bearish: computeSideStats(prem.filter(s => s.type === "SELL"), lev) },
-          total: sigs.length,
-        };
-      };
+      const buildGroup = (sigs: any[]) => ({
+        bullish: computeSideStats(sigs.filter(s => s.type === "BUY"), lev),
+        bearish: computeSideStats(sigs.filter(s => s.type === "SELL"), lev),
+        total: sigs.length,
+      });
       result[tf.id] = { active: buildGroup(activeTf), retired: buildGroup(retiredTf), combined: activeTf.length + retiredTf.length };
     });
     return result;
@@ -157,8 +148,8 @@ export default function AnalyticsPage() {
   };
 
   const renderSideBlock = (data: TfData, label: string, sideKey: "bullish" | "bearish", icon: typeof TrendingUp, iconColor: string) => {
-    const aa = data.active.all[sideKey];
-    const ra = data.retired.all[sideKey];
+    const aa = data.active[sideKey];
+    const ra = data.retired[sideKey];
 
     if (aa.count === 0 && ra.count === 0) {
       return (
@@ -366,26 +357,6 @@ export default function AnalyticsPage() {
                      </button>
                    ))}
                  </div>
-                 <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-1">
-                   {([
-                     { key: "all" as FilterMode, label: "All", icon: Layers },
-                     { key: "aligned" as FilterMode, label: "Premium", icon: Filter },
-                   ]).map(({ key, label, icon: Icon }) => (
-                     <button
-                       key={key}
-                       onClick={() => setFilterMode(key)}
-                       className={cn(
-                         "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
-                         filterMode === key
-                           ? "bg-accent/15 text-accent shadow-sm"
-                           : "text-muted-foreground hover:text-foreground",
-                       )}
-                     >
-                       <Icon className="h-3 w-3" />
-                       {label}
-                     </button>
-                   ))}
-                 </div>
                  <Badge variant="outline" className="border-white/10 text-muted-foreground bg-white/5">
                    <History className="h-3 w-3 mr-2" /> {tableSignals.length}
                  </Badge>
@@ -406,7 +377,6 @@ export default function AnalyticsPage() {
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">SL</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Targets</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Net PNL</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Aligned</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Max Excursion</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 text-right">{tableViewMode === "active" ? "Date Opened" : "Date Closed"}</TableHead>
                   </TableRow>
@@ -414,7 +384,7 @@ export default function AnalyticsPage() {
                 <TableBody>
                   {tableSignals.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={12} className="h-64 text-center">
+                      <TableCell colSpan={11} className="h-64 text-center">
                         <div className="flex flex-col items-center gap-4 opacity-40">
                            <Archive className="h-12 w-12 text-muted-foreground" />
                            <div className="space-y-1">
@@ -485,15 +455,6 @@ export default function AnalyticsPage() {
                                {pnl >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                                {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}%
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            {signal.aligned === true ? (
-                              <Badge className="text-[9px] font-black h-5 uppercase px-2 bg-accent/15 text-accent">Yes</Badge>
-                            ) : signal.aligned === false ? (
-                              <span className="text-[10px] text-muted-foreground/40">No</span>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground/30">—</span>
-                            )}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-4">

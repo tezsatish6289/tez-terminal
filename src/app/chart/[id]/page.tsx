@@ -97,7 +97,7 @@ export default function DeepDiveChartPage() {
   const maxDownPnl = (Number(calculatePercent(signal?.maxDrawdownPrice, signal?.price, signal?.type || "BUY")) * leverage).toFixed(2);
   const hasStopLoss = signal?.stopLoss != null && signal?.stopLoss > 0;
   const hasTp = signal?.tp1 != null && signal?.tp2 != null;
-  const pnlLabel = signal?.totalBookedPnl != null ? "Booked PnL" : signal?.tp1Hit ? "Partial + Live" : "Live PnL";
+  const pnlLabel = signal?.totalBookedPnl != null ? "Booked PnL" : (signal?.tp2Hit || signal?.tp1Hit) ? "Partial + Live" : "Live PnL";
   
   const tradingViewUrl = `https://www.tradingview.com/chart/?symbol=${signal?.exchange || 'BINANCE'}:${signal?.symbol}&interval=${signal?.timeframe || '15'}`;
 
@@ -177,30 +177,32 @@ export default function DeepDiveChartPage() {
                   </div>
                 </div>
 
-                {/* TP1/TP2 targets */}
+                {/* TP1/TP2/TP3 targets */}
                 {hasTp && (
                   <div className="space-y-2">
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30 block">Targets</span>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className={cn("px-3 py-2 rounded-lg border", signal?.tp1Hit ? "border-positive/20 bg-positive/5" : "border-white/5 bg-white/[0.02]")}>
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">TP1</span>
-                        <span className="text-sm font-mono font-bold">${formatPrice(signal?.tp1)}</span>
-                        <span className={cn("text-[9px] font-bold uppercase block mt-0.5", signal?.tp1Hit ? "text-positive" : "text-muted-foreground/30")}>
-                          {signal?.tp1Hit ? `✓ Hit · +${(signal?.tp1BookedPnl ?? 0).toFixed(2)}%` : "Pending"}
-                        </span>
-                      </div>
-                      <div className={cn("px-3 py-2 rounded-lg border", signal?.tp2Hit ? "border-positive/20 bg-positive/5" : "border-white/5 bg-white/[0.02]")}>
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">TP2</span>
-                        <span className="text-sm font-mono font-bold">${formatPrice(signal?.tp2)}</span>
-                        <span className={cn("text-[9px] font-bold uppercase block mt-0.5", signal?.tp2Hit ? "text-positive" : "text-muted-foreground/30")}>
-                          {signal?.tp2Hit ? `✓ Hit · +${(signal?.tp2BookedPnl ?? 0).toFixed(2)}%` : "Pending"}
-                        </span>
-                      </div>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30 block">Targets (50/25/25)</span>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {([
+                        { label: "TP1", price: signal?.tp1, hit: signal?.tp1Hit, pnl: signal?.tp1BookedPnl, frac: "50%" },
+                        { label: "TP2", price: signal?.tp2, hit: signal?.tp2Hit, pnl: signal?.tp2BookedPnl, frac: "25%" },
+                        { label: "TP3", price: signal?.tp3, hit: signal?.tp3Hit, pnl: signal?.tp3BookedPnl, frac: "25%" },
+                      ] as const).map((tp) => (
+                        <div key={tp.label} className={cn("px-2 py-2 rounded-lg border", tp.hit ? "border-positive/20 bg-positive/5" : "border-white/5 bg-white/[0.02]")}>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">{tp.label}</span>
+                            <span className="text-[8px] text-muted-foreground/30 font-bold">{tp.frac}</span>
+                          </div>
+                          <span className="text-xs font-mono font-bold block">${formatPrice(tp.price)}</span>
+                          <span className={cn("text-[9px] font-bold uppercase block mt-0.5", tp.hit ? "text-positive" : "text-muted-foreground/30")}>
+                            {tp.hit ? `✓ +${(tp.pnl ?? 0).toFixed(2)}%` : "—"}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                    {signal?.slHitAt && !signal?.tp2Hit && (
+                    {signal?.slHitAt && !signal?.tp3Hit && (
                       <div className="px-3 py-2 rounded-lg border border-negative/20 bg-negative/5 text-center">
                         <span className="text-[9px] font-bold uppercase text-negative">
-                          {signal?.tp1Hit ? "SL hit at cost — remaining closed at breakeven" : "SL hit — trade closed"}
+                          {signal?.tp2Hit ? "Runner stopped at TP1 — profit preserved" : signal?.tp1Hit ? "SL hit at cost — TP1 profit locked" : "SL hit — trade closed"}
                         </span>
                       </div>
                     )}

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, getDocs, updateDoc, doc, addDoc } from "firebase/firestore";
-import { rawPnlPercent, calcBookedPnl } from "@/lib/pnl";
+import { rawPnlPercent, calcBookedPnl, deriveTp3 } from "@/lib/pnl";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -94,16 +94,18 @@ export async function GET(request: NextRequest) {
 
       const tp1 = signal.tp1 != null ? Number(signal.tp1) : null;
       const tp2 = signal.tp2 != null ? Number(signal.tp2) : null;
+      const tp3 = signal.tp3 != null ? Number(signal.tp3) : (tp1 != null && tp2 != null ? deriveTp3(tp1, tp2) : null);
       const isBuy = signal.type === "BUY";
       const nowISO = new Date().toISOString();
       let newStatus = "ACTIVE";
 
-      if (tp1 != null && tp2 != null) {
-        // ── TP1/TP2 Exit Strategy ──
+      if (tp1 != null && tp2 != null && tp3 != null) {
+        // ── TP1/TP2/TP3 Exit Strategy (50/25/25 split) ──
         const tp1AlreadyHit = signal.tp1Hit === true;
         const tp2AlreadyHit = signal.tp2Hit === true;
+        const tp3AlreadyHit = signal.tp3Hit === true;
 
-        // Check TP1
+        // Check TP1: book 50%, SL → cost
         if (!tp1AlreadyHit) {
           const hitTp1 = isBuy ? currentPrice >= tp1 : currentPrice <= tp1;
           if (hitTp1) {
@@ -115,32 +117,63 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Check TP2 (only if TP1 already hit — either previously or just now)
         const tp1IsHit = tp1AlreadyHit || updateData.tp1Hit === true;
+
+        // Check TP2: book 25%, SL → tp1
         if (tp1IsHit && !tp2AlreadyHit) {
           const hitTp2 = isBuy ? currentPrice >= tp2 : currentPrice <= tp2;
           if (hitTp2) {
-            const tp1Pnl = signal.tp1BookedPnl ?? updateData.tp1BookedPnl ?? 0;
             updateData.tp2Hit = true;
             updateData.tp2HitAt = nowISO;
-            updateData.tp2BookedPnl = calcBookedPnl(tp2, alertPrice, signal.type, 0.5);
-            updateData.totalBookedPnl = tp1Pnl + updateData.tp2BookedPnl;
+            updateData.tp2BookedPnl = calcBookedPnl(tp2, alertPrice, signal.type, 0.25);
+            updateData.stopLoss = tp1;
+          }
+        }
+
+        const tp2IsHit = tp2AlreadyHit || updateData.tp2Hit === true;
+
+        // Check TP3: book remaining 25%, trade fully closed
+        if (tp2IsHit && !tp3AlreadyHit) {
+          const hitTp3 = isBuy ? currentPrice >= tp3 : currentPrice <= tp3;
+          if (hitTp3) {
+            const tp1Pnl = signal.tp1BookedPnl ?? updateData.tp1BookedPnl ?? 0;
+            const tp2Pnl = signal.tp2BookedPnl ?? updateData.tp2BookedPnl ?? 0;
+            updateData.tp3Hit = true;
+            updateData.tp3HitAt = nowISO;
+            updateData.tp3BookedPnl = calcBookedPnl(tp3, alertPrice, signal.type, 0.25);
+            updateData.totalBookedPnl = tp1Pnl + tp2Pnl + updateData.tp3BookedPnl;
             newStatus = "INACTIVE";
           }
         }
 
-        // Check SL (uses effective SL — moved to cost after tp1, otherwise original)
+        // Check SL — effective level depends on phase
         if (newStatus === "ACTIVE") {
-          const effectiveSL = (tp1IsHit) ? alertPrice : stopLoss;
+          let effectiveSL: number;
+          if (tp2IsHit) {
+            effectiveSL = tp1;
+          } else if (tp1IsHit) {
+            effectiveSL = alertPrice;
+          } else {
+            effectiveSL = stopLoss;
+          }
+
           if (effectiveSL > 0) {
             const hitSL = isBuy ? currentPrice <= effectiveSL : currentPrice >= effectiveSL;
             if (hitSL) {
               const tp1Pnl = signal.tp1BookedPnl ?? updateData.tp1BookedPnl ?? 0;
+              const tp2Pnl = signal.tp2BookedPnl ?? updateData.tp2BookedPnl ?? 0;
               updateData.slHitAt = nowISO;
-              if (tp1IsHit) {
+
+              if (tp2IsHit) {
+                // SL at TP1 after TP2 — remaining 25% booked at TP1 level
+                updateData.slBookedPnl = calcBookedPnl(tp1, alertPrice, signal.type, 0.25);
+                updateData.totalBookedPnl = tp1Pnl + tp2Pnl + updateData.slBookedPnl;
+              } else if (tp1IsHit) {
+                // SL at cost after TP1 — remaining 50% at breakeven
                 updateData.slBookedPnl = 0;
                 updateData.totalBookedPnl = tp1Pnl;
               } else {
+                // SL hit before any target — full loss
                 const slLoss = rawPnlPercent(effectiveSL, alertPrice, signal.type);
                 updateData.slBookedPnl = slLoss;
                 updateData.totalBookedPnl = slLoss;
@@ -160,6 +193,14 @@ export async function GET(request: NextRequest) {
             newStatus = "INACTIVE";
           }
         }
+      }
+
+      // Backfill tp3 for signals created before this update
+      if (tp1 != null && tp2 != null && signal.tp3 == null) {
+        updateData.tp3 = deriveTp3(tp1, tp2);
+        updateData.tp3Hit = false;
+        updateData.tp3HitAt = null;
+        updateData.tp3BookedPnl = null;
       }
 
       updateData.status = newStatus;

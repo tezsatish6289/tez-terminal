@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, addDoc, doc, getDoc, getDocs, query, where, limit, serverTimestamp } from "firebase/firestore";
 import { computeSentiment, type SignalForSentiment } from "@/lib/sentiment";
+import { deriveTp3 } from "@/lib/pnl";
 
 /**
  * Webhook ingestion for TradingView alerts.
@@ -153,13 +154,17 @@ export async function POST(request: NextRequest) {
       sentimentAtEntry,
       tp1: tp1,
       tp2: tp2,
+      tp3: (tp1 != null && tp2 != null) ? deriveTp3(tp1, tp2) : null,
       tp1Hit: false,
       tp2Hit: false,
+      tp3Hit: false,
       tp1HitAt: null,
       tp2HitAt: null,
+      tp3HitAt: null,
       slHitAt: null,
       tp1BookedPnl: null,
       tp2BookedPnl: null,
+      tp3BookedPnl: null,
       slBookedPnl: null,
       totalBookedPnl: null,
     };

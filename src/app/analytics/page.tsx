@@ -440,7 +440,7 @@ export default function AnalyticsPage() {
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Entry</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">{tableViewMode === "active" ? "Current Price" : "Exit Price"}</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">SL</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">TP1 / TP2</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Targets</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Net PNL</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Aligned</TableHead>
                     <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Max Excursion</TableHead>
@@ -470,7 +470,7 @@ export default function AnalyticsPage() {
                       const maxDown = calculatePercent(signal.maxDrawdownPrice, signal.price, signal.type) * leverage;
                       const chartLabel = tfLabelMap[String(signal.timeframe).toUpperCase()] ?? `${signal.timeframe}m`;
                       const hasTp = signal.tp1 != null && signal.tp2 != null;
-                      const slMovedToCost = signal.tp1Hit === true;
+                      const effectiveSLPhase = signal.tp2Hit ? "tp1" : signal.tp1Hit ? "cost" : "original";
 
                       return (
                         <TableRow key={signal.id} className="border-white/5 hover:bg-white/[0.02] transition-colors group">
@@ -490,8 +490,10 @@ export default function AnalyticsPage() {
                           <TableCell className="font-mono text-xs font-bold text-white">${formatPrice(signal.currentPrice)}</TableCell>
                           <TableCell className="font-mono text-xs font-bold">
                             {signal.stopLoss != null && signal.stopLoss > 0 ? (
-                              slMovedToCost ? (
-                                <span className="text-positive" title="SL moved to cost (TP1 achieved)">${formatPrice(signal.price)}</span>
+                              effectiveSLPhase === "tp1" ? (
+                                <span className="text-positive" title="SL at TP1 (TP2 achieved)">${formatPrice(signal.tp1)}</span>
+                              ) : effectiveSLPhase === "cost" ? (
+                                <span className="text-positive" title="SL at cost (TP1 achieved)">${formatPrice(signal.price)}</span>
                               ) : (
                                 <span className="text-amber-400/90">${formatPrice(signal.stopLoss)}</span>
                               )
@@ -499,12 +501,15 @@ export default function AnalyticsPage() {
                           </TableCell>
                           <TableCell>
                             {hasTp ? (
-                              <div className="flex items-center gap-2 text-[9px] font-bold uppercase">
+                              <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase">
                                 <span className={cn("px-1 py-0.5 rounded", signal.tp1Hit ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-muted-foreground/40")}>
-                                  TP1 {signal.tp1Hit ? "✓" : "—"}
+                                  1{signal.tp1Hit ? "✓" : ""}
                                 </span>
                                 <span className={cn("px-1 py-0.5 rounded", signal.tp2Hit ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-muted-foreground/40")}>
-                                  TP2 {signal.tp2Hit ? "✓" : "—"}
+                                  2{signal.tp2Hit ? "✓" : ""}
+                                </span>
+                                <span className={cn("px-1 py-0.5 rounded", signal.tp3Hit ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-muted-foreground/40")}>
+                                  3{signal.tp3Hit ? "✓" : ""}
                                 </span>
                               </div>
                             ) : (

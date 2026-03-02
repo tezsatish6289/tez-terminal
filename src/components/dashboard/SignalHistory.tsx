@@ -137,12 +137,6 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
     { label: "Losing", value: "not-working" },
   ];
 
-  const calculatePercent = (targetPrice: number | undefined | null, entry: number, type: string) => {
-    if (targetPrice === undefined || targetPrice === null || !entry || entry === 0) return "0.00";
-    const diff = type === 'BUY' ? targetPrice - entry : entry - targetPrice;
-    return ((diff / entry) * 100).toFixed(2);
-  };
-
   const getEffectivePnl = (signal: any): number => getEffectivePnlShared(signal);
 
   const filteredSignals = useMemo(() => {
@@ -338,7 +332,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                         const isBullish = signal.type === 'BUY';
                         const tfName = ({ "5": "Scalping", "15": "Intraday", "60": "BTST", "240": "Swing", "D": "Buy & Hold" } as Record<string, string>)[signal.timeframe] || signal.timeframe;
                         const hasTp = signal.tp1 != null && signal.tp2 != null;
-                        const pnlLabel = signal.totalBookedPnl != null ? "Booked PnL" : signal.tp1Hit ? "Partial + Live" : "Live PnL";
+                        const pnlLabel = signal.totalBookedPnl != null ? "Booked PnL" : (signal.tp2Hit || signal.tp1Hit) ? "Partial + Live" : "Live PnL";
 
                         return (
                           <div
@@ -396,6 +390,9 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
                                 </span>
                                 <span className={cn("px-1.5 py-0.5 rounded", signal.tp2Hit ? "bg-positive/20 text-positive" : "bg-white/5 text-muted-foreground/40")}>
                                   TP2 {signal.tp2Hit ? "✓" : "—"}
+                                </span>
+                                <span className={cn("px-1.5 py-0.5 rounded", signal.tp3Hit ? "bg-positive/20 text-positive" : "bg-white/5 text-muted-foreground/40")}>
+                                  TP3 {signal.tp3Hit ? "✓" : "—"}
                                 </span>
                                 {signal.slHitAt && (
                                   <span className="px-1.5 py-0.5 rounded bg-negative/20 text-negative">SL ✗</span>

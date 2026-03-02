@@ -65,12 +65,16 @@ interface WinnerSignal {
   stopLoss: number | null;
   receivedAt: string;
   timeframe: string;
+  status?: string;
   tp1?: number | null;
   tp2?: number | null;
+  tp3?: number | null;
   tp1Hit?: boolean;
   tp2Hit?: boolean;
+  tp3Hit?: boolean;
   tp1BookedPnl?: number | null;
   tp2BookedPnl?: number | null;
+  tp3BookedPnl?: number | null;
   totalBookedPnl?: number | null;
   slHitAt?: string | null;
 }
@@ -98,7 +102,7 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
   const hasMaxDrawdown = signal.maxDrawdownPrice != null && signal.maxDrawdownPrice > 0;
   const hasStopLoss = signal.stopLoss != null && signal.stopLoss > 0;
   const hasTp = signal.tp1 != null && signal.tp2 != null;
-  const pnlLabel = signal.totalBookedPnl != null ? "Booked PNL" : signal.tp1Hit ? "Partial + Live" : "Live PNL";
+  const pnlLabel = signal.totalBookedPnl != null ? "Booked PNL" : (signal.tp2Hit || signal.tp1Hit) ? "Partial + Live" : "Live PNL";
 
   let entryDate = "";
   try { entryDate = format(new Date(signal.receivedAt), "MMM dd, h:mm a"); } catch { entryDate = "—"; }
@@ -152,23 +156,24 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
             </div>
 
             {hasTp && (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03]">
-                  <span className="text-[9px] uppercase font-black text-muted-foreground/60 tracking-widest">TP1</span>
-                  <span className="text-sm font-mono font-bold">${formatNarrationPrice(signal.tp1)}</span>
-                  <span className={cn("text-[9px] font-bold uppercase", signal.tp1Hit ? "text-positive" : "text-muted-foreground/40")}>
-                    {signal.tp1Hit ? "✓ Hit" : "Pending"}
-                    {signal.tp1BookedPnl != null && ` (+${signal.tp1BookedPnl.toFixed(2)}%)`}
-                  </span>
-                </div>
-                <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03]">
-                  <span className="text-[9px] uppercase font-black text-muted-foreground/60 tracking-widest">TP2</span>
-                  <span className="text-sm font-mono font-bold">${formatNarrationPrice(signal.tp2)}</span>
-                  <span className={cn("text-[9px] font-bold uppercase", signal.tp2Hit ? "text-positive" : "text-muted-foreground/40")}>
-                    {signal.tp2Hit ? "✓ Hit" : "Pending"}
-                    {signal.tp2BookedPnl != null && ` (+${signal.tp2BookedPnl.toFixed(2)}%)`}
-                  </span>
-                </div>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { label: "TP1", price: signal.tp1, hit: signal.tp1Hit, pnl: signal.tp1BookedPnl, frac: "50%" },
+                  { label: "TP2", price: signal.tp2, hit: signal.tp2Hit, pnl: signal.tp2BookedPnl, frac: "25%" },
+                  { label: "TP3", price: signal.tp3, hit: signal.tp3Hit, pnl: signal.tp3BookedPnl, frac: "25%" },
+                ] as const).map((tp) => (
+                  <div key={tp.label} className="flex flex-col gap-0.5 px-2.5 py-2 rounded-lg border border-white/10 bg-white/[0.03]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] uppercase font-black text-muted-foreground/60 tracking-widest">{tp.label}</span>
+                      <span className="text-[8px] text-muted-foreground/30 font-bold">{tp.frac}</span>
+                    </div>
+                    <span className="text-xs font-mono font-bold">${formatNarrationPrice(tp.price)}</span>
+                    <span className={cn("text-[9px] font-bold uppercase", tp.hit ? "text-positive" : "text-muted-foreground/40")}>
+                      {tp.hit ? "✓ Hit" : "—"}
+                      {tp.pnl != null && ` +${tp.pnl.toFixed(2)}%`}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -253,7 +258,7 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
                 </p>
               </div>
 
-              {/* Step 3: Strategy Execution (only for tp1/tp2 trades) */}
+              {/* Step 3: Strategy Execution (only for tp trades) */}
               {hasTp && (
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
@@ -265,18 +270,26 @@ function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal 
                       <>TP1 at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.tp1)}</span> was hit — 50% booked at{" "}
                       <span className="font-mono font-bold text-positive">+{(signal.tp1BookedPnl ?? 0).toFixed(2)}%</span>, stop loss moved to entry.{" "}
                       {signal.tp2Hit ? (
-                        <>TP2 at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.tp2)}</span> was also hit — remaining 50% booked at{" "}
-                        <span className="font-mono font-bold text-positive">+{(signal.tp2BookedPnl ?? 0).toFixed(2)}%</span>. Trade fully closed.</>
+                        <>TP2 at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.tp2)}</span> hit — 25% booked at{" "}
+                        <span className="font-mono font-bold text-positive">+{(signal.tp2BookedPnl ?? 0).toFixed(2)}%</span>, stop loss moved to TP1.{" "}
+                        {signal.tp3Hit ? (
+                          <>TP3 at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.tp3)}</span> hit — remaining 25% booked at{" "}
+                          <span className="font-mono font-bold text-positive">+{(signal.tp3BookedPnl ?? 0).toFixed(2)}%</span>. Full sweep — trade closed.</>
+                        ) : signal.slHitAt ? (
+                          <>Remaining 25% stopped at TP1 level — booked at TP1 profit. No loss on the runner.</>
+                        ) : (
+                          <>Remaining 25% still running with stop at TP1 (profit-protected).</>
+                        )}</>
                       ) : signal.slHitAt ? (
-                        <>Remaining position was stopped out at cost (breakeven). No additional loss.</>
+                        <>Remaining 50% stopped at cost (breakeven). TP1 profit locked in.</>
                       ) : (
                         <>Remaining 50% still running with stop at entry (risk-free).</>
                       )}</>
                     ) : signal.slHitAt ? (
-                      <>TP1 was not reached. Stop loss was triggered — trade closed with a loss of{" "}
+                      <>TP1 was not reached. Stop loss triggered — trade closed at{" "}
                       <span className="font-mono font-bold text-negative">{(signal.totalBookedPnl ?? pnlVal).toFixed(2)}%</span>.</>
                     ) : (
-                      <>Both targets are still pending. Stop loss at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.stopLoss)}</span> is protecting the position.</>
+                      <>All targets pending. Stop loss at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.stopLoss)}</span> protecting the position.</>
                     )}
                   </p>
                 </div>
@@ -340,6 +353,13 @@ function WinnersTicker({ winners, windowLabel, leverage, onSelect }: { winners: 
 
   const winner = winners[activeIndex];
   const isBuy = winner.type === "BUY";
+  const isRetired = winner.status === "INACTIVE";
+  const tpBadges = winner.tp1 != null ? [
+    ...(winner.tp1Hit ? ["TP1"] : []),
+    ...(winner.tp2Hit ? ["TP2"] : []),
+    ...(winner.tp3Hit ? ["TP3"] : []),
+  ] : [];
+
   return (
     <div>
       <span className="text-[9px] font-bold uppercase tracking-widest text-amber-400/50">Top winner · {windowLabel}</span>
@@ -347,12 +367,16 @@ function WinnersTicker({ winners, windowLabel, leverage, onSelect }: { winners: 
         onClick={(e) => { e.preventDefault(); onSelect(winner); }}
         className="w-full flex items-center justify-between mt-0.5 hover:bg-amber-500/[0.05] rounded-md px-1 py-0.5 transition-colors cursor-pointer"
       >
-        <div className="flex items-center gap-2">
-          <Trophy className="h-3.5 w-3.5 text-amber-400" />
-          <span className={cn("text-sm font-black", isBuy ? "text-positive" : "text-negative")}>{isBuy ? "▲" : "▼"}</span>
+        <div className="flex items-center gap-2 min-w-0">
+          <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+          <span className={cn("text-sm font-black shrink-0", isBuy ? "text-positive" : "text-negative")}>{isBuy ? "▲" : "▼"}</span>
           <span className="text-sm font-black text-foreground uppercase tracking-wider truncate">{winner.symbol}</span>
+          {tpBadges.length > 0 && (
+            <span className="text-[8px] font-black text-positive/80 shrink-0">{tpBadges.join("·")}</span>
+          )}
+          {isRetired && <span className="text-[8px] font-black text-muted-foreground/40 shrink-0">CLOSED</span>}
         </div>
-        <span className="text-lg font-black font-mono text-amber-400">+{(winner.maxPnl * leverage).toFixed(2)}%</span>
+        <span className="text-lg font-black font-mono text-amber-400 shrink-0">+{(winner.pnl * leverage).toFixed(2)}%</span>
       </button>
     </div>
   );
@@ -758,7 +782,6 @@ export default function Home() {
     });
     if (!signals) return map;
     signals.forEach((signal: any) => {
-      if (signal.status === "INACTIVE") return;
       if (onlyAligned && signal.aligned !== true) return;
       if (getDisplayAssetType(signal) !== "CRYPTO") return;
       const tf = String(signal.timeframe || "").toUpperCase();
@@ -767,33 +790,36 @@ export default function Home() {
       const signalTime = new Date(signal.receivedAt).getTime();
       if (now - signalTime > windowMs[cat]) return;
       const pnl = effectivePnl(signal);
+      if (pnl <= 0.05) return;
       const maxPnl = calculatePercent(signal.maxUpsidePrice, signal.price, signal.type);
-      if (pnl > 0.05 || maxPnl > 0.05) {
-        map[cat].push({
-          symbol: signal.symbol || "???",
-          pnl,
-          maxPnl,
-          type: signal.type,
-          price: Number(signal.price || 0),
-          currentPrice: signal.currentPrice != null ? Number(signal.currentPrice) : null,
-          maxUpsidePrice: signal.maxUpsidePrice ?? null,
-          maxDrawdownPrice: signal.maxDrawdownPrice ?? null,
-          stopLoss: signal.stopLoss ?? null,
-          receivedAt: signal.receivedAt,
-          timeframe: signal.timeframe,
-          tp1: signal.tp1 ?? null,
-          tp2: signal.tp2 ?? null,
-          tp1Hit: signal.tp1Hit ?? false,
-          tp2Hit: signal.tp2Hit ?? false,
-          tp1BookedPnl: signal.tp1BookedPnl ?? null,
-          tp2BookedPnl: signal.tp2BookedPnl ?? null,
-          totalBookedPnl: signal.totalBookedPnl ?? null,
-          slHitAt: signal.slHitAt ?? null,
-        });
-      }
+      map[cat].push({
+        symbol: signal.symbol || "???",
+        pnl,
+        maxPnl,
+        type: signal.type,
+        price: Number(signal.price || 0),
+        currentPrice: signal.currentPrice != null ? Number(signal.currentPrice) : null,
+        maxUpsidePrice: signal.maxUpsidePrice ?? null,
+        maxDrawdownPrice: signal.maxDrawdownPrice ?? null,
+        stopLoss: signal.stopLoss ?? null,
+        receivedAt: signal.receivedAt,
+        timeframe: signal.timeframe,
+        status: signal.status,
+        tp1: signal.tp1 ?? null,
+        tp2: signal.tp2 ?? null,
+        tp3: signal.tp3 ?? null,
+        tp1Hit: signal.tp1Hit ?? false,
+        tp2Hit: signal.tp2Hit ?? false,
+        tp3Hit: signal.tp3Hit ?? false,
+        tp1BookedPnl: signal.tp1BookedPnl ?? null,
+        tp2BookedPnl: signal.tp2BookedPnl ?? null,
+        tp3BookedPnl: signal.tp3BookedPnl ?? null,
+        totalBookedPnl: signal.totalBookedPnl ?? null,
+        slHitAt: signal.slHitAt ?? null,
+      });
     });
     Object.keys(map).forEach((k) => {
-      map[k].sort((a, b) => b.maxPnl - a.maxPnl);
+      map[k].sort((a, b) => b.pnl - a.pnl);
       map[k] = map[k].slice(0, 5);
     });
     return map;

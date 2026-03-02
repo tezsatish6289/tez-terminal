@@ -7,7 +7,6 @@ import {
   TrendingUp,
   TrendingDown,
   Crown,
-  BellRing,
   BarChart3,
   Globe,
   Shield,
@@ -39,14 +38,14 @@ const STEPS = [
   {
     icon: Filter,
     title: "We Filter",
-    desc: "Market sentiment analysis identifies premium setups — trades aligned with the dominant market force. Only the highest-probability entries surface.",
+    desc: "Our algorithms identify high-probability setups across all timeframes. Only the strongest entries surface — the rest is noise.",
     accent: "text-amber-400",
     bg: "bg-amber-400/10 border-amber-400/20",
   },
   {
     icon: Crosshair,
     title: "You Trade",
-    desc: "Get real-time alerts with chime notifications. Deep-dive into any signal with TradingView charts. Execute on Binance, MEXC, or Pionex.",
+    desc: "Deep-dive into any signal with TradingView charts. Execute on Binance, MEXC, or Pionex with full risk management built in.",
     accent: "text-positive",
     bg: "bg-positive/10 border-positive/20",
   },
@@ -69,25 +68,21 @@ interface TopWinner {
   ago: string;
 }
 
+interface TfPerformance {
+  timeframe: string;
+  chart: string;
+  leverage: string;
+  trades: number;
+  winRate: number;
+  avgProfit: number;
+  netProfit: number;
+}
+
 const FEATURES = [
   {
-    icon: Crown,
-    title: "Premium Signals",
-    desc: "Trades aligned with market sentiment — statistically higher probability of success.",
-    color: "text-amber-400",
-    bg: "bg-amber-400/10 border-amber-400/20",
-  },
-  {
-    icon: BellRing,
-    title: "Real-Time Alerts",
-    desc: "Chime notifications + browser push when a premium trade drops. Never miss a move.",
-    color: "text-accent",
-    bg: "bg-accent/10 border-accent/20",
-  },
-  {
     icon: BarChart3,
-    title: "Performance Analytics",
-    desc: "Track win rates, avg returns, and max excursions across all timeframes — All vs Premium.",
+    title: "Trade Analytics",
+    desc: "Track win rates, net PNL, avg returns, and max excursions across all timeframes with full transparency.",
     color: "text-positive",
     bg: "bg-positive/10 border-positive/20",
   },
@@ -101,14 +96,14 @@ const FEATURES = [
   {
     icon: Shield,
     title: "Smart Risk Management",
-    desc: "Auto stop-loss tracking. SL moves to cost when 2x risk target is hit — locking in gains.",
+    desc: "Auto stop-loss tracking with a 50/25/25 position split. SL moves to cost at TP1, to TP1 at TP2.",
     color: "text-negative",
     bg: "bg-negative/10 border-negative/20",
   },
   {
     icon: Timer,
-    title: "Live Market Pulse",
-    desc: "Sentiment engine powered by recency-weighted decay. See who's in control — bulls or bears.",
+    title: "5 Timeframes",
+    desc: "From 5-minute scalps to daily positions — every trade style covered with optimized leverage.",
     color: "text-purple-400",
     bg: "bg-purple-400/10 border-purple-400/20",
   },
@@ -122,6 +117,7 @@ interface LandingPageProps {
 export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
   const [topWinners, setTopWinners] = useState<TopWinner[]>([]);
   const [stats, setStats] = useState<PlatformStats | null>(null);
+  const [performance, setPerformance] = useState<TfPerformance[]>([]);
 
   useEffect(() => {
     fetch("/api/top-winners")
@@ -129,12 +125,13 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
       .then((data) => {
         setTopWinners(data.winners || []);
         setStats(data.stats || null);
+        setPerformance(data.performance || []);
       })
       .catch(() => {});
   }, []);
 
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Nav */}
       <nav className="sticky top-0 z-50 border-b border-white/5 bg-background/80 backdrop-blur-xl">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
@@ -173,7 +170,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
             </h1>
 
             <p className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
-              We scan the entire crypto market 24/7, filter the noise with sentiment analysis, and deliver 
+              We scan the entire crypto market 24/7, filter the noise, and deliver 
               high-probability trade setups — so you can focus on stacking gains.
             </p>
 
@@ -351,6 +348,70 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
         </div>
       </section>
 
+      {/* Live Performance */}
+      {performance.length > 0 && (
+        <section className="py-16 sm:py-24 border-t border-white/5 bg-white/[0.01]">
+          <div className="max-w-4xl mx-auto px-4">
+            <div className="text-center mb-10">
+              <h2 className="text-3xl sm:text-4xl font-black tracking-tighter">
+                Live <span className="text-accent">Performance</span>
+              </h2>
+              <p className="text-sm text-muted-foreground mt-3 max-w-md mx-auto">
+                Real results from closed trades across all timeframes. No cherry-picking — every retired signal counts.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/5 bg-card overflow-hidden">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-white/5 bg-white/[0.02]">
+                    <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Timeframe</th>
+                    <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">Trades</th>
+                    <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">Win Rate</th>
+                    <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">Avg Profit</th>
+                    <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-right">Net Profit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {performance.map((p) => (
+                    <tr key={p.timeframe} className="border-t border-white/5 hover:bg-white/[0.02] transition-colors">
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-black text-white tracking-tight">{p.timeframe}</span>
+                          <span className="text-[10px] font-bold text-muted-foreground/40">{p.chart} · {p.leverage}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-center">
+                        <span className="text-sm font-black font-mono text-white">{p.trades}</span>
+                      </td>
+                      <td className="px-5 py-4 text-center">
+                        <span className={cn("text-sm font-black font-mono", p.winRate >= 50 ? "text-emerald-400" : "text-rose-400")}>
+                          {p.winRate.toFixed(1)}%
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-center">
+                        <span className="text-sm font-black font-mono text-emerald-400">
+                          +{p.avgProfit.toFixed(2)}%
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <span className={cn("text-sm font-black font-mono", p.netProfit >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                          {p.netProfit >= 0 ? "+" : ""}{p.netProfit.toFixed(2)}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <p className="text-[10px] text-muted-foreground/40 text-center mt-4">
+              Based on closed (retired) trades only. Returns shown at leveraged values. Updated every 5 minutes.
+            </p>
+          </div>
+        </section>
+      )}
+
       {/* Features */}
       <section className="py-16 sm:py-24 border-t border-white/5 bg-white/[0.01]">
         <div className="max-w-6xl mx-auto px-4">
@@ -363,7 +424,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
+          <div className="grid sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
             {FEATURES.map((f) => (
               <div
                 key={f.title}

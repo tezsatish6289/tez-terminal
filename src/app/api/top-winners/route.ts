@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { getLeverage } from "@/lib/leverage";
+import { getEffectivePnl } from "@/lib/pnl";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,14 @@ const TIMEFRAME_NAMES: Record<string, string> = {
   "60": "BTST",
   "240": "Swing",
   "D": "Buy & Hold",
+};
+
+const TIMEFRAME_CHART: Record<string, string> = {
+  "5": "5M",
+  "15": "15M",
+  "60": "1H",
+  "240": "4H",
+  "D": "1D",
 };
 
 const TIMEFRAME_IDS = ["5", "15", "60", "240", "D"];
@@ -188,7 +197,32 @@ export async function GET() {
 
     const result = picked.slice(0, 6).map(({ maxReturnNum, timeframeId, ...rest }) => rest);
 
-    const response = { winners: result, stats };
+    // Aggregate performance by timeframe (retired signals only for reliable stats)
+    const performance = TIMEFRAME_IDS.map((tfId) => {
+      const tfSignals = cryptoSignals.filter(
+        (s: any) => String(s.timeframe) === tfId && s.status === "INACTIVE"
+      );
+      const total = tfSignals.length;
+      const lev = getLeverage(tfId);
+      const pnls = tfSignals.map((s: any) => getEffectivePnl(s) * lev);
+      const wins = pnls.filter((p: number) => p >= 0).length;
+      const winRate = total > 0 ? (wins / total) * 100 : 0;
+      const profitPnls = pnls.filter((p: number) => p > 0);
+      const avgProfit = profitPnls.length > 0 ? profitPnls.reduce((a: number, b: number) => a + b, 0) / profitPnls.length : 0;
+      const netProfit = pnls.reduce((a: number, b: number) => a + b, 0);
+
+      return {
+        timeframe: TIMEFRAME_NAMES[tfId] || tfId,
+        chart: TIMEFRAME_CHART[tfId] || tfId,
+        leverage: `${lev}x`,
+        trades: total,
+        winRate: +winRate.toFixed(1),
+        avgProfit: +avgProfit.toFixed(2),
+        netProfit: +netProfit.toFixed(2),
+      };
+    }).filter((p) => p.trades > 0);
+
+    const response = { winners: result, stats, performance };
     cache = { data: response, ts: Date.now() };
 
     return NextResponse.json(response);

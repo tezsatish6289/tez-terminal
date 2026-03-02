@@ -528,6 +528,8 @@ function OpportunityCard({ cat, activeCounts, signalIds, topWinners, onSelectWin
         {/* Top Winners */}
         <WinnersTicker winners={topWinners[cat.id] ?? []} windowLabel={cat.windowLabel} leverage={getLeverage(cat.id)} onSelect={onSelectWinner} />
 
+        <div className="border-t border-white/5" />
+
         {/* Bulls */}
         <div className="space-y-1">
           <div className="flex items-center justify-between px-3 mb-1">

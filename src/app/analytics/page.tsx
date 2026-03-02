@@ -154,10 +154,10 @@ export default function AnalyticsPage() {
           <TooltipTrigger asChild>
             <span className="inline-flex items-center gap-1 cursor-help">
               {label}
-              <Info className="h-2.5 w-2.5 text-muted-foreground/30" />
+              <Info className="h-2.5 w-2.5 text-muted-foreground/40" />
             </span>
           </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-[200px] text-[10px]">{tip}</TooltipContent>
+          <TooltipContent side="top" className="max-w-[280px] text-[11px] font-normal normal-case tracking-normal leading-relaxed px-3 py-2">{tip}</TooltipContent>
         </Tooltip>
       </th>
     );
@@ -176,12 +176,23 @@ export default function AnalyticsPage() {
       <td className={cell}><span className={color || "text-white"}>{v}</span></td>
     );
 
+    const rowLabelTips: Record<string, string> = {
+      Active: "Trades currently open and being tracked in real time",
+      Retired: "Trades that have been closed — either hit SL, all targets, or manually exited",
+    };
     const renderRow = (s: SideStats, rowLabel: string, labelColor: string, RowIcon: typeof Zap) => {
       const wr = s.count > 0 ? (s.winCount / s.count) * 100 : 0;
       return (
         <tr className="border-t border-white/5 hover:bg-white/[0.02] transition-colors">
           <td className={cn(cell, "flex items-center gap-1.5", labelColor)}>
-            <RowIcon className="h-3 w-3 shrink-0" />{rowLabel}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center gap-1.5 cursor-help">
+                  <RowIcon className="h-3 w-3 shrink-0" />{rowLabel}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-[240px] text-[11px] font-normal normal-case tracking-normal leading-relaxed px-3 py-2">{rowLabelTips[rowLabel]}</TooltipContent>
+            </Tooltip>
           </td>
           <td className={cn(cell, "text-white")}>{s.count}</td>
           {pctCell(wr, s.count > 0, true)}
@@ -319,7 +330,7 @@ export default function AnalyticsPage() {
                   <div className="border-t border-white/5" />
                   {renderSideBlock(data, "Bears", "bearish", TrendingDown, "text-rose-400")}
                   <Link href={`/trade-audit?timeframe=${tf.id}`} className="block">
-                    <Button variant="outline" size="sm" className="w-full h-9 text-[10px] font-black uppercase tracking-widest border-white/10 text-muted-foreground hover:text-accent hover:border-accent/30 transition-all">
+                    <Button variant="outline" size="sm" className="w-full h-9 text-[10px] font-black uppercase tracking-widest border-white/10 text-muted-foreground hover:text-accent hover:border-accent/30 hover:bg-accent/5 transition-all">
                       View Trade Audit →
                     </Button>
                   </Link>

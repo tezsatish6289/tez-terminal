@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -224,12 +223,10 @@ function TradeAuditContent() {
         </div>
 
         {/* Table */}
-        <Card className="bg-card border-white/5 overflow-hidden">
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <div className="min-w-[1000px]">
-                <Table>
-                  <TableHeader className="bg-black/20">
+        <div className="bg-card border border-white/5 rounded-lg overflow-x-auto">
+          <div className="min-w-[1000px]">
+            <Table>
+              <TableHeader className="bg-card sticky top-0 z-10 shadow-[0_1px_0_rgba(255,255,255,0.05)]">
                     <TableRow className="hover:bg-transparent border-white/5">
                       <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Symbol</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Side</TableHead>
@@ -287,16 +284,17 @@ function TradeAuditContent() {
                             </TableCell>
                             <TableCell className="font-mono text-xs font-bold text-white/60">${formatPrice(signal.price)}</TableCell>
                             <TableCell className="font-mono text-xs font-bold text-white">${formatPrice(signal.currentPrice)}</TableCell>
-                            <TableCell className="font-mono text-xs font-bold">
+                            <TableCell>
                               {signal.stopLoss != null && signal.stopLoss > 0 ? (
-                                effectiveSLPhase === "tp1" ? (
-                                  <span className="text-positive" title="SL at TP1">${formatPrice(signal.tp1)}</span>
-                                ) : effectiveSLPhase === "cost" ? (
-                                  <span className="text-positive" title="SL at cost">${formatPrice(signal.price)}</span>
-                                ) : (
-                                  <span className="text-amber-400/90">${formatPrice(signal.stopLoss)}</span>
-                                )
-                              ) : "--"}
+                                <div className="flex flex-col">
+                                  <span className="font-mono text-xs font-bold text-white">
+                                    ${formatPrice(effectiveSLPhase === "tp1" ? signal.tp1 : effectiveSLPhase === "cost" ? signal.price : signal.stopLoss)}
+                                  </span>
+                                  <span className="text-[9px] text-muted-foreground/60">
+                                    {effectiveSLPhase === "tp1" ? "Moved to TP1" : effectiveSLPhase === "cost" ? "Moved to Entry" : "Original"}
+                                  </span>
+                                </div>
+                              ) : <span className="font-mono text-xs font-bold text-muted-foreground/30">--</span>}
                             </TableCell>
                             <TableCell>
                               {hasTp ? (
@@ -350,38 +348,37 @@ function TradeAuditContent() {
                 </Table>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-1">
-            <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-wider">
-              Page {page + 1} of {totalPages}
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page === 0}
-                onClick={() => setPage(p => p - 1)}
-                className="h-8 px-3 text-[10px] font-bold uppercase tracking-wider border-white/10"
-              >
-                <ChevronLeft className="h-3 w-3 mr-1" /> Prev
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= totalPages - 1}
-                onClick={() => setPage(p => p + 1)}
-                className="h-8 px-3 text-[10px] font-bold uppercase tracking-wider border-white/10"
-              >
-                Next <ChevronRight className="h-3 w-3 ml-1" />
-              </Button>
-            </div>
-          </div>
-        )}
       </main>
+
+      {/* Sticky pagination */}
+      {totalPages > 1 && (
+        <div className="sticky bottom-0 z-20 border-t border-white/5 bg-background/95 backdrop-blur px-6 py-3 flex items-center justify-between">
+          <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-wider">
+            Page {page + 1} of {totalPages} · Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page === 0}
+              onClick={() => setPage(p => p - 1)}
+              className="h-8 px-3 text-[10px] font-bold uppercase tracking-wider border-white/10"
+            >
+              <ChevronLeft className="h-3 w-3 mr-1" /> Prev
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages - 1}
+              onClick={() => setPage(p => p + 1)}
+              className="h-8 px-3 text-[10px] font-bold uppercase tracking-wider border-white/10"
+            >
+              Next <ChevronRight className="h-3 w-3 ml-1" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

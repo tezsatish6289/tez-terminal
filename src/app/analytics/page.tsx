@@ -7,18 +7,15 @@ import {
   TrendingUp, 
   TrendingDown, 
   Loader2, 
-  History,
-  ArrowUpRight,
-  ArrowDownRight,
-  Archive,
   Zap,
   Clock,
+  Info,
 } from "lucide-react";
-import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { getLeverage } from "@/lib/leverage";
 import { getEffectivePnl as getEffectivePnlShared } from "@/lib/pnl";
@@ -58,9 +55,6 @@ export default function AnalyticsPage() {
   const hasDownsideData = (s: { maxDrawdownPrice?: number | null }) =>
     s.maxDrawdownPrice != null && s.maxDrawdownPrice !== undefined;
 
-  type TableViewMode = "active" | "retired";
-  const [tableViewMode, setTableViewMode] = useState<TableViewMode>("active");
-
   const [selectedTf, setSelectedTf] = useState<string>("all");
 
   const activeSignals = useMemo(() => {
@@ -72,12 +66,6 @@ export default function AnalyticsPage() {
     if (!allSignals) return [];
     return allSignals.filter(s => s.status === "INACTIVE");
   }, [allSignals]);
-
-  const tableSignals = useMemo(() => {
-    let sigs = tableViewMode === "active" ? activeSignals : closedSignals;
-    if (selectedTf !== "all") sigs = sigs.filter(s => String(s.timeframe).toUpperCase() === selectedTf);
-    return sigs;
-  }, [tableViewMode, activeSignals, closedSignals, selectedTf]);
 
   const TIMEFRAMES = [
     { id: "5", name: "Scalping", chart: "5m" },
@@ -141,11 +129,6 @@ export default function AnalyticsPage() {
     return result;
   }, [activeSignals, closedSignals]);
 
-  const formatPrice = (p: number | null | undefined) => {
-    if (p === null || p === undefined) return "--";
-    const decimals = p < 1 ? 6 : 2;
-    return p.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-  };
 
   const renderSideBlock = (data: TfData, label: string, sideKey: "bullish" | "bearish", icon: typeof TrendingUp, iconColor: string) => {
     const aa = data.active[sideKey];
@@ -165,6 +148,19 @@ export default function AnalyticsPage() {
 
     const cell = "px-3 py-2 text-xs font-mono font-black whitespace-nowrap";
     const hdr = "px-3 py-2 text-[9px] font-black uppercase tracking-widest text-muted-foreground whitespace-nowrap";
+    const hdrWithTip = (label: string, tip: string, extraClass?: string) => (
+      <th className={cn(hdr, extraClass)}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex items-center gap-1 cursor-help">
+              {label}
+              <Info className="h-2.5 w-2.5 text-muted-foreground/30" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-[200px] text-[10px]">{tip}</TooltipContent>
+        </Tooltip>
+      </th>
+    );
     const pctCell = (v: number, has: boolean, profit: boolean) => {
       if (!has) return <td className={cell}><span className="text-muted-foreground/30">--</span></td>;
       const color = profit ? "text-emerald-400" : "text-rose-400";
@@ -191,8 +187,8 @@ export default function AnalyticsPage() {
           {pctCell(wr, s.count > 0, true)}
           {pnlCell(s.netPnl, s.count > 0)}
           {pctCell(s.profit.avg, s.profit.count > 0, true)}
-          {pctCell(s.profit.max, s.profit.count > 0, true)}
           {pctCell(s.loss.avg, s.loss.count > 0, false)}
+          {pctCell(s.profit.max, s.profit.count > 0, true)}
           {pctCell(s.loss.max, s.loss.count > 0, false)}
           {countCell(s.tp1Count, "text-emerald-400")}
           {countCell(s.tp2Count, "text-emerald-400")}
@@ -213,17 +209,17 @@ export default function AnalyticsPage() {
             <thead>
               <tr className="bg-white/[0.02]">
                 <th className={hdr}></th>
-                <th className={hdr}>Trades</th>
-                <th className={hdr}>Win Rate</th>
-                <th className={hdr}>Net PNL</th>
-                <th className={hdr}>Avg Profit</th>
-                <th className={hdr}>Max Profit</th>
-                <th className={hdr}>Avg Loss</th>
-                <th className={hdr}>Max Loss</th>
-                <th className={cn(hdr, "text-emerald-400/50")}>TP1</th>
-                <th className={cn(hdr, "text-emerald-400/50")}>TP2</th>
-                <th className={cn(hdr, "text-emerald-400/50")}>TP3</th>
-                <th className={cn(hdr, "text-rose-400/50")}>SL</th>
+                {hdrWithTip("Trades", "Total number of signals in this category")}
+                {hdrWithTip("Win Rate", "% of trades with positive PNL at exit or current")}
+                {hdrWithTip("Net PNL", "Cumulative leveraged PNL across all trades")}
+                {hdrWithTip("Avg Profit", "Average leveraged gain of winning trades")}
+                {hdrWithTip("Avg Loss", "Average leveraged loss of losing trades")}
+                {hdrWithTip("Max Profit", "Largest single leveraged gain observed")}
+                {hdrWithTip("Max Loss", "Largest single leveraged loss observed")}
+                {hdrWithTip("TP1", "Trades that hit Target Price 1 (50% booked)", "text-emerald-400/50")}
+                {hdrWithTip("TP2", "Trades that hit Target Price 2 (25% booked)", "text-emerald-400/50")}
+                {hdrWithTip("TP3", "Trades that hit Target Price 3 (final 25%)", "text-emerald-400/50")}
+                {hdrWithTip("SL", "Trades that hit Stop Loss", "text-rose-400/50")}
               </tr>
             </thead>
             <tbody>
@@ -236,7 +232,6 @@ export default function AnalyticsPage() {
     );
   };
 
-  const tfLabelMap: Record<string, string> = { "5": "5m", "15": "15m", "60": "1h", "240": "4h", "D": "1D" };
 
   if (isUserLoading || (isLoading && !allSignals)) {
     return (
@@ -247,12 +242,13 @@ export default function AnalyticsPage() {
   }
 
   return (
+    <TooltipProvider delayDuration={200}>
     <div className="flex flex-col h-screen bg-background text-foreground">
       <TopBar />
       
       <main className="flex-1 overflow-y-auto p-6 space-y-6">
         <header className="space-y-2">
-          <h1 className="text-3xl font-black text-white tracking-tighter uppercase">Performance Node</h1>
+          <h1 className="text-3xl font-black text-white tracking-tighter uppercase">Trade Analytics</h1>
           <p className="text-muted-foreground text-sm max-w-2xl">
             Side-by-side analytics for active and retired signals across all timeframes.
           </p>
@@ -322,166 +318,19 @@ export default function AnalyticsPage() {
                   {renderSideBlock(data, "Bulls", "bullish", TrendingUp, "text-emerald-400")}
                   <div className="border-t border-white/5" />
                   {renderSideBlock(data, "Bears", "bearish", TrendingDown, "text-rose-400")}
+                  <Link href={`/trade-audit?timeframe=${tf.id}`} className="block">
+                    <Button variant="outline" size="sm" className="w-full h-9 text-[10px] font-black uppercase tracking-widest border-white/10 text-muted-foreground hover:text-accent hover:border-accent/30 transition-all">
+                      View Trade Audit →
+                    </Button>
+                  </Link>
                 </CardContent>
               </Card>
             );
           })}
         </div>
 
-        {/* Trade audit table */}
-        <Card className="bg-card border-white/5 overflow-hidden">
-          <CardHeader className="bg-white/[0.02] border-b border-white/5">
-            <div className="flex items-center justify-between">
-               <div className="space-y-1">
-                  <CardTitle className="text-sm uppercase tracking-widest text-white">Trade Audit</CardTitle>
-                  <CardDescription className="text-[10px] font-bold">Individual signal details</CardDescription>
-               </div>
-               <div className="flex items-center gap-3">
-                 <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-1">
-                   {([
-                     { key: "active" as TableViewMode, label: "Active", icon: Zap },
-                     { key: "retired" as TableViewMode, label: "Retired", icon: Clock },
-                   ]).map(({ key, label, icon: Icon }) => (
-                     <button
-                       key={key}
-                       onClick={() => setTableViewMode(key)}
-                       className={cn(
-                         "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
-                         tableViewMode === key
-                           ? "bg-accent/15 text-accent shadow-sm"
-                           : "text-muted-foreground hover:text-foreground",
-                       )}
-                     >
-                       <Icon className="h-3 w-3" />
-                       {label}
-                     </button>
-                   ))}
-                 </div>
-                 <Badge variant="outline" className="border-white/10 text-muted-foreground bg-white/5">
-                   <History className="h-3 w-3 mr-2" /> {tableSignals.length}
-                 </Badge>
-               </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="min-w-[1100px]">
-              <Table>
-                <TableHeader className="bg-black/20">
-                  <TableRow className="hover:bg-transparent border-white/5">
-                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Symbol</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Side</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Chart</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Lev.</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Entry</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">{tableViewMode === "active" ? "Current Price" : "Exit Price"}</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">SL</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Targets</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Net PNL</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Max Excursion</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 text-right">{tableViewMode === "active" ? "Date Opened" : "Date Closed"}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tableSignals.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={11} className="h-64 text-center">
-                        <div className="flex flex-col items-center gap-4 opacity-40">
-                           <Archive className="h-12 w-12 text-muted-foreground" />
-                           <div className="space-y-1">
-                              <p className="text-xs font-bold uppercase tracking-widest text-white">No Signals Found</p>
-                              <p className="text-[10px] text-muted-foreground max-w-xs mx-auto">
-                                No signals match the current filters.
-                              </p>
-                           </div>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    tableSignals.map((signal) => {
-                      const leverage = getLeverage(signal.timeframe);
-                      const pnl = effectivePnl(signal) * leverage;
-                      const maxUp = calculatePercent(signal.maxUpsidePrice, signal.price, signal.type) * leverage;
-                      const maxDown = calculatePercent(signal.maxDrawdownPrice, signal.price, signal.type) * leverage;
-                      const chartLabel = tfLabelMap[String(signal.timeframe).toUpperCase()] ?? `${signal.timeframe}m`;
-                      const hasTp = signal.tp1 != null && signal.tp2 != null;
-                      const effectiveSLPhase = signal.tp2Hit ? "tp1" : signal.tp1Hit ? "cost" : "original";
-
-                      return (
-                        <TableRow key={signal.id} className="border-white/5 hover:bg-white/[0.02] transition-colors group">
-                          <TableCell className="py-4">
-                            <span className="text-sm font-black text-white leading-none uppercase tracking-tighter">{signal.symbol}</span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", signal.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400')}>
-                              {signal.type}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-xs font-bold text-muted-foreground uppercase">{chartLabel}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-[9px] font-black h-5 px-1.5 border-accent/20 text-accent">{leverage}x</Badge>
-                          </TableCell>
-                          <TableCell className="font-mono text-xs font-bold text-white/60">${formatPrice(signal.price)}</TableCell>
-                          <TableCell className="font-mono text-xs font-bold text-white">${formatPrice(signal.currentPrice)}</TableCell>
-                          <TableCell className="font-mono text-xs font-bold">
-                            {signal.stopLoss != null && signal.stopLoss > 0 ? (
-                              effectiveSLPhase === "tp1" ? (
-                                <span className="text-positive" title="SL at TP1 (TP2 achieved)">${formatPrice(signal.tp1)}</span>
-                              ) : effectiveSLPhase === "cost" ? (
-                                <span className="text-positive" title="SL at cost (TP1 achieved)">${formatPrice(signal.price)}</span>
-                              ) : (
-                                <span className="text-amber-400/90">${formatPrice(signal.stopLoss)}</span>
-                              )
-                            ) : "--"}
-                          </TableCell>
-                          <TableCell>
-                            {hasTp ? (
-                              <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase">
-                                <span className={cn("px-1 py-0.5 rounded", signal.tp1Hit ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-muted-foreground/40")}>
-                                  1{signal.tp1Hit ? "✓" : ""}
-                                </span>
-                                <span className={cn("px-1 py-0.5 rounded", signal.tp2Hit ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-muted-foreground/40")}>
-                                  2{signal.tp2Hit ? "✓" : ""}
-                                </span>
-                                <span className={cn("px-1 py-0.5 rounded", signal.tp3Hit ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-muted-foreground/40")}>
-                                  3{signal.tp3Hit ? "✓" : ""}
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground/30">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className={cn("flex items-center gap-1.5 font-mono text-xs font-black", pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                               {pnl >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                               {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}%
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-4">
-                               <div className="flex items-center gap-1 font-mono text-xs font-bold text-emerald-400">
-                                  <ArrowUpRight className="h-3 w-3" /> {maxUp.toFixed(1)}%
-                               </div>
-                               <div className="flex items-center gap-1 font-mono text-xs font-bold text-rose-400">
-                                  <ArrowDownRight className="h-3 w-3" /> {maxDown.toFixed(1)}%
-                               </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                             <div className="flex flex-col items-end">
-                                <span className="text-[10px] font-mono font-bold text-white/40">{format(new Date(signal.receivedAt), 'yyyy-MM-dd')}</span>
-                                <span className="text-[10px] font-mono font-bold text-accent/40">{format(new Date(signal.receivedAt), 'HH:mm')}</span>
-                             </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
       </main>
     </div>
+    </TooltipProvider>
   );
 }

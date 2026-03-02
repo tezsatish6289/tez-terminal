@@ -354,31 +354,37 @@ function WinnersTicker({ winners, windowLabel, leverage, onSelect }: { winners: 
   const isRetired = winner.status === "INACTIVE";
   const hasTp = winner.tp1 != null;
 
+  const hitTps = ([
+    { hit: winner.tp1Hit, label: "TP1" },
+    { hit: winner.tp2Hit, label: "TP2" },
+    { hit: winner.tp3Hit, label: "TP3" },
+  ]).filter(tp => tp.hit);
+
   return (
     <div>
       <span className="text-[9px] font-bold uppercase tracking-widest text-amber-400/50">Top Winners · {windowLabel}</span>
       <button
         onClick={(e) => { e.preventDefault(); onSelect(winner); }}
-        className="w-full flex items-center justify-between mt-0.5 hover:bg-amber-500/[0.05] rounded-md px-1 py-0.5 transition-colors cursor-pointer"
+        className="w-full hover:bg-amber-500/[0.05] rounded-md px-1 py-0.5 transition-colors cursor-pointer"
       >
-        <div className="flex items-center gap-2 min-w-0">
-          <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-          <span className={cn("text-sm font-black shrink-0", isBuy ? "text-positive" : "text-negative")}>{isBuy ? "▲" : "▼"}</span>
-          <span className="text-sm font-black text-foreground uppercase tracking-wider truncate">{winner.symbol}</span>
-          {hasTp && (
-            <span className="text-[9px] font-bold shrink-0">
-              {([
-                { hit: winner.tp1Hit, label: "TP1" },
-                { hit: winner.tp2Hit, label: "TP2" },
-                { hit: winner.tp3Hit, label: "TP3" },
-              ]).filter(tp => tp.hit).map((tp, i) => (
-                <span key={tp.label}><span className="text-positive">✓</span><span className="text-positive/60">{tp.label}</span>{i < [winner.tp1Hit, winner.tp2Hit, winner.tp3Hit].filter(Boolean).length - 1 ? <span className="text-muted-foreground/20"> </span> : null}</span>
-              ))}
-            </span>
-          )}
-          {isRetired && <span className="text-[8px] font-black text-muted-foreground/40 shrink-0">CLOSED</span>}
+        <div className="flex items-center justify-between mt-0.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            <span className={cn("text-sm font-black shrink-0", isBuy ? "text-positive" : "text-negative")}>{isBuy ? "▲" : "▼"}</span>
+            <span className="text-sm font-black text-foreground uppercase tracking-wider truncate">{winner.symbol}</span>
+          </div>
+          <span className="text-lg font-black font-mono text-amber-400 shrink-0">+{(winner.pnl * leverage).toFixed(2)}%</span>
         </div>
-        <span className="text-lg font-black font-mono text-amber-400 shrink-0">+{(winner.pnl * leverage).toFixed(2)}%</span>
+        {(hitTps.length > 0 || isRetired) && (
+          <div className="flex items-center gap-2 mt-0.5 pl-6">
+            {hitTps.map((tp) => (
+              <span key={tp.label} className="text-[9px] font-bold">
+                <span className="text-positive">✓</span><span className="text-positive/60">{tp.label}</span>
+              </span>
+            ))}
+            {isRetired && <span className="text-[8px] font-black text-muted-foreground/40">CLOSED</span>}
+          </div>
+        )}
       </button>
     </div>
   );

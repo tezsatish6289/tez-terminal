@@ -1,0 +1,395 @@
+"use client";
+
+import { TopBar } from "@/components/dashboard/TopBar";
+import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { collection, query, orderBy, limit } from "firebase/firestore";
+import {
+  TrendingUp,
+  TrendingDown,
+  Loader2,
+  ArrowUpRight,
+  ArrowDownRight,
+  Archive,
+  Zap,
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+  Layers,
+} from "lucide-react";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useMemo, useState, Suspense } from "react";
+import { getLeverage } from "@/lib/leverage";
+import { getEffectivePnl as effectivePnl } from "@/lib/pnl";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+
+const PAGE_SIZE = 25;
+
+const tfLabelMap: Record<string, string> = { "5": "5m", "15": "15m", "60": "1h", "240": "4h", "D": "1D" };
+const TIMEFRAMES = [
+  { id: "5", name: "Scalping" },
+  { id: "15", name: "Intraday" },
+  { id: "60", name: "Swing" },
+  { id: "240", name: "Positional" },
+  { id: "D", name: "Buy & Hold" },
+];
+
+function TradeAuditContent() {
+  const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
+  const searchParams = useSearchParams();
+  const initialTf = searchParams.get("timeframe") || "all";
+
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "retired">("all");
+  const [sideFilter, setSideFilter] = useState<"all" | "BUY" | "SELL">("all");
+  const [tfFilter, setTfFilter] = useState(initialTf);
+  const [page, setPage] = useState(0);
+
+  const signalsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, "signals"), orderBy("receivedAt", "desc"), limit(500));
+  }, [user, firestore]);
+
+  const { data: allSignals, isLoading } = useCollection(signalsQuery);
+
+  const calculatePercent = (target: any, entry: any, type: string) => {
+    const e = Number(entry);
+    const t = Number(target);
+    if (!e || isNaN(t)) return 0;
+    const diff = type === "BUY" ? t - e : e - t;
+    return (diff / e) * 100;
+  };
+
+  const formatPrice = (p: number | null | undefined) => {
+    if (p === null || p === undefined) return "--";
+    const decimals = p < 1 ? 6 : 2;
+    return p.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  };
+
+  const filtered = useMemo(() => {
+    if (!allSignals) return [];
+    return allSignals.filter((s: any) => {
+      if (statusFilter === "active" && s.status === "INACTIVE") return false;
+      if (statusFilter === "retired" && s.status !== "INACTIVE") return false;
+      if (sideFilter !== "all" && s.type !== sideFilter) return false;
+      if (tfFilter !== "all" && String(s.timeframe).toUpperCase() !== tfFilter.toUpperCase()) return false;
+      return true;
+    });
+  }, [allSignals, statusFilter, sideFilter, tfFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageSignals = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  const summaryStats = useMemo(() => {
+    const total = filtered.length;
+    const wins = filtered.filter((s: any) => effectivePnl(s) >= 0).length;
+    const netPnl = filtered.reduce((sum: number, s: any) => sum + effectivePnl(s) * getLeverage(s.timeframe), 0);
+    return { total, wins, winRate: total > 0 ? (wins / total) * 100 : 0, netPnl };
+  }, [filtered]);
+
+  // Reset page when filters change
+  const setFilterAndResetPage = <T,>(setter: (v: T) => void) => (v: T) => { setter(v); setPage(0); };
+
+  if (isUserLoading || (isLoading && !allSignals)) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-screen bg-background text-foreground">
+      <TopBar />
+
+      <main className="flex-1 overflow-y-auto p-6 space-y-6">
+        <header className="space-y-2">
+          <div className="flex items-center gap-3">
+            <Link href="/analytics">
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground gap-1 -ml-2">
+                <ChevronLeft className="h-4 w-4" /> Back to Analytics
+              </Button>
+            </Link>
+          </div>
+          <h1 className="text-3xl font-black text-white tracking-tighter uppercase">Trade Audit</h1>
+          <p className="text-muted-foreground text-sm max-w-2xl">
+            Individual signal details with full execution history.
+          </p>
+        </header>
+
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Status filter */}
+          <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-1">
+            {([
+              { key: "all" as const, label: "All", icon: Layers },
+              { key: "active" as const, label: "Active", icon: Zap },
+              { key: "retired" as const, label: "Retired", icon: Clock },
+            ]).map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setFilterAndResetPage(setStatusFilter)(key)}
+                className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
+                  statusFilter === key
+                    ? "bg-accent/15 text-accent shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Icon className="h-3 w-3" />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Side filter */}
+          <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-1">
+            {([
+              { key: "all" as const, label: "All" },
+              { key: "BUY" as const, label: "Bulls" },
+              { key: "SELL" as const, label: "Bears" },
+            ]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setFilterAndResetPage(setSideFilter)(key)}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
+                  sideFilter === key
+                    ? "bg-accent/15 text-accent shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Timeframe chips */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setFilterAndResetPage(setTfFilter)("all")}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border",
+                tfFilter === "all"
+                  ? "bg-accent/15 text-accent border-accent/30"
+                  : "text-muted-foreground border-white/10 hover:text-foreground hover:border-white/20",
+              )}
+            >
+              All TF
+            </button>
+            {TIMEFRAMES.map(tf => (
+              <button
+                key={tf.id}
+                onClick={() => setFilterAndResetPage(setTfFilter)(tf.id)}
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border",
+                  tfFilter === tf.id
+                    ? "bg-accent/15 text-accent border-accent/30"
+                    : "text-muted-foreground border-white/10 hover:text-foreground hover:border-white/20",
+                )}
+              >
+                {tfLabelMap[tf.id]}
+              </button>
+            ))}
+          </div>
+
+          <Badge variant="outline" className="border-white/10 text-muted-foreground bg-white/5 ml-auto">
+            {filtered.length} trades
+          </Badge>
+        </div>
+
+        {/* Summary stats bar */}
+        <div className="flex items-center gap-6 px-4 py-3 rounded-lg border border-white/5 bg-white/[0.02]">
+          <div>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Trades</span>
+            <span className="text-lg font-black font-mono text-white">{summaryStats.total}</span>
+          </div>
+          <div>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Win Rate</span>
+            <span className={cn("text-lg font-black font-mono", summaryStats.winRate >= 50 ? "text-emerald-400" : "text-rose-400")}>
+              {summaryStats.winRate.toFixed(1)}%
+            </span>
+          </div>
+          <div>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Net PNL</span>
+            <span className={cn("text-lg font-black font-mono", summaryStats.netPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+              {summaryStats.netPnl >= 0 ? "+" : ""}{summaryStats.netPnl.toFixed(2)}%
+            </span>
+          </div>
+        </div>
+
+        {/* Table */}
+        <Card className="bg-card border-white/5 overflow-hidden">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <div className="min-w-[1000px]">
+                <Table>
+                  <TableHeader className="bg-black/20">
+                    <TableRow className="hover:bg-transparent border-white/5">
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Symbol</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Side</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Chart</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Lev.</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Entry</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Current</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">SL</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Targets</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Net PNL</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Max Excursion</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Status</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 text-right">Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pageSignals.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={12} className="h-64 text-center">
+                          <div className="flex flex-col items-center gap-4 opacity-40">
+                            <Archive className="h-12 w-12 text-muted-foreground" />
+                            <div className="space-y-1">
+                              <p className="text-xs font-bold uppercase tracking-widest text-white">No Signals Found</p>
+                              <p className="text-[10px] text-muted-foreground max-w-xs mx-auto">No signals match the current filters.</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      pageSignals.map((signal: any) => {
+                        const leverage = getLeverage(signal.timeframe);
+                        const pnl = effectivePnl(signal) * leverage;
+                        const maxUp = calculatePercent(signal.maxUpsidePrice, signal.price, signal.type) * leverage;
+                        const maxDown = calculatePercent(signal.maxDrawdownPrice, signal.price, signal.type) * leverage;
+                        const chartLabel = tfLabelMap[String(signal.timeframe).toUpperCase()] ?? `${signal.timeframe}m`;
+                        const hasTp = signal.tp1 != null && signal.tp2 != null;
+                        const effectiveSLPhase = signal.tp2Hit ? "tp1" : signal.tp1Hit ? "cost" : "original";
+                        const isRetired = signal.status === "INACTIVE";
+
+                        return (
+                          <TableRow key={signal.id} className="border-white/5 hover:bg-white/[0.02] transition-colors">
+                            <TableCell className="py-4">
+                              <Link href={`/chart/${signal.id}`} className="text-sm font-black text-white leading-none uppercase tracking-tighter hover:text-accent transition-colors">
+                                {signal.symbol}
+                              </Link>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", signal.type === "BUY" ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400")}>
+                                {signal.type}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs font-bold text-muted-foreground uppercase">{chartLabel}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-[9px] font-black h-5 px-1.5 border-accent/20 text-accent">{leverage}x</Badge>
+                            </TableCell>
+                            <TableCell className="font-mono text-xs font-bold text-white/60">${formatPrice(signal.price)}</TableCell>
+                            <TableCell className="font-mono text-xs font-bold text-white">${formatPrice(signal.currentPrice)}</TableCell>
+                            <TableCell className="font-mono text-xs font-bold">
+                              {signal.stopLoss != null && signal.stopLoss > 0 ? (
+                                effectiveSLPhase === "tp1" ? (
+                                  <span className="text-positive" title="SL at TP1">${formatPrice(signal.tp1)}</span>
+                                ) : effectiveSLPhase === "cost" ? (
+                                  <span className="text-positive" title="SL at cost">${formatPrice(signal.price)}</span>
+                                ) : (
+                                  <span className="text-amber-400/90">${formatPrice(signal.stopLoss)}</span>
+                                )
+                              ) : "--"}
+                            </TableCell>
+                            <TableCell>
+                              {hasTp ? (
+                                <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase">
+                                  <span className={cn("px-1 py-0.5 rounded", signal.tp1Hit ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-muted-foreground/40")}>
+                                    1{signal.tp1Hit ? "✓" : ""}
+                                  </span>
+                                  <span className={cn("px-1 py-0.5 rounded", signal.tp2Hit ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-muted-foreground/40")}>
+                                    2{signal.tp2Hit ? "✓" : ""}
+                                  </span>
+                                  <span className={cn("px-1 py-0.5 rounded", signal.tp3Hit ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-muted-foreground/40")}>
+                                    3{signal.tp3Hit ? "✓" : ""}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground/30">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className={cn("flex items-center gap-1.5 font-mono text-xs font-black", pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                                {pnl >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                                {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}%
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-1 font-mono text-xs font-bold text-emerald-400">
+                                  <ArrowUpRight className="h-3 w-3" /> {maxUp.toFixed(1)}%
+                                </div>
+                                <div className="flex items-center gap-1 font-mono text-xs font-bold text-rose-400">
+                                  <ArrowDownRight className="h-3 w-3" /> {maxDown.toFixed(1)}%
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", isRetired ? "bg-amber-500/15 text-amber-400" : "bg-emerald-500/15 text-emerald-400")}>
+                                {isRetired ? "Retired" : "Active"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex flex-col items-end">
+                                <span className="text-[10px] font-mono font-bold text-white/40">{format(new Date(signal.receivedAt), "yyyy-MM-dd")}</span>
+                                <span className="text-[10px] font-mono font-bold text-accent/40">{format(new Date(signal.receivedAt), "HH:mm")}</span>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-wider">
+              Page {page + 1} of {totalPages}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page === 0}
+                onClick={() => setPage(p => p - 1)}
+                className="h-8 px-3 text-[10px] font-bold uppercase tracking-wider border-white/10"
+              >
+                <ChevronLeft className="h-3 w-3 mr-1" /> Prev
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages - 1}
+                onClick={() => setPage(p => p + 1)}
+                className="h-8 px-3 text-[10px] font-bold uppercase tracking-wider border-white/10"
+              >
+                Next <ChevronRight className="h-3 w-3 ml-1" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+export default function TradeAuditPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-accent" /></div>}>
+      <TradeAuditContent />
+    </Suspense>
+  );
+}

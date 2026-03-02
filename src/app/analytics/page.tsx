@@ -15,7 +15,6 @@ import {
   Layers,
   Zap,
   Clock,
-  Crown
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -157,74 +156,60 @@ export default function AnalyticsPage() {
     return p.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   };
 
-  const renderVal = (v: number, hasData: boolean, isProfit: boolean, perValueColor?: boolean) => {
-    if (!hasData) return <span className="text-muted-foreground/30">--</span>;
-    const color = perValueColor ? (v >= 0 ? "text-emerald-400" : "text-rose-400") : (isProfit ? "text-emerald-400" : "text-rose-400");
-    const prefix = perValueColor ? (v >= 0 ? "+" : "") : "";
-    return <span className={cn("font-mono font-black", color)}>{prefix}{perValueColor ? v.toFixed(2) : Math.abs(v).toFixed(2)}%</span>;
-  };
-
-  const renderMetricBlock = (
-    label: string,
-    activeAll: { val: number; has: boolean },
-    activePrem: { val: number; has: boolean } | null,
-    retiredAll: { val: number; has: boolean },
-    retiredPrem: { val: number; has: boolean } | null,
-    isProfit: boolean,
-    isCount?: boolean,
-    perValueColor?: boolean,
-  ) => (
-    <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3 space-y-2">
-      <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground text-center">{label}</div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="text-center">
-          <div className="text-[8px] font-bold uppercase text-emerald-400/60 mb-1 flex items-center justify-center gap-1"><Zap className="h-2.5 w-2.5" />Active</div>
-          {isCount ? (
-            <div className="text-lg font-black font-mono text-white">{activeAll.val}</div>
-          ) : (
-            <div className="text-sm">{renderVal(activeAll.val, activeAll.has, isProfit, perValueColor)}</div>
-          )}
-          {activePrem && (
-            <div className={cn("flex items-center justify-center gap-1 mt-1", isCount ? "font-mono font-bold text-accent" : "")}>
-              <Crown className="h-3 w-3 text-accent/60 shrink-0" />
-              {isCount ? (
-                <span className="text-lg font-black font-mono text-accent">{activePrem.val}</span>
-              ) : (
-                <span className="text-sm">{renderVal(activePrem.val, activePrem.has, isProfit, perValueColor)}</span>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="text-center border-l border-white/5">
-          <div className="text-[8px] font-bold uppercase text-amber-400/60 mb-1 flex items-center justify-center gap-1"><Clock className="h-2.5 w-2.5" />Retired</div>
-          {isCount ? (
-            <div className="text-lg font-black font-mono text-white">{retiredAll.val}</div>
-          ) : (
-            <div className="text-sm">{renderVal(retiredAll.val, retiredAll.has, isProfit, perValueColor)}</div>
-          )}
-          {retiredPrem && (
-            <div className={cn("flex items-center justify-center gap-1 mt-1", isCount ? "font-mono font-bold text-accent" : "")}>
-              <Crown className="h-3 w-3 text-accent/60 shrink-0" />
-              {isCount ? (
-                <span className="text-lg font-black font-mono text-accent">{retiredPrem.val}</span>
-              ) : (
-                <span className="text-sm">{renderVal(retiredPrem.val, retiredPrem.has, isProfit, perValueColor)}</span>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
   const renderSideBlock = (data: TfData, label: string, sideKey: "bullish" | "bearish", icon: typeof TrendingUp, iconColor: string) => {
     const aa = data.active.all[sideKey];
-    const ap = data.active.premium[sideKey];
     const ra = data.retired.all[sideKey];
-    const rp = data.retired.premium[sideKey];
-    const hasActivePrem = ap.count > 0;
-    const hasRetiredPrem = rp.count > 0;
-    const hasPrem = hasActivePrem || hasRetiredPrem;
+
+    if (aa.count === 0 && ra.count === 0) {
+      return (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            {icon === TrendingUp ? <TrendingUp className={cn("h-4 w-4", iconColor)} /> : <TrendingDown className={cn("h-4 w-4", iconColor)} />}
+            <span className={cn("text-[10px] font-black uppercase tracking-wider", iconColor)}>{label}</span>
+          </div>
+          <div className="text-[10px] text-muted-foreground/40 text-center py-3">No {label.toLowerCase()} trades</div>
+        </div>
+      );
+    }
+
+    const cell = "px-3 py-2 text-xs font-mono font-black whitespace-nowrap";
+    const hdr = "px-3 py-2 text-[9px] font-black uppercase tracking-widest text-muted-foreground whitespace-nowrap";
+    const pctCell = (v: number, has: boolean, profit: boolean) => {
+      if (!has) return <td className={cell}><span className="text-muted-foreground/30">--</span></td>;
+      const color = profit ? "text-emerald-400" : "text-rose-400";
+      return <td className={cell}><span className={color}>{Math.abs(v).toFixed(2)}%</span></td>;
+    };
+    const pnlCell = (v: number, has: boolean) => {
+      if (!has) return <td className={cell}><span className="text-muted-foreground/30">--</span></td>;
+      const color = v >= 0 ? "text-emerald-400" : "text-rose-400";
+      const prefix = v >= 0 ? "+" : "";
+      return <td className={cell}><span className={color}>{prefix}{v.toFixed(2)}%</span></td>;
+    };
+    const countCell = (v: number, color?: string) => (
+      <td className={cell}><span className={color || "text-white"}>{v}</span></td>
+    );
+
+    const renderRow = (s: SideStats, rowLabel: string, labelColor: string, RowIcon: typeof Zap) => {
+      const wr = s.count > 0 ? (s.winCount / s.count) * 100 : 0;
+      return (
+        <tr className="border-t border-white/5 hover:bg-white/[0.02] transition-colors">
+          <td className={cn(cell, "flex items-center gap-1.5", labelColor)}>
+            <RowIcon className="h-3 w-3 shrink-0" />{rowLabel}
+          </td>
+          <td className={cn(cell, "text-white")}>{s.count}</td>
+          {pctCell(wr, s.count > 0, true)}
+          {pnlCell(s.netPnl, s.count > 0)}
+          {pctCell(s.profit.avg, s.profit.count > 0, true)}
+          {pctCell(s.profit.max, s.profit.count > 0, true)}
+          {pctCell(s.loss.avg, s.loss.count > 0, false)}
+          {pctCell(s.loss.max, s.loss.count > 0, false)}
+          {countCell(s.tp1Count, "text-emerald-400")}
+          {countCell(s.tp2Count, "text-emerald-400")}
+          {countCell(s.tp3Count, "text-emerald-400")}
+          {countCell(s.slCount, "text-rose-400")}
+        </tr>
+      );
+    };
 
     return (
       <div className="space-y-3">
@@ -232,109 +217,30 @@ export default function AnalyticsPage() {
           {icon === TrendingUp ? <TrendingUp className={cn("h-4 w-4", iconColor)} /> : <TrendingDown className={cn("h-4 w-4", iconColor)} />}
           <span className={cn("text-[10px] font-black uppercase tracking-wider", iconColor)}>{label}</span>
         </div>
-        {aa.count === 0 && ra.count === 0 ? (
-          <div className="text-[10px] text-muted-foreground/40 text-center py-3">No {label.toLowerCase()} trades</div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
-            {renderMetricBlock("Trades",
-              { val: aa.count, has: true },
-              hasPrem ? { val: ap.count, has: true } : null,
-              { val: ra.count, has: true },
-              hasPrem ? { val: rp.count, has: true } : null,
-              true, true,
-            )}
-            {renderMetricBlock("Win Rate",
-              { val: aa.count > 0 ? (aa.winCount / aa.count) * 100 : 0, has: aa.count > 0 },
-              hasPrem ? { val: ap.count > 0 ? (ap.winCount / ap.count) * 100 : 0, has: ap.count > 0 } : null,
-              { val: ra.count > 0 ? (ra.winCount / ra.count) * 100 : 0, has: ra.count > 0 },
-              hasPrem ? { val: rp.count > 0 ? (rp.winCount / rp.count) * 100 : 0, has: rp.count > 0 } : null,
-              true,
-            )}
-            {renderMetricBlock("Net PNL",
-              { val: aa.netPnl, has: aa.count > 0 },
-              hasPrem ? { val: ap.netPnl, has: ap.count > 0 } : null,
-              { val: ra.netPnl, has: ra.count > 0 },
-              hasPrem ? { val: rp.netPnl, has: rp.count > 0 } : null,
-              true, false, true,
-            )}
-            {renderMetricBlock("Avg Profit",
-              { val: aa.profit.avg, has: aa.profit.count > 0 },
-              hasPrem ? { val: ap.profit.avg, has: ap.profit.count > 0 } : null,
-              { val: ra.profit.avg, has: ra.profit.count > 0 },
-              hasPrem ? { val: rp.profit.avg, has: rp.profit.count > 0 } : null,
-              true,
-            )}
-            {renderMetricBlock("Max Profit",
-              { val: aa.profit.max, has: aa.profit.count > 0 },
-              hasPrem ? { val: ap.profit.max, has: ap.profit.count > 0 } : null,
-              { val: ra.profit.max, has: ra.profit.count > 0 },
-              hasPrem ? { val: rp.profit.max, has: rp.profit.count > 0 } : null,
-              true,
-            )}
-            {renderMetricBlock("Avg Loss",
-              { val: aa.loss.avg, has: aa.loss.count > 0 },
-              hasPrem ? { val: ap.loss.avg, has: ap.loss.count > 0 } : null,
-              { val: ra.loss.avg, has: ra.loss.count > 0 },
-              hasPrem ? { val: rp.loss.avg, has: rp.loss.count > 0 } : null,
-              false,
-            )}
-            {renderMetricBlock("Max Loss",
-              { val: aa.loss.max, has: aa.loss.count > 0 },
-              hasPrem ? { val: ap.loss.max, has: ap.loss.count > 0 } : null,
-              { val: ra.loss.max, has: ra.loss.count > 0 },
-              hasPrem ? { val: rp.loss.max, has: rp.loss.count > 0 } : null,
-              false,
-            )}
-            {/* TP/SL Hit Counts */}
-            <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3 space-y-2">
-              <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground text-center">Exits</div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="text-center">
-                  <div className="text-[8px] font-bold uppercase text-emerald-400/60 mb-1 flex items-center justify-center gap-1"><Zap className="h-2.5 w-2.5" />Active</div>
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between px-1">
-                      <span className="text-[8px] font-bold text-positive/60 uppercase">TP1</span>
-                      <span className="text-xs font-black font-mono text-positive">{aa.tp1Count}</span>
-                    </div>
-                    <div className="flex items-center justify-between px-1">
-                      <span className="text-[8px] font-bold text-positive/60 uppercase">TP2</span>
-                      <span className="text-xs font-black font-mono text-positive">{aa.tp2Count}</span>
-                    </div>
-                    <div className="flex items-center justify-between px-1">
-                      <span className="text-[8px] font-bold text-positive/60 uppercase">TP3</span>
-                      <span className="text-xs font-black font-mono text-positive">{aa.tp3Count}</span>
-                    </div>
-                    <div className="flex items-center justify-between px-1 border-t border-white/5 pt-1">
-                      <span className="text-[8px] font-bold text-negative/60 uppercase">SL</span>
-                      <span className="text-xs font-black font-mono text-negative">{aa.slCount}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="text-center border-l border-white/5">
-                  <div className="text-[8px] font-bold uppercase text-amber-400/60 mb-1 flex items-center justify-center gap-1"><Clock className="h-2.5 w-2.5" />Retired</div>
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between px-1">
-                      <span className="text-[8px] font-bold text-positive/60 uppercase">TP1</span>
-                      <span className="text-xs font-black font-mono text-positive">{ra.tp1Count}</span>
-                    </div>
-                    <div className="flex items-center justify-between px-1">
-                      <span className="text-[8px] font-bold text-positive/60 uppercase">TP2</span>
-                      <span className="text-xs font-black font-mono text-positive">{ra.tp2Count}</span>
-                    </div>
-                    <div className="flex items-center justify-between px-1">
-                      <span className="text-[8px] font-bold text-positive/60 uppercase">TP3</span>
-                      <span className="text-xs font-black font-mono text-positive">{ra.tp3Count}</span>
-                    </div>
-                    <div className="flex items-center justify-between px-1 border-t border-white/5 pt-1">
-                      <span className="text-[8px] font-bold text-negative/60 uppercase">SL</span>
-                      <span className="text-xs font-black font-mono text-negative">{ra.slCount}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        <div className="overflow-x-auto rounded-lg border border-white/5">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-white/[0.02]">
+                <th className={hdr}></th>
+                <th className={hdr}>Trades</th>
+                <th className={hdr}>Win Rate</th>
+                <th className={hdr}>Net PNL</th>
+                <th className={hdr}>Avg Profit</th>
+                <th className={hdr}>Max Profit</th>
+                <th className={hdr}>Avg Loss</th>
+                <th className={hdr}>Max Loss</th>
+                <th className={cn(hdr, "text-emerald-400/50")}>TP1</th>
+                <th className={cn(hdr, "text-emerald-400/50")}>TP2</th>
+                <th className={cn(hdr, "text-emerald-400/50")}>TP3</th>
+                <th className={cn(hdr, "text-rose-400/50")}>SL</th>
+              </tr>
+            </thead>
+            <tbody>
+              {renderRow(aa, "Active", "text-emerald-400/80", Zap)}
+              {renderRow(ra, "Retired", "text-amber-400/80", Clock)}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   };

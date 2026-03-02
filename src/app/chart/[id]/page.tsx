@@ -173,7 +173,7 @@ export default function DeepDiveChartPage() {
                   <div className={cn("text-lg font-black", isBullish ? "text-positive/30" : "text-negative/30")}>→</div>
                   <div className="text-right">
                     <span className="text-[9px] font-bold uppercase tracking-widest text-accent/60 block">Current</span>
-                    <span className={cn("text-sm font-mono font-black", Number(livePnl) >= 0 ? "text-positive" : "text-negative")}>${formatPrice(signal?.currentPrice)}</span>
+                    <span className={cn("text-sm font-mono font-black", effectivePnlVal >= 0 ? "text-positive" : "text-negative")}>${formatPrice(signal?.currentPrice)}</span>
                   </div>
                 </div>
 

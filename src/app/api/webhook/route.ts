@@ -1,14 +1,15 @@
 
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { initializeFirebase } from "@/firebase";
-import { collection, addDoc, doc, getDoc, getDocs, query, where, limit, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, doc, getDoc, getDocs, query, where, limit, updateDoc, serverTimestamp } from "firebase/firestore";
 import { computeSentiment, type SignalForSentiment } from "@/lib/sentiment";
 import { deriveTp3 } from "@/lib/pnl";
 
 /**
  * Webhook ingestion for TradingView alerts.
- * Expects a fixed JSON payload (from Pine script):
- *   ticker, side, exchange, timeframe, asset_type, note, price_at_alert, stopLoss, secretKey
+ * Auth + write happen synchronously for a fast response.
+ * Sentiment/alignment is computed in the background via next/server after().
  */
 export async function POST(request: NextRequest) {
   const { firestore } = initializeFirebase();
@@ -53,7 +54,6 @@ export async function POST(request: NextRequest) {
       throw new Error(`Auth Failure: Secret key mismatch for bridge '${configData.name}'.`);
     }
 
-    // Fixed payload schema from Pine: ticker, side, exchange, timeframe, asset_type, note, price_at_alert, stopLoss, secretKey
     const symbol = String(body.ticker ?? "UNKNOWN").toUpperCase();
     const exchange = String(body.exchange ?? "BINANCE").toUpperCase();
     const rawAt = String(body.asset_type ?? "CRYPTO").toUpperCase().trim();
@@ -85,52 +85,6 @@ export async function POST(request: NextRequest) {
     };
     const timeframe = tfMap[rawTf] || rawTf;
 
-    // Compute alignment with current market sentiment
-    let aligned = false;
-    let sentimentAtEntry = "";
-    try {
-      if (signalType !== "NEUTRAL" && assetType === "CRYPTO") {
-        const activeSnap = await getDocs(
-          query(collection(firestore, "signals"), where("status", "==", "ACTIVE"), limit(200))
-        );
-
-        let k = 7;
-        try {
-          const sentimentConfig = await getDoc(doc(firestore, "config", "sentiment"));
-          if (sentimentConfig.exists()) {
-            const ck = sentimentConfig.data()?.k;
-            if (typeof ck === "number" && ck > 0) k = ck;
-          }
-        } catch {}
-
-        const tfSignals: SignalForSentiment[] = [];
-        for (const d of activeSnap.docs) {
-          const s = d.data();
-          const sTf = String(s.timeframe || "").toUpperCase();
-          if (sTf !== timeframe.toUpperCase()) continue;
-          const sAt = String(s.assetType || "CRYPTO").toUpperCase();
-          if (!sAt.includes("CRYPTO") && sAt !== "CRYPTO") continue;
-          tfSignals.push({
-            type: s.type === "BUY" ? "BUY" : "SELL",
-            receivedAt: s.receivedAt,
-            currentPrice: s.currentPrice ?? null,
-            price: Number(s.price || 0),
-          });
-        }
-
-        const sentiment = computeSentiment(tfSignals, timeframe, k);
-        sentimentAtEntry = sentiment.label;
-
-        const bullish = sentiment.label === "Bulls in control" || sentiment.label === "Bulls taking over";
-        const bearish = sentiment.label === "Bears in control" || sentiment.label === "Bears taking over";
-        if (signalType === "BUY" && bullish) aligned = true;
-        if (signalType === "SELL" && bearish) aligned = true;
-      }
-    } catch {
-      // Never let alignment computation break signal ingestion
-    }
-
-    // MANDATORY INITIALIZATION: Every signal MUST start as ACTIVE
     const signalData: Record<string, any> = {
       webhookId,
       receivedAt: timestamp,
@@ -150,8 +104,8 @@ export async function POST(request: NextRequest) {
       timeframe: timeframe,
       note: body.note || `Alert for ${symbol}`,
       source: configData.name || "TradingView",
-      aligned,
-      sentimentAtEntry,
+      aligned: false,
+      sentimentAtEntry: "",
       tp1: tp1,
       tp2: tp2,
       tp3: (tp1 != null && tp2 != null) ? deriveTp3(tp1, tp2) : null,
@@ -169,7 +123,54 @@ export async function POST(request: NextRequest) {
       totalBookedPnl: null,
     };
 
-    await addDoc(signalsRef, signalData);
+    const docRef = await addDoc(signalsRef, signalData);
+
+    // Compute alignment in the background — runs after the response is sent
+    if (signalType !== "NEUTRAL" && assetType === "CRYPTO") {
+      after(async () => {
+        try {
+          const activeSnap = await getDocs(
+            query(collection(firestore, "signals"), where("status", "==", "ACTIVE"), limit(200))
+          );
+
+          let k = 7;
+          try {
+            const sentimentConfig = await getDoc(doc(firestore, "config", "sentiment"));
+            if (sentimentConfig.exists()) {
+              const ck = sentimentConfig.data()?.k;
+              if (typeof ck === "number" && ck > 0) k = ck;
+            }
+          } catch {}
+
+          const tfSignals: SignalForSentiment[] = [];
+          for (const d of activeSnap.docs) {
+            const s = d.data();
+            const sTf = String(s.timeframe || "").toUpperCase();
+            if (sTf !== timeframe.toUpperCase()) continue;
+            const sAt = String(s.assetType || "CRYPTO").toUpperCase();
+            if (!sAt.includes("CRYPTO") && sAt !== "CRYPTO") continue;
+            tfSignals.push({
+              type: s.type === "BUY" ? "BUY" : "SELL",
+              receivedAt: s.receivedAt,
+              currentPrice: s.currentPrice ?? null,
+              price: Number(s.price || 0),
+            });
+          }
+
+          const sentiment = computeSentiment(tfSignals, timeframe, k);
+          const bullish = sentiment.label === "Bulls in control" || sentiment.label === "Bulls taking over";
+          const bearish = sentiment.label === "Bears in control" || sentiment.label === "Bears taking over";
+          const aligned = (signalType === "BUY" && bullish) || (signalType === "SELL" && bearish);
+
+          await updateDoc(doc(firestore, "signals", docRef.id), {
+            aligned,
+            sentimentAtEntry: sentiment.label,
+          });
+        } catch (err) {
+          console.error("[Webhook after()] Alignment computation failed:", err);
+        }
+      });
+    }
 
     return NextResponse.json({ success: true, message: "Signal ingested as ACTIVE" });
   } catch (error: any) {

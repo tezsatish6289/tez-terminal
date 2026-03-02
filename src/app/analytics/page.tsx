@@ -106,10 +106,11 @@ export default function AnalyticsPage() {
     { id: "D", name: "Buy & Hold", chart: "1D" },
   ];
 
-  type SideStats = { count: number; winCount: number; profit: { count: number; max: number; median: number; avg: number }; loss: { count: number; max: number; median: number; avg: number } };
+  type SideStats = { count: number; winCount: number; netPnl: number; profit: { count: number; max: number; median: number; avg: number }; loss: { count: number; max: number; median: number; avg: number } };
 
   const computeSideStats = (sigs: any[], lev: number): SideStats => {
     const winCount = sigs.filter(s => effectivePnl(s) >= 0).length;
+    const netPnl = sigs.reduce((sum, s) => sum + effectivePnl(s) * lev, 0);
     const withUpside = sigs.filter(hasUpsideData);
     const upsideValues = withUpside.map(s => calculatePercent(s.maxUpsidePrice, s.price, s.type) * lev);
     const withDownside = sigs.filter(hasDownsideData);
@@ -117,6 +118,7 @@ export default function AnalyticsPage() {
     return {
       count: sigs.length,
       winCount,
+      netPnl,
       profit: upsideValues.length > 0
         ? { count: upsideValues.length, max: Math.max(...upsideValues), median: median(upsideValues), avg: upsideValues.reduce((a, b) => a + b, 0) / upsideValues.length }
         : { count: 0, max: 0, median: 0, avg: 0 },
@@ -157,9 +159,11 @@ export default function AnalyticsPage() {
     return p.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   };
 
-  const renderVal = (v: number, hasData: boolean, isProfit: boolean) => {
+  const renderVal = (v: number, hasData: boolean, isProfit: boolean, perValueColor?: boolean) => {
     if (!hasData) return <span className="text-muted-foreground/30">--</span>;
-    return <span className={cn("font-mono font-black", isProfit ? "text-emerald-400" : "text-rose-400")}>{Math.abs(v).toFixed(2)}%</span>;
+    const color = perValueColor ? (v >= 0 ? "text-emerald-400" : "text-rose-400") : (isProfit ? "text-emerald-400" : "text-rose-400");
+    const prefix = perValueColor ? (v >= 0 ? "+" : "") : "";
+    return <span className={cn("font-mono font-black", color)}>{prefix}{perValueColor ? v.toFixed(2) : Math.abs(v).toFixed(2)}%</span>;
   };
 
   const renderMetricBlock = (
@@ -170,6 +174,7 @@ export default function AnalyticsPage() {
     retiredPrem: { val: number; has: boolean } | null,
     isProfit: boolean,
     isCount?: boolean,
+    perValueColor?: boolean,
   ) => (
     <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3 space-y-2">
       <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground text-center">{label}</div>
@@ -179,7 +184,7 @@ export default function AnalyticsPage() {
           {isCount ? (
             <div className="text-lg font-black font-mono text-white">{activeAll.val}</div>
           ) : (
-            <div className="text-sm">{renderVal(activeAll.val, activeAll.has, isProfit)}</div>
+            <div className="text-sm">{renderVal(activeAll.val, activeAll.has, isProfit, perValueColor)}</div>
           )}
           {activePrem && (
             <div className={cn("flex items-center justify-center gap-1 mt-1", isCount ? "font-mono font-bold text-accent" : "")}>
@@ -187,7 +192,7 @@ export default function AnalyticsPage() {
               {isCount ? (
                 <span className="text-lg font-black font-mono text-accent">{activePrem.val}</span>
               ) : (
-                <span className="text-sm">{renderVal(activePrem.val, activePrem.has, isProfit)}</span>
+                <span className="text-sm">{renderVal(activePrem.val, activePrem.has, isProfit, perValueColor)}</span>
               )}
             </div>
           )}
@@ -197,7 +202,7 @@ export default function AnalyticsPage() {
           {isCount ? (
             <div className="text-lg font-black font-mono text-white">{retiredAll.val}</div>
           ) : (
-            <div className="text-sm">{renderVal(retiredAll.val, retiredAll.has, isProfit)}</div>
+            <div className="text-sm">{renderVal(retiredAll.val, retiredAll.has, isProfit, perValueColor)}</div>
           )}
           {retiredPrem && (
             <div className={cn("flex items-center justify-center gap-1 mt-1", isCount ? "font-mono font-bold text-accent" : "")}>
@@ -205,7 +210,7 @@ export default function AnalyticsPage() {
               {isCount ? (
                 <span className="text-lg font-black font-mono text-accent">{retiredPrem.val}</span>
               ) : (
-                <span className="text-sm">{renderVal(retiredPrem.val, retiredPrem.has, isProfit)}</span>
+                <span className="text-sm">{renderVal(retiredPrem.val, retiredPrem.has, isProfit, perValueColor)}</span>
               )}
             </div>
           )}
@@ -232,7 +237,7 @@ export default function AnalyticsPage() {
         {aa.count === 0 && ra.count === 0 ? (
           <div className="text-[10px] text-muted-foreground/40 text-center py-3">No {label.toLowerCase()} trades</div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
             {renderMetricBlock("Trades",
               { val: aa.count, has: true },
               hasPrem ? { val: ap.count, has: true } : null,
@@ -246,6 +251,13 @@ export default function AnalyticsPage() {
               { val: ra.count > 0 ? (ra.winCount / ra.count) * 100 : 0, has: ra.count > 0 },
               hasPrem ? { val: rp.count > 0 ? (rp.winCount / rp.count) * 100 : 0, has: rp.count > 0 } : null,
               true,
+            )}
+            {renderMetricBlock("Net PNL",
+              { val: aa.netPnl, has: aa.count > 0 },
+              hasPrem ? { val: ap.netPnl, has: ap.count > 0 } : null,
+              { val: ra.netPnl, has: ra.count > 0 },
+              hasPrem ? { val: rp.netPnl, has: rp.count > 0 } : null,
+              true, false, true,
             )}
             {renderMetricBlock("Avg Profit",
               { val: aa.profit.avg, has: aa.profit.count > 0 },

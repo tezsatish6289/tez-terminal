@@ -25,6 +25,9 @@ export default function Error({
         <p className="text-sm text-muted-foreground">
           A temporary error occurred. This usually resolves on retry.
         </p>
+        <pre className="text-left text-[10px] text-negative/70 bg-negative/5 border border-negative/10 rounded-lg p-3 max-h-40 overflow-auto whitespace-pre-wrap break-all">
+          {error.message}
+        </pre>
         <Button
           onClick={reset}
           className="gap-2 bg-accent/15 text-accent border border-accent/30 hover:bg-accent/25 font-bold"

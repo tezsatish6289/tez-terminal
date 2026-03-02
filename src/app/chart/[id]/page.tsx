@@ -358,6 +358,7 @@ export default function DeepDiveChartPage() {
               <Switch checked={showBtc} onCheckedChange={setShowBtc} className="data-[state=checked]:bg-accent scale-75" />
               Compare with BTC
             </button>
+            <span className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground/25">Chart shown in UTC time</span>
             <Button asChild size="sm" className="font-bold text-[10px] uppercase tracking-wider border rounded-lg h-8 gap-2 px-4 border-white/10 bg-white/[0.03] text-muted-foreground/50 hover:bg-white/[0.06] hover:text-muted-foreground">
               <a href={tradingViewUrl} target="_blank" rel="noopener noreferrer">
                 <TradingViewIcon className="h-3.5 w-3.5" />

@@ -80,11 +80,11 @@ export default function DeepDiveChartPage() {
     return p.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   };
 
-  if (isUserLoading || (isSignalLoading && !signal)) {
+  if (isUserLoading || isSignalLoading || !signalRef) {
     return <div className="flex h-screen items-center justify-center bg-background"><Loader2 className="h-10 w-10 animate-spin text-accent" /></div>;
   }
 
-  if (error || (!signal && !isSignalLoading)) {
+  if (error || !signal) {
     return (
       <div className="flex h-screen flex-col items-center justify-center bg-background p-6 gap-6">
         <AlertTriangle className="h-16 w-16 text-destructive" />

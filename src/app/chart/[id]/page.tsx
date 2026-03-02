@@ -14,6 +14,11 @@ import {
   Shield,
   Clock,
   Crown,
+  Info,
+  Target,
+  ArrowRightLeft,
+  ShieldCheck,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BinanceIcon, MexcIcon, PionexIcon, TradingViewIcon } from "@/components/icons/exchange-icons";
@@ -21,6 +26,7 @@ import { useEffect, useRef, useState } from "react";
 import { format, differenceInMinutes } from "date-fns";
 import { getLeverage } from "@/lib/leverage";
 import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getEffectivePnl } from "@/lib/pnl";
 
 /**
@@ -141,11 +147,77 @@ export default function DeepDiveChartPage() {
                     <span className="text-white/15">·</span>
                     <span className="text-[10px] font-black uppercase text-accent tracking-widest">{leverage}x</span>
                   </div>
-                  {signal?.aligned === true && (
-                    <span className="flex items-center gap-1 text-[9px] font-black text-amber-400 uppercase tracking-widest">
-                      <Crown className="h-3 w-3" />
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {signal?.aligned === true && (
+                      <span className="flex items-center gap-1 text-[9px] font-black text-amber-400 uppercase tracking-widest">
+                        <Crown className="h-3 w-3" />
+                      </span>
+                    )}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button className="h-6 w-6 rounded-full border border-white/10 bg-white/[0.03] flex items-center justify-center hover:bg-white/[0.08] hover:border-accent/30 transition-all group">
+                          <Info className="h-3 w-3 text-muted-foreground/40 group-hover:text-accent transition-colors" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent side="bottom" align="end" className="w-[340px] p-0 bg-[#141416] border-white/10 shadow-2xl shadow-black/50">
+                        <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-accent">Strategy Guide</span>
+                        </div>
+                        <div className="p-4 space-y-3">
+                          {([
+                            {
+                              icon: Target,
+                              color: "text-emerald-400",
+                              bg: "bg-emerald-400/10",
+                              title: "TP1 Hit — Book 50%",
+                              desc: "Close half the position at TP1. Stop loss moves to your entry price — you're now risk-free on the rest.",
+                            },
+                            {
+                              icon: Target,
+                              color: "text-emerald-400",
+                              bg: "bg-emerald-400/10",
+                              title: "TP2 Hit — Book 25%",
+                              desc: "Close another quarter at TP2. Stop loss moves up to TP1 — locking in profit on the remaining runner.",
+                            },
+                            {
+                              icon: Target,
+                              color: "text-emerald-400",
+                              bg: "bg-emerald-400/10",
+                              title: "TP3 Hit — Book Final 25%",
+                              desc: "The runner reaches its final target. Entire position closed — maximum profit captured.",
+                            },
+                            {
+                              icon: Shield,
+                              color: "text-amber-400",
+                              bg: "bg-amber-400/10",
+                              title: "Stop Loss — Risk Managed",
+                              desc: "If SL hits before any TP, the full trade closes at a controlled loss. After TP1, SL is at cost (breakeven). After TP2, SL is at TP1 (profit protected).",
+                            },
+                          ]).map((step, i) => (
+                            <div key={i} className="flex gap-3">
+                              <div className={cn("h-7 w-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5", step.bg)}>
+                                <step.icon className={cn("h-3.5 w-3.5", step.color)} />
+                              </div>
+                              <div>
+                                <div className="text-[11px] font-bold text-foreground/90">{step.title}</div>
+                                <div className="text-[10px] text-muted-foreground/60 leading-relaxed mt-0.5">{step.desc}</div>
+                              </div>
+                            </div>
+                          ))}
+                          <div className="mt-2 pt-3 border-t border-white/5">
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <ArrowRightLeft className="h-3 w-3 text-accent/60" />
+                              <span className="text-[10px] font-bold text-foreground/70">Position Split: 50 / 25 / 25</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <ShieldCheck className="h-3 w-3 text-accent/60" />
+                              <span className="text-[10px] font-bold text-foreground/70">SL trails up after each TP hit</span>
+                            </div>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
               </div>
 

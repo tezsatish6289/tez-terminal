@@ -18,6 +18,28 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (action === "test") {
+    const chatId = searchParams.get("chat");
+    if (!chatId) {
+      return NextResponse.json({ error: "Pass ?chat=YOUR_CHAT_ID to test" });
+    }
+    try {
+      const token = process.env.TELEGRAM_BOT_TOKEN;
+      const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: Number(chatId),
+          text: "Test message from Tez Terminal!",
+        }),
+      });
+      const data = await res.json();
+      return NextResponse.json({ action: "test", tokenLength: (token || "").length, result: data });
+    } catch (err: any) {
+      return NextResponse.json({ action: "test", error: err.message });
+    }
+  }
+
   if (action === "delete") {
     const result = await deleteWebhook();
     return NextResponse.json({ action: "delete", result });

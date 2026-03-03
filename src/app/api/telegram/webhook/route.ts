@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import {
-  collection, doc, getDoc, setDoc, updateDoc, deleteDoc,
+  collection, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc,
   query, where, getDocs,
 } from "firebase/firestore";
 import {
@@ -21,6 +21,8 @@ const ALL_EVENT_TYPES = ["NEW_SIGNAL", "TP1_HIT", "TP2_HIT", "TP3_HIT", "SL_HIT"
  * Registered with Telegram via setWebhook().
  */
 export async function POST(request: NextRequest) {
+  const { firestore } = initializeFirebase();
+
   try {
     const update: TelegramUpdate = await request.json();
 
@@ -33,6 +35,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error: any) {
     console.error("[Telegram Webhook]", error.message);
+    try {
+      await addDoc(collection(firestore, "logs"), {
+        timestamp: new Date().toISOString(),
+        level: "ERROR",
+        message: `Telegram webhook error: ${error.message}`,
+        details: error.stack || "",
+        webhookId: "TELEGRAM_BOT",
+      });
+    } catch {}
     return NextResponse.json({ ok: true });
   }
 }

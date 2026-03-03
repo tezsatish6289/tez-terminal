@@ -80,24 +80,42 @@ export default {
       },
       keyframes: {
         'accordion-down': {
-          from: {
-            height: '0',
-          },
-          to: {
-            height: 'var(--radix-accordion-content-height)',
-          },
+          from: { height: '0' },
+          to: { height: 'var(--radix-accordion-content-height)' },
         },
         'accordion-up': {
-          from: {
-            height: 'var(--radix-accordion-content-height)',
-          },
-          to: {
-            height: '0',
-          },
+          from: { height: 'var(--radix-accordion-content-height)' },
+          to: { height: '0' },
         },
         pulse_cyan: {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '.5' },
+        },
+        blob1: {
+          '0%, 100%': { transform: 'translate(0, 0) scale(1)', borderRadius: '40% 60% 70% 30% / 40% 50% 60% 50%' },
+          '25%': { transform: 'translate(5%, 10%) scale(1.1)', borderRadius: '50% 40% 30% 70% / 60% 30% 70% 40%' },
+          '50%': { transform: 'translate(-5%, 5%) scale(0.95)', borderRadius: '30% 60% 50% 40% / 50% 60% 30% 60%' },
+          '75%': { transform: 'translate(3%, -5%) scale(1.05)', borderRadius: '60% 40% 60% 30% / 40% 50% 40% 60%' },
+        },
+        blob2: {
+          '0%, 100%': { transform: 'translate(0, 0) scale(1)', borderRadius: '50% 50% 40% 60% / 60% 40% 60% 40%' },
+          '33%': { transform: 'translate(-8%, 8%) scale(1.15)', borderRadius: '40% 60% 50% 50% / 50% 60% 40% 50%' },
+          '66%': { transform: 'translate(5%, -3%) scale(0.9)', borderRadius: '60% 40% 60% 40% / 40% 50% 60% 50%' },
+        },
+        blob3: {
+          '0%, 100%': { transform: 'translate(0, 0) scale(1) rotate(0deg)', borderRadius: '50% 50% 50% 50%' },
+          '25%': { transform: 'translate(10%, -8%) scale(1.1) rotate(90deg)', borderRadius: '60% 40% 60% 40%' },
+          '50%': { transform: 'translate(-5%, 10%) scale(0.95) rotate(180deg)', borderRadius: '40% 60% 40% 60%' },
+          '75%': { transform: 'translate(-8%, -3%) scale(1.05) rotate(270deg)', borderRadius: '55% 45% 55% 45%' },
+        },
+        blob4: {
+          '0%, 100%': { transform: 'translate(0, 0) scale(1)', opacity: '1' },
+          '30%': { transform: 'translate(-10%, 5%) scale(1.2)', opacity: '0.8' },
+          '60%': { transform: 'translate(5%, -8%) scale(0.85)', opacity: '1' },
+        },
+        blob5: {
+          '0%, 100%': { transform: 'translate(0, 0) scale(1) rotate(0deg)' },
+          '50%': { transform: 'translate(8%, -5%) scale(1.15) rotate(120deg)' },
         },
       },
       animation: {

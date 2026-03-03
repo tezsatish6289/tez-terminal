@@ -96,15 +96,16 @@ export async function editMessageText(
   messageId: number,
   text: string,
   options?: {
-    parseMode?: "HTML" | "MarkdownV2";
+    parseMode?: "HTML" | "MarkdownV2" | "NONE";
     replyMarkup?: { inline_keyboard: InlineKeyboardButton[][] };
   }
 ): Promise<any> {
+  const parseMode = options?.parseMode ?? "HTML";
   return callApi("editMessageText", {
     chat_id: chatId,
     message_id: messageId,
     text,
-    parse_mode: options?.parseMode ?? "HTML",
+    ...(parseMode !== "NONE" && { parse_mode: parseMode }),
     ...(options?.replyMarkup && { reply_markup: options.replyMarkup }),
   });
 }

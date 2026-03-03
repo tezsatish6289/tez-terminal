@@ -94,7 +94,7 @@ async function handleMessage(message: NonNullable<TelegramUpdate["message"]>, fi
       result = await handleHelp(chatId);
       break;
     default:
-      result = await sendMessage(chatId, "I only respond to commands. Try /help to see what I can do.");
+      result = await sendMessage(chatId, "I only respond to commands. Try /help to see what I can do.", { parseMode: "NONE" });
   }
 
   if (firestore) {
@@ -125,63 +125,72 @@ async function handleStart(
   }
 
   const { firestore } = initializeFirebase();
-  const tokenDoc = await getDoc(doc(firestore, "telegram_link_tokens", token));
 
-  if (!tokenDoc.exists()) {
-    await sendMessage(chatId, "❌ This link has expired or is invalid. Please generate a new one from the Tez Terminal web app.");
-    return;
-  }
+  try {
+    const tokenDoc = await getDoc(doc(firestore, "telegram_link_tokens", token));
 
-  const tokenData = tokenDoc.data();
-  const expiry = new Date(tokenData.expiresAt).getTime();
-  if (Date.now() > expiry) {
+    if (!tokenDoc.exists()) {
+      return sendMessage(chatId, "This link has expired or is invalid. Please generate a new one from the Tez Terminal web app.", { parseMode: "NONE" });
+    }
+
+    const tokenData = tokenDoc.data();
+    const expiry = new Date(tokenData.expiresAt).getTime();
+    if (Date.now() > expiry) {
+      await deleteDoc(doc(firestore, "telegram_link_tokens", token));
+      return sendMessage(chatId, "This link has expired. Please generate a new one from Settings > Telegram.", { parseMode: "NONE" });
+    }
+
+    const firebaseUid = tokenData.firebaseUid;
+
+    await setDoc(doc(firestore, "users", firebaseUid), {
+      telegramChatId: chatId,
+      telegramUsername: from.username || null,
+      telegramFirstName: from.first_name || null,
+      telegramConnectedAt: new Date().toISOString(),
+      telegramEnabled: true,
+    }, { merge: true });
+
+    const prefsRef = doc(firestore, "telegram_preferences", firebaseUid);
+    const prefsSnap = await getDoc(prefsRef);
+    if (!prefsSnap.exists()) {
+      await setDoc(prefsRef, {
+        enabled: true,
+        alertTypes: ALL_EVENT_TYPES,
+        timeframes: ["ALL"],
+        assetTypes: ["ALL"],
+        sides: ["ALL"],
+        symbols: [],
+      });
+    }
+
     await deleteDoc(doc(firestore, "telegram_link_tokens", token));
-    await sendMessage(chatId, "❌ This link has expired. Please generate a new one from Settings → Telegram.");
-    return;
-  }
 
-  const firebaseUid = tokenData.firebaseUid;
-
-  await setDoc(doc(firestore, "users", firebaseUid), {
-    telegramChatId: chatId,
-    telegramUsername: from.username || null,
-    telegramFirstName: from.first_name || null,
-    telegramConnectedAt: new Date().toISOString(),
-    telegramEnabled: true,
-  }, { merge: true });
-
-  const prefsRef = doc(firestore, "telegram_preferences", firebaseUid);
-  const prefsSnap = await getDoc(prefsRef);
-  if (!prefsSnap.exists()) {
-    await setDoc(prefsRef, {
-      enabled: true,
-      alertTypes: ALL_EVENT_TYPES,
-      timeframes: ["ALL"],
-      assetTypes: ["ALL"],
-      sides: ["ALL"],
-      symbols: [],
+    return sendMessage(chatId, [
+      "Account connected!",
+      "",
+      "You are now linked to Tez Terminal.",
+      "You will receive alerts for all signals by default.",
+      "",
+      "Use /settings to customize your alerts.",
+      "Use /help to see all commands.",
+    ].join("\n"), { parseMode: "NONE" });
+  } catch (err: any) {
+    await addDoc(collection(firestore, "logs"), {
+      timestamp: new Date().toISOString(),
+      level: "ERROR",
+      message: `handleStart token error: ${err.message}`,
+      details: `token=${token} chat=${chatId}`,
+      webhookId: "TELEGRAM_BOT",
     });
+    return sendMessage(chatId, "Something went wrong connecting your account. Please try again.", { parseMode: "NONE" });
   }
-
-  await deleteDoc(doc(firestore, "telegram_link_tokens", token));
-
-  await sendMessage(chatId, [
-    "✅ <b>Account connected!</b>",
-    "",
-    `You're now linked to Tez Terminal.`,
-    "You'll receive alerts for all signals by default.",
-    "",
-    "Use /settings to customize your alerts.",
-    "Use /help to see all commands.",
-  ].join("\n"));
 }
 
 async function handleStop(chatId: number) {
   const { firestore } = initializeFirebase();
   const uid = await findUidByChatId(firestore, chatId);
   if (!uid) {
-    await sendMessage(chatId, "You don't have a connected account. Use the link from Tez Terminal web app to connect.");
-    return;
+    return sendMessage(chatId, "You don't have a connected account. Use the link from Tez Terminal web app to connect.", { parseMode: "NONE" });
   }
 
   await updateDoc(doc(firestore, "users", uid), { telegramEnabled: false });
@@ -192,8 +201,7 @@ async function handleResume(chatId: number) {
   const { firestore } = initializeFirebase();
   const uid = await findUidByChatId(firestore, chatId);
   if (!uid) {
-    await sendMessage(chatId, "You don't have a connected account. Use the link from Tez Terminal web app to connect.");
-    return;
+    return sendMessage(chatId, "You don't have a connected account. Use the link from Tez Terminal web app to connect.", { parseMode: "NONE" });
   }
 
   await updateDoc(doc(firestore, "users", uid), { telegramEnabled: true });
@@ -204,8 +212,7 @@ async function handleStatus(chatId: number) {
   const { firestore } = initializeFirebase();
   const uid = await findUidByChatId(firestore, chatId);
   if (!uid) {
-    await sendMessage(chatId, "❌ No connected account found.");
-    return;
+    return sendMessage(chatId, "No connected account found.", { parseMode: "NONE" });
   }
 
   const userDoc = await getDoc(doc(firestore, "users", uid));
@@ -226,17 +233,17 @@ async function handleStatus(chatId: number) {
   const sideDisplay = sides.includes("ALL") ? "Both sides" : sides.join(", ");
   const symbolDisplay = symbols.length === 0 ? "All symbols" : symbols.join(", ");
 
-  await sendMessage(chatId, [
-    `📊 <b>Your Alert Status</b>`,
-    ``,
-    `Status: ${enabled ? "▶️ Active" : "⏸ Paused"}`,
+  return sendMessage(chatId, [
+    "Your Alert Status",
+    "",
+    `Status: ${enabled ? "Active" : "Paused"}`,
     `Timeframes: ${tfDisplay}`,
     `Asset types: ${assetDisplay}`,
     `Sides: ${sideDisplay}`,
     `Symbols: ${symbolDisplay}`,
-    ``,
-    `Use /settings to change these.`,
-  ].join("\n"));
+    "",
+    "Use /settings to change these.",
+  ].join("\n"), { parseMode: "NONE" });
 }
 
 async function handleHelp(chatId: number) {
@@ -257,11 +264,10 @@ async function handleSettings(chatId: number) {
   const { firestore } = initializeFirebase();
   const uid = await findUidByChatId(firestore, chatId);
   if (!uid) {
-    await sendMessage(chatId, "You don't have a connected account. Use the link from Tez Terminal web app to connect.");
-    return;
+    return sendMessage(chatId, "You don't have a connected account. Use the link from Tez Terminal web app to connect.", { parseMode: "NONE" });
   }
 
-  await sendSettingsMenu(chatId, uid);
+  return sendSettingsMenu(chatId, uid);
 }
 
 async function sendSettingsMenu(chatId: number, uid: string) {
@@ -275,14 +281,15 @@ async function sendSettingsMenu(chatId: number, uid: string) {
   };
 
   const keyboard: InlineKeyboardButton[][] = [
-    [{ text: "📊 Timeframes", callback_data: "settings:timeframes" }],
-    [{ text: "💹 Asset Types", callback_data: "settings:assets" }],
-    [{ text: "📈 Side (Buy/Sell)", callback_data: "settings:sides" }],
-    [{ text: "🔔 Alert Types", callback_data: "settings:alerts" }],
-    [{ text: "🔤 Watch Symbols", callback_data: "settings:symbols" }],
+    [{ text: "Timeframes", callback_data: "settings:timeframes" }],
+    [{ text: "Asset Types", callback_data: "settings:assets" }],
+    [{ text: "Side (Buy/Sell)", callback_data: "settings:sides" }],
+    [{ text: "Alert Types", callback_data: "settings:alerts" }],
+    [{ text: "Watch Symbols", callback_data: "settings:symbols" }],
   ];
 
-  await sendMessage(chatId, "<b>⚙️ Alert Settings</b>\n\nChoose what to configure:", {
+  return sendMessage(chatId, "Alert Settings\n\nChoose what to configure:", {
+    parseMode: "NONE",
     replyMarkup: { inline_keyboard: keyboard },
   });
 }
@@ -336,15 +343,16 @@ async function handleCallbackQuery(cq: NonNullable<TelegramUpdate["callback_quer
       ? prefs.symbols.join(", ")
       : "None (receiving all symbols)";
     await editMessageText(chatId, messageId, [
-      "<b>🔤 Symbol Watchlist</b>",
+      "Symbol Watchlist",
       "",
       `Current: ${symbolList}`,
       "",
-      "To set specific symbols, use the Tez Terminal web app → Settings → Telegram → Symbol Filter.",
+      "To set specific symbols, use the Tez Terminal web app > Settings > Telegram > Symbol Filter.",
       "",
       "Send an empty list to receive all symbols.",
     ].join("\n"), {
-      replyMarkup: { inline_keyboard: [[{ text: "← Back", callback_data: "settings:back" }]] },
+      parseMode: "NONE",
+      replyMarkup: { inline_keyboard: [[{ text: "Back", callback_data: "settings:back" }]] },
     });
   } else if (data === "settings:back") {
     await refreshSettingsInPlace(chatId, messageId, uid);
@@ -378,7 +386,8 @@ async function showToggleMenu(
 
   keyboard.push([{ text: "← Back", callback_data: "settings:back" }]);
 
-  await editMessageText(chatId, messageId, `<b>⚙️ ${title}</b>\n\nTap to toggle:`, {
+  await editMessageText(chatId, messageId, `${title}\n\nTap to toggle:`, {
+    parseMode: "NONE",
     replyMarkup: { inline_keyboard: keyboard },
   });
 }
@@ -447,7 +456,8 @@ async function refreshSettingsInPlace(chatId: number, messageId: number, uid: st
     [{ text: "🔤 Watch Symbols", callback_data: "settings:symbols" }],
   ];
 
-  await editMessageText(chatId, messageId, "<b>⚙️ Alert Settings</b>\n\nChoose what to configure:", {
+  await editMessageText(chatId, messageId, "Alert Settings\n\nChoose what to configure:", {
+    parseMode: "NONE",
     replyMarkup: { inline_keyboard: keyboard },
   });
 }

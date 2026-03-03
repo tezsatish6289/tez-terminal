@@ -154,11 +154,11 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
       <section className="relative overflow-hidden">
         {/* Fluid animated background */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-          <div className="absolute -top-[20%] -left-[10%] w-[60%] h-[70%] rounded-full bg-accent/[0.07] blur-[120px] animate-[blob1_20s_ease-in-out_infinite]" />
-          <div className="absolute -top-[10%] -right-[15%] w-[50%] h-[60%] rounded-full bg-emerald-500/[0.05] blur-[120px] animate-[blob2_25s_ease-in-out_infinite]" />
-          <div className="absolute top-[20%] left-[20%] w-[40%] h-[50%] rounded-full bg-cyan-500/[0.04] blur-[100px] animate-[blob3_22s_ease-in-out_infinite]" />
-          <div className="absolute top-[40%] right-[10%] w-[35%] h-[40%] rounded-full bg-accent/[0.05] blur-[100px] animate-[blob4_18s_ease-in-out_infinite]" />
-          <div className="absolute -bottom-[10%] left-[30%] w-[45%] h-[50%] rounded-full bg-teal-400/[0.03] blur-[120px] animate-[blob5_28s_ease-in-out_infinite]" />
+          <div className="absolute -top-[20%] -left-[10%] w-[60%] h-[70%] rounded-full bg-accent/[0.07] blur-[120px] animate-blob-1" />
+          <div className="absolute -top-[10%] -right-[15%] w-[50%] h-[60%] rounded-full bg-emerald-500/[0.05] blur-[120px] animate-blob-2" />
+          <div className="absolute top-[20%] left-[20%] w-[40%] h-[50%] rounded-full bg-cyan-500/[0.04] blur-[100px] animate-blob-3" />
+          <div className="absolute top-[40%] right-[10%] w-[35%] h-[40%] rounded-full bg-accent/[0.05] blur-[100px] animate-blob-4" />
+          <div className="absolute -bottom-[10%] left-[30%] w-[45%] h-[50%] rounded-full bg-teal-400/[0.03] blur-[120px] animate-blob-5" />
         </div>
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/30 to-background pointer-events-none" />
 

@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     if (update.callback_query) {
       await handleCallbackQuery(update.callback_query);
     } else if (update.message?.text) {
-      await handleMessage(update.message);
+      await handleMessage(update.message, firestore);
     }
 
     return NextResponse.json({ ok: true });
@@ -66,35 +66,47 @@ export async function POST(request: NextRequest) {
 
 // ─── Message Handlers ────────────────────────────────────────────
 
-async function handleMessage(message: NonNullable<TelegramUpdate["message"]>) {
+async function handleMessage(message: NonNullable<TelegramUpdate["message"]>, firestore?: any) {
   const chatId = message.chat.id;
   const text = (message.text || "").trim();
   const parts = text.split(/\s+/);
   const command = parts[0].toLowerCase();
 
+  let result: any;
+
   switch (command) {
     case "/start":
-      await handleStart(chatId, parts[1], message.from);
+      result = await handleStart(chatId, parts[1], message.from);
       break;
     case "/stop":
-      await handleStop(chatId);
+      result = await handleStop(chatId);
       break;
     case "/resume":
-      await handleResume(chatId);
+      result = await handleResume(chatId);
       break;
     case "/settings":
-      await handleSettings(chatId);
+      result = await handleSettings(chatId);
       break;
     case "/status":
-      await handleStatus(chatId);
+      result = await handleStatus(chatId);
       break;
     case "/help":
-      await handleHelp(chatId);
+      result = await handleHelp(chatId);
       break;
     default:
-      await sendMessage(chatId, [
-        "I only respond to commands. Try /help to see what I can do.",
-      ].join("\n"));
+      result = await sendMessage(chatId, "I only respond to commands. Try /help to see what I can do.");
+  }
+
+  if (firestore) {
+    try {
+      await addDoc(collection(firestore, "logs"), {
+        timestamp: new Date().toISOString(),
+        level: "INFO",
+        message: `Telegram sendMessage result for ${command}`,
+        details: JSON.stringify(result).slice(0, 500),
+        webhookId: "TELEGRAM_BOT",
+      });
+    } catch {}
   }
 }
 
@@ -104,13 +116,12 @@ async function handleStart(
   from: NonNullable<TelegramUpdate["message"]>["from"]
 ) {
   if (!token) {
-    await sendMessage(chatId, [
-      "👋 Welcome to <b>Tez Terminal</b>!",
+    return sendMessage(chatId, [
+      "Welcome to Tez Terminal!",
       "",
       "To connect your account, use the link from the Tez Terminal web app.",
-      "Go to <b>Settings → Telegram</b> and click <b>Connect Telegram</b>.",
-    ].join("\n"));
-    return;
+      "Go to Settings > Telegram and click Connect Telegram.",
+    ].join("\n"), { parseMode: "NONE" });
   }
 
   const { firestore } = initializeFirebase();
@@ -174,11 +185,7 @@ async function handleStop(chatId: number) {
   }
 
   await updateDoc(doc(firestore, "users", uid), { telegramEnabled: false });
-  await sendMessage(chatId, [
-    "⏸ Alerts <b>paused</b>.",
-    "",
-    "Use /resume to start receiving alerts again.",
-  ].join("\n"));
+  return sendMessage(chatId, "Alerts paused. Use /resume to start receiving alerts again.", { parseMode: "NONE" });
 }
 
 async function handleResume(chatId: number) {
@@ -190,7 +197,7 @@ async function handleResume(chatId: number) {
   }
 
   await updateDoc(doc(firestore, "users", uid), { telegramEnabled: true });
-  await sendMessage(chatId, "▶️ Alerts <b>resumed</b>. You'll receive signals again.");
+  return sendMessage(chatId, "Alerts resumed. You will receive signals again.", { parseMode: "NONE" });
 }
 
 async function handleStatus(chatId: number) {
@@ -233,15 +240,15 @@ async function handleStatus(chatId: number) {
 }
 
 async function handleHelp(chatId: number) {
-  await sendMessage(chatId, [
-    "📖 <b>Tez Terminal Bot Commands</b>",
+  return sendMessage(chatId, [
+    "Tez Terminal Bot Commands",
     "",
-    "/status — View your connection & alert settings",
-    "/settings — Customize which alerts you receive",
-    "/stop — Pause all alerts",
-    "/resume — Resume alerts",
-    "/help — Show this message",
-  ].join("\n"));
+    "/status - View your connection and alert settings",
+    "/settings - Customize which alerts you receive",
+    "/stop - Pause all alerts",
+    "/resume - Resume alerts",
+    "/help - Show this message",
+  ].join("\n"), { parseMode: "NONE" });
 }
 
 // ─── Settings with Inline Keyboard ──────────────────────────────

@@ -85,6 +85,8 @@ export default function SettingsPage() {
     if (user) fetchStatus();
   }, [user, fetchStatus]);
 
+  const [deepLink, setDeepLink] = useState<string | null>(null);
+
   const handleConnect = async () => {
     if (!user) return;
     setIsConnecting(true);
@@ -96,14 +98,16 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (data.deepLink) {
-        window.open(data.deepLink, "_blank");
+        setDeepLink(data.deepLink);
         toast({
-          title: "Opening Telegram",
-          description: "Tap START in the bot to complete the connection. Then come back here and refresh.",
+          title: "Link generated!",
+          description: "Click the link below to open Telegram and complete the connection.",
         });
+      } else {
+        toast({ title: "Error", description: data.error || "Failed to generate link.", variant: "destructive" });
       }
     } catch {
-      toast({ title: "Error", description: "Failed to generate link.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to generate link. Please try again.", variant: "destructive" });
     } finally {
       setIsConnecting(false);
     }
@@ -303,21 +307,48 @@ export default function SettingsPage() {
                       Get alerts for new signals, TP hits, and stop losses directly in Telegram.
                     </p>
                   </div>
-                  <Button
-                    onClick={handleConnect}
-                    disabled={isConnecting}
-                    className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
-                  >
-                    {isConnecting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Link2 className="h-4 w-4" />
-                    )}
-                    Connect Telegram
-                  </Button>
-                  <p className="text-[10px] text-muted-foreground">
-                    Opens @TezTerminalBot in Telegram. Tap START to connect.
-                  </p>
+                  {deepLink ? (
+                    <div className="space-y-3">
+                      <a
+                        href={deepLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-accent text-accent-foreground font-medium hover:bg-accent/90 transition-colors"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Open @TezTerminalBot
+                      </a>
+                      <p className="text-[10px] text-muted-foreground">
+                        Tap <strong>START</strong> in Telegram, then come back here and refresh the page.
+                      </p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => fetchStatus()}
+                        className="text-xs text-accent"
+                      >
+                        I&apos;ve connected — Refresh status
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <Button
+                        onClick={handleConnect}
+                        disabled={isConnecting}
+                        className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
+                      >
+                        {isConnecting ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Link2 className="h-4 w-4" />
+                        )}
+                        Connect Telegram
+                      </Button>
+                      <p className="text-[10px] text-muted-foreground">
+                        Generates a link to @TezTerminalBot. Tap START to connect.
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
             </CardContent>

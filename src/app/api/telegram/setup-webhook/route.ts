@@ -34,9 +34,8 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const host = request.headers.get("host") || "";
-  const protocol = host.includes("localhost") ? "http" : "https";
-  const webhookUrl = `${protocol}://${host}/api/telegram/webhook`;
+  const customUrl = searchParams.get("url");
+  const webhookUrl = customUrl || "https://tezterminal.com/api/telegram/webhook";
 
   const result = await setWebhook(webhookUrl);
   return NextResponse.json({ action: "set", webhookUrl, result });

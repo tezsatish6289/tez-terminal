@@ -12,5 +12,9 @@ env:
     value: asia-southeast1
   - variable: TELEGRAM_BOT_TOKEN
     secret: TELEGRAM_BOT_TOKEN
+    availability:
+      - RUNTIME
   - variable: CRON_SECRET
     secret: CRON_SECRET
+    availability:
+      - RUNTIME

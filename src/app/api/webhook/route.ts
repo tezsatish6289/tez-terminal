@@ -5,6 +5,7 @@ import { initializeFirebase } from "@/firebase";
 import { collection, addDoc, doc, getDoc, getDocs, query, where, limit, updateDoc, serverTimestamp } from "firebase/firestore";
 import { computeSentiment, type SignalForSentiment } from "@/lib/sentiment";
 import { deriveTp3 } from "@/lib/pnl";
+import type { SignalEvent } from "@/lib/telegram";
 
 /**
  * Webhook ingestion for TradingView alerts.
@@ -124,6 +125,27 @@ export async function POST(request: NextRequest) {
     };
 
     const docRef = await addDoc(signalsRef, signalData);
+
+    const tp3Val = (tp1 != null && tp2 != null) ? deriveTp3(tp1, tp2) : null;
+    const newSignalEvent: SignalEvent = {
+      type: "NEW_SIGNAL",
+      signalId: docRef.id,
+      symbol,
+      side: signalType as "BUY" | "SELL",
+      timeframe,
+      assetType,
+      entryPrice: price,
+      price,
+      stopLoss,
+      tp1, tp2, tp3: tp3Val,
+      guidance: "New signal received.",
+    };
+    await addDoc(collection(firestore, "signal_events"), {
+      ...newSignalEvent,
+      createdAt: timestamp,
+      notified: false,
+      notifiedAt: null,
+    });
 
     // Compute alignment in the background — runs after the response is sent
     if (signalType !== "NEUTRAL" && assetType === "CRYPTO") {

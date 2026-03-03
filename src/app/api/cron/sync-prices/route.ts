@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { initializeFirebase } from "@/firebase";
 import { collection, getDocs, updateDoc, doc, addDoc } from "firebase/firestore";
 import { rawPnlPercent, calcBookedPnl, deriveTp3 } from "@/lib/pnl";
+import type { SignalEvent } from "@/lib/telegram";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -13,9 +14,9 @@ export const revalidate = 0;
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const key = searchParams.get("key");
-  const CRON_SECRET = "ANTIGRAVITY_SYNC_TOKEN_2024"; 
+  const cronSecret = process.env.CRON_SECRET;
 
-  if (key !== CRON_SECRET) {
+  if (!cronSecret || key !== cronSecret) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
@@ -46,6 +47,7 @@ export async function GET(request: NextRequest) {
     const signalsSnap = await getDocs(collection(firestore, "signals"));
     let updateCount = 0;
     let skipCount = 0;
+    const signalEvents: SignalEvent[] = [];
 
     for (const signalDoc of signalsSnap.docs) {
       const signal = signalDoc.data();
@@ -114,6 +116,12 @@ export async function GET(request: NextRequest) {
             updateData.tp1BookedPnl = calcBookedPnl(tp1, alertPrice, signal.type, 0.5);
             updateData.stopLoss = alertPrice;
             updateData.originalStopLoss = stopLoss;
+            signalEvents.push({
+              type: "TP1_HIT", signalId: signalDoc.id, symbol: signal.symbol,
+              side: signal.type, timeframe: signal.timeframe || "15", assetType: signal.assetType || "CRYPTO",
+              entryPrice: alertPrice, price: tp1, tp1, tp2, tp3,
+              bookedPnl: updateData.tp1BookedPnl, guidance: "Book 50% profit. SL moved to cost.",
+            });
           }
         }
 
@@ -127,6 +135,12 @@ export async function GET(request: NextRequest) {
             updateData.tp2HitAt = nowISO;
             updateData.tp2BookedPnl = calcBookedPnl(tp2, alertPrice, signal.type, 0.25);
             updateData.stopLoss = tp1;
+            signalEvents.push({
+              type: "TP2_HIT", signalId: signalDoc.id, symbol: signal.symbol,
+              side: signal.type, timeframe: signal.timeframe || "15", assetType: signal.assetType || "CRYPTO",
+              entryPrice: alertPrice, price: tp2, tp1, tp2, tp3,
+              bookedPnl: updateData.tp2BookedPnl, guidance: "Book 25% more. SL moved to TP1.",
+            });
           }
         }
 
@@ -143,6 +157,12 @@ export async function GET(request: NextRequest) {
             updateData.tp3BookedPnl = calcBookedPnl(tp3, alertPrice, signal.type, 0.25);
             updateData.totalBookedPnl = tp1Pnl + tp2Pnl + updateData.tp3BookedPnl;
             newStatus = "INACTIVE";
+            signalEvents.push({
+              type: "TP3_HIT", signalId: signalDoc.id, symbol: signal.symbol,
+              side: signal.type, timeframe: signal.timeframe || "15", assetType: signal.assetType || "CRYPTO",
+              entryPrice: alertPrice, price: tp3, tp1, tp2, tp3,
+              totalBookedPnl: updateData.totalBookedPnl, guidance: "All targets hit. Trade fully closed.",
+            });
           }
         }
 
@@ -165,25 +185,27 @@ export async function GET(request: NextRequest) {
               updateData.slHitAt = nowISO;
 
               if (tp2IsHit) {
-                // SL at TP1 after TP2 — remaining 25% booked at TP1 level
                 updateData.slBookedPnl = calcBookedPnl(tp1, alertPrice, signal.type, 0.25);
                 updateData.totalBookedPnl = tp1Pnl + tp2Pnl + updateData.slBookedPnl;
               } else if (tp1IsHit) {
-                // SL at cost after TP1 — remaining 50% at breakeven
                 updateData.slBookedPnl = 0;
                 updateData.totalBookedPnl = tp1Pnl;
               } else {
-                // SL hit before any target — full loss
                 const slLoss = rawPnlPercent(effectiveSL, alertPrice, signal.type);
                 updateData.slBookedPnl = slLoss;
                 updateData.totalBookedPnl = slLoss;
               }
               newStatus = "INACTIVE";
+              signalEvents.push({
+                type: "SL_HIT", signalId: signalDoc.id, symbol: signal.symbol,
+                side: signal.type, timeframe: signal.timeframe || "15", assetType: signal.assetType || "CRYPTO",
+                entryPrice: alertPrice, price: currentPrice, tp1, tp2, tp3,
+                totalBookedPnl: updateData.totalBookedPnl, guidance: "Stop loss hit. Trade closed.",
+              });
             }
           }
         }
       } else {
-        // ── Fallback: no tp1/tp2 on signal ──
         if (stopLoss > 0) {
           const hitSL = isBuy ? currentPrice <= stopLoss : currentPrice >= stopLoss;
           if (hitSL) {
@@ -191,6 +213,12 @@ export async function GET(request: NextRequest) {
             updateData.slBookedPnl = rawPnlPercent(stopLoss, alertPrice, signal.type);
             updateData.totalBookedPnl = updateData.slBookedPnl;
             newStatus = "INACTIVE";
+            signalEvents.push({
+              type: "SL_HIT", signalId: signalDoc.id, symbol: signal.symbol,
+              side: signal.type, timeframe: signal.timeframe || "15", assetType: signal.assetType || "CRYPTO",
+              entryPrice: alertPrice, price: currentPrice, stopLoss,
+              totalBookedPnl: updateData.totalBookedPnl, guidance: "Stop loss hit. Trade closed.",
+            });
           }
         }
       }
@@ -209,14 +237,24 @@ export async function GET(request: NextRequest) {
       updateCount++;
     }
 
+    const eventsRef = collection(firestore, "signal_events");
+    for (const evt of signalEvents) {
+      await addDoc(eventsRef, {
+        ...evt,
+        createdAt: new Date().toISOString(),
+        notified: false,
+        notifiedAt: null,
+      });
+    }
+
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),
       level: "INFO",
-      message: `ASIA SYNC: updated=${updateCount} skipped=${skipCount} (symbol not in Binance feed)`,
+      message: `ASIA SYNC: updated=${updateCount} skipped=${skipCount} events=${signalEvents.length}`,
       webhookId: "SYSTEM_CRON",
     });
 
-    return NextResponse.json({ success: true, updated: updateCount, skipped: skipCount });
+    return NextResponse.json({ success: true, updated: updateCount, skipped: skipCount, events: signalEvents.length });
   } catch (error: any) {
     await addDoc(logsRef, {
       timestamp: new Date().toISOString(),

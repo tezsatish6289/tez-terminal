@@ -39,7 +39,30 @@ service cloud.firestore {
       allow create: if true;
       allow update, delete: if false;
     }
-    
-    // Deployment Trigger: 2024-05-24 11:30 - Enabled 24/7 Global Cron Sync.
+
+    // Users: Telegram connection data + profile
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if true;
+    }
+
+    // Telegram preferences: per-user alert filters
+    match /telegram_preferences/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if true;
+    }
+
+    // Telegram link tokens: ephemeral one-time-use tokens
+    match /telegram_link_tokens/{tokenId} {
+      allow read, write: if true;
+    }
+
+    // Signal events: TP/SL/new signal events for Telegram fan-out
+    match /signal_events/{eventId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if isAdmin();
+    }
   }
 }

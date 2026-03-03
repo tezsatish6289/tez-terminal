@@ -1,7 +1,7 @@
 
 "use client";
 
-import { User, LogOut, Zap, History, LineChart, Webhook } from "lucide-react";
+import { User, LogOut, Zap, History, LineChart, Webhook, Settings } from "lucide-react";
 import { RadarIcon } from "@/components/icons/RadarIcon";
 import { Button } from "@/components/ui/button";
 import { useUser, useAuth } from "@/firebase";
@@ -37,6 +37,7 @@ export function TopBar() {
   const navItems = [
     { name: "Opportunity Finder", icon: Zap, href: "/" },
     { name: "Trade Analytics", icon: LineChart, href: "/analytics" },
+    { name: "Settings", icon: Settings, href: "/settings" },
   ];
 
   const adminItems = [

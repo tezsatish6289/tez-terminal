@@ -10,3 +10,7 @@ env:
     value: production
   - variable: NEXT_PUBLIC_REGION
     value: asia-southeast1
+  - variable: TELEGRAM_BOT_TOKEN
+    secret: TELEGRAM_BOT_TOKEN
+  - variable: CRON_SECRET
+    secret: CRON_SECRET

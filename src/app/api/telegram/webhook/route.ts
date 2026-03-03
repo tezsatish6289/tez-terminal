@@ -21,10 +21,26 @@ const ALL_EVENT_TYPES = ["NEW_SIGNAL", "TP1_HIT", "TP2_HIT", "TP3_HIT", "SL_HIT"
  * Registered with Telegram via setWebhook().
  */
 export async function POST(request: NextRequest) {
-  const { firestore } = initializeFirebase();
+  let firestore: any;
+
+  try {
+    const fb = initializeFirebase();
+    firestore = fb.firestore;
+  } catch (e: any) {
+    console.error("[Telegram Webhook] Firebase init failed:", e.message);
+    return NextResponse.json({ ok: true });
+  }
 
   try {
     const update: TelegramUpdate = await request.json();
+
+    await addDoc(collection(firestore, "logs"), {
+      timestamp: new Date().toISOString(),
+      level: "INFO",
+      message: `Telegram webhook received: ${update.message?.text || update.callback_query?.data || "unknown"}`,
+      details: `chat_id=${update.message?.chat?.id || "?"} from=${update.message?.from?.username || "?"}`,
+      webhookId: "TELEGRAM_BOT",
+    });
 
     if (update.callback_query) {
       await handleCallbackQuery(update.callback_query);

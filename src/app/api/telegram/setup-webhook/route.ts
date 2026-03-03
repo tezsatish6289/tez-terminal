@@ -23,6 +23,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ action: "delete", result });
   }
 
+  if (action === "info") {
+    const res = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/getWebhookInfo`);
+    const info = await res.json();
+    return NextResponse.json({
+      action: "info",
+      tokenPresent: !!process.env.TELEGRAM_BOT_TOKEN,
+      tokenLength: (process.env.TELEGRAM_BOT_TOKEN || "").length,
+      info,
+    });
+  }
+
   const host = request.headers.get("host") || "";
   const protocol = host.includes("localhost") ? "http" : "https";
   const webhookUrl = `${protocol}://${host}/api/telegram/webhook`;

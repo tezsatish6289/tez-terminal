@@ -3,8 +3,13 @@
  * All bot interactions go through this module.
  */
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const API_BASE = `https://api.telegram.org/bot${BOT_TOKEN}`;
+function getApiBase() {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) {
+    console.error("[Telegram] TELEGRAM_BOT_TOKEN is not set");
+  }
+  return `https://api.telegram.org/bot${token}`;
+}
 
 export interface TelegramUpdate {
   update_id: number;
@@ -46,7 +51,8 @@ export interface InlineKeyboardButton {
 }
 
 async function callApi(method: string, body: Record<string, any>): Promise<any> {
-  const res = await fetch(`${API_BASE}/${method}`, {
+  const apiBase = getApiBase();
+  const res = await fetch(`${apiBase}/${method}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

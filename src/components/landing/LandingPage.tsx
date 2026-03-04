@@ -76,6 +76,7 @@ interface TfPerformance {
   winRate: number;
   avgProfit: number;
   netProfit: number;
+  profitPerDay: number;
 }
 
 const FEATURES = [
@@ -376,7 +377,8 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
                     <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">Trades</th>
                     <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">Win Rate</th>
                     <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">Avg Profit</th>
-                    <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-right">Net Profit</th>
+                    <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">Net Profit</th>
+                    <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-right">Profit / Day</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -401,9 +403,14 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
                           +{p.avgProfit.toFixed(2)}%
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-right">
+                      <td className="px-5 py-4 text-center">
                         <span className={cn("text-sm font-black font-mono", p.netProfit >= 0 ? "text-emerald-400" : "text-rose-400")}>
                           {p.netProfit >= 0 ? "+" : ""}{p.netProfit.toFixed(2)}%
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <span className={cn("text-sm font-black font-mono", p.profitPerDay >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                          {p.profitPerDay >= 0 ? "+" : ""}{p.profitPerDay.toFixed(2)}%
                         </span>
                       </td>
                     </tr>

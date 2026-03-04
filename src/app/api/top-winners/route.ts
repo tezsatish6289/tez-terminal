@@ -211,6 +211,23 @@ export async function GET() {
       const avgProfit = profitPnls.length > 0 ? profitPnls.reduce((a: number, b: number) => a + b, 0) / profitPnls.length : 0;
       const netProfit = pnls.reduce((a: number, b: number) => a + b, 0);
 
+      let profitPerDay = 0;
+      if (total > 0) {
+        let earliest = Infinity;
+        let latest = -Infinity;
+        for (const s of tfSignals) {
+          if (s.receivedAt) {
+            const t = new Date(s.receivedAt).getTime();
+            if (!isNaN(t)) {
+              if (t < earliest) earliest = t;
+              if (t > latest) latest = t;
+            }
+          }
+        }
+        const spanDays = earliest < Infinity ? Math.max(1, (latest - earliest) / (1000 * 60 * 60 * 24)) : 1;
+        profitPerDay = netProfit / spanDays;
+      }
+
       return {
         timeframe: TIMEFRAME_NAMES[tfId] || tfId,
         chart: TIMEFRAME_CHART[tfId] || tfId,
@@ -219,6 +236,7 @@ export async function GET() {
         winRate: +winRate.toFixed(1),
         avgProfit: +avgProfit.toFixed(2),
         netProfit: +netProfit.toFixed(2),
+        profitPerDay: +profitPerDay.toFixed(2),
       };
     }).filter((p) => p.trades > 0);
 

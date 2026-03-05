@@ -150,18 +150,14 @@ async function handleStart(
       telegramEnabled: true,
     }, { merge: true });
 
-    const prefsRef = doc(firestore, "telegram_preferences", firebaseUid);
-    const prefsSnap = await getDoc(prefsRef);
-    if (!prefsSnap.exists()) {
-      await setDoc(prefsRef, {
-        enabled: true,
-        alertTypes: ALL_EVENT_TYPES,
-        timeframes: ["ALL"],
-        assetTypes: ["ALL"],
-        sides: ["ALL"],
-        symbols: [],
-      });
-    }
+    await setDoc(doc(firestore, "telegram_preferences", firebaseUid), {
+      enabled: true,
+      alertTypes: ALL_EVENT_TYPES,
+      timeframes: ["ALL"],
+      assetTypes: ["ALL"],
+      sides: ["ALL"],
+      symbols: [],
+    }, { merge: true });
 
     await deleteDoc(doc(firestore, "telegram_link_tokens", token));
 

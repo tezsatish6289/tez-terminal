@@ -42,14 +42,12 @@ service cloud.firestore {
 
     // Users: Telegram connection data + profile
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if true;
+      allow read, write: if true;
     }
 
     // Telegram preferences: per-user alert filters
     match /telegram_preferences/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if true;
+      allow read, write: if true;
     }
 
     // Telegram link tokens: ephemeral one-time-use tokens

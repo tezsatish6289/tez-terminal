@@ -15,9 +15,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Layers,
+  CalendarDays,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, startOfDay, startOfWeek, startOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -47,6 +49,9 @@ function TradeAuditContent() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "retired">("all");
   const [sideFilter, setSideFilter] = useState<"all" | "BUY" | "SELL">("all");
   const [tfFilter, setTfFilter] = useState(initialTf);
+  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("all");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
   const [page, setPage] = useState(0);
 
   const signalsQuery = useMemoFirebase(() => {
@@ -70,6 +75,26 @@ function TradeAuditContent() {
     return p.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   };
 
+  const dateCutoff = useMemo(() => {
+    const now = new Date();
+    if (dateFilter === "today") return startOfDay(now).getTime();
+    if (dateFilter === "week") return startOfWeek(now, { weekStartsOn: 1 }).getTime();
+    if (dateFilter === "month") return startOfMonth(now).getTime();
+    if (dateFilter === "custom") {
+      return customFrom ? new Date(customFrom).getTime() : 0;
+    }
+    return 0;
+  }, [dateFilter, customFrom]);
+
+  const dateEnd = useMemo(() => {
+    if (dateFilter === "custom" && customTo) {
+      const d = new Date(customTo);
+      d.setHours(23, 59, 59, 999);
+      return d.getTime();
+    }
+    return Infinity;
+  }, [dateFilter, customTo]);
+
   const filtered = useMemo(() => {
     if (!allSignals) return [];
     return allSignals.filter((s: any) => {
@@ -77,9 +102,13 @@ function TradeAuditContent() {
       if (statusFilter === "retired" && s.status !== "INACTIVE") return false;
       if (sideFilter !== "all" && s.type !== sideFilter) return false;
       if (tfFilter !== "all" && String(s.timeframe).toUpperCase() !== tfFilter.toUpperCase()) return false;
+      if (dateCutoff > 0 || dateEnd < Infinity) {
+        const t = s.receivedAt ? new Date(s.receivedAt).getTime() : 0;
+        if (t < dateCutoff || t > dateEnd) return false;
+      }
       return true;
     });
-  }, [allSignals, statusFilter, sideFilter, tfFilter]);
+  }, [allSignals, statusFilter, sideFilter, tfFilter, dateCutoff, dateEnd]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageSignals = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -168,15 +197,15 @@ function TradeAuditContent() {
             ))}
           </div>
 
-          {/* Timeframe chips */}
-          <div className="flex items-center gap-1.5">
+          {/* Timeframe filter */}
+          <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-1">
             <button
               onClick={() => setFilterAndResetPage(setTfFilter)("all")}
               className={cn(
-                "px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border",
+                "px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
                 tfFilter === "all"
-                  ? "bg-accent/15 text-accent border-accent/30"
-                  : "text-muted-foreground border-white/10 hover:text-foreground hover:border-white/20",
+                  ? "bg-accent/15 text-accent shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               All TF
@@ -186,13 +215,38 @@ function TradeAuditContent() {
                 key={tf.id}
                 onClick={() => setFilterAndResetPage(setTfFilter)(tf.id)}
                 className={cn(
-                  "px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border",
+                  "px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
                   tfFilter === tf.id
-                    ? "bg-accent/15 text-accent border-accent/30"
-                    : "text-muted-foreground border-white/10 hover:text-foreground hover:border-white/20",
+                    ? "bg-accent/15 text-accent shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 {tfLabelMap[tf.id]}
+              </button>
+            ))}
+          </div>
+
+          {/* Date filter */}
+          <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-1">
+            {([
+              { key: "all" as const, label: "All Time" },
+              { key: "today" as const, label: "Today" },
+              { key: "week" as const, label: "This Week" },
+              { key: "month" as const, label: "This Month" },
+              { key: "custom" as const, label: "Custom" },
+            ]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setFilterAndResetPage(setDateFilter)(key)}
+                className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
+                  dateFilter === key
+                    ? "bg-accent/15 text-accent shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {key === "all" && <CalendarDays className="h-3 w-3" />}
+                {label}
               </button>
             ))}
           </div>
@@ -201,6 +255,30 @@ function TradeAuditContent() {
             {filtered.length} trades
           </Badge>
         </div>
+
+        {/* Custom date range inputs */}
+        {dateFilter === "custom" && (
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">From</span>
+              <Input
+                type="date"
+                value={customFrom}
+                onChange={(e) => { setCustomFrom(e.target.value); setPage(0); }}
+                className="h-8 w-40 text-xs bg-white/[0.03] border-white/10"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">To</span>
+              <Input
+                type="date"
+                value={customTo}
+                onChange={(e) => { setCustomTo(e.target.value); setPage(0); }}
+                className="h-8 w-40 text-xs bg-white/[0.03] border-white/10"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Summary stats bar */}
         <div className="flex items-center gap-6 px-4 py-3 rounded-lg border border-white/5 bg-white/[0.02]">

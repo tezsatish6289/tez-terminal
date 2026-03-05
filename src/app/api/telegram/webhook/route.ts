@@ -175,14 +175,16 @@ async function handleStart(
       "Use /help to see all commands.",
     ].join("\n"), { parseMode: "NONE" });
   } catch (err: any) {
-    await addDoc(collection(firestore, "logs"), {
-      timestamp: new Date().toISOString(),
-      level: "ERROR",
-      message: `handleStart token error: ${err.message}`,
-      details: `token=${token} chat=${chatId}`,
-      webhookId: "TELEGRAM_BOT",
-    });
-    return sendMessage(chatId, "Something went wrong connecting your account. Please try again.", { parseMode: "NONE" });
+    try {
+      await addDoc(collection(firestore, "logs"), {
+        timestamp: new Date().toISOString(),
+        level: "ERROR",
+        message: `handleStart token error: ${err.message}`,
+        details: `token=${token?.slice(0, 10)}... chat=${chatId} stack=${(err.stack || "").slice(0, 200)}`,
+        webhookId: "TELEGRAM_BOT",
+      });
+    } catch {}
+    return sendMessage(chatId, `Debug: ${err.message}`, { parseMode: "NONE" });
   }
 }
 

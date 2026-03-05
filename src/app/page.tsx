@@ -23,7 +23,6 @@ const OPPORTUNITY_CATEGORIES = [
   { id: "15", name: "Intraday", chart: "15 min", windowHours: 48, windowLabel: "in 48h", leverage: "5x" },
   { id: "60", name: "BTST", chart: "1 hr", windowHours: 168, windowLabel: "in 7d", leverage: "3x" },
   { id: "240", name: "Swing", chart: "4 hr", windowHours: 720, windowLabel: "in 30d", leverage: "3x" },
-  { id: "D", name: "Buy and hold", chart: "Daily", windowHours: 2160, windowLabel: "in 90d", leverage: "1x" },
 ] as const;
 
 type StatusKey = "working" | "not-working" | "neutral";

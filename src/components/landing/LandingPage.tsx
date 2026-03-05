@@ -31,7 +31,7 @@ const STEPS = [
   {
     icon: ScanSearch,
     title: "We Scan",
-    desc: "Our engine monitors the entire crypto market across 5 timeframes — from 5-minute scalps to daily positions. Nothing slips through.",
+    desc: "Our engine monitors the entire crypto market across 4 timeframes — from 5-minute scalps to 4-hour swing trades. Nothing slips through.",
     accent: "text-accent",
     bg: "bg-accent/10 border-accent/20",
   },
@@ -56,7 +56,6 @@ const TIMEFRAMES = [
   { name: "Intraday", chart: "15M", leverage: "5x", window: "48h", desc: "Day trading setups that close before bed", icon: "☀️" },
   { name: "BTST", chart: "1H", leverage: "3x", window: "7d", desc: "Buy today, sell tomorrow — or next week", icon: "🌙" },
   { name: "Swing", chart: "4H", leverage: "3x", window: "30d", desc: "Ride the multi-day trends with precision", icon: "🌊" },
-  { name: "Buy & Hold", chart: "Daily", leverage: "1x", window: "90d", desc: "Long-term conviction plays for investors", icon: "💎" },
 ];
 
 interface TopWinner {
@@ -109,8 +108,8 @@ const FEATURES = [
   },
   {
     icon: Timer,
-    title: "5 Timeframes",
-    desc: "From 5-minute scalps to daily positions — every trade style covered with optimized leverage.",
+    title: "4 Timeframes",
+    desc: "From 5-minute scalps to 4-hour swing trades — every active trade style covered with optimized leverage.",
     color: "text-purple-400",
     bg: "bg-purple-400/10 border-purple-400/20",
   },
@@ -216,7 +215,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
           <div className="mt-12 sm:mt-16 grid grid-cols-3 gap-4 max-w-xl mx-auto">
             {[
               { value: stats ? `${stats.totalTrades}` : "—", label: "Trades" },
-              { value: "5", label: "Timeframes" },
+              { value: "4", label: "Timeframes" },
               { value: "24/7", label: "Scanning" },
             ].map((s) => (
               <div key={s.label} className="text-center px-4 py-3 rounded-xl border border-white/5 bg-white/[0.02]">
@@ -276,7 +275,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {TIMEFRAMES.map((tf) => {
               const freq = frequency.find(f => f.timeframe === tf.name);
               return (

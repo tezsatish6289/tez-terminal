@@ -16,7 +16,14 @@ import {
   ScanSearch,
   Filter,
   Crosshair,
+  Info,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Chrome } from "lucide-react";
 import { RadarIcon } from "@/components/icons/RadarIcon";
@@ -74,8 +81,7 @@ interface TfPerformance {
   trades: number;
   winRate: number;
   avgProfit: number;
-  netProfit: number;
-  profitPerDay: number;
+  avgLoss: number;
 }
 
 interface TfFrequency {
@@ -387,63 +393,75 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-white/5 bg-card overflow-hidden">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="border-b border-white/5 bg-white/[0.02]">
-                      <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Timeframe</th>
-                      <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">Trades</th>
-                      <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">Win Rate</th>
-                      <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">Avg Profit</th>
-                      <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">Net Profit</th>
-                      <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-right">Profit / Day</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {qualified.map((p) => (
-                      <tr key={p.timeframe} className="border-t border-white/5 hover:bg-white/[0.02] transition-colors">
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-black text-white tracking-tight">{p.timeframe}</span>
-                            <span className="text-[10px] font-bold text-muted-foreground/40">{p.chart} · {p.leverage}</span>
-                            {p.trades < 50 && (
-                              <span className="text-[9px] font-bold text-amber-400/60 border border-amber-400/20 rounded px-1.5 py-0.5">Early data</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-5 py-4 text-center">
-                          <span className="text-sm font-black font-mono text-white">{p.trades}</span>
-                        </td>
-                        <td className="px-5 py-4 text-center">
-                          <span className={cn("text-sm font-black font-mono", p.winRate >= 50 ? "text-emerald-400" : "text-amber-400")}>
-                            {p.winRate.toFixed(1)}%
-                          </span>
-                        </td>
-                        <td className="px-5 py-4 text-center">
-                          <span className="text-sm font-black font-mono text-emerald-400">
-                            +{p.avgProfit.toFixed(2)}%
-                          </span>
-                        </td>
-                        <td className="px-5 py-4 text-center">
-                          <span className={cn("text-sm font-black font-mono", p.netProfit >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                            {p.netProfit >= 0 ? "+" : ""}{p.netProfit.toFixed(2)}%
-                          </span>
-                        </td>
-                        <td className="px-5 py-4 text-right">
-                          <span className={cn("text-sm font-black font-mono", p.profitPerDay >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                            {p.profitPerDay >= 0 ? "+" : ""}{p.profitPerDay.toFixed(2)}%
-                          </span>
-                        </td>
+              <TooltipProvider delayDuration={200}>
+                <div className="rounded-2xl border border-white/5 bg-card overflow-hidden">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-white/5 bg-white/[0.02]">
+                        <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Timeframe</th>
+                        {[
+                          { label: "Trades", tip: "Total number of closed (retired) trades in this timeframe", align: "text-center" },
+                          { label: "Win Rate", tip: "Percentage of trades that closed in profit. Low win rate is by design — our algorithm targets high R:R setups", align: "text-center" },
+                          { label: "Avg Profit", tip: "Average return on winning trades (with leverage). Shows how much each winner delivers", align: "text-center" },
+                          { label: "Avg Loss", tip: "Average return on losing trades (with leverage). Small avg loss + large avg profit = positive expectancy", align: "text-right" },
+                        ].map((col) => (
+                          <th key={col.label} className={cn("px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground", col.align)}>
+                            <span className="inline-flex items-center gap-1.5">
+                              {col.label}
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-3 w-3 text-muted-foreground/30 cursor-help hover:text-muted-foreground/60 transition-colors" />
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-[240px] font-normal normal-case tracking-normal leading-relaxed px-3 py-2 text-xs">
+                                  {col.tip}
+                                </TooltipContent>
+                              </Tooltip>
+                            </span>
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {qualified.map((p) => (
+                        <tr key={p.timeframe} className="border-t border-white/5 hover:bg-white/[0.02] transition-colors">
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm font-black text-white tracking-tight">{p.timeframe}</span>
+                              <span className="text-[10px] font-bold text-muted-foreground/40">{p.chart} · {p.leverage}</span>
+                              {p.trades < 50 && (
+                                <span className="text-[9px] font-bold text-amber-400/60 border border-amber-400/20 rounded px-1.5 py-0.5">Early data</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 text-center">
+                            <span className="text-sm font-black font-mono text-white">{p.trades}</span>
+                          </td>
+                          <td className="px-5 py-4 text-center">
+                            <span className={cn("text-sm font-black font-mono", p.winRate >= 50 ? "text-emerald-400" : "text-amber-400")}>
+                              {p.winRate.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-center">
+                            <span className="text-sm font-black font-mono text-emerald-400">
+                              +{p.avgProfit.toFixed(2)}%
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            <span className="text-sm font-black font-mono text-rose-400">
+                              {p.avgLoss.toFixed(2)}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </TooltipProvider>
 
               {/* Why it works explainer */}
               <div className="mt-8 rounded-2xl border border-accent/10 bg-accent/[0.03] p-6 sm:p-8">
                 <h3 className="text-base font-black tracking-tight text-white mb-3">
-                  Low win rate. High net profit. <span className="text-accent">Here's why.</span>
+                  Low win rate. Big winners. <span className="text-accent">Here's why.</span>
                 </h3>
                 <p className="text-[12px] text-muted-foreground leading-relaxed mb-4">
                   Our proprietary trend-reversal algorithm doesn't chase every move — it waits for high-conviction inflection points 

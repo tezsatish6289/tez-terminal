@@ -21,26 +21,11 @@ const TIMEFRAME_OPTIONS = [
   { value: "15", label: "Intraday (15m)" },
   { value: "60", label: "BTST (1H)" },
   { value: "240", label: "Swing (4H)" },
-  { value: "D", label: "Positional (D)" },
-];
-
-const ASSET_TYPE_OPTIONS = [
-  { value: "CRYPTO", label: "Crypto" },
-  { value: "INDIAN STOCKS", label: "Indian Stocks" },
-  { value: "US STOCKS", label: "US Stocks" },
 ];
 
 const SIDE_OPTIONS = [
   { value: "BUY", label: "Buy (Long)" },
   { value: "SELL", label: "Sell (Short)" },
-];
-
-const ALERT_TYPE_OPTIONS = [
-  { value: "NEW_SIGNAL", label: "New Signals" },
-  { value: "TP1_HIT", label: "TP1 Hit" },
-  { value: "TP2_HIT", label: "TP2 Hit" },
-  { value: "TP3_HIT", label: "TP3 Hit" },
-  { value: "SL_HIT", label: "SL Hit" },
 ];
 
 interface TelegramStatus {
@@ -50,9 +35,7 @@ interface TelegramStatus {
   connectedAt: string | null;
   preferences: {
     enabled: boolean;
-    alertTypes: string[];
     timeframes: string[];
-    assetTypes: string[];
     sides: string[];
     symbols: string[];
   } | null;
@@ -174,7 +157,7 @@ export default function SettingsPage() {
     updatePreference("symbols", updated);
   };
 
-  const isSelected = (values: string[], value: string, allOptions: string[]) => {
+  const isSelected = (values: string[], value: string) => {
     if (values.includes("ALL")) return true;
     return values.includes(value);
   };
@@ -367,26 +350,6 @@ export default function SettingsPage() {
                   <CardDescription>Choose which alerts you receive on Telegram.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {/* Alert Types */}
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-3">Alert Types</p>
-                    <div className="flex flex-wrap gap-2">
-                      <FilterChip
-                        label="All"
-                        active={prefs.alertTypes.includes("ALL")}
-                        onClick={() => toggleFilter("alertTypes", "ALL", prefs.alertTypes, ALERT_TYPE_OPTIONS.map(o => o.value))}
-                      />
-                      {ALERT_TYPE_OPTIONS.map(opt => (
-                        <FilterChip
-                          key={opt.value}
-                          label={opt.label}
-                          active={isSelected(prefs.alertTypes, opt.value, ALERT_TYPE_OPTIONS.map(o => o.value))}
-                          onClick={() => toggleFilter("alertTypes", opt.value, prefs.alertTypes, ALERT_TYPE_OPTIONS.map(o => o.value))}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
                   {/* Timeframes */}
                   <div>
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-3">Timeframes</p>
@@ -400,28 +363,8 @@ export default function SettingsPage() {
                         <FilterChip
                           key={opt.value}
                           label={opt.label}
-                          active={isSelected(prefs.timeframes, opt.value, TIMEFRAME_OPTIONS.map(o => o.value))}
+                          active={isSelected(prefs.timeframes, opt.value)}
                           onClick={() => toggleFilter("timeframes", opt.value, prefs.timeframes, TIMEFRAME_OPTIONS.map(o => o.value))}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Asset Types */}
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-3">Asset Types</p>
-                    <div className="flex flex-wrap gap-2">
-                      <FilterChip
-                        label="All"
-                        active={prefs.assetTypes.includes("ALL")}
-                        onClick={() => toggleFilter("assetTypes", "ALL", prefs.assetTypes, ASSET_TYPE_OPTIONS.map(o => o.value))}
-                      />
-                      {ASSET_TYPE_OPTIONS.map(opt => (
-                        <FilterChip
-                          key={opt.value}
-                          label={opt.label}
-                          active={isSelected(prefs.assetTypes, opt.value, ASSET_TYPE_OPTIONS.map(o => o.value))}
-                          onClick={() => toggleFilter("assetTypes", opt.value, prefs.assetTypes, ASSET_TYPE_OPTIONS.map(o => o.value))}
                         />
                       ))}
                     </div>
@@ -440,7 +383,7 @@ export default function SettingsPage() {
                         <FilterChip
                           key={opt.value}
                           label={opt.label}
-                          active={isSelected(prefs.sides, opt.value, SIDE_OPTIONS.map(o => o.value))}
+                          active={isSelected(prefs.sides, opt.value)}
                           onClick={() => toggleFilter("sides", opt.value, prefs.sides, SIDE_OPTIONS.map(o => o.value))}
                         />
                       ))}

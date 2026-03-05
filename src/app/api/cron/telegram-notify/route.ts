@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
-import { sendMessage, formatSignalMessage, type SignalEvent } from "@/lib/telegram";
+import { sendMessage, formatSignalMessage, type SignalEvent, type InlineKeyboardButton } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,8 +13,9 @@ function sleep(ms: number) {
 }
 
 /**
- * Telegram notification cron — runs independently from price sync.
- * Reads unnotified signal_events, matches subscribers, sends messages.
+ * Telegram notification cron.
+ * NEW_SIGNAL → fan out to all connected users (filtered by timeframe, side, symbols).
+ * TP/SL events → send only to users who tapped "Track this trade" for that signal.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -55,20 +56,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, events: eventsSnap.size, messages: 0, reason: "no subscribers" });
     }
 
-    const subscribers: { uid: string; chatId: number; prefs: any }[] = [];
+    const allUsers: { uid: string; chatId: number; prefs: any }[] = [];
     for (const userDoc of usersSnap.docs) {
       const userData = userDoc.data();
       if (!userData.telegramChatId) continue;
 
       const prefsSnap = await db.collection("telegram_preferences").doc(userDoc.id).get();
       const prefs = prefsSnap.exists ? prefsSnap.data() : {
-        enabled: true, alertTypes: ["ALL"], timeframes: ["ALL"],
-        assetTypes: ["ALL"], sides: ["ALL"], symbols: [],
+        enabled: true, timeframes: ["ALL"], sides: ["ALL"], symbols: [],
       };
 
       if (prefs!.enabled === false) continue;
 
-      subscribers.push({
+      allUsers.push({
         uid: userDoc.id,
         chatId: userData.telegramChatId,
         prefs,
@@ -81,35 +81,79 @@ export async function GET(request: NextRequest) {
       const event = eventDoc.data() as SignalEvent & { createdAt: string };
       const message = formatSignalMessage(event);
 
-      const matched = subscribers.filter(sub => matchesPreferences(sub.prefs, event));
+      let recipients: { chatId: number }[] = [];
 
-      for (let i = 0; i < matched.length; i += BATCH_SIZE) {
-        const batch = matched.slice(i, i + BATCH_SIZE);
-        await Promise.all(
-          batch.map(sub =>
-            sendMessage(sub.chatId, message).catch(err => {
-              console.error(`[Telegram Notify] Failed to send to ${sub.chatId}:`, err.message);
-            })
-          )
-        );
-        totalMessages += batch.length;
+      if (event.type === "NEW_SIGNAL") {
+        const matched = allUsers.filter(sub => matchesNewSignalPrefs(sub.prefs, event));
+        recipients = matched;
 
-        if (i + BATCH_SIZE < matched.length) {
-          await sleep(BATCH_DELAY_MS);
+        const trackButton: InlineKeyboardButton[][] = [
+          [{ text: "📌 Track this trade", callback_data: `track:${event.signalId}` }],
+        ];
+
+        for (let i = 0; i < matched.length; i += BATCH_SIZE) {
+          const batch = matched.slice(i, i + BATCH_SIZE);
+          await Promise.all(
+            batch.map(sub =>
+              sendMessage(sub.chatId, message + "\n\nRecommended if you are trading this signal.", {
+                replyMarkup: { inline_keyboard: trackButton },
+              }).catch(err => {
+                console.error(`[Telegram Notify] Failed to send to ${sub.chatId}:`, err.message);
+              })
+            )
+          );
+          totalMessages += batch.length;
+
+          if (i + BATCH_SIZE < matched.length) {
+            await sleep(BATCH_DELAY_MS);
+          }
+        }
+      } else {
+        const trackedSnap = await db.collection("tracked_signals")
+          .where("signalId", "==", event.signalId)
+          .get();
+
+        if (!trackedSnap.empty) {
+          recipients = trackedSnap.docs.map(d => ({ chatId: d.data().chatId }));
+
+          for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+            const batch = recipients.slice(i, i + BATCH_SIZE);
+            await Promise.all(
+              batch.map(sub =>
+                sendMessage(sub.chatId, message).catch(err => {
+                  console.error(`[Telegram Notify] Failed to send to ${sub.chatId}:`, err.message);
+                })
+              )
+            );
+            totalMessages += batch.length;
+
+            if (i + BATCH_SIZE < recipients.length) {
+              await sleep(BATCH_DELAY_MS);
+            }
+          }
+        }
+
+        if (event.type === "TP3_HIT" || event.type === "SL_HIT") {
+          const toDelete = await db.collection("tracked_signals")
+            .where("signalId", "==", event.signalId)
+            .get();
+          for (const d of toDelete.docs) {
+            await d.ref.delete();
+          }
         }
       }
 
       await db.collection("signal_events").doc(eventDoc.id).update({
         notified: true,
         notifiedAt: new Date().toISOString(),
-        notifiedCount: matched.length,
+        notifiedCount: recipients.length,
       });
     }
 
     await db.collection("logs").add({
       timestamp: new Date().toISOString(),
       level: "INFO",
-      message: `TELEGRAM NOTIFY: events=${eventsSnap.size} messages=${totalMessages} subscribers=${subscribers.length}`,
+      message: `TELEGRAM NOTIFY: events=${eventsSnap.size} messages=${totalMessages} subscribers=${allUsers.length}`,
       webhookId: "SYSTEM_CRON",
     });
 
@@ -117,7 +161,7 @@ export async function GET(request: NextRequest) {
       success: true,
       events: eventsSnap.size,
       messages: totalMessages,
-      subscribers: subscribers.length,
+      subscribers: allUsers.length,
     });
   } catch (error: any) {
     console.error("[Telegram Notify Cron]", error.message);
@@ -132,10 +176,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function matchesPreferences(prefs: any, event: SignalEvent): boolean {
-  if (!matchesFilter(prefs.alertTypes, event.type)) return false;
+function matchesNewSignalPrefs(prefs: any, event: SignalEvent): boolean {
   if (!matchesFilter(prefs.timeframes, event.timeframe)) return false;
-  if (!matchesFilter(prefs.assetTypes, event.assetType)) return false;
   if (!matchesFilter(prefs.sides, event.side)) return false;
 
   const symbols: string[] = prefs.symbols || [];

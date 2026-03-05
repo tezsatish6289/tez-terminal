@@ -7,10 +7,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const ALL_TIMEFRAMES = ["5", "15", "60", "240", "D"];
-const ALL_ASSET_TYPES = ["CRYPTO", "INDIAN STOCKS", "US STOCKS"];
+const ALL_TIMEFRAMES = ["5", "15", "60", "240"];
 const ALL_SIDES = ["BUY", "SELL"];
-const ALL_EVENT_TYPES = ["NEW_SIGNAL", "TP1_HIT", "TP2_HIT", "TP3_HIT", "SL_HIT"];
 
 export async function POST(request: NextRequest) {
   const db = getAdminFirestore();
@@ -122,9 +120,7 @@ async function handleStart(
 
     await db.collection("telegram_preferences").doc(firebaseUid).set({
       enabled: true,
-      alertTypes: ALL_EVENT_TYPES,
       timeframes: ["ALL"],
-      assetTypes: ["ALL"],
       sides: ["ALL"],
       symbols: [],
     }, { merge: true });
@@ -190,25 +186,28 @@ async function handleStatus(chatId: number) {
 
   const enabled = userData?.telegramEnabled !== false;
   const timeframes = prefs?.timeframes || ["ALL"];
-  const assetTypes = prefs?.assetTypes || ["ALL"];
   const sides = prefs?.sides || ["ALL"];
   const symbols = prefs?.symbols || [];
 
   const tfDisplay = timeframes.includes("ALL")
     ? "All timeframes"
     : timeframes.map((tf: string) => getTimeframeName(tf)).join(", ");
-  const assetDisplay = assetTypes.includes("ALL") ? "All asset types" : assetTypes.join(", ");
   const sideDisplay = sides.includes("ALL") ? "Both sides" : sides.join(", ");
   const symbolDisplay = symbols.length === 0 ? "All symbols" : symbols.join(", ");
+
+  const trackedSnap = await db.collection("tracked_signals")
+    .where("userId", "==", uid)
+    .get();
+  const trackedCount = trackedSnap.size;
 
   return sendMessage(chatId, [
     "Your Alert Status",
     "",
     `Status: ${enabled ? "Active" : "Paused"}`,
     `Timeframes: ${tfDisplay}`,
-    `Asset types: ${assetDisplay}`,
     `Sides: ${sideDisplay}`,
     `Symbols: ${symbolDisplay}`,
+    `Tracking: ${trackedCount} active trade${trackedCount !== 1 ? "s" : ""}`,
     "",
     "Use /settings to change these.",
   ].join("\n"), { parseMode: "NONE" });
@@ -238,21 +237,10 @@ async function handleSettings(chatId: number) {
 }
 
 async function sendSettingsMenu(chatId: number, uid: string) {
-  const db = getAdminFirestore();
-  const prefsSnap = await db.collection("telegram_preferences").doc(uid).get();
-  const prefs = prefsSnap.data() || {
-    timeframes: ["ALL"],
-    assetTypes: ["ALL"],
-    sides: ["ALL"],
-    alertTypes: ALL_EVENT_TYPES,
-  };
-
   const keyboard: InlineKeyboardButton[][] = [
-    [{ text: "Timeframes", callback_data: "settings:timeframes" }],
-    [{ text: "Asset Types", callback_data: "settings:assets" }],
-    [{ text: "Side (Buy/Sell)", callback_data: "settings:sides" }],
-    [{ text: "Alert Types", callback_data: "settings:alerts" }],
-    [{ text: "Watch Symbols", callback_data: "settings:symbols" }],
+    [{ text: "📊 Timeframes", callback_data: "settings:timeframes" }],
+    [{ text: "📈 Side (Buy/Sell)", callback_data: "settings:sides" }],
+    [{ text: "🔤 Watch Symbols", callback_data: "settings:symbols" }],
   ];
 
   return sendMessage(chatId, "Alert Settings\n\nChoose what to configure:", {
@@ -284,27 +272,17 @@ async function handleCallbackQuery(cq: NonNullable<TelegramUpdate["callback_quer
   const prefsSnap = await prefsRef.get();
   const prefs = prefsSnap.data() || {
     timeframes: ["ALL"],
-    assetTypes: ["ALL"],
     sides: ["ALL"],
-    alertTypes: ALL_EVENT_TYPES,
     symbols: [],
   };
 
   if (data === "settings:timeframes") {
     await showToggleMenu(chatId, messageId, "Timeframes", prefs.timeframes, ALL_TIMEFRAMES, "tf", getTimeframeName);
-  } else if (data === "settings:assets") {
-    await showToggleMenu(chatId, messageId, "Asset Types", prefs.assetTypes, ALL_ASSET_TYPES, "asset", (v: string) => v);
   } else if (data === "settings:sides") {
     await showToggleMenu(chatId, messageId, "Sides", prefs.sides, ALL_SIDES, "side", (v: string) => v);
-  } else if (data === "settings:alerts") {
-    const labelMap: Record<string, string> = {
-      NEW_SIGNAL: "New Signal",
-      TP1_HIT: "TP1 Hit",
-      TP2_HIT: "TP2 Hit",
-      TP3_HIT: "TP3 Hit",
-      SL_HIT: "SL Hit",
-    };
-    await showToggleMenu(chatId, messageId, "Alert Types", prefs.alertTypes, ALL_EVENT_TYPES, "evt", (v: string) => labelMap[v] || v);
+  } else if (data.startsWith("track:")) {
+    await handleTrackSignal(chatId, uid, data.slice(6), cq.id);
+    return;
   } else if (data === "settings:symbols") {
     const symbolList = (prefs.symbols || []).length > 0
       ? prefs.symbols.join(", ")
@@ -371,12 +349,7 @@ async function handleToggle(
 
   const fieldMap: Record<string, { field: string; allOptions: string[]; labelFn: (v: string) => string; title: string }> = {
     tf: { field: "timeframes", allOptions: ALL_TIMEFRAMES, labelFn: getTimeframeName, title: "Timeframes" },
-    asset: { field: "assetTypes", allOptions: ALL_ASSET_TYPES, labelFn: (v: string) => v, title: "Asset Types" },
     side: { field: "sides", allOptions: ALL_SIDES, labelFn: (v: string) => v, title: "Sides" },
-    evt: {
-      field: "alertTypes", allOptions: ALL_EVENT_TYPES, title: "Alert Types",
-      labelFn: (v: string) => ({ NEW_SIGNAL: "New Signal", TP1_HIT: "TP1 Hit", TP2_HIT: "TP2 Hit", TP3_HIT: "TP3 Hit", SL_HIT: "SL Hit" }[v] || v),
-    },
   };
 
   const config = fieldMap[prefix];
@@ -412,9 +385,7 @@ async function handleToggle(
 async function refreshSettingsInPlace(chatId: number, messageId: number, uid: string) {
   const keyboard: InlineKeyboardButton[][] = [
     [{ text: "📊 Timeframes", callback_data: "settings:timeframes" }],
-    [{ text: "💹 Asset Types", callback_data: "settings:assets" }],
     [{ text: "📈 Side (Buy/Sell)", callback_data: "settings:sides" }],
-    [{ text: "🔔 Alert Types", callback_data: "settings:alerts" }],
     [{ text: "🔤 Watch Symbols", callback_data: "settings:symbols" }],
   ];
 
@@ -422,6 +393,32 @@ async function refreshSettingsInPlace(chatId: number, messageId: number, uid: st
     parseMode: "NONE",
     replyMarkup: { inline_keyboard: keyboard },
   });
+}
+
+// ─── Track Signal Handler ────────────────────────────────────────
+
+async function handleTrackSignal(chatId: number, uid: string, signalId: string, callbackId: string) {
+  const db = getAdminFirestore();
+
+  const existing = await db.collection("tracked_signals")
+    .where("userId", "==", uid)
+    .where("signalId", "==", signalId)
+    .limit(1)
+    .get();
+
+  if (!existing.empty) {
+    await answerCallbackQuery(callbackId, "You're already tracking this trade.");
+    return;
+  }
+
+  await db.collection("tracked_signals").add({
+    userId: uid,
+    signalId,
+    chatId,
+    trackedAt: new Date().toISOString(),
+  });
+
+  await answerCallbackQuery(callbackId, "Tracking! You'll get TP/SL updates for this trade.");
 }
 
 // ─── Helpers ────────────────────────────────────────────────────

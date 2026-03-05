@@ -61,5 +61,12 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow write: if false;
     }
+
+    // Tracked signals: per-user per-signal opt-in for TP/SL updates.
+    // Managed server-side via Admin SDK.
+    match /tracked_signals/{trackId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
   }
 }

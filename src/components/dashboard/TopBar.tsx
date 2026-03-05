@@ -16,17 +16,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/hooks/use-toast";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 export function TopBar() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
   const isAdmin = user?.email === "hello@tezterminal.com";
   const handleLogout = () => {
     if (auth) {
       initiateSignOut(auth);
+      router.push("/");
       toast({
         title: "Session Ended",
         description: "You have been logged out successfully.",

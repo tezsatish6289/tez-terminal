@@ -210,6 +210,9 @@ export async function GET() {
       const lossPnls = pnls.filter((p: number) => p < 0);
       const avgProfit = profitPnls.length > 0 ? profitPnls.reduce((a: number, b: number) => a + b, 0) / profitPnls.length : 0;
       const avgLoss = lossPnls.length > 0 ? lossPnls.reduce((a: number, b: number) => a + b, 0) / lossPnls.length : 0;
+      const grossProfit = profitPnls.reduce((a: number, b: number) => a + b, 0);
+      const grossLoss = Math.abs(lossPnls.reduce((a: number, b: number) => a + b, 0));
+      const profitFactor = grossLoss > 0 ? +(grossProfit / grossLoss).toFixed(2) : grossProfit > 0 ? 999 : 0;
 
       return {
         timeframe: TIMEFRAME_NAMES[tfId] || tfId,
@@ -219,6 +222,7 @@ export async function GET() {
         winRate: +winRate.toFixed(1),
         avgProfit: +avgProfit.toFixed(2),
         avgLoss: +avgLoss.toFixed(2),
+        profitFactor,
       };
     }).filter((p) => p.trades > 0);
 

@@ -82,6 +82,7 @@ interface TfPerformance {
   winRate: number;
   avgProfit: number;
   avgLoss: number;
+  profitFactor: number;
 }
 
 interface TfFrequency {
@@ -403,7 +404,8 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
                           { label: "Trades", tip: "Total number of closed (retired) trades in this timeframe", align: "text-center" },
                           { label: "Win Rate", tip: "Percentage of trades that closed in profit. Low win rate is by design — our algorithm targets high R:R setups", align: "text-center" },
                           { label: "Avg Profit", tip: "Average return on winning trades (with leverage). Shows how much each winner delivers", align: "text-center" },
-                          { label: "Avg Loss", tip: "Average return on losing trades (with leverage). Small avg loss + large avg profit = positive expectancy", align: "text-right" },
+                          { label: "Avg Loss", tip: "Average return on losing trades (with leverage). Small avg loss + large avg profit = positive expectancy", align: "text-center" },
+                          { label: "Profit Factor", tip: "Gross profits ÷ gross losses. Above 1.0 = profitable system. Above 2.0 = strong edge. The higher, the better", align: "text-right" },
                         ].map((col) => (
                           <th key={col.label} className={cn("px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground", col.align)}>
                             <span className="inline-flex items-center gap-1.5">
@@ -446,9 +448,14 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
                               +{p.avgProfit.toFixed(2)}%
                             </span>
                           </td>
-                          <td className="px-5 py-4 text-right">
+                          <td className="px-5 py-4 text-center">
                             <span className="text-sm font-black font-mono text-rose-400">
                               {p.avgLoss.toFixed(2)}%
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            <span className={cn("text-sm font-black font-mono", p.profitFactor >= 2 ? "text-emerald-400" : p.profitFactor >= 1 ? "text-amber-400" : "text-rose-400")}>
+                              {p.profitFactor >= 999 ? "∞" : `${p.profitFactor.toFixed(1)}x`}
                             </span>
                           </td>
                         </tr>

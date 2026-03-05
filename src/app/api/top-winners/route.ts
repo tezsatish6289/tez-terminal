@@ -240,7 +240,43 @@ export async function GET() {
       };
     }).filter((p) => p.trades > 0);
 
-    const response = { winners: result, stats, performance };
+    // Trade frequency per timeframe (all signals, not just retired)
+    const frequency = TIMEFRAME_IDS.map((tfId) => {
+      const tfAll = cryptoSignals.filter((s: any) => String(s.timeframe) === tfId);
+      if (tfAll.length === 0) return null;
+
+      let earliest = Infinity;
+      for (const s of tfAll) {
+        if (s.receivedAt) {
+          const t = new Date(s.receivedAt).getTime();
+          if (!isNaN(t) && t < earliest) earliest = t;
+        }
+      }
+
+      const daysActive = earliest < Infinity ? Math.max(1, (now - earliest) / (1000 * 60 * 60 * 24)) : 1;
+      const perDay = tfAll.length / daysActive;
+
+      let freqValue: number;
+      let freqUnit: string;
+      if (perDay >= 1) {
+        freqValue = Math.round(perDay);
+        freqUnit = "day";
+      } else if (perDay >= 1 / 7) {
+        freqValue = Math.round(perDay * 7);
+        freqUnit = "week";
+      } else {
+        freqValue = Math.round(perDay * 30);
+        freqUnit = "month";
+      }
+
+      return {
+        timeframe: TIMEFRAME_NAMES[tfId] || tfId,
+        freqValue: Math.max(1, freqValue),
+        freqUnit,
+      };
+    }).filter(Boolean);
+
+    const response = { winners: result, stats, performance, frequency };
     cache = { data: response, ts: Date.now() };
 
     return NextResponse.json(response);

@@ -79,6 +79,12 @@ interface TfPerformance {
   profitPerDay: number;
 }
 
+interface TfFrequency {
+  timeframe: string;
+  freqValue: number;
+  freqUnit: string;
+}
+
 const FEATURES = [
   {
     icon: BarChart3,
@@ -119,6 +125,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
   const [topWinners, setTopWinners] = useState<TopWinner[]>([]);
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [performance, setPerformance] = useState<TfPerformance[]>([]);
+  const [frequency, setFrequency] = useState<TfFrequency[]>([]);
 
   useEffect(() => {
     fetch("/api/top-winners")
@@ -127,6 +134,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
         setTopWinners(data.winners || []);
         setStats(data.stats || null);
         setPerformance(data.performance || []);
+        setFrequency(data.frequency || []);
       })
       .catch(() => {});
   }, []);
@@ -269,27 +277,35 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {TIMEFRAMES.map((tf) => (
-              <div
-                key={tf.name}
-                className="rounded-2xl border border-white/5 bg-card p-5 hover:border-accent/20 transition-all hover:scale-[1.02] group"
-              >
-                <div className="text-2xl mb-3">{tf.icon}</div>
-                <h3 className="text-lg font-black tracking-tight">{tf.name}</h3>
-                <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{tf.desc}</p>
-                <div className="flex items-center gap-2 mt-4">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-accent/10 text-accent border border-accent/20">
-                    {tf.chart}
-                  </span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/5 text-muted-foreground border border-white/10">
-                    {tf.leverage}
-                  </span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/5 text-muted-foreground border border-white/10">
-                    {tf.window}
-                  </span>
+            {TIMEFRAMES.map((tf) => {
+              const freq = frequency.find(f => f.timeframe === tf.name);
+              return (
+                <div
+                  key={tf.name}
+                  className="rounded-2xl border border-white/5 bg-card p-5 hover:border-accent/20 transition-all hover:scale-[1.02] group"
+                >
+                  <div className="text-2xl mb-3">{tf.icon}</div>
+                  <h3 className="text-lg font-black tracking-tight">{tf.name}</h3>
+                  <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{tf.desc}</p>
+                  {freq && (
+                    <p className="text-[11px] font-bold text-accent mt-2">
+                      Avg ~{freq.freqValue} trades/{freq.freqUnit}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-2 mt-3">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-accent/10 text-accent border border-accent/20">
+                      {tf.chart}
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/5 text-muted-foreground border border-white/10">
+                      {tf.leverage}
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/5 text-muted-foreground border border-white/10">
+                      {tf.window}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>

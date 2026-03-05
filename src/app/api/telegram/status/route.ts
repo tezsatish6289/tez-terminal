@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeFirebase } from "@/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { getAdminFirestore } from "@/firebase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -16,13 +15,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Missing uid" }, { status: 400 });
     }
 
-    const { firestore } = initializeFirebase();
+    const db = getAdminFirestore();
 
-    const userDoc = await getDoc(doc(firestore, "users", uid));
-    const prefsDoc = await getDoc(doc(firestore, "telegram_preferences", uid));
+    const userSnap = await db.collection("users").doc(uid).get();
+    const prefsSnap = await db.collection("telegram_preferences").doc(uid).get();
 
-    const userData = userDoc.exists() ? userDoc.data() : null;
-    const prefs = prefsDoc.exists() ? prefsDoc.data() : null;
+    const userData = userSnap.exists ? userSnap.data() : null;
+    const prefs = prefsSnap.exists ? prefsSnap.data() : null;
 
     const connected = !!(userData?.telegramChatId);
 

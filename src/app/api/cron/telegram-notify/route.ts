@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeFirebase } from "@/firebase";
-import { collection, getDocs, getDoc, doc, updateDoc, query, where, addDoc } from "firebase/firestore";
+import { getAdminFirestore } from "@/firebase/admin";
 import { sendMessage, formatSignalMessage, type SignalEvent } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
@@ -30,25 +29,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: "TELEGRAM_BOT_TOKEN not configured" }, { status: 500 });
   }
 
-  const { firestore } = initializeFirebase();
-  const logsRef = collection(firestore, "logs");
+  const db = getAdminFirestore();
 
   try {
-    const eventsSnap = await getDocs(
-      query(collection(firestore, "signal_events"), where("notified", "==", false))
-    );
+    const eventsSnap = await db.collection("signal_events")
+      .where("notified", "==", false)
+      .get();
 
     if (eventsSnap.empty) {
       return NextResponse.json({ success: true, events: 0, messages: 0 });
     }
 
-    const usersSnap = await getDocs(
-      query(collection(firestore, "users"), where("telegramEnabled", "==", true))
-    );
+    const usersSnap = await db.collection("users")
+      .where("telegramEnabled", "==", true)
+      .get();
 
     if (usersSnap.empty) {
       for (const eventDoc of eventsSnap.docs) {
-        await updateDoc(doc(firestore, "signal_events", eventDoc.id), {
+        await db.collection("signal_events").doc(eventDoc.id).update({
           notified: true,
           notifiedAt: new Date().toISOString(),
           notifiedCount: 0,
@@ -62,13 +60,13 @@ export async function GET(request: NextRequest) {
       const userData = userDoc.data();
       if (!userData.telegramChatId) continue;
 
-      const prefsSnap = await getDoc(doc(firestore, "telegram_preferences", userDoc.id));
-      const prefs = prefsSnap.exists() ? prefsSnap.data() : {
+      const prefsSnap = await db.collection("telegram_preferences").doc(userDoc.id).get();
+      const prefs = prefsSnap.exists ? prefsSnap.data() : {
         enabled: true, alertTypes: ["ALL"], timeframes: ["ALL"],
         assetTypes: ["ALL"], sides: ["ALL"], symbols: [],
       };
 
-      if (prefs.enabled === false) continue;
+      if (prefs!.enabled === false) continue;
 
       subscribers.push({
         uid: userDoc.id,
@@ -101,14 +99,14 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      await updateDoc(doc(firestore, "signal_events", eventDoc.id), {
+      await db.collection("signal_events").doc(eventDoc.id).update({
         notified: true,
         notifiedAt: new Date().toISOString(),
         notifiedCount: matched.length,
       });
     }
 
-    await addDoc(logsRef, {
+    await db.collection("logs").add({
       timestamp: new Date().toISOString(),
       level: "INFO",
       message: `TELEGRAM NOTIFY: events=${eventsSnap.size} messages=${totalMessages} subscribers=${subscribers.length}`,
@@ -123,7 +121,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("[Telegram Notify Cron]", error.message);
-    await addDoc(logsRef, {
+    await db.collection("logs").add({
       timestamp: new Date().toISOString(),
       level: "ERROR",
       message: "Telegram Notify Failure",

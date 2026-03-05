@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeFirebase } from "@/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { getAdminFirestore } from "@/firebase/admin";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -19,13 +18,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing firebaseUid" }, { status: 400 });
     }
 
-    const { firestore } = initializeFirebase();
+    const db = getAdminFirestore();
 
     const token = crypto.randomBytes(24).toString("hex");
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 10 * 60 * 1000); // 10 min
 
-    await setDoc(doc(firestore, "telegram_link_tokens", token), {
+    await db.collection("telegram_link_tokens").doc(token).set({
       firebaseUid,
       createdAt: now.toISOString(),
       expiresAt: expiresAt.toISOString(),

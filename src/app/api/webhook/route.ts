@@ -1,8 +1,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
-import { initializeFirebase } from "@/firebase";
-import { collection, addDoc, doc, getDoc, getDocs, query, where, limit, updateDoc, serverTimestamp } from "firebase/firestore";
+import { getAdminFirestore } from "@/firebase/admin";
+import { FieldValue } from "firebase-admin/firestore";
 import { computeSentiment, type SignalForSentiment } from "@/lib/sentiment";
 import { deriveTp3 } from "@/lib/pnl";
 import type { SignalEvent } from "@/lib/telegram";
@@ -13,10 +13,8 @@ import type { SignalEvent } from "@/lib/telegram";
  * Sentiment/alignment is computed in the background via next/server after().
  */
 export async function POST(request: NextRequest) {
-  const { firestore } = initializeFirebase();
-  const logsRef = collection(firestore, "logs");
-  const signalsRef = collection(firestore, "signals");
-  
+  const db = getAdminFirestore();
+
   const timestamp = new Date().toISOString();
   let webhookId = "UNKNOWN";
   let rawBody = "";
@@ -42,14 +40,13 @@ export async function POST(request: NextRequest) {
       throw new Error(`Invalid JSON: Ensure TradingView is sending valid JSON content.`);
     }
 
-    const configRef = doc(firestore, "webhooks", webhookId);
-    const configSnap = await getDoc(configRef);
+    const configSnap = await db.collection("webhooks").doc(webhookId).get();
 
-    if (!configSnap.exists()) {
+    if (!configSnap.exists) {
       throw new Error(`Bridge ID '${webhookId}' not found. Did you purge the webhooks collection?`);
     }
 
-    const configData = configSnap.data();
+    const configData = configSnap.data()!;
     const providedKey = body.secretKey || searchParams.get("key");
     if (configData.secretKey && providedKey !== configData.secretKey) {
       throw new Error(`Auth Failure: Secret key mismatch for bridge '${configData.name}'.`);
@@ -89,7 +86,7 @@ export async function POST(request: NextRequest) {
     const signalData: Record<string, any> = {
       webhookId,
       receivedAt: timestamp,
-      serverTimestamp: serverTimestamp(),
+      serverTimestamp: FieldValue.serverTimestamp(),
       payload: rawBody,
       symbol,
       exchange,
@@ -124,7 +121,7 @@ export async function POST(request: NextRequest) {
       totalBookedPnl: null,
     };
 
-    const docRef = await addDoc(signalsRef, signalData);
+    const docRef = await db.collection("signals").add(signalData);
 
     const tp3Val = (tp1 != null && tp2 != null) ? deriveTp3(tp1, tp2) : null;
     const newSignalEvent: SignalEvent = {
@@ -140,25 +137,25 @@ export async function POST(request: NextRequest) {
       tp1, tp2, tp3: tp3Val,
       guidance: "New signal received.",
     };
-    await addDoc(collection(firestore, "signal_events"), {
+    await db.collection("signal_events").add({
       ...newSignalEvent,
       createdAt: timestamp,
       notified: false,
       notifiedAt: null,
     });
 
-    // Compute alignment in the background — runs after the response is sent
     if (signalType !== "NEUTRAL" && assetType === "CRYPTO") {
       after(async () => {
         try {
-          const activeSnap = await getDocs(
-            query(collection(firestore, "signals"), where("status", "==", "ACTIVE"), limit(200))
-          );
+          const activeSnap = await db.collection("signals")
+            .where("status", "==", "ACTIVE")
+            .limit(200)
+            .get();
 
           let k = 7;
           try {
-            const sentimentConfig = await getDoc(doc(firestore, "config", "sentiment"));
-            if (sentimentConfig.exists()) {
+            const sentimentConfig = await db.collection("config").doc("sentiment").get();
+            if (sentimentConfig.exists) {
               const ck = sentimentConfig.data()?.k;
               if (typeof ck === "number" && ck > 0) k = ck;
             }
@@ -184,7 +181,7 @@ export async function POST(request: NextRequest) {
           const bearish = sentiment.label === "Bears in control" || sentiment.label === "Bears taking over";
           const aligned = (signalType === "BUY" && bullish) || (signalType === "SELL" && bearish);
 
-          await updateDoc(doc(firestore, "signals", docRef.id), {
+          await db.collection("signals").doc(docRef.id).update({
             aligned,
             sentimentAtEntry: sentiment.label,
           });
@@ -198,7 +195,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error("[Webhook Bridge Error]", error.message);
     try {
-      await addDoc(logsRef, {
+      await db.collection("logs").add({
         timestamp,
         level: "ERROR",
         message: "Ingestion Failure",

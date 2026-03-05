@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeFirebase } from "@/firebase";
-import { collection, getDocs, updateDoc, doc, addDoc } from "firebase/firestore";
+import { getAdminFirestore } from "@/firebase/admin";
 import { rawPnlPercent, calcBookedPnl, deriveTp3 } from "@/lib/pnl";
 import type { SignalEvent } from "@/lib/telegram";
 
@@ -20,9 +19,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const { firestore } = initializeFirebase();
-  const logsRef = collection(firestore, "logs");
-  
+  const db = getAdminFirestore();
+
   const spotPriceMap: Record<string, number> = {};
   const perpetualsPriceMap: Record<string, number> = {};
   const fetchOptions = { cache: 'no-store' as RequestCache, headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' } };
@@ -44,7 +42,7 @@ export async function GET(request: NextRequest) {
     const perpetualsRes = await fetch(perpetualsUrl, fetchOptions);
     if (perpetualsRes.ok) fillPriceMap(await perpetualsRes.json(), perpetualsPriceMap);
 
-    const signalsSnap = await getDocs(collection(firestore, "signals"));
+    const signalsSnap = await db.collection("signals").get();
     let updateCount = 0;
     let skipCount = 0;
     const signalEvents: SignalEvent[] = [];
@@ -62,7 +60,7 @@ export async function GET(request: NextRequest) {
 
       if (!currentPrice) {
         skipCount++;
-        await addDoc(logsRef, {
+        await db.collection("logs").add({
           timestamp: new Date().toISOString(),
           level: "WARN",
           message: "Symbol not in Binance feed",
@@ -75,7 +73,6 @@ export async function GET(request: NextRequest) {
       const alertPrice = Number(signal.price);
       const stopLoss = Number(signal.stopLoss || 0);
 
-      // Track Extreme Excursions
       let newMaxUpside = signal.maxUpsidePrice || alertPrice;
       let newMaxDrawdown = signal.maxDrawdownPrice || alertPrice;
 
@@ -102,12 +99,10 @@ export async function GET(request: NextRequest) {
       let newStatus = "ACTIVE";
 
       if (tp1 != null && tp2 != null && tp3 != null) {
-        // ── TP1/TP2/TP3 Exit Strategy (50/25/25 split) ──
         const tp1AlreadyHit = signal.tp1Hit === true;
         const tp2AlreadyHit = signal.tp2Hit === true;
         const tp3AlreadyHit = signal.tp3Hit === true;
 
-        // Check TP1: book 50%, SL → cost
         if (!tp1AlreadyHit) {
           const hitTp1 = isBuy ? currentPrice >= tp1 : currentPrice <= tp1;
           if (hitTp1) {
@@ -127,7 +122,6 @@ export async function GET(request: NextRequest) {
 
         const tp1IsHit = tp1AlreadyHit || updateData.tp1Hit === true;
 
-        // Check TP2: book 25%, SL → tp1
         if (tp1IsHit && !tp2AlreadyHit) {
           const hitTp2 = isBuy ? currentPrice >= tp2 : currentPrice <= tp2;
           if (hitTp2) {
@@ -146,7 +140,6 @@ export async function GET(request: NextRequest) {
 
         const tp2IsHit = tp2AlreadyHit || updateData.tp2Hit === true;
 
-        // Check TP3: book remaining 25%, trade fully closed
         if (tp2IsHit && !tp3AlreadyHit) {
           const hitTp3 = isBuy ? currentPrice >= tp3 : currentPrice <= tp3;
           if (hitTp3) {
@@ -166,7 +159,6 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Check SL — effective level depends on phase
         if (newStatus === "ACTIVE") {
           let effectiveSL: number;
           if (tp2IsHit) {
@@ -223,7 +215,6 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Backfill tp3 for signals created before this update
       if (tp1 != null && tp2 != null && signal.tp3 == null) {
         updateData.tp3 = deriveTp3(tp1, tp2);
         updateData.tp3Hit = false;
@@ -233,13 +224,12 @@ export async function GET(request: NextRequest) {
 
       updateData.status = newStatus;
 
-      await updateDoc(doc(firestore, "signals", signalDoc.id), updateData);
+      await db.collection("signals").doc(signalDoc.id).update(updateData);
       updateCount++;
     }
 
-    const eventsRef = collection(firestore, "signal_events");
     for (const evt of signalEvents) {
-      await addDoc(eventsRef, {
+      await db.collection("signal_events").add({
         ...evt,
         createdAt: new Date().toISOString(),
         notified: false,
@@ -247,7 +237,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    await addDoc(logsRef, {
+    await db.collection("logs").add({
       timestamp: new Date().toISOString(),
       level: "INFO",
       message: `ASIA SYNC: updated=${updateCount} skipped=${skipCount} events=${signalEvents.length}`,
@@ -256,7 +246,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, updated: updateCount, skipped: skipCount, events: signalEvents.length });
   } catch (error: any) {
-    await addDoc(logsRef, {
+    await db.collection("logs").add({
       timestamp: new Date().toISOString(),
       level: "ERROR",
       message: "Sync Failure in Singapore Node",

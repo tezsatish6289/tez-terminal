@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeFirebase } from "@/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { getAdminFirestore } from "@/firebase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +16,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing firebaseUid or preferences" }, { status: 400 });
     }
 
-    const { firestore } = initializeFirebase();
+    const db = getAdminFirestore();
 
     const validFields = ["enabled", "alertTypes", "timeframes", "assetTypes", "sides", "symbols"];
     const cleanPrefs: Record<string, any> = {};
@@ -27,7 +26,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await setDoc(doc(firestore, "telegram_preferences", firebaseUid), cleanPrefs, { merge: true });
+    await db.collection("telegram_preferences").doc(firebaseUid).set(cleanPrefs, { merge: true });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

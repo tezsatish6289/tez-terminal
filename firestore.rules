@@ -11,13 +11,9 @@ service cloud.firestore {
 
     // Signals (Idea Stream)
     match /signals/{document=**} {
-      // Shared market ideas are public in this app's vision
       allow read: if true; 
-      // Webhooks create these (unauthenticated entry point)
       allow create: if true; 
-      // Allow the Server Cron to update prices and performance metrics
       allow update: if true; 
-      // Only the admin can delete signal history
       allow delete: if isAdmin();
     }
 
@@ -40,27 +36,30 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Users: Telegram connection data + profile
+    // Users: only the owning user can read their own doc from the client.
+    // Server-side Admin SDK bypasses these rules entirely.
     match /users/{userId} {
-      allow read, write: if true;
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Telegram preferences: per-user alert filters
+    // Telegram preferences: only the owning user can read/write from the client.
     match /telegram_preferences/{userId} {
-      allow read, write: if true;
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Telegram link tokens: ephemeral one-time-use tokens
+    // Telegram link tokens: client needs to create these (from the settings page).
+    // Reading/deleting is handled server-side via Admin SDK.
     match /telegram_link_tokens/{tokenId} {
-      allow read, write: if true;
+      allow create: if request.auth != null;
+      allow read, update, delete: if false;
     }
 
-    // Signal events: TP/SL/new signal events for Telegram fan-out
+    // Signal events: managed entirely server-side via Admin SDK.
     match /signal_events/{eventId} {
-      allow read: if true;
-      allow create: if true;
-      allow update: if true;
-      allow delete: if isAdmin();
+      allow read: if isAdmin();
+      allow write: if false;
     }
   }
 }

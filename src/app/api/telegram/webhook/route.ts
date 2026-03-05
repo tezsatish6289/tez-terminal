@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeFirebase } from "@/firebase";
-import {
-  collection, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc,
-  query, where, getDocs,
-} from "firebase/firestore";
+import { getAdminFirestore } from "@/firebase/admin";
 import {
   sendMessage, answerCallbackQuery, editMessageText,
   getTimeframeName, type TelegramUpdate, type InlineKeyboardButton,
@@ -16,25 +12,13 @@ const ALL_ASSET_TYPES = ["CRYPTO", "INDIAN STOCKS", "US STOCKS"];
 const ALL_SIDES = ["BUY", "SELL"];
 const ALL_EVENT_TYPES = ["NEW_SIGNAL", "TP1_HIT", "TP2_HIT", "TP3_HIT", "SL_HIT"];
 
-/**
- * Telegram Bot webhook — receives all messages and callback queries.
- * Registered with Telegram via setWebhook().
- */
 export async function POST(request: NextRequest) {
-  let firestore: any;
-
-  try {
-    const fb = initializeFirebase();
-    firestore = fb.firestore;
-  } catch (e: any) {
-    console.error("[Telegram Webhook] Firebase init failed:", e.message);
-    return NextResponse.json({ ok: true });
-  }
+  const db = getAdminFirestore();
 
   try {
     const update: TelegramUpdate = await request.json();
 
-    await addDoc(collection(firestore, "logs"), {
+    await db.collection("logs").add({
       timestamp: new Date().toISOString(),
       level: "INFO",
       message: `Telegram webhook received: ${update.message?.text || update.callback_query?.data || "unknown"}`,
@@ -45,14 +29,14 @@ export async function POST(request: NextRequest) {
     if (update.callback_query) {
       await handleCallbackQuery(update.callback_query);
     } else if (update.message?.text) {
-      await handleMessage(update.message, firestore);
+      await handleMessage(update.message);
     }
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {
     console.error("[Telegram Webhook]", error.message);
     try {
-      await addDoc(collection(firestore, "logs"), {
+      await db.collection("logs").add({
         timestamp: new Date().toISOString(),
         level: "ERROR",
         message: `Telegram webhook error: ${error.message}`,
@@ -66,47 +50,33 @@ export async function POST(request: NextRequest) {
 
 // ─── Message Handlers ────────────────────────────────────────────
 
-async function handleMessage(message: NonNullable<TelegramUpdate["message"]>, firestore?: any) {
+async function handleMessage(message: NonNullable<TelegramUpdate["message"]>) {
   const chatId = message.chat.id;
   const text = (message.text || "").trim();
   const parts = text.split(/\s+/);
   const command = parts[0].toLowerCase();
 
-  let result: any;
-
   switch (command) {
     case "/start":
-      result = await handleStart(chatId, parts[1], message.from);
+      await handleStart(chatId, parts[1], message.from);
       break;
     case "/stop":
-      result = await handleStop(chatId);
+      await handleStop(chatId);
       break;
     case "/resume":
-      result = await handleResume(chatId);
+      await handleResume(chatId);
       break;
     case "/settings":
-      result = await handleSettings(chatId);
+      await handleSettings(chatId);
       break;
     case "/status":
-      result = await handleStatus(chatId);
+      await handleStatus(chatId);
       break;
     case "/help":
-      result = await handleHelp(chatId);
+      await handleHelp(chatId);
       break;
     default:
-      result = await sendMessage(chatId, "I only respond to commands. Try /help to see what I can do.", { parseMode: "NONE" });
-  }
-
-  if (firestore) {
-    try {
-      await addDoc(collection(firestore, "logs"), {
-        timestamp: new Date().toISOString(),
-        level: "INFO",
-        message: `Telegram sendMessage result for ${command}`,
-        details: JSON.stringify(result).slice(0, 500),
-        webhookId: "TELEGRAM_BOT",
-      });
-    } catch {}
+      await sendMessage(chatId, "I only respond to commands. Try /help to see what I can do.", { parseMode: "NONE" });
   }
 }
 
@@ -124,25 +94,25 @@ async function handleStart(
     ].join("\n"), { parseMode: "NONE" });
   }
 
-  const { firestore } = initializeFirebase();
+  const db = getAdminFirestore();
 
   try {
-    const tokenDoc = await getDoc(doc(firestore, "telegram_link_tokens", token));
+    const tokenSnap = await db.collection("telegram_link_tokens").doc(token).get();
 
-    if (!tokenDoc.exists()) {
+    if (!tokenSnap.exists) {
       return sendMessage(chatId, "This link has expired or is invalid. Please generate a new one from the Tez Terminal web app.", { parseMode: "NONE" });
     }
 
-    const tokenData = tokenDoc.data();
+    const tokenData = tokenSnap.data()!;
     const expiry = new Date(tokenData.expiresAt).getTime();
     if (Date.now() > expiry) {
-      await deleteDoc(doc(firestore, "telegram_link_tokens", token));
+      await db.collection("telegram_link_tokens").doc(token).delete();
       return sendMessage(chatId, "This link has expired. Please generate a new one from Settings > Telegram.", { parseMode: "NONE" });
     }
 
     const firebaseUid = tokenData.firebaseUid;
 
-    await setDoc(doc(firestore, "users", firebaseUid), {
+    await db.collection("users").doc(firebaseUid).set({
       telegramChatId: chatId,
       telegramUsername: from.username || null,
       telegramFirstName: from.first_name || null,
@@ -150,7 +120,7 @@ async function handleStart(
       telegramEnabled: true,
     }, { merge: true });
 
-    await setDoc(doc(firestore, "telegram_preferences", firebaseUid), {
+    await db.collection("telegram_preferences").doc(firebaseUid).set({
       enabled: true,
       alertTypes: ALL_EVENT_TYPES,
       timeframes: ["ALL"],
@@ -159,7 +129,7 @@ async function handleStart(
       symbols: [],
     }, { merge: true });
 
-    await deleteDoc(doc(firestore, "telegram_link_tokens", token));
+    await db.collection("telegram_link_tokens").doc(token).delete();
 
     return sendMessage(chatId, [
       "Account connected!",
@@ -172,7 +142,7 @@ async function handleStart(
     ].join("\n"), { parseMode: "NONE" });
   } catch (err: any) {
     try {
-      await addDoc(collection(firestore, "logs"), {
+      await db.collection("logs").add({
         timestamp: new Date().toISOString(),
         level: "ERROR",
         message: `handleStart token error: ${err.message}`,
@@ -185,38 +155,38 @@ async function handleStart(
 }
 
 async function handleStop(chatId: number) {
-  const { firestore } = initializeFirebase();
-  const uid = await findUidByChatId(firestore, chatId);
+  const db = getAdminFirestore();
+  const uid = await findUidByChatId(chatId);
   if (!uid) {
     return sendMessage(chatId, "You don't have a connected account. Use the link from Tez Terminal web app to connect.", { parseMode: "NONE" });
   }
 
-  await updateDoc(doc(firestore, "users", uid), { telegramEnabled: false });
+  await db.collection("users").doc(uid).update({ telegramEnabled: false });
   return sendMessage(chatId, "Alerts paused. Use /resume to start receiving alerts again.", { parseMode: "NONE" });
 }
 
 async function handleResume(chatId: number) {
-  const { firestore } = initializeFirebase();
-  const uid = await findUidByChatId(firestore, chatId);
+  const db = getAdminFirestore();
+  const uid = await findUidByChatId(chatId);
   if (!uid) {
     return sendMessage(chatId, "You don't have a connected account. Use the link from Tez Terminal web app to connect.", { parseMode: "NONE" });
   }
 
-  await updateDoc(doc(firestore, "users", uid), { telegramEnabled: true });
+  await db.collection("users").doc(uid).update({ telegramEnabled: true });
   return sendMessage(chatId, "Alerts resumed. You will receive signals again.", { parseMode: "NONE" });
 }
 
 async function handleStatus(chatId: number) {
-  const { firestore } = initializeFirebase();
-  const uid = await findUidByChatId(firestore, chatId);
+  const db = getAdminFirestore();
+  const uid = await findUidByChatId(chatId);
   if (!uid) {
     return sendMessage(chatId, "No connected account found.", { parseMode: "NONE" });
   }
 
-  const userDoc = await getDoc(doc(firestore, "users", uid));
-  const prefsDoc = await getDoc(doc(firestore, "telegram_preferences", uid));
-  const userData = userDoc.data();
-  const prefs = prefsDoc.data();
+  const userSnap = await db.collection("users").doc(uid).get();
+  const prefsSnap = await db.collection("telegram_preferences").doc(uid).get();
+  const userData = userSnap.data();
+  const prefs = prefsSnap.data();
 
   const enabled = userData?.telegramEnabled !== false;
   const timeframes = prefs?.timeframes || ["ALL"];
@@ -259,8 +229,7 @@ async function handleHelp(chatId: number) {
 // ─── Settings with Inline Keyboard ──────────────────────────────
 
 async function handleSettings(chatId: number) {
-  const { firestore } = initializeFirebase();
-  const uid = await findUidByChatId(firestore, chatId);
+  const uid = await findUidByChatId(chatId);
   if (!uid) {
     return sendMessage(chatId, "You don't have a connected account. Use the link from Tez Terminal web app to connect.", { parseMode: "NONE" });
   }
@@ -269,9 +238,9 @@ async function handleSettings(chatId: number) {
 }
 
 async function sendSettingsMenu(chatId: number, uid: string) {
-  const { firestore } = initializeFirebase();
-  const prefsDoc = await getDoc(doc(firestore, "telegram_preferences", uid));
-  const prefs = prefsDoc.data() || {
+  const db = getAdminFirestore();
+  const prefsSnap = await db.collection("telegram_preferences").doc(uid).get();
+  const prefs = prefsSnap.data() || {
     timeframes: ["ALL"],
     assetTypes: ["ALL"],
     sides: ["ALL"],
@@ -304,15 +273,15 @@ async function handleCallbackQuery(cq: NonNullable<TelegramUpdate["callback_quer
     return;
   }
 
-  const { firestore } = initializeFirebase();
-  const uid = await findUidByChatId(firestore, chatId);
+  const db = getAdminFirestore();
+  const uid = await findUidByChatId(chatId);
   if (!uid) {
     await answerCallbackQuery(cq.id, "No connected account found.");
     return;
   }
 
-  const prefsRef = doc(firestore, "telegram_preferences", uid);
-  const prefsSnap = await getDoc(prefsRef);
+  const prefsRef = db.collection("telegram_preferences").doc(uid);
+  const prefsSnap = await prefsRef.get();
   const prefs = prefsSnap.data() || {
     timeframes: ["ALL"],
     assetTypes: ["ALL"],
@@ -396,7 +365,7 @@ async function handleToggle(
   data: string,
   uid: string,
   prefs: any,
-  prefsRef: any,
+  prefsRef: FirebaseFirestore.DocumentReference,
 ) {
   const [, prefix, value] = data.split(":");
 
@@ -413,7 +382,6 @@ async function handleToggle(
   const config = fieldMap[prefix];
   if (!config) return;
 
-  const { firestore } = initializeFirebase();
   let current: string[] = prefs[config.field] || ["ALL"];
 
   if (value === "ALL") {
@@ -435,17 +403,13 @@ async function handleToggle(
     current = ["ALL"];
   }
 
-  await updateDoc(prefsRef, { [config.field]: current });
+  await prefsRef.update({ [config.field]: current });
 
   prefs[config.field] = current;
   await showToggleMenu(chatId, messageId, config.title, current, config.allOptions, prefix, config.labelFn);
 }
 
 async function refreshSettingsInPlace(chatId: number, messageId: number, uid: string) {
-  const { firestore } = initializeFirebase();
-  const prefsDoc = await getDoc(doc(firestore, "telegram_preferences", uid));
-  const prefs = prefsDoc.data() || {};
-
   const keyboard: InlineKeyboardButton[][] = [
     [{ text: "📊 Timeframes", callback_data: "settings:timeframes" }],
     [{ text: "💹 Asset Types", callback_data: "settings:assets" }],
@@ -462,10 +426,12 @@ async function refreshSettingsInPlace(chatId: number, messageId: number, uid: st
 
 // ─── Helpers ────────────────────────────────────────────────────
 
-async function findUidByChatId(firestore: any, chatId: number): Promise<string | null> {
-  const usersRef = collection(firestore, "users");
-  const q = query(usersRef, where("telegramChatId", "==", chatId));
-  const snap = await getDocs(q);
+async function findUidByChatId(chatId: number): Promise<string | null> {
+  const db = getAdminFirestore();
+  const snap = await db.collection("users")
+    .where("telegramChatId", "==", chatId)
+    .limit(1)
+    .get();
   if (snap.empty) return null;
   return snap.docs[0].id;
 }

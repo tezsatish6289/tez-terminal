@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { initializeFirebase } from "@/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { getAdminFirestore } from "@/firebase/admin";
 import { getLeverage } from "@/lib/leverage";
 import { getEffectivePnl } from "@/lib/pnl";
 
@@ -63,9 +62,9 @@ export async function GET() {
   }
 
   try {
-    const { firestore } = initializeFirebase();
+    const db = getAdminFirestore();
 
-    const snapshot = await getDocs(collection(firestore, "signals"));
+    const snapshot = await db.collection("signals").get();
 
     const allDocs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
 

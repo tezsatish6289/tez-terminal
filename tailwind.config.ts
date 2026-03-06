@@ -117,6 +117,12 @@ export default {
           '0%, 100%': { transform: 'translate(0, 0) scale(1) rotate(0deg)' },
           '50%': { transform: 'translate(8%, -5%) scale(1.15) rotate(120deg)' },
         },
+        'bar-flash': {
+          '0%, 100%': { backgroundColor: 'transparent' },
+          '15%': { backgroundColor: 'rgba(16, 185, 129, 0.15)' },
+          '50%': { backgroundColor: 'rgba(16, 185, 129, 0.06)' },
+          '85%': { backgroundColor: 'rgba(16, 185, 129, 0.12)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -127,6 +133,7 @@ export default {
         'blob-3': 'blob3 22s ease-in-out infinite',
         'blob-4': 'blob4 18s ease-in-out infinite',
         'blob-5': 'blob5 28s ease-in-out infinite',
+        'bar-flash': 'bar-flash 2s ease-in-out 5',
       },
     },
   },

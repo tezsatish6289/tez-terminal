@@ -5,7 +5,7 @@ import { LandingPage } from "@/components/landing/LandingPage";
 import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy, limit } from "firebase/firestore";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Zap, Loader2, Chrome, TrendingUp, TrendingDown, Shield, Trophy } from "lucide-react";
+import { Zap, Loader2, Chrome, TrendingUp, TrendingDown, Shield, Trophy, Bell } from "lucide-react";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
@@ -17,6 +17,37 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { getLeverage, getLeverageLabel } from "@/lib/leverage";
 import { getEffectivePnl as getEffectivePnlShared } from "@/lib/pnl";
+
+function playChime() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gain = ctx.createGain();
+    gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+
+    const osc1 = ctx.createOscillator();
+    osc1.type = "sine";
+    osc1.frequency.setValueAtTime(880, now);
+    osc1.connect(gain);
+    osc1.start(now);
+    osc1.stop(now + 0.3);
+
+    const osc2 = ctx.createOscillator();
+    osc2.type = "sine";
+    osc2.frequency.setValueAtTime(1320, now + 0.15);
+    osc2.connect(gain);
+    osc2.start(now + 0.15);
+    osc2.stop(now + 0.6);
+
+    setTimeout(() => ctx.close(), 1000);
+  } catch {}
+}
+
+type FlashKey = string;
+const FLASH_DURATION = 10_000;
+const BELL_DURATION = 30_000;
 
 const OPPORTUNITY_CATEGORIES = [
   { id: "5", name: "Scalping", chart: "5 min", windowHours: 24, windowLabel: "in 24h", leverage: "10x" },
@@ -460,7 +491,7 @@ function FreshnessDot() {
   );
 }
 
-function SideBarRow({ label, count, maxCount, href, color }: { label: string; count: number; maxCount: number; href: string; color: "positive" | "negative" | "muted" }) {
+function SideBarRow({ label, count, maxCount, href, color, flash, showBell }: { label: string; count: number; maxCount: number; href: string; color: "positive" | "negative" | "muted"; flash?: boolean; showBell?: boolean }) {
   const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
   const colorMap = {
     positive: { bar: "bg-positive/30", text: "text-positive", hover: "hover:bg-positive/5" },
@@ -469,23 +500,28 @@ function SideBarRow({ label, count, maxCount, href, color }: { label: string; co
   };
   const s = colorMap[color];
   return (
-    <Link href={href} className={cn("flex items-center gap-3 px-3 py-1.5 rounded-md transition-colors", s.hover)}>
+    <Link href={href} className={cn("flex items-center gap-3 px-3 py-1.5 rounded-md transition-colors", s.hover, flash && "animate-bar-flash")}>
       <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 w-[52px] shrink-0">{label}</span>
       <span className={cn("text-sm font-black font-mono w-[28px] text-right shrink-0", s.text)}>{count}</span>
       <div className="flex-1 h-2 rounded-full bg-white/[0.04] overflow-hidden">
         <div className={cn("h-full rounded-full transition-all duration-500", s.bar)} style={{ width: `${Math.max(pct, count > 0 ? 4 : 0)}%` }} />
       </div>
+      {showBell && (
+        <Bell className="h-3.5 w-3.5 text-amber-400 shrink-0 animate-bounce" />
+      )}
     </Link>
   );
 }
 
-function OpportunityCard({ cat, activeCounts, signalIds, topWinners, onSelectWinner, freshSignal }: {
+function OpportunityCard({ cat, activeCounts, signalIds, topWinners, onSelectWinner, freshSignal, flashKeys, bellKeys }: {
   cat: typeof OPPORTUNITY_CATEGORIES[number];
   activeCounts: Record<string, Record<SideKey, Record<StatusKey, number>>>;
   signalIds: Record<string, Record<SideKey, Record<StatusKey, string[]>>>;
   topWinners: Record<string, WinnerSignal[]>;
   onSelectWinner: (w: WinnerSignal) => void;
   freshSignal?: { id: string; ticker: string; type: string; receivedAt: string } | null;
+  flashKeys?: Set<FlashKey>;
+  bellKeys?: Set<FlashKey>;
 }) {
   const c = activeCounts[cat.id] ?? { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
   const ids = signalIds[cat.id] ?? { BUY: { working: [], "not-working": [], neutral: [] }, SELL: { working: [], "not-working": [], neutral: [] } };
@@ -538,7 +574,7 @@ function OpportunityCard({ cat, activeCounts, signalIds, topWinners, onSelectWin
             </div>
             <span className="text-[10px] font-bold text-muted-foreground/40">{bullTotal} trades</span>
           </div>
-          <SideBarRow label="Winning" count={c.BUY.working} maxCount={bullMax} href={boxHref("BUY", "working")} color="positive" />
+          <SideBarRow label="Winning" count={c.BUY.working} maxCount={bullMax} href={boxHref("BUY", "working")} color="positive" flash={flashKeys?.has(`${cat.id}-BUY-working`)} showBell={bellKeys?.has(`${cat.id}-BUY-working`)} />
           <SideBarRow label="Losing" count={c.BUY["not-working"]} maxCount={bullMax} href={boxHref("BUY", "not-working")} color="negative" />
           <SideBarRow label="Neutral" count={c.BUY.neutral} maxCount={bullMax} href={boxHref("BUY", "neutral")} color="muted" />
         </div>
@@ -552,7 +588,7 @@ function OpportunityCard({ cat, activeCounts, signalIds, topWinners, onSelectWin
             </div>
             <span className="text-[10px] font-bold text-muted-foreground/40">{bearTotal} trades</span>
           </div>
-          <SideBarRow label="Winning" count={c.SELL.working} maxCount={bearMax} href={boxHref("SELL", "working")} color="positive" />
+          <SideBarRow label="Winning" count={c.SELL.working} maxCount={bearMax} href={boxHref("SELL", "working")} color="positive" flash={flashKeys?.has(`${cat.id}-SELL-working`)} showBell={bellKeys?.has(`${cat.id}-SELL-working`)} />
           <SideBarRow label="Losing" count={c.SELL["not-working"]} maxCount={bearMax} href={boxHref("SELL", "not-working")} color="negative" />
           <SideBarRow label="Neutral" count={c.SELL.neutral} maxCount={bearMax} href={boxHref("SELL", "neutral")} color="muted" />
         </div>
@@ -648,6 +684,56 @@ export default function Home() {
   }, []);
 
   const { counts, ids: signalIds } = useMemo(() => buildCountsAndIds(rawSignals), [rawSignals, buildCountsAndIds]);
+
+  // Change detection: flash + bell + chime when winning count increases
+  const prevCounts = useRef<CountsMap | null>(null);
+  const [flashKeys, setFlashKeys] = useState<Set<FlashKey>>(new Set());
+  const [bellKeys, setBellKeys] = useState<Set<FlashKey>>(new Set());
+  const hasInteracted = useRef(false);
+
+  useEffect(() => {
+    const handler = () => { hasInteracted.current = true; };
+    window.addEventListener("click", handler, { once: true });
+    window.addEventListener("keydown", handler, { once: true });
+    return () => {
+      window.removeEventListener("click", handler);
+      window.removeEventListener("keydown", handler);
+    };
+  }, []);
+
+  useEffect(() => {
+    const prev = prevCounts.current;
+    if (!prev) {
+      prevCounts.current = counts;
+      return;
+    }
+
+    const newFlash: FlashKey[] = [];
+    for (const cat of OPPORTUNITY_CATEGORIES) {
+      for (const side of ["BUY", "SELL"] as SideKey[]) {
+        const prevWin = prev[cat.id]?.[side]?.working ?? 0;
+        const curWin = counts[cat.id]?.[side]?.working ?? 0;
+        if (curWin > prevWin) {
+          newFlash.push(`${cat.id}-${side}-working`);
+        }
+      }
+    }
+
+    prevCounts.current = counts;
+
+    if (newFlash.length > 0) {
+      const keySet = new Set(newFlash);
+      setFlashKeys(keySet);
+      setBellKeys(keySet);
+
+      if (hasInteracted.current) {
+        playChime();
+      }
+
+      setTimeout(() => setFlashKeys(new Set()), FLASH_DURATION);
+      setTimeout(() => setBellKeys(new Set()), BELL_DURATION);
+    }
+  }, [counts]);
 
   const FRESHNESS_MINUTES: Record<string, number> = { "5": 5, "15": 15, "60": 60, "240": 240, "D": 1440 };
 
@@ -818,7 +904,7 @@ export default function Home() {
                 <div className="space-y-4">
                   {OPPORTUNITY_CATEGORIES.map((cat) => (
                     <div key={cat.id} ref={(el) => { cardRefs.current[cat.id] = el; }}>
-                      <OpportunityCard cat={cat} activeCounts={counts} signalIds={signalIds} topWinners={topWinners} onSelectWinner={setSelectedWinner} freshSignal={freshSignals[cat.id]} />
+                      <OpportunityCard cat={cat} activeCounts={counts} signalIds={signalIds} topWinners={topWinners} onSelectWinner={setSelectedWinner} freshSignal={freshSignals[cat.id]} flashKeys={flashKeys} bellKeys={bellKeys} />
                     </div>
                   ))}
                 </div>
@@ -839,7 +925,7 @@ export default function Home() {
               ) : (
                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
                   {OPPORTUNITY_CATEGORIES.map((cat) => (
-                    <OpportunityCard key={cat.id} cat={cat} activeCounts={counts} signalIds={signalIds} topWinners={topWinners} onSelectWinner={setSelectedWinner} freshSignal={freshSignals[cat.id]} />
+                    <OpportunityCard key={cat.id} cat={cat} activeCounts={counts} signalIds={signalIds} topWinners={topWinners} onSelectWinner={setSelectedWinner} freshSignal={freshSignals[cat.id]} flashKeys={flashKeys} bellKeys={bellKeys} />
                   ))}
                 </div>
               )}

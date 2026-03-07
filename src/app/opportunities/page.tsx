@@ -164,37 +164,36 @@ function OpportunityCard({ signal }: { signal: ProcessedSignal }) {
       className={cn(
         "block rounded-xl border transition-all hover:translate-y-[-1px]",
         isWinning
-          ? "border-positive/15 bg-positive/[0.03] hover:border-positive/25 hover:shadow-lg hover:shadow-positive/5"
+          ? "border-positive/20 bg-positive/[0.04] hover:border-positive/30 hover:shadow-lg hover:shadow-positive/5"
           : isLosing
-            ? "border-negative/15 bg-negative/[0.03] hover:border-negative/25 hover:shadow-lg hover:shadow-negative/5"
-            : "border-white/[0.06] bg-white/[0.02] hover:border-white/10 hover:shadow-lg hover:shadow-white/5"
+            ? "border-negative/20 bg-negative/[0.04] hover:border-negative/30 hover:shadow-lg hover:shadow-negative/5"
+            : "border-white/[0.08] bg-white/[0.03] hover:border-white/15 hover:shadow-lg hover:shadow-white/5"
       )}
     >
-      {/* Header: direction + symbol */}
       <div className="px-3.5 pt-3 pb-2 flex items-center justify-between">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0">
           <div
             className={cn(
-              "flex items-center justify-center w-7 h-7 rounded-lg shrink-0",
+              "flex items-center justify-center w-8 h-8 rounded-lg shrink-0",
               isBuy
                 ? "bg-positive/15 text-positive"
                 : "bg-negative/15 text-negative"
             )}
           >
             {isBuy ? (
-              <ArrowUpRight className="w-3.5 h-3.5" />
+              <ArrowUpRight className="w-4 h-4" />
             ) : (
-              <ArrowDownRight className="w-3.5 h-3.5" />
+              <ArrowDownRight className="w-4 h-4" />
             )}
           </div>
           <div className="min-w-0">
-            <span className="text-sm font-black uppercase tracking-tight text-foreground truncate block">
+            <span className="text-[13px] font-black uppercase tracking-tight text-foreground truncate block">
               {signal.symbol}
             </span>
             <span
               className={cn(
-                "text-[9px] font-bold uppercase tracking-widest",
-                isBuy ? "text-positive/60" : "text-negative/60"
+                "text-[11px] font-bold uppercase tracking-wide",
+                isBuy ? "text-positive/80" : "text-negative/80"
               )}
             >
               {isBuy ? "Long" : "Short"}
@@ -215,46 +214,44 @@ function OpportunityCard({ signal }: { signal: ProcessedSignal }) {
             {signal.leveragedPnl >= 0 ? "+" : ""}
             {signal.leveragedPnl.toFixed(2)}%
           </span>
-          <span className="text-[9px] text-accent/50 font-bold">
+          <span className="text-[11px] text-accent/70 font-bold">
             {signal.leverage}x
           </span>
         </div>
       </div>
 
-      {/* Price row */}
       <div className="px-3.5 pb-2 flex items-center gap-1.5">
-        <span className="text-[10px] text-muted-foreground/40 font-mono">
+        <span className="text-[11px] text-muted-foreground/60 font-mono">
           ${formatPrice(signal.price)}
         </span>
-        <span className="text-white/10">→</span>
+        <span className="text-white/20">→</span>
         <span
           className={cn(
-            "text-[10px] font-mono font-bold",
+            "text-[11px] font-mono font-bold",
             isWinning
-              ? "text-positive/70"
+              ? "text-positive/80"
               : isLosing
-                ? "text-negative/70"
-                : "text-muted-foreground/50"
+                ? "text-negative/80"
+                : "text-muted-foreground/60"
           )}
         >
           ${formatPrice(signal.currentPrice)}
         </span>
       </div>
 
-      {/* Footer: meta */}
-      <div className="px-3.5 pb-2.5 flex items-center justify-between">
+      <div className="px-3.5 pb-3 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <span className="text-[9px] font-bold text-muted-foreground/40 uppercase">
+          <span className="text-[11px] font-bold text-muted-foreground/60 uppercase">
             {signal.timeframeName}
           </span>
-          <span className="text-white/8">·</span>
-          <span className="text-[9px] text-muted-foreground/30">
+          <span className="text-white/15">·</span>
+          <span className="text-[11px] text-muted-foreground/50">
             {signal.algo}
           </span>
         </div>
         <div className="flex items-center gap-1">
-          <Clock className="w-2.5 h-2.5 text-muted-foreground/25" />
-          <span className="text-[9px] text-muted-foreground/25">
+          <Clock className="w-3 h-3 text-muted-foreground/40" />
+          <span className="text-[11px] text-muted-foreground/40">
             {formatTimeAgo(signal.receivedAt)}
           </span>
         </div>
@@ -315,33 +312,31 @@ function EventRow({ event }: { event: StatusEvent }) {
   return (
     <Link
       href={`/chart/${event.signalId}`}
-      className="block px-3 py-2.5 border-b border-white/[0.04] transition-colors hover:bg-white/[0.03]"
+      className="block px-4 py-3 border-b border-white/[0.05] transition-colors hover:bg-white/[0.03]"
     >
-      <div className="flex items-start gap-2.5">
+      <div className="flex items-start gap-3">
         <div
           className={cn(
-            "flex items-center justify-center w-6 h-6 rounded-md shrink-0 mt-0.5",
+            "flex items-center justify-center w-7 h-7 rounded-md shrink-0 mt-0.5",
             config.bgColor
           )}
         >
-          <Icon className={cn("w-3 h-3", config.color)} />
+          <Icon className={cn("w-3.5 h-3.5", config.color)} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span
-                className={cn(
-                  "text-xs font-black uppercase tracking-tight truncate",
-                  config.color
-                )}
-              >
-                {config.label}
-              </span>
-            </div>
+            <span
+              className={cn(
+                "text-[13px] font-black uppercase tracking-tight truncate",
+                config.color
+              )}
+            >
+              {config.label}
+            </span>
             {pnlValue != null && (
               <span
                 className={cn(
-                  "text-xs font-black font-mono tabular-nums shrink-0",
+                  "text-[13px] font-black font-mono tabular-nums shrink-0",
                   pnlValue >= 0 ? "text-positive" : "text-negative"
                 )}
               >
@@ -350,27 +345,27 @@ function EventRow({ event }: { event: StatusEvent }) {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1.5 mt-0.5">
+          <div className="flex items-center gap-1.5 mt-1">
             <span
               className={cn(
-                "text-[9px] font-bold",
-                isBuy ? "text-positive/50" : "text-negative/50"
+                "text-[11px] font-bold",
+                isBuy ? "text-positive/70" : "text-negative/70"
               )}
             >
               {isBuy ? "▲" : "▼"}
             </span>
-            <span className="text-[10px] font-bold text-foreground/80 uppercase tracking-tight">
+            <span className="text-[11px] font-bold text-foreground/90 uppercase tracking-tight">
               {event.symbol}
             </span>
-            <span className="text-white/10">·</span>
-            <span className="text-[9px] text-muted-foreground/40">{tfName}</span>
+            <span className="text-white/15">·</span>
+            <span className="text-[11px] text-muted-foreground/60">{tfName}</span>
           </div>
-          <p className="text-[9px] text-muted-foreground/40 mt-0.5 leading-relaxed">
+          <p className="text-[11px] text-muted-foreground/50 mt-1 leading-relaxed">
             {event.guidance}
           </p>
-          <div className="flex items-center gap-1 mt-1">
-            <Clock className="w-2.5 h-2.5 text-muted-foreground/25" />
-            <span className="text-[9px] text-muted-foreground/25">
+          <div className="flex items-center gap-1 mt-1.5">
+            <Clock className="w-3 h-3 text-muted-foreground/40" />
+            <span className="text-[11px] text-muted-foreground/40">
               {formatTimeAgo(event.createdAt)}
             </span>
           </div>
@@ -397,15 +392,15 @@ function WinnerRow({
   return (
     <Link
       href={`/chart/${signal.id}`}
-      className="block px-3 py-3 border-b border-white/[0.04] transition-colors hover:bg-amber-500/[0.03]"
+      className="block px-4 py-3 border-b border-white/[0.05] transition-colors hover:bg-amber-500/[0.03]"
     >
-      <div className="flex items-start gap-2.5">
+      <div className="flex items-start gap-3">
         <div
           className={cn(
-            "flex items-center justify-center w-6 h-6 rounded-md shrink-0 mt-0.5 text-[10px] font-black",
+            "flex items-center justify-center w-7 h-7 rounded-md shrink-0 mt-0.5 text-[11px] font-black",
             rank <= 3
               ? "bg-amber-400/15 text-amber-400"
-              : "bg-white/5 text-muted-foreground/50"
+              : "bg-white/5 text-muted-foreground/60"
           )}
         >
           {rank}
@@ -415,17 +410,17 @@ function WinnerRow({
             <div className="flex items-center gap-1.5 min-w-0">
               <span
                 className={cn(
-                  "text-[9px] font-bold",
+                  "text-[11px] font-bold",
                   isBuy ? "text-positive" : "text-negative"
                 )}
               >
                 {isBuy ? "▲" : "▼"}
               </span>
-              <span className="text-xs font-black uppercase tracking-tight text-foreground truncate">
+              <span className="text-[13px] font-black uppercase tracking-tight text-foreground truncate">
                 {signal.symbol}
               </span>
               {isClosed && (
-                <span className="text-[8px] font-bold text-muted-foreground/40 bg-white/5 px-1 py-0.5 rounded">
+                <span className="text-[10px] font-bold text-muted-foreground/50 bg-white/8 px-1.5 py-0.5 rounded">
                   Closed
                 </span>
               )}
@@ -434,29 +429,29 @@ function WinnerRow({
               +{signal.leveragedPnl.toFixed(2)}%
             </span>
           </div>
-          <div className="flex items-center justify-between mt-1">
+          <div className="flex items-center justify-between mt-1.5">
             <div className="flex items-center gap-1.5">
-              <span className="text-[9px] text-muted-foreground/40">
+              <span className="text-[11px] text-muted-foreground/60">
                 {signal.timeframeName}
               </span>
-              <span className="text-white/10">·</span>
-              <span className="text-[9px] text-muted-foreground/30">
+              <span className="text-white/15">·</span>
+              <span className="text-[11px] text-muted-foreground/50">
                 {signal.algo}
               </span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               {tpCount > 0 && (
-                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-positive/10 text-positive/80 border border-positive/15">
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-positive/10 text-positive border border-positive/20">
                   {tpCount} TP{tpCount > 1 ? "s" : ""}
                 </span>
               )}
-              <span className="text-[9px] text-accent/40 font-bold">
+              <span className="text-[11px] text-accent/60 font-bold">
                 {signal.leverage}x
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-1 mt-1">
-            <span className="text-[9px] text-muted-foreground/30 font-mono">
+          <div className="flex items-center gap-1 mt-1.5">
+            <span className="text-[11px] text-muted-foreground/50 font-mono">
               ${formatPrice(signal.price)} → ${formatPrice(signal.currentPrice)}
             </span>
           </div>
@@ -665,17 +660,17 @@ export default function OpportunitiesPage() {
                   </h2>
                   {!isLoading && (
                     <div className="flex items-center gap-2 ml-1">
-                      <span className="text-[10px] font-bold text-muted-foreground/50">
+                      <span className="text-[11px] font-bold text-muted-foreground/60">
                         {activeCount} active
                       </span>
-                      <span className="text-white/10">·</span>
-                      <span className="text-[10px] font-bold text-positive/60">
+                      <span className="text-white/15">·</span>
+                      <span className="text-[11px] font-bold text-positive/70">
                         {winningCount} winning
                       </span>
                     </div>
                   )}
                 </div>
-                <p className="text-[10px] text-muted-foreground/40 mt-1 pl-6">
+                <p className="text-[11px] text-muted-foreground/50 mt-1 pl-6">
                   Use filters to find trades suiting your style
                 </p>
               </div>
@@ -798,7 +793,7 @@ export default function OpportunitiesPage() {
                   Status Updates
                 </h2>
               </div>
-              <p className="text-[10px] text-muted-foreground/40 mt-1 pl-6">
+              <p className="text-[11px] text-muted-foreground/50 mt-1 pl-6">
                 Live status updates on running trades
               </p>
             </div>
@@ -840,7 +835,7 @@ export default function OpportunitiesPage() {
                   </div>
                 )}
               </div>
-              <p className="text-[10px] text-muted-foreground/40 mt-1 pl-6">
+              <p className="text-[11px] text-muted-foreground/50 mt-1 pl-6">
                 Best performing trades ranked by PNL
               </p>
 

@@ -24,6 +24,8 @@ import {
   ArrowDownRight,
   Clock,
   SlidersHorizontal,
+  Trophy,
+  Flame,
 } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
 import { toast } from "@/hooks/use-toast";
@@ -399,6 +401,92 @@ function EventRow({ event }: { event: StatusEvent }) {
   );
 }
 
+function WinnerRow({
+  signal,
+  rank,
+}: {
+  signal: ProcessedSignal;
+  rank: number;
+}) {
+  const isBuy = signal.type === "BUY";
+  const isClosed = signal.status === "INACTIVE";
+
+  const tpCount = [signal.tp1Hit, signal.tp2Hit, signal.tp3Hit].filter(
+    Boolean
+  ).length;
+
+  return (
+    <Link
+      href={`/chart/${signal.id}`}
+      className="block px-3 py-3 border-b border-white/[0.04] transition-colors hover:bg-amber-500/[0.03]"
+    >
+      <div className="flex items-start gap-2.5">
+        <div
+          className={cn(
+            "flex items-center justify-center w-6 h-6 rounded-md shrink-0 mt-0.5 text-[10px] font-black",
+            rank <= 3
+              ? "bg-amber-400/15 text-amber-400"
+              : "bg-white/5 text-muted-foreground/50"
+          )}
+        >
+          {rank}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span
+                className={cn(
+                  "text-[9px] font-bold",
+                  isBuy ? "text-positive" : "text-negative"
+                )}
+              >
+                {isBuy ? "▲" : "▼"}
+              </span>
+              <span className="text-xs font-black uppercase tracking-tight text-foreground truncate">
+                {signal.symbol}
+              </span>
+              {isClosed && (
+                <span className="text-[8px] font-bold text-muted-foreground/40 bg-white/5 px-1 py-0.5 rounded">
+                  Closed
+                </span>
+              )}
+            </div>
+            <span className="text-sm font-black font-mono tabular-nums text-positive shrink-0">
+              +{signal.leveragedPnl.toFixed(2)}%
+            </span>
+          </div>
+          <div className="flex items-center justify-between mt-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] text-muted-foreground/40">
+                {signal.timeframeName}
+              </span>
+              <span className="text-white/10">·</span>
+              <span className="text-[9px] text-muted-foreground/30">
+                {signal.algo}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              {tpCount > 0 && (
+                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-positive/10 text-positive/80 border border-positive/15">
+                  {tpCount} TP{tpCount > 1 ? "s" : ""}
+                </span>
+              )}
+              <span className="text-[9px] text-accent/40 font-bold">
+                {signal.leverage}x
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 mt-1">
+            <span className="text-[9px] text-muted-foreground/30 font-mono">
+              ${formatPrice(signal.price)} → ${formatPrice(signal.currentPrice)}
+            </span>
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 export default function OpportunitiesPage() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
@@ -506,6 +594,13 @@ export default function OpportunitiesPage() {
     (s) => s.status !== "INACTIVE"
   ).length;
   const winningCount = filteredSignals.filter((s) => s.pnl > 0.05).length;
+
+  const topWinners = useMemo(() => {
+    return filteredSignals
+      .filter((s) => s.pnl > 0.05)
+      .sort((a, b) => b.leveragedPnl - a.leveragedPnl)
+      .slice(0, 20);
+  }, [filteredSignals]);
 
   const handleGoogleLogin = useCallback(async () => {
     if (auth) {
@@ -626,10 +721,10 @@ export default function OpportunitiesPage() {
           </div>
         </div>
 
-        {/* Two-pane layout */}
+        {/* Three-pane layout */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Left pane: Opportunities (2/3) */}
-          <div className="flex-[2] flex flex-col min-w-0 border-r border-white/[0.06]">
+          {/* Left pane: Opportunities (~50%) */}
+          <div className="flex-[5] flex flex-col min-w-0 border-r border-white/[0.06]">
             <div className="px-4 py-2.5 border-b border-white/[0.04] bg-white/[0.01] flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-3.5 h-3.5 text-accent/60" />
@@ -662,8 +757,8 @@ export default function OpportunitiesPage() {
             </div>
           </div>
 
-          {/* Right pane: Activity Feed (1/3) */}
-          <div className="flex-[1] flex flex-col min-w-0 hidden md:flex">
+          {/* Middle pane: Activity Feed (~25%) */}
+          <div className="flex-[2.5] flex-col min-w-0 border-r border-white/[0.06] hidden lg:flex">
             <div className="px-3 py-2.5 border-b border-white/[0.04] bg-white/[0.01] flex items-center gap-2">
               <Target className="w-3.5 h-3.5 text-accent/60" />
               <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
@@ -684,6 +779,43 @@ export default function OpportunitiesPage() {
               ) : (
                 filteredEvents.map((event) => (
                   <EventRow key={event.id} event={event} />
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Right pane: Top Winners (~25%) */}
+          <div className="flex-[2.5] flex-col min-w-0 hidden lg:flex">
+            <div className="px-3 py-2.5 border-b border-white/[0.04] bg-white/[0.01] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-3.5 h-3.5 text-amber-400/70" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400/50">
+                  Top Winners
+                </span>
+              </div>
+              {topWinners.length > 0 && (
+                <div className="flex items-center gap-1">
+                  <Flame className="w-3 h-3 text-amber-400/40" />
+                  <span className="text-[10px] font-bold text-amber-400/30">
+                    {topWinners.length}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {isLoading ? (
+                <div className="flex items-center justify-center h-32">
+                  <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
+                </div>
+              ) : topWinners.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/30">
+                  <Trophy className="w-6 h-6 mb-2" />
+                  <span className="text-xs font-bold">No winners yet</span>
+                </div>
+              ) : (
+                topWinners.map((signal, i) => (
+                  <WinnerRow key={signal.id} signal={signal} rank={i + 1} />
                 ))
               )}
             </div>

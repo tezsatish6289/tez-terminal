@@ -304,6 +304,13 @@ export default function DeepDiveChartPage() {
                     <span className="ml-auto font-mono text-sm font-bold text-foreground/80">${formatPrice(signal?.stopLoss)}</span>
                   </div>
                 )}
+
+                {/* Algo */}
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/5 shadow-inner shadow-black/20">
+                  <Info className="h-3.5 w-3.5 text-accent/60" />
+                  <span className="text-[9px] uppercase font-bold text-muted-foreground/50 tracking-wider">Algo</span>
+                  <span className="ml-auto text-sm font-bold text-foreground/80 uppercase tracking-wide">{signal?.algo || "V8 Reversal"}</span>
+                </div>
               </div>
 
               {/* Exchange links inside card footer */}

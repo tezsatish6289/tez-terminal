@@ -239,22 +239,22 @@ function OpportunityCard({ signal }: { signal: ProcessedSignal }) {
         </span>
       </div>
 
-      <div className="px-3.5 pb-3 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-bold text-muted-foreground/60 uppercase">
-            {signal.timeframeName}
-          </span>
-          <span className="text-white/15">·</span>
-          <span className="text-[11px] text-muted-foreground/50">
-            {signal.algo}
-          </span>
-        </div>
+      <div className="px-3.5 pb-2 flex items-center justify-between">
+        <span className="text-[11px] font-bold text-muted-foreground/60 uppercase">
+          {signal.timeframeName}
+        </span>
         <div className="flex items-center gap-1">
           <Clock className="w-3 h-3 text-muted-foreground/40" />
           <span className="text-[11px] text-muted-foreground/40">
             {formatTimeAgo(signal.receivedAt)}
           </span>
         </div>
+      </div>
+
+      <div className="px-3.5 pb-3 border-t border-white/[0.04] pt-2">
+        <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-wider block text-center">
+          {signal.algo}
+        </span>
       </div>
     </Link>
   );
@@ -471,12 +471,15 @@ export default function OpportunitiesPage() {
   const [filterSide, setFilterSide] = useState("all");
   const [filterPerf, setFilterPerf] = useState("all");
 
+  const [filterAlgo, setFilterAlgo] = useState("all");
+
   const [draftTimeframe, setDraftTimeframe] = useState("all");
   const [draftSide, setDraftSide] = useState("all");
   const [draftPerf, setDraftPerf] = useState("all");
+  const [draftAlgo, setDraftAlgo] = useState("all");
   const [filterOpen, setFilterOpen] = useState(false);
 
-  const activeFilterCount = [filterTimeframe, filterSide, filterPerf].filter(
+  const activeFilterCount = [filterTimeframe, filterSide, filterPerf, filterAlgo].filter(
     (v) => v !== "all"
   ).length;
   const hasActiveFilters = activeFilterCount > 0;
@@ -486,21 +489,24 @@ export default function OpportunitiesPage() {
       setDraftTimeframe(filterTimeframe);
       setDraftSide(filterSide);
       setDraftPerf(filterPerf);
+      setDraftAlgo(filterAlgo);
     }
     setFilterOpen(open);
-  }, [filterTimeframe, filterSide, filterPerf]);
+  }, [filterTimeframe, filterSide, filterPerf, filterAlgo]);
 
   const handleApplyFilters = useCallback(() => {
     setFilterTimeframe(draftTimeframe);
     setFilterSide(draftSide);
     setFilterPerf(draftPerf);
+    setFilterAlgo(draftAlgo);
     setFilterOpen(false);
-  }, [draftTimeframe, draftSide, draftPerf]);
+  }, [draftTimeframe, draftSide, draftPerf, draftAlgo]);
 
   const handleClearFilters = useCallback(() => {
     setDraftTimeframe("all");
     setDraftSide("all");
     setDraftPerf("all");
+    setDraftAlgo("all");
   }, []);
 
   const signalsQuery = useMemoFirebase(() => {
@@ -559,16 +565,23 @@ export default function OpportunitiesPage() {
       });
   }, [rawSignals]);
 
+  const uniqueAlgos = useMemo(() => {
+    const set = new Set<string>();
+    processedSignals.forEach((s) => set.add(s.algo));
+    return Array.from(set).sort();
+  }, [processedSignals]);
+
   const filteredSignals = useMemo(() => {
     return processedSignals.filter((s) => {
       if (filterTimeframe !== "all" && s.timeframe !== filterTimeframe)
         return false;
       if (filterSide !== "all" && s.type !== filterSide) return false;
+      if (filterAlgo !== "all" && s.algo !== filterAlgo) return false;
       if (filterPerf === "winning" && s.pnl <= 0.05) return false;
       if (filterPerf === "losing" && s.pnl >= -0.05) return false;
       return true;
     });
-  }, [processedSignals, filterTimeframe, filterSide, filterPerf]);
+  }, [processedSignals, filterTimeframe, filterSide, filterAlgo, filterPerf]);
 
   const allEvents: StatusEvent[] = useMemo(() => {
     if (!rawEvents) return [];
@@ -749,6 +762,28 @@ export default function OpportunitiesPage() {
                         ))}
                       </div>
                     </div>
+                    {uniqueAlgos.length > 1 && (
+                      <div className="space-y-2">
+                        <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-widest">
+                          Algo
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          <FilterChip
+                            label="All"
+                            active={draftAlgo === "all"}
+                            onClick={() => setDraftAlgo("all")}
+                          />
+                          {uniqueAlgos.map((algo) => (
+                            <FilterChip
+                              key={algo}
+                              label={algo}
+                              active={draftAlgo === algo}
+                              onClick={() => setDraftAlgo(algo)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="px-4 py-3 border-t border-white/[0.06]">
                     <button

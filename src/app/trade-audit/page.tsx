@@ -49,6 +49,7 @@ function TradeAuditContent() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "retired">("all");
   const [sideFilter, setSideFilter] = useState<"all" | "BUY" | "SELL">("all");
   const [tfFilter, setTfFilter] = useState(initialTf);
+  const [algoFilter, setAlgoFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("all");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -60,6 +61,13 @@ function TradeAuditContent() {
   }, [user, firestore]);
 
   const { data: allSignals, isLoading } = useCollection(signalsQuery);
+
+  const uniqueAlgos = useMemo(() => {
+    if (!allSignals) return [];
+    const set = new Set<string>();
+    allSignals.forEach((s: any) => set.add(s.algo || "V8 Reversal"));
+    return Array.from(set).sort();
+  }, [allSignals]);
 
   const calculatePercent = (target: any, entry: any, type: string) => {
     const e = Number(entry);
@@ -102,13 +110,14 @@ function TradeAuditContent() {
       if (statusFilter === "retired" && s.status !== "INACTIVE") return false;
       if (sideFilter !== "all" && s.type !== sideFilter) return false;
       if (tfFilter !== "all" && String(s.timeframe).toUpperCase() !== tfFilter.toUpperCase()) return false;
+      if (algoFilter !== "all" && (s.algo || "V8 Reversal") !== algoFilter) return false;
       if (dateCutoff > 0 || dateEnd < Infinity) {
         const t = s.receivedAt ? new Date(s.receivedAt).getTime() : 0;
         if (t < dateCutoff || t > dateEnd) return false;
       }
       return true;
     });
-  }, [allSignals, statusFilter, sideFilter, tfFilter, dateCutoff, dateEnd]);
+  }, [allSignals, statusFilter, sideFilter, tfFilter, algoFilter, dateCutoff, dateEnd]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageSignals = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -251,6 +260,37 @@ function TradeAuditContent() {
             ))}
           </div>
 
+          {/* Algo filter */}
+          {uniqueAlgos.length > 1 && (
+            <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-1">
+              <button
+                onClick={() => setFilterAndResetPage(setAlgoFilter)("all")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
+                  algoFilter === "all"
+                    ? "bg-accent/15 text-accent shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                All Algos
+              </button>
+              {uniqueAlgos.map(algo => (
+                <button
+                  key={algo}
+                  onClick={() => setFilterAndResetPage(setAlgoFilter)(algo)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
+                    algoFilter === algo
+                      ? "bg-accent/15 text-accent shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {algo}
+                </button>
+              ))}
+            </div>
+          )}
+
           <Badge variant="outline" className="border-white/10 text-muted-foreground bg-white/5 ml-auto">
             {filtered.length} trades
           </Badge>
@@ -309,6 +349,7 @@ function TradeAuditContent() {
                       <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Symbol</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Side</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Chart</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Algo</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Lev.</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Entry</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Current</TableHead>
@@ -323,7 +364,7 @@ function TradeAuditContent() {
                   <TableBody>
                     {pageSignals.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={12} className="h-64 text-center">
+                        <TableCell colSpan={13} className="h-64 text-center">
                           <div className="flex flex-col items-center gap-4 opacity-40">
                             <Archive className="h-12 w-12 text-muted-foreground" />
                             <div className="space-y-1">
@@ -357,6 +398,7 @@ function TradeAuditContent() {
                               </Badge>
                             </TableCell>
                             <TableCell className="text-xs font-bold text-muted-foreground uppercase">{chartLabel}</TableCell>
+                            <TableCell className="text-[10px] font-bold text-muted-foreground/50 uppercase">{signal.algo || "V8 Reversal"}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-[9px] font-black h-5 px-1.5 border-accent/20 text-accent">{leverage}x</Badge>
                             </TableCell>

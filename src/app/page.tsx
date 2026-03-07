@@ -105,6 +105,7 @@ interface WinnerSignal {
   tp3BookedPnl?: number | null;
   totalBookedPnl?: number | null;
   slHitAt?: string | null;
+  algo?: string;
 }
 
 function formatNarrationPrice(price: number | null | undefined): string {
@@ -405,16 +406,15 @@ function WinnersTicker({ winners, windowLabel, leverage, onSelect }: { winners: 
           </div>
           <span className="text-lg font-black font-mono text-amber-400 shrink-0">+{(winner.pnl * leverage).toFixed(2)}%</span>
         </div>
-        {(hitTps.length > 0 || isRetired) && (
-          <div className="flex items-center gap-2 mt-0.5 pl-6">
-            {hitTps.map((tp) => (
-              <span key={tp.label} className="text-[9px] font-bold">
-                <span className="text-positive">✓</span><span className="text-positive/60">{tp.label}</span>
-              </span>
-            ))}
-            {isRetired && <span className="text-[8px] font-black text-muted-foreground/40">CLOSED</span>}
-          </div>
-        )}
+        <div className="flex items-center gap-2 mt-0.5 pl-6">
+          <span className="text-[8px] font-bold text-muted-foreground/30 uppercase tracking-wider">{winner.algo || "V8 Reversal"}</span>
+          {hitTps.map((tp) => (
+            <span key={tp.label} className="text-[9px] font-bold">
+              <span className="text-positive">✓</span><span className="text-positive/60">{tp.label}</span>
+            </span>
+          ))}
+          {isRetired && <span className="text-[8px] font-black text-muted-foreground/40">CLOSED</span>}
+        </div>
       </button>
     </div>
   );
@@ -519,7 +519,7 @@ function OpportunityCard({ cat, activeCounts, signalIds, topWinners, onSelectWin
   signalIds: Record<string, Record<SideKey, Record<StatusKey, string[]>>>;
   topWinners: Record<string, WinnerSignal[]>;
   onSelectWinner: (w: WinnerSignal) => void;
-  freshSignal?: { id: string; ticker: string; type: string; receivedAt: string } | null;
+  freshSignal?: { id: string; ticker: string; type: string; receivedAt: string; algo: string } | null;
   flashKeys?: Set<FlashKey>;
   bellKeys?: Set<FlashKey>;
 }) {
@@ -553,6 +553,8 @@ function OpportunityCard({ cat, activeCounts, signalIds, topWinners, onSelectWin
           <Link href={`/chart/${freshSignal.id}`} className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-accent/10 border border-accent/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-accent hover:bg-accent/20 transition-colors">
             <span className={freshSignal.type === "BUY" ? "text-positive" : "text-negative"}>{freshSignal.type === "BUY" ? "▲" : "▼"}</span>
             <span>{freshSignal.ticker}</span>
+            <span className="text-accent/50">·</span>
+            <span className="text-accent/40">{freshSignal.algo}</span>
             <span className="text-accent/50">·</span>
             <span className="text-accent/70">{formatTimeAgo(freshSignal.receivedAt)}</span>
           </Link>
@@ -738,7 +740,7 @@ export default function Home() {
   const FRESHNESS_MINUTES: Record<string, number> = { "5": 5, "15": 15, "60": 60, "240": 240, "D": 1440 };
 
   const computeLatestByTf = useCallback((signals: any[] | null) => {
-    const m: Record<string, { id: string; ticker: string; type: string; receivedAt: string; ts: number }> = {};
+    const m: Record<string, { id: string; ticker: string; type: string; receivedAt: string; ts: number; algo: string }> = {};
     if (!signals) return m;
     signals.forEach((signal: any) => {
       if (signal.status === "INACTIVE") return;
@@ -747,7 +749,7 @@ export default function Home() {
       const cat = tf === "D" ? "D" : tf;
       const ts = new Date(signal.receivedAt).getTime();
       if (!m[cat] || ts > m[cat].ts) {
-        m[cat] = { id: signal.id, ticker: signal.ticker, type: signal.type, receivedAt: signal.receivedAt, ts };
+        m[cat] = { id: signal.id, ticker: signal.ticker, type: signal.type, receivedAt: signal.receivedAt, ts, algo: signal.algo || "V8 Reversal" };
       }
     });
     return m;
@@ -761,8 +763,8 @@ export default function Home() {
     return () => clearInterval(id);
   }, []);
 
-  const computeFreshSignals = useCallback((latestMap: Record<string, { id: string; ticker: string; type: string; receivedAt: string; ts: number }>) => {
-    const result: Record<string, { id: string; ticker: string; type: string; receivedAt: string } | null> = {};
+  const computeFreshSignals = useCallback((latestMap: Record<string, { id: string; ticker: string; type: string; receivedAt: string; ts: number; algo: string }>) => {
+    const result: Record<string, { id: string; ticker: string; type: string; receivedAt: string; algo: string } | null> = {};
     const now = Date.now();
     OPPORTUNITY_CATEGORIES.forEach((c) => {
       const latest = latestMap[c.id];
@@ -818,6 +820,7 @@ export default function Home() {
         tp3BookedPnl: signal.tp3BookedPnl ?? null,
         totalBookedPnl: signal.totalBookedPnl ?? null,
         slHitAt: signal.slHitAt ?? null,
+        algo: signal.algo || "V8 Reversal",
       });
     });
     Object.keys(map).forEach((k) => {

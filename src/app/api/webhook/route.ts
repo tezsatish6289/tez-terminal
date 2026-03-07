@@ -83,6 +83,8 @@ export async function POST(request: NextRequest) {
     };
     const timeframe = tfMap[rawTf] || rawTf;
 
+    const algo = String(body.algo || "V8 Reversal").trim();
+
     const signalData: Record<string, any> = {
       webhookId,
       receivedAt: timestamp,
@@ -100,6 +102,7 @@ export async function POST(request: NextRequest) {
       maxUpsidePrice: price, 
       maxDrawdownPrice: price, 
       timeframe: timeframe,
+      algo,
       note: body.note || `Alert for ${symbol}`,
       source: configData.name || "TradingView",
       aligned: false,

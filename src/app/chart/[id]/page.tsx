@@ -145,6 +145,8 @@ export default function DeepDiveChartPage() {
                     <span className={cn("text-[10px] font-black uppercase tracking-widest", isBullish ? "text-positive" : "text-negative")}>{isBullish ? "LONG" : "SHORT"}</span>
                     <span className="text-white/15">·</span>
                     <span className="text-[10px] font-black uppercase text-accent tracking-widest">{leverage}x</span>
+                    <span className="text-white/15">·</span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50">{signal?.algo || "V8 Reversal"}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Popover>

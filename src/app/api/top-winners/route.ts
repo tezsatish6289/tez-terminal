@@ -41,6 +41,7 @@ interface Winner {
   leverage: string;
   receivedAt: string;
   ago: string;
+  algo: string;
 }
 
 function formatAgo(receivedAt: string): string {
@@ -133,6 +134,7 @@ export async function GET() {
           leverage: `${leverage}x`,
           receivedAt: s.receivedAt,
           ago: formatAgo(s.receivedAt),
+          algo: s.algo || "V8 Reversal",
         };
       }
     }

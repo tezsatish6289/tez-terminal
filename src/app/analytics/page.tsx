@@ -56,16 +56,32 @@ export default function AnalyticsPage() {
     s.maxDrawdownPrice != null && s.maxDrawdownPrice !== undefined;
 
   const [selectedTf, setSelectedTf] = useState<string>("all");
+  const [selectedAlgo, setSelectedAlgo] = useState<string>("all");
+
+  const uniqueAlgos = useMemo(() => {
+    if (!allSignals) return [];
+    const set = new Set<string>();
+    allSignals.forEach((s: any) => set.add(s.algo || "V8 Reversal"));
+    return Array.from(set).sort();
+  }, [allSignals]);
 
   const activeSignals = useMemo(() => {
     if (!allSignals) return [];
-    return allSignals.filter(s => s.status !== "INACTIVE");
-  }, [allSignals]);
+    return allSignals.filter((s: any) => {
+      if (s.status === "INACTIVE") return false;
+      if (selectedAlgo !== "all" && (s.algo || "V8 Reversal") !== selectedAlgo) return false;
+      return true;
+    });
+  }, [allSignals, selectedAlgo]);
 
   const closedSignals = useMemo(() => {
     if (!allSignals) return [];
-    return allSignals.filter(s => s.status === "INACTIVE");
-  }, [allSignals]);
+    return allSignals.filter((s: any) => {
+      if (s.status !== "INACTIVE") return false;
+      if (selectedAlgo !== "all" && (s.algo || "V8 Reversal") !== selectedAlgo) return false;
+      return true;
+    });
+  }, [allSignals, selectedAlgo]);
 
   const TIMEFRAMES = [
     { id: "5", name: "Scalping", chart: "5m" },
@@ -296,6 +312,38 @@ export default function AnalyticsPage() {
             );
           })}
         </div>
+
+        {/* Algo filter chips */}
+        {uniqueAlgos.length > 1 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40 mr-1">Algo</span>
+            <button
+              onClick={() => setSelectedAlgo("all")}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border",
+                selectedAlgo === "all"
+                  ? "bg-accent/15 text-accent border-accent/30"
+                  : "text-muted-foreground border-white/10 hover:text-foreground hover:border-white/20",
+              )}
+            >
+              All
+            </button>
+            {uniqueAlgos.map(algo => (
+              <button
+                key={algo}
+                onClick={() => setSelectedAlgo(algo)}
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border",
+                  selectedAlgo === algo
+                    ? "bg-accent/15 text-accent border-accent/30"
+                    : "text-muted-foreground border-white/10 hover:text-foreground hover:border-white/20",
+                )}
+              >
+                {algo}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Per-timeframe analytics cards */}
         <div className="space-y-6">

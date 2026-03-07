@@ -540,30 +540,23 @@ export default function OpportunitiesPage() {
     });
   }, [processedSignals, filterTimeframe, filterSide, filterPerf]);
 
-  const filteredEvents: StatusEvent[] = useMemo(() => {
+  const allEvents: StatusEvent[] = useMemo(() => {
     if (!rawEvents) return [];
-    return rawEvents
-      .filter((e: any) => {
-        if (filterTimeframe !== "all" && e.timeframe !== filterTimeframe)
-          return false;
-        if (filterSide !== "all" && e.side !== filterSide) return false;
-        return true;
-      })
-      .map((e: any) => ({
-        id: e.id,
-        type: e.type,
-        symbol: e.symbol,
-        side: e.side,
-        timeframe: e.timeframe || "15",
-        signalId: e.signalId,
-        createdAt: e.createdAt,
-        bookedPnl: e.bookedPnl ?? null,
-        totalBookedPnl: e.totalBookedPnl ?? null,
-        guidance: e.guidance || "",
-        entryPrice: e.entryPrice || 0,
-        price: e.price || 0,
-      }));
-  }, [rawEvents, filterTimeframe, filterSide]);
+    return rawEvents.map((e: any) => ({
+      id: e.id,
+      type: e.type,
+      symbol: e.symbol,
+      side: e.side,
+      timeframe: e.timeframe || "15",
+      signalId: e.signalId,
+      createdAt: e.createdAt,
+      bookedPnl: e.bookedPnl ?? null,
+      totalBookedPnl: e.totalBookedPnl ?? null,
+      guidance: e.guidance || "",
+      entryPrice: e.entryPrice || 0,
+      price: e.price || 0,
+    }));
+  }, [rawEvents]);
 
   const liveOpportunities = useMemo(() => {
     return filteredSignals.filter(
@@ -580,11 +573,11 @@ export default function OpportunitiesPage() {
   const winningCount = liveOpportunities.filter((s) => s.pnl > 0.05).length;
 
   const topWinners = useMemo(() => {
-    return filteredSignals
+    return processedSignals
       .filter((s) => s.pnl > 0.05)
       .sort((a, b) => b.leveragedPnl - a.leveragedPnl)
       .slice(0, 20);
-  }, [filteredSignals]);
+  }, [processedSignals]);
 
   const handleGoogleLogin = useCallback(async () => {
     if (auth) {
@@ -622,103 +615,91 @@ export default function OpportunitiesPage() {
       <main className="flex-1 flex flex-col min-w-0 h-full">
         <TopBar />
 
-        {/* Filter bar */}
-        <div className="border-b border-white/[0.06] bg-background/95 backdrop-blur px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-accent" />
-              <h1 className="text-sm font-black tracking-tight uppercase">
-                Opportunities
-              </h1>
-              {!isLoading && (
-                <div className="flex items-center gap-2 ml-2">
-                  <span className="text-[10px] font-bold text-muted-foreground/50">
-                    {activeCount} active
-                  </span>
-                  <span className="text-white/10">·</span>
-                  <span className="text-[10px] font-bold text-positive/60">
-                    {winningCount} winning
-                  </span>
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => setShowFilters((v) => !v)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer sm:hidden",
-                showFilters
-                  ? "bg-accent/20 border-accent/40 text-accent"
-                  : "bg-white/[0.04] border-white/10 text-muted-foreground"
-              )}
-            >
-              <SlidersHorizontal className="w-3 h-3" />
-              Filters
-            </button>
-          </div>
-
-          {/* Filters - always visible on desktop, toggle on mobile */}
-          <div
-            className={cn(
-              "flex flex-wrap gap-x-6 gap-y-2 mt-3",
-              !showFilters && "hidden sm:flex"
-            )}
-          >
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest mr-1">
-                Timeframe
-              </span>
-              {TIMEFRAME_OPTIONS.map((opt) => (
-                <FilterChip
-                  key={opt.id}
-                  label={opt.label}
-                  active={filterTimeframe === opt.id}
-                  onClick={() => setFilterTimeframe(opt.id)}
-                />
-              ))}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest mr-1">
-                Side
-              </span>
-              {SIDE_OPTIONS.map((opt) => (
-                <FilterChip
-                  key={opt.id}
-                  label={opt.label}
-                  active={filterSide === opt.id}
-                  onClick={() => setFilterSide(opt.id)}
-                />
-              ))}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest mr-1">
-                Performance
-              </span>
-              {PERF_OPTIONS.map((opt) => (
-                <FilterChip
-                  key={opt.id}
-                  label={opt.label}
-                  active={filterPerf === opt.id}
-                  onClick={() => setFilterPerf(opt.id)}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-
         {/* Three-pane layout */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex gap-3 p-3 overflow-hidden">
+
           {/* Left pane: Opportunities (~50%) */}
-          <div className="flex-[5] flex flex-col min-w-0 border-r border-white/[0.06]">
-            <div className="px-4 py-2.5 border-b border-white/[0.04] bg-white/[0.01] flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="w-3.5 h-3.5 text-accent/60" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                  Live Opportunities
-                </span>
+          <div className="flex-[5] flex flex-col min-w-0 rounded-xl border border-white/[0.08] bg-[#111113] overflow-hidden">
+            {/* Header + filters */}
+            <div className="px-4 pt-3.5 pb-3 border-b border-white/[0.06]">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-accent" />
+                  <h2 className="text-sm font-black tracking-tight uppercase">
+                    Live Opportunities
+                  </h2>
+                  {!isLoading && (
+                    <div className="flex items-center gap-2 ml-1">
+                      <span className="text-[10px] font-bold text-muted-foreground/50">
+                        {activeCount} active
+                      </span>
+                      <span className="text-white/10">·</span>
+                      <span className="text-[10px] font-bold text-positive/60">
+                        {winningCount} winning
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowFilters((v) => !v)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer sm:hidden",
+                    showFilters
+                      ? "bg-accent/20 border-accent/40 text-accent"
+                      : "bg-white/[0.04] border-white/10 text-muted-foreground"
+                  )}
+                >
+                  <SlidersHorizontal className="w-3 h-3" />
+                  Filters
+                </button>
               </div>
-              <span className="text-[10px] font-bold text-muted-foreground/30">
-                {liveOpportunities.length} open trades
-              </span>
+
+              <div
+                className={cn(
+                  "flex flex-wrap gap-x-5 gap-y-2 mt-3",
+                  !showFilters && "hidden sm:flex"
+                )}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest mr-1">
+                    Timeframe
+                  </span>
+                  {TIMEFRAME_OPTIONS.map((opt) => (
+                    <FilterChip
+                      key={opt.id}
+                      label={opt.label}
+                      active={filterTimeframe === opt.id}
+                      onClick={() => setFilterTimeframe(opt.id)}
+                    />
+                  ))}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest mr-1">
+                    Side
+                  </span>
+                  {SIDE_OPTIONS.map((opt) => (
+                    <FilterChip
+                      key={opt.id}
+                      label={opt.label}
+                      active={filterSide === opt.id}
+                      onClick={() => setFilterSide(opt.id)}
+                    />
+                  ))}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest mr-1">
+                    Performance
+                  </span>
+                  {PERF_OPTIONS.map((opt) => (
+                    <FilterChip
+                      key={opt.id}
+                      label={opt.label}
+                      active={filterPerf === opt.id}
+                      onClick={() => setFilterPerf(opt.id)}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-3">
@@ -743,13 +724,13 @@ export default function OpportunitiesPage() {
             </div>
           </div>
 
-          {/* Middle pane: Activity Feed (~25%) */}
-          <div className="flex-[2.5] flex-col min-w-0 border-r border-white/[0.06] hidden lg:flex">
-            <div className="px-3 py-2.5 border-b border-white/[0.04] bg-white/[0.01] flex items-center gap-2">
-              <Target className="w-3.5 h-3.5 text-accent/60" />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+          {/* Middle pane: Status Updates (~25%) */}
+          <div className="flex-[2.5] flex-col min-w-0 rounded-xl border border-white/[0.08] bg-[#111113] overflow-hidden hidden lg:flex">
+            <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2">
+              <Target className="w-4 h-4 text-accent" />
+              <h2 className="text-sm font-black tracking-tight uppercase">
                 Status Updates
-              </span>
+              </h2>
             </div>
 
             <div className="flex-1 overflow-y-auto">
@@ -757,13 +738,13 @@ export default function OpportunitiesPage() {
                 <div className="flex items-center justify-center h-32">
                   <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
                 </div>
-              ) : filteredEvents.length === 0 ? (
+              ) : allEvents.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/30">
                   <Target className="w-6 h-6 mb-2" />
                   <span className="text-xs font-bold">No events yet</span>
                 </div>
               ) : (
-                filteredEvents.map((event) => (
+                allEvents.map((event) => (
                   <EventRow key={event.id} event={event} />
                 ))
               )}
@@ -771,18 +752,18 @@ export default function OpportunitiesPage() {
           </div>
 
           {/* Right pane: Top Winners (~25%) */}
-          <div className="flex-[2.5] flex-col min-w-0 hidden lg:flex">
-            <div className="px-3 py-2.5 border-b border-white/[0.04] bg-white/[0.01] flex items-center justify-between">
+          <div className="flex-[2.5] flex-col min-w-0 rounded-xl border border-white/[0.08] bg-[#111113] overflow-hidden hidden lg:flex">
+            <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Trophy className="w-3.5 h-3.5 text-amber-400/70" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400/50">
+                <Trophy className="w-4 h-4 text-amber-400" />
+                <h2 className="text-sm font-black tracking-tight uppercase text-amber-400/80">
                   Top Winners
-                </span>
+                </h2>
               </div>
               {topWinners.length > 0 && (
                 <div className="flex items-center gap-1">
-                  <Flame className="w-3 h-3 text-amber-400/40" />
-                  <span className="text-[10px] font-bold text-amber-400/30">
+                  <Flame className="w-3.5 h-3.5 text-amber-400/40" />
+                  <span className="text-[10px] font-bold text-amber-400/40">
                     {topWinners.length}
                   </span>
                 </div>

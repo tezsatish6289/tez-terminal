@@ -630,22 +630,27 @@ export default function OpportunitiesPage() {
           <div className="flex-[5] flex flex-col min-w-0 rounded-xl border border-white/[0.08] bg-[#111113] overflow-hidden">
             {/* Header */}
             <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-accent" />
-                <h2 className="text-sm font-black tracking-tight uppercase">
-                  Live Opportunities
-                </h2>
-                {!isLoading && (
-                  <div className="flex items-center gap-2 ml-1">
-                    <span className="text-[10px] font-bold text-muted-foreground/50">
-                      {activeCount} active
-                    </span>
-                    <span className="text-white/10">·</span>
-                    <span className="text-[10px] font-bold text-positive/60">
-                      {winningCount} winning
-                    </span>
-                  </div>
-                )}
+              <div>
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-accent" />
+                  <h2 className="text-sm font-black tracking-tight uppercase">
+                    Live Opportunities
+                  </h2>
+                  {!isLoading && (
+                    <div className="flex items-center gap-2 ml-1">
+                      <span className="text-[10px] font-bold text-muted-foreground/50">
+                        {activeCount} active
+                      </span>
+                      <span className="text-white/10">·</span>
+                      <span className="text-[10px] font-bold text-positive/60">
+                        {winningCount} winning
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-[10px] text-muted-foreground/40 mt-1 pl-6">
+                  Use filters to find trades suiting your style
+                </p>
               </div>
               <Popover>
                 <PopoverTrigger asChild>
@@ -755,11 +760,16 @@ export default function OpportunitiesPage() {
 
           {/* Middle pane: Status Updates (~25%) */}
           <div className="flex-[2.5] flex-col min-w-0 rounded-xl border border-white/[0.08] bg-[#111113] overflow-hidden hidden lg:flex">
-            <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2">
-              <Target className="w-4 h-4 text-accent" />
-              <h2 className="text-sm font-black tracking-tight uppercase">
-                Status Updates
-              </h2>
+            <div className="px-4 py-3 border-b border-white/[0.06]">
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-accent" />
+                <h2 className="text-sm font-black tracking-tight uppercase">
+                  Status Updates
+                </h2>
+              </div>
+              <p className="text-[10px] text-muted-foreground/40 mt-1 pl-6">
+                Live status updates on running trades
+              </p>
             </div>
 
             <div className="flex-1 overflow-y-auto">
@@ -782,21 +792,27 @@ export default function OpportunitiesPage() {
 
           {/* Right pane: Top Winners (~25%) */}
           <div className="flex-[2.5] flex-col min-w-0 rounded-xl border border-white/[0.08] bg-[#111113] overflow-hidden hidden lg:flex">
-            <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-amber-400" />
-                <h2 className="text-sm font-black tracking-tight uppercase text-amber-400/80">
-                  Top Winners
-                </h2>
-              </div>
-              {topWinners.length > 0 && (
-                <div className="flex items-center gap-1">
-                  <Flame className="w-3.5 h-3.5 text-amber-400/40" />
-                  <span className="text-[10px] font-bold text-amber-400/40">
-                    {topWinners.length}
-                  </span>
+            <div className="px-4 py-3 border-b border-white/[0.06]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Trophy className="w-4 h-4 text-amber-400" />
+                  <h2 className="text-sm font-black tracking-tight uppercase text-amber-400/80">
+                    Top Winners
+                  </h2>
                 </div>
-              )}
+                {topWinners.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Flame className="w-3.5 h-3.5 text-amber-400/40" />
+                    <span className="text-[10px] font-bold text-amber-400/40">
+                      {topWinners.length}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground/40 mt-1 pl-6">
+                Best performing trades ranked by PNL
+              </p>
+
             </div>
 
             <div className="flex-1 overflow-y-auto">

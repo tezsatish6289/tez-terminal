@@ -476,10 +476,37 @@ export default function OpportunitiesPage() {
   const [filterSide, setFilterSide] = useState("all");
   const [filterPerf, setFilterPerf] = useState("all");
 
+  const [draftTimeframe, setDraftTimeframe] = useState("all");
+  const [draftSide, setDraftSide] = useState("all");
+  const [draftPerf, setDraftPerf] = useState("all");
+  const [filterOpen, setFilterOpen] = useState(false);
+
   const activeFilterCount = [filterTimeframe, filterSide, filterPerf].filter(
     (v) => v !== "all"
   ).length;
   const hasActiveFilters = activeFilterCount > 0;
+
+  const handleFilterOpen = useCallback((open: boolean) => {
+    if (open) {
+      setDraftTimeframe(filterTimeframe);
+      setDraftSide(filterSide);
+      setDraftPerf(filterPerf);
+    }
+    setFilterOpen(open);
+  }, [filterTimeframe, filterSide, filterPerf]);
+
+  const handleApplyFilters = useCallback(() => {
+    setFilterTimeframe(draftTimeframe);
+    setFilterSide(draftSide);
+    setFilterPerf(draftPerf);
+    setFilterOpen(false);
+  }, [draftTimeframe, draftSide, draftPerf]);
+
+  const handleClearFilters = useCallback(() => {
+    setDraftTimeframe("all");
+    setDraftSide("all");
+    setDraftPerf("all");
+  }, []);
 
   const signalsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -652,7 +679,7 @@ export default function OpportunitiesPage() {
                   Use filters to find trades suiting your style
                 </p>
               </div>
-              <Popover>
+              <Popover open={filterOpen} onOpenChange={handleFilterOpen}>
                 <PopoverTrigger asChild>
                   <button
                     className={cn(
@@ -672,13 +699,9 @@ export default function OpportunitiesPage() {
                 >
                   <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
                     <span className="text-xs font-black uppercase tracking-wider">Filters</span>
-                    {hasActiveFilters && (
+                    {(draftTimeframe !== "all" || draftSide !== "all" || draftPerf !== "all") && (
                       <button
-                        onClick={() => {
-                          setFilterTimeframe("all");
-                          setFilterSide("all");
-                          setFilterPerf("all");
-                        }}
+                        onClick={handleClearFilters}
                         className="text-[10px] font-bold text-accent hover:text-accent/80 cursor-pointer"
                       >
                         Clear all
@@ -695,8 +718,8 @@ export default function OpportunitiesPage() {
                           <FilterChip
                             key={opt.id}
                             label={opt.label}
-                            active={filterTimeframe === opt.id}
-                            onClick={() => setFilterTimeframe(opt.id)}
+                            active={draftTimeframe === opt.id}
+                            onClick={() => setDraftTimeframe(opt.id)}
                           />
                         ))}
                       </div>
@@ -710,8 +733,8 @@ export default function OpportunitiesPage() {
                           <FilterChip
                             key={opt.id}
                             label={opt.label}
-                            active={filterSide === opt.id}
-                            onClick={() => setFilterSide(opt.id)}
+                            active={draftSide === opt.id}
+                            onClick={() => setDraftSide(opt.id)}
                           />
                         ))}
                       </div>
@@ -725,12 +748,20 @@ export default function OpportunitiesPage() {
                           <FilterChip
                             key={opt.id}
                             label={opt.label}
-                            active={filterPerf === opt.id}
-                            onClick={() => setFilterPerf(opt.id)}
+                            active={draftPerf === opt.id}
+                            onClick={() => setDraftPerf(opt.id)}
                           />
                         ))}
                       </div>
                     </div>
+                  </div>
+                  <div className="px-4 py-3 border-t border-white/[0.06]">
+                    <button
+                      onClick={handleApplyFilters}
+                      className="w-full py-2 rounded-lg bg-accent text-background text-xs font-black uppercase tracking-wider hover:bg-accent/90 transition-colors cursor-pointer"
+                    >
+                      Apply Filters
+                    </button>
                   </div>
                 </PopoverContent>
               </Popover>

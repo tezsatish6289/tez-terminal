@@ -370,13 +370,12 @@ function EventRow({ event }: { event: StatusEvent }) {
             </span>
             <span className="text-white/15">·</span>
             <span className="text-[11px] text-muted-foreground/60">{tfName}</span>
-            {event.algo && (
-              <>
-                <span className="text-white/15">·</span>
-                <span className="text-[11px] text-muted-foreground/50">{event.algo}</span>
-              </>
-            )}
           </div>
+          {event.algo && (
+            <p className="text-[10px] text-muted-foreground/40 mt-0.5 uppercase tracking-wider">
+              {event.algo}
+            </p>
+          )}
           <p className="text-[11px] text-muted-foreground/50 mt-1 leading-relaxed">
             {event.guidance}
           </p>

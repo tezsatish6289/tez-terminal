@@ -149,96 +149,58 @@ function FilterChip({
   );
 }
 
-function OpportunityRow({ signal }: { signal: ProcessedSignal }) {
+function OpportunityCard({ signal }: { signal: ProcessedSignal }) {
   const isBuy = signal.type === "BUY";
   const isWinning = signal.pnl > 0.05;
   const isLosing = signal.pnl < -0.05;
-  const isClosed = signal.status === "INACTIVE";
-
-  const tpStatus = [];
-  if (signal.tp1Hit) tpStatus.push("TP1");
-  if (signal.tp2Hit) tpStatus.push("TP2");
-  if (signal.tp3Hit) tpStatus.push("TP3");
 
   return (
     <Link
       href={`/chart/${signal.id}`}
       className={cn(
-        "block px-4 py-3 border-b border-white/[0.04] transition-colors hover:bg-white/[0.03] group",
-        isClosed && "opacity-60"
+        "block rounded-xl border transition-all hover:translate-y-[-1px]",
+        isWinning
+          ? "border-positive/15 bg-positive/[0.03] hover:border-positive/25 hover:shadow-lg hover:shadow-positive/5"
+          : isLosing
+            ? "border-negative/15 bg-negative/[0.03] hover:border-negative/25 hover:shadow-lg hover:shadow-negative/5"
+            : "border-white/[0.06] bg-white/[0.02] hover:border-white/10 hover:shadow-lg hover:shadow-white/5"
       )}
     >
-      <div className="flex items-center justify-between gap-3">
-        {/* Left: Symbol + direction + meta */}
-        <div className="flex items-center gap-3 min-w-0 flex-1">
+      {/* Header: direction + symbol */}
+      <div className="px-3.5 pt-3 pb-2 flex items-center justify-between">
+        <div className="flex items-center gap-2 min-w-0">
           <div
             className={cn(
-              "flex items-center justify-center w-8 h-8 rounded-lg shrink-0",
+              "flex items-center justify-center w-7 h-7 rounded-lg shrink-0",
               isBuy
-                ? "bg-positive/10 text-positive"
-                : "bg-negative/10 text-negative"
+                ? "bg-positive/15 text-positive"
+                : "bg-negative/15 text-negative"
             )}
           >
             {isBuy ? (
-              <ArrowUpRight className="w-4 h-4" />
+              <ArrowUpRight className="w-3.5 h-3.5" />
             ) : (
-              <ArrowDownRight className="w-4 h-4" />
+              <ArrowDownRight className="w-3.5 h-3.5" />
             )}
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-black uppercase tracking-tight text-foreground truncate">
-                {signal.symbol}
-              </span>
-              {isClosed && (
-                <span className="text-[9px] font-bold uppercase text-muted-foreground/50 bg-white/5 px-1.5 py-0.5 rounded">
-                  Closed
-                </span>
+            <span className="text-sm font-black uppercase tracking-tight text-foreground truncate block">
+              {signal.symbol}
+            </span>
+            <span
+              className={cn(
+                "text-[9px] font-bold uppercase tracking-widest",
+                isBuy ? "text-positive/60" : "text-negative/60"
               )}
-            </div>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span
-                className={cn(
-                  "text-[9px] font-bold uppercase tracking-widest",
-                  isBuy ? "text-positive/70" : "text-negative/70"
-                )}
-              >
-                {isBuy ? "Long" : "Short"}
-              </span>
-              <span className="text-white/10">·</span>
-              <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-wider">
-                {signal.timeframeName}
-              </span>
-              <span className="text-white/10">·</span>
-              <span className="text-[9px] font-bold text-muted-foreground/40 tracking-wider">
-                {signal.algo}
-              </span>
-            </div>
+            >
+              {isBuy ? "Long" : "Short"}
+            </span>
           </div>
         </div>
-
-        {/* Center: TP badges */}
-        <div className="hidden sm:flex items-center gap-1 shrink-0">
-          {tpStatus.map((tp) => (
-            <span
-              key={tp}
-              className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-positive/10 text-positive border border-positive/20"
-            >
-              {tp}
-            </span>
-          ))}
-          {signal.slHitAt && (
-            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-negative/10 text-negative border border-negative/20">
-              SL
-            </span>
-          )}
-        </div>
-
-        {/* Right: PNL + entry info */}
         <div className="text-right shrink-0">
           <span
             className={cn(
-              "text-sm font-black font-mono tabular-nums",
+              "text-lg font-black font-mono tabular-nums block leading-tight",
               isWinning
                 ? "text-positive"
                 : isLosing
@@ -249,36 +211,49 @@ function OpportunityRow({ signal }: { signal: ProcessedSignal }) {
             {signal.leveragedPnl >= 0 ? "+" : ""}
             {signal.leveragedPnl.toFixed(2)}%
           </span>
-          <div className="flex items-center gap-1 justify-end mt-0.5">
-            <span className="text-[9px] text-muted-foreground/40 font-mono">
-              ${formatPrice(signal.price)}
-            </span>
-            <span className="text-white/10">→</span>
-            <span
-              className={cn(
-                "text-[9px] font-mono",
-                isWinning
-                  ? "text-positive/60"
-                  : isLosing
-                    ? "text-negative/60"
-                    : "text-muted-foreground/40"
-              )}
-            >
-              ${formatPrice(signal.currentPrice)}
-            </span>
-          </div>
+          <span className="text-[9px] text-accent/50 font-bold">
+            {signal.leverage}x
+          </span>
         </div>
       </div>
 
-      {/* Time ago */}
-      <div className="flex items-center gap-1 mt-1.5 pl-11">
-        <Clock className="w-2.5 h-2.5 text-muted-foreground/30" />
-        <span className="text-[9px] text-muted-foreground/30">
-          {formatTimeAgo(signal.receivedAt)}
+      {/* Price row */}
+      <div className="px-3.5 pb-2 flex items-center gap-1.5">
+        <span className="text-[10px] text-muted-foreground/40 font-mono">
+          ${formatPrice(signal.price)}
         </span>
-        <span className="text-[9px] text-accent/40 font-bold ml-auto">
-          {signal.leverage}x
+        <span className="text-white/10">→</span>
+        <span
+          className={cn(
+            "text-[10px] font-mono font-bold",
+            isWinning
+              ? "text-positive/70"
+              : isLosing
+                ? "text-negative/70"
+                : "text-muted-foreground/50"
+          )}
+        >
+          ${formatPrice(signal.currentPrice)}
         </span>
+      </div>
+
+      {/* Footer: meta */}
+      <div className="px-3.5 pb-2.5 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] font-bold text-muted-foreground/40 uppercase">
+            {signal.timeframeName}
+          </span>
+          <span className="text-white/8">·</span>
+          <span className="text-[9px] text-muted-foreground/30">
+            {signal.algo}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Clock className="w-2.5 h-2.5 text-muted-foreground/25" />
+          <span className="text-[9px] text-muted-foreground/25">
+            {formatTimeAgo(signal.receivedAt)}
+          </span>
+        </div>
       </div>
     </Link>
   );
@@ -590,10 +565,19 @@ export default function OpportunitiesPage() {
       }));
   }, [rawEvents, filterTimeframe, filterSide]);
 
-  const activeCount = filteredSignals.filter(
-    (s) => s.status !== "INACTIVE"
-  ).length;
-  const winningCount = filteredSignals.filter((s) => s.pnl > 0.05).length;
+  const liveOpportunities = useMemo(() => {
+    return filteredSignals.filter(
+      (s) =>
+        s.status !== "INACTIVE" &&
+        !s.tp1Hit &&
+        !s.tp2Hit &&
+        !s.tp3Hit &&
+        !s.slHitAt
+    );
+  }, [filteredSignals]);
+
+  const activeCount = liveOpportunities.length;
+  const winningCount = liveOpportunities.filter((s) => s.pnl > 0.05).length;
 
   const topWinners = useMemo(() => {
     return filteredSignals
@@ -733,26 +717,28 @@ export default function OpportunitiesPage() {
                 </span>
               </div>
               <span className="text-[10px] font-bold text-muted-foreground/30">
-                {filteredSignals.length} signals
+                {liveOpportunities.length} open trades
               </span>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto p-3">
               {isLoading ? (
                 <div className="flex items-center justify-center h-32">
                   <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
                 </div>
-              ) : filteredSignals.length === 0 ? (
+              ) : liveOpportunities.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/30">
                   <Zap className="w-6 h-6 mb-2" />
                   <span className="text-xs font-bold">
-                    No opportunities match your filters
+                    No open opportunities match your filters
                   </span>
                 </div>
               ) : (
-                filteredSignals.map((signal) => (
-                  <OpportunityRow key={signal.id} signal={signal} />
-                ))
+                <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
+                  {liveOpportunities.map((signal) => (
+                    <OpportunityCard key={signal.id} signal={signal} />
+                  ))}
+                </div>
               )}
             </div>
           </div>

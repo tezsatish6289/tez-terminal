@@ -17,7 +17,7 @@ export function LeftSidebar() {
 
   const navItems = [
     { name: "Terminal", icon: LayoutDashboard, href: "/" },
-    { name: "Analytics", icon: LineChart, href: "/analytics" },
+    { name: "Trade Audit", icon: LineChart, href: "/trade-audit" },
     { name: "History", icon: History, href: "/history" },
   ];
 

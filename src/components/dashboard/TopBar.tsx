@@ -38,7 +38,7 @@ export function TopBar() {
 
   const navItems = [
     { name: "Opportunity Finder", icon: Zap, href: "/" },
-    { name: "Trade Analytics", icon: LineChart, href: "/analytics" },
+    { name: "Trade Audit", icon: LineChart, href: "/trade-audit" },
     { name: "Settings", icon: Settings, href: "/settings" },
   ];
 

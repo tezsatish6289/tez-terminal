@@ -142,6 +142,10 @@ function TradeAuditContent() {
     const maxProfit = upsideValues.length > 0 ? Math.max(...upsideValues) : 0;
     const maxLoss = downsideValues.length > 0 ? Math.min(...downsideValues) : 0;
 
+    const grossProfit = profitPnls.reduce((a, b) => a + b, 0);
+    const grossLoss = Math.abs(lossPnls.reduce((a, b) => a + b, 0));
+    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
+
     const tp1 = filtered.filter((s: any) => s.tp1Hit === true).length;
     const tp2 = filtered.filter((s: any) => s.tp2Hit === true).length;
     const tp3 = filtered.filter((s: any) => s.tp3Hit === true).length;
@@ -149,7 +153,7 @@ function TradeAuditContent() {
 
     return {
       total, wins, winRate: total > 0 ? (wins / total) * 100 : 0, netPnl,
-      avgProfit, avgLoss, maxProfit, maxLoss, tp1, tp2, tp3, sl,
+      avgProfit, avgLoss, maxProfit, maxLoss, profitFactor, tp1, tp2, tp3, sl,
     };
   }, [filtered]);
 
@@ -170,13 +174,6 @@ function TradeAuditContent() {
 
       <main className="flex-1 overflow-y-auto p-6 space-y-6">
         <header className="space-y-2">
-          <div className="flex items-center gap-3">
-            <Link href="/analytics">
-              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground gap-1 -ml-2">
-                <ChevronLeft className="h-4 w-4" /> Back to Analytics
-              </Button>
-            </Link>
-          </div>
           <h1 className="text-3xl font-black text-white tracking-tighter uppercase">Trade Audit</h1>
           <p className="text-muted-foreground text-sm max-w-2xl">
             Individual signal details with full execution history.
@@ -315,9 +312,6 @@ function TradeAuditContent() {
             </div>
           )}
 
-          <Badge variant="outline" className="border-white/10 text-muted-foreground bg-white/5 ml-auto">
-            {filtered.length} trades
-          </Badge>
         </div>
 
         {/* Custom date range inputs */}
@@ -344,63 +338,84 @@ function TradeAuditContent() {
           </div>
         )}
 
-        {/* Summary stats bar */}
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 rounded-lg border border-white/5 bg-white/[0.02]">
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Trades</span>
-            <span className="text-lg font-black font-mono text-white">{summaryStats.total}</span>
+        {/* Summary stats bar — grouped by theme */}
+        <div className="flex flex-wrap items-stretch gap-2 text-center">
+          {/* Overview group */}
+          <div className="flex items-center gap-5 px-4 py-3 rounded-lg border border-white/5 bg-white/[0.02]">
+            <div>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Trades</span>
+              <span className="text-lg font-black font-mono text-white">{summaryStats.total}</span>
+            </div>
+            <div>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Win Rate</span>
+              <span className={cn("text-lg font-black font-mono", summaryStats.winRate >= 50 ? "text-emerald-400" : "text-rose-400")}>
+                {summaryStats.winRate.toFixed(1)}%
+              </span>
+            </div>
+            <div>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Net PNL</span>
+              <span className={cn("text-lg font-black font-mono", summaryStats.netPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                {summaryStats.netPnl >= 0 ? "+" : ""}{summaryStats.netPnl.toFixed(2)}%
+              </span>
+            </div>
+            <div>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Profit Factor</span>
+              <span className={cn("text-lg font-black font-mono", summaryStats.profitFactor >= 1 ? "text-emerald-400" : "text-rose-400")}>
+                {summaryStats.profitFactor === Infinity ? "∞" : summaryStats.profitFactor.toFixed(2)}
+              </span>
+            </div>
           </div>
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Win Rate</span>
-            <span className={cn("text-lg font-black font-mono", summaryStats.winRate >= 50 ? "text-emerald-400" : "text-rose-400")}>
-              {summaryStats.winRate.toFixed(1)}%
-            </span>
+
+          {/* Profit group */}
+          <div className="flex items-center gap-5 px-4 py-3 rounded-lg border border-emerald-500/10 bg-emerald-500/[0.03]">
+            <div>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">Avg Profit</span>
+              <span className="text-lg font-black font-mono text-emerald-400">
+                +{summaryStats.avgProfit.toFixed(2)}%
+              </span>
+            </div>
+            <div>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">Max Profit</span>
+              <span className="text-lg font-black font-mono text-emerald-400">
+                +{summaryStats.maxProfit.toFixed(2)}%
+              </span>
+            </div>
           </div>
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Net PNL</span>
-            <span className={cn("text-lg font-black font-mono", summaryStats.netPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
-              {summaryStats.netPnl >= 0 ? "+" : ""}{summaryStats.netPnl.toFixed(2)}%
-            </span>
+
+          {/* Loss group */}
+          <div className="flex items-center gap-5 px-4 py-3 rounded-lg border border-rose-500/10 bg-rose-500/[0.03]">
+            <div>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-rose-400/40 block">Avg Loss</span>
+              <span className="text-lg font-black font-mono text-rose-400">
+                {summaryStats.avgLoss.toFixed(2)}%
+              </span>
+            </div>
+            <div>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-rose-400/40 block">Max Loss</span>
+              <span className="text-lg font-black font-mono text-rose-400">
+                {summaryStats.maxLoss.toFixed(2)}%
+              </span>
+            </div>
           </div>
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Avg Profit</span>
-            <span className="text-lg font-black font-mono text-emerald-400">
-              {summaryStats.avgProfit > 0 ? "+" : ""}{summaryStats.avgProfit.toFixed(2)}%
-            </span>
-          </div>
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Avg Loss</span>
-            <span className="text-lg font-black font-mono text-rose-400">
-              {summaryStats.avgLoss.toFixed(2)}%
-            </span>
-          </div>
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Max Profit</span>
-            <span className="text-lg font-black font-mono text-emerald-400">
-              {summaryStats.maxProfit > 0 ? "+" : ""}{summaryStats.maxProfit.toFixed(2)}%
-            </span>
-          </div>
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Max Loss</span>
-            <span className="text-lg font-black font-mono text-rose-400">
-              {summaryStats.maxLoss.toFixed(2)}%
-            </span>
-          </div>
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">TP1</span>
-            <span className="text-lg font-black font-mono text-emerald-400">{summaryStats.tp1}</span>
-          </div>
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">TP2</span>
-            <span className="text-lg font-black font-mono text-emerald-400">{summaryStats.tp2}</span>
-          </div>
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">TP3</span>
-            <span className="text-lg font-black font-mono text-emerald-400">{summaryStats.tp3}</span>
-          </div>
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-rose-400/40 block">SL</span>
-            <span className="text-lg font-black font-mono text-rose-400">{summaryStats.sl}</span>
+
+          {/* Targets group */}
+          <div className="flex items-center gap-5 px-4 py-3 rounded-lg border border-white/5 bg-white/[0.02]">
+            <div>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">TP1</span>
+              <span className="text-lg font-black font-mono text-emerald-400">{summaryStats.tp1}</span>
+            </div>
+            <div>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">TP2</span>
+              <span className="text-lg font-black font-mono text-emerald-400">{summaryStats.tp2}</span>
+            </div>
+            <div>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">TP3</span>
+              <span className="text-lg font-black font-mono text-emerald-400">{summaryStats.tp3}</span>
+            </div>
+            <div>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-rose-400/40 block">SL</span>
+              <span className="text-lg font-black font-mono text-rose-400">{summaryStats.sl}</span>
+            </div>
           </div>
         </div>
 

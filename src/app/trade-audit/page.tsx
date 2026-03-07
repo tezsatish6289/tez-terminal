@@ -124,9 +124,33 @@ function TradeAuditContent() {
 
   const summaryStats = useMemo(() => {
     const total = filtered.length;
-    const wins = filtered.filter((s: any) => effectivePnl(s) >= 0).length;
-    const netPnl = filtered.reduce((sum: number, s: any) => sum + effectivePnl(s) * getLeverage(s.timeframe), 0);
-    return { total, wins, winRate: total > 0 ? (wins / total) * 100 : 0, netPnl };
+    const pnls = filtered.map((s: any) => effectivePnl(s) * getLeverage(s.timeframe));
+    const wins = pnls.filter(p => p >= 0).length;
+    const netPnl = pnls.reduce((a, b) => a + b, 0);
+    const profitPnls = pnls.filter(p => p > 0);
+    const lossPnls = pnls.filter(p => p < 0);
+    const avgProfit = profitPnls.length > 0 ? profitPnls.reduce((a, b) => a + b, 0) / profitPnls.length : 0;
+    const avgLoss = lossPnls.length > 0 ? lossPnls.reduce((a, b) => a + b, 0) / lossPnls.length : 0;
+
+    const upsideValues = filtered
+      .filter((s: any) => s.maxUpsidePrice != null)
+      .map((s: any) => calculatePercent(s.maxUpsidePrice, s.price, s.type) * getLeverage(s.timeframe));
+    const downsideValues = filtered
+      .filter((s: any) => s.maxDrawdownPrice != null)
+      .map((s: any) => calculatePercent(s.maxDrawdownPrice, s.price, s.type) * getLeverage(s.timeframe));
+
+    const maxProfit = upsideValues.length > 0 ? Math.max(...upsideValues) : 0;
+    const maxLoss = downsideValues.length > 0 ? Math.min(...downsideValues) : 0;
+
+    const tp1 = filtered.filter((s: any) => s.tp1Hit === true).length;
+    const tp2 = filtered.filter((s: any) => s.tp2Hit === true).length;
+    const tp3 = filtered.filter((s: any) => s.tp3Hit === true).length;
+    const sl = filtered.filter((s: any) => s.slHitAt != null).length;
+
+    return {
+      total, wins, winRate: total > 0 ? (wins / total) * 100 : 0, netPnl,
+      avgProfit, avgLoss, maxProfit, maxLoss, tp1, tp2, tp3, sl,
+    };
   }, [filtered]);
 
   // Reset page when filters change
@@ -321,7 +345,7 @@ function TradeAuditContent() {
         )}
 
         {/* Summary stats bar */}
-        <div className="flex items-center gap-6 px-4 py-3 rounded-lg border border-white/5 bg-white/[0.02]">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 rounded-lg border border-white/5 bg-white/[0.02]">
           <div>
             <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Trades</span>
             <span className="text-lg font-black font-mono text-white">{summaryStats.total}</span>
@@ -337,6 +361,46 @@ function TradeAuditContent() {
             <span className={cn("text-lg font-black font-mono", summaryStats.netPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
               {summaryStats.netPnl >= 0 ? "+" : ""}{summaryStats.netPnl.toFixed(2)}%
             </span>
+          </div>
+          <div>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Avg Profit</span>
+            <span className="text-lg font-black font-mono text-emerald-400">
+              {summaryStats.avgProfit > 0 ? "+" : ""}{summaryStats.avgProfit.toFixed(2)}%
+            </span>
+          </div>
+          <div>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Avg Loss</span>
+            <span className="text-lg font-black font-mono text-rose-400">
+              {summaryStats.avgLoss.toFixed(2)}%
+            </span>
+          </div>
+          <div>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Max Profit</span>
+            <span className="text-lg font-black font-mono text-emerald-400">
+              {summaryStats.maxProfit > 0 ? "+" : ""}{summaryStats.maxProfit.toFixed(2)}%
+            </span>
+          </div>
+          <div>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Max Loss</span>
+            <span className="text-lg font-black font-mono text-rose-400">
+              {summaryStats.maxLoss.toFixed(2)}%
+            </span>
+          </div>
+          <div>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">TP1</span>
+            <span className="text-lg font-black font-mono text-emerald-400">{summaryStats.tp1}</span>
+          </div>
+          <div>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">TP2</span>
+            <span className="text-lg font-black font-mono text-emerald-400">{summaryStats.tp2}</span>
+          </div>
+          <div>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">TP3</span>
+            <span className="text-lg font-black font-mono text-emerald-400">{summaryStats.tp3}</span>
+          </div>
+          <div>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-rose-400/40 block">SL</span>
+            <span className="text-lg font-black font-mono text-rose-400">{summaryStats.sl}</span>
           </div>
         </div>
 

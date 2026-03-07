@@ -734,7 +734,7 @@ export default function OpportunitiesPage() {
                   </span>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-3">
+                <div className="flex flex-col gap-2">
                   {liveOpportunities.map((signal) => (
                     <OpportunityCard key={signal.id} signal={signal} />
                   ))}

@@ -297,15 +297,25 @@ const EVENT_CONFIG: Record<
 };
 
 function EventRow({ event }: { event: StatusEvent }) {
-  const config = EVENT_CONFIG[event.type] ?? {
-    icon: XCircle,
-    color: "text-muted-foreground",
-    bgColor: "bg-white/5",
-    label: event.type,
-  };
+  const pnlValue = event.totalBookedPnl ?? event.bookedPnl;
+  const isTrailingSL =
+    event.type === "SL_HIT" && pnlValue != null && pnlValue > 0;
+
+  const config = isTrailingSL
+    ? {
+        icon: ShieldOff,
+        color: "text-positive",
+        bgColor: "bg-positive/10",
+        label: "Trailing SL Hit",
+      }
+    : (EVENT_CONFIG[event.type] ?? {
+        icon: XCircle,
+        color: "text-muted-foreground",
+        bgColor: "bg-white/5",
+        label: event.type,
+      });
   const Icon = config.icon;
   const isBuy = event.side === "BUY";
-  const pnlValue = event.totalBookedPnl ?? event.bookedPnl;
   const tfName = TIMEFRAME_NAMES[event.timeframe] ?? event.timeframe;
   const leverage = getLeverage(event.timeframe);
 

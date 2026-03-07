@@ -27,7 +27,7 @@ import {
   Trophy,
   Flame,
 } from "lucide-react";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -483,11 +483,27 @@ export default function OpportunitiesPage() {
   const firestore = useFirestore();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
+  const FILTER_STORAGE_KEY = "tez-opp-filters";
+
   const [filterTimeframe, setFilterTimeframe] = useState("all");
   const [filterSide, setFilterSide] = useState("all");
   const [filterPerf, setFilterPerf] = useState("all");
-
   const [filterAlgo, setFilterAlgo] = useState("all");
+  const [filtersLoaded, setFiltersLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(FILTER_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.timeframe) setFilterTimeframe(parsed.timeframe);
+        if (parsed.side) setFilterSide(parsed.side);
+        if (parsed.perf) setFilterPerf(parsed.perf);
+        if (parsed.algo) setFilterAlgo(parsed.algo);
+      }
+    } catch {}
+    setFiltersLoaded(true);
+  }, []);
 
   const [draftTimeframe, setDraftTimeframe] = useState("all");
   const [draftSide, setDraftSide] = useState("all");
@@ -516,6 +532,17 @@ export default function OpportunitiesPage() {
     setFilterPerf(draftPerf);
     setFilterAlgo(draftAlgo);
     setFilterOpen(false);
+    try {
+      localStorage.setItem(
+        FILTER_STORAGE_KEY,
+        JSON.stringify({
+          timeframe: draftTimeframe,
+          side: draftSide,
+          perf: draftPerf,
+          algo: draftAlgo,
+        })
+      );
+    } catch {}
   }, [draftTimeframe, draftSide, draftPerf, draftAlgo]);
 
   const handleClearFilters = useCallback(() => {

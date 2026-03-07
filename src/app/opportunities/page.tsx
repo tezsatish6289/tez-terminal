@@ -127,6 +127,7 @@ interface StatusEvent {
   guidance: string;
   entryPrice: number;
   price: number;
+  algo: string;
 }
 
 function FilterChip({
@@ -369,6 +370,12 @@ function EventRow({ event }: { event: StatusEvent }) {
             </span>
             <span className="text-white/15">·</span>
             <span className="text-[11px] text-muted-foreground/60">{tfName}</span>
+            {event.algo && (
+              <>
+                <span className="text-white/15">·</span>
+                <span className="text-[11px] text-muted-foreground/50">{event.algo}</span>
+              </>
+            )}
           </div>
           <p className="text-[11px] text-muted-foreground/50 mt-1 leading-relaxed">
             {event.guidance}
@@ -593,6 +600,12 @@ export default function OpportunitiesPage() {
     });
   }, [processedSignals, filterTimeframe, filterSide, filterAlgo, filterPerf]);
 
+  const signalAlgoMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    processedSignals.forEach((s) => { map[s.id] = s.algo; });
+    return map;
+  }, [processedSignals]);
+
   const allEvents: StatusEvent[] = useMemo(() => {
     if (!rawEvents) return [];
     return rawEvents.map((e: any) => ({
@@ -608,8 +621,9 @@ export default function OpportunitiesPage() {
       guidance: e.guidance || "",
       entryPrice: e.entryPrice || 0,
       price: e.price || 0,
+      algo: signalAlgoMap[e.signalId] || "",
     }));
-  }, [rawEvents]);
+  }, [rawEvents, signalAlgoMap]);
 
   const liveOpportunities = useMemo(() => {
     return filteredSignals.filter(

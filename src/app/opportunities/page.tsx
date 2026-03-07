@@ -29,9 +29,13 @@ import {
 } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
 import { toast } from "@/hooks/use-toast";
-import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { getLeverage } from "@/lib/leverage";
 import { getEffectivePnl } from "@/lib/pnl";
 
@@ -471,7 +475,11 @@ export default function OpportunitiesPage() {
   const [filterTimeframe, setFilterTimeframe] = useState("all");
   const [filterSide, setFilterSide] = useState("all");
   const [filterPerf, setFilterPerf] = useState("all");
-  const [showFilters, setShowFilters] = useState(false);
+
+  const activeFilterCount = [filterTimeframe, filterSide, filterPerf].filter(
+    (v) => v !== "all"
+  ).length;
+  const hasActiveFilters = activeFilterCount > 0;
 
   const signalsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -620,86 +628,107 @@ export default function OpportunitiesPage() {
 
           {/* Left pane: Opportunities (~50%) */}
           <div className="flex-[5] flex flex-col min-w-0 rounded-xl border border-white/[0.08] bg-[#111113] overflow-hidden">
-            {/* Header + filters */}
-            <div className="px-4 pt-3.5 pb-3 border-b border-white/[0.06]">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-accent" />
-                  <h2 className="text-sm font-black tracking-tight uppercase">
-                    Live Opportunities
-                  </h2>
-                  {!isLoading && (
-                    <div className="flex items-center gap-2 ml-1">
-                      <span className="text-[10px] font-bold text-muted-foreground/50">
-                        {activeCount} active
-                      </span>
-                      <span className="text-white/10">·</span>
-                      <span className="text-[10px] font-bold text-positive/60">
-                        {winningCount} winning
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={() => setShowFilters((v) => !v)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer sm:hidden",
-                    showFilters
-                      ? "bg-accent/20 border-accent/40 text-accent"
-                      : "bg-white/[0.04] border-white/10 text-muted-foreground"
-                  )}
-                >
-                  <SlidersHorizontal className="w-3 h-3" />
-                  Filters
-                </button>
-              </div>
-
-              <div
-                className={cn(
-                  "flex flex-wrap gap-x-5 gap-y-2 mt-3",
-                  !showFilters && "hidden sm:flex"
+            {/* Header */}
+            <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-accent" />
+                <h2 className="text-sm font-black tracking-tight uppercase">
+                  Live Opportunities
+                </h2>
+                {!isLoading && (
+                  <div className="flex items-center gap-2 ml-1">
+                    <span className="text-[10px] font-bold text-muted-foreground/50">
+                      {activeCount} active
+                    </span>
+                    <span className="text-white/10">·</span>
+                    <span className="text-[10px] font-bold text-positive/60">
+                      {winningCount} winning
+                    </span>
+                  </div>
                 )}
-              >
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest mr-1">
-                    Timeframe
-                  </span>
-                  {TIMEFRAME_OPTIONS.map((opt) => (
-                    <FilterChip
-                      key={opt.id}
-                      label={opt.label}
-                      active={filterTimeframe === opt.id}
-                      onClick={() => setFilterTimeframe(opt.id)}
-                    />
-                  ))}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest mr-1">
-                    Side
-                  </span>
-                  {SIDE_OPTIONS.map((opt) => (
-                    <FilterChip
-                      key={opt.id}
-                      label={opt.label}
-                      active={filterSide === opt.id}
-                      onClick={() => setFilterSide(opt.id)}
-                    />
-                  ))}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest mr-1">
-                    Performance
-                  </span>
-                  {PERF_OPTIONS.map((opt) => (
-                    <FilterChip
-                      key={opt.id}
-                      label={opt.label}
-                      active={filterPerf === opt.id}
-                      onClick={() => setFilterPerf(opt.id)}
-                    />
-                  ))}
-                </div>
               </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer",
+                      hasActiveFilters
+                        ? "bg-accent/20 border-accent/40 text-accent"
+                        : "bg-white/[0.04] border-white/10 text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
+                    )}
+                  >
+                    <SlidersHorizontal className="w-3 h-3" />
+                    {hasActiveFilters ? `${activeFilterCount}` : "Filter"}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="end"
+                  className="w-64 bg-card border-white/10 shadow-2xl p-0"
+                >
+                  <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-wider">Filters</span>
+                    {hasActiveFilters && (
+                      <button
+                        onClick={() => {
+                          setFilterTimeframe("all");
+                          setFilterSide("all");
+                          setFilterPerf("all");
+                        }}
+                        className="text-[10px] font-bold text-accent hover:text-accent/80 cursor-pointer"
+                      >
+                        Clear all
+                      </button>
+                    )}
+                  </div>
+                  <div className="p-4 space-y-4">
+                    <div className="space-y-2">
+                      <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-widest">
+                        Timeframe
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {TIMEFRAME_OPTIONS.map((opt) => (
+                          <FilterChip
+                            key={opt.id}
+                            label={opt.label}
+                            active={filterTimeframe === opt.id}
+                            onClick={() => setFilterTimeframe(opt.id)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-widest">
+                        Side
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {SIDE_OPTIONS.map((opt) => (
+                          <FilterChip
+                            key={opt.id}
+                            label={opt.label}
+                            active={filterSide === opt.id}
+                            onClick={() => setFilterSide(opt.id)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-widest">
+                        Performance
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {PERF_OPTIONS.map((opt) => (
+                          <FilterChip
+                            key={opt.id}
+                            label={opt.label}
+                            active={filterPerf === opt.id}
+                            onClick={() => setFilterPerf(opt.id)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div className="flex-1 overflow-y-auto p-3">

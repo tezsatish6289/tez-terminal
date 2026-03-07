@@ -149,7 +149,7 @@ function TradeAuditContent() {
     const tp1 = filtered.filter((s: any) => s.tp1Hit === true).length;
     const tp2 = filtered.filter((s: any) => s.tp2Hit === true).length;
     const tp3 = filtered.filter((s: any) => s.tp3Hit === true).length;
-    const sl = filtered.filter((s: any) => s.slHitAt != null).length;
+    const sl = filtered.filter((s: any) => s.slHitAt != null && !s.tp1Hit).length;
 
     return {
       total, wins, winRate: total > 0 ? (wins / total) * 100 : 0, netPnl,

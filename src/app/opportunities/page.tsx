@@ -110,6 +110,7 @@ interface ProcessedSignal {
   tp2Hit: boolean;
   tp3Hit: boolean;
   slHitAt: string | null;
+  closedAt: string | null;
   totalBookedPnl: number | null;
   stopLoss: number | null;
 }
@@ -466,10 +467,18 @@ function WinnerRow({
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-1 mt-1.5">
+          <div className="flex items-center justify-between mt-1.5">
             <span className="text-[11px] text-muted-foreground/50 font-mono">
               ${formatPrice(signal.price)} → ${formatPrice(signal.currentPrice)}
             </span>
+            <div className="flex items-center gap-1">
+              <Clock className="w-3 h-3 text-muted-foreground/40" />
+              <span className="text-[10px] text-muted-foreground/40">
+                {isClosed && signal.closedAt
+                  ? `Closed ${formatTimeAgo(signal.closedAt)}`
+                  : `Called ${formatTimeAgo(signal.receivedAt)}`}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -602,6 +611,7 @@ export default function OpportunitiesPage() {
           tp2Hit: signal.tp2Hit ?? false,
           tp3Hit: signal.tp3Hit ?? false,
           slHitAt: signal.slHitAt ?? null,
+          closedAt: signal.slHitAt ?? signal.tp3HitAt ?? null,
           totalBookedPnl: signal.totalBookedPnl ?? null,
           stopLoss: signal.stopLoss ?? null,
         };

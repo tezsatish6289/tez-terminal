@@ -26,6 +26,7 @@ import {
   SlidersHorizontal,
   Trophy,
   Flame,
+  Sparkles,
 } from "lucide-react";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
@@ -38,6 +39,11 @@ import {
 } from "@/components/ui/popover";
 import { getLeverage } from "@/lib/leverage";
 import { getEffectivePnl } from "@/lib/pnl";
+import {
+  computeAutoFilter,
+  AUTO_FILTER_THRESHOLD,
+  type ScoredSignal,
+} from "@/lib/auto-filter";
 
 const TIMEFRAME_OPTIONS = [
   { id: "all", label: "All" },
@@ -113,6 +119,14 @@ interface ProcessedSignal {
   closedAt: string | null;
   totalBookedPnl: number | null;
   stopLoss: number | null;
+  tp1: number | null;
+  tp2: number | null;
+  tp3: number | null;
+  maxUpsidePrice: number | null;
+  maxDrawdownPrice: number | null;
+  originalStopLoss: number | null;
+  sentimentAtEntry: string;
+  aligned: boolean;
 }
 
 interface StatusEvent {
@@ -155,7 +169,13 @@ function FilterChip({
   );
 }
 
-function OpportunityCard({ signal }: { signal: ProcessedSignal }) {
+function OpportunityCard({
+  signal,
+  score,
+}: {
+  signal: ProcessedSignal;
+  score?: ScoredSignal;
+}) {
   const isBuy = signal.type === "BUY";
   const isWinning = signal.pnl > 0.05;
   const isLosing = signal.pnl < -0.05;
@@ -189,9 +209,27 @@ function OpportunityCard({ signal }: { signal: ProcessedSignal }) {
             )}
           </div>
           <div className="min-w-0">
-            <span className="text-[13px] font-black uppercase tracking-tight text-foreground truncate block">
-              {signal.symbol}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[13px] font-black uppercase tracking-tight text-foreground truncate">
+                {signal.symbol}
+              </span>
+              {score && (
+                <span
+                  className={cn(
+                    "text-[10px] font-black px-1.5 py-0.5 rounded-full border tabular-nums",
+                    score.score >= 80
+                      ? "bg-positive/15 border-positive/30 text-positive"
+                      : score.score >= 65
+                        ? "bg-accent/15 border-accent/30 text-accent"
+                        : score.score >= 50
+                          ? "bg-amber-400/15 border-amber-400/30 text-amber-400"
+                          : "bg-orange-400/15 border-orange-400/30 text-orange-400"
+                  )}
+                >
+                  {score.score}
+                </span>
+              )}
+            </div>
             <span
               className={cn(
                 "text-[11px] font-bold uppercase tracking-wide",
@@ -498,6 +536,7 @@ export default function OpportunitiesPage() {
   const [filterSide, setFilterSide] = useState("all");
   const [filterPerf, setFilterPerf] = useState("all");
   const [filterAlgo, setFilterAlgo] = useState("all");
+  const [autoFilter, setAutoFilter] = useState(false);
   const [filtersLoaded, setFiltersLoaded] = useState(false);
 
   useEffect(() => {
@@ -614,6 +653,14 @@ export default function OpportunitiesPage() {
           closedAt: signal.slHitAt ?? signal.tp3HitAt ?? null,
           totalBookedPnl: signal.totalBookedPnl ?? null,
           stopLoss: signal.stopLoss ?? null,
+          tp1: signal.tp1 != null ? Number(signal.tp1) : null,
+          tp2: signal.tp2 != null ? Number(signal.tp2) : null,
+          tp3: signal.tp3 != null ? Number(signal.tp3) : null,
+          maxUpsidePrice: signal.maxUpsidePrice != null ? Number(signal.maxUpsidePrice) : null,
+          maxDrawdownPrice: signal.maxDrawdownPrice != null ? Number(signal.maxDrawdownPrice) : null,
+          originalStopLoss: signal.originalStopLoss != null ? Number(signal.originalStopLoss) : null,
+          sentimentAtEntry: signal.sentimentAtEntry ?? "",
+          aligned: signal.aligned ?? false,
         };
       });
   }, [rawSignals]);
@@ -661,8 +708,12 @@ export default function OpportunitiesPage() {
     }));
   }, [rawEvents, signalAlgoMap]);
 
+  const signalScores = useMemo(() => {
+    return computeAutoFilter(processedSignals);
+  }, [processedSignals]);
+
   const liveOpportunities = useMemo(() => {
-    return filteredSignals.filter(
+    let filtered = (autoFilter ? processedSignals : filteredSignals).filter(
       (s) =>
         s.status !== "INACTIVE" &&
         !s.tp1Hit &&
@@ -670,7 +721,22 @@ export default function OpportunitiesPage() {
         !s.tp3Hit &&
         !s.slHitAt
     );
-  }, [filteredSignals]);
+
+    if (autoFilter) {
+      filtered = filtered
+        .filter(
+          (s) =>
+            (signalScores.get(s.id)?.score ?? 0) >= AUTO_FILTER_THRESHOLD,
+        )
+        .sort(
+          (a, b) =>
+            (signalScores.get(b.id)?.score ?? 0) -
+            (signalScores.get(a.id)?.score ?? 0),
+        );
+    }
+
+    return filtered;
+  }, [processedSignals, filteredSignals, autoFilter, signalScores]);
 
   const activeCount = liveOpportunities.length;
   const winningCount = liveOpportunities.filter((s) => s.pnl > 0.05).length;
@@ -727,9 +793,13 @@ export default function OpportunitiesPage() {
             <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-accent" />
+                  {autoFilter ? (
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                  ) : (
+                    <TrendingUp className="w-4 h-4 text-accent" />
+                  )}
                   <h2 className="text-sm font-black tracking-tight uppercase">
-                    Live Opportunities
+                    {autoFilter ? "AI-Filtered" : "Live Opportunities"}
                   </h2>
                   {!isLoading && (
                     <div className="flex items-center gap-2 ml-1">
@@ -744,17 +814,34 @@ export default function OpportunitiesPage() {
                   )}
                 </div>
                 <p className="text-[11px] text-muted-foreground/50 mt-1 pl-6">
-                  Use filters to find trades suiting your style
+                  {autoFilter
+                    ? "Showing highest probability trades"
+                    : "Use filters to find trades suiting your style"}
                 </p>
               </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setAutoFilter((v) => !v)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer",
+                    autoFilter
+                      ? "bg-amber-400/20 border-amber-400/40 text-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.15)]"
+                      : "bg-white/[0.04] border-white/10 text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
+                  )}
+                >
+                  <Sparkles className="w-3 h-3" />
+                  Auto
+                </button>
               <Popover open={filterOpen} onOpenChange={handleFilterOpen}>
                 <PopoverTrigger asChild>
                   <button
                     className={cn(
                       "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer",
-                      hasActiveFilters
-                        ? "bg-accent/20 border-accent/40 text-accent"
-                        : "bg-white/[0.04] border-white/10 text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
+                      autoFilter
+                        ? "opacity-40 pointer-events-none"
+                        : hasActiveFilters
+                          ? "bg-accent/20 border-accent/40 text-accent"
+                          : "bg-white/[0.04] border-white/10 text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
                     )}
                   >
                     <SlidersHorizontal className="w-3 h-3" />
@@ -855,6 +942,7 @@ export default function OpportunitiesPage() {
                   </div>
                 </PopoverContent>
               </Popover>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-3">
@@ -864,15 +952,33 @@ export default function OpportunitiesPage() {
                 </div>
               ) : liveOpportunities.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/30">
-                  <Zap className="w-6 h-6 mb-2" />
-                  <span className="text-xs font-bold">
-                    No open opportunities match your filters
-                  </span>
+                  {autoFilter ? (
+                    <>
+                      <Sparkles className="w-6 h-6 mb-2 text-amber-400/30" />
+                      <span className="text-xs font-bold">
+                        No high-confidence signals right now
+                      </span>
+                      <span className="text-[10px] mt-1 text-muted-foreground/20">
+                        Auto-filter shows only signals scoring {AUTO_FILTER_THRESHOLD}+
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-6 h-6 mb-2" />
+                      <span className="text-xs font-bold">
+                        No open opportunities match your filters
+                      </span>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
                   {liveOpportunities.map((signal) => (
-                    <OpportunityCard key={signal.id} signal={signal} />
+                    <OpportunityCard
+                      key={signal.id}
+                      signal={signal}
+                      score={autoFilter ? signalScores.get(signal.id) : undefined}
+                    />
                   ))}
                 </div>
               )}

@@ -23,6 +23,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Sentiment signals from external indicators
+    match /sentiment_signals/{document=**} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if isAdmin();
+    }
+
     // App Configuration (sentiment K value, thresholds, etc.)
     match /config/{docId} {
       allow read: if true;

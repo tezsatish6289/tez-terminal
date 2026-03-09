@@ -127,17 +127,17 @@ export default function DeepDiveChartPage() {
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
       <TopBar />
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex gap-4 p-4 overflow-hidden">
         {/* Left: Signal Card */}
-        <div ref={leftPanelRef} className="w-[380px] shrink-0 border-r border-white/5 bg-background flex flex-col overflow-y-auto">
-          <div className="p-4 pt-2">
-            <Button variant="ghost" size="sm" onClick={() => router.push("/")} className="text-muted-foreground hover:text-foreground gap-1 -ml-2 mb-2">
+        <div ref={leftPanelRef} className="w-[380px] shrink-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 flex flex-col overflow-y-auto">
+          <div className="p-4 pt-3">
+            <Button variant="ghost" size="sm" onClick={() => router.push("/")} className="text-muted-foreground hover:text-foreground gap-1 -ml-2 mb-3">
               <ChevronLeft className="h-4 w-4" /> Back
             </Button>
 
-            <div className="bg-gradient-to-b from-[#141416] to-[#101012] rounded-2xl border border-white/5 shadow-2xl shadow-accent/5 flex flex-col">
+            <div className="bg-gradient-to-b from-white/[0.03] to-transparent rounded-xl border border-white/[0.06] flex flex-col">
               {/* Header strip */}
-              <div className="px-6 py-4 border-b border-white/5">
+              <div className="px-6 py-4 border-b border-white/[0.06]">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <h3 className="text-2xl font-black text-foreground leading-none tracking-tighter uppercase">{signal?.symbol}</h3>
@@ -154,7 +154,7 @@ export default function DeepDiveChartPage() {
                         </button>
                       </PopoverTrigger>
                       <PopoverContent side="bottom" align="end" className="w-[340px] p-0 bg-[#141416] border-white/10 shadow-2xl shadow-black/50">
-                        <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+                        <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
                           <span className="text-[10px] font-black uppercase tracking-widest text-accent">Strategy Guide</span>
                         </div>
                         <div className="p-4 space-y-3">
@@ -198,7 +198,7 @@ export default function DeepDiveChartPage() {
                               </div>
                             </div>
                           ))}
-                          <div className="mt-2 pt-3 border-t border-white/5">
+                          <div className="mt-2 pt-3 border-t border-white/[0.06]">
                             <div className="flex items-center gap-2 mb-1.5">
                               <ArrowRightLeft className="h-3 w-3 text-accent/60" />
                               <span className="text-[10px] font-bold text-foreground/70">Position Split: 50 / 25 / 25</span>
@@ -216,13 +216,13 @@ export default function DeepDiveChartPage() {
               </div>
 
               {/* Time strip */}
-              <div className="px-6 py-2.5 bg-black/40 flex items-center justify-between border-b border-white/5 text-[10px] font-black text-muted-foreground/50 uppercase tracking-wider">
+              <div className="px-6 py-2.5 bg-black/30 flex items-center justify-between border-b border-white/[0.06] text-[10px] font-black text-muted-foreground/50 uppercase tracking-wider">
                 <div className="flex items-center gap-1.5"><Clock className="h-3 w-3" /> {mounted ? format(new Date(signal?.receivedAt), 'HH:mm') : "--"}</div>
                 <div className="flex items-center gap-1.5"><Timer className="h-3 w-3 text-accent/60" /> {mounted ? getRunningSince(signal?.receivedAt) : "--"}</div>
               </div>
 
               {/* Hero PnL */}
-              <div className="px-6 py-5 text-center border-b border-white/5">
+              <div className="px-6 py-5 text-center border-b border-white/[0.06]">
                 <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40 block mb-1">{pnlLabel} · {leverage}x Leverage</span>
                 <span className={cn("text-4xl font-black font-mono", Number(leveragedPnl) >= 0 ? "text-positive" : "text-negative")}>
                   {Number(leveragedPnl) >= 0 ? "+" : ""}{leveragedPnl}%
@@ -253,7 +253,7 @@ export default function DeepDiveChartPage() {
                         { label: "TP2", price: signal?.tp2, hit: signal?.tp2Hit, pnl: signal?.tp2BookedPnl, frac: "25%" },
                         { label: "TP3", price: signal?.tp3, hit: signal?.tp3Hit, pnl: signal?.tp3BookedPnl, frac: "25%" },
                       ] as const).map((tp) => (
-                        <div key={tp.label} className={cn("px-2 py-2 rounded-lg border", tp.hit ? "border-positive/20 bg-positive/5" : "border-white/5 bg-white/[0.02]")}>
+                        <div key={tp.label} className={cn("px-2 py-2 rounded-lg border shadow-sm shadow-black/10", tp.hit ? "border-positive/20 bg-positive/5" : "border-white/[0.06] bg-white/[0.02]")}>
                           <div className="flex items-center justify-between">
                             <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">{tp.label}</span>
                             <span className="text-[8px] text-muted-foreground/30 font-bold">{tp.frac}</span>
@@ -278,14 +278,14 @@ export default function DeepDiveChartPage() {
                 {/* Excursion bars */}
                 <div className="space-y-2">
                   <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30 block">Excursion</span>
-                  <div className="flex items-center gap-3 px-3 py-2 rounded-lg border border-positive/10 shadow-inner shadow-black/20">
+                  <div className="flex items-center gap-3 px-3 py-2 rounded-lg border border-positive/10 shadow-sm shadow-black/10">
                     <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50 w-[70px] shrink-0">Max Up</span>
                     <div className="flex-1 h-1.5 rounded-full bg-white/[0.04] overflow-hidden">
                       <div className="h-full rounded-full bg-positive/40 transition-all duration-500" style={{ width: `${Math.min(Math.max(Number(maxUpPnl), 0), 100)}%` }} />
                     </div>
                     <span className="text-sm font-black font-mono text-positive shrink-0">+{maxUpPnl}%</span>
                   </div>
-                  <div className="flex items-center gap-3 px-3 py-2 rounded-lg border border-negative/10 shadow-inner shadow-black/20">
+                  <div className="flex items-center gap-3 px-3 py-2 rounded-lg border border-negative/10 shadow-sm shadow-black/10">
                     <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50 w-[70px] shrink-0">Max Down</span>
                     <div className="flex-1 h-1.5 rounded-full bg-white/[0.04] overflow-hidden">
                       <div className="h-full rounded-full bg-negative/40 transition-all duration-500" style={{ width: `${Math.min(Math.abs(Number(maxDownPnl)), 100)}%` }} />
@@ -296,7 +296,7 @@ export default function DeepDiveChartPage() {
 
                 {/* Stop Loss */}
                 {hasStopLoss && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/5 shadow-inner shadow-black/20">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.06] shadow-sm shadow-black/10">
                     <Shield className="h-3.5 w-3.5 text-amber-400" />
                     <span className="text-[9px] uppercase font-bold text-muted-foreground/50 tracking-wider">Stop Loss</span>
                     <span className="ml-auto font-mono text-sm font-bold text-foreground/80">${formatPrice(signal?.stopLoss)}</span>
@@ -304,7 +304,7 @@ export default function DeepDiveChartPage() {
                 )}
 
                 {/* Algo */}
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/5 shadow-inner shadow-black/20">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.06] shadow-sm shadow-black/10">
                   <Info className="h-3.5 w-3.5 text-accent/60" />
                   <span className="text-[9px] uppercase font-bold text-muted-foreground/50 tracking-wider">Algo</span>
                   <span className="ml-auto text-sm font-bold text-foreground/80 uppercase tracking-wide">{signal?.algo || "V8 Reversal"}</span>
@@ -312,7 +312,7 @@ export default function DeepDiveChartPage() {
               </div>
 
               {/* Exchange links inside card footer */}
-              <div className="px-5 py-4 border-t border-white/5 space-y-2.5">
+              <div className="px-5 py-4 border-t border-white/[0.06] space-y-2.5">
                 <span className="text-[9px] font-black text-muted-foreground/30 uppercase tracking-widest block text-center">Trade on</span>
                 <div className="flex gap-2">
                   {tradeLinks.map((exchange) => (
@@ -335,18 +335,18 @@ export default function DeepDiveChartPage() {
         </div>
 
         {/* Right: Chart(s) + controls */}
-        <div className="flex-1 bg-background flex flex-col overflow-hidden">
+        <div className="flex-1 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 flex flex-col overflow-hidden">
           <div className="flex-1 min-h-0 flex flex-col" style={leftHeight ? { maxHeight: `${leftHeight}px` } : undefined}>
             <div className={cn("min-h-0", showBtc ? "h-1/2" : "flex-1")}>
               <ChartPane symbol={signal?.symbol} interval={signal?.timeframe} exchange={signal?.exchange} />
             </div>
             {showBtc && (
-              <div className="h-1/2 min-h-0 border-t border-white/10">
+              <div className="h-1/2 min-h-0 border-t border-white/[0.06]">
                 <ChartPane symbol="BTCUSDT.P" interval={signal?.timeframe} exchange={signal?.exchange} />
               </div>
             )}
           </div>
-          <div className="px-4 py-2.5 border-t border-white/5 flex items-center justify-between gap-3">
+          <div className="px-4 py-2.5 border-t border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent flex items-center justify-between gap-3">
             <button
               onClick={() => setShowBtc(!showBtc)}
               className={cn(

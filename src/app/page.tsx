@@ -449,37 +449,39 @@ function WinnerCard({
       href={`/chart/${signal.id}`}
       target="_blank"
       rel="noopener noreferrer"
-      className="group block rounded-lg border border-amber-400/10 bg-amber-400/[0.02] px-3.5 py-2.5 transition-all hover:border-amber-400/25 hover:bg-amber-400/[0.05]"
+      className="group flex items-center gap-3 rounded-lg border border-amber-400/10 bg-amber-400/[0.02] px-3 py-2.5 transition-all hover:border-amber-400/25 hover:bg-amber-400/[0.05]"
     >
-      <div className="flex items-center justify-between">
-        <span className="text-[13px] font-black uppercase tracking-tight text-foreground truncate">
-          {signal.symbol}
-        </span>
-        <span className="text-base leading-none">
-          {rank <= 3 ? RANK_MEDALS[rank - 1] : (
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-black bg-white/5 text-muted-foreground/40">
-              {rank}
-            </span>
-          )}
-        </span>
-      </div>
-      <div className="flex items-center gap-2 mt-1">
-        {isBuy ? (
-          <ArrowUpRight className="w-3 h-3 text-positive" />
-        ) : (
-          <ArrowDownRight className="w-3 h-3 text-negative" />
+      <span className="text-lg leading-none shrink-0">
+        {rank <= 3 ? RANK_MEDALS[rank - 1] : (
+          <span className="inline-flex items-center justify-center w-6 h-6 rounded text-[10px] font-black bg-white/5 text-muted-foreground/40">
+            {rank}
+          </span>
         )}
-        <span className={cn("text-[11px] font-black uppercase", isBuy ? "text-positive" : "text-negative")}>
-          {isBuy ? "Long" : "Short"}
-        </span>
-        <span className="text-white/10">·</span>
-        <span className="text-[11px] font-bold text-accent/60">{signal.leverage}x</span>
-        <span className="text-white/10">·</span>
-        <span className="text-[11px] font-bold text-muted-foreground/50 uppercase">{signal.timeframeName}</span>
-      </div>
-      <span className="text-lg font-black font-mono tabular-nums text-positive leading-none mt-2 block">
-        +{signal.leveragedPnl.toFixed(2)}%
       </span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between">
+          <span className="text-[13px] font-black uppercase tracking-tight text-foreground truncate">
+            {signal.symbol}
+          </span>
+          <span className="text-sm font-black font-mono tabular-nums text-positive shrink-0">
+            +{signal.leveragedPnl.toFixed(2)}%
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          {isBuy ? (
+            <ArrowUpRight className="w-3 h-3 text-positive" />
+          ) : (
+            <ArrowDownRight className="w-3 h-3 text-negative" />
+          )}
+          <span className={cn("text-[10px] font-black uppercase", isBuy ? "text-positive" : "text-negative")}>
+            {isBuy ? "Long" : "Short"}
+          </span>
+          <span className="text-white/10">·</span>
+          <span className="text-[10px] font-bold text-accent/60">{signal.leverage}x</span>
+          <span className="text-white/10">·</span>
+          <span className="text-[10px] font-bold text-muted-foreground/50 uppercase">{signal.timeframeName}</span>
+        </div>
+      </div>
     </Link>
   );
 }

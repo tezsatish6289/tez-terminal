@@ -83,6 +83,22 @@ export function calcBookedPnl(
 }
 
 /**
+ * Validate that TP levels are directionally consistent with the signal type.
+ * BUY: tp1 > entry, tp2 > tp1 (ascending targets above entry)
+ * SELL: tp1 < entry, tp2 < tp1 (descending targets below entry)
+ */
+export function areTpsValid(
+  type: string,
+  entryPrice: number,
+  tp1: number,
+  tp2: number
+): boolean {
+  if (!entryPrice || !tp1 || !tp2) return false;
+  if (type === "BUY") return tp1 > entryPrice && tp2 > tp1;
+  return tp1 < entryPrice && tp2 < tp1;
+}
+
+/**
  * Derive TP3 from TP1 and TP2 (uniform ATR spacing).
  */
 export function deriveTp3(tp1: number, tp2: number): number {

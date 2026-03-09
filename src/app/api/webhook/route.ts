@@ -4,7 +4,7 @@ import { after } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { computeSentiment, type SignalForSentiment } from "@/lib/sentiment";
-import { deriveTp3 } from "@/lib/pnl";
+import { deriveTp3, areTpsValid } from "@/lib/pnl";
 
 import {
   computeAutoFilter,
@@ -91,6 +91,21 @@ export async function POST(request: NextRequest) {
     const timeframe = tfMap[rawTf] || rawTf;
 
     const algo = String(body.algo || "V8 Reversal").trim();
+
+    if (signalType !== "NEUTRAL" && price > 0 && tp1 != null && tp2 != null) {
+      if (!areTpsValid(signalType, price, tp1, tp2)) {
+        await db.collection("logs").add({
+          timestamp, level: "ERROR",
+          message: "TP direction mismatch at ingestion — signal rejected",
+          details: `symbol=${symbol} type=${signalType} price=${price} tp1=${tp1} tp2=${tp2} sl=${stopLoss} body=${rawBody}`,
+          webhookId,
+        });
+        return NextResponse.json(
+          { success: false, message: `TP direction invalid: ${signalType} signal but TPs are on the wrong side of entry price.` },
+          { status: 400 }
+        );
+      }
+    }
 
     const signalData: Record<string, any> = {
       webhookId,

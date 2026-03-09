@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
-import { rawPnlPercent, calcBookedPnl, deriveTp3 } from "@/lib/pnl";
+import { rawPnlPercent, calcBookedPnl, deriveTp3, areTpsValid } from "@/lib/pnl";
 import type { SignalEvent } from "@/lib/telegram";
 import {
   computeAutoFilter,
@@ -113,7 +113,18 @@ export async function GET(request: NextRequest) {
       const nowISO = new Date().toISOString();
       let newStatus = "ACTIVE";
 
-      if (aiApproved && tp1 != null && tp2 != null && tp3 != null) {
+      const tpsValid = tp1 != null && tp2 != null ? areTpsValid(signal.type, alertPrice, tp1, tp2) : true;
+
+      if (!tpsValid && signal.status === "ACTIVE") {
+        await db.collection("logs").add({
+          timestamp: nowISO, level: "ERROR",
+          message: "TP direction mismatch — skipping TP/SL processing",
+          details: `signalId=${signalDoc.id} symbol=${signal.symbol} type=${signal.type} entry=${alertPrice} tp1=${tp1} tp2=${tp2}`,
+          webhookId: "SYSTEM_CRON",
+        });
+      }
+
+      if (aiApproved && tpsValid && tp1 != null && tp2 != null && tp3 != null) {
         const tp1AlreadyHit = signal.tp1Hit === true;
         const tp2AlreadyHit = signal.tp2Hit === true;
         const tp3AlreadyHit = signal.tp3Hit === true;

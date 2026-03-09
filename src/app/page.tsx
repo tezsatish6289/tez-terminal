@@ -413,14 +413,20 @@ function EventRow({ event }: { event: StatusEvent }) {
             <span className="text-white/15">·</span>
             <span className="text-[11px] text-muted-foreground/60">{tfName}</span>
           </div>
-          {event.algo && (
-            <p className="text-[10px] text-muted-foreground/40 mt-0.5 uppercase tracking-wider">
-              {event.algo}
+          {event.guidance && (
+            <p
+              className={cn(
+                "text-[12px] mt-1.5 leading-relaxed font-medium",
+                event.type === "TP1_HIT" || event.type === "TP2_HIT" || event.type === "TP3_HIT" || isTrailingSL
+                  ? "text-foreground/80"
+                  : event.type === "SL_HIT"
+                    ? "text-negative/70"
+                    : "text-muted-foreground/40"
+              )}
+            >
+              {event.guidance}
             </p>
           )}
-          <p className="text-[11px] text-muted-foreground/50 mt-1 leading-relaxed">
-            {event.guidance}
-          </p>
           <div className="flex items-center gap-1 mt-1.5">
             <Clock className="w-3 h-3 text-muted-foreground/40" />
             <span className="text-[11px] text-muted-foreground/40">

@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
               type: "TP1_HIT", signalId: signalDoc.id, symbol: signal.symbol,
               side: signal.type, timeframe: signal.timeframe || "15", assetType: signal.assetType || "CRYPTO",
               entryPrice: alertPrice, price: tp1, tp1, tp2, tp3,
-              bookedPnl: updateData.tp1BookedPnl, guidance: "Book 50% profit. SL moved to cost.",
+              bookedPnl: updateData.tp1BookedPnl, guidance: "Book 50% profit. Move SL to cost.",
             });
           }
         }
@@ -148,7 +148,7 @@ export async function GET(request: NextRequest) {
               type: "TP2_HIT", signalId: signalDoc.id, symbol: signal.symbol,
               side: signal.type, timeframe: signal.timeframe || "15", assetType: signal.assetType || "CRYPTO",
               entryPrice: alertPrice, price: tp2, tp1, tp2, tp3,
-              bookedPnl: updateData.tp2BookedPnl, guidance: "Book 25% more. SL moved to TP1.",
+              bookedPnl: updateData.tp2BookedPnl, guidance: "Book 25% more. Move SL to TP1.",
             });
           }
         }
@@ -169,7 +169,7 @@ export async function GET(request: NextRequest) {
               type: "TP3_HIT", signalId: signalDoc.id, symbol: signal.symbol,
               side: signal.type, timeframe: signal.timeframe || "15", assetType: signal.assetType || "CRYPTO",
               entryPrice: alertPrice, price: tp3, tp1, tp2, tp3,
-              totalBookedPnl: updateData.totalBookedPnl, guidance: "All targets hit. Trade fully closed.",
+              totalBookedPnl: updateData.totalBookedPnl, guidance: "All targets hit. Book full profit.",
             });
           }
         }
@@ -203,11 +203,14 @@ export async function GET(request: NextRequest) {
                 updateData.totalBookedPnl = slLoss;
               }
               newStatus = "INACTIVE";
+              const slGuidance = (tp1IsHit || tp2IsHit)
+                ? "Trailing SL hit. Close trade in profit."
+                : "Stop loss hit. Close trade and protect capital.";
               signalEvents.push({
                 type: "SL_HIT", signalId: signalDoc.id, symbol: signal.symbol,
                 side: signal.type, timeframe: signal.timeframe || "15", assetType: signal.assetType || "CRYPTO",
                 entryPrice: alertPrice, price: currentPrice, tp1, tp2, tp3,
-                totalBookedPnl: updateData.totalBookedPnl, guidance: "Stop loss hit. Trade closed.",
+                totalBookedPnl: updateData.totalBookedPnl, guidance: slGuidance,
               });
             }
           }
@@ -224,7 +227,7 @@ export async function GET(request: NextRequest) {
               type: "SL_HIT", signalId: signalDoc.id, symbol: signal.symbol,
               side: signal.type, timeframe: signal.timeframe || "15", assetType: signal.assetType || "CRYPTO",
               entryPrice: alertPrice, price: currentPrice, stopLoss,
-              totalBookedPnl: updateData.totalBookedPnl, guidance: "Stop loss hit. Trade closed.",
+              totalBookedPnl: updateData.totalBookedPnl, guidance: "Stop loss hit. Close trade and protect capital.",
             });
           }
         }

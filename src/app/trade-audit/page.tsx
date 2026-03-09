@@ -106,6 +106,7 @@ function TradeAuditContent() {
   const filtered = useMemo(() => {
     if (!allSignals) return [];
     return allSignals.filter((s: any) => {
+      if (s.autoFilterPassed !== true) return false;
       if (statusFilter === "active" && s.status === "INACTIVE") return false;
       if (statusFilter === "retired" && s.status !== "INACTIVE") return false;
       if (sideFilter !== "all" && s.type !== sideFilter) return false;

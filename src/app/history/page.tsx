@@ -117,6 +117,7 @@ export default function HistoryPage() {
       for (const signalDoc of snap.docs) {
         const signal = signalDoc.data();
         if (signal.status !== "ACTIVE") continue;
+        if (signal.autoFilterPassed === false) continue;
         const base = (signal.symbol || "").split(':').pop() || "";
         const sym = base.replace(/\.P$|\.PERP$/i, '').toUpperCase();
         if (priceMap[sym]) {

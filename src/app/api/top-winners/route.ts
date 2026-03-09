@@ -70,7 +70,9 @@ export async function GET() {
     const allDocs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
 
     const cryptoSignals = allDocs.filter(
-      (s: any) => s.assetType === "CRYPTO" || s.asset_type === "CRYPTO"
+      (s: any) =>
+        (s.assetType === "CRYPTO" || s.asset_type === "CRYPTO") &&
+        s.autoFilterPassed === true
     );
 
     // Stats: total crypto signals + days since platform start

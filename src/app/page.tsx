@@ -433,6 +433,8 @@ function EventRow({ event }: { event: StatusEvent }) {
   );
 }
 
+const RANK_MEDALS = ["🥇", "🥈", "🥉"];
+
 function WinnerCard({
   signal,
   rank,
@@ -441,94 +443,43 @@ function WinnerCard({
   rank: number;
 }) {
   const isBuy = signal.type === "BUY";
-  const isClosed = signal.status === "INACTIVE";
-
-  const tpCount = [signal.tp1Hit, signal.tp2Hit, signal.tp3Hit].filter(
-    Boolean
-  ).length;
 
   return (
     <Link
       href={`/chart/${signal.id}`}
       target="_blank"
       rel="noopener noreferrer"
-      className="group block rounded-xl border border-amber-400/15 bg-gradient-to-b from-amber-400/[0.04] to-amber-400/[0.01] transition-all hover:translate-y-[-2px] hover:border-amber-400/30 hover:shadow-xl hover:shadow-amber-400/5"
+      className="group block rounded-lg border border-amber-400/10 bg-amber-400/[0.02] px-3.5 py-2.5 transition-all hover:border-amber-400/25 hover:bg-amber-400/[0.05]"
     >
-      <div className="px-3.5 pt-3 pb-1">
-        <div className="flex items-center justify-between">
-          <span className="text-[14px] font-black uppercase tracking-tight text-foreground">
-            {signal.symbol}
-          </span>
-          <div
-            className={cn(
-              "flex items-center justify-center w-6 h-6 rounded-md text-[11px] font-black",
-              rank <= 3
-                ? "bg-amber-400/15 text-amber-400"
-                : "bg-white/5 text-muted-foreground/50"
-            )}
-          >
-            {rank}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 mt-1">
-          <div className="flex items-center gap-1">
-            {isBuy ? (
-              <ArrowUpRight className="w-3.5 h-3.5 text-positive" />
-            ) : (
-              <ArrowDownRight className="w-3.5 h-3.5 text-negative" />
-            )}
-            <span
-              className={cn(
-                "text-[11px] font-black uppercase tracking-wide",
-                isBuy ? "text-positive" : "text-negative"
-              )}
-            >
-              {isBuy ? "Long" : "Short"}
-            </span>
-          </div>
-          <span className="text-white/10">·</span>
-          <span className="text-[11px] font-bold text-accent/60">
-            {signal.leverage}x
-          </span>
-          <span className="text-white/10">·</span>
-          <span className="text-[11px] font-bold text-muted-foreground/50 uppercase">
-            {signal.timeframeName}
-          </span>
-        </div>
-        <div className="flex items-center gap-1 mt-1.5 text-muted-foreground/35">
-          <Clock className="w-3 h-3" />
-          <span className="text-[10px]">
-            {isClosed && signal.closedAt
-              ? `Closed ${formatTimeAgo(signal.closedAt)}`
-              : formatTimeAgo(signal.receivedAt)}
-          </span>
-          {isClosed && (
-            <>
-              <span className="text-white/10">·</span>
-              <span className="text-[10px] font-bold text-muted-foreground/40">Closed</span>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="px-3.5 py-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xl font-black font-mono tabular-nums leading-none text-positive">
-            +{signal.leveragedPnl.toFixed(2)}%
-          </span>
-          {tpCount > 0 && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-positive/10 text-positive border border-positive/20">
-              {tpCount} TP{tpCount > 1 ? "s" : ""}
+      <div className="flex items-center justify-between">
+        <span className="text-[13px] font-black uppercase tracking-tight text-foreground truncate">
+          {signal.symbol}
+        </span>
+        <span className="text-base leading-none">
+          {rank <= 3 ? RANK_MEDALS[rank - 1] : (
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-black bg-white/5 text-muted-foreground/40">
+              {rank}
             </span>
           )}
-        </div>
-      </div>
-
-      <div className="px-3.5 pb-2.5 pt-1.5 border-t border-white/[0.04]">
-        <span className="text-[9px] font-bold text-muted-foreground/30 uppercase tracking-widest">
-          {signal.algo}
         </span>
       </div>
+      <div className="flex items-center gap-2 mt-1">
+        {isBuy ? (
+          <ArrowUpRight className="w-3 h-3 text-positive" />
+        ) : (
+          <ArrowDownRight className="w-3 h-3 text-negative" />
+        )}
+        <span className={cn("text-[11px] font-black uppercase", isBuy ? "text-positive" : "text-negative")}>
+          {isBuy ? "Long" : "Short"}
+        </span>
+        <span className="text-white/10">·</span>
+        <span className="text-[11px] font-bold text-accent/60">{signal.leverage}x</span>
+        <span className="text-white/10">·</span>
+        <span className="text-[11px] font-bold text-muted-foreground/50 uppercase">{signal.timeframeName}</span>
+      </div>
+      <span className="text-lg font-black font-mono tabular-nums text-positive leading-none mt-2 block">
+        +{signal.leveragedPnl.toFixed(2)}%
+      </span>
     </Link>
   );
 }

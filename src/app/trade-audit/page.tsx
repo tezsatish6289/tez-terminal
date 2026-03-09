@@ -493,15 +493,28 @@ function TradeAuditContent() {
                             <TableCell>
                               {hasTp ? (
                                 <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase">
-                                  <span className={cn("px-1 py-0.5 rounded", signal.tp1Hit ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-muted-foreground/40")}>
-                                    1{signal.tp1Hit ? "✓" : ""}
-                                  </span>
-                                  <span className={cn("px-1 py-0.5 rounded", signal.tp2Hit ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-muted-foreground/40")}>
-                                    2{signal.tp2Hit ? "✓" : ""}
-                                  </span>
-                                  <span className={cn("px-1 py-0.5 rounded", signal.tp3Hit ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-muted-foreground/40")}>
-                                    3{signal.tp3Hit ? "✓" : ""}
-                                  </span>
+                                  {[
+                                    { num: 1, hit: signal.tp1Hit },
+                                    { num: 2, hit: signal.tp2Hit },
+                                    { num: 3, hit: signal.tp3Hit },
+                                  ].map((tp) => {
+                                    const slKilled = !tp.hit && signal.slHitAt != null;
+                                    return (
+                                      <span
+                                        key={tp.num}
+                                        className={cn(
+                                          "relative px-1.5 py-0.5 rounded",
+                                          tp.hit
+                                            ? "bg-emerald-500/20 text-emerald-400"
+                                            : slKilled
+                                              ? "bg-rose-500/10 text-rose-400/50 line-through decoration-rose-400/60"
+                                              : "bg-white/5 text-muted-foreground/40"
+                                        )}
+                                      >
+                                        {tp.num}{tp.hit ? "✓" : ""}
+                                      </span>
+                                    );
+                                  })}
                                 </div>
                               ) : (
                                 <span className="text-[10px] text-muted-foreground/30">—</span>

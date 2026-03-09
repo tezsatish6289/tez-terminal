@@ -27,6 +27,9 @@ import {
   Flame,
   Sparkles,
   Send,
+  TrendingUp,
+  Shield,
+  BookOpen,
 } from "lucide-react";
 import { RadarIcon } from "@/components/icons/RadarIcon";
 import { useState, useMemo, useCallback, useEffect } from "react";
@@ -440,6 +443,20 @@ function EventRow({ event }: { event: StatusEvent }) {
 }
 
 const RANK_MEDALS = ["🥇", "🥈", "🥉"];
+
+function GuideItem({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
+  return (
+    <div className="flex gap-3">
+      <div className="flex items-center justify-center w-7 h-7 rounded-md bg-white/[0.04] shrink-0 mt-0.5">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <span className="text-[12px] font-bold text-foreground/90">{title}</span>
+        <p className="text-[11px] text-muted-foreground/50 leading-relaxed mt-0.5">{desc}</p>
+      </div>
+    </div>
+  );
+}
 
 function WinnerCard({
   signal,
@@ -1084,23 +1101,81 @@ export default function Home() {
 
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3">
-              {isLoading ? (
-                <div className="flex items-center justify-center h-32">
-                  <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-3">
+                {isLoading ? (
+                  <div className="flex items-center justify-center h-32">
+                    <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
+                  </div>
+                ) : topWinners.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/30">
+                    <Trophy className="w-6 h-6 mb-2" />
+                    <span className="text-xs font-bold">No winners yet</span>
+                  </div>
+                ) : (
+                  <div>
+                    {topWinners.map((signal, i) => (
+                      <WinnerCard key={signal.id} signal={signal} rank={i + 1} />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Guide */}
+              <div className="px-4 pt-4 pb-6 border-t border-white/[0.06]">
+                <div className="flex items-center gap-2 mb-4">
+                  <BookOpen className="w-3.5 h-3.5 text-accent/60" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-accent/60">Quick Guide</span>
                 </div>
-              ) : topWinners.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/30">
-                  <Trophy className="w-6 h-6 mb-2" />
-                  <span className="text-xs font-bold">No winners yet</span>
+
+                <div className="space-y-4">
+                  <GuideItem
+                    icon={<Sparkles className="w-3.5 h-3.5 text-positive" />}
+                    title="Top Picks"
+                    desc="High-confidence signals our AI recommends. These pass all scoring filters and are ready to act on."
+                  />
+                  <GuideItem
+                    icon={<Target className="w-3.5 h-3.5 text-amber-400" />}
+                    title="Market Radar"
+                    desc="Signals being tracked but haven't crossed the confidence threshold yet. Watch for upgrades."
+                  />
+                  <GuideItem
+                    icon={<SlidersHorizontal className="w-3.5 h-3.5 text-accent" />}
+                    title="Filters"
+                    desc="Narrow signals by timeframe (Scalping, Intraday, BTST), direction (Long/Short), or performance."
+                  />
+
+                  <div className="border-t border-white/[0.04] pt-4">
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30">Trade Management</span>
+                  </div>
+
+                  <GuideItem
+                    icon={<CheckCircle2 className="w-3.5 h-3.5 text-positive" />}
+                    title="TP1 · TP2 · TP3"
+                    desc="Take profit targets. Book 50% at TP1, 25% at TP2, and the final 25% at TP3."
+                  />
+                  <GuideItem
+                    icon={<Shield className="w-3.5 h-3.5 text-negative" />}
+                    title="Stop Loss (SL)"
+                    desc="Your safety net. Set automatically for every signal to protect your capital."
+                  />
+                  <GuideItem
+                    icon={<TrendingUp className="w-3.5 h-3.5 text-positive" />}
+                    title="Trailing Profit"
+                    desc="As TPs hit, your SL moves up to lock gains. TP1 hit → SL moves to entry. TP2 hit → SL moves to TP1."
+                  />
+
+                  <div className="border-t border-white/[0.04] pt-4">
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30">Stay Connected</span>
+                  </div>
+
+                  <GuideItem
+                    icon={<Send className="w-3.5 h-3.5 text-blue-400" />}
+                    title="Telegram Alerts"
+                    desc="Get instant notifications when new Top Picks appear and when your trades hit targets. Set up in Settings."
+                  />
                 </div>
-              ) : (
-                <div>
-                  {topWinners.map((signal, i) => (
-                    <WinnerCard key={signal.id} signal={signal} rank={i + 1} />
-                  ))}
-                </div>
-              )}
+              </div>
             </div>
           </div>
         </div>

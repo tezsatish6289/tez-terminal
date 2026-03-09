@@ -996,10 +996,28 @@ export default function Home() {
                 <div className="flex flex-col items-center justify-center h-full min-h-[200px]">
                   {aiTab === "active" ? (
                     <div className="flex flex-col items-center gap-4 max-w-xs text-center">
-                      <div className="relative">
-                        <div className="absolute inset-0 rounded-full bg-accent/10 animate-ping" style={{ animationDuration: "2s" }} />
-                        <div className="relative flex items-center justify-center w-16 h-16 rounded-full bg-accent/[0.08] border border-accent/20">
-                          <RadarIcon className="w-8 h-8 text-accent animate-[spin_4s_linear_infinite]" />
+                      <div className="relative w-20 h-20">
+                        {/* Static radar rings */}
+                        <div className="absolute inset-0 rounded-full border border-accent/15" />
+                        <div className="absolute inset-[25%] rounded-full border border-accent/10" />
+                        <div className="absolute inset-[45%] rounded-full bg-accent/20 border border-accent/25" />
+                        {/* Sweep line with trailing glow */}
+                        <div
+                          className="absolute inset-0 rounded-full animate-[spin_3s_linear_infinite]"
+                          style={{
+                            background: "conic-gradient(from 0deg, transparent 0deg, transparent 270deg, hsl(var(--accent) / 0.15) 330deg, hsl(var(--accent) / 0.4) 360deg)",
+                          }}
+                        />
+                        {/* Sweep line */}
+                        <div className="absolute inset-0 animate-[spin_3s_linear_infinite]">
+                          <div
+                            className="absolute left-1/2 bottom-1/2 w-[1.5px] bg-gradient-to-t from-accent to-transparent"
+                            style={{ height: "50%", transformOrigin: "bottom center" }}
+                          />
+                        </div>
+                        {/* Center dot */}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="w-1.5 h-1.5 rounded-full bg-accent shadow-[0_0_6px_hsl(var(--accent))]" />
                         </div>
                       </div>
                       <div className="space-y-1.5">

@@ -41,8 +41,10 @@ import { getLeverage } from "@/lib/leverage";
 import { getEffectivePnl } from "@/lib/pnl";
 import {
   computeAutoFilter,
+  buildSentimentMap,
   AUTO_FILTER_THRESHOLD,
   type ScoredSignal,
+  type SentimentReading,
 } from "@/lib/auto-filter";
 
 const TIMEFRAME_OPTIONS = [
@@ -618,10 +620,20 @@ export default function OpportunitiesPage() {
     );
   }, [user, firestore]);
 
+  const sentimentQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, "sentiment_signals"),
+      orderBy("receivedAt", "desc"),
+      limit(100)
+    );
+  }, [user, firestore]);
+
   const { data: rawSignals, isLoading: signalsLoading } =
     useCollection(signalsQuery);
   const { data: rawEvents, isLoading: eventsLoading } =
     useCollection(eventsQuery);
+  const { data: rawSentiment } = useCollection(sentimentQuery);
 
   const processedSignals: ProcessedSignal[] = useMemo(() => {
     if (!rawSignals) return [];
@@ -708,9 +720,21 @@ export default function OpportunitiesPage() {
     }));
   }, [rawEvents, signalAlgoMap]);
 
+  const btcSentimentMap = useMemo(() => {
+    if (!rawSentiment || rawSentiment.length === 0) return undefined;
+    const readings: SentimentReading[] = rawSentiment.map((doc: any) => ({
+      sentiment: doc.sentiment ?? "neutral",
+      score: Number(doc.score ?? 0),
+      rawScore: Number(doc.rawScore ?? 0),
+      timeframe: String(doc.timeframe ?? "15"),
+      receivedAt: doc.receivedAt ?? "",
+    }));
+    return buildSentimentMap(readings);
+  }, [rawSentiment]);
+
   const signalScores = useMemo(() => {
-    return computeAutoFilter(processedSignals);
-  }, [processedSignals]);
+    return computeAutoFilter(processedSignals, btcSentimentMap);
+  }, [processedSignals, btcSentimentMap]);
 
   const liveOpportunities = useMemo(() => {
     let filtered = (autoFilter ? processedSignals : filteredSignals).filter(

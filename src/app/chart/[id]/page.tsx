@@ -15,8 +15,6 @@ import {
   Clock,
   Info,
   Target,
-  ArrowRightLeft,
-  ShieldCheck,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -130,206 +128,168 @@ export default function DeepDiveChartPage() {
       <div className="flex-1 flex gap-4 p-4 overflow-hidden">
         {/* Left: Signal Card */}
         <div ref={leftPanelRef} className="w-[380px] shrink-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 flex flex-col overflow-y-auto">
-          <div className="p-4 pt-3">
-            <Button variant="ghost" size="sm" onClick={() => router.push("/")} className="text-muted-foreground hover:text-foreground gap-1 -ml-2 mb-3">
+          {/* Header */}
+          <div className="px-5 pt-4 pb-3 border-b border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent">
+            <Button variant="ghost" size="sm" onClick={() => router.push("/")} className="text-muted-foreground hover:text-foreground gap-1 -ml-3 mb-3">
               <ChevronLeft className="h-4 w-4" /> Back
             </Button>
-
-            <div className="bg-gradient-to-b from-white/[0.03] to-transparent rounded-xl border border-white/[0.06] flex flex-col">
-              {/* Header strip */}
-              <div className="px-6 py-4 border-b border-white/[0.06]">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-2xl font-black text-foreground leading-none tracking-tighter uppercase">{signal?.symbol}</h3>
-                    <span className="text-white/15">·</span>
-                    <span className={cn("text-[10px] font-black uppercase tracking-widest", isBullish ? "text-positive" : "text-negative")}>{isBullish ? "LONG" : "SHORT"}</span>
-                    <span className="text-white/15">·</span>
-                    <span className="text-[10px] font-black uppercase text-accent tracking-widest">{leverage}x</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button className="h-6 w-6 rounded-full border border-white/10 bg-white/[0.03] flex items-center justify-center hover:bg-white/[0.08] hover:border-accent/30 transition-all group">
-                          <Info className="h-3 w-3 text-muted-foreground/40 group-hover:text-accent transition-colors" />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent side="bottom" align="end" className="w-[340px] p-0 bg-[#141416] border-white/10 shadow-2xl shadow-black/50">
-                        <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-accent">Strategy Guide</span>
-                        </div>
-                        <div className="p-4 space-y-3">
-                          {([
-                            {
-                              icon: Target,
-                              color: "text-emerald-400",
-                              bg: "bg-emerald-400/10",
-                              title: "TP1 Hit — Book 50%",
-                              desc: "Close half the position at TP1. Stop loss moves to your entry price — you're now risk-free on the rest.",
-                            },
-                            {
-                              icon: Target,
-                              color: "text-emerald-400",
-                              bg: "bg-emerald-400/10",
-                              title: "TP2 Hit — Book 25%",
-                              desc: "Close another quarter at TP2. Stop loss moves up to TP1 — locking in profit on the remaining runner.",
-                            },
-                            {
-                              icon: Target,
-                              color: "text-emerald-400",
-                              bg: "bg-emerald-400/10",
-                              title: "TP3 Hit — Book Final 25%",
-                              desc: "The runner reaches its final target. Entire position closed — maximum profit captured.",
-                            },
-                            {
-                              icon: Shield,
-                              color: "text-amber-400",
-                              bg: "bg-amber-400/10",
-                              title: "Stop Loss — Risk Managed",
-                              desc: "If SL hits before any TP, the full trade closes at a controlled loss. After TP1, SL is at cost (breakeven). After TP2, SL is at TP1 (profit protected).",
-                            },
-                          ]).map((step, i) => (
-                            <div key={i} className="flex gap-3">
-                              <div className={cn("h-7 w-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5", step.bg)}>
-                                <step.icon className={cn("h-3.5 w-3.5", step.color)} />
-                              </div>
-                              <div>
-                                <div className="text-[11px] font-bold text-foreground/90">{step.title}</div>
-                                <div className="text-[10px] text-muted-foreground/60 leading-relaxed mt-0.5">{step.desc}</div>
-                              </div>
-                            </div>
-                          ))}
-                          <div className="mt-2 pt-3 border-t border-white/[0.06]">
-                            <div className="flex items-center gap-2 mb-1.5">
-                              <ArrowRightLeft className="h-3 w-3 text-accent/60" />
-                              <span className="text-[10px] font-bold text-foreground/70">Position Split: 50 / 25 / 25</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <ShieldCheck className="h-3 w-3 text-accent/60" />
-                              <span className="text-[10px] font-bold text-foreground/70">SL trails up after each TP hit</span>
-                            </div>
-                          </div>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-2xl font-black text-foreground leading-none tracking-tighter uppercase">{signal?.symbol}</h3>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <span className={cn("text-[11px] font-black uppercase", isBullish ? "text-positive" : "text-negative")}>{isBullish ? "▲ Long" : "▼ Short"}</span>
+                  <span className="text-white/15">·</span>
+                  <span className="text-[11px] font-bold text-accent/70">{leverage}x</span>
+                  <span className="text-white/15">·</span>
+                  <span className="text-[11px] font-bold text-muted-foreground/50">{mounted ? getRunningSince(signal?.receivedAt) : "--"} ago</span>
                 </div>
               </div>
-
-              {/* Time strip */}
-              <div className="px-6 py-2.5 bg-black/30 flex items-center justify-between border-b border-white/[0.06] text-[10px] font-black text-muted-foreground/50 uppercase tracking-wider">
-                <div className="flex items-center gap-1.5"><Clock className="h-3 w-3" /> {mounted ? format(new Date(signal?.receivedAt), 'HH:mm') : "--"}</div>
-                <div className="flex items-center gap-1.5"><Timer className="h-3 w-3 text-accent/60" /> {mounted ? getRunningSince(signal?.receivedAt) : "--"}</div>
-              </div>
-
-              {/* Hero PnL */}
-              <div className="px-6 py-5 text-center border-b border-white/[0.06]">
-                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40 block mb-1">{pnlLabel} · {leverage}x Leverage</span>
-                <span className={cn("text-4xl font-black font-mono", Number(leveragedPnl) >= 0 ? "text-positive" : "text-negative")}>
-                  {Number(leveragedPnl) >= 0 ? "+" : ""}{leveragedPnl}%
-                </span>
-              </div>
-
-              <div className="p-5 space-y-4">
-                {/* Price row */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40 block">Entry</span>
-                    <span className="text-sm font-mono font-bold text-foreground/70">${formatPrice(signal?.price)}</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="h-7 w-7 rounded-full border border-white/10 bg-white/[0.03] flex items-center justify-center hover:bg-white/[0.08] hover:border-accent/30 transition-all group">
+                    <Info className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-accent transition-colors" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent side="bottom" align="end" className="w-[340px] p-0 bg-[#141416] border-white/10 shadow-2xl shadow-black/50">
+                  <div className="px-4 py-3 border-b border-white/[0.06]">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-accent">Strategy Guide</span>
                   </div>
-                  <div className={cn("text-lg font-black", isBullish ? "text-positive/30" : "text-negative/30")}>→</div>
-                  <div className="text-right">
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-accent/60 block">Current</span>
-                    <span className={cn("text-sm font-mono font-black", effectivePnlVal >= 0 ? "text-positive" : "text-negative")}>${formatPrice(signal?.currentPrice)}</span>
-                  </div>
-                </div>
-
-                {/* TP1/TP2/TP3 targets */}
-                {hasTp && (
-                  <div className="space-y-2">
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30 block">Targets (50/25/25)</span>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {([
-                        { label: "TP1", price: signal?.tp1, hit: signal?.tp1Hit, pnl: signal?.tp1BookedPnl, frac: "50%" },
-                        { label: "TP2", price: signal?.tp2, hit: signal?.tp2Hit, pnl: signal?.tp2BookedPnl, frac: "25%" },
-                        { label: "TP3", price: signal?.tp3, hit: signal?.tp3Hit, pnl: signal?.tp3BookedPnl, frac: "25%" },
-                      ] as const).map((tp) => (
-                        <div key={tp.label} className={cn("px-2 py-2 rounded-lg border shadow-sm shadow-black/10", tp.hit ? "border-positive/20 bg-positive/5" : "border-white/[0.06] bg-white/[0.02]")}>
-                          <div className="flex items-center justify-between">
-                            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">{tp.label}</span>
-                            <span className="text-[8px] text-muted-foreground/30 font-bold">{tp.frac}</span>
-                          </div>
-                          <span className="text-xs font-mono font-bold block">${formatPrice(tp.price)}</span>
-                          <span className={cn("text-[9px] font-bold uppercase block mt-0.5", tp.hit ? "text-positive" : "text-muted-foreground/30")}>
-                            {tp.hit ? `✓ +${(tp.pnl ?? 0).toFixed(2)}%` : "—"}
-                          </span>
+                  <div className="p-4 space-y-3">
+                    {([
+                      { icon: Target, color: "text-emerald-400", bg: "bg-emerald-400/10", title: "TP1 Hit — Book 50%", desc: "Close half at TP1. SL moves to entry — risk-free." },
+                      { icon: Target, color: "text-emerald-400", bg: "bg-emerald-400/10", title: "TP2 Hit — Book 25%", desc: "Close another quarter at TP2. SL moves to TP1." },
+                      { icon: Target, color: "text-emerald-400", bg: "bg-emerald-400/10", title: "TP3 Hit — Book Final 25%", desc: "Runner reaches final target. Position fully closed." },
+                      { icon: Shield, color: "text-amber-400", bg: "bg-amber-400/10", title: "Stop Loss — Risk Managed", desc: "SL trails up after each TP hit to lock in gains." },
+                    ]).map((step, i) => (
+                      <div key={i} className="flex gap-3">
+                        <div className={cn("h-7 w-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5", step.bg)}>
+                          <step.icon className={cn("h-3.5 w-3.5", step.color)} />
                         </div>
-                      ))}
-                    </div>
-                    {signal?.slHitAt && !signal?.tp3Hit && (
-                      <div className="px-3 py-2 rounded-lg border border-negative/20 bg-negative/5 text-center">
-                        <span className="text-[9px] font-bold uppercase text-negative">
-                          {signal?.tp2Hit ? "Runner stopped at TP1 — profit preserved" : signal?.tp1Hit ? "SL hit at cost — TP1 profit locked" : "SL hit — trade closed"}
-                        </span>
+                        <div>
+                          <div className="text-[11px] font-bold text-foreground/90">{step.title}</div>
+                          <div className="text-[10px] text-muted-foreground/60 leading-relaxed mt-0.5">{step.desc}</div>
+                        </div>
                       </div>
-                    )}
+                    ))}
                   </div>
-                )}
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
 
-                {/* Excursion bars */}
-                <div className="space-y-2">
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30 block">Excursion</span>
-                  <div className="flex items-center gap-3 px-3 py-2 rounded-lg border border-positive/10 shadow-sm shadow-black/10">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50 w-[70px] shrink-0">Max Up</span>
-                    <div className="flex-1 h-1.5 rounded-full bg-white/[0.04] overflow-hidden">
-                      <div className="h-full rounded-full bg-positive/40 transition-all duration-500" style={{ width: `${Math.min(Math.max(Number(maxUpPnl), 0), 100)}%` }} />
+          {/* Hero PnL */}
+          <div className="px-5 py-5 text-center border-b border-white/[0.06]">
+            <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40 block mb-1">{pnlLabel} · {leverage}x Leverage</span>
+            <span className={cn("text-4xl font-black font-mono", Number(leveragedPnl) >= 0 ? "text-positive" : "text-negative")}>
+              {Number(leveragedPnl) >= 0 ? "+" : ""}{leveragedPnl}%
+            </span>
+          </div>
+
+          {/* Details */}
+          <div className="px-5 py-4 space-y-5 flex-1">
+            {/* Entry → Current */}
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40 block">Entry</span>
+                <span className="text-sm font-mono font-bold text-foreground/70">${formatPrice(signal?.price)}</span>
+              </div>
+              <div className={cn("text-lg font-black", isBullish ? "text-positive/20" : "text-negative/20")}>→</div>
+              <div className="text-right">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-accent/60 block">Current</span>
+                <span className={cn("text-sm font-mono font-black", effectivePnlVal >= 0 ? "text-positive" : "text-negative")}>${formatPrice(signal?.currentPrice)}</span>
+              </div>
+            </div>
+
+            {/* Targets as rows */}
+            {hasTp && (
+              <div className="space-y-1.5">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30 block mb-2">Targets</span>
+                {([
+                  { label: "TP1", price: signal?.tp1, hit: signal?.tp1Hit, pnl: signal?.tp1BookedPnl, frac: "50%" },
+                  { label: "TP2", price: signal?.tp2, hit: signal?.tp2Hit, pnl: signal?.tp2BookedPnl, frac: "25%" },
+                  { label: "TP3", price: signal?.tp3, hit: signal?.tp3Hit, pnl: signal?.tp3BookedPnl, frac: "25%" },
+                ] as const).map((tp) => (
+                  <div key={tp.label} className="flex items-center justify-between py-1.5 border-b border-white/[0.03]">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("text-[11px] font-black", tp.hit ? "text-positive" : "text-muted-foreground/50")}>{tp.hit ? "✓" : "○"}</span>
+                      <span className="text-[12px] font-bold text-foreground/80">{tp.label}</span>
+                      <span className="text-[10px] text-muted-foreground/30">{tp.frac}</span>
                     </div>
-                    <span className="text-sm font-black font-mono text-positive shrink-0">+{maxUpPnl}%</span>
-                  </div>
-                  <div className="flex items-center gap-3 px-3 py-2 rounded-lg border border-negative/10 shadow-sm shadow-black/10">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50 w-[70px] shrink-0">Max Down</span>
-                    <div className="flex-1 h-1.5 rounded-full bg-white/[0.04] overflow-hidden">
-                      <div className="h-full rounded-full bg-negative/40 transition-all duration-500" style={{ width: `${Math.min(Math.abs(Number(maxDownPnl)), 100)}%` }} />
+                    <div className="flex items-center gap-3">
+                      <span className="text-[12px] font-mono text-foreground/60">${formatPrice(tp.price)}</span>
+                      {tp.hit && <span className="text-[11px] font-bold text-positive">+{(tp.pnl ?? 0).toFixed(2)}%</span>}
                     </div>
-                    <span className="text-sm font-black font-mono text-negative shrink-0">{maxDownPnl}%</span>
                   </div>
-                </div>
-
-                {/* Stop Loss */}
-                {hasStopLoss && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.06] shadow-sm shadow-black/10">
-                    <Shield className="h-3.5 w-3.5 text-amber-400" />
-                    <span className="text-[9px] uppercase font-bold text-muted-foreground/50 tracking-wider">Stop Loss</span>
-                    <span className="ml-auto font-mono text-sm font-bold text-foreground/80">${formatPrice(signal?.stopLoss)}</span>
-                  </div>
+                ))}
+                {signal?.slHitAt && !signal?.tp3Hit && (
+                  <p className="text-[10px] font-bold text-negative/70 mt-2">
+                    {signal?.tp2Hit ? "Runner stopped at TP1 — profit preserved" : signal?.tp1Hit ? "SL hit at cost — TP1 profit locked" : "SL hit — trade closed"}
+                  </p>
                 )}
+              </div>
+            )}
 
-                {/* Algo */}
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.06] shadow-sm shadow-black/10">
-                  <Info className="h-3.5 w-3.5 text-accent/60" />
-                  <span className="text-[9px] uppercase font-bold text-muted-foreground/50 tracking-wider">Algo</span>
-                  <span className="ml-auto text-sm font-bold text-foreground/80 uppercase tracking-wide">{signal?.algo || "V8 Reversal"}</span>
+            {/* Excursion — simple rows */}
+            <div className="space-y-1.5">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30 block mb-2">Excursion</span>
+              <div className="flex items-center justify-between py-1.5 border-b border-white/[0.03]">
+                <span className="text-[12px] font-bold text-muted-foreground/50">Max Up</span>
+                <div className="flex items-center gap-3">
+                  <div className="w-24 h-1.5 rounded-full bg-white/[0.04] overflow-hidden">
+                    <div className="h-full rounded-full bg-positive/40" style={{ width: `${Math.min(Math.max(Number(maxUpPnl), 0), 100)}%` }} />
+                  </div>
+                  <span className="text-[12px] font-black font-mono text-positive">+{maxUpPnl}%</span>
                 </div>
               </div>
-
-              {/* Exchange links inside card footer */}
-              <div className="px-5 py-4 border-t border-white/[0.06] space-y-2.5">
-                <span className="text-[9px] font-black text-muted-foreground/30 uppercase tracking-widest block text-center">Trade on</span>
-                <div className="flex gap-2">
-                  {tradeLinks.map((exchange) => (
-                    <Button
-                      key={exchange.name}
-                      asChild
-                      size="sm"
-                      className={cn("flex-1 font-bold text-xs uppercase tracking-wide border rounded-lg h-9 gap-2", exchange.color)}
-                    >
-                      <a href={exchange.url} target="_blank" rel="noopener noreferrer">
-                        <exchange.icon className="h-3.5 w-3.5" />
-                        {exchange.name}
-                      </a>
-                    </Button>
-                  ))}
+              <div className="flex items-center justify-between py-1.5 border-b border-white/[0.03]">
+                <span className="text-[12px] font-bold text-muted-foreground/50">Max Down</span>
+                <div className="flex items-center gap-3">
+                  <div className="w-24 h-1.5 rounded-full bg-white/[0.04] overflow-hidden">
+                    <div className="h-full rounded-full bg-negative/40" style={{ width: `${Math.min(Math.abs(Number(maxDownPnl)), 100)}%` }} />
+                  </div>
+                  <span className="text-[12px] font-black font-mono text-negative">{maxDownPnl}%</span>
                 </div>
               </div>
+            </div>
+
+            {/* SL + Algo as simple rows */}
+            <div className="space-y-1.5">
+              {hasStopLoss && (
+                <div className="flex items-center justify-between py-1.5 border-b border-white/[0.03]">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-3.5 w-3.5 text-amber-400/60" />
+                    <span className="text-[12px] font-bold text-muted-foreground/50">Stop Loss</span>
+                  </div>
+                  <span className="text-[12px] font-mono font-bold text-foreground/70">${formatPrice(signal?.stopLoss)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between py-1.5">
+                <div className="flex items-center gap-2">
+                  <Info className="h-3.5 w-3.5 text-accent/40" />
+                  <span className="text-[12px] font-bold text-muted-foreground/50">Algo</span>
+                </div>
+                <span className="text-[12px] font-bold text-foreground/70 uppercase">{signal?.algo || "V8 Reversal"}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Exchange links */}
+          <div className="px-5 py-4 border-t border-white/[0.06] mt-auto">
+            <span className="text-[9px] font-black text-muted-foreground/30 uppercase tracking-widest block text-center mb-2.5">Trade on</span>
+            <div className="flex gap-2">
+              {tradeLinks.map((exchange) => (
+                <Button
+                  key={exchange.name}
+                  asChild
+                  size="sm"
+                  className={cn("flex-1 font-bold text-xs uppercase tracking-wide border rounded-lg h-9 gap-2", exchange.color)}
+                >
+                  <a href={exchange.url} target="_blank" rel="noopener noreferrer">
+                    <exchange.icon className="h-3.5 w-3.5" />
+                    {exchange.name}
+                  </a>
+                </Button>
+              ))}
             </div>
           </div>
         </div>

@@ -186,12 +186,12 @@ function OpportunityCard({
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        "group block rounded-xl border transition-all hover:translate-y-[-2px] hover:shadow-xl",
+        "group block rounded-xl border shadow-lg transition-all hover:translate-y-[-2px] hover:shadow-2xl",
         isWinning
-          ? "border-positive/25 bg-gradient-to-b from-positive/[0.06] to-positive/[0.02] hover:border-positive/40 hover:shadow-positive/10"
+          ? "border-positive/25 bg-gradient-to-b from-positive/[0.08] to-positive/[0.02] shadow-positive/5 hover:border-positive/40 hover:shadow-positive/15"
           : isLosing
-            ? "border-negative/25 bg-gradient-to-b from-negative/[0.06] to-negative/[0.02] hover:border-negative/40 hover:shadow-negative/10"
-            : "border-white/[0.08] bg-gradient-to-b from-white/[0.04] to-white/[0.01] hover:border-white/20 hover:shadow-white/5"
+            ? "border-negative/25 bg-gradient-to-b from-negative/[0.08] to-negative/[0.02] shadow-negative/5 hover:border-negative/40 hover:shadow-negative/15"
+            : "border-white/[0.08] bg-gradient-to-b from-white/[0.06] to-white/[0.01] shadow-black/20 hover:border-white/20 hover:shadow-black/40"
       )}
     >
       {/* Symbol + Direction */}
@@ -782,12 +782,12 @@ export default function Home() {
         <TopBar />
 
         {/* Three-pane layout */}
-        <div className="flex-1 flex gap-3 p-3 overflow-hidden">
+        <div className="flex-1 flex gap-4 p-4 overflow-hidden">
 
           {/* Left pane: Opportunities (~50%) */}
-          <div className="flex-[5] flex flex-col min-w-0 rounded-xl border border-white/[0.08] bg-[#111113] overflow-hidden">
+          <div className="flex-[5] flex flex-col min-w-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 overflow-hidden">
             {/* Hero Header */}
-            <div className="px-5 pt-5 pb-3 border-b border-white/[0.06]">
+            <div className="px-5 pt-5 pb-3 border-b border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent">
               <div className="flex items-center gap-2 mb-1">
                 <Sparkles className="w-4 h-4 text-amber-400" />
                 <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400/70">AI-Powered</span>
@@ -1028,8 +1028,8 @@ export default function Home() {
           </div>
 
           {/* Middle pane: Status Updates (~25%) */}
-          <div className="flex-[2.5] flex-col min-w-0 rounded-xl border border-white/[0.08] bg-[#111113] overflow-hidden hidden lg:flex">
-            <div className="px-4 py-3 border-b border-white/[0.06]">
+          <div className="flex-[2.5] flex-col min-w-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 overflow-hidden hidden lg:flex">
+            <div className="px-4 py-3 border-b border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent">
               <div className="flex items-center gap-2">
                 <Target className="w-4 h-4 text-accent" />
                 <h2 className="text-sm font-black tracking-tight uppercase">
@@ -1060,8 +1060,8 @@ export default function Home() {
           </div>
 
           {/* Right pane: Top Winners (~25%) */}
-          <div className="flex-[2.5] flex-col min-w-0 rounded-xl border border-white/[0.08] bg-[#111113] overflow-hidden hidden lg:flex">
-            <div className="px-4 py-3 border-b border-white/[0.06]">
+          <div className="flex-[2.5] flex-col min-w-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 overflow-hidden hidden lg:flex">
+            <div className="px-4 py-3 border-b border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Trophy className="w-4 h-4 text-amber-400" />

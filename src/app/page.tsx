@@ -837,6 +837,66 @@ export default function Home() {
                     Market Radar {!isLoading && watchCount > 0 && `(${watchCount})`}
                   </button>
                 </div>
+              <div className="flex items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/10 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.08] hover:text-foreground transition-all cursor-pointer">
+                    <BookOpen className="w-3 h-3" />
+                    Guide
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="end"
+                  className="w-72 bg-card border-white/10 shadow-2xl p-0 max-h-[420px] overflow-y-auto"
+                >
+                  <div className="px-4 py-3 border-b border-white/[0.06]">
+                    <span className="text-xs font-black uppercase tracking-wider">How It Works</span>
+                  </div>
+                  <div className="p-4 space-y-4">
+                    <GuideItem
+                      icon={<Sparkles className="w-3.5 h-3.5 text-positive" />}
+                      title="Top Picks"
+                      desc="High-confidence signals our AI recommends. These pass all scoring filters and are ready to act on."
+                    />
+                    <GuideItem
+                      icon={<Target className="w-3.5 h-3.5 text-amber-400" />}
+                      title="Market Radar"
+                      desc="Signals being tracked but haven't crossed the confidence threshold yet. Watch for upgrades."
+                    />
+                    <GuideItem
+                      icon={<SlidersHorizontal className="w-3.5 h-3.5 text-accent" />}
+                      title="Filters"
+                      desc="Narrow signals by timeframe (Scalping, Intraday, BTST), direction (Long/Short), or performance."
+                    />
+                    <div className="border-t border-white/[0.04] pt-3">
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30">Trade Management</span>
+                    </div>
+                    <GuideItem
+                      icon={<CheckCircle2 className="w-3.5 h-3.5 text-positive" />}
+                      title="TP1 · TP2 · TP3"
+                      desc="Take profit targets. Book 50% at TP1, 25% at TP2, and the final 25% at TP3."
+                    />
+                    <GuideItem
+                      icon={<Shield className="w-3.5 h-3.5 text-negative" />}
+                      title="Stop Loss (SL)"
+                      desc="Your safety net. Set automatically for every signal to protect your capital."
+                    />
+                    <GuideItem
+                      icon={<TrendingUp className="w-3.5 h-3.5 text-positive" />}
+                      title="Trailing Profit"
+                      desc="As TPs hit, your SL moves up to lock gains. TP1 hit → SL moves to entry. TP2 hit → SL moves to TP1."
+                    />
+                    <div className="border-t border-white/[0.04] pt-3">
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30">Stay Connected</span>
+                    </div>
+                    <GuideItem
+                      icon={<Send className="w-3.5 h-3.5 text-blue-400" />}
+                      title="Telegram Alerts"
+                      desc="Get instant notifications when new Top Picks appear and when your trades hit targets. Set up in Settings."
+                    />
+                  </div>
+                </PopoverContent>
+              </Popover>
               <Popover open={filterOpen} onOpenChange={handleFilterOpen}>
                 <PopoverTrigger asChild>
                   <button
@@ -945,6 +1005,7 @@ export default function Home() {
                   </div>
                 </PopoverContent>
               </Popover>
+              </div>
               </div>
             </div>
 

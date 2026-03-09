@@ -390,15 +390,18 @@ function EventRow({ event }: { event: StatusEvent }) {
               {(event.type === "TP1_HIT" || event.type === "TP2_HIT" || event.type === "TP3_HIT") && " 🔥"}
             </span>
             {pnlValue != null && (
-              <span
-                className={cn(
-                  "text-[13px] font-black font-mono tabular-nums shrink-0",
-                  pnlValue >= 0 ? "text-positive" : "text-negative"
-                )}
-              >
-                {pnlValue >= 0 ? "+" : ""}
-                {(pnlValue * leverage).toFixed(2)}%
-              </span>
+              <div className="flex flex-col items-end shrink-0">
+                <span
+                  className={cn(
+                    "text-[13px] font-black font-mono tabular-nums",
+                    pnlValue >= 0 ? "text-positive" : "text-negative"
+                  )}
+                >
+                  {pnlValue >= 0 ? "+" : ""}
+                  {(pnlValue * leverage).toFixed(2)}%
+                </span>
+                <span className="text-[9px] font-bold text-muted-foreground/40">{leverage}x lev</span>
+              </div>
             )}
           </div>
           <div className="flex items-center gap-1.5 mt-1">
@@ -446,13 +449,13 @@ const RANK_MEDALS = ["🥇", "🥈", "🥉"];
 
 function GuideItem({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
   return (
-    <div className="flex gap-3">
-      <div className="flex items-center justify-center w-7 h-7 rounded-md bg-white/[0.04] shrink-0 mt-0.5">
+    <div className="flex gap-3.5">
+      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/[0.05] shrink-0 mt-0.5">
         {icon}
       </div>
       <div className="min-w-0">
-        <span className="text-[12px] font-bold text-foreground/90">{title}</span>
-        <p className="text-[11px] text-muted-foreground/50 leading-relaxed mt-0.5">{desc}</p>
+        <span className="text-[13px] font-bold text-foreground">{title}</span>
+        <p className="text-[12px] text-muted-foreground/60 leading-relaxed mt-0.5">{desc}</p>
       </div>
     </div>
   );
@@ -487,9 +490,12 @@ function WinnerCard({
             <span className="text-[13px] font-black uppercase tracking-tight text-foreground truncate">
               {signal.symbol}
             </span>
-            <span className="text-[13px] font-black font-mono tabular-nums text-positive shrink-0">
-              +{signal.leveragedPnl.toFixed(2)}%
-            </span>
+            <div className="flex flex-col items-end shrink-0">
+              <span className="text-[13px] font-black font-mono tabular-nums text-positive">
+                +{signal.leveragedPnl.toFixed(2)}%
+              </span>
+              <span className="text-[9px] font-bold text-muted-foreground/40">{signal.leverage}x lev</span>
+            </div>
           </div>
           <div className="flex items-center gap-1.5 mt-1">
             <span className={cn("text-[11px] font-bold", isBuy ? "text-positive/70" : "text-negative/70")}>
@@ -498,8 +504,6 @@ function WinnerCard({
             <span className={cn("text-[11px] font-bold uppercase", isBuy ? "text-positive/70" : "text-negative/70")}>
               {isBuy ? "Long" : "Short"}
             </span>
-            <span className="text-white/15">·</span>
-            <span className="text-[11px] text-muted-foreground/60">{signal.leverage}x</span>
             <span className="text-white/15">·</span>
             <span className="text-[11px] text-muted-foreground/60 uppercase">{signal.timeframeName}</span>
           </div>
@@ -847,12 +851,12 @@ export default function Home() {
                 </PopoverTrigger>
                 <PopoverContent
                   align="end"
-                  className="w-72 bg-card border-white/10 shadow-2xl p-0 max-h-[420px] overflow-y-auto"
+                  className="w-[420px] bg-card border-white/10 shadow-2xl p-0 max-h-[520px] overflow-y-auto"
                 >
-                  <div className="px-4 py-3 border-b border-white/[0.06]">
-                    <span className="text-xs font-black uppercase tracking-wider">How It Works</span>
+                  <div className="px-5 py-4 border-b border-white/[0.06]">
+                    <span className="text-sm font-black uppercase tracking-wider">How It Works</span>
                   </div>
-                  <div className="p-4 space-y-4">
+                  <div className="p-5 space-y-5">
                     <GuideItem
                       icon={<Sparkles className="w-3.5 h-3.5 text-positive" />}
                       title="Top Picks"
@@ -868,8 +872,8 @@ export default function Home() {
                       title="Filters"
                       desc="Narrow signals by timeframe (Scalping, Intraday, BTST), direction (Long/Short), or performance."
                     />
-                    <div className="border-t border-white/[0.04] pt-3">
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30">Trade Management</span>
+                    <div className="border-t border-white/[0.04] pt-4">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Trade Management</span>
                     </div>
                     <GuideItem
                       icon={<CheckCircle2 className="w-3.5 h-3.5 text-positive" />}
@@ -886,8 +890,8 @@ export default function Home() {
                       title="Trailing Profit"
                       desc="As TPs hit, your SL moves up to lock gains. TP1 hit → SL moves to entry. TP2 hit → SL moves to TP1."
                     />
-                    <div className="border-t border-white/[0.04] pt-3">
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30">Stay Connected</span>
+                    <div className="border-t border-white/[0.04] pt-4">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Stay Connected</span>
                     </div>
                     <GuideItem
                       icon={<Send className="w-3.5 h-3.5 text-blue-400" />}
@@ -1111,7 +1115,7 @@ export default function Home() {
               <div className="flex items-center gap-2">
                 <Target className="w-4 h-4 text-accent" />
                 <h2 className="text-sm font-black tracking-tight uppercase">
-                  Status Updates
+                  Live Updates
                 </h2>
               </div>
               <p className="text-[11px] text-muted-foreground/50 mt-1 pl-6">
@@ -1182,61 +1186,6 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Quick Guide */}
-              <div className="px-4 pt-4 pb-6 border-t border-white/[0.06]">
-                <div className="flex items-center gap-2 mb-4">
-                  <BookOpen className="w-3.5 h-3.5 text-accent/60" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-accent/60">Quick Guide</span>
-                </div>
-
-                <div className="space-y-4">
-                  <GuideItem
-                    icon={<Sparkles className="w-3.5 h-3.5 text-positive" />}
-                    title="Top Picks"
-                    desc="High-confidence signals our AI recommends. These pass all scoring filters and are ready to act on."
-                  />
-                  <GuideItem
-                    icon={<Target className="w-3.5 h-3.5 text-amber-400" />}
-                    title="Market Radar"
-                    desc="Signals being tracked but haven't crossed the confidence threshold yet. Watch for upgrades."
-                  />
-                  <GuideItem
-                    icon={<SlidersHorizontal className="w-3.5 h-3.5 text-accent" />}
-                    title="Filters"
-                    desc="Narrow signals by timeframe (Scalping, Intraday, BTST), direction (Long/Short), or performance."
-                  />
-
-                  <div className="border-t border-white/[0.04] pt-4">
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30">Trade Management</span>
-                  </div>
-
-                  <GuideItem
-                    icon={<CheckCircle2 className="w-3.5 h-3.5 text-positive" />}
-                    title="TP1 · TP2 · TP3"
-                    desc="Take profit targets. Book 50% at TP1, 25% at TP2, and the final 25% at TP3."
-                  />
-                  <GuideItem
-                    icon={<Shield className="w-3.5 h-3.5 text-negative" />}
-                    title="Stop Loss (SL)"
-                    desc="Your safety net. Set automatically for every signal to protect your capital."
-                  />
-                  <GuideItem
-                    icon={<TrendingUp className="w-3.5 h-3.5 text-positive" />}
-                    title="Trailing Profit"
-                    desc="As TPs hit, your SL moves up to lock gains. TP1 hit → SL moves to entry. TP2 hit → SL moves to TP1."
-                  />
-
-                  <div className="border-t border-white/[0.04] pt-4">
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30">Stay Connected</span>
-                  </div>
-
-                  <GuideItem
-                    icon={<Send className="w-3.5 h-3.5 text-blue-400" />}
-                    title="Telegram Alerts"
-                    desc="Get instant notifications when new Top Picks appear and when your trades hit targets. Set up in Settings."
-                  />
-                </div>
-              </div>
             </div>
           </div>
         </div>

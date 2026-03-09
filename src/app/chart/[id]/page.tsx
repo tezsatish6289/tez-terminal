@@ -131,7 +131,7 @@ export default function DeepDiveChartPage() {
         {/* Left: Signal Card */}
         <div ref={leftPanelRef} className="w-[380px] shrink-0 border-r border-white/5 bg-background flex flex-col overflow-y-auto">
           <div className="p-4 pt-2">
-            <Button variant="ghost" size="sm" onClick={() => router.push("/opportunities")} className="text-muted-foreground hover:text-foreground gap-1 -ml-2 mb-2">
+            <Button variant="ghost" size="sm" onClick={() => router.push("/")} className="text-muted-foreground hover:text-foreground gap-1 -ml-2 mb-2">
               <ChevronLeft className="h-4 w-4" /> Back
             </Button>
 

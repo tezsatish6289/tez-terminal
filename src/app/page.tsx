@@ -2,470 +2,71 @@
 
 import { TopBar } from "@/components/dashboard/TopBar";
 import { LandingPage } from "@/components/landing/LandingPage";
-import { useUser, useAuth, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import {
+  useUser,
+  useAuth,
+  useFirestore,
+  useCollection,
+  useMemoFirebase,
+} from "@/firebase";
 import { collection, query, orderBy, limit } from "firebase/firestore";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { Zap, Loader2, Chrome, TrendingUp, TrendingDown, Shield, Trophy, Bell } from "lucide-react";
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { format } from "date-fns";
+import {
+  Loader2,
+  TrendingDown,
+  Zap,
+  Target,
+  ShieldOff,
+  XCircle,
+  CheckCircle2,
+  ArrowUpRight,
+  ArrowDownRight,
+  Clock,
+  SlidersHorizontal,
+  Trophy,
+  Flame,
+  Sparkles,
+} from "lucide-react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { getLeverage, getLeverageLabel } from "@/lib/leverage";
-import { getEffectivePnl as getEffectivePnlShared } from "@/lib/pnl";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { getLeverage } from "@/lib/leverage";
+import { getEffectivePnl } from "@/lib/pnl";
+import { AUTO_FILTER_THRESHOLD, type ScoredSignal } from "@/lib/auto-filter";
 
-function playChime() {
-  try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const now = ctx.currentTime;
-    const gain = ctx.createGain();
-    gain.connect(ctx.destination);
-    gain.gain.setValueAtTime(0.15, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
-
-    const osc1 = ctx.createOscillator();
-    osc1.type = "sine";
-    osc1.frequency.setValueAtTime(880, now);
-    osc1.connect(gain);
-    osc1.start(now);
-    osc1.stop(now + 0.3);
-
-    const osc2 = ctx.createOscillator();
-    osc2.type = "sine";
-    osc2.frequency.setValueAtTime(1320, now + 0.15);
-    osc2.connect(gain);
-    osc2.start(now + 0.15);
-    osc2.stop(now + 0.6);
-
-    setTimeout(() => ctx.close(), 1000);
-  } catch {}
-}
-
-type FlashKey = string;
-const FLASH_DURATION = 10_000;
-const BELL_DURATION = 30_000;
-
-const OPPORTUNITY_CATEGORIES = [
-  { id: "5", name: "Scalping", chart: "5 min", windowHours: 24, windowLabel: "in 24h", leverage: "10x" },
-  { id: "15", name: "Intraday", chart: "15 min", windowHours: 48, windowLabel: "in 48h", leverage: "5x" },
-  { id: "60", name: "BTST", chart: "1 hr", windowHours: 168, windowLabel: "in 7d", leverage: "3x" },
-  { id: "240", name: "Swing", chart: "4 hr", windowHours: 720, windowLabel: "in 30d", leverage: "3x" },
+const TIMEFRAME_OPTIONS = [
+  { id: "all", label: "All" },
+  { id: "5", label: "5m" },
+  { id: "15", label: "15m" },
+  { id: "60", label: "1h" },
+  { id: "240", label: "4h" },
 ] as const;
 
-type StatusKey = "working" | "not-working" | "neutral";
-type SideKey = "BUY" | "SELL";
+const SIDE_OPTIONS = [
+  { id: "all", label: "All" },
+  { id: "BUY", label: "Bullish" },
+  { id: "SELL", label: "Bearish" },
+] as const;
 
-function getPnlStatus(pnl: number): StatusKey {
-  if (pnl > 0.05) return "working";
-  if (pnl < -0.05) return "not-working";
-  return "neutral";
-}
+const PERF_OPTIONS = [
+  { id: "all", label: "All" },
+  { id: "winning", label: "Winning" },
+  { id: "losing", label: "Losing" },
+] as const;
 
-function getDisplayAssetType(signal: { assetType?: string }) {
-  if (signal.assetType && signal.assetType !== "UNCLASSIFIED") return signal.assetType;
-  return "CRYPTO";
-}
-
-function calculatePercent(currentPrice: number | undefined | null, entry: number, type: string): number {
-  if (currentPrice == null || !entry || entry === 0) return 0;
-  const diff = type === "BUY" ? currentPrice - entry : entry - currentPrice;
-  return (diff / entry) * 100;
-}
-
-function effectivePnl(signal: any): number {
-  return getEffectivePnlShared(signal);
-}
-
-
-interface WinnerSignal {
-  symbol: string;
-  pnl: number;
-  maxPnl: number;
-  type: string;
-  price: number;
-  currentPrice: number | null;
-  maxUpsidePrice: number | null;
-  maxDrawdownPrice: number | null;
-  stopLoss: number | null;
-  receivedAt: string;
-  timeframe: string;
-  status?: string;
-  tp1?: number | null;
-  tp2?: number | null;
-  tp3?: number | null;
-  tp1Hit?: boolean;
-  tp2Hit?: boolean;
-  tp3Hit?: boolean;
-  tp1BookedPnl?: number | null;
-  tp2BookedPnl?: number | null;
-  tp3BookedPnl?: number | null;
-  totalBookedPnl?: number | null;
-  slHitAt?: string | null;
-  algo?: string;
-}
-
-function formatNarrationPrice(price: number | null | undefined): string {
-  if (price == null) return "--";
-  const decimals = price < 1 ? 6 : 2;
-  return price.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-}
-
-function TradeNarrationDialog({ signal, open, onClose }: { signal: WinnerSignal | null; open: boolean; onClose: () => void }) {
-  if (!signal) return null;
-
-  const leverage = getLeverage(signal.timeframe);
-  const isBullish = signal.type === "BUY";
-  const direction = isBullish ? "bullish" : "bearish";
-  const directionLabel = isBullish ? "LONG" : "SHORT";
-  const maxUpPnl = calculatePercent(signal.maxUpsidePrice, signal.price, signal.type);
-  const maxDownPnl = calculatePercent(signal.maxDrawdownPrice, signal.price, signal.type);
-  const pnlVal = effectivePnl(signal);
-  const leveragedPnl = pnlVal * leverage;
-  const slDistance = signal.stopLoss ? calculatePercent(signal.stopLoss, signal.price, signal.type) : null;
-
-  const hasMaxUpside = signal.maxUpsidePrice != null && signal.maxUpsidePrice > 0;
-  const hasMaxDrawdown = signal.maxDrawdownPrice != null && signal.maxDrawdownPrice > 0;
-  const hasStopLoss = signal.stopLoss != null && signal.stopLoss > 0;
-  const hasTp = signal.tp1 != null && signal.tp2 != null;
-  const pnlLabel = signal.totalBookedPnl != null ? "Booked PNL" : (signal.tp2Hit || signal.tp1Hit) ? "Partial + Live" : "Live PNL";
-
-  let entryDate = "";
-  try { entryDate = format(new Date(signal.receivedAt), "MMM dd, h:mm a"); } catch { entryDate = "—"; }
-
-  const slWasThreatened = hasStopLoss && hasMaxDrawdown && (
-    isBullish
-      ? signal.maxDrawdownPrice! <= signal.stopLoss!
-      : signal.maxDrawdownPrice! >= signal.stopLoss!
-  );
-
-  let stepNum = 1;
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-3xl bg-card border-white/10 p-0 overflow-hidden">
-        <DialogHeader className="sr-only">
-          <DialogTitle>{signal.symbol} Trade Details</DialogTitle>
-          <DialogDescription>Detailed narration of the {signal.symbol} trade</DialogDescription>
-        </DialogHeader>
-        <div className="grid md:grid-cols-2 divide-x divide-white/5">
-          {/* Left: Signal Card */}
-          <div className="p-6 space-y-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-xl font-black uppercase tracking-tighter">{signal.symbol}</h3>
-                <span className={cn("text-[10px] font-black uppercase tracking-widest", isBullish ? "text-positive" : "text-negative")}>
-                  {directionLabel}
-                </span>
-              </div>
-              <div className="flex flex-col items-end gap-1.5">
-                <div className={cn("px-3 py-1 rounded-lg text-xs font-black uppercase", isBullish ? "bg-positive/20 text-positive" : "bg-negative/20 text-negative")}>
-                  {isBullish ? "Bullish" : "Bearish"}
-                </div>
-                <div className="px-3 py-1 rounded-lg text-xs font-black uppercase bg-accent/15 text-accent">
-                  {leverage}x
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Entry Price</p>
-                <p className="text-lg font-mono font-bold">${formatNarrationPrice(signal.price)}</p>
-              </div>
-              <div className="space-y-1 text-right">
-                <p className="text-[10px] font-bold text-accent uppercase tracking-widest">Current Price</p>
-                <p className={cn("text-lg font-mono font-black", pnlVal >= 0 ? "text-positive" : "text-negative")}>
-                  ${formatNarrationPrice(signal.currentPrice)}
-                </p>
-              </div>
-            </div>
-
-            {hasTp && (
-              <div className="grid grid-cols-3 gap-2">
-                {([
-                  { label: "TP1", price: signal.tp1, hit: signal.tp1Hit, pnl: signal.tp1BookedPnl, frac: "50%" },
-                  { label: "TP2", price: signal.tp2, hit: signal.tp2Hit, pnl: signal.tp2BookedPnl, frac: "25%" },
-                  { label: "TP3", price: signal.tp3, hit: signal.tp3Hit, pnl: signal.tp3BookedPnl, frac: "25%" },
-                ] as const).map((tp) => (
-                  <div key={tp.label} className="flex flex-col gap-0.5 px-2.5 py-2 rounded-lg border border-white/10 bg-white/[0.03]">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] uppercase font-black text-muted-foreground/60 tracking-widest">{tp.label}</span>
-                      <span className="text-[8px] text-muted-foreground/30 font-bold">{tp.frac}</span>
-                    </div>
-                    <span className="text-xs font-mono font-bold">${formatNarrationPrice(tp.price)}</span>
-                    <span className={cn("text-[9px] font-bold uppercase", tp.hit ? "text-positive" : "text-muted-foreground/40")}>
-                      {tp.hit ? "✓ Hit" : "—"}
-                      {tp.pnl != null && ` +${tp.pnl.toFixed(2)}%`}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="rounded-xl border border-accent/15 bg-accent/[0.03] p-3 space-y-3">
-              <span className="text-[9px] uppercase font-black tracking-widest text-accent block text-center">Returns at {leverage}x Leverage</span>
-              <div className="rounded-lg border bg-white/5 border-white/10 px-4 py-2.5 flex items-center justify-between">
-                <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">{pnlLabel}</span>
-                <span className={cn("text-xl font-mono font-black", leveragedPnl >= 0 ? "text-positive" : "text-negative")}>
-                  {leveragedPnl >= 0 ? "+" : ""}{leveragedPnl.toFixed(2)}%
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-positive/10 border border-positive/20">
-                  <span className="text-[9px] uppercase font-black text-positive/90 tracking-widest">Peak Upside</span>
-                  <span className="text-base font-mono font-black text-positive">
-                    {hasMaxUpside ? `+${(maxUpPnl * leverage).toFixed(2)}%` : "—"}
-                  </span>
-                </div>
-                <div className="flex flex-col gap-0.5 px-3 py-2 rounded-lg bg-negative/10 border border-negative/20">
-                  <span className="text-[9px] uppercase font-black text-negative/90 tracking-widest">Max Drawdown</span>
-                  <span className="text-base font-mono font-black text-negative">
-                    {hasMaxDrawdown ? `${(maxDownPnl * leverage).toFixed(2)}%` : "—"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {hasStopLoss && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03]">
-                <Shield className="h-3.5 w-3.5 text-amber-400" />
-                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Stop Loss</span>
-                <span className="ml-auto font-mono text-sm font-bold">${formatNarrationPrice(signal.stopLoss)}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Right: Narration */}
-          <div className="p-6 space-y-5 bg-white/[0.01]">
-            <div className="flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-amber-400" />
-              <h4 className="text-xs font-black uppercase tracking-wider text-foreground">Trade Narration</h4>
-            </div>
-
-            <div className="space-y-4">
-              {/* Step 1: The Call */}
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <div className="h-5 w-5 rounded-full bg-amber-400/10 flex items-center justify-center text-[9px] font-black text-amber-400/70">{stepNum++}</div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-400/70">The Call</span>
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed pl-7">
-                  TezTerminal identified a <span className="font-bold text-foreground">{direction}</span> opportunity on{" "}
-                  <span className="font-bold text-foreground">{signal.symbol}</span> at{" "}
-                  <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.price)}</span> on{" "}
-                  <span className="font-bold text-foreground">{entryDate}</span>.
-                  {hasTp && (
-                    <> Targets set at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.tp1)}</span> (TP1)
-                    {" "}and <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.tp2)}</span> (TP2).</>
-                  )}
-                </p>
-              </div>
-
-              {/* Step 2: The Journey */}
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <div className="h-5 w-5 rounded-full bg-amber-400/10 flex items-center justify-center text-[9px] font-black text-amber-400/70">{stepNum++}</div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-400/70">The Journey</span>
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed pl-7">
-                  {hasMaxUpside ? (
-                    <>Since entry, price surged to a peak of <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.maxUpsidePrice)}</span>{" "}
-                    (<span className="font-mono font-bold text-foreground">+{maxUpPnl.toFixed(2)}%</span> max favorable excursion)</>
-                  ) : (
-                    <>Peak upside data is still being tracked</>
-                  )}
-                  {hasMaxDrawdown ? (
-                    <>, while the deepest pullback was to <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.maxDrawdownPrice)}</span>{" "}
-                    (<span className="font-mono font-bold text-foreground">{maxDownPnl.toFixed(2)}%</span>).</>
-                  ) : (
-                    <>. Drawdown data is still being tracked.</>
-                  )}
-                </p>
-              </div>
-
-              {/* Step 3: Strategy Execution (only for tp trades) */}
-              {hasTp && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <div className="h-5 w-5 rounded-full bg-amber-400/10 flex items-center justify-center text-[9px] font-black text-amber-400/70">{stepNum++}</div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-400/70">Strategy Execution</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed pl-7">
-                    {signal.tp1Hit ? (
-                      <>TP1 at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.tp1)}</span> was hit — 50% booked at{" "}
-                      <span className="font-mono font-bold text-positive">+{(signal.tp1BookedPnl ?? 0).toFixed(2)}%</span>, stop loss moved to entry.{" "}
-                      {signal.tp2Hit ? (
-                        <>TP2 at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.tp2)}</span> hit — 25% booked at{" "}
-                        <span className="font-mono font-bold text-positive">+{(signal.tp2BookedPnl ?? 0).toFixed(2)}%</span>, stop loss moved to TP1.{" "}
-                        {signal.tp3Hit ? (
-                          <>TP3 at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.tp3)}</span> hit — remaining 25% booked at{" "}
-                          <span className="font-mono font-bold text-positive">+{(signal.tp3BookedPnl ?? 0).toFixed(2)}%</span>. Full sweep — trade closed.</>
-                        ) : signal.slHitAt ? (
-                          <>Remaining 25% stopped at TP1 level — booked at TP1 profit. No loss on the runner.</>
-                        ) : (
-                          <>Remaining 25% still running with stop at TP1 (profit-protected).</>
-                        )}</>
-                      ) : signal.slHitAt ? (
-                        <>Remaining 50% stopped at cost (breakeven). TP1 profit locked in.</>
-                      ) : (
-                        <>Remaining 50% still running with stop at entry (risk-free).</>
-                      )}</>
-                    ) : signal.slHitAt ? (
-                      <>TP1 was not reached. Stop loss triggered — trade closed at{" "}
-                      <span className="font-mono font-bold text-negative">{(signal.totalBookedPnl ?? pnlVal).toFixed(2)}%</span>.</>
-                    ) : (
-                      <>All targets pending. Stop loss at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.stopLoss)}</span> protecting the position.</>
-                    )}
-                  </p>
-                </div>
-              )}
-
-              {/* Risk Discipline (non-tp strategy or always) */}
-              {hasStopLoss && !hasTp && (
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <div className="h-5 w-5 rounded-full bg-amber-400/10 flex items-center justify-center text-[9px] font-black text-amber-400/70">{stepNum++}</div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-400/70">Risk Discipline</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed pl-7">
-                    Stop loss was set at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.stopLoss)}</span>{" "}
-                    (<span className="font-mono font-bold text-foreground">{slDistance?.toFixed(2)}%</span> from entry).{" "}
-                    <span className="font-bold text-foreground">{slWasThreatened ? "The stop zone was tested during the trade." : "It was never threatened."}</span>
-                  </p>
-                </div>
-              )}
-
-              {/* The Result */}
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <div className="h-5 w-5 rounded-full bg-amber-400/10 flex items-center justify-center text-[9px] font-black text-amber-400/70">{stepNum}</div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-400/70">The Result</span>
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed pl-7">
-                  {signal.totalBookedPnl != null ? (
-                    <>Trade closed with a total booked return of{" "}
-                    <span className={cn("font-mono font-black text-base", leveragedPnl >= 0 ? "text-positive" : "text-negative")}>
-                      {leveragedPnl >= 0 ? "+" : ""}{leveragedPnl.toFixed(2)}%
-                    </span>{" "}at <span className="font-bold text-accent">{leverage}x</span> leverage.</>
-                  ) : (
-                    <>Currently trading at <span className="font-mono font-bold text-foreground">${formatNarrationPrice(signal.currentPrice)}</span>, delivering{" "}
-                    <span className={cn("font-mono font-black text-base", leveragedPnl >= 0 ? "text-positive" : "text-negative")}>
-                      {leveragedPnl >= 0 ? "+" : ""}{leveragedPnl.toFixed(2)}%
-                    </span>{" "}returns at <span className="font-bold text-accent">{leverage}x</span> leverage.</>
-                  )}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function WinnersTicker({ winners, windowLabel, leverage, onSelect }: { winners: WinnerSignal[]; windowLabel: string; leverage: number; onSelect: (w: WinnerSignal) => void }) {
-  const [activeIndex, setActiveIndex] = useState(0);
-
-  useEffect(() => {
-    if (winners.length <= 1) return;
-    const interval = setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % winners.length);
-    }, 2500);
-    return () => clearInterval(interval);
-  }, [winners.length]);
-
-  if (winners.length === 0) return null;
-
-  const winner = winners[activeIndex];
-  const isBuy = winner.type === "BUY";
-  const isRetired = winner.status === "INACTIVE";
-  const hasTp = winner.tp1 != null;
-
-  const hitTps = ([
-    { hit: winner.tp1Hit, label: "TP1" },
-    { hit: winner.tp2Hit, label: "TP2" },
-    { hit: winner.tp3Hit, label: "TP3" },
-  ]).filter(tp => tp.hit);
-
-  return (
-    <div>
-      <span className="text-[9px] font-bold uppercase tracking-widest text-amber-400/50">Top Winners · {windowLabel}</span>
-      <button
-        onClick={(e) => { e.preventDefault(); onSelect(winner); }}
-        className="w-full hover:bg-amber-500/[0.05] rounded-md px-1 py-0.5 transition-colors cursor-pointer"
-      >
-        <div className="flex items-center justify-between mt-0.5">
-          <div className="flex items-center gap-2 min-w-0">
-            <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-            <span className={cn("text-sm font-black shrink-0", isBuy ? "text-positive" : "text-negative")}>{isBuy ? "▲" : "▼"}</span>
-            <span className="text-sm font-black text-foreground uppercase tracking-wider truncate">{winner.symbol}</span>
-          </div>
-          <span className="text-lg font-black font-mono text-amber-400 shrink-0">+{(winner.pnl * leverage).toFixed(2)}%</span>
-        </div>
-        <div className="flex items-center gap-2 mt-0.5 pl-6">
-          <span className="text-[8px] font-bold text-muted-foreground/30 uppercase tracking-wider">{winner.algo || "V8 Reversal"}</span>
-          {hitTps.map((tp) => (
-            <span key={tp.label} className="text-[9px] font-bold">
-              <span className="text-positive">✓</span><span className="text-positive/60">{tp.label}</span>
-            </span>
-          ))}
-          {isRetired && <span className="text-[8px] font-black text-muted-foreground/40">CLOSED</span>}
-        </div>
-      </button>
-    </div>
-  );
-}
-
-const TAGLINES = [
-  "Scanning the cryptoverse.",
-  "Filtering the noise.",
-  "Dropping high-probability setups.",
-];
-
-function TypewriterTagline() {
-  const [lineIndex, setLineIndex] = useState(0);
-  const [charIndex, setCharIndex] = useState(0);
-  const [phase, setPhase] = useState<"typing" | "hold" | "fading">("typing");
-  const [opacity, setOpacity] = useState(1);
-
-  const line = TAGLINES[lineIndex];
-
-  useEffect(() => {
-    if (phase === "typing") {
-      if (charIndex < line.length) {
-        const timeout = setTimeout(() => setCharIndex((c) => c + 1), 45);
-        return () => clearTimeout(timeout);
-      }
-      setPhase("hold");
-    } else if (phase === "hold") {
-      const timeout = setTimeout(() => setPhase("fading"), 1800);
-      return () => clearTimeout(timeout);
-    } else if (phase === "fading") {
-      setOpacity(0);
-      const timeout = setTimeout(() => {
-        setLineIndex((i) => (i + 1) % TAGLINES.length);
-        setCharIndex(0);
-        setOpacity(1);
-        setPhase("typing");
-      }, 500);
-      return () => clearTimeout(timeout);
-    }
-  }, [phase, charIndex, line.length]);
-
-  return (
-    <p
-      className="text-sm text-muted-foreground mt-1 h-6 font-mono transition-opacity duration-500"
-      style={{ opacity }}
-    >
-      {line.slice(0, charIndex)}
-      <span className="inline-block w-[2px] h-[14px] bg-accent/70 ml-0.5 align-middle animate-[pulse_0.8s_ease-in-out_infinite]" />
-    </p>
-  );
-}
+const TIMEFRAME_NAMES: Record<string, string> = {
+  "5": "Scalping",
+  "15": "Intraday",
+  "60": "BTST",
+  "240": "Swing",
+  D: "Positional",
+};
 
 function formatTimeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -477,125 +78,449 @@ function formatTimeAgo(dateStr: string) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function FreshnessDot() {
-  const [pinging, setPinging] = useState(true);
-  useEffect(() => {
-    const timer = setTimeout(() => setPinging(false), 2000);
-    return () => clearTimeout(timer);
-  }, []);
+function formatPrice(price: number | null | undefined): string {
+  if (price == null) return "--";
+  const decimals = price < 1 ? 6 : price < 100 ? 4 : 2;
+  return price.toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
+function getDisplayAssetType(signal: { assetType?: string }) {
+  if (signal.assetType && signal.assetType !== "UNCLASSIFIED")
+    return signal.assetType;
+  return "CRYPTO";
+}
+
+interface ProcessedSignal {
+  id: string;
+  symbol: string;
+  type: "BUY" | "SELL";
+  price: number;
+  currentPrice: number | null;
+  pnl: number;
+  leveragedPnl: number;
+  leverage: number;
+  timeframe: string;
+  timeframeName: string;
+  receivedAt: string;
+  status: string;
+  algo: string;
+  tp1Hit: boolean;
+  tp2Hit: boolean;
+  tp3Hit: boolean;
+  slHitAt: string | null;
+  closedAt: string | null;
+  totalBookedPnl: number | null;
+  stopLoss: number | null;
+  tp1: number | null;
+  tp2: number | null;
+  tp3: number | null;
+  maxUpsidePrice: number | null;
+  maxDrawdownPrice: number | null;
+  originalStopLoss: number | null;
+  sentimentAtEntry: string;
+  aligned: boolean;
+  autoFilterPassed: boolean | null;
+  confidenceScore: number | null;
+  confidenceLabel: string | null;
+}
+
+interface StatusEvent {
+  id: string;
+  type: string;
+  symbol: string;
+  side: string;
+  timeframe: string;
+  signalId: string;
+  createdAt: string;
+  bookedPnl?: number | null;
+  totalBookedPnl?: number | null;
+  guidance: string;
+  entryPrice: number;
+  price: number;
+  algo: string;
+}
+
+function FilterChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
-    <span className="relative flex h-2.5 w-2.5">
-      {pinging && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75" />}
-      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-accent shadow-[0_0_6px_theme(colors.accent)]" />
-    </span>
+    <button
+      onClick={onClick}
+      className={cn(
+        "px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all border cursor-pointer",
+        active
+          ? "bg-accent/20 border-accent/40 text-accent"
+          : "bg-white/[0.04] border-white/10 text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
+      )}
+    >
+      {label}
+    </button>
   );
 }
 
-function SideBarRow({ label, count, maxCount, href, color, flash, showBell }: { label: string; count: number; maxCount: number; href: string; color: "positive" | "negative" | "muted"; flash?: boolean; showBell?: boolean }) {
-  const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
-  const colorMap = {
-    positive: { bar: "bg-positive/30", text: "text-positive", hover: "hover:bg-positive/5" },
-    negative: { bar: "bg-negative/30", text: "text-negative", hover: "hover:bg-negative/5" },
-    muted: { bar: "bg-white/10", text: "text-muted-foreground", hover: "hover:bg-white/5" },
-  };
-  const s = colorMap[color];
+function OpportunityCard({
+  signal,
+  score,
+}: {
+  signal: ProcessedSignal;
+  score?: ScoredSignal;
+}) {
+  const isBuy = signal.type === "BUY";
+  const isWinning = signal.pnl > 0.05;
+  const isLosing = signal.pnl < -0.05;
+
   return (
-    <Link href={href} className={cn("flex items-center gap-3 px-3 py-1.5 rounded-md transition-colors", s.hover, flash && "animate-bar-flash")}>
-      <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 w-[52px] shrink-0">{label}</span>
-      <span className={cn("text-sm font-black font-mono w-[28px] text-right shrink-0", s.text)}>{count}</span>
-      <div className="flex-1 h-2 rounded-full bg-white/[0.04] overflow-hidden">
-        <div className={cn("h-full rounded-full transition-all duration-500", s.bar)} style={{ width: `${Math.max(pct, count > 0 ? 4 : 0)}%` }} />
-      </div>
-      {showBell && (
-        <Bell className="h-3.5 w-3.5 text-amber-400 shrink-0 animate-bounce" />
+    <Link
+      href={`/chart/${signal.id}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        "group block rounded-xl border transition-all hover:translate-y-[-2px] hover:shadow-xl",
+        isWinning
+          ? "border-positive/25 bg-gradient-to-b from-positive/[0.06] to-positive/[0.02] hover:border-positive/40 hover:shadow-positive/10"
+          : isLosing
+            ? "border-negative/25 bg-gradient-to-b from-negative/[0.06] to-negative/[0.02] hover:border-negative/40 hover:shadow-negative/10"
+            : "border-white/[0.08] bg-gradient-to-b from-white/[0.04] to-white/[0.01] hover:border-white/20 hover:shadow-white/5"
       )}
+    >
+      {/* Symbol + Direction */}
+      <div className="px-4 pt-3.5 pb-1">
+        <div className="flex items-center justify-between">
+          <span className="text-[15px] font-black uppercase tracking-tight text-foreground">
+            {signal.symbol}
+          </span>
+          {score && (
+            <div
+              className={cn(
+                "flex items-center gap-1 px-2 py-1 rounded-lg border",
+                score.score >= 80
+                  ? "bg-positive/10 border-positive/25 text-positive"
+                  : score.score >= 65
+                    ? "bg-accent/10 border-accent/25 text-accent"
+                    : score.score >= 50
+                      ? "bg-amber-400/10 border-amber-400/25 text-amber-400"
+                      : "bg-orange-400/10 border-orange-400/25 text-orange-400"
+              )}
+            >
+              <Sparkles className="w-3 h-3" />
+              <span className="text-[11px] font-black tabular-nums">
+                {score.score}
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-1">
+            {isBuy ? (
+              <ArrowUpRight className="w-3.5 h-3.5 text-positive" />
+            ) : (
+              <ArrowDownRight className="w-3.5 h-3.5 text-negative" />
+            )}
+            <span
+              className={cn(
+                "text-[11px] font-black uppercase tracking-wide",
+                isBuy ? "text-positive" : "text-negative"
+              )}
+            >
+              {isBuy ? "Long" : "Short"}
+            </span>
+          </div>
+          <span className="text-white/10">·</span>
+          <span className="text-[11px] font-bold text-accent/60">
+            {signal.leverage}x
+          </span>
+          <span className="text-white/10">·</span>
+          <span className="text-[11px] font-bold text-muted-foreground/50 uppercase">
+            {signal.timeframeName}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 mt-1.5 text-muted-foreground/35">
+          <Clock className="w-3 h-3" />
+          <span className="text-[10px]">
+            {formatTimeAgo(signal.receivedAt)}
+          </span>
+        </div>
+      </div>
+
+      {/* PnL */}
+      <div className="px-4 py-2.5">
+        <span
+          className={cn(
+            "text-2xl font-black font-mono tabular-nums leading-none",
+            isWinning
+              ? "text-positive"
+              : isLosing
+                ? "text-negative"
+                : "text-muted-foreground"
+          )}
+        >
+          {signal.leveragedPnl >= 0 ? "+" : ""}
+          {signal.leveragedPnl.toFixed(2)}%
+        </span>
+      </div>
+
+      {/* Price */}
+      <div className="px-4 pb-2.5">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-muted-foreground/50 font-mono">
+            ${formatPrice(signal.price)}
+          </span>
+          <span className="text-white/15">→</span>
+          <span
+            className={cn(
+              "text-[11px] font-mono font-bold",
+              isWinning
+                ? "text-positive/70"
+                : isLosing
+                  ? "text-negative/70"
+                  : "text-muted-foreground/50"
+            )}
+          >
+            ${formatPrice(signal.currentPrice)}
+          </span>
+        </div>
+      </div>
+
+      {/* Algo */}
+      <div className="px-4 pb-3 pt-1.5 border-t border-white/[0.04]">
+        <span className="text-[9px] font-bold text-muted-foreground/30 uppercase tracking-widest">
+          {signal.algo}
+        </span>
+      </div>
     </Link>
   );
 }
 
-function OpportunityCard({ cat, activeCounts, signalIds, topWinners, onSelectWinner, freshSignal, flashKeys, bellKeys }: {
-  cat: typeof OPPORTUNITY_CATEGORIES[number];
-  activeCounts: Record<string, Record<SideKey, Record<StatusKey, number>>>;
-  signalIds: Record<string, Record<SideKey, Record<StatusKey, string[]>>>;
-  topWinners: Record<string, WinnerSignal[]>;
-  onSelectWinner: (w: WinnerSignal) => void;
-  freshSignal?: { id: string; ticker: string; type: string; receivedAt: string; algo: string } | null;
-  flashKeys?: Set<FlashKey>;
-  bellKeys?: Set<FlashKey>;
-}) {
-  const c = activeCounts[cat.id] ?? { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
-  const ids = signalIds[cat.id] ?? { BUY: { working: [], "not-working": [], neutral: [] }, SELL: { working: [], "not-working": [], neutral: [] } };
-  const boxHref = (side: SideKey, status: StatusKey) => {
-    const arr = ids[side][status];
-    if (arr.length === 1) return `/chart/${arr[0]}`;
-    return `/terminal?timeframe=${cat.id}&side=${side}&status=${status}`;
-  };
+const EVENT_CONFIG: Record<
+  string,
+  { icon: typeof Target; color: string; bgColor: string; label: string }
+> = {
+  TP1_HIT: {
+    icon: Target,
+    color: "text-positive",
+    bgColor: "bg-positive/10",
+    label: "TP1 Hit",
+  },
+  TP2_HIT: {
+    icon: Target,
+    color: "text-positive",
+    bgColor: "bg-positive/10",
+    label: "TP2 Hit",
+  },
+  TP3_HIT: {
+    icon: CheckCircle2,
+    color: "text-positive",
+    bgColor: "bg-positive/10",
+    label: "TP3 Hit",
+  },
+  SL_HIT: {
+    icon: ShieldOff,
+    color: "text-negative",
+    bgColor: "bg-negative/10",
+    label: "SL Hit",
+  },
+  NEW_SIGNAL: {
+    icon: Zap,
+    color: "text-accent",
+    bgColor: "bg-accent/10",
+    label: "New Signal",
+  },
+};
 
-  const bullTotal = c.BUY.working + c.BUY["not-working"] + c.BUY.neutral;
-  const bearTotal = c.SELL.working + c.SELL["not-working"] + c.SELL.neutral;
-  const bullMax = Math.max(c.BUY.working, c.BUY["not-working"], c.BUY.neutral, 1);
-  const bearMax = Math.max(c.SELL.working, c.SELL["not-working"], c.SELL.neutral, 1);
+function EventRow({ event }: { event: StatusEvent }) {
+  const pnlValue = event.totalBookedPnl ?? event.bookedPnl;
+  const isTrailingSL =
+    event.type === "SL_HIT" && pnlValue != null && pnlValue > 0;
+
+  const config = isTrailingSL
+    ? {
+        icon: ShieldOff,
+        color: "text-positive",
+        bgColor: "bg-positive/10",
+        label: "Trailing SL Hit",
+      }
+    : (EVENT_CONFIG[event.type] ?? {
+        icon: XCircle,
+        color: "text-muted-foreground",
+        bgColor: "bg-white/5",
+        label: event.type,
+      });
+  const Icon = config.icon;
+  const isBuy = event.side === "BUY";
+  const tfName = TIMEFRAME_NAMES[event.timeframe] ?? event.timeframe;
+  const leverage = getLeverage(event.timeframe);
 
   return (
-    <Card className="bg-gradient-to-b from-[#141416] to-[#101012] border-white/5 shadow-2xl shadow-accent/5 overflow-hidden rounded-2xl transition-all duration-200 hover:translate-y-[-2px] hover:shadow-accent/10">
-      {/* Header strip */}
-      <div className="px-6 py-4 border-b border-white/5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="text-2xl font-black uppercase tracking-tighter">{cat.name}</span>
-            {freshSignal && <FreshnessDot />}
+    <Link
+      href={`/chart/${event.signalId}`}
+      className="block px-4 py-3 border-b border-white/[0.05] transition-colors hover:bg-white/[0.03]"
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={cn(
+            "flex items-center justify-center w-7 h-7 rounded-md shrink-0 mt-0.5",
+            config.bgColor
+          )}
+        >
+          <Icon className={cn("w-3.5 h-3.5", config.color)} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span
+              className={cn(
+                "text-[13px] font-black uppercase tracking-tight truncate",
+                config.color
+              )}
+            >
+              {config.label}
+            </span>
+            {pnlValue != null && (
+              <span
+                className={cn(
+                  "text-[13px] font-black font-mono tabular-nums shrink-0",
+                  pnlValue >= 0 ? "text-positive" : "text-negative"
+                )}
+              >
+                {pnlValue >= 0 ? "+" : ""}
+                {(pnlValue * leverage).toFixed(2)}%
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 mt-1">
+            <span
+              className={cn(
+                "text-[11px] font-bold",
+                isBuy ? "text-positive/70" : "text-negative/70"
+              )}
+            >
+              {isBuy ? "▲" : "▼"}
+            </span>
+            <span className="text-[11px] font-bold text-foreground/90 uppercase tracking-tight">
+              {event.symbol}
+            </span>
             <span className="text-white/15">·</span>
-            <span className="text-[10px] font-bold uppercase text-accent/80 tracking-widest">{cat.chart}</span>
+            <span className="text-[11px] text-muted-foreground/60">{tfName}</span>
           </div>
-          <span className="text-xs font-black uppercase text-accent tracking-wider">{cat.leverage}</span>
+          {event.algo && (
+            <p className="text-[10px] text-muted-foreground/40 mt-0.5 uppercase tracking-wider">
+              {event.algo}
+            </p>
+          )}
+          <p className="text-[11px] text-muted-foreground/50 mt-1 leading-relaxed">
+            {event.guidance}
+          </p>
+          <div className="flex items-center gap-1 mt-1.5">
+            <Clock className="w-3 h-3 text-muted-foreground/40" />
+            <span className="text-[11px] text-muted-foreground/40">
+              {formatTimeAgo(event.createdAt)}
+            </span>
+          </div>
         </div>
-        {freshSignal && (
-          <Link href={`/chart/${freshSignal.id}`} className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-accent/10 border border-accent/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-accent hover:bg-accent/20 transition-colors">
-            <span className={freshSignal.type === "BUY" ? "text-positive" : "text-negative"}>{freshSignal.type === "BUY" ? "▲" : "▼"}</span>
-            <span>{freshSignal.ticker}</span>
-            <span className="text-accent/50">·</span>
-            <span className="text-accent/40">{freshSignal.algo}</span>
-            <span className="text-accent/50">·</span>
-            <span className="text-accent/70">{formatTimeAgo(freshSignal.receivedAt)}</span>
-          </Link>
-        )}
       </div>
+    </Link>
+  );
+}
 
-      <CardContent className="p-6 space-y-5">
-        {/* Top Winners */}
-        <WinnersTicker winners={topWinners[cat.id] ?? []} windowLabel={cat.windowLabel} leverage={getLeverage(cat.id)} onSelect={onSelectWinner} />
+function WinnerRow({
+  signal,
+  rank,
+}: {
+  signal: ProcessedSignal;
+  rank: number;
+}) {
+  const isBuy = signal.type === "BUY";
+  const isClosed = signal.status === "INACTIVE";
 
-        <div className="border-t border-white/5" />
+  const tpCount = [signal.tp1Hit, signal.tp2Hit, signal.tp3Hit].filter(
+    Boolean
+  ).length;
 
-        {/* Bulls */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between px-3 mb-1">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-3.5 w-3.5 text-positive" />
-              <span className="text-[10px] font-black uppercase tracking-wider text-positive">Bulls</span>
-            </div>
-            <span className="text-[10px] font-bold text-muted-foreground/40">{bullTotal} trades</span>
-          </div>
-          <SideBarRow label="Winning" count={c.BUY.working} maxCount={bullMax} href={boxHref("BUY", "working")} color="positive" flash={flashKeys?.has(`${cat.id}-BUY-working`)} showBell={bellKeys?.has(`${cat.id}-BUY-working`)} />
-          <SideBarRow label="Losing" count={c.BUY["not-working"]} maxCount={bullMax} href={boxHref("BUY", "not-working")} color="negative" />
-          <SideBarRow label="Neutral" count={c.BUY.neutral} maxCount={bullMax} href={boxHref("BUY", "neutral")} color="muted" />
+  return (
+    <Link
+      href={`/chart/${signal.id}`}
+      className="block px-4 py-3 border-b border-white/[0.05] transition-colors hover:bg-amber-500/[0.03]"
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={cn(
+            "flex items-center justify-center w-7 h-7 rounded-md shrink-0 mt-0.5 text-[11px] font-black",
+            rank <= 3
+              ? "bg-amber-400/15 text-amber-400"
+              : "bg-white/5 text-muted-foreground/60"
+          )}
+        >
+          {rank}
         </div>
-
-        {/* Bears */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between px-3 mb-1">
-            <div className="flex items-center gap-2">
-              <TrendingDown className="h-3.5 w-3.5 text-negative" />
-              <span className="text-[10px] font-black uppercase tracking-wider text-negative">Bears</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span
+                className={cn(
+                  "text-[11px] font-bold",
+                  isBuy ? "text-positive" : "text-negative"
+                )}
+              >
+                {isBuy ? "▲" : "▼"}
+              </span>
+              <span className="text-[13px] font-black uppercase tracking-tight text-foreground truncate">
+                {signal.symbol}
+              </span>
+              {isClosed && (
+                <span className="text-[10px] font-bold text-muted-foreground/50 bg-white/8 px-1.5 py-0.5 rounded">
+                  Closed
+                </span>
+              )}
             </div>
-            <span className="text-[10px] font-bold text-muted-foreground/40">{bearTotal} trades</span>
+            <span className="text-sm font-black font-mono tabular-nums text-positive shrink-0">
+              +{signal.leveragedPnl.toFixed(2)}%
+            </span>
           </div>
-          <SideBarRow label="Winning" count={c.SELL.working} maxCount={bearMax} href={boxHref("SELL", "working")} color="positive" flash={flashKeys?.has(`${cat.id}-SELL-working`)} showBell={bellKeys?.has(`${cat.id}-SELL-working`)} />
-          <SideBarRow label="Losing" count={c.SELL["not-working"]} maxCount={bearMax} href={boxHref("SELL", "not-working")} color="negative" />
-          <SideBarRow label="Neutral" count={c.SELL.neutral} maxCount={bearMax} href={boxHref("SELL", "neutral")} color="muted" />
+          <div className="flex items-center justify-between mt-1.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground/60">
+                {signal.timeframeName}
+              </span>
+              <span className="text-white/15">·</span>
+              <span className="text-[11px] text-muted-foreground/50">
+                {signal.algo}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {tpCount > 0 && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-positive/10 text-positive border border-positive/20">
+                  {tpCount} TP{tpCount > 1 ? "s" : ""}
+                </span>
+              )}
+              <span className="text-[11px] text-accent/60 font-bold">
+                {signal.leverage}x
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between mt-1.5">
+            <span className="text-[11px] text-muted-foreground/50 font-mono">
+              ${formatPrice(signal.price)} → ${formatPrice(signal.currentPrice)}
+            </span>
+            <div className="flex items-center gap-1">
+              <Clock className="w-3 h-3 text-muted-foreground/40" />
+              <span className="text-[10px] text-muted-foreground/40">
+                {isClosed && signal.closedAt
+                  ? `Closed ${formatTimeAgo(signal.closedAt)}`
+                  : `Called ${formatTimeAgo(signal.receivedAt)}`}
+              </span>
+            </div>
+          </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </Link>
   );
 }
 
@@ -604,235 +529,242 @@ export default function Home() {
   const auth = useAuth();
   const firestore = useFirestore();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [selectedWinner, setSelectedWinner] = useState<WinnerSignal | null>(null);
-  const [selectedTimeframe, setSelectedTimeframe] = useState(OPPORTUNITY_CATEGORIES[0].id);
-  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const chipsContainerRef = useRef<HTMLDivElement>(null);
-  const isScrollingFromChip = useRef(false);
 
-  const handleChipClick = useCallback((id: string) => {
-    setSelectedTimeframe(id);
-    const el = cardRefs.current[id];
-    if (el) {
-      isScrollingFromChip.current = true;
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      setTimeout(() => { isScrollingFromChip.current = false; }, 800);
+  const FILTER_STORAGE_KEY = "tez-opp-filters";
+
+  const [filterTimeframe, setFilterTimeframe] = useState("all");
+  const [filterSide, setFilterSide] = useState("all");
+  const [filterPerf, setFilterPerf] = useState("all");
+  const [filterAlgo, setFilterAlgo] = useState("all");
+  const [filtersLoaded, setFiltersLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(FILTER_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.timeframe) setFilterTimeframe(parsed.timeframe);
+        if (parsed.side) setFilterSide(parsed.side);
+        if (parsed.perf) setFilterPerf(parsed.perf);
+        if (parsed.algo) setFilterAlgo(parsed.algo);
+      }
+    } catch {}
+    setFiltersLoaded(true);
+  }, []);
+
+  const [draftTimeframe, setDraftTimeframe] = useState("all");
+  const [draftSide, setDraftSide] = useState("all");
+  const [draftPerf, setDraftPerf] = useState("all");
+  const [draftAlgo, setDraftAlgo] = useState("all");
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  const activeFilterCount = [filterTimeframe, filterSide, filterPerf, filterAlgo].filter(
+    (v) => v !== "all"
+  ).length;
+  const hasActiveFilters = activeFilterCount > 0;
+
+  const handleFilterOpen = useCallback((open: boolean) => {
+    if (open) {
+      setDraftTimeframe(filterTimeframe);
+      setDraftSide(filterSide);
+      setDraftPerf(filterPerf);
+      setDraftAlgo(filterAlgo);
     }
+    setFilterOpen(open);
+  }, [filterTimeframe, filterSide, filterPerf, filterAlgo]);
+
+  const handleApplyFilters = useCallback(() => {
+    setFilterTimeframe(draftTimeframe);
+    setFilterSide(draftSide);
+    setFilterPerf(draftPerf);
+    setFilterAlgo(draftAlgo);
+    setFilterOpen(false);
+    try {
+      localStorage.setItem(
+        FILTER_STORAGE_KEY,
+        JSON.stringify({
+          timeframe: draftTimeframe,
+          side: draftSide,
+          perf: draftPerf,
+          algo: draftAlgo,
+        })
+      );
+    } catch {}
+  }, [draftTimeframe, draftSide, draftPerf, draftAlgo]);
+
+  const handleClearFilters = useCallback(() => {
+    setDraftTimeframe("all");
+    setDraftSide("all");
+    setDraftPerf("all");
+    setDraftAlgo("all");
   }, []);
 
   const signalsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, "signals"), orderBy("receivedAt", "desc"), limit(200));
+    return query(
+      collection(firestore, "signals"),
+      orderBy("receivedAt", "desc"),
+      limit(200)
+    );
   }, [user, firestore]);
 
-  const { data: rawSignals, isLoading } = useCollection(signalsQuery);
-
-  useEffect(() => {
-    if (isLoading) return;
-    const entries = Object.entries(cardRefs.current).filter(([, el]) => el != null);
-    if (entries.length === 0) return;
-
-    const observer = new IntersectionObserver(
-      (observed) => {
-        if (isScrollingFromChip.current) return;
-        let best: { id: string; ratio: number } | null = null;
-        for (const entry of observed) {
-          const id = entry.target.getAttribute("data-tf");
-          if (!id) continue;
-          if (!best || entry.intersectionRatio > best.ratio) {
-            best = { id, ratio: entry.intersectionRatio };
-          }
-        }
-        if (best && best.ratio > 0) {
-          setSelectedTimeframe(best.id);
-        }
-      },
-      { threshold: [0, 0.25, 0.5, 0.75, 1] }
+  const eventsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, "signal_events"),
+      orderBy("createdAt", "desc"),
+      limit(100)
     );
+  }, [user, firestore]);
 
-    entries.forEach(([id, el]) => {
-      if (el) {
-        el.setAttribute("data-tf", id);
-        observer.observe(el);
-      }
-    });
-    return () => observer.disconnect();
-  }, [isLoading]);
+  const { data: rawSignals, isLoading: signalsLoading } =
+    useCollection(signalsQuery);
+  const { data: rawEvents, isLoading: eventsLoading } =
+    useCollection(eventsQuery);
 
-  type CountsMap = Record<string, Record<SideKey, Record<StatusKey, number>>>;
-  type IdsMap = Record<string, Record<SideKey, Record<StatusKey, string[]>>>;
-
-  const buildCountsAndIds = useCallback((signals: any[] | null) => {
-    const countMap: CountsMap = {};
-    const idsMap: IdsMap = {};
-    OPPORTUNITY_CATEGORIES.forEach((c) => {
-      countMap[c.id] = { BUY: { working: 0, "not-working": 0, neutral: 0 }, SELL: { working: 0, "not-working": 0, neutral: 0 } };
-      idsMap[c.id] = { BUY: { working: [], "not-working": [], neutral: [] }, SELL: { working: [], "not-working": [], neutral: [] } };
-    });
-    if (!signals) return { counts: countMap, ids: idsMap };
-    signals.forEach((signal: any) => {
-      if (signal.status === "INACTIVE") return;
-      if (getDisplayAssetType(signal) !== "CRYPTO") return;
-      const tf = String(signal.timeframe || "").toUpperCase();
-      const cat = tf === "D" ? "D" : tf;
-      if (!countMap[cat]) return;
-      const pnl = effectivePnl(signal);
-      const status = getPnlStatus(pnl);
-      const side: SideKey = signal.type === "BUY" ? "BUY" : "SELL";
-      countMap[cat][side][status]++;
-      idsMap[cat][side][status].push(signal.id);
-    });
-    return { counts: countMap, ids: idsMap };
-  }, []);
-
-  const { counts, ids: signalIds } = useMemo(() => buildCountsAndIds(rawSignals), [rawSignals, buildCountsAndIds]);
-
-  // Change detection: flash + bell + chime when winning count increases
-  const prevCounts = useRef<CountsMap | null>(null);
-  const [flashKeys, setFlashKeys] = useState<Set<FlashKey>>(new Set());
-  const [bellKeys, setBellKeys] = useState<Set<FlashKey>>(new Set());
-  const hasInteracted = useRef(false);
-
-  useEffect(() => {
-    const handler = () => { hasInteracted.current = true; };
-    window.addEventListener("click", handler, { once: true });
-    window.addEventListener("keydown", handler, { once: true });
-    return () => {
-      window.removeEventListener("click", handler);
-      window.removeEventListener("keydown", handler);
-    };
-  }, []);
-
-  useEffect(() => {
-    const prev = prevCounts.current;
-    if (!prev) {
-      prevCounts.current = counts;
-      return;
-    }
-
-    const newFlash: FlashKey[] = [];
-    for (const cat of OPPORTUNITY_CATEGORIES) {
-      for (const side of ["BUY", "SELL"] as SideKey[]) {
-        const prevWin = prev[cat.id]?.[side]?.working ?? 0;
-        const curWin = counts[cat.id]?.[side]?.working ?? 0;
-        if (curWin > prevWin) {
-          newFlash.push(`${cat.id}-${side}-working`);
-        }
-      }
-    }
-
-    prevCounts.current = counts;
-
-    if (newFlash.length > 0) {
-      const keySet = new Set(newFlash);
-      setFlashKeys(keySet);
-      setBellKeys(keySet);
-
-      if (hasInteracted.current) {
-        playChime();
-      }
-
-      setTimeout(() => setFlashKeys(new Set()), FLASH_DURATION);
-      setTimeout(() => setBellKeys(new Set()), BELL_DURATION);
-    }
-  }, [counts]);
-
-  const FRESHNESS_MINUTES: Record<string, number> = { "5": 5, "15": 15, "60": 60, "240": 240, "D": 1440 };
-
-  const computeLatestByTf = useCallback((signals: any[] | null) => {
-    const m: Record<string, { id: string; ticker: string; type: string; receivedAt: string; ts: number; algo: string }> = {};
-    if (!signals) return m;
-    signals.forEach((signal: any) => {
-      if (signal.status === "INACTIVE") return;
-      if (getDisplayAssetType(signal) !== "CRYPTO") return;
-      const tf = String(signal.timeframe || "").toUpperCase();
-      const cat = tf === "D" ? "D" : tf;
-      const ts = new Date(signal.receivedAt).getTime();
-      if (!m[cat] || ts > m[cat].ts) {
-        m[cat] = { id: signal.id, ticker: signal.ticker, type: signal.type, receivedAt: signal.receivedAt, ts, algo: signal.algo || "V8 Reversal" };
-      }
-    });
-    return m;
-  }, []);
-
-  const latestSignalByTf = useMemo(() => computeLatestByTf(rawSignals), [rawSignals, computeLatestByTf]);
-
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 30_000);
-    return () => clearInterval(id);
-  }, []);
-
-  const computeFreshSignals = useCallback((latestMap: Record<string, { id: string; ticker: string; type: string; receivedAt: string; ts: number; algo: string }>) => {
-    const result: Record<string, { id: string; ticker: string; type: string; receivedAt: string; algo: string } | null> = {};
-    const now = Date.now();
-    OPPORTUNITY_CATEGORIES.forEach((c) => {
-      const latest = latestMap[c.id];
-      const windowMs = (FRESHNESS_MINUTES[c.id] ?? 15) * 60 * 1000;
-      result[c.id] = latest && (now - latest.ts) < windowMs ? latest : null;
-    });
-    return result;
-  }, []);
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const freshSignals = useMemo(() => computeFreshSignals(latestSignalByTf), [latestSignalByTf, tick, computeFreshSignals]);
-
-  const computeTopWinners = useCallback((signals: any[] | null) => {
-    const map: Record<string, WinnerSignal[]> = {};
-    const windowMs: Record<string, number> = {};
-    const now = Date.now();
-    OPPORTUNITY_CATEGORIES.forEach((c) => {
-      map[c.id] = [];
-      windowMs[c.id] = c.windowHours * 60 * 60 * 1000;
-    });
-    if (!signals) return map;
-    signals.forEach((signal: any) => {
-      if (getDisplayAssetType(signal) !== "CRYPTO") return;
-      const tf = String(signal.timeframe || "").toUpperCase();
-      const cat = tf === "D" ? "D" : tf;
-      if (!map[cat]) return;
-      const signalTime = new Date(signal.receivedAt).getTime();
-      if (now - signalTime > windowMs[cat]) return;
-      const pnl = effectivePnl(signal);
-      if (pnl <= 0.05) return;
-      const maxPnl = calculatePercent(signal.maxUpsidePrice, signal.price, signal.type);
-      map[cat].push({
-        symbol: signal.symbol || "???",
-        pnl,
-        maxPnl,
-        type: signal.type,
-        price: Number(signal.price || 0),
-        currentPrice: signal.currentPrice != null ? Number(signal.currentPrice) : null,
-        maxUpsidePrice: signal.maxUpsidePrice ?? null,
-        maxDrawdownPrice: signal.maxDrawdownPrice ?? null,
-        stopLoss: signal.stopLoss ?? null,
-        receivedAt: signal.receivedAt,
-        timeframe: signal.timeframe,
-        status: signal.status,
-        tp1: signal.tp1 ?? null,
-        tp2: signal.tp2 ?? null,
-        tp3: signal.tp3 ?? null,
-        tp1Hit: signal.tp1Hit ?? false,
-        tp2Hit: signal.tp2Hit ?? false,
-        tp3Hit: signal.tp3Hit ?? false,
-        tp1BookedPnl: signal.tp1BookedPnl ?? null,
-        tp2BookedPnl: signal.tp2BookedPnl ?? null,
-        tp3BookedPnl: signal.tp3BookedPnl ?? null,
-        totalBookedPnl: signal.totalBookedPnl ?? null,
-        slHitAt: signal.slHitAt ?? null,
-        algo: signal.algo || "V8 Reversal",
+  const processedSignals: ProcessedSignal[] = useMemo(() => {
+    if (!rawSignals) return [];
+    return rawSignals
+      .filter((s: any) => getDisplayAssetType(s) === "CRYPTO")
+      .map((signal: any) => {
+        const pnl = getEffectivePnl(signal);
+        const tf = String(signal.timeframe || "15");
+        const leverage = getLeverage(tf);
+        return {
+          id: signal.id,
+          symbol: signal.symbol || "???",
+          type: signal.type as "BUY" | "SELL",
+          price: Number(signal.price || 0),
+          currentPrice:
+            signal.currentPrice != null ? Number(signal.currentPrice) : null,
+          pnl,
+          leveragedPnl: pnl * leverage,
+          leverage,
+          timeframe: tf,
+          timeframeName: TIMEFRAME_NAMES[tf] ?? tf,
+          receivedAt: signal.receivedAt,
+          status: signal.status || "ACTIVE",
+          algo: signal.algo || "V8 Reversal",
+          tp1Hit: signal.tp1Hit ?? false,
+          tp2Hit: signal.tp2Hit ?? false,
+          tp3Hit: signal.tp3Hit ?? false,
+          slHitAt: signal.slHitAt ?? null,
+          closedAt: signal.slHitAt ?? signal.tp3HitAt ?? null,
+          totalBookedPnl: signal.totalBookedPnl ?? null,
+          stopLoss: signal.stopLoss ?? null,
+          tp1: signal.tp1 != null ? Number(signal.tp1) : null,
+          tp2: signal.tp2 != null ? Number(signal.tp2) : null,
+          tp3: signal.tp3 != null ? Number(signal.tp3) : null,
+          maxUpsidePrice: signal.maxUpsidePrice != null ? Number(signal.maxUpsidePrice) : null,
+          maxDrawdownPrice: signal.maxDrawdownPrice != null ? Number(signal.maxDrawdownPrice) : null,
+          originalStopLoss: signal.originalStopLoss != null ? Number(signal.originalStopLoss) : null,
+          sentimentAtEntry: signal.sentimentAtEntry ?? "",
+          aligned: signal.aligned ?? false,
+          autoFilterPassed: signal.autoFilterPassed ?? null,
+          confidenceScore: signal.confidenceScore ?? null,
+          confidenceLabel: signal.confidenceLabel ?? null,
+        };
       });
+  }, [rawSignals]);
+
+  const uniqueAlgos = useMemo(() => {
+    const set = new Set<string>();
+    processedSignals.forEach((s) => set.add(s.algo));
+    return Array.from(set).sort();
+  }, [processedSignals]);
+
+  const filteredSignals = useMemo(() => {
+    return processedSignals.filter((s) => {
+      if (filterTimeframe !== "all" && s.timeframe !== filterTimeframe)
+        return false;
+      if (filterSide !== "all" && s.type !== filterSide) return false;
+      if (filterAlgo !== "all" && s.algo !== filterAlgo) return false;
+      if (filterPerf === "winning" && s.pnl <= 0.05) return false;
+      if (filterPerf === "losing" && s.pnl >= -0.05) return false;
+      return true;
     });
-    Object.keys(map).forEach((k) => {
-      map[k].sort((a, b) => b.pnl - a.pnl);
-      map[k] = map[k].slice(0, 5);
-    });
+  }, [processedSignals, filterTimeframe, filterSide, filterAlgo, filterPerf]);
+
+  const signalAlgoMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    processedSignals.forEach((s) => { map[s.id] = s.algo; });
     return map;
-  }, []);
+  }, [processedSignals]);
 
-  const topWinners = useMemo(() => computeTopWinners(rawSignals), [rawSignals, computeTopWinners]);
+  const aiPassedIds = useMemo(() => {
+    const ids = new Set<string>();
+    processedSignals.forEach((s) => {
+      if (s.autoFilterPassed === true) ids.add(s.id);
+    });
+    return ids;
+  }, [processedSignals]);
 
-  const handleGoogleLogin = async () => {
+  const allEvents: StatusEvent[] = useMemo(() => {
+    if (!rawEvents) return [];
+    return rawEvents
+      .filter((e: any) => aiPassedIds.has(e.signalId))
+      .map((e: any) => ({
+        id: e.id,
+        type: e.type,
+        symbol: e.symbol,
+        side: e.side,
+        timeframe: e.timeframe || "15",
+        signalId: e.signalId,
+        createdAt: e.createdAt,
+        bookedPnl: e.bookedPnl ?? null,
+        totalBookedPnl: e.totalBookedPnl ?? null,
+        guidance: e.guidance || "",
+        entryPrice: e.entryPrice || 0,
+        price: e.price || 0,
+        algo: signalAlgoMap[e.signalId] || "",
+      }));
+  }, [rawEvents, signalAlgoMap, aiPassedIds]);
+
+  const [aiTab, setAiTab] = useState<"active" | "watch">("active");
+
+  const aiActiveSignals = useMemo(() => {
+    const base = filteredSignals.filter(
+      (s) =>
+        s.status !== "INACTIVE" &&
+        !s.tp1Hit &&
+        !s.tp2Hit &&
+        !s.tp3Hit &&
+        !s.slHitAt &&
+        s.autoFilterPassed === true &&
+        (s.confidenceScore ?? 0) >= AUTO_FILTER_THRESHOLD,
+    );
+    return base.sort(
+      (a, b) => (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0),
+    );
+  }, [filteredSignals]);
+
+  const aiWatchSignals = useMemo(() => {
+    return filteredSignals.filter(
+      (s) =>
+        s.status !== "INACTIVE" &&
+        !s.tp1Hit &&
+        !s.tp2Hit &&
+        !s.tp3Hit &&
+        !s.slHitAt &&
+        s.autoFilterPassed === true &&
+        (s.confidenceScore ?? 0) < AUTO_FILTER_THRESHOLD,
+    );
+  }, [filteredSignals]);
+
+  const liveOpportunities = aiTab === "active" ? aiActiveSignals : aiWatchSignals;
+
+  const activeCount = aiActiveSignals.length;
+  const watchCount = aiWatchSignals.length;
+  const winningCount = aiActiveSignals.filter((s) => s.pnl > 0.05).length;
+
+  const topWinners = useMemo(() => {
+    return processedSignals
+      .filter((s) => s.pnl > 0.05)
+      .sort((a, b) => b.leveragedPnl - a.leveragedPnl)
+      .slice(0, 20);
+  }, [processedSignals]);
+
+  const handleGoogleLogin = useCallback(async () => {
     if (auth) {
       setIsLoggingIn(true);
       try {
@@ -847,7 +779,7 @@ export default function Home() {
         setIsLoggingIn(false);
       }
     }
-  };
+  }, [auth]);
 
   if (isUserLoading) {
     return (
@@ -861,81 +793,303 @@ export default function Home() {
     return <LandingPage onLogin={handleGoogleLogin} isLoggingIn={isLoggingIn} />;
   }
 
+  const isLoading = signalsLoading || eventsLoading;
+
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
       <main className="flex-1 flex flex-col min-w-0 h-full">
         <TopBar />
-        <div className="flex-1 overflow-y-auto">
-          <div className="px-4 py-6 md:px-6 md:py-8 space-y-8">
 
-            <div>
-              <h1 className="text-xl font-black tracking-tight">Opportunity Finder</h1>
-              <TypewriterTagline />
-            </div>
+        {/* Three-pane layout */}
+        <div className="flex-1 flex gap-3 p-3 overflow-hidden">
 
-            {/* Mobile: sticky filter chips + vertical scroll with scroll-spy */}
-            <div className="md:hidden space-y-4">
-              <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md pb-3 -mx-4 px-4 pt-1">
-                <div className="flex flex-wrap gap-2" ref={chipsContainerRef}>
-                  {OPPORTUNITY_CATEGORIES.map((cat) => (
-                    <button
-                      key={cat.id}
-                      onClick={() => handleChipClick(cat.id)}
-                      className={cn(
-                        "px-4 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all border",
-                        selectedTimeframe === cat.id
-                          ? "bg-accent/20 border-accent/40 text-accent shadow-[0_0_12px_-2px_rgba(var(--accent-rgb,245,158,11),0.3)]"
-                          : "bg-white/[0.04] border-white/10 text-muted-foreground hover:bg-white/[0.08] hover:border-white/20 hover:text-foreground"
+          {/* Left pane: Opportunities (~50%) */}
+          <div className="flex-[5] flex flex-col min-w-0 rounded-xl border border-white/[0.08] bg-[#111113] overflow-hidden">
+            {/* Header */}
+            <div className="px-4 py-3 border-b border-white/[0.06]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <h2 className="text-sm font-black tracking-tight uppercase">
+                    AI Filtered
+                  </h2>
+                  {!isLoading && (
+                    <div className="flex items-center gap-2 ml-1">
+                      <span className="text-[11px] font-bold text-positive/70">
+                        {activeCount} active
+                      </span>
+                      {watchCount > 0 && (
+                        <>
+                          <span className="text-white/15">·</span>
+                          <span className="text-[11px] font-bold text-amber-400/60">
+                            {watchCount} watch
+                          </span>
+                        </>
                       )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+              <Popover open={filterOpen} onOpenChange={handleFilterOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer",
+                      hasActiveFilters
+                        ? "bg-accent/20 border-accent/40 text-accent"
+                        : "bg-white/[0.04] border-white/10 text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
+                    )}
+                  >
+                    <SlidersHorizontal className="w-3 h-3" />
+                    {hasActiveFilters ? `${activeFilterCount}` : "Filter"}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="end"
+                  className="w-64 bg-card border-white/10 shadow-2xl p-0"
+                >
+                  <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-wider">Filters</span>
+                    {(draftTimeframe !== "all" || draftSide !== "all" || draftPerf !== "all") && (
+                      <button
+                        onClick={handleClearFilters}
+                        className="text-[10px] font-bold text-accent hover:text-accent/80 cursor-pointer"
+                      >
+                        Clear all
+                      </button>
+                    )}
+                  </div>
+                  <div className="p-4 space-y-4">
+                    <div className="space-y-2">
+                      <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-widest">
+                        Timeframe
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {TIMEFRAME_OPTIONS.map((opt) => (
+                          <FilterChip
+                            key={opt.id}
+                            label={opt.label}
+                            active={draftTimeframe === opt.id}
+                            onClick={() => setDraftTimeframe(opt.id)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-widest">
+                        Side
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {SIDE_OPTIONS.map((opt) => (
+                          <FilterChip
+                            key={opt.id}
+                            label={opt.label}
+                            active={draftSide === opt.id}
+                            onClick={() => setDraftSide(opt.id)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-widest">
+                        Performance
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {PERF_OPTIONS.map((opt) => (
+                          <FilterChip
+                            key={opt.id}
+                            label={opt.label}
+                            active={draftPerf === opt.id}
+                            onClick={() => setDraftPerf(opt.id)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    {uniqueAlgos.length > 1 && (
+                      <div className="space-y-2">
+                        <span className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-widest">
+                          Algo
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          <FilterChip
+                            label="All"
+                            active={draftAlgo === "all"}
+                            onClick={() => setDraftAlgo("all")}
+                          />
+                          {uniqueAlgos.map((algo) => (
+                            <FilterChip
+                              key={algo}
+                              label={algo}
+                              active={draftAlgo === algo}
+                              onClick={() => setDraftAlgo(algo)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="px-4 py-3 border-t border-white/[0.06]">
+                    <button
+                      onClick={handleApplyFilters}
+                      className="w-full py-2 rounded-lg bg-accent text-background text-xs font-black uppercase tracking-wider hover:bg-accent/90 transition-colors cursor-pointer"
                     >
-                      {cat.chart}
+                      Apply Filters
                     </button>
-                  ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
                 </div>
               </div>
-
-              {isLoading ? (
-                <div className="space-y-4">
-                  {[1, 2, 3].map((i) => (
-                    <Card key={i} className="bg-[#121214] border-white/5 animate-pulse rounded-2xl">
-                      <CardHeader className="pb-2"><div className="h-6 w-32 bg-white/10 rounded" /></CardHeader>
-                      <CardContent><div className="h-48 bg-white/5 rounded" /></CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {OPPORTUNITY_CATEGORIES.map((cat) => (
-                    <div key={cat.id} ref={(el) => { cardRefs.current[cat.id] = el; }}>
-                      <OpportunityCard cat={cat} activeCounts={counts} signalIds={signalIds} topWinners={topWinners} onSelectWinner={setSelectedWinner} freshSignal={freshSignals[cat.id]} flashKeys={flashKeys} bellKeys={bellKeys} />
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div className="flex items-center gap-1 px-4 pt-2 pb-1">
+                <button
+                  onClick={() => setAiTab("active")}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer",
+                    aiTab === "active"
+                      ? "bg-positive/15 text-positive"
+                      : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/[0.04]"
+                  )}
+                >
+                  AI Active {!isLoading && `(${activeCount})`}
+                </button>
+                <button
+                  onClick={() => setAiTab("watch")}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer",
+                    aiTab === "watch"
+                      ? "bg-amber-400/15 text-amber-400"
+                      : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/[0.04]"
+                  )}
+                >
+                  AI Watch {!isLoading && watchCount > 0 && `(${watchCount})`}
+                </button>
+              </div>
             </div>
 
-            {/* Desktop: grid of all cards */}
-            <div className="hidden md:block">
+            <div className="flex-1 overflow-y-auto p-3">
               {isLoading ? (
-                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <Card key={i} className="bg-[#121214] border-white/5 animate-pulse rounded-2xl">
-                      <CardHeader className="pb-2"><div className="h-6 w-32 bg-white/10 rounded" /></CardHeader>
-                      <CardContent><div className="h-48 bg-white/5 rounded" /></CardContent>
-                    </Card>
-                  ))}
+                <div className="flex items-center justify-center h-32">
+                  <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
+                </div>
+              ) : liveOpportunities.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/30">
+                  {aiTab === "active" ? (
+                    <>
+                      <Sparkles className="w-6 h-6 mb-2 text-amber-400/30" />
+                      <span className="text-xs font-bold">
+                        No high-confidence signals right now
+                      </span>
+                      <span className="text-[10px] mt-1 text-muted-foreground/20">
+                        Signals scoring {AUTO_FILTER_THRESHOLD}+ appear here
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-6 h-6 mb-2" />
+                      <span className="text-xs font-bold">
+                        No demoted signals
+                      </span>
+                    </>
+                  )}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-                  {OPPORTUNITY_CATEGORIES.map((cat) => (
-                    <OpportunityCard key={cat.id} cat={cat} activeCounts={counts} signalIds={signalIds} topWinners={topWinners} onSelectWinner={setSelectedWinner} freshSignal={freshSignals[cat.id]} flashKeys={flashKeys} bellKeys={bellKeys} />
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
+                  {liveOpportunities.map((signal) => (
+                    <OpportunityCard
+                      key={signal.id}
+                      signal={signal}
+                      score={signal.confidenceScore != null ? {
+                        signalId: signal.id,
+                        score: signal.confidenceScore,
+                        label: signal.confidenceLabel ?? "",
+                        color: signal.confidenceScore >= 80 ? "text-positive"
+                          : signal.confidenceScore >= 65 ? "text-accent"
+                          : signal.confidenceScore >= 50 ? "text-amber-400"
+                          : "text-orange-400",
+                        breakdown: { mtfConfluence: 0, momentum: 0, riskReward: 0, algoPerformance: 0, tradeHealth: 0, freshness: 0 },
+                      } : undefined}
+                    />
                   ))}
                 </div>
               )}
             </div>
           </div>
+
+          {/* Middle pane: Status Updates (~25%) */}
+          <div className="flex-[2.5] flex-col min-w-0 rounded-xl border border-white/[0.08] bg-[#111113] overflow-hidden hidden lg:flex">
+            <div className="px-4 py-3 border-b border-white/[0.06]">
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-accent" />
+                <h2 className="text-sm font-black tracking-tight uppercase">
+                  Status Updates
+                </h2>
+              </div>
+              <p className="text-[11px] text-muted-foreground/50 mt-1 pl-6">
+                Live status updates on running trades
+              </p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {isLoading ? (
+                <div className="flex items-center justify-center h-32">
+                  <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
+                </div>
+              ) : allEvents.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/30">
+                  <Target className="w-6 h-6 mb-2" />
+                  <span className="text-xs font-bold">No events yet</span>
+                </div>
+              ) : (
+                allEvents.map((event) => (
+                  <EventRow key={event.id} event={event} />
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Right pane: Top Winners (~25%) */}
+          <div className="flex-[2.5] flex-col min-w-0 rounded-xl border border-white/[0.08] bg-[#111113] overflow-hidden hidden lg:flex">
+            <div className="px-4 py-3 border-b border-white/[0.06]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Trophy className="w-4 h-4 text-amber-400" />
+                  <h2 className="text-sm font-black tracking-tight uppercase text-amber-400/80">
+                    Top Winners
+                  </h2>
+                </div>
+                {topWinners.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Flame className="w-3.5 h-3.5 text-amber-400/40" />
+                    <span className="text-[10px] font-bold text-amber-400/40">
+                      {topWinners.length}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground/50 mt-1 pl-6">
+                Best performing trades ranked by PNL
+              </p>
+
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {isLoading ? (
+                <div className="flex items-center justify-center h-32">
+                  <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
+                </div>
+              ) : topWinners.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/30">
+                  <Trophy className="w-6 h-6 mb-2" />
+                  <span className="text-xs font-bold">No winners yet</span>
+                </div>
+              ) : (
+                topWinners.map((signal, i) => (
+                  <WinnerRow key={signal.id} signal={signal} rank={i + 1} />
+                ))
+              )}
+            </div>
+          </div>
         </div>
-        <TradeNarrationDialog signal={selectedWinner} open={!!selectedWinner} onClose={() => setSelectedWinner(null)} />
       </main>
     </div>
   );

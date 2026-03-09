@@ -793,7 +793,7 @@ export default function Home() {
                 <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400/70">AI-Powered</span>
               </div>
               <h1 className="text-xl font-black tracking-tight text-foreground leading-tight">
-                Discover Winning Trade<br />Opportunities
+                AI-Powered Trade Signals
               </h1>
               <div className="flex items-center justify-between mt-4">
                 <div className="flex items-center gap-1">
@@ -806,7 +806,7 @@ export default function Home() {
                         : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/[0.04]"
                     )}
                   >
-                    Horizon {!isLoading && `(${activeCount})`}
+                    Top Picks {!isLoading && `(${activeCount})`}
                   </button>
                   <button
                     onClick={() => setAiTab("watch")}
@@ -817,7 +817,7 @@ export default function Home() {
                         : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/[0.04]"
                     )}
                   >
-                    Radar {!isLoading && watchCount > 0 && `(${watchCount})`}
+                    Market Radar {!isLoading && watchCount > 0 && `(${watchCount})`}
                   </button>
                 </div>
               <Popover open={filterOpen} onOpenChange={handleFilterOpen}>

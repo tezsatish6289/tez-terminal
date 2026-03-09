@@ -199,28 +199,31 @@ function OpportunityCard({
             {signal.symbol}
           </span>
           {score && (
-            <span
+            <div
               className={cn(
-                "text-[11px] font-black px-2 py-0.5 rounded-md tabular-nums",
+                "flex items-center gap-1 px-2 py-1 rounded-lg border",
                 score.score >= 80
-                  ? "bg-positive/15 text-positive"
+                  ? "bg-positive/10 border-positive/25 text-positive"
                   : score.score >= 65
-                    ? "bg-accent/15 text-accent"
+                    ? "bg-accent/10 border-accent/25 text-accent"
                     : score.score >= 50
-                      ? "bg-amber-400/15 text-amber-400"
-                      : "bg-orange-400/15 text-orange-400"
+                      ? "bg-amber-400/10 border-amber-400/25 text-amber-400"
+                      : "bg-orange-400/10 border-orange-400/25 text-orange-400"
               )}
             >
-              {score.score}
-            </span>
+              <Sparkles className="w-3 h-3" />
+              <span className="text-[11px] font-black tabular-nums">
+                {score.score}
+              </span>
+            </div>
           )}
         </div>
-        <div className="flex items-center gap-2 mt-0.5">
+        <div className="flex items-center gap-2 mt-1">
           <div className="flex items-center gap-1">
             {isBuy ? (
-              <ArrowUpRight className={cn("w-3.5 h-3.5", isBuy ? "text-positive" : "text-negative")} />
+              <ArrowUpRight className="w-3.5 h-3.5 text-positive" />
             ) : (
-              <ArrowDownRight className={cn("w-3.5 h-3.5", isBuy ? "text-positive" : "text-negative")} />
+              <ArrowDownRight className="w-3.5 h-3.5 text-negative" />
             )}
             <span
               className={cn(
@@ -238,6 +241,12 @@ function OpportunityCard({
           <span className="text-white/10">·</span>
           <span className="text-[11px] font-bold text-muted-foreground/50 uppercase">
             {signal.timeframeName}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 mt-1.5 text-muted-foreground/35">
+          <Clock className="w-3 h-3" />
+          <span className="text-[10px]">
+            {formatTimeAgo(signal.receivedAt)}
           </span>
         </div>
       </div>
@@ -259,8 +268,8 @@ function OpportunityCard({
         </span>
       </div>
 
-      {/* Price + Time */}
-      <div className="px-4 pb-2.5 flex items-center justify-between">
+      {/* Price */}
+      <div className="px-4 pb-2.5">
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] text-muted-foreground/50 font-mono">
             ${formatPrice(signal.price)}
@@ -277,12 +286,6 @@ function OpportunityCard({
             )}
           >
             ${formatPrice(signal.currentPrice)}
-          </span>
-        </div>
-        <div className="flex items-center gap-1 text-muted-foreground/30">
-          <Clock className="w-3 h-3" />
-          <span className="text-[10px]">
-            {formatTimeAgo(signal.receivedAt)}
           </span>
         </div>
       </div>

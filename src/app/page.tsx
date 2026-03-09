@@ -379,7 +379,7 @@ function EventRow({ event }: { event: StatusEvent }) {
           <Icon className={cn("w-3.5 h-3.5", config.color)} />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-baseline justify-between gap-2">
             <span
               className={cn(
                 "text-[13px] font-black uppercase tracking-tight truncate",
@@ -390,7 +390,7 @@ function EventRow({ event }: { event: StatusEvent }) {
               {(event.type === "TP1_HIT" || event.type === "TP2_HIT" || event.type === "TP3_HIT") && " 🔥"}
             </span>
             {pnlValue != null && (
-              <div className="flex flex-col items-end shrink-0">
+              <span className="shrink-0 text-right">
                 <span
                   className={cn(
                     "text-[13px] font-black font-mono tabular-nums",
@@ -400,8 +400,8 @@ function EventRow({ event }: { event: StatusEvent }) {
                   {pnlValue >= 0 ? "+" : ""}
                   {(pnlValue * leverage).toFixed(2)}%
                 </span>
-                <span className="text-[9px] font-bold text-muted-foreground/40">{leverage}x lev</span>
-              </div>
+                <span className="text-[9px] font-bold text-muted-foreground/40 ml-1">{leverage}x</span>
+              </span>
             )}
           </div>
           <div className="flex items-center gap-1.5 mt-1">
@@ -486,16 +486,16 @@ function WinnerCard({
           )}
         </span>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-baseline justify-between gap-2">
             <span className="text-[13px] font-black uppercase tracking-tight text-foreground truncate">
               {signal.symbol}
             </span>
-            <div className="flex flex-col items-end shrink-0">
+            <span className="shrink-0 text-right">
               <span className="text-[13px] font-black font-mono tabular-nums text-positive">
                 +{signal.leveragedPnl.toFixed(2)}%
               </span>
-              <span className="text-[9px] font-bold text-muted-foreground/40">{signal.leverage}x lev</span>
-            </div>
+              <span className="text-[9px] font-bold text-muted-foreground/40 ml-1">{signal.leverage}x</span>
+            </span>
           </div>
           <div className="flex items-center gap-1.5 mt-1">
             <span className={cn("text-[11px] font-bold", isBuy ? "text-positive/70" : "text-negative/70")}>

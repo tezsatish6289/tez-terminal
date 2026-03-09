@@ -210,19 +210,22 @@ export default function DeepDiveChartPage() {
                   { label: "TP1", price: signal?.tp1, hit: signal?.tp1Hit, pnl: signal?.tp1BookedPnl, frac: "50%" },
                   { label: "TP2", price: signal?.tp2, hit: signal?.tp2Hit, pnl: signal?.tp2BookedPnl, frac: "25%" },
                   { label: "TP3", price: signal?.tp3, hit: signal?.tp3Hit, pnl: signal?.tp3BookedPnl, frac: "25%" },
-                ] as const).map((tp) => (
-                  <div key={tp.label} className="flex items-center justify-between py-1.5 border-b border-white/[0.03]">
-                    <div className="flex items-center gap-2">
-                      <span className={cn("text-[11px] font-black", tp.hit ? "text-positive" : "text-muted-foreground/50")}>{tp.hit ? "✓" : "○"}</span>
-                      <span className="text-[12px] font-bold text-foreground/80">{tp.label}</span>
-                      <span className="text-[10px] text-muted-foreground/30">{tp.frac}</span>
+                ] as const).map((tp) => {
+                  const tpPct = (Number(calculatePercent(tp.price, signal?.price, signal?.type || "BUY")) * leverage).toFixed(2);
+                  return (
+                    <div key={tp.label} className="flex items-center justify-between py-1.5 border-b border-white/[0.03]">
+                      <div className="flex items-center gap-2">
+                        <span className={cn("text-[11px] font-black", tp.hit ? "text-positive" : "text-muted-foreground/50")}>{tp.hit ? "✓" : "○"}</span>
+                        <span className="text-[12px] font-bold text-foreground/80">{tp.label}</span>
+                        <span className="text-[10px] text-muted-foreground/30">{tp.frac}</span>
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-[12px] font-mono text-foreground/60">${formatPrice(tp.price)}</span>
+                        <span className="text-[10px] font-bold text-positive">(+{tpPct}%)</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-[12px] font-mono text-foreground/60">${formatPrice(tp.price)}</span>
-                      {tp.hit && <span className="text-[11px] font-bold text-positive">+{(tp.pnl ?? 0).toFixed(2)}%</span>}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {signal?.slHitAt && !signal?.tp3Hit && (
                   <p className="text-[10px] font-bold text-negative/70 mt-2">
                     {signal?.tp2Hit ? "Runner stopped at TP1 — profit preserved" : signal?.tp1Hit ? "SL hit at cost — TP1 profit locked" : "SL hit — trade closed"}
@@ -256,15 +259,21 @@ export default function DeepDiveChartPage() {
 
             {/* SL + Algo as simple rows */}
             <div className="space-y-1.5">
-              {hasStopLoss && (
-                <div className="flex items-center justify-between py-1.5 border-b border-white/[0.03]">
-                  <div className="flex items-center gap-2">
-                    <Shield className="h-3.5 w-3.5 text-amber-400/60" />
-                    <span className="text-[12px] font-bold text-muted-foreground/50">Stop Loss</span>
+              {hasStopLoss && (() => {
+                const slPct = (Number(calculatePercent(signal?.stopLoss, signal?.price, signal?.type || "BUY")) * leverage).toFixed(2);
+                return (
+                  <div className="flex items-center justify-between py-1.5 border-b border-white/[0.03]">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-3.5 w-3.5 text-amber-400/60" />
+                      <span className="text-[12px] font-bold text-muted-foreground/50">Stop Loss</span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-[12px] font-mono font-bold text-foreground/70">${formatPrice(signal?.stopLoss)}</span>
+                      <span className="text-[10px] font-bold text-negative">({slPct}%)</span>
+                    </div>
                   </div>
-                  <span className="text-[12px] font-mono font-bold text-foreground/70">${formatPrice(signal?.stopLoss)}</span>
-                </div>
-              )}
+                );
+              })()}
               <div className="flex items-center justify-between py-1.5">
                 <div className="flex items-center gap-2">
                   <Info className="h-3.5 w-3.5 text-accent/40" />

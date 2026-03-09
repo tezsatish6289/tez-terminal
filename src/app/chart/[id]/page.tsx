@@ -142,7 +142,7 @@ export default function DeepDiveChartPage() {
             <Button variant="ghost" size="sm" onClick={() => router.push("/")} className="text-muted-foreground hover:text-foreground gap-1 -ml-3 mb-3">
               <ChevronLeft className="h-4 w-4" /> Back
             </Button>
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between">
               <div>
                 <h3 className="text-2xl font-black text-foreground leading-none tracking-tighter uppercase">{signal?.symbol}</h3>
                 <div className="flex items-center gap-1.5 mt-1.5">

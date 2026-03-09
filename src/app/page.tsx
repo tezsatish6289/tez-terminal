@@ -26,7 +26,9 @@ import {
   Trophy,
   Flame,
   Sparkles,
+  Send,
 } from "lucide-react";
+import { RadarIcon } from "@/components/icons/RadarIcon";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import Link from "next/link";
@@ -536,6 +538,19 @@ export default function Home() {
   const firestore = useFirestore();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
+  const [telegramStatus, setTelegramStatus] = useState<{
+    connected: boolean;
+    enabled: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    fetch(`/api/telegram/status?uid=${user.uid}`)
+      .then((r) => r.json())
+      .then((data) => setTelegramStatus({ connected: data.connected, enabled: data.enabled }))
+      .catch(() => {});
+  }, [user]);
+
   const FILTER_STORAGE_KEY = "tez-opp-filters";
 
   const [filterTimeframe, setFilterTimeframe] = useState("all");
@@ -978,24 +993,53 @@ export default function Home() {
                   <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
                 </div>
               ) : liveOpportunities.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/30">
+                <div className="flex flex-col items-center justify-center h-full min-h-[200px]">
                   {aiTab === "active" ? (
-                    <>
-                      <Sparkles className="w-6 h-6 mb-2 text-amber-400/30" />
-                      <span className="text-xs font-bold">
-                        No high-confidence signals right now
-                      </span>
-                      <span className="text-[10px] mt-1 text-muted-foreground/20">
-                        Signals scoring {AUTO_FILTER_THRESHOLD}+ appear here
-                      </span>
-                    </>
+                    <div className="flex flex-col items-center gap-4 max-w-xs text-center">
+                      <div className="relative">
+                        <div className="absolute inset-0 rounded-full bg-accent/10 animate-ping" style={{ animationDuration: "2s" }} />
+                        <div className="relative flex items-center justify-center w-16 h-16 rounded-full bg-accent/[0.08] border border-accent/20">
+                          <RadarIcon className="w-8 h-8 text-accent animate-[spin_4s_linear_infinite]" />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <p className="text-sm font-bold text-foreground/70">
+                          Scanning the market for winning opportunities
+                        </p>
+                        <p className="text-[11px] text-muted-foreground/40">
+                          High-confidence signals scoring {AUTO_FILTER_THRESHOLD}+ will appear here
+                        </p>
+                      </div>
+                      {telegramStatus && !telegramStatus.connected ? (
+                        <Link
+                          href="/settings"
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-accent/15 border border-accent/25 text-accent text-xs font-bold uppercase tracking-wider hover:bg-accent/25 transition-colors"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          Get notified on Telegram
+                        </Link>
+                      ) : telegramStatus && telegramStatus.connected && !telegramStatus.enabled ? (
+                        <Link
+                          href="/settings"
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-accent/15 border border-accent/25 text-accent text-xs font-bold uppercase tracking-wider hover:bg-accent/25 transition-colors"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          Enable Telegram notifications
+                        </Link>
+                      ) : telegramStatus && telegramStatus.connected && telegramStatus.enabled ? (
+                        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-positive/[0.08] border border-positive/20 text-positive/70 text-[11px] font-bold">
+                          <Send className="w-3.5 h-3.5" />
+                          You&apos;ll be notified on Telegram the moment we find a winner
+                        </div>
+                      ) : null}
+                    </div>
                   ) : (
-                    <>
+                    <div className="flex flex-col items-center justify-center text-muted-foreground/30">
                       <Zap className="w-6 h-6 mb-2" />
                       <span className="text-xs font-bold">
                         No demoted signals
                       </span>
-                    </>
+                    </div>
                   )}
                 </div>
               ) : (

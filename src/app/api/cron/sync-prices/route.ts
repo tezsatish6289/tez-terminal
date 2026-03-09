@@ -60,6 +60,9 @@ export async function GET(request: NextRequest) {
       const signal = signalDoc.data();
       if (signal.status !== "ACTIVE") continue;
 
+      // Deprecated signals are dead — skip entirely
+      if (signal.autoFilterPassed === false) continue;
+
       const rawSymbol = (signal.symbol || "").split(':').pop() || "";
       const isPerpetual = /\.P$|\.PERP$/i.test(rawSymbol);
       const symbol = rawSymbol.replace(/\.P$|\.PERP$/i, '').toUpperCase();
@@ -100,6 +103,9 @@ export async function GET(request: NextRequest) {
         lastSyncAt: new Date().toISOString()
       };
 
+      // Only process TP/SL checks for AI-passed signals
+      const aiApproved = signal.autoFilterPassed === true;
+
       const tp1 = signal.tp1 != null ? Number(signal.tp1) : null;
       const tp2 = signal.tp2 != null ? Number(signal.tp2) : null;
       const tp3 = signal.tp3 != null ? Number(signal.tp3) : (tp1 != null && tp2 != null ? deriveTp3(tp1, tp2) : null);
@@ -107,7 +113,7 @@ export async function GET(request: NextRequest) {
       const nowISO = new Date().toISOString();
       let newStatus = "ACTIVE";
 
-      if (tp1 != null && tp2 != null && tp3 != null) {
+      if (aiApproved && tp1 != null && tp2 != null && tp3 != null) {
         const tp1AlreadyHit = signal.tp1Hit === true;
         const tp2AlreadyHit = signal.tp2Hit === true;
         const tp3AlreadyHit = signal.tp3Hit === true;
@@ -206,7 +212,7 @@ export async function GET(request: NextRequest) {
             }
           }
         }
-      } else {
+      } else if (aiApproved) {
         if (stopLoss > 0) {
           const hitSL = isBuy ? currentPrice <= stopLoss : currentPrice >= stopLoss;
           if (hitSL) {

@@ -689,24 +689,34 @@ export default function OpportunitiesPage() {
     return map;
   }, [processedSignals]);
 
+  const aiPassedIds = useMemo(() => {
+    const ids = new Set<string>();
+    processedSignals.forEach((s) => {
+      if (s.autoFilterPassed === true) ids.add(s.id);
+    });
+    return ids;
+  }, [processedSignals]);
+
   const allEvents: StatusEvent[] = useMemo(() => {
     if (!rawEvents) return [];
-    return rawEvents.map((e: any) => ({
-      id: e.id,
-      type: e.type,
-      symbol: e.symbol,
-      side: e.side,
-      timeframe: e.timeframe || "15",
-      signalId: e.signalId,
-      createdAt: e.createdAt,
-      bookedPnl: e.bookedPnl ?? null,
-      totalBookedPnl: e.totalBookedPnl ?? null,
-      guidance: e.guidance || "",
-      entryPrice: e.entryPrice || 0,
-      price: e.price || 0,
-      algo: signalAlgoMap[e.signalId] || "",
-    }));
-  }, [rawEvents, signalAlgoMap]);
+    return rawEvents
+      .filter((e: any) => aiPassedIds.has(e.signalId))
+      .map((e: any) => ({
+        id: e.id,
+        type: e.type,
+        symbol: e.symbol,
+        side: e.side,
+        timeframe: e.timeframe || "15",
+        signalId: e.signalId,
+        createdAt: e.createdAt,
+        bookedPnl: e.bookedPnl ?? null,
+        totalBookedPnl: e.totalBookedPnl ?? null,
+        guidance: e.guidance || "",
+        entryPrice: e.entryPrice || 0,
+        price: e.price || 0,
+        algo: signalAlgoMap[e.signalId] || "",
+      }));
+  }, [rawEvents, signalAlgoMap, aiPassedIds]);
 
   const [aiTab, setAiTab] = useState<"active" | "watch">("active");
 

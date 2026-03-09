@@ -7,8 +7,9 @@ import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { useAuth } from "@/firebase";
 import {
   Loader2, Settings, Send, Link2, Unlink, Check,
-  ChevronRight, Bell, Lock, ExternalLink,
+  ChevronLeft, ChevronRight, Bell, Lock, ExternalLink,
 } from "lucide-react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -202,6 +203,13 @@ export default function SettingsPage() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
+              <Link
+                href="/"
+                className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Back
+              </Link>
               <h1 className="text-2xl font-bold tracking-tight text-white">Settings</h1>
               <p className="text-muted-foreground text-sm">Manage your Telegram alerts and preferences.</p>
             </div>

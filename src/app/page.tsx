@@ -384,6 +384,7 @@ function EventRow({ event }: { event: StatusEvent }) {
               )}
             >
               {config.label}
+              {(event.type === "TP1_HIT" || event.type === "TP2_HIT" || event.type === "TP3_HIT") && " 🔥"}
             </span>
             {pnlValue != null && (
               <span

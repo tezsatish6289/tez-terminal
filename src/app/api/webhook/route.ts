@@ -4,7 +4,7 @@ import { after } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { computeSentiment, type SignalForSentiment } from "@/lib/sentiment";
-import { deriveTp3, areTpsValid } from "@/lib/pnl";
+import { deriveTp3, areTpsValid, areTpDistancesSane } from "@/lib/pnl";
 
 import {
   computeAutoFilter,
@@ -102,6 +102,19 @@ export async function POST(request: NextRequest) {
         });
         return NextResponse.json(
           { success: false, message: `TP direction invalid: ${signalType} signal but TPs are on the wrong side of entry price.` },
+          { status: 400 }
+        );
+      }
+
+      if (!areTpDistancesSane(price, tp1, timeframe)) {
+        await db.collection("logs").add({
+          timestamp, level: "ERROR",
+          message: "TP distance too large — signal rejected",
+          details: `symbol=${symbol} type=${signalType} price=${price} tp1=${tp1} tp2=${tp2} sl=${stopLoss} tf=${timeframe} tp1Dist=${(Math.abs(tp1 - price) / price * 100).toFixed(2)}% body=${rawBody}`,
+          webhookId,
+        });
+        return NextResponse.json(
+          { success: false, message: `TP1 distance from entry is irrationally large for ${timeframe} timeframe.` },
           { status: 400 }
         );
       }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
-import { rawPnlPercent, calcBookedPnl, deriveTp3, areTpsValid } from "@/lib/pnl";
+import { rawPnlPercent, calcBookedPnl, deriveTp3, areTpsValid, areTpDistancesSane } from "@/lib/pnl";
 import type { SignalEvent } from "@/lib/telegram";
 import {
   computeAutoFilter,
@@ -114,17 +114,18 @@ export async function GET(request: NextRequest) {
       let newStatus = "ACTIVE";
 
       const tpsValid = tp1 != null && tp2 != null ? areTpsValid(signal.type, alertPrice, tp1, tp2) : true;
+      const tpDistanceSane = tp1 != null ? areTpDistancesSane(alertPrice, tp1, signal.timeframe ?? "15") : true;
 
-      if (!tpsValid && signal.status === "ACTIVE") {
+      if ((!tpsValid || !tpDistanceSane) && signal.status === "ACTIVE") {
         await db.collection("logs").add({
           timestamp: nowISO, level: "ERROR",
-          message: "TP direction mismatch — skipping TP/SL processing",
-          details: `signalId=${signalDoc.id} symbol=${signal.symbol} type=${signal.type} entry=${alertPrice} tp1=${tp1} tp2=${tp2}`,
+          message: !tpsValid ? "TP direction mismatch — skipping TP/SL processing" : "TP distance irrational — skipping TP/SL processing",
+          details: `signalId=${signalDoc.id} symbol=${signal.symbol} type=${signal.type} entry=${alertPrice} tp1=${tp1} tp2=${tp2} tf=${signal.timeframe} tp1Dist=${tp1 ? (Math.abs(tp1 - alertPrice) / alertPrice * 100).toFixed(2) : 'N/A'}%`,
           webhookId: "SYSTEM_CRON",
         });
       }
 
-      if (aiApproved && tpsValid && tp1 != null && tp2 != null && tp3 != null) {
+      if (aiApproved && tpsValid && tpDistanceSane && tp1 != null && tp2 != null && tp3 != null) {
         const tp1AlreadyHit = signal.tp1Hit === true;
         const tp2AlreadyHit = signal.tp2Hit === true;
         const tp3AlreadyHit = signal.tp3Hit === true;

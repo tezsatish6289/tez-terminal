@@ -23,6 +23,14 @@ import { BinanceIcon, MexcIcon, PionexIcon, TradingViewIcon } from "@/components
 import { useEffect, useRef, useState } from "react";
 import { format, differenceInMinutes } from "date-fns";
 import { getLeverage } from "@/lib/leverage";
+
+const TIMEFRAME_NAMES: Record<string, string> = {
+  "5": "Scalping",
+  "15": "Intraday",
+  "60": "BTST",
+  "240": "Swing",
+  D: "Positional",
+};
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getEffectivePnl } from "@/lib/pnl";
@@ -142,7 +150,11 @@ export default function DeepDiveChartPage() {
                   <span className="text-white/15">·</span>
                   <span className="text-[11px] font-bold text-accent/70">{leverage}x</span>
                   <span className="text-white/15">·</span>
-                  <span className="text-[11px] font-bold text-muted-foreground/50">{mounted ? getRunningSince(signal?.receivedAt) : "--"} ago</span>
+                  <span className="text-[11px] font-bold text-muted-foreground/50 uppercase">{TIMEFRAME_NAMES[signal?.timeframe] ?? signal?.timeframe}</span>
+                  <span className="text-white/15">·</span>
+                  <span className="text-[11px] font-bold text-muted-foreground/40">{signal?.timeframe === "D" ? "1D" : `${signal?.timeframe}m`}</span>
+                  <span className="text-white/15">·</span>
+                  <span className="text-[11px] font-bold text-muted-foreground/40">{mounted ? getRunningSince(signal?.receivedAt) : "--"} ago</span>
                 </div>
               </div>
               <Popover>

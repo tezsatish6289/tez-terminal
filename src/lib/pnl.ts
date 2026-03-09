@@ -99,6 +99,29 @@ export function areTpsValid(
 }
 
 /**
+ * Max allowed raw (unleveraged) TP distance from entry, per timeframe.
+ * Scalping (5m): 3%, Intraday (15m): 5%, BTST (60m): 8%, Swing (240m): 12%, Positional (D): 20%
+ */
+const MAX_TP_DISTANCE: Record<string, number> = {
+  "1": 2, "5": 3, "15": 5, "60": 8, "240": 12, "D": 20,
+};
+
+/**
+ * Check if TP1 distance from entry is within a sane range for the given timeframe.
+ * Rejects signals where TPs are irrationally far from entry.
+ */
+export function areTpDistancesSane(
+  entryPrice: number,
+  tp1: number,
+  timeframe: string
+): boolean {
+  if (!entryPrice || !tp1) return true;
+  const pctDistance = Math.abs(tp1 - entryPrice) / entryPrice * 100;
+  const maxDistance = MAX_TP_DISTANCE[timeframe] ?? 15;
+  return pctDistance <= maxDistance;
+}
+
+/**
  * Derive TP3 from TP1 and TP2 (uniform ATR spacing).
  */
 export function deriveTp3(tp1: number, tp2: number): number {

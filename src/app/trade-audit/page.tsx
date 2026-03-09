@@ -353,12 +353,6 @@ function TradeAuditContent() {
               </span>
             </div>
             <div>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Net PNL</span>
-              <span className={cn("text-lg font-black font-mono", summaryStats.netPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                {summaryStats.netPnl >= 0 ? "+" : ""}{summaryStats.netPnl.toFixed(2)}%
-              </span>
-            </div>
-            <div>
               <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Profit Factor</span>
               <span className={cn("text-lg font-black font-mono", summaryStats.profitFactor >= 1 ? "text-emerald-400" : "text-rose-400")}>
                 {summaryStats.profitFactor === Infinity ? "∞" : summaryStats.profitFactor.toFixed(2)}

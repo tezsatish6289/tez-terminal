@@ -5,7 +5,7 @@ import { getAdminFirestore } from "@/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { computeSentiment, type SignalForSentiment } from "@/lib/sentiment";
 import { deriveTp3 } from "@/lib/pnl";
-import type { SignalEvent } from "@/lib/telegram";
+
 import {
   computeAutoFilter,
   buildSentimentMap,
@@ -138,27 +138,6 @@ export async function POST(request: NextRequest) {
 
     const docRef = await db.collection("signals").add(signalData);
 
-    const tp3Val = (tp1 != null && tp2 != null) ? deriveTp3(tp1, tp2) : null;
-    const newSignalEvent: SignalEvent = {
-      type: "NEW_SIGNAL",
-      signalId: docRef.id,
-      symbol,
-      side: signalType as "BUY" | "SELL",
-      timeframe,
-      assetType,
-      entryPrice: price,
-      price,
-      stopLoss,
-      tp1, tp2, tp3: tp3Val,
-      guidance: "New signal received.",
-    };
-    await db.collection("signal_events").add({
-      ...newSignalEvent,
-      createdAt: timestamp,
-      notified: false,
-      notifiedAt: null,
-    });
-
     if (signalType !== "NEUTRAL" && assetType === "CRYPTO") {
       after(async () => {
         try {
@@ -242,6 +221,27 @@ export async function POST(request: NextRequest) {
           }
 
           await db.collection("signals").doc(docRef.id).update(scoreUpdate);
+
+          // Only create the NEW_SIGNAL event if AI filter passed
+          if (scoreUpdate.autoFilterPassed === true) {
+            const tp3Val = (tp1 != null && tp2 != null) ? deriveTp3(tp1, tp2) : null;
+            await db.collection("signal_events").add({
+              type: "NEW_SIGNAL",
+              signalId: docRef.id,
+              symbol,
+              side: signalType as "BUY" | "SELL",
+              timeframe,
+              assetType,
+              entryPrice: price,
+              price,
+              stopLoss,
+              tp1, tp2, tp3: tp3Val,
+              guidance: "New signal received.",
+              createdAt: timestamp,
+              notified: false,
+              notifiedAt: null,
+            });
+          }
         } catch (err) {
           console.error("[Webhook after()] Background processing failed:", err);
         }

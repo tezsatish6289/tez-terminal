@@ -455,37 +455,37 @@ function WinnerCard({
       href={`/chart/${signal.id}`}
       target="_blank"
       rel="noopener noreferrer"
-      className="group flex items-center gap-3 rounded-lg border border-amber-400/10 bg-amber-400/[0.02] px-3 py-2.5 transition-all hover:border-amber-400/25 hover:bg-amber-400/[0.05]"
+      className="block px-4 py-3 border-b border-white/[0.05] transition-colors hover:bg-white/[0.03]"
     >
-      <span className="text-lg leading-none shrink-0">
-        {rank <= 3 ? RANK_MEDALS[rank - 1] : (
-          <span className="inline-flex items-center justify-center w-6 h-6 rounded text-[10px] font-black bg-white/5 text-muted-foreground/40">
-            {rank}
-          </span>
-        )}
-      </span>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between">
-          <span className="text-[13px] font-black uppercase tracking-tight text-foreground truncate">
-            {signal.symbol}
-          </span>
-          <span className="text-sm font-black font-mono tabular-nums text-positive shrink-0">
-            +{signal.leveragedPnl.toFixed(2)}%
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 mt-0.5">
-          {isBuy ? (
-            <ArrowUpRight className="w-3 h-3 text-positive" />
-          ) : (
-            <ArrowDownRight className="w-3 h-3 text-negative" />
+      <div className="flex items-start gap-3">
+        <span className="text-lg leading-none shrink-0 mt-0.5">
+          {rank <= 3 ? RANK_MEDALS[rank - 1] : (
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded text-[10px] font-black bg-white/5 text-muted-foreground/40">
+              {rank}
+            </span>
           )}
-          <span className={cn("text-[10px] font-black uppercase", isBuy ? "text-positive" : "text-negative")}>
-            {isBuy ? "Long" : "Short"}
-          </span>
-          <span className="text-white/10">·</span>
-          <span className="text-[10px] font-bold text-accent/60">{signal.leverage}x</span>
-          <span className="text-white/10">·</span>
-          <span className="text-[10px] font-bold text-muted-foreground/50 uppercase">{signal.timeframeName}</span>
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[13px] font-black uppercase tracking-tight text-foreground truncate">
+              {signal.symbol}
+            </span>
+            <span className="text-[13px] font-black font-mono tabular-nums text-positive shrink-0">
+              +{signal.leveragedPnl.toFixed(2)}%
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className={cn("text-[11px] font-bold", isBuy ? "text-positive/70" : "text-negative/70")}>
+              {isBuy ? "▲" : "▼"}
+            </span>
+            <span className={cn("text-[11px] font-bold uppercase", isBuy ? "text-positive/70" : "text-negative/70")}>
+              {isBuy ? "Long" : "Short"}
+            </span>
+            <span className="text-white/15">·</span>
+            <span className="text-[11px] text-muted-foreground/60">{signal.leverage}x</span>
+            <span className="text-white/15">·</span>
+            <span className="text-[11px] text-muted-foreground/60 uppercase">{signal.timeframeName}</span>
+          </div>
         </div>
       </div>
     </Link>
@@ -1111,7 +1111,7 @@ export default function Home() {
                   <span className="text-xs font-bold">No winners yet</span>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-2.5">
+                <div>
                   {topWinners.map((signal, i) => (
                     <WinnerCard key={signal.id} signal={signal} rank={i + 1} />
                   ))}

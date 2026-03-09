@@ -130,7 +130,9 @@ export async function GET(request: NextRequest) {
               type: "TP1_HIT", signalId: signalDoc.id, symbol: signal.symbol,
               side: signal.type, timeframe: signal.timeframe || "15", assetType: signal.assetType || "CRYPTO",
               entryPrice: alertPrice, price: tp1, tp1, tp2, tp3,
-              bookedPnl: updateData.tp1BookedPnl, guidance: "Book 50% profit. Move SL to cost.",
+              bookedPnl: updateData.tp1BookedPnl,
+              totalBookedPnl: updateData.tp1BookedPnl,
+              guidance: "Book 50% profit. Move SL to cost.",
             });
           }
         }
@@ -144,11 +146,14 @@ export async function GET(request: NextRequest) {
             updateData.tp2HitAt = nowISO;
             updateData.tp2BookedPnl = calcBookedPnl(tp2, alertPrice, signal.type, 0.25);
             updateData.stopLoss = tp1;
+            const tp2CumulativePnl = (signal.tp1BookedPnl ?? updateData.tp1BookedPnl ?? 0) + updateData.tp2BookedPnl;
             signalEvents.push({
               type: "TP2_HIT", signalId: signalDoc.id, symbol: signal.symbol,
               side: signal.type, timeframe: signal.timeframe || "15", assetType: signal.assetType || "CRYPTO",
               entryPrice: alertPrice, price: tp2, tp1, tp2, tp3,
-              bookedPnl: updateData.tp2BookedPnl, guidance: "Book 25% more. Move SL to TP1.",
+              bookedPnl: updateData.tp2BookedPnl,
+              totalBookedPnl: tp2CumulativePnl,
+              guidance: "Book 25% more. Move SL to TP1.",
             });
           }
         }

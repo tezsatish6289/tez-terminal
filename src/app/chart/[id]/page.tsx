@@ -16,6 +16,7 @@ import {
   Info,
   Target,
   X,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BinanceIcon, MexcIcon, PionexIcon, TradingViewIcon } from "@/components/icons/exchange-icons";
@@ -146,8 +147,9 @@ export default function DeepDiveChartPage() {
               </div>
               <Popover>
                 <PopoverTrigger asChild>
-                  <button className="h-7 w-7 rounded-full border border-white/10 bg-white/[0.03] flex items-center justify-center hover:bg-white/[0.08] hover:border-accent/30 transition-all group">
-                    <Info className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-accent transition-colors" />
+                  <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/10 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.08] hover:text-foreground transition-all cursor-pointer">
+                    <BookOpen className="w-3 h-3" />
+                    Guide
                   </button>
                 </PopoverTrigger>
                 <PopoverContent side="bottom" align="end" className="w-[340px] p-0 bg-[#141416] border-white/10 shadow-2xl shadow-black/50">
@@ -268,7 +270,7 @@ export default function DeepDiveChartPage() {
                   <Info className="h-3.5 w-3.5 text-accent/40" />
                   <span className="text-[12px] font-bold text-muted-foreground/50">Algo</span>
                 </div>
-                <span className="text-[12px] font-bold text-foreground/70 uppercase">{signal?.algo || "V8 Reversal"}</span>
+                <span className="text-[11px] font-bold text-muted-foreground/50 uppercase">{signal?.algo || "V8 Reversal"}</span>
               </div>
             </div>
           </div>

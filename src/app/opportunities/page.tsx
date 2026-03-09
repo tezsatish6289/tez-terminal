@@ -181,116 +181,115 @@ function OpportunityCard({
   return (
     <Link
       href={`/chart/${signal.id}`}
+      target="_blank"
+      rel="noopener noreferrer"
       className={cn(
-        "block rounded-xl border transition-all hover:translate-y-[-1px]",
+        "group block rounded-xl border transition-all hover:translate-y-[-2px] hover:shadow-xl",
         isWinning
-          ? "border-positive/20 bg-positive/[0.04] hover:border-positive/30 hover:shadow-lg hover:shadow-positive/5"
+          ? "border-positive/25 bg-gradient-to-b from-positive/[0.06] to-positive/[0.02] hover:border-positive/40 hover:shadow-positive/10"
           : isLosing
-            ? "border-negative/20 bg-negative/[0.04] hover:border-negative/30 hover:shadow-lg hover:shadow-negative/5"
-            : "border-white/[0.08] bg-white/[0.03] hover:border-white/15 hover:shadow-lg hover:shadow-white/5"
+            ? "border-negative/25 bg-gradient-to-b from-negative/[0.06] to-negative/[0.02] hover:border-negative/40 hover:shadow-negative/10"
+            : "border-white/[0.08] bg-gradient-to-b from-white/[0.04] to-white/[0.01] hover:border-white/20 hover:shadow-white/5"
       )}
     >
-      <div className="px-3.5 pt-3 pb-2 flex items-center justify-between">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div
-            className={cn(
-              "flex items-center justify-center w-8 h-8 rounded-lg shrink-0",
-              isBuy
-                ? "bg-positive/15 text-positive"
-                : "bg-negative/15 text-negative"
-            )}
-          >
-            {isBuy ? (
-              <ArrowUpRight className="w-4 h-4" />
-            ) : (
-              <ArrowDownRight className="w-4 h-4" />
-            )}
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[13px] font-black uppercase tracking-tight text-foreground truncate">
-                {signal.symbol}
-              </span>
-              {score && (
-                <span
-                  className={cn(
-                    "text-[10px] font-black px-1.5 py-0.5 rounded-full border tabular-nums",
-                    score.score >= 80
-                      ? "bg-positive/15 border-positive/30 text-positive"
-                      : score.score >= 65
-                        ? "bg-accent/15 border-accent/30 text-accent"
-                        : score.score >= 50
-                          ? "bg-amber-400/15 border-amber-400/30 text-amber-400"
-                          : "bg-orange-400/15 border-orange-400/30 text-orange-400"
-                  )}
-                >
-                  {score.score}
-                </span>
-              )}
-            </div>
+      {/* Symbol + Direction */}
+      <div className="px-4 pt-3.5 pb-1">
+        <div className="flex items-center justify-between">
+          <span className="text-[15px] font-black uppercase tracking-tight text-foreground">
+            {signal.symbol}
+          </span>
+          {score && (
             <span
               className={cn(
-                "text-[11px] font-bold uppercase tracking-wide",
-                isBuy ? "text-positive/80" : "text-negative/80"
+                "text-[11px] font-black px-2 py-0.5 rounded-md tabular-nums",
+                score.score >= 80
+                  ? "bg-positive/15 text-positive"
+                  : score.score >= 65
+                    ? "bg-accent/15 text-accent"
+                    : score.score >= 50
+                      ? "bg-amber-400/15 text-amber-400"
+                      : "bg-orange-400/15 text-orange-400"
+              )}
+            >
+              {score.score}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <div className="flex items-center gap-1">
+            {isBuy ? (
+              <ArrowUpRight className={cn("w-3.5 h-3.5", isBuy ? "text-positive" : "text-negative")} />
+            ) : (
+              <ArrowDownRight className={cn("w-3.5 h-3.5", isBuy ? "text-positive" : "text-negative")} />
+            )}
+            <span
+              className={cn(
+                "text-[11px] font-black uppercase tracking-wide",
+                isBuy ? "text-positive" : "text-negative"
               )}
             >
               {isBuy ? "Long" : "Short"}
             </span>
           </div>
-        </div>
-        <div className="text-right shrink-0">
-          <span
-            className={cn(
-              "text-lg font-black font-mono tabular-nums block leading-tight",
-              isWinning
-                ? "text-positive"
-                : isLosing
-                  ? "text-negative"
-                  : "text-muted-foreground"
-            )}
-          >
-            {signal.leveragedPnl >= 0 ? "+" : ""}
-            {signal.leveragedPnl.toFixed(2)}%
-          </span>
-          <span className="text-[11px] text-accent/70 font-bold">
+          <span className="text-white/10">·</span>
+          <span className="text-[11px] font-bold text-accent/60">
             {signal.leverage}x
           </span>
+          <span className="text-white/10">·</span>
+          <span className="text-[11px] font-bold text-muted-foreground/50 uppercase">
+            {signal.timeframeName}
+          </span>
         </div>
       </div>
 
-      <div className="px-3.5 pb-2 flex items-center gap-1.5">
-        <span className="text-[11px] text-muted-foreground/60 font-mono">
-          ${formatPrice(signal.price)}
-        </span>
-        <span className="text-white/20">→</span>
+      {/* PnL */}
+      <div className="px-4 py-2.5">
         <span
           className={cn(
-            "text-[11px] font-mono font-bold",
+            "text-2xl font-black font-mono tabular-nums leading-none",
             isWinning
-              ? "text-positive/80"
+              ? "text-positive"
               : isLosing
-                ? "text-negative/80"
-                : "text-muted-foreground/60"
+                ? "text-negative"
+                : "text-muted-foreground"
           )}
         >
-          ${formatPrice(signal.currentPrice)}
+          {signal.leveragedPnl >= 0 ? "+" : ""}
+          {signal.leveragedPnl.toFixed(2)}%
         </span>
       </div>
 
-      <div className="px-3.5 pb-2 flex items-center justify-between">
-        <span className="text-[11px] font-bold text-muted-foreground/60 uppercase">
-          {signal.timeframeName}
-        </span>
-        <div className="flex items-center gap-1">
-          <Clock className="w-3 h-3 text-muted-foreground/40" />
-          <span className="text-[11px] text-muted-foreground/40">
+      {/* Price + Time */}
+      <div className="px-4 pb-2.5 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-muted-foreground/50 font-mono">
+            ${formatPrice(signal.price)}
+          </span>
+          <span className="text-white/15">→</span>
+          <span
+            className={cn(
+              "text-[11px] font-mono font-bold",
+              isWinning
+                ? "text-positive/70"
+                : isLosing
+                  ? "text-negative/70"
+                  : "text-muted-foreground/50"
+            )}
+          >
+            ${formatPrice(signal.currentPrice)}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 text-muted-foreground/30">
+          <Clock className="w-3 h-3" />
+          <span className="text-[10px]">
             {formatTimeAgo(signal.receivedAt)}
           </span>
         </div>
       </div>
 
-      <div className="px-3.5 pb-3 border-t border-white/[0.04] pt-2">
-        <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-wider block text-center">
+      {/* Algo */}
+      <div className="px-4 pb-3 pt-1.5 border-t border-white/[0.04]">
+        <span className="text-[9px] font-bold text-muted-foreground/30 uppercase tracking-widest">
           {signal.algo}
         </span>
       </div>

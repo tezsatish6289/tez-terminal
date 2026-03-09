@@ -896,8 +896,14 @@ export default function Home() {
                     <GuideItem
                       icon={<Send className="w-3.5 h-3.5 text-blue-400" />}
                       title="Telegram Alerts"
-                      desc="Get instant notifications when new Top Picks appear and when your trades hit targets. Set up in Settings."
+                      desc="Get instant notifications when new Top Picks appear and when your trades hit targets."
                     />
+                    <Link
+                      href="/settings"
+                      className="flex items-center gap-2 mt-1 ml-11.5 text-[12px] font-bold text-accent hover:text-accent/80 transition-colors"
+                    >
+                      Go to Settings →
+                    </Link>
                   </div>
                 </PopoverContent>
               </Popover>

@@ -786,31 +786,40 @@ export default function Home() {
 
           {/* Left pane: Opportunities (~50%) */}
           <div className="flex-[5] flex flex-col min-w-0 rounded-xl border border-white/[0.08] bg-[#111113] overflow-hidden">
-            {/* Header */}
-            <div className="px-4 py-3 border-b border-white/[0.06]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-400" />
-                  <h2 className="text-sm font-black tracking-tight uppercase">
-                    AI Filtered
-                  </h2>
-                  {!isLoading && (
-                    <div className="flex items-center gap-2 ml-1">
-                      <span className="text-[11px] font-bold text-positive/70">
-                        {activeCount} active
-                      </span>
-                      {watchCount > 0 && (
-                        <>
-                          <span className="text-white/15">·</span>
-                          <span className="text-[11px] font-bold text-amber-400/60">
-                            {watchCount} watch
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  )}
+            {/* Hero Header */}
+            <div className="px-5 pt-5 pb-3 border-b border-white/[0.06]">
+              <div className="flex items-center gap-2 mb-1">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400/70">AI-Powered</span>
+              </div>
+              <h1 className="text-xl font-black tracking-tight text-foreground leading-tight">
+                Discover Winning Trade<br />Opportunities
+              </h1>
+              <div className="flex items-center justify-between mt-4">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setAiTab("active")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer",
+                      aiTab === "active"
+                        ? "bg-positive/15 text-positive"
+                        : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/[0.04]"
+                    )}
+                  >
+                    Horizon {!isLoading && `(${activeCount})`}
+                  </button>
+                  <button
+                    onClick={() => setAiTab("watch")}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer",
+                      aiTab === "watch"
+                        ? "bg-amber-400/15 text-amber-400"
+                        : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/[0.04]"
+                    )}
+                  >
+                    Radar {!isLoading && watchCount > 0 && `(${watchCount})`}
+                  </button>
                 </div>
-                <div className="flex items-center gap-2">
               <Popover open={filterOpen} onOpenChange={handleFilterOpen}>
                 <PopoverTrigger asChild>
                   <button
@@ -919,31 +928,6 @@ export default function Home() {
                   </div>
                 </PopoverContent>
               </Popover>
-                </div>
-              </div>
-              <div className="flex items-center gap-1 px-4 pt-2 pb-1">
-                <button
-                  onClick={() => setAiTab("active")}
-                  className={cn(
-                    "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer",
-                    aiTab === "active"
-                      ? "bg-positive/15 text-positive"
-                      : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/[0.04]"
-                  )}
-                >
-                  AI Active {!isLoading && `(${activeCount})`}
-                </button>
-                <button
-                  onClick={() => setAiTab("watch")}
-                  className={cn(
-                    "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer",
-                    aiTab === "watch"
-                      ? "bg-amber-400/15 text-amber-400"
-                      : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/[0.04]"
-                  )}
-                >
-                  AI Watch {!isLoading && watchCount > 0 && `(${watchCount})`}
-                </button>
               </div>
             </div>
 

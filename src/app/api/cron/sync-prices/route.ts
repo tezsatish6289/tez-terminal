@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { rawPnlPercent, calcBookedPnl, deriveTp3 } from "@/lib/pnl";
 import type { SignalEvent } from "@/lib/telegram";
+import {
+  computeAutoFilter,
+  buildSentimentMap,
+  mapFirestoreSignal,
+  mapFirestoreSentiment,
+  isSignalStale,
+  AUTO_FILTER_THRESHOLD,
+} from "@/lib/auto-filter";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -46,6 +54,7 @@ export async function GET(request: NextRequest) {
     let updateCount = 0;
     let skipCount = 0;
     const signalEvents: SignalEvent[] = [];
+    const postUpdateDocs: { id: string; [key: string]: any }[] = [];
 
     for (const signalDoc of signalsSnap.docs) {
       const signal = signalDoc.data();
@@ -225,7 +234,15 @@ export async function GET(request: NextRequest) {
       updateData.status = newStatus;
 
       await db.collection("signals").doc(signalDoc.id).update(updateData);
+      postUpdateDocs.push({ id: signalDoc.id, ...signal, ...updateData });
       updateCount++;
+    }
+
+    // Also include non-active signals for historical algo stats
+    for (const signalDoc of signalsSnap.docs) {
+      const signal = signalDoc.data();
+      if (signal.status === "ACTIVE") continue;
+      postUpdateDocs.push({ id: signalDoc.id, ...signal });
     }
 
     for (const evt of signalEvents) {
@@ -237,14 +254,70 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // ── AI Filter Rescoring Pass ──────────────────────────
+    let scoreCount = 0;
+    try {
+      const sentimentSnap = await db
+        .collection("sentiment_signals")
+        .orderBy("receivedAt", "desc")
+        .limit(100)
+        .get();
+      const sentimentReadings = sentimentSnap.docs.map((d) =>
+        mapFirestoreSentiment(d.data()),
+      );
+      const btcSentiment = buildSentimentMap(sentimentReadings);
+
+      const allSignalsForScoring = postUpdateDocs.map(mapFirestoreSignal);
+      const scores = computeAutoFilter(allSignalsForScoring, btcSentiment);
+
+      for (const signalDoc of signalsSnap.docs) {
+        const signal = signalDoc.data();
+        if (signal.status !== "ACTIVE") continue;
+        // Skip signals that already hit TP/SL (they're about to close)
+        if (signal.tp1Hit || signal.tp2Hit || signal.tp3Hit || signal.slHitAt) continue;
+
+        const scoreResult = scores.get(signalDoc.id);
+        const scoreData: Record<string, any> = {
+          lastScoredAt: new Date().toISOString(),
+        };
+
+        if (signal.autoFilterPassed === null || signal.autoFilterPassed === undefined) {
+          // First-time scoring (webhook after() must have failed)
+          if (isSignalStale(signal.receivedAt, signal.timeframe || "15")) {
+            scoreData.autoFilterPassed = false;
+            scoreData.confidenceScore = 0;
+            scoreData.confidenceLabel = "Stale";
+          } else if (scoreResult) {
+            scoreData.autoFilterPassed = scoreResult.score >= AUTO_FILTER_THRESHOLD;
+            scoreData.confidenceScore = scoreResult.score;
+            scoreData.confidenceLabel = scoreResult.label;
+            scoreData.scoreBreakdown = scoreResult.breakdown;
+          }
+        } else if (signal.autoFilterPassed === true && scoreResult) {
+          // Already passed — update score (may demote from View 1 to View 2)
+          scoreData.confidenceScore = scoreResult.score;
+          scoreData.confidenceLabel = scoreResult.label;
+          scoreData.scoreBreakdown = scoreResult.breakdown;
+        }
+        // autoFilterPassed === false → deprecated, skip
+
+        if (Object.keys(scoreData).length > 1) {
+          await db.collection("signals").doc(signalDoc.id).update(scoreData);
+          scoreCount++;
+        }
+      }
+    } catch (scoreErr: any) {
+      console.error("[Sync] AI rescoring failed:", scoreErr.message);
+    }
+
     await db.collection("logs").add({
       timestamp: new Date().toISOString(),
       level: "INFO",
-      message: `ASIA SYNC: updated=${updateCount} skipped=${skipCount} events=${signalEvents.length}`,
+      message: `ASIA SYNC: updated=${updateCount} skipped=${skipCount} events=${signalEvents.length} scored=${scoreCount}`,
       webhookId: "SYSTEM_CRON",
     });
 
-    return NextResponse.json({ success: true, updated: updateCount, skipped: skipCount, events: signalEvents.length });
+    return NextResponse.json({ success: true, updated: updateCount, skipped: skipCount, events: signalEvents.length, scored: scoreCount });
   } catch (error: any) {
     await db.collection("logs").add({
       timestamp: new Date().toISOString(),

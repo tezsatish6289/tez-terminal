@@ -6,6 +6,13 @@ import { FieldValue } from "firebase-admin/firestore";
 import { computeSentiment, type SignalForSentiment } from "@/lib/sentiment";
 import { deriveTp3 } from "@/lib/pnl";
 import type { SignalEvent } from "@/lib/telegram";
+import {
+  computeAutoFilter,
+  buildSentimentMap,
+  mapFirestoreSignal,
+  mapFirestoreSentiment,
+  AUTO_FILTER_THRESHOLD,
+} from "@/lib/auto-filter";
 
 /**
  * Webhook ingestion for TradingView alerts.
@@ -122,6 +129,11 @@ export async function POST(request: NextRequest) {
       tp3BookedPnl: null,
       slBookedPnl: null,
       totalBookedPnl: null,
+      autoFilterPassed: null,
+      confidenceScore: null,
+      confidenceLabel: null,
+      scoreBreakdown: null,
+      lastScoredAt: null,
     };
 
     const docRef = await db.collection("signals").add(signalData);
@@ -184,12 +196,54 @@ export async function POST(request: NextRequest) {
           const bearish = sentiment.label === "Bears in control" || sentiment.label === "Bears taking over";
           const aligned = (signalType === "BUY" && bullish) || (signalType === "SELL" && bearish);
 
-          await db.collection("signals").doc(docRef.id).update({
+          // ── AI Filter Scoring ───────────────────────────
+          let scoreUpdate: Record<string, any> = {
             aligned,
             sentimentAtEntry: sentiment.label,
-          });
+          };
+
+          try {
+            const allSignals = activeSnap.docs.map((d) =>
+              mapFirestoreSignal({ id: d.id, ...d.data() }),
+            );
+
+            // Ensure the new signal has the aligned flag for scoring
+            const newIdx = allSignals.findIndex((s) => s.id === docRef.id);
+            if (newIdx >= 0) {
+              allSignals[newIdx] = { ...allSignals[newIdx], aligned };
+            }
+
+            const sentimentSnap = await db
+              .collection("sentiment_signals")
+              .orderBy("receivedAt", "desc")
+              .limit(100)
+              .get();
+            const sentimentReadings = sentimentSnap.docs.map((d) =>
+              mapFirestoreSentiment(d.data()),
+            );
+            const btcSentiment = buildSentimentMap(sentimentReadings);
+
+            const scores = computeAutoFilter(allSignals, btcSentiment);
+            const thisScore = scores.get(docRef.id);
+
+            if (thisScore) {
+              const passed = thisScore.score >= AUTO_FILTER_THRESHOLD;
+              scoreUpdate = {
+                ...scoreUpdate,
+                autoFilterPassed: passed,
+                confidenceScore: thisScore.score,
+                confidenceLabel: thisScore.label,
+                scoreBreakdown: thisScore.breakdown,
+                lastScoredAt: new Date().toISOString(),
+              };
+            }
+          } catch (scoreErr) {
+            console.error("[Webhook after()] AI scoring failed, cron will retry:", scoreErr);
+          }
+
+          await db.collection("signals").doc(docRef.id).update(scoreUpdate);
         } catch (err) {
-          console.error("[Webhook after()] Alignment computation failed:", err);
+          console.error("[Webhook after()] Background processing failed:", err);
         }
       });
     }

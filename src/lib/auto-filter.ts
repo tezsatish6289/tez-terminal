@@ -12,9 +12,15 @@
  *   6. Signal Freshness            (0-8)   — Time decay relative to TF
  *
  * Signals scoring >= AUTO_FILTER_THRESHOLD pass the auto-filter.
+ *
+ * Runs server-side (webhook after() + sync-prices cron) and stores
+ * scores on each signal document. Client reads pre-computed scores.
  */
 
+import { getEffectivePnl } from "./pnl";
+
 export const AUTO_FILTER_THRESHOLD = 55;
+export const STALE_CANDLE_LIMIT = 6;
 
 // ── Timeframe metadata ──────────────────────────────────────
 
@@ -690,4 +696,68 @@ export function computeAutoFilter(
   }
 
   return scores;
+}
+
+// ── Server-side helpers ─────────────────────────────────────
+
+export function isSignalStale(receivedAt: string, timeframe: string): boolean {
+  const candleMinutes = CANDLE_MINUTES[timeframe] ?? 15;
+  const ageMs = Date.now() - new Date(receivedAt).getTime();
+  const ageInCandles = ageMs / (candleMinutes * 60 * 1000);
+  return ageInCandles > STALE_CANDLE_LIMIT;
+}
+
+export function mapFirestoreSignal(doc: { id: string; [key: string]: any }): SignalForScoring {
+  const pnl = getEffectivePnl({
+    price: Number(doc.price || 0),
+    currentPrice: doc.currentPrice != null ? Number(doc.currentPrice) : null,
+    type: doc.type || "BUY",
+    tp1: doc.tp1 ?? null,
+    tp2: doc.tp2 ?? null,
+    tp3: doc.tp3 ?? null,
+    tp1Hit: doc.tp1Hit ?? false,
+    tp2Hit: doc.tp2Hit ?? false,
+    tp3Hit: doc.tp3Hit ?? false,
+    tp1BookedPnl: doc.tp1BookedPnl ?? null,
+    tp2BookedPnl: doc.tp2BookedPnl ?? null,
+    tp3BookedPnl: doc.tp3BookedPnl ?? null,
+    totalBookedPnl: doc.totalBookedPnl ?? null,
+    status: doc.status,
+  });
+
+  return {
+    id: doc.id,
+    symbol: doc.symbol || "",
+    type: doc.type as "BUY" | "SELL",
+    price: Number(doc.price || 0),
+    currentPrice: doc.currentPrice != null ? Number(doc.currentPrice) : null,
+    pnl,
+    timeframe: String(doc.timeframe || "15"),
+    receivedAt: doc.receivedAt || "",
+    status: doc.status || "ACTIVE",
+    algo: doc.algo || "V8 Reversal",
+    tp1: doc.tp1 != null ? Number(doc.tp1) : null,
+    tp2: doc.tp2 != null ? Number(doc.tp2) : null,
+    tp3: doc.tp3 != null ? Number(doc.tp3) : null,
+    tp1Hit: doc.tp1Hit ?? false,
+    tp2Hit: doc.tp2Hit ?? false,
+    tp3Hit: doc.tp3Hit ?? false,
+    slHitAt: doc.slHitAt ?? null,
+    stopLoss: doc.stopLoss != null ? Number(doc.stopLoss) : null,
+    originalStopLoss: doc.originalStopLoss != null ? Number(doc.originalStopLoss) : null,
+    maxUpsidePrice: doc.maxUpsidePrice != null ? Number(doc.maxUpsidePrice) : null,
+    maxDrawdownPrice: doc.maxDrawdownPrice != null ? Number(doc.maxDrawdownPrice) : null,
+    aligned: doc.aligned ?? false,
+    totalBookedPnl: doc.totalBookedPnl ?? null,
+  };
+}
+
+export function mapFirestoreSentiment(doc: any): SentimentReading {
+  return {
+    sentiment: doc.sentiment ?? "neutral",
+    score: Number(doc.score ?? 0),
+    rawScore: Number(doc.rawScore ?? 0),
+    timeframe: String(doc.timeframe ?? "15"),
+    receivedAt: doc.receivedAt ?? "",
+  };
 }

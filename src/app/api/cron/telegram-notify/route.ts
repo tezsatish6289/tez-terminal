@@ -84,6 +84,26 @@ export async function GET(request: NextRequest) {
       let recipients: { chatId: number }[] = [];
 
       if (event.type === "NEW_SIGNAL") {
+        // Only notify for AI-passed signals
+        if (event.signalId) {
+          const signalSnap = await db.collection("signals").doc(event.signalId).get();
+          const signalData = signalSnap.data();
+          if (!signalData || signalData.autoFilterPassed !== true) {
+            // Not yet scored or failed AI filter — skip
+            if (signalData?.autoFilterPassed === null || signalData?.autoFilterPassed === undefined) {
+              // Still pending score — don't mark as notified, retry next cycle
+              continue;
+            }
+            // autoFilterPassed === false — deprecated, mark notified and skip
+            await db.collection("signal_events").doc(eventDoc.id).update({
+              notified: true,
+              notifiedAt: new Date().toISOString(),
+              notifiedCount: 0,
+            });
+            continue;
+          }
+        }
+
         const matched = allUsers.filter(sub => matchesNewSignalPrefs(sub.prefs, event));
         recipients = matched;
 

@@ -13,7 +13,6 @@ import { collection, query, orderBy, limit } from "firebase/firestore";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import {
   Loader2,
-  TrendingUp,
   TrendingDown,
   Zap,
   Target,
@@ -39,13 +38,7 @@ import {
 } from "@/components/ui/popover";
 import { getLeverage } from "@/lib/leverage";
 import { getEffectivePnl } from "@/lib/pnl";
-import {
-  computeAutoFilter,
-  buildSentimentMap,
-  AUTO_FILTER_THRESHOLD,
-  type ScoredSignal,
-  type SentimentReading,
-} from "@/lib/auto-filter";
+import { AUTO_FILTER_THRESHOLD, type ScoredSignal } from "@/lib/auto-filter";
 
 const TIMEFRAME_OPTIONS = [
   { id: "all", label: "All" },
@@ -129,6 +122,9 @@ interface ProcessedSignal {
   originalStopLoss: number | null;
   sentimentAtEntry: string;
   aligned: boolean;
+  autoFilterPassed: boolean | null;
+  confidenceScore: number | null;
+  confidenceLabel: string | null;
 }
 
 interface StatusEvent {
@@ -538,7 +534,6 @@ export default function OpportunitiesPage() {
   const [filterSide, setFilterSide] = useState("all");
   const [filterPerf, setFilterPerf] = useState("all");
   const [filterAlgo, setFilterAlgo] = useState("all");
-  const [autoFilter, setAutoFilter] = useState(false);
   const [filtersLoaded, setFiltersLoaded] = useState(false);
 
   useEffect(() => {
@@ -620,20 +615,10 @@ export default function OpportunitiesPage() {
     );
   }, [user, firestore]);
 
-  const sentimentQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(
-      collection(firestore, "sentiment_signals"),
-      orderBy("receivedAt", "desc"),
-      limit(100)
-    );
-  }, [user, firestore]);
-
   const { data: rawSignals, isLoading: signalsLoading } =
     useCollection(signalsQuery);
   const { data: rawEvents, isLoading: eventsLoading } =
     useCollection(eventsQuery);
-  const { data: rawSentiment } = useCollection(sentimentQuery);
 
   const processedSignals: ProcessedSignal[] = useMemo(() => {
     if (!rawSignals) return [];
@@ -673,6 +658,9 @@ export default function OpportunitiesPage() {
           originalStopLoss: signal.originalStopLoss != null ? Number(signal.originalStopLoss) : null,
           sentimentAtEntry: signal.sentimentAtEntry ?? "",
           aligned: signal.aligned ?? false,
+          autoFilterPassed: signal.autoFilterPassed ?? null,
+          confidenceScore: signal.confidenceScore ?? null,
+          confidenceLabel: signal.confidenceLabel ?? null,
         };
       });
   }, [rawSignals]);
@@ -720,50 +708,44 @@ export default function OpportunitiesPage() {
     }));
   }, [rawEvents, signalAlgoMap]);
 
-  const btcSentimentMap = useMemo(() => {
-    if (!rawSentiment || rawSentiment.length === 0) return undefined;
-    const readings: SentimentReading[] = rawSentiment.map((doc: any) => ({
-      sentiment: doc.sentiment ?? "neutral",
-      score: Number(doc.score ?? 0),
-      rawScore: Number(doc.rawScore ?? 0),
-      timeframe: String(doc.timeframe ?? "15"),
-      receivedAt: doc.receivedAt ?? "",
-    }));
-    return buildSentimentMap(readings);
-  }, [rawSentiment]);
+  const [aiTab, setAiTab] = useState<"active" | "watch">("active");
 
-  const signalScores = useMemo(() => {
-    return computeAutoFilter(processedSignals, btcSentimentMap);
-  }, [processedSignals, btcSentimentMap]);
-
-  const liveOpportunities = useMemo(() => {
-    let filtered = (autoFilter ? processedSignals : filteredSignals).filter(
+  // AI Active: passed filter AND score still above threshold
+  const aiActiveSignals = useMemo(() => {
+    const base = filteredSignals.filter(
       (s) =>
         s.status !== "INACTIVE" &&
         !s.tp1Hit &&
         !s.tp2Hit &&
         !s.tp3Hit &&
-        !s.slHitAt
+        !s.slHitAt &&
+        s.autoFilterPassed === true &&
+        (s.confidenceScore ?? 0) >= AUTO_FILTER_THRESHOLD,
     );
+    return base.sort(
+      (a, b) => (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0),
+    );
+  }, [filteredSignals]);
 
-    if (autoFilter) {
-      filtered = filtered
-        .filter(
-          (s) =>
-            (signalScores.get(s.id)?.score ?? 0) >= AUTO_FILTER_THRESHOLD,
-        )
-        .sort(
-          (a, b) =>
-            (signalScores.get(b.id)?.score ?? 0) -
-            (signalScores.get(a.id)?.score ?? 0),
-        );
-    }
+  // AI Watch: passed filter initially but score has since dropped
+  const aiWatchSignals = useMemo(() => {
+    return filteredSignals.filter(
+      (s) =>
+        s.status !== "INACTIVE" &&
+        !s.tp1Hit &&
+        !s.tp2Hit &&
+        !s.tp3Hit &&
+        !s.slHitAt &&
+        s.autoFilterPassed === true &&
+        (s.confidenceScore ?? 0) < AUTO_FILTER_THRESHOLD,
+    );
+  }, [filteredSignals]);
 
-    return filtered;
-  }, [processedSignals, filteredSignals, autoFilter, signalScores]);
+  const liveOpportunities = aiTab === "active" ? aiActiveSignals : aiWatchSignals;
 
-  const activeCount = liveOpportunities.length;
-  const winningCount = liveOpportunities.filter((s) => s.pnl > 0.05).length;
+  const activeCount = aiActiveSignals.length;
+  const watchCount = aiWatchSignals.length;
+  const winningCount = aiActiveSignals.filter((s) => s.pnl > 0.05).length;
 
   const topWinners = useMemo(() => {
     return processedSignals
@@ -814,58 +796,38 @@ export default function OpportunitiesPage() {
           {/* Left pane: Opportunities (~50%) */}
           <div className="flex-[5] flex flex-col min-w-0 rounded-xl border border-white/[0.08] bg-[#111113] overflow-hidden">
             {/* Header */}
-            <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
-              <div>
+            <div className="px-4 py-3 border-b border-white/[0.06]">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  {autoFilter ? (
-                    <Sparkles className="w-4 h-4 text-amber-400" />
-                  ) : (
-                    <TrendingUp className="w-4 h-4 text-accent" />
-                  )}
+                  <Sparkles className="w-4 h-4 text-amber-400" />
                   <h2 className="text-sm font-black tracking-tight uppercase">
-                    {autoFilter ? "AI-Filtered" : "Live Opportunities"}
+                    AI Filtered
                   </h2>
                   {!isLoading && (
                     <div className="flex items-center gap-2 ml-1">
-                      <span className="text-[11px] font-bold text-muted-foreground/60">
+                      <span className="text-[11px] font-bold text-positive/70">
                         {activeCount} active
                       </span>
-                      <span className="text-white/15">·</span>
-                      <span className="text-[11px] font-bold text-positive/70">
-                        {winningCount} winning
-                      </span>
+                      {watchCount > 0 && (
+                        <>
+                          <span className="text-white/15">·</span>
+                          <span className="text-[11px] font-bold text-amber-400/60">
+                            {watchCount} watch
+                          </span>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
-                <p className="text-[11px] text-muted-foreground/50 mt-1 pl-6">
-                  {autoFilter
-                    ? "Showing highest probability trades"
-                    : "Use filters to find trades suiting your style"}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setAutoFilter((v) => !v)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer",
-                    autoFilter
-                      ? "bg-amber-400/20 border-amber-400/40 text-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.15)]"
-                      : "bg-white/[0.04] border-white/10 text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
-                  )}
-                >
-                  <Sparkles className="w-3 h-3" />
-                  Auto
-                </button>
+                <div className="flex items-center gap-2">
               <Popover open={filterOpen} onOpenChange={handleFilterOpen}>
                 <PopoverTrigger asChild>
                   <button
                     className={cn(
                       "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer",
-                      autoFilter
-                        ? "opacity-40 pointer-events-none"
-                        : hasActiveFilters
-                          ? "bg-accent/20 border-accent/40 text-accent"
-                          : "bg-white/[0.04] border-white/10 text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
+                      hasActiveFilters
+                        ? "bg-accent/20 border-accent/40 text-accent"
+                        : "bg-white/[0.04] border-white/10 text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
                     )}
                   >
                     <SlidersHorizontal className="w-3 h-3" />
@@ -966,6 +928,31 @@ export default function OpportunitiesPage() {
                   </div>
                 </PopoverContent>
               </Popover>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 px-4 pt-2 pb-1">
+                <button
+                  onClick={() => setAiTab("active")}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer",
+                    aiTab === "active"
+                      ? "bg-positive/15 text-positive"
+                      : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/[0.04]"
+                  )}
+                >
+                  AI Active {!isLoading && `(${activeCount})`}
+                </button>
+                <button
+                  onClick={() => setAiTab("watch")}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer",
+                    aiTab === "watch"
+                      ? "bg-amber-400/15 text-amber-400"
+                      : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/[0.04]"
+                  )}
+                >
+                  AI Watch {!isLoading && watchCount > 0 && `(${watchCount})`}
+                </button>
               </div>
             </div>
 
@@ -976,21 +963,21 @@ export default function OpportunitiesPage() {
                 </div>
               ) : liveOpportunities.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/30">
-                  {autoFilter ? (
+                  {aiTab === "active" ? (
                     <>
                       <Sparkles className="w-6 h-6 mb-2 text-amber-400/30" />
                       <span className="text-xs font-bold">
                         No high-confidence signals right now
                       </span>
                       <span className="text-[10px] mt-1 text-muted-foreground/20">
-                        Auto-filter shows only signals scoring {AUTO_FILTER_THRESHOLD}+
+                        Signals scoring {AUTO_FILTER_THRESHOLD}+ appear here
                       </span>
                     </>
                   ) : (
                     <>
                       <Zap className="w-6 h-6 mb-2" />
                       <span className="text-xs font-bold">
-                        No open opportunities match your filters
+                        No demoted signals
                       </span>
                     </>
                   )}
@@ -1001,7 +988,16 @@ export default function OpportunitiesPage() {
                     <OpportunityCard
                       key={signal.id}
                       signal={signal}
-                      score={autoFilter ? signalScores.get(signal.id) : undefined}
+                      score={signal.confidenceScore != null ? {
+                        signalId: signal.id,
+                        score: signal.confidenceScore,
+                        label: signal.confidenceLabel ?? "",
+                        color: signal.confidenceScore >= 80 ? "text-positive"
+                          : signal.confidenceScore >= 65 ? "text-accent"
+                          : signal.confidenceScore >= 50 ? "text-amber-400"
+                          : "text-orange-400",
+                        breakdown: { mtfConfluence: 0, momentum: 0, riskReward: 0, algoPerformance: 0, tradeHealth: 0, freshness: 0 },
+                      } : undefined}
                     />
                   ))}
                 </div>

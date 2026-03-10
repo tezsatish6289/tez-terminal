@@ -64,16 +64,15 @@ service cloud.firestore {
       allow read, update, delete: if false;
     }
 
-    // Signal events: managed entirely server-side via Admin SDK.
+    // Signal events: readable by any authenticated user (Live Updates pane).
     match /signal_events/{eventId} {
-      allow read: if isAdmin();
+      allow read: if request.auth != null;
       allow write: if false;
     }
 
     // Tracked signals: per-user per-signal opt-in for TP/SL updates.
-    // Managed server-side via Admin SDK.
     match /tracked_signals/{trackId} {
-      allow read: if isAdmin();
+      allow read: if request.auth != null;
       allow write: if false;
     }
   }

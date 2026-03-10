@@ -132,12 +132,12 @@ export default function DeepDiveChartPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
+    <div className="flex flex-col min-h-screen lg:h-screen bg-background text-foreground lg:overflow-hidden">
       <TopBar />
 
-      <div className="flex-1 flex gap-4 p-4 overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row gap-4 p-3 lg:p-4 overflow-y-auto lg:overflow-hidden">
         {/* Left: Signal Card */}
-        <div ref={leftPanelRef} className="w-[380px] shrink-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 flex flex-col overflow-y-auto">
+        <div ref={leftPanelRef} className="w-full lg:w-[380px] shrink-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 flex flex-col lg:overflow-y-auto">
           {/* Header */}
           <div className="px-5 pt-4 pb-3 border-b border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent">
             <Button variant="ghost" size="sm" onClick={() => router.push("/")} className="text-muted-foreground hover:text-foreground gap-1 -ml-3 mb-3">
@@ -338,7 +338,7 @@ export default function DeepDiveChartPage() {
         </div>
 
         {/* Right: Chart(s) + controls */}
-        <div className="flex-1 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-[400px] lg:min-h-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 flex flex-col overflow-hidden">
           <div className="flex-1 min-h-0 flex flex-col" style={leftHeight ? { maxHeight: `${leftHeight}px` } : undefined}>
             <div className={cn("min-h-0", showBtc ? "h-1/2" : "flex-1")}>
               <ChartPane symbol={signal?.symbol} interval={signal?.timeframe} exchange={signal?.exchange} />
@@ -349,24 +349,26 @@ export default function DeepDiveChartPage() {
               </div>
             )}
           </div>
-          <div className="px-4 py-2.5 border-t border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent flex items-center justify-between gap-3">
+          <div className="px-3 lg:px-4 py-2 lg:py-2.5 border-t border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent flex items-center justify-between gap-2 lg:gap-3">
             <button
               onClick={() => setShowBtc(!showBtc)}
               className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all",
+                "flex items-center gap-2 px-2.5 lg:px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all shrink-0",
                 showBtc
                   ? "border-accent/30 bg-accent/10 text-accent"
                   : "border-white/10 bg-white/[0.03] text-muted-foreground/50 hover:bg-white/[0.06] hover:text-muted-foreground"
               )}
             >
               <Switch checked={showBtc} onCheckedChange={setShowBtc} className="data-[state=checked]:bg-accent scale-75" />
-              Compare with BTC
+              <span className="hidden sm:inline">Compare with BTC</span>
+              <span className="sm:hidden">BTC</span>
             </button>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">Chart shown in UTC time</span>
-            <Button asChild size="sm" className="font-bold text-[10px] uppercase tracking-wider border rounded-lg h-8 gap-2 px-4 border-white/10 bg-white/[0.03] text-muted-foreground/50 hover:bg-white/[0.06] hover:text-muted-foreground">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 hidden lg:inline">Chart shown in UTC time</span>
+            <Button asChild size="sm" className="font-bold text-[10px] uppercase tracking-wider border rounded-lg h-8 gap-2 px-3 lg:px-4 border-white/10 bg-white/[0.03] text-muted-foreground/50 hover:bg-white/[0.06] hover:text-muted-foreground shrink-0">
               <a href={tradingViewUrl} target="_blank" rel="noopener noreferrer">
                 <TradingViewIcon className="h-3.5 w-3.5" />
-                View on TradingView
+                <span className="hidden sm:inline">View on TradingView</span>
+                <span className="sm:hidden">TV</span>
               </a>
             </Button>
           </div>

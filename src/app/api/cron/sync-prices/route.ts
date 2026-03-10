@@ -318,12 +318,19 @@ export async function GET(request: NextRequest) {
             scoreData.confidenceScore = scoreResult.score;
             scoreData.confidenceLabel = scoreResult.label;
             scoreData.scoreBreakdown = scoreResult.breakdown;
+            scoreData.initialConfidenceScore = scoreResult.score;
+            scoreData.maxConfidenceScore = scoreResult.score;
+            scoreData.minConfidenceScore = scoreResult.score;
           }
         } else if (signal.autoFilterPassed === true && scoreResult) {
           // Already passed — update score (may demote from View 1 to View 2)
           scoreData.confidenceScore = scoreResult.score;
           scoreData.confidenceLabel = scoreResult.label;
           scoreData.scoreBreakdown = scoreResult.breakdown;
+          const existingMax = signal.maxConfidenceScore ?? scoreResult.score;
+          const existingMin = signal.minConfidenceScore ?? scoreResult.score;
+          scoreData.maxConfidenceScore = Math.max(existingMax, scoreResult.score);
+          scoreData.minConfidenceScore = Math.min(existingMin, scoreResult.score);
         }
         // autoFilterPassed === false → deprecated, skip
 

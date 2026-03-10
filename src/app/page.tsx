@@ -199,14 +199,14 @@ function OpportunityCard({
     >
       {/* Symbol + Direction */}
       <div className="px-4 pt-3.5 pb-1">
-        <div className="flex items-center justify-between">
-          <span className="text-[15px] font-black uppercase tracking-tight text-foreground">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[15px] font-black uppercase tracking-tight text-foreground truncate min-w-0">
             {signal.symbol}
           </span>
           {score && (
             <div
               className={cn(
-                "flex items-center gap-1 px-2 py-1 rounded-lg border",
+                "flex items-center gap-1 px-2 py-1 rounded-lg border shrink-0",
                 score.score >= 80
                   ? "bg-positive/10 border-positive/25 text-positive"
                   : score.score >= 65

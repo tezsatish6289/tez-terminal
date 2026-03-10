@@ -162,6 +162,9 @@ export async function POST(request: NextRequest) {
       confidenceLabel: null,
       scoreBreakdown: null,
       lastScoredAt: null,
+      initialConfidenceScore: null,
+      maxConfidenceScore: null,
+      minConfidenceScore: null,
     };
 
     const docRef = await db.collection("signals").add(signalData);
@@ -242,6 +245,9 @@ export async function POST(request: NextRequest) {
                 confidenceLabel: thisScore.label,
                 scoreBreakdown: thisScore.breakdown,
                 lastScoredAt: new Date().toISOString(),
+                initialConfidenceScore: thisScore.score,
+                maxConfidenceScore: thisScore.score,
+                minConfidenceScore: thisScore.score,
               };
             }
           } catch (scoreErr) {

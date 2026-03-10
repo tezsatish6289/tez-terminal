@@ -431,6 +431,7 @@ function TradeAuditContent() {
                       <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Targets</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Net PNL</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Max Excursion</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">AI Score</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Status</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 text-right">Date</TableHead>
                     </TableRow>
@@ -438,7 +439,7 @@ function TradeAuditContent() {
                   <TableBody>
                     {pageSignals.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={13} className="h-64 text-center">
+                        <TableCell colSpan={14} className="h-64 text-center">
                           <div className="flex flex-col items-center gap-4 opacity-40">
                             <Archive className="h-12 w-12 text-muted-foreground" />
                             <div className="space-y-1">
@@ -535,6 +536,19 @@ function TradeAuditContent() {
                                   <ArrowDownRight className="h-3 w-3" /> {maxDown.toFixed(1)}%
                                 </div>
                               </div>
+                            </TableCell>
+                            <TableCell>
+                              {signal.initialConfidenceScore != null ? (
+                                <div className="flex items-center gap-2 font-mono text-xs font-bold">
+                                  <span className="text-white/60">{Math.round(signal.initialConfidenceScore)}</span>
+                                  <span className="text-white/20">/</span>
+                                  <span className="text-rose-400">{Math.round(signal.minConfidenceScore ?? signal.initialConfidenceScore)}</span>
+                                  <span className="text-white/20">/</span>
+                                  <span className="text-emerald-400">{Math.round(signal.maxConfidenceScore ?? signal.initialConfidenceScore)}</span>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground/30">—</span>
+                              )}
                             </TableCell>
                             <TableCell>
                               <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", isRetired ? "bg-amber-500/15 text-amber-400" : "bg-emerald-500/15 text-emerald-400")}>

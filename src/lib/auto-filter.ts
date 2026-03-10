@@ -810,13 +810,6 @@ function scoreTradeHealth(signal: SignalForScoring): number {
     else score = Math.round(MAX * 0.15);
   }
 
-  // Score trajectory: significant decay from peak = thesis weakening
-  if (signal.maxConfidenceScore != null && signal.confidenceScore != null) {
-    const decay = signal.maxConfidenceScore - signal.confidenceScore;
-    if (decay > 20) score -= 2;
-    else if (decay > 10) score -= 1;
-  }
-
   return Math.max(0, Math.min(MAX, score));
 }
 

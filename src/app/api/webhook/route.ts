@@ -68,6 +68,20 @@ export async function POST(request: NextRequest) {
     if (rawAt.includes("INDIAN")) assetType = "INDIAN STOCKS";
     else if (rawAt.includes("US") || rawAt.includes("NASDAQ")) assetType = "US STOCKS";
 
+    // Only accept USDT perpetual symbols for crypto
+    if (assetType === "CRYPTO" && !symbol.endsWith("USDT.P")) {
+      await db.collection("logs").add({
+        timestamp, level: "WARN",
+        message: "Symbol rejected — not a USDT perpetual",
+        details: `symbol=${symbol} expected=*.USDT.P`,
+        webhookId,
+      });
+      return NextResponse.json(
+        { success: false, message: `Symbol '${symbol}' rejected. Only USDT perpetual symbols (ending with USDT.P) are accepted.` },
+        { status: 400 }
+      );
+    }
+
     const rawSide = String(body.side ?? "").toLowerCase();
     const signalType = rawSide.includes("sell") ? "SELL" : rawSide.includes("buy") ? "BUY" : "NEUTRAL";
 

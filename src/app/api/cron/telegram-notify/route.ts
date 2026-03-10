@@ -8,6 +8,7 @@ export const revalidate = 0;
 
 const BATCH_SIZE = 30;
 const BATCH_DELAY_MS = 1100;
+const SITE_URL = "https://tezterminal.com";
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -15,7 +16,7 @@ function sleep(ms: number) {
 
 /**
  * Telegram notification cron.
- * 1) Top Pick signals (score >= threshold) → fan out to all subscribers who haven't received it.
+ * 1) Top Pick signals → one consolidated "new signals available" message per cycle.
  * 2) TP/SL events → send to users who tapped "Track this trade".
  */
 export async function GET(request: NextRequest) {
@@ -58,7 +59,6 @@ export async function GET(request: NextRequest) {
     }
 
     let totalMessages = 0;
-    let topPicksSent = 0;
 
     // --- Load dynamic thresholds ---
     const regimeSnap = await db.collection("config").doc("market_regime").get();
@@ -72,76 +72,68 @@ export async function GET(request: NextRequest) {
       return entry.adjustedThreshold;
     }
 
-    // --- Part 1: Top Pick signals not yet sent to Telegram ---
+    // --- Part 1: Consolidated Top Pick notification ---
     const topPickSnap = await db.collection("signals")
       .where("autoFilterPassed", "==", true)
       .where("telegramNotified", "==", false)
       .get();
 
-    for (const signalDoc of topPickSnap.docs) {
-      const signal = signalDoc.data();
-      const score = signal.confidenceScore ?? 0;
-      const threshold = getThresholdForSignal(String(signal.timeframe || "15"), signal.type);
+    const newTopPicks = topPickSnap.docs.filter((d) => {
+      const s = d.data();
+      const score = s.confidenceScore ?? 0;
+      const threshold = getThresholdForSignal(String(s.timeframe || "15"), s.type);
+      return score >= threshold;
+    });
 
-      if (score < threshold) {
-        continue;
-      }
+    let topPicksSent = 0;
 
-      if (allUsers.length === 0) {
-        await signalDoc.ref.update({ telegramNotified: true, telegramNotifiedAt: new Date().toISOString() });
-        continue;
-      }
+    if (newTopPicks.length > 0 && allUsers.length > 0) {
+      const count = newTopPicks.length;
+      const message = count === 1
+        ? `✨ <b>New Top Pick available to trade now!</b>\n\nOur AI filter just identified a high-confidence signal. Check it out before it moves.`
+        : `✨ <b>${count} new Top Picks available to trade now!</b>\n\nOur AI filter just identified ${count} high-confidence signals. Check them out before they move.`;
 
-      const eventData: SignalEvent = {
-        type: "NEW_SIGNAL",
-        signalId: signalDoc.id,
-        symbol: signal.symbol || "???",
-        side: signal.type,
-        timeframe: String(signal.timeframe || "15"),
-        assetType: signal.assetType || "CRYPTO",
-        entryPrice: signal.price,
-        price: signal.price,
-        stopLoss: signal.stopLoss,
-        tp1: signal.tp1 ?? null,
-        tp2: signal.tp2 ?? null,
-        tp3: signal.tp3 ?? null,
-        guidance: "",
-      };
-
-      const message = formatSignalMessage(eventData);
-      const matched = allUsers.filter(sub => matchesPrefs(sub.prefs, eventData));
-
-      const tradeUrl = `https://tezterminal.com/chart/${signalDoc.id}`;
       const buttons: InlineKeyboardButton[][] = [
-        [
-          { text: "📊 View Trade", url: tradeUrl },
-          { text: "📌 Track", callback_data: `track:${signalDoc.id}` },
-        ],
+        [{ text: "🚀 View Signals", url: SITE_URL }],
       ];
 
-      for (let i = 0; i < matched.length; i += BATCH_SIZE) {
-        const batch = matched.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < allUsers.length; i += BATCH_SIZE) {
+        const batch = allUsers.slice(i, i + BATCH_SIZE);
         await Promise.all(
           batch.map(sub =>
-              sendMessage(sub.chatId, message + "\n\nRecommended if you are trading this signal.", {
-                replyMarkup: { inline_keyboard: buttons },
-              }).catch(err => {
+            sendMessage(sub.chatId, message, {
+              replyMarkup: { inline_keyboard: buttons },
+            }).catch(err => {
               console.error(`[Telegram Notify] Failed to send to ${sub.chatId}:`, err.message);
             })
           )
         );
         totalMessages += batch.length;
 
-        if (i + BATCH_SIZE < matched.length) {
+        if (i + BATCH_SIZE < allUsers.length) {
           await sleep(BATCH_DELAY_MS);
         }
       }
 
-      await signalDoc.ref.update({
+      topPicksSent = count;
+    }
+
+    // Mark all qualifying Top Picks as notified
+    for (const doc of newTopPicks) {
+      await doc.ref.update({
         telegramNotified: true,
         telegramNotifiedAt: new Date().toISOString(),
       });
-      topPicksSent++;
+    }
+
+    // Also mark signals with no subscribers as notified
+    if (newTopPicks.length > 0 && allUsers.length === 0) {
+      for (const doc of newTopPicks) {
+        await doc.ref.update({
+          telegramNotified: true,
+          telegramNotifiedAt: new Date().toISOString(),
+        });
+      }
     }
 
     // --- Part 2: TP/SL events → send to tracked users ---
@@ -155,7 +147,6 @@ export async function GET(request: NextRequest) {
       const event = eventDoc.data() as SignalEvent & { createdAt: string };
 
       if (event.type === "NEW_SIGNAL") {
-        // NEW_SIGNAL is now handled by Part 1 above — just mark notified
         await db.collection("signal_events").doc(eventDoc.id).update({
           notified: true,
           notifiedAt: new Date().toISOString(),
@@ -164,7 +155,6 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      // TP/SL events → send to users who tracked this signal
       const trackedSnap = await db.collection("tracked_signals")
         .where("signalId", "==", event.signalId)
         .get();
@@ -235,23 +225,4 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
-}
-
-function matchesPrefs(prefs: any, event: SignalEvent): boolean {
-  if (!matchesFilter(prefs.timeframes, event.timeframe)) return false;
-  if (!matchesFilter(prefs.sides, event.side)) return false;
-
-  const symbols: string[] = prefs.symbols || [];
-  if (symbols.length > 0) {
-    const eventSymbol = (event.symbol || "").toUpperCase();
-    const match = symbols.some((s: string) => eventSymbol.includes(s.toUpperCase()));
-    if (!match) return false;
-  }
-
-  return true;
-}
-
-function matchesFilter(filterValues: string[] | undefined, value: string): boolean {
-  if (!filterValues || filterValues.length === 0 || filterValues.includes("ALL")) return true;
-  return filterValues.includes(value);
 }

@@ -545,6 +545,8 @@ function TradeAuditContent() {
                                   <span className="text-rose-400">{Math.round(signal.minConfidenceScore ?? signal.initialConfidenceScore)}</span>
                                   <span className="text-white/20">/</span>
                                   <span className="text-emerald-400">{Math.round(signal.maxConfidenceScore ?? signal.initialConfidenceScore)}</span>
+                                  <span className="text-white/20">/</span>
+                                  <span className="text-accent">{Math.round(signal.confidenceScore ?? signal.initialConfidenceScore)}</span>
                                 </div>
                               ) : (
                                 <span className="text-[10px] text-muted-foreground/30">—</span>

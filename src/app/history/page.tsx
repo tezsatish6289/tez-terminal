@@ -88,8 +88,6 @@ export default function HistoryPage() {
     return query(
       collection(firestore, "signals"),
       where("autoFilterPassed", "==", false),
-      orderBy("lastScoredAt", "desc"),
-      limit(100),
     );
   }, [firestore, isAdmin]);
 
@@ -98,13 +96,29 @@ export default function HistoryPage() {
     return query(
       collection(firestore, "signals"),
       where("autoFilterPassed", "==", true),
-      orderBy("lastScoredAt", "desc"),
-      limit(500),
     );
   }, [firestore, isAdmin]);
 
-  const { data: rejectedSignals, isLoading: isRejectedLoading } = useCollection(rejectedQuery);
-  const { data: passedSignals, isLoading: isPassedLoading } = useCollection(passedQuery);
+  const { data: rawRejected, isLoading: isRejectedLoading } = useCollection(rejectedQuery);
+  const { data: rawPassed, isLoading: isPassedLoading } = useCollection(passedQuery);
+
+  const rejectedSignals = useMemo(() => {
+    if (!rawRejected) return null;
+    return [...rawRejected].sort((a, b) => {
+      const ta = a.lastScoredAt ? new Date(a.lastScoredAt).getTime() : 0;
+      const tb = b.lastScoredAt ? new Date(b.lastScoredAt).getTime() : 0;
+      return tb - ta;
+    });
+  }, [rawRejected]);
+
+  const passedSignals = useMemo(() => {
+    if (!rawPassed) return null;
+    return [...rawPassed].sort((a, b) => {
+      const ta = a.lastScoredAt ? new Date(a.lastScoredAt).getTime() : 0;
+      const tb = b.lastScoredAt ? new Date(b.lastScoredAt).getTime() : 0;
+      return tb - ta;
+    });
+  }, [rawPassed]);
 
   const filterStats = useMemo(() => {
     const passed = passedSignals?.length ?? 0;

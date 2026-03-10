@@ -30,7 +30,6 @@ import {
   TrendingUp,
   Shield,
   BookOpen,
-  Monitor,
 } from "lucide-react";
 import { RadarIcon } from "@/components/icons/RadarIcon";
 import { useState, useMemo, useCallback, useEffect } from "react";
@@ -805,7 +804,7 @@ export default function Home() {
 
         {/* Mobile desktop banner */}
         <div className="lg:hidden flex items-center justify-center gap-2 px-4 py-2 bg-accent/10 border-b border-accent/20">
-          <Monitor className="w-3.5 h-3.5 text-accent" />
+          <Sparkles className="w-3.5 h-3.5 text-accent" />
           <span className="text-[11px] font-bold text-accent/80">For the best experience, switch to desktop</span>
         </div>
 
@@ -813,22 +812,22 @@ export default function Home() {
         <div className="flex-1 flex flex-col lg:flex-row gap-4 p-4 overflow-y-auto lg:overflow-hidden">
 
           {/* Left pane: Opportunities (~50%) */}
-          <div className="flex-[5] flex flex-col min-w-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 overflow-hidden relative">
+          <div className="flex-[5] flex flex-col min-w-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 overflow-hidden">
             {/* Hero Header */}
             <div className="px-5 pt-5 pb-3 border-b border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent">
               <div className="flex items-center gap-2 mb-1">
                 <Sparkles className="w-4 h-4 text-amber-400" />
                 <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400/70">AI-Powered</span>
               </div>
-              <h1 className="text-xl font-black tracking-tight text-foreground leading-tight">
+              <h1 className="text-lg lg:text-xl font-black tracking-tight text-foreground leading-tight">
                 AI-Powered Trade Signals
               </h1>
-              <div className="flex items-center justify-between mt-4">
-                <div className="flex items-center gap-1">
+              <div className="flex items-center justify-between mt-3 lg:mt-4 gap-2">
+                <div className="flex items-center gap-1 shrink-0">
                   <button
                     onClick={() => setAiTab("active")}
                     className={cn(
-                      "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer",
+                      "px-2.5 lg:px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap",
                       aiTab === "active"
                         ? "bg-positive/15 text-positive"
                         : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/[0.04]"
@@ -839,21 +838,21 @@ export default function Home() {
                   <button
                     onClick={() => setAiTab("watch")}
                     className={cn(
-                      "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer",
+                      "px-2.5 lg:px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap",
                       aiTab === "watch"
                         ? "bg-amber-400/15 text-amber-400"
                         : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/[0.04]"
                     )}
                   >
-                    Market Radar {!isLoading && watchCount > 0 && `(${watchCount})`}
+                    Radar {!isLoading && watchCount > 0 && `(${watchCount})`}
                   </button>
                 </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
               <Popover>
                 <PopoverTrigger asChild>
-                  <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/10 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.08] hover:text-foreground transition-all cursor-pointer">
+                  <button className="flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/10 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.08] hover:text-foreground transition-all cursor-pointer">
                     <BookOpen className="w-3 h-3" />
-                    Guide
+                    <span className="hidden sm:inline">Guide</span>
                   </button>
                 </PopoverTrigger>
                 <PopoverContent
@@ -918,14 +917,15 @@ export default function Home() {
                 <PopoverTrigger asChild>
                   <button
                     className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer",
+                      "flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer",
                       hasActiveFilters
                         ? "bg-accent/20 border-accent/40 text-accent"
                         : "bg-white/[0.04] border-white/10 text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
                     )}
                   >
                     <SlidersHorizontal className="w-3 h-3" />
-                    {hasActiveFilters ? `${activeFilterCount}` : "Filter"}
+                    <span className="hidden sm:inline">{hasActiveFilters ? `${activeFilterCount}` : "Filter"}</span>
+                    <span className="sm:hidden">{hasActiveFilters ? `${activeFilterCount}` : ""}</span>
                   </button>
                 </PopoverTrigger>
                 <PopoverContent
@@ -1121,16 +1121,6 @@ export default function Home() {
               )}
             </div>
 
-            {/* Floating Telegram CTA */}
-            <Link
-              href="/settings"
-              className="absolute bottom-4 right-4 z-10 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 shadow-lg shadow-black/40 flex items-center justify-center transition-all hover:scale-110 border border-white/10"
-              title="Get Telegram Alerts"
-            >
-              <svg viewBox="0 0 240 240" className="w-5 h-5 fill-[#2AABEE]">
-                <path d="M66.964 134.874s-32.08-10.062-51.344-16.002c-17.542-5.41-6.196-12.054 6.09-16.686 12.288-4.632 169.486-64.15 169.486-64.15s18.498-7.682 16.964 5.17c-.522 5.17-4.694 23.29-8.866 43.478L183.33 160.74s-1.566 12.396-14.636 1.304c-8.344-7.682-37.17-26.846-43.63-31.27-1.566-1.042-3.654-3.39.522-5.952 9.91-9.246 21.6-20.642 28.582-27.542 3.132-3.13 6.264-10.288-6.786-1.56L98.39 137.222c-6.264 4.108-12.004 1.304-12.004 1.304l-19.422-6.652z"/>
-              </svg>
-            </Link>
           </div>
 
           {/* Middle pane: Status Updates (~25%) */}
@@ -1214,6 +1204,17 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {/* Floating Telegram CTA — page-level */}
+      <Link
+        href="/settings"
+        className="fixed bottom-6 right-6 z-50 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 shadow-lg shadow-black/40 flex items-center justify-center transition-all hover:scale-110 border border-white/10 backdrop-blur-sm"
+        title="Get Telegram Alerts"
+      >
+        <svg viewBox="0 0 240 240" className="w-5 h-5 fill-[#2AABEE]">
+          <path d="M66.964 134.874s-32.08-10.062-51.344-16.002c-17.542-5.41-6.196-12.054 6.09-16.686 12.288-4.632 169.486-64.15 169.486-64.15s18.498-7.682 16.964 5.17c-.522 5.17-4.694 23.29-8.866 43.478L183.33 160.74s-1.566 12.396-14.636 1.304c-8.344-7.682-37.17-26.846-43.63-31.27-1.566-1.042-3.654-3.39.522-5.952 9.91-9.246 21.6-20.642 28.582-27.542 3.132-3.13 6.264-10.288-6.786-1.56L98.39 137.222c-6.264 4.108-12.004 1.304-12.004 1.304l-19.422-6.652z"/>
+        </svg>
+      </Link>
     </div>
   );
 }

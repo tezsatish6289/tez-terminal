@@ -16,7 +16,6 @@ import {
   ChevronRight,
   Layers,
   CalendarDays,
-  Monitor,
 } from "lucide-react";
 import { format, startOfDay, startOfWeek, startOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -175,7 +174,7 @@ function TradeAuditContent() {
       <TopBar />
 
       <div className="lg:hidden flex items-center justify-center gap-2 px-4 py-2 bg-accent/10 border-b border-accent/20">
-        <Monitor className="w-3.5 h-3.5 text-accent" />
+        <Zap className="w-3.5 h-3.5 text-accent" />
         <span className="text-[11px] font-bold text-accent/80">For the best experience, switch to desktop</span>
       </div>
 
@@ -348,74 +347,74 @@ function TradeAuditContent() {
         {/* Summary stats bar — grouped by theme */}
         <div className="grid grid-cols-2 lg:flex lg:flex-wrap items-stretch gap-2 text-center">
           {/* Overview group */}
-          <div className="flex items-center gap-5 px-4 py-3 rounded-lg border border-white/5 bg-white/[0.02]">
+          <div className="flex flex-wrap items-center justify-evenly gap-3 lg:gap-5 px-3 lg:px-4 py-3 rounded-lg border border-white/5 bg-white/[0.02]">
             <div>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Trades</span>
-              <span className="text-lg font-black font-mono text-white">{summaryStats.total}</span>
+              <span className="text-[8px] lg:text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Trades</span>
+              <span className="text-base lg:text-lg font-black font-mono text-white">{summaryStats.total}</span>
             </div>
             <div>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Win Rate</span>
-              <span className={cn("text-lg font-black font-mono", summaryStats.winRate >= 50 ? "text-emerald-400" : "text-rose-400")}>
+              <span className="text-[8px] lg:text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Win Rate</span>
+              <span className={cn("text-base lg:text-lg font-black font-mono", summaryStats.winRate >= 50 ? "text-emerald-400" : "text-rose-400")}>
                 {summaryStats.winRate.toFixed(1)}%
               </span>
             </div>
             <div>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Profit Factor</span>
-              <span className={cn("text-lg font-black font-mono", summaryStats.profitFactor >= 1 ? "text-emerald-400" : "text-rose-400")}>
+              <span className="text-[8px] lg:text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">PF</span>
+              <span className={cn("text-base lg:text-lg font-black font-mono", summaryStats.profitFactor >= 1 ? "text-emerald-400" : "text-rose-400")}>
                 {summaryStats.profitFactor === Infinity ? "∞" : summaryStats.profitFactor.toFixed(2)}
               </span>
             </div>
           </div>
 
           {/* Profit group */}
-          <div className="flex items-center gap-5 px-4 py-3 rounded-lg border border-emerald-500/10 bg-emerald-500/[0.03]">
+          <div className="flex flex-wrap items-center justify-evenly gap-3 lg:gap-5 px-3 lg:px-4 py-3 rounded-lg border border-emerald-500/10 bg-emerald-500/[0.03]">
             <div>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">Avg Profit</span>
-              <span className="text-lg font-black font-mono text-emerald-400">
+              <span className="text-[8px] lg:text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">Avg Profit</span>
+              <span className="text-base lg:text-lg font-black font-mono text-emerald-400">
                 +{summaryStats.avgProfit.toFixed(2)}%
               </span>
             </div>
             <div>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">Max Profit</span>
-              <span className="text-lg font-black font-mono text-emerald-400">
+              <span className="text-[8px] lg:text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">Max Profit</span>
+              <span className="text-base lg:text-lg font-black font-mono text-emerald-400">
                 +{summaryStats.maxProfit.toFixed(2)}%
               </span>
             </div>
           </div>
 
           {/* Loss group */}
-          <div className="flex items-center gap-5 px-4 py-3 rounded-lg border border-rose-500/10 bg-rose-500/[0.03]">
+          <div className="flex flex-wrap items-center justify-evenly gap-3 lg:gap-5 px-3 lg:px-4 py-3 rounded-lg border border-rose-500/10 bg-rose-500/[0.03]">
             <div>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-rose-400/40 block">Avg Loss</span>
-              <span className="text-lg font-black font-mono text-rose-400">
+              <span className="text-[8px] lg:text-[9px] font-bold uppercase tracking-widest text-rose-400/40 block">Avg Loss</span>
+              <span className="text-base lg:text-lg font-black font-mono text-rose-400">
                 {summaryStats.avgLoss.toFixed(2)}%
               </span>
             </div>
             <div>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-rose-400/40 block">Max Loss</span>
-              <span className="text-lg font-black font-mono text-rose-400">
+              <span className="text-[8px] lg:text-[9px] font-bold uppercase tracking-widest text-rose-400/40 block">Max Loss</span>
+              <span className="text-base lg:text-lg font-black font-mono text-rose-400">
                 {summaryStats.maxLoss.toFixed(2)}%
               </span>
             </div>
           </div>
 
           {/* Targets group */}
-          <div className="flex items-center gap-5 px-4 py-3 rounded-lg border border-white/5 bg-white/[0.02]">
+          <div className="flex flex-wrap items-center justify-evenly gap-3 lg:gap-5 px-3 lg:px-4 py-3 rounded-lg border border-white/5 bg-white/[0.02]">
             <div>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">TP1</span>
-              <span className="text-lg font-black font-mono text-emerald-400">{summaryStats.tp1}</span>
+              <span className="text-[8px] lg:text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">TP1</span>
+              <span className="text-base lg:text-lg font-black font-mono text-emerald-400">{summaryStats.tp1}</span>
             </div>
             <div>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">TP2</span>
-              <span className="text-lg font-black font-mono text-emerald-400">{summaryStats.tp2}</span>
+              <span className="text-[8px] lg:text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">TP2</span>
+              <span className="text-base lg:text-lg font-black font-mono text-emerald-400">{summaryStats.tp2}</span>
             </div>
             <div>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">TP3</span>
-              <span className="text-lg font-black font-mono text-emerald-400">{summaryStats.tp3}</span>
+              <span className="text-[8px] lg:text-[9px] font-bold uppercase tracking-widest text-emerald-400/40 block">TP3</span>
+              <span className="text-base lg:text-lg font-black font-mono text-emerald-400">{summaryStats.tp3}</span>
             </div>
             <div>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-rose-400/40 block">SL</span>
-              <span className="text-lg font-black font-mono text-rose-400">{summaryStats.sl}</span>
+              <span className="text-[8px] lg:text-[9px] font-bold uppercase tracking-widest text-rose-400/40 block">SL</span>
+              <span className="text-base lg:text-lg font-black font-mono text-rose-400">{summaryStats.sl}</span>
             </div>
           </div>
         </div>

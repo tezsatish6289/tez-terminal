@@ -1,6 +1,7 @@
 "use client";
 
-import { useDoc, useFirestore, useMemoFirebase, useUser } from "@/firebase";
+import { useDoc, useFirestore, useAuth, useMemoFirebase, useUser } from "@/firebase";
+import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { doc } from "firebase/firestore";
 import { useParams, useRouter } from "next/navigation";
 import { ChartPane } from "@/components/dashboard/ChartPane";
@@ -19,6 +20,7 @@ import {
   BookOpen,
   Sparkles,
   ArrowLeftRight,
+  LogIn,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BinanceIcon, MexcIcon, PionexIcon, TradingViewIcon } from "@/components/icons/exchange-icons";
@@ -45,8 +47,10 @@ export default function DeepDiveChartPage() {
   const { id } = useParams();
   const router = useRouter();
   const firestore = useFirestore();
+  const auth = useAuth();
   const { user, isUserLoading } = useUser();
   const [mounted, setMounted] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [now, setNow] = useState(new Date());
   const [showBtc, setShowBtc] = useState(false);
   const leftPanelRef = useRef<HTMLDivElement>(null);
@@ -89,7 +93,41 @@ export default function DeepDiveChartPage() {
     return p.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   };
 
-  if (isUserLoading || isSignalLoading || !signalRef) {
+  if (isUserLoading) {
+    return <div className="flex h-screen items-center justify-center bg-background"><Loader2 className="h-10 w-10 animate-spin text-accent" /></div>;
+  }
+
+  if (!user) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center bg-background p-6 gap-6">
+        <div className="flex flex-col items-center gap-3 max-w-sm text-center">
+          <div className="w-16 h-16 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center">
+            <Sparkles className="w-8 h-8 text-accent" />
+          </div>
+          <h2 className="text-2xl font-black tracking-tight">View Trade Details</h2>
+          <p className="text-sm text-muted-foreground/60">Sign in to access AI-powered trade analysis, live charts, and real-time updates.</p>
+        </div>
+        <Button
+          onClick={async () => {
+            if (!auth) return;
+            setIsLoggingIn(true);
+            try {
+              await initiateGoogleSignIn(auth);
+            } catch {
+              setIsLoggingIn(false);
+            }
+          }}
+          disabled={isLoggingIn}
+          className="gap-2 px-6 py-3 text-sm font-bold"
+        >
+          {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
+          Sign in with Google
+        </Button>
+      </div>
+    );
+  }
+
+  if (isSignalLoading || !signalRef) {
     return <div className="flex h-screen items-center justify-center bg-background"><Loader2 className="h-10 w-10 animate-spin text-accent" /></div>;
   }
 

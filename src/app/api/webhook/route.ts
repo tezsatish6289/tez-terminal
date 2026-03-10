@@ -181,6 +181,7 @@ export async function POST(request: NextRequest) {
       initialConfidenceScore: null,
       maxConfidenceScore: null,
       minConfidenceScore: null,
+      telegramNotified: false,
     };
 
     const docRef = await db.collection("signals").add(signalData);

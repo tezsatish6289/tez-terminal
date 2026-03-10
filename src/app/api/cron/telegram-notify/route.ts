@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
-import { sendMessage, formatSignalMessage, type SignalEvent, type InlineKeyboardButton } from "@/lib/telegram";
+import { sendMessage, formatSignalMessage, type SignalEvent, type InlineKeyboardButton, getTimeframeName } from "@/lib/telegram";
+import { AUTO_FILTER_THRESHOLD, isRegimeStale, type MarketRegimeData } from "@/lib/auto-filter";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -14,8 +15,8 @@ function sleep(ms: number) {
 
 /**
  * Telegram notification cron.
- * NEW_SIGNAL → fan out to all connected users (filtered by timeframe, side, symbols).
- * TP/SL events → send only to users who tapped "Track this trade" for that signal.
+ * 1) Top Pick signals (score >= threshold) → fan out to all subscribers who haven't received it.
+ * 2) TP/SL events → send to users who tapped "Track this trade".
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -33,28 +34,9 @@ export async function GET(request: NextRequest) {
   const db = getAdminFirestore();
 
   try {
-    const eventsSnap = await db.collection("signal_events")
-      .where("notified", "==", false)
-      .get();
-
-    if (eventsSnap.empty) {
-      return NextResponse.json({ success: true, events: 0, messages: 0 });
-    }
-
     const usersSnap = await db.collection("users")
       .where("telegramEnabled", "==", true)
       .get();
-
-    if (usersSnap.empty) {
-      for (const eventDoc of eventsSnap.docs) {
-        await db.collection("signal_events").doc(eventDoc.id).update({
-          notified: true,
-          notifiedAt: new Date().toISOString(),
-          notifiedCount: 0,
-        });
-      }
-      return NextResponse.json({ success: true, events: eventsSnap.size, messages: 0, reason: "no subscribers" });
-    }
 
     const allUsers: { uid: string; chatId: number; prefs: any }[] = [];
     for (const userDoc of usersSnap.docs) {
@@ -76,110 +58,169 @@ export async function GET(request: NextRequest) {
     }
 
     let totalMessages = 0;
+    let topPicksSent = 0;
+
+    // --- Load dynamic thresholds ---
+    const regimeSnap = await db.collection("config").doc("market_regime").get();
+    const regimeData = regimeSnap.exists ? (regimeSnap.data() as MarketRegimeData) : null;
+
+    function getThresholdForSignal(timeframe: string, side: string): number {
+      if (!regimeData) return AUTO_FILTER_THRESHOLD;
+      const key = `${timeframe}_${side}`;
+      const entry = regimeData[key];
+      if (!entry || isRegimeStale(entry.lastUpdated)) return AUTO_FILTER_THRESHOLD;
+      return entry.adjustedThreshold;
+    }
+
+    // --- Part 1: Top Pick signals not yet sent to Telegram ---
+    const topPickSnap = await db.collection("signals")
+      .where("autoFilterPassed", "==", true)
+      .where("telegramNotified", "==", false)
+      .get();
+
+    for (const signalDoc of topPickSnap.docs) {
+      const signal = signalDoc.data();
+      const score = signal.confidenceScore ?? 0;
+      const threshold = getThresholdForSignal(String(signal.timeframe || "15"), signal.type);
+
+      if (score < threshold) {
+        continue;
+      }
+
+      if (allUsers.length === 0) {
+        await signalDoc.ref.update({ telegramNotified: true, telegramNotifiedAt: new Date().toISOString() });
+        continue;
+      }
+
+      const eventData: SignalEvent = {
+        type: "NEW_SIGNAL",
+        signalId: signalDoc.id,
+        symbol: signal.symbol || "???",
+        side: signal.type,
+        timeframe: String(signal.timeframe || "15"),
+        assetType: signal.assetType || "CRYPTO",
+        entryPrice: signal.price,
+        price: signal.price,
+        stopLoss: signal.stopLoss,
+        tp1: signal.tp1 ?? null,
+        tp2: signal.tp2 ?? null,
+        tp3: signal.tp3 ?? null,
+        guidance: "",
+      };
+
+      const message = formatSignalMessage(eventData);
+      const matched = allUsers.filter(sub => matchesPrefs(sub.prefs, eventData));
+
+      const tradeUrl = `https://tezterminal.com/chart/${signalDoc.id}`;
+      const buttons: InlineKeyboardButton[][] = [
+        [
+          { text: "📊 View Trade", url: tradeUrl },
+          { text: "📌 Track", callback_data: `track:${signalDoc.id}` },
+        ],
+      ];
+
+      for (let i = 0; i < matched.length; i += BATCH_SIZE) {
+        const batch = matched.slice(i, i + BATCH_SIZE);
+        await Promise.all(
+          batch.map(sub =>
+              sendMessage(sub.chatId, message + "\n\nRecommended if you are trading this signal.", {
+                replyMarkup: { inline_keyboard: buttons },
+              }).catch(err => {
+              console.error(`[Telegram Notify] Failed to send to ${sub.chatId}:`, err.message);
+            })
+          )
+        );
+        totalMessages += batch.length;
+
+        if (i + BATCH_SIZE < matched.length) {
+          await sleep(BATCH_DELAY_MS);
+        }
+      }
+
+      await signalDoc.ref.update({
+        telegramNotified: true,
+        telegramNotifiedAt: new Date().toISOString(),
+      });
+      topPicksSent++;
+    }
+
+    // --- Part 2: TP/SL events → send to tracked users ---
+    const eventsSnap = await db.collection("signal_events")
+      .where("notified", "==", false)
+      .get();
+
+    let tpSlProcessed = 0;
 
     for (const eventDoc of eventsSnap.docs) {
       const event = eventDoc.data() as SignalEvent & { createdAt: string };
-      const message = formatSignalMessage(event);
-
-      let recipients: { chatId: number }[] = [];
 
       if (event.type === "NEW_SIGNAL") {
-        // Only notify for AI-passed signals
-        if (event.signalId) {
-          const signalSnap = await db.collection("signals").doc(event.signalId).get();
-          const signalData = signalSnap.data();
-          if (!signalData || signalData.autoFilterPassed !== true) {
-            // Not yet scored or failed AI filter — skip
-            if (signalData?.autoFilterPassed === null || signalData?.autoFilterPassed === undefined) {
-              // Still pending score — don't mark as notified, retry next cycle
-              continue;
-            }
-            // autoFilterPassed === false — deprecated, mark notified and skip
-            await db.collection("signal_events").doc(eventDoc.id).update({
-              notified: true,
-              notifiedAt: new Date().toISOString(),
-              notifiedCount: 0,
-            });
-            continue;
-          }
-        }
+        // NEW_SIGNAL is now handled by Part 1 above — just mark notified
+        await db.collection("signal_events").doc(eventDoc.id).update({
+          notified: true,
+          notifiedAt: new Date().toISOString(),
+          notifiedCount: 0,
+        });
+        continue;
+      }
 
-        const matched = allUsers.filter(sub => matchesNewSignalPrefs(sub.prefs, event));
-        recipients = matched;
+      // TP/SL events → send to users who tracked this signal
+      const trackedSnap = await db.collection("tracked_signals")
+        .where("signalId", "==", event.signalId)
+        .get();
 
-        const trackButton: InlineKeyboardButton[][] = [
-          [{ text: "📌 Track this trade", callback_data: `track:${event.signalId}` }],
-        ];
+      const message = formatSignalMessage(event);
+      let recipients = 0;
 
-        for (let i = 0; i < matched.length; i += BATCH_SIZE) {
-          const batch = matched.slice(i, i + BATCH_SIZE);
+      if (!trackedSnap.empty) {
+        const trackers = trackedSnap.docs.map(d => ({ chatId: d.data().chatId }));
+
+        for (let i = 0; i < trackers.length; i += BATCH_SIZE) {
+          const batch = trackers.slice(i, i + BATCH_SIZE);
           await Promise.all(
             batch.map(sub =>
-              sendMessage(sub.chatId, message + "\n\nRecommended if you are trading this signal.", {
-                replyMarkup: { inline_keyboard: trackButton },
-              }).catch(err => {
+              sendMessage(sub.chatId, message).catch(err => {
                 console.error(`[Telegram Notify] Failed to send to ${sub.chatId}:`, err.message);
               })
             )
           );
           totalMessages += batch.length;
+          recipients += batch.length;
 
-          if (i + BATCH_SIZE < matched.length) {
+          if (i + BATCH_SIZE < trackers.length) {
             await sleep(BATCH_DELAY_MS);
           }
         }
-      } else {
-        const trackedSnap = await db.collection("tracked_signals")
+      }
+
+      if (event.type === "TP3_HIT" || event.type === "SL_HIT") {
+        const toDelete = await db.collection("tracked_signals")
           .where("signalId", "==", event.signalId)
           .get();
-
-        if (!trackedSnap.empty) {
-          recipients = trackedSnap.docs.map(d => ({ chatId: d.data().chatId }));
-
-          for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
-            const batch = recipients.slice(i, i + BATCH_SIZE);
-            await Promise.all(
-              batch.map(sub =>
-                sendMessage(sub.chatId, message).catch(err => {
-                  console.error(`[Telegram Notify] Failed to send to ${sub.chatId}:`, err.message);
-                })
-              )
-            );
-            totalMessages += batch.length;
-
-            if (i + BATCH_SIZE < recipients.length) {
-              await sleep(BATCH_DELAY_MS);
-            }
-          }
-        }
-
-        if (event.type === "TP3_HIT" || event.type === "SL_HIT") {
-          const toDelete = await db.collection("tracked_signals")
-            .where("signalId", "==", event.signalId)
-            .get();
-          for (const d of toDelete.docs) {
-            await d.ref.delete();
-          }
+        for (const d of toDelete.docs) {
+          await d.ref.delete();
         }
       }
 
       await db.collection("signal_events").doc(eventDoc.id).update({
         notified: true,
         notifiedAt: new Date().toISOString(),
-        notifiedCount: recipients.length,
+        notifiedCount: recipients,
       });
+      tpSlProcessed++;
     }
 
     await db.collection("logs").add({
       timestamp: new Date().toISOString(),
       level: "INFO",
-      message: `TELEGRAM NOTIFY: events=${eventsSnap.size} messages=${totalMessages} subscribers=${allUsers.length}`,
+      message: `TELEGRAM NOTIFY: topPicks=${topPicksSent} tpSlEvents=${tpSlProcessed} messages=${totalMessages} subscribers=${allUsers.length}`,
       webhookId: "SYSTEM_CRON",
     });
 
     return NextResponse.json({
       success: true,
-      events: eventsSnap.size,
+      topPicksSent,
+      tpSlEvents: tpSlProcessed,
       messages: totalMessages,
       subscribers: allUsers.length,
     });
@@ -196,7 +237,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function matchesNewSignalPrefs(prefs: any, event: SignalEvent): boolean {
+function matchesPrefs(prefs: any, event: SignalEvent): boolean {
   if (!matchesFilter(prefs.timeframes, event.timeframe)) return false;
   if (!matchesFilter(prefs.sides, event.side)) return false;
 

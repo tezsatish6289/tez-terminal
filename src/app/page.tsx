@@ -7,9 +7,10 @@ import {
   useAuth,
   useFirestore,
   useCollection,
+  useDoc,
   useMemoFirebase,
 } from "@/firebase";
-import { collection, query, orderBy, limit } from "firebase/firestore";
+import { collection, query, orderBy, limit, doc } from "firebase/firestore";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import {
   Loader2,
@@ -43,7 +44,7 @@ import {
 } from "@/components/ui/popover";
 import { getLeverage } from "@/lib/leverage";
 import { getEffectivePnl } from "@/lib/pnl";
-import { AUTO_FILTER_THRESHOLD, type ScoredSignal } from "@/lib/auto-filter";
+import { AUTO_FILTER_THRESHOLD, isRegimeStale, type ScoredSignal, type MarketRegimeData } from "@/lib/auto-filter";
 
 const TIMEFRAME_OPTIONS = [
   { id: "all", label: "All" },
@@ -624,6 +625,12 @@ export default function Home() {
   const { data: rawEvents, isLoading: eventsLoading } =
     useCollection(eventsQuery);
 
+  const regimeRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, "config", "market_regime");
+  }, [firestore, user]);
+  const { data: regimeData } = useDoc(regimeRef);
+
   const processedSignals: ProcessedSignal[] = useMemo(() => {
     if (!rawSignals) return [];
     return rawSignals
@@ -724,6 +731,14 @@ export default function Home() {
 
   const [aiTab, setAiTab] = useState<"active" | "watch">("active");
 
+  const getSignalThreshold = useCallback((timeframe: string, side: string) => {
+    if (!regimeData) return AUTO_FILTER_THRESHOLD;
+    const key = `${timeframe}_${side}`;
+    const entry = (regimeData as unknown as MarketRegimeData)[key];
+    if (!entry || isRegimeStale(entry.lastUpdated)) return AUTO_FILTER_THRESHOLD;
+    return entry.adjustedThreshold;
+  }, [regimeData]);
+
   const aiActiveSignals = useMemo(() => {
     const base = filteredSignals.filter(
       (s) =>
@@ -733,12 +748,12 @@ export default function Home() {
         !s.tp3Hit &&
         !s.slHitAt &&
         s.autoFilterPassed === true &&
-        (s.confidenceScore ?? 0) >= AUTO_FILTER_THRESHOLD,
+        (s.confidenceScore ?? 0) >= getSignalThreshold(s.timeframe, s.type),
     );
     return base.sort(
       (a, b) => (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0),
     );
-  }, [filteredSignals]);
+  }, [filteredSignals, getSignalThreshold]);
 
   const aiWatchSignals = useMemo(() => {
     return filteredSignals
@@ -750,10 +765,10 @@ export default function Home() {
           !s.tp3Hit &&
           !s.slHitAt &&
           s.autoFilterPassed === true &&
-          (s.confidenceScore ?? 0) < AUTO_FILTER_THRESHOLD,
+          (s.confidenceScore ?? 0) < getSignalThreshold(s.timeframe, s.type),
       )
       .sort((a, b) => (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0));
-  }, [filteredSignals]);
+  }, [filteredSignals, getSignalThreshold]);
 
   const liveOpportunities = aiTab === "active" ? aiActiveSignals : aiWatchSignals;
 

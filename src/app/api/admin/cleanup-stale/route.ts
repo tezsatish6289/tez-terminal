@@ -11,21 +11,61 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const mode = request.nextUrl.searchParams.get("mode") || "cleanup";
   const dryRun = request.nextUrl.searchParams.get("dry") === "true";
   const db = getAdminFirestore();
 
-  const staleSnap = await db
-    .collection("signals")
-    .where("autoFilterPassed", "==", false)
-    .where("confidenceLabel", "==", "Stale")
-    .get();
+  // Diagnostic mode: show all active signals and their AI filter status
+  if (mode === "diagnose") {
+    const allActive = await db
+      .collection("signals")
+      .where("status", "==", "ACTIVE")
+      .get();
 
-  if (staleSnap.empty) {
-    return NextResponse.json({ message: "No stale signals found", deleted: 0 });
+    const breakdown = { passed: 0, failed: 0, unscored: 0, total: 0 };
+    const signals = allActive.docs.map((d) => {
+      const s = d.data();
+      const state =
+        s.autoFilterPassed === true
+          ? "passed"
+          : s.autoFilterPassed === false
+            ? "failed"
+            : "unscored";
+      breakdown[state]++;
+      breakdown.total++;
+      return {
+        id: d.id,
+        symbol: s.symbol,
+        type: s.type,
+        timeframe: s.timeframe,
+        receivedAt: s.receivedAt,
+        autoFilterPassed: s.autoFilterPassed ?? null,
+        confidenceScore: s.confidenceScore ?? null,
+        confidenceLabel: s.confidenceLabel ?? null,
+        tp1Hit: s.tp1Hit ?? false,
+        tp2Hit: s.tp2Hit ?? false,
+        tp3Hit: s.tp3Hit ?? false,
+        slHitAt: s.slHitAt ?? null,
+        state,
+      };
+    });
+
+    return NextResponse.json({ breakdown, signals });
   }
 
-  const staleIds = staleSnap.docs.map((d) => d.id);
-  const staleDetails = staleSnap.docs.map((d) => {
+  // Cleanup mode: delete non-AI-passed signals (failed + unscored)
+  const allSnap = await db.collection("signals").get();
+  const toDelete = allSnap.docs.filter((d) => {
+    const s = d.data();
+    return s.autoFilterPassed === false || s.autoFilterPassed == null;
+  });
+
+  if (toDelete.length === 0) {
+    return NextResponse.json({ message: "No signals to clean up", deleted: 0 });
+  }
+
+  const staleIds = toDelete.map((d) => d.id);
+  const staleDetails = toDelete.map((d) => {
     const s = d.data();
     return {
       id: d.id,
@@ -34,6 +74,8 @@ export async function GET(request: NextRequest) {
       timeframe: s.timeframe,
       receivedAt: s.receivedAt,
       status: s.status,
+      autoFilterPassed: s.autoFilterPassed ?? null,
+      confidenceLabel: s.confidenceLabel ?? null,
     };
   });
 

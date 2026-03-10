@@ -1,7 +1,7 @@
 
 "use client";
 
-import { User, LogOut, Zap, History, LineChart, Webhook, Settings } from "lucide-react";
+import { User, LogOut, Zap, History, LineChart, Webhook, Settings, Send } from "lucide-react";
 import { RadarIcon } from "@/components/icons/RadarIcon";
 import { Button } from "@/components/ui/button";
 import { useUser, useAuth } from "@/firebase";
@@ -56,6 +56,14 @@ export function TopBar() {
         </Link>
 
         <div className="flex items-center gap-3">
+          <Link
+            href="/settings"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold border border-blue-400/25 bg-blue-400/10 text-blue-400 hover:bg-blue-400/20 hover:border-blue-400/40 transition-all"
+          >
+            <Send className="w-3 h-3" />
+            <span className="hidden sm:inline">Get Telegram Alerts</span>
+            <span className="sm:hidden">Alerts</span>
+          </Link>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full border border-border/50 h-9 w-9 hover:bg-accent/10">

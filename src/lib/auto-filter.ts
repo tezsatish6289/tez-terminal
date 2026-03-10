@@ -200,6 +200,8 @@ export interface SignalForScoring {
   maxDrawdownPrice: number | null;
   aligned: boolean;
   totalBookedPnl: number | null;
+  confidenceScore?: number | null;
+  maxConfidenceScore?: number | null;
 }
 
 export interface ScoreBreakdown {
@@ -580,6 +582,41 @@ function scoreMomentum(
     regimeScore += 2;
   }
 
+  // ─── C. Recent SL Damage — same side, same TF (penalty: 0 to -5) ───
+  const now = Date.now();
+  const candleMs = (CANDLE_MINUTES[signal.timeframe] ?? 15) * 60 * 1000;
+  const slWindowMs = candleMs * 6;
+
+  const recentSlSameSideTf = allSignals.filter(
+    (s) =>
+      s.slHitAt != null &&
+      s.type === signal.type &&
+      s.timeframe === signal.timeframe &&
+      now - new Date(s.slHitAt).getTime() < slWindowMs,
+  ).length;
+
+  if (recentSlSameSideTf >= 3) regimeScore -= 5;
+  else if (recentSlSameSideTf >= 2) regimeScore -= 3;
+  else if (recentSlSameSideTf >= 1) regimeScore -= 1;
+
+  // ─── D. Cross-TF Side Destruction (penalty: 0 to -3) ───
+  const crossTfWindowMs = 6 * 60 * 60 * 1000;
+  const recentSlAll = allSignals.filter(
+    (s) =>
+      s.slHitAt != null &&
+      now - new Date(s.slHitAt).getTime() < crossTfWindowMs,
+  );
+
+  if (recentSlAll.length >= 4) {
+    const sameSideSlCount = recentSlAll.filter(
+      (s) => s.type === signal.type,
+    ).length;
+    const sideRatio = sameSideSlCount / recentSlAll.length;
+
+    if (sideRatio >= 0.8) regimeScore -= 3;
+    else if (sideRatio >= 0.65) regimeScore -= 2;
+  }
+
   score += Math.max(0, Math.min(15, regimeScore));
 
   return Math.max(0, Math.min(MAX, score));
@@ -677,28 +714,49 @@ function scoreFromStats(stats: AlgoTfStats, max: number): number {
 function scoreAlgoPerformance(
   signal: SignalForScoring,
   statsMap: Map<string, AlgoTfStats>,
+  allSignals: SignalForScoring[],
 ): number {
   const MAX = 15;
   const key = `${signal.algo}|${signal.timeframe}`;
   const stats = statsMap.get(key);
 
-  if (stats && stats.sampleSize >= 3) {
-    return scoreFromStats(stats, MAX);
-  }
+  let baseScore: number;
 
-  // Fall back to algo-only stats (aggregate across all TFs)
-  let bestAlgoStats: AlgoTfStats | null = null;
-  for (const [k, v] of statsMap) {
-    if (k.startsWith(signal.algo + "|") && v.sampleSize >= 3) {
-      if (!bestAlgoStats || v.sampleSize > bestAlgoStats.sampleSize) {
-        bestAlgoStats = v;
+  if (stats && stats.sampleSize >= 3) {
+    baseScore = scoreFromStats(stats, MAX);
+  } else {
+    // Fall back to algo-only stats (aggregate across all TFs)
+    let bestAlgoStats: AlgoTfStats | null = null;
+    for (const [k, v] of statsMap) {
+      if (k.startsWith(signal.algo + "|") && v.sampleSize >= 3) {
+        if (!bestAlgoStats || v.sampleSize > bestAlgoStats.sampleSize) {
+          bestAlgoStats = v;
+        }
       }
     }
+    baseScore = bestAlgoStats
+      ? scoreFromStats(bestAlgoStats, MAX)
+      : Math.round(MAX * 0.5);
   }
 
-  if (bestAlgoStats) return scoreFromStats(bestAlgoStats, MAX);
+  // Recent algo SL penalty: if this algo is failing RIGHT NOW on this TF
+  const now = Date.now();
+  const candleMs = (CANDLE_MINUTES[signal.timeframe] ?? 15) * 60 * 1000;
+  const recentWindow = candleMs * 6;
 
-  return Math.round(MAX * 0.5);
+  const recentAlgoSl = allSignals.filter(
+    (s) =>
+      s.algo === signal.algo &&
+      s.timeframe === signal.timeframe &&
+      s.slHitAt != null &&
+      now - new Date(s.slHitAt).getTime() < recentWindow,
+  ).length;
+
+  if (recentAlgoSl >= 3) baseScore -= 4;
+  else if (recentAlgoSl >= 2) baseScore -= 2;
+  else if (recentAlgoSl >= 1) baseScore -= 1;
+
+  return Math.max(0, Math.min(MAX, baseScore));
 }
 
 // ── Factor 5: Trade Health / Drawdown (0-12) ────────────────
@@ -750,6 +808,13 @@ function scoreTradeHealth(signal: SignalForScoring): number {
     else if (maxAdverse < threshold) score = Math.round(MAX * 0.5);
     else if (maxAdverse < threshold * 2) score = Math.round(MAX * 0.3);
     else score = Math.round(MAX * 0.15);
+  }
+
+  // Score trajectory: significant decay from peak = thesis weakening
+  if (signal.maxConfidenceScore != null && signal.confidenceScore != null) {
+    const decay = signal.maxConfidenceScore - signal.confidenceScore;
+    if (decay > 20) score -= 2;
+    else if (decay > 10) score -= 1;
   }
 
   return Math.max(0, Math.min(MAX, score));
@@ -806,7 +871,7 @@ export function computeAutoFilter(
       mtfConfluence: Math.round(scoreMtfConfluence(signal, allSignals, sentimentMap)),
       momentum: Math.round(scoreMomentum(signal, allSignals)),
       riskReward: Math.round(scoreRiskReward(signal)),
-      algoPerformance: Math.round(scoreAlgoPerformance(signal, algoStats)),
+      algoPerformance: Math.round(scoreAlgoPerformance(signal, algoStats, allSignals)),
       tradeHealth: Math.round(scoreTradeHealth(signal)),
       freshness: Math.round(scoreFreshness(signal)),
     };
@@ -887,6 +952,8 @@ export function mapFirestoreSignal(doc: { id: string; [key: string]: any }): Sig
     maxDrawdownPrice: doc.maxDrawdownPrice != null ? Number(doc.maxDrawdownPrice) : null,
     aligned: doc.aligned ?? false,
     totalBookedPnl: doc.totalBookedPnl ?? null,
+    confidenceScore: doc.confidenceScore ?? null,
+    maxConfidenceScore: doc.maxConfidenceScore ?? null,
   };
 }
 

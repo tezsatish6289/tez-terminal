@@ -166,7 +166,7 @@ export default function DeepDiveChartPage() {
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-1.5 mt-1.5">
+                <div className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5 mt-1.5">
                   <span className={cn("text-[11px] font-black uppercase", isBullish ? "text-positive" : "text-negative")}>{isBullish ? "▲ Long" : "▼ Short"}</span>
                   <span className="text-white/15">·</span>
                   <span className="text-[11px] font-bold text-accent/70">{leverage}x</span>
@@ -180,9 +180,8 @@ export default function DeepDiveChartPage() {
               </div>
               <Popover>
                 <PopoverTrigger asChild>
-                  <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/10 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.08] hover:text-foreground transition-all cursor-pointer">
-                    <BookOpen className="w-3 h-3" />
-                    Guide
+                  <button className="flex items-center justify-center w-8 h-8 rounded-full border border-white/10 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.08] hover:text-foreground transition-all cursor-pointer shrink-0" title="Guide">
+                    <BookOpen className="w-3.5 h-3.5" />
                   </button>
                 </PopoverTrigger>
                 <PopoverContent side="bottom" align="end" className="w-[340px] p-0 bg-[#141416] border-white/10 shadow-2xl shadow-black/50">

@@ -54,15 +54,21 @@ export async function GET(request: NextRequest) {
   }
 
   // Cleanup mode: delete non-AI-passed signals (failed + unscored)
-  const allSnap = await db.collection("signals").get();
-  const toDelete = allSnap.docs.filter((d) => {
-    const s = d.data();
-    return s.autoFilterPassed === false || s.autoFilterPassed == null;
-  });
+  const allSnap = await db
+    .collection("signals")
+    .where("status", "==", "ACTIVE")
+    .where("autoFilterPassed", "==", false)
+    .get();
 
-  if (toDelete.length === 0) {
-    return NextResponse.json({ message: "No signals to clean up", deleted: 0 });
+  if (allSnap.empty) {
+    return NextResponse.json({
+      message: "No signals to clean up",
+      deleted: 0,
+      debug: { queryReturned: allSnap.size },
+    });
   }
+
+  const toDelete = allSnap.docs;
 
   const staleIds = toDelete.map((d) => d.id);
   const staleDetails = toDelete.map((d) => {

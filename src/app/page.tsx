@@ -741,16 +741,18 @@ export default function Home() {
   }, [filteredSignals]);
 
   const aiWatchSignals = useMemo(() => {
-    return filteredSignals.filter(
-      (s) =>
-        s.status !== "INACTIVE" &&
-        !s.tp1Hit &&
-        !s.tp2Hit &&
-        !s.tp3Hit &&
-        !s.slHitAt &&
-        s.autoFilterPassed === true &&
-        (s.confidenceScore ?? 0) < AUTO_FILTER_THRESHOLD,
-    );
+    return filteredSignals
+      .filter(
+        (s) =>
+          s.status !== "INACTIVE" &&
+          !s.tp1Hit &&
+          !s.tp2Hit &&
+          !s.tp3Hit &&
+          !s.slHitAt &&
+          s.autoFilterPassed === true &&
+          (s.confidenceScore ?? 0) < AUTO_FILTER_THRESHOLD,
+      )
+      .sort((a, b) => (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0));
   }, [filteredSignals]);
 
   const liveOpportunities = aiTab === "active" ? aiActiveSignals : aiWatchSignals;

@@ -12,6 +12,8 @@ import {
   mapFirestoreSignal,
   mapFirestoreSentiment,
   AUTO_FILTER_THRESHOLD,
+  isRegimeStale,
+  type MarketRegimeData,
 } from "@/lib/auto-filter";
 
 /**
@@ -233,11 +235,27 @@ export async function POST(request: NextRequest) {
             );
             const btcSentiment = buildSentimentMap(sentimentReadings);
 
+            // Read market regime for dynamic threshold
+            let threshold = AUTO_FILTER_THRESHOLD;
+            try {
+              const regimeDoc = await db.collection("config").doc("market_regime").get();
+              if (regimeDoc.exists) {
+                const regimeData = regimeDoc.data() as MarketRegimeData;
+                const key = `${timeframe}_${signalType}`;
+                if (
+                  regimeData?.[key]?.adjustedThreshold &&
+                  !isRegimeStale(regimeData[key].lastUpdated)
+                ) {
+                  threshold = regimeData[key].adjustedThreshold;
+                }
+              }
+            } catch {}
+
             const scores = computeAutoFilter(allSignals, btcSentiment);
             const thisScore = scores.get(docRef.id);
 
             if (thisScore) {
-              const passed = thisScore.score >= AUTO_FILTER_THRESHOLD;
+              const passed = thisScore.score >= threshold;
               scoreUpdate = {
                 ...scoreUpdate,
                 autoFilterPassed: passed,

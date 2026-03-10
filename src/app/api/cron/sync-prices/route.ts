@@ -9,6 +9,9 @@ import {
   mapFirestoreSentiment,
   isSignalStale,
   AUTO_FILTER_THRESHOLD,
+  isRegimeStale,
+  computeMarketRegime,
+  type MarketRegimeData,
 } from "@/lib/auto-filter";
 
 export const dynamic = 'force-dynamic';
@@ -282,6 +285,7 @@ export async function GET(request: NextRequest) {
 
     // ── AI Filter Rescoring Pass ──────────────────────────
     let scoreCount = 0;
+    let previousRegime: MarketRegimeData | undefined;
     try {
       const sentimentSnap = await db
         .collection("sentiment_signals")
@@ -293,19 +297,34 @@ export async function GET(request: NextRequest) {
       );
       const btcSentiment = buildSentimentMap(sentimentReadings);
 
+      // Read existing regime for dynamic thresholds + smoothing history
+      let regimeData: Record<string, any> = {};
+      try {
+        const regimeDoc = await db.collection("config").doc("market_regime").get();
+        if (regimeDoc.exists) {
+          const raw = regimeDoc.data() || {};
+          previousRegime = raw as MarketRegimeData;
+          if (!isRegimeStale(raw.lastUpdated as string | undefined)) {
+            regimeData = raw;
+          }
+        }
+      } catch {}
+
       const allSignalsForScoring = postUpdateDocs.map(mapFirestoreSignal);
       const scores = computeAutoFilter(allSignalsForScoring, btcSentiment);
 
       for (const signalDoc of signalsSnap.docs) {
         const signal = signalDoc.data();
         if (signal.status !== "ACTIVE") continue;
-        // Skip signals that already hit TP/SL (they're about to close)
         if (signal.tp1Hit || signal.tp2Hit || signal.tp3Hit || signal.slHitAt) continue;
 
         const scoreResult = scores.get(signalDoc.id);
         const scoreData: Record<string, any> = {
           lastScoredAt: new Date().toISOString(),
         };
+
+        const regimeKey = `${signal.timeframe || "15"}_${signal.type || "BUY"}`;
+        const threshold = regimeData[regimeKey]?.adjustedThreshold ?? AUTO_FILTER_THRESHOLD;
 
         if (signal.autoFilterPassed === null || signal.autoFilterPassed === undefined) {
           // First-time scoring (webhook after() must have failed)
@@ -314,7 +333,7 @@ export async function GET(request: NextRequest) {
             scoreData.confidenceScore = 0;
             scoreData.confidenceLabel = "Stale";
           } else if (scoreResult) {
-            scoreData.autoFilterPassed = scoreResult.score >= AUTO_FILTER_THRESHOLD;
+            scoreData.autoFilterPassed = scoreResult.score >= threshold;
             scoreData.confidenceScore = scoreResult.score;
             scoreData.confidenceLabel = scoreResult.label;
             scoreData.scoreBreakdown = scoreResult.breakdown;
@@ -341,6 +360,30 @@ export async function GET(request: NextRequest) {
       }
     } catch (scoreErr: any) {
       console.error("[Sync] AI rescoring failed:", scoreErr.message);
+    }
+
+    // ── Market Regime Computation (Phase 2) ───────────────
+    try {
+      const regime = computeMarketRegime(
+        postUpdateDocs.map((d) => ({
+          timeframe: String(d.timeframe || "15"),
+          type: d.type || "BUY",
+          autoFilterPassed: d.autoFilterPassed ?? null,
+          status: d.status || "ACTIVE",
+          price: Number(d.price || 0),
+          currentPrice: d.currentPrice != null ? Number(d.currentPrice) : null,
+          tp1Hit: d.tp1Hit ?? false,
+          slHitAt: d.slHitAt ?? null,
+          receivedAt: d.receivedAt || "",
+        })),
+        previousRegime,
+      );
+      await db.collection("config").doc("market_regime").set({
+        ...regime,
+        lastUpdated: new Date().toISOString(),
+      });
+    } catch (regimeErr: any) {
+      console.error("[Sync] Regime computation failed:", regimeErr.message);
     }
 
     await db.collection("logs").add({

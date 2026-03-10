@@ -21,6 +21,144 @@ import { getEffectivePnl } from "./pnl";
 
 export const AUTO_FILTER_THRESHOLD = 55;
 export const STALE_CANDLE_LIMIT = 6;
+export const MIN_REGIME_SAMPLE = 5;
+
+// ── Market Regime (Phase 2) ────────────────────────────────
+
+export interface RegimeEntry {
+  winRate: number;
+  sampleSize: number;
+  wins: number;
+  losses: number;
+  recentSlCount: number;
+  adjustedThreshold: number;
+  thresholdHistory: number[];
+  lastUpdated: string;
+}
+
+export type MarketRegimeData = Record<string, RegimeEntry>;
+
+const REGIME_WR_SCALE = 40;
+const REGIME_SL_PENALTY = 3;
+const REGIME_SL_CAP = 15;
+const REGIME_MIN_THRESHOLD = 35;
+const REGIME_MAX_THRESHOLD = 85;
+const REGIME_STALENESS_MS = 5 * 60 * 1000;
+const REGIME_MA_PERIOD = 5;
+const SL_WINDOW_CANDLES = 6;
+
+export function isRegimeStale(lastUpdated?: string): boolean {
+  if (!lastUpdated) return true;
+  return Date.now() - new Date(lastUpdated).getTime() > REGIME_STALENESS_MS;
+}
+
+export function getAdjustedThreshold(
+  winRate: number,
+  sampleSize: number,
+  recentSlCount: number = 0,
+): number {
+  if (sampleSize < MIN_REGIME_SAMPLE) return AUTO_FILTER_THRESHOLD;
+
+  const wrAdjust = (0.5 - winRate) * REGIME_WR_SCALE;
+  const slPenalty = Math.min(recentSlCount * REGIME_SL_PENALTY, REGIME_SL_CAP);
+  const raw = AUTO_FILTER_THRESHOLD + wrAdjust + slPenalty;
+
+  return Math.round(
+    Math.max(REGIME_MIN_THRESHOLD, Math.min(REGIME_MAX_THRESHOLD, raw)),
+  );
+}
+
+interface RegimeSignal {
+  timeframe: string;
+  type: string;
+  autoFilterPassed?: boolean | null;
+  status: string;
+  price: number;
+  currentPrice?: number | null;
+  tp1Hit?: boolean;
+  slHitAt?: string | null;
+  receivedAt?: string;
+}
+
+export function computeMarketRegime(
+  signals: RegimeSignal[],
+  previousRegime?: MarketRegimeData,
+): MarketRegimeData {
+  const now = Date.now();
+  const regime: MarketRegimeData = {};
+
+  for (const tfId of Object.keys(CANDLE_MINUTES)) {
+    for (const side of ["BUY", "SELL"]) {
+      // ── Active win rate (real-time market state) ──
+      const active = signals.filter(
+        (s) =>
+          s.autoFilterPassed === true &&
+          s.status === "ACTIVE" &&
+          !s.tp1Hit &&
+          !s.slHitAt &&
+          String(s.timeframe) === tfId &&
+          s.type === side,
+      );
+
+      let wins = 0;
+      let losses = 0;
+      for (const s of active) {
+        const entry = Number(s.price);
+        const current = s.currentPrice != null ? Number(s.currentPrice) : entry;
+        if (!entry || entry === 0) continue;
+        const pnl =
+          side === "BUY"
+            ? ((current - entry) / entry) * 100
+            : ((entry - current) / entry) * 100;
+        if (pnl > 0.05) wins++;
+        else if (pnl < -0.05) losses++;
+      }
+
+      // ── Recent SL hits (confirmed damage) ──
+      const candleMs = (CANDLE_MINUTES[tfId] ?? 15) * 60 * 1000;
+      const slWindowMs = candleMs * SL_WINDOW_CANDLES;
+
+      const recentSlCount = signals.filter(
+        (s) =>
+          s.autoFilterPassed === true &&
+          s.status === "INACTIVE" &&
+          s.slHitAt != null &&
+          !s.tp1Hit &&
+          String(s.timeframe) === tfId &&
+          s.type === side &&
+          s.receivedAt &&
+          now - new Date(s.receivedAt).getTime() < slWindowMs,
+      ).length;
+
+      const total = wins + losses;
+      if (total < 3 && recentSlCount === 0) continue;
+
+      const winRate = total > 0 ? wins / total : 0.5;
+      const sampleSize = total + recentSlCount;
+
+      const key = `${tfId}_${side}`;
+      const rawThreshold = getAdjustedThreshold(winRate, sampleSize, recentSlCount);
+      const prevHistory = previousRegime?.[key]?.thresholdHistory ?? [];
+      const newHistory = [...prevHistory, rawThreshold].slice(-REGIME_MA_PERIOD);
+      const smoothed = Math.round(
+        newHistory.reduce((a, b) => a + b, 0) / newHistory.length,
+      );
+
+      regime[key] = {
+        winRate,
+        sampleSize,
+        wins,
+        losses,
+        recentSlCount,
+        adjustedThreshold: smoothed,
+        thresholdHistory: newHistory,
+        lastUpdated: new Date().toISOString(),
+      };
+    }
+  }
+
+  return regime;
+}
 
 // ── Timeframe metadata ──────────────────────────────────────
 

@@ -16,16 +16,9 @@ import {
   ScanSearch,
   Filter,
   Crosshair,
-  Info,
   ChevronDown,
   Send,
 } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Chrome } from "lucide-react";
 import { RadarIcon } from "@/components/icons/RadarIcon";
@@ -74,17 +67,6 @@ interface TopWinner {
   maxReturn: string;
   leverage: string;
   ago: string;
-}
-
-interface TfPerformance {
-  timeframe: string;
-  chart: string;
-  leverage: string;
-  trades: number;
-  winRate: number;
-  avgProfit: number;
-  avgLoss: number;
-  profitFactor: number;
 }
 
 interface TfFrequency {
@@ -189,7 +171,6 @@ interface LandingPageProps {
 export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
   const [topWinners, setTopWinners] = useState<TopWinner[]>([]);
   const [stats, setStats] = useState<PlatformStats | null>(null);
-  const [performance, setPerformance] = useState<TfPerformance[]>([]);
   const [frequency, setFrequency] = useState<TfFrequency[]>([]);
 
   useEffect(() => {
@@ -198,7 +179,6 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
       .then((data) => {
         setTopWinners(data.winners || []);
         setStats(data.stats || null);
-        setPerformance(data.performance || []);
         setFrequency(data.frequency || []);
       })
       .catch(() => {});
@@ -380,7 +360,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
         <div className="max-w-6xl mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-black tracking-tighter">
-              Top <span className="text-positive">Winning</span> Trades
+              Our Recent <span className="text-positive">Winners</span>
             </h2>
             <p className="text-sm text-muted-foreground mt-3 max-w-md mx-auto">
               Real trades identified by TezTerminal across all timeframes. Max returns at leverage.
@@ -437,132 +417,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
         </div>
       </section>
 
-      {/* Live Performance */}
-      {(() => {
-        const qualified = performance.filter(p => p.trades >= 30);
-        if (qualified.length === 0) return null;
-        return (
-          <section className="py-16 sm:py-24 border-t border-white/5 bg-white/[0.01]">
-            <div className="max-w-4xl mx-auto px-4">
-              <div className="text-center mb-10">
-                <h2 className="text-3xl sm:text-4xl font-black tracking-tighter">
-                  Live <span className="text-accent">Performance</span>
-                </h2>
-                <p className="text-sm text-muted-foreground mt-3 max-w-md mx-auto">
-                  Real results from closed trades. No cherry-picking — every retired signal counts. Timeframes shown after 30+ trades.
-                </p>
-              </div>
-
-              <TooltipProvider delayDuration={200}>
-                <div className="rounded-2xl border border-white/5 bg-card overflow-hidden">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="border-b border-white/5 bg-white/[0.02]">
-                        <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Timeframe</th>
-                        {[
-                          { label: "Trades", tip: "Total number of closed (retired) trades in this timeframe", align: "text-center" },
-                          { label: "Win Rate", tip: "Percentage of trades that closed in profit. Low win rate is by design — our algorithm targets high R:R setups", align: "text-center" },
-                          { label: "Avg Profit", tip: "Average return on winning trades (with leverage). Shows how much each winner delivers", align: "text-center" },
-                          { label: "Avg Loss", tip: "Average return on losing trades (with leverage). Small avg loss + large avg profit = positive expectancy", align: "text-center" },
-                          { label: "Profit Factor", tip: "Gross profits ÷ gross losses. Above 1.0 = profitable system. Above 2.0 = strong edge. The higher, the better", align: "text-right" },
-                        ].map((col) => (
-                          <th key={col.label} className={cn("px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground", col.align)}>
-                            <span className="inline-flex items-center gap-1.5">
-                              {col.label}
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Info className="h-3 w-3 text-muted-foreground/30 cursor-help hover:text-muted-foreground/60 transition-colors" />
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="max-w-[240px] font-normal normal-case tracking-normal leading-relaxed px-3 py-2 text-xs">
-                                  {col.tip}
-                                </TooltipContent>
-                              </Tooltip>
-                            </span>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {qualified.map((p) => (
-                        <tr key={p.timeframe} className="border-t border-white/5 hover:bg-white/[0.02] transition-colors">
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-3">
-                              <span className="text-sm font-black text-white tracking-tight">{p.timeframe}</span>
-                              <span className="text-[10px] font-bold text-muted-foreground/40">{p.chart} · {p.leverage}</span>
-                              {p.trades < 50 && (
-                                <span className="text-[9px] font-bold text-amber-400/60 border border-amber-400/20 rounded px-1.5 py-0.5">Early data</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 text-center">
-                            <span className="text-sm font-black font-mono text-white">{p.trades}</span>
-                          </td>
-                          <td className="px-5 py-4 text-center">
-                            <span className={cn("text-sm font-black font-mono", p.winRate >= 50 ? "text-emerald-400" : "text-amber-400")}>
-                              {p.winRate.toFixed(1)}%
-                            </span>
-                          </td>
-                          <td className="px-5 py-4 text-center">
-                            <span className="text-sm font-black font-mono text-emerald-400">
-                              +{p.avgProfit.toFixed(2)}%
-                            </span>
-                          </td>
-                          <td className="px-5 py-4 text-center">
-                            <span className="text-sm font-black font-mono text-rose-400">
-                              {p.avgLoss.toFixed(2)}%
-                            </span>
-                          </td>
-                          <td className="px-5 py-4 text-right">
-                            <span className={cn("text-sm font-black font-mono", p.profitFactor >= 2 ? "text-emerald-400" : p.profitFactor >= 1 ? "text-amber-400" : "text-rose-400")}>
-                              {p.profitFactor >= 999 ? "∞" : `${p.profitFactor.toFixed(1)}x`}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </TooltipProvider>
-
-              {/* Why it works explainer */}
-              <div className="mt-8 rounded-2xl border border-accent/10 bg-accent/[0.03] p-6 sm:p-8">
-                <h3 className="text-base font-black tracking-tight text-white mb-3">
-                  Low win rate. Big winners. <span className="text-accent">Here's why.</span>
-                </h3>
-                <p className="text-[12px] text-muted-foreground leading-relaxed mb-4">
-                  Our proprietary trend-reversal algorithm doesn't chase every move — it waits for high-conviction inflection points 
-                  where the risk-reward is heavily skewed in your favour. Most trades won't hit, but when they do, 
-                  the move is explosive.
-                </p>
-                <div className="grid sm:grid-cols-3 gap-4">
-                  <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
-                    <div className="text-[10px] font-bold text-accent uppercase tracking-widest mb-1">Asymmetric R:R</div>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      Winners outsize losers 3-5x. One winning trade covers multiple small losses — by design.
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
-                    <div className="text-[10px] font-bold text-accent uppercase tracking-widest mb-1">Smart Exit Strategy</div>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      50/25/25 profit booking with auto stop-loss trailing. Locks in gains progressively while letting winners run.
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
-                    <div className="text-[10px] font-bold text-accent uppercase tracking-widest mb-1">Custom Market Filters</div>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      Proprietary condition filters reduce noise and only surface setups when market structure aligns with the signal.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <p className="text-[10px] text-muted-foreground/40 text-center mt-4">
-                Based on closed (retired) trades only. Returns shown at leveraged values. Updated every 5 minutes.
-              </p>
-            </div>
-          </section>
-        );
-      })()}
+      {/* Live Performance — hidden for now */}
 
       {/* Features */}
       <section className="py-16 sm:py-24 border-t border-white/5 bg-white/[0.01]">

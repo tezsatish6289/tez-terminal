@@ -17,6 +17,8 @@ import {
   Filter,
   Crosshair,
   Info,
+  ChevronDown,
+  Send,
 } from "lucide-react";
 import {
   Tooltip,
@@ -122,6 +124,63 @@ const FEATURES = [
   },
 ];
 
+const FAQS = [
+  {
+    q: "Is TezTerminal really free?",
+    a: "Yes — 100% free. Sign in with Google and get instant access. No credit card, no trial period, no hidden fees.",
+  },
+  {
+    q: "Which exchanges are supported?",
+    a: "You can trade on Binance, MEXC, and Pionex. Every signal includes a one-click link to open the chart on your preferred exchange.",
+  },
+  {
+    q: "How do I get notified about new signals?",
+    a: "Connect your Telegram account in Settings and our bot (@TezTerminalBot) will send you instant alerts when new Top Picks appear and when your trades hit targets.",
+  },
+  {
+    q: "What makes your signals different from others?",
+    a: "Our proprietary trend-reversal algorithm targets asymmetric R:R setups where winners outsize losers 3-5x. Every signal gets an AI confidence score — only the highest-conviction setups surface as Top Picks.",
+  },
+  {
+    q: "What timeframes do you cover?",
+    a: "Four: Scalping (5M), Intraday (15M), BTST (1H), and Swing (4H). Each uses optimized leverage and trade windows suited to the style.",
+  },
+  {
+    q: "Do I need trading experience?",
+    a: "TezTerminal is built for all levels. Every signal comes with entry price, stop-loss, and three take-profit targets — plus a built-in guide explaining how our system works.",
+  },
+];
+
+function FaqItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-b border-white/5 last:border-b-0">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between gap-4 py-5 text-left cursor-pointer group"
+      >
+        <span className="text-sm sm:text-base font-bold text-foreground group-hover:text-accent transition-colors">
+          {q}
+        </span>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 text-muted-foreground/40 transition-transform duration-200",
+            open && "rotate-180"
+          )}
+        />
+      </button>
+      <div
+        className={cn(
+          "overflow-hidden transition-all duration-200",
+          open ? "max-h-40 pb-5" : "max-h-0"
+        )}
+      >
+        <p className="text-sm text-muted-foreground leading-relaxed pr-8">{a}</p>
+      </div>
+    </div>
+  );
+}
+
 interface LandingPageProps {
   onLogin: () => void;
   isLoggingIn: boolean;
@@ -181,7 +240,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
           <div className="max-w-3xl mx-auto text-center space-y-6">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-accent/20 bg-accent/5 text-xs font-bold text-accent uppercase tracking-widest">
               <Zap className="h-3 w-3" />
-              Crypto-Only Trading Terminal
+              AI-Powered Trading Terminal
             </div>
 
             <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tighter leading-[0.9]">
@@ -532,6 +591,26 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
         </div>
       </section>
 
+      {/* FAQ */}
+      <section className="py-16 sm:py-24 border-t border-white/5">
+        <div className="max-w-2xl mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-black tracking-tighter">
+              Frequently <span className="text-accent">Asked</span>
+            </h2>
+            <p className="text-sm text-muted-foreground mt-3 max-w-md mx-auto">
+              Everything you need to know before getting started.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/5 bg-card px-6">
+            {FAQS.map((faq) => (
+              <FaqItem key={faq.q} q={faq.q} a={faq.a} />
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Final CTA */}
       <section className="py-20 sm:py-28 border-t border-white/5 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-t from-accent/5 via-transparent to-transparent pointer-events-none" />
@@ -568,15 +647,40 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/5 py-6">
-        <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <RadarIcon className="h-4 w-4 text-accent" />
-            <span className="font-bold text-sm text-accent">TezTerminal</span>
+      <footer className="border-t border-white/5 py-10">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <RadarIcon className="h-4 w-4 text-accent" />
+                <span className="font-bold text-sm text-accent">TezTerminal</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground/50 max-w-xs">
+                AI-powered crypto trading signals. Scanning 24/7 so you don&apos;t have to.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <a
+                href="https://t.me/TezTerminalBot"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-accent transition-colors"
+              >
+                <Send className="h-3.5 w-3.5" />
+                Telegram
+              </a>
+            </div>
           </div>
-          <p className="text-[11px] text-muted-foreground/50">
-            Built for crypto traders. Powered by real-time market intelligence.
-          </p>
+
+          <div className="mt-8 pt-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-[10px] text-muted-foreground/30">
+              &copy; {new Date().getFullYear()} TezTerminal. All rights reserved.
+            </p>
+            <p className="text-[10px] text-muted-foreground/30">
+              Trading involves risk. Past performance does not guarantee future results.
+            </p>
+          </div>
         </div>
       </footer>
     </div>

@@ -1,0 +1,46 @@
+# TezTerminal
+
+> TezTerminal is a super advanced AI-powered crypto trading terminal that scans the global cryptocurrency market 24/7 across 4 timeframes, filters noise with proprietary algorithms, and delivers high-probability trade setups with built-in risk management. Free to use with Google sign-in.
+
+## About
+
+- [Homepage](https://tezterminal.com/): Super advanced AI-powered crypto trading terminal with real-time signals, performance tracking, and multi-exchange support
+
+## How It Works
+
+TezTerminal uses a three-step process:
+
+1. **Scan** — Our engine monitors the entire crypto market across 4 timeframes (5-minute scalps to 4-hour swing trades). Nothing slips through.
+2. **Filter** — Proprietary algorithms powered by AI identify high-probability setups. Only the strongest entries surface — the rest is noise.
+3. **Trade** — Deep-dive into any signal with TradingView charts. Execute on Binance, MEXC, or Pionex with full risk management built in.
+
+## Timeframes
+
+- **Scalping (5M)** — Lightning-fast entries for quick profits. 10x leverage. 24h trade window.
+- **Intraday (15M)** — Day trading setups that close before bed. 5x leverage. 48h trade window.
+- **BTST (1H)** — Buy today, sell tomorrow — or next week. 3x leverage. 7-day trade window.
+- **Swing (4H)** — Ride multi-day trends with precision. 3x leverage. 30-day trade window.
+
+## Key Features
+
+- **AI-Powered Signal Scoring** — Every signal receives a confidence score. Only high-conviction setups are surfaced as "Top Picks."
+- **Trade Analytics** — Track win rates, net PNL, average returns, and max excursions across all timeframes with full transparency.
+- **Multi-Exchange Support** — One-click trading on Binance, MEXC, and Pionex. Deep-dive charts powered by TradingView.
+- **Smart Risk Management** — Auto stop-loss tracking with a 50/25/25 position split. SL moves to cost at TP1, to TP1 at TP2.
+- **Telegram Alerts** — Get instant notifications via @TezTerminalBot when new Top Picks appear and when trades hit targets.
+- **4 Timeframes** — From 5-minute scalps to 4-hour swing trades. Every active trade style covered with optimized leverage.
+
+## Risk Management Strategy
+
+- **Asymmetric R:R** — Winners outsize losers 3-5x. One winning trade covers multiple small losses — by design.
+- **Smart Exit Strategy** — 50/25/25 profit booking with auto stop-loss trailing. Locks in gains progressively while letting winners run.
+- **Custom Market Filters** — Proprietary condition filters reduce noise and only surface setups when market structure aligns with the signal.
+
+## Pricing
+
+- Free to use. No credit card required. Instant access after Google sign-in.
+
+## Contact
+
+- Website: https://tezterminal.com/
+- Telegram Bot: @TezTerminalBot

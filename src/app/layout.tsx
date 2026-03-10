@@ -11,8 +11,47 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'TezTerminal Antigravity - Pro Trading Webhooks',
-  description: 'Advanced trading signal terminal for Lucknow traders with TradingView integration.',
+  title: 'TezTerminal — Super Advanced AI Crypto Trading Terminal',
+  description:
+    'TezTerminal is a super advanced AI-powered crypto trading terminal that scans the global market 24/7 across 4 timeframes, filters noise with proprietary algorithms, and delivers high-probability trade setups with built-in risk management. Free to use.',
+  keywords: [
+    'crypto trading signals',
+    'AI trading terminal',
+    'crypto scanner',
+    'advanced trading terminal',
+    'TradingView signals',
+    'Binance trading',
+    'MEXC trading',
+    'Pionex trading',
+    'crypto scalping',
+    'swing trading crypto',
+    'AI crypto signals',
+    'automated trading signals',
+  ],
+  icons: {
+    icon: '/favicon.svg',
+    apple: '/favicon.svg',
+  },
+  openGraph: {
+    title: 'TezTerminal — Super Advanced AI Crypto Trading Terminal',
+    description:
+      'A super advanced AI-powered terminal that scans the global crypto market 24/7, filters noise, and delivers high-probability trade setups — so you can focus on stacking gains.',
+    url: 'https://tezterminal.com',
+    siteName: 'TezTerminal',
+    type: 'website',
+    locale: 'en_US',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'TezTerminal — Super Advanced AI Crypto Trading Terminal',
+    description:
+      'A super advanced AI-powered terminal that scans the global crypto market 24/7, filters noise, and delivers high-probability trade setups.',
+  },
+  metadataBase: new URL('https://tezterminal.com'),
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({

@@ -332,20 +332,22 @@ export async function GET(request: NextRequest) {
             scoreData.autoFilterPassed = false;
             scoreData.confidenceScore = 0;
             scoreData.confidenceLabel = "Stale";
+            scoreData.scoredAtThreshold = threshold;
           } else if (scoreResult) {
             scoreData.autoFilterPassed = scoreResult.score >= threshold;
             scoreData.confidenceScore = scoreResult.score;
             scoreData.confidenceLabel = scoreResult.label;
             scoreData.scoreBreakdown = scoreResult.breakdown;
+            scoreData.scoredAtThreshold = threshold;
             scoreData.initialConfidenceScore = scoreResult.score;
             scoreData.maxConfidenceScore = scoreResult.score;
             scoreData.minConfidenceScore = scoreResult.score;
           }
         } else if (signal.autoFilterPassed === true && scoreResult) {
-          // Already passed — update score (may demote from View 1 to View 2)
           scoreData.confidenceScore = scoreResult.score;
           scoreData.confidenceLabel = scoreResult.label;
           scoreData.scoreBreakdown = scoreResult.breakdown;
+          scoreData.scoredAtThreshold = threshold;
           const existingMax = signal.maxConfidenceScore ?? scoreResult.score;
           const existingMin = signal.minConfidenceScore ?? scoreResult.score;
           scoreData.maxConfidenceScore = Math.max(existingMax, scoreResult.score);

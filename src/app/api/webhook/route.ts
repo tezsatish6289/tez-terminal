@@ -263,6 +263,7 @@ export async function POST(request: NextRequest) {
                 confidenceLabel: thisScore.label,
                 scoreBreakdown: thisScore.breakdown,
                 lastScoredAt: new Date().toISOString(),
+                scoredAtThreshold: threshold,
                 initialConfidenceScore: thisScore.score,
                 maxConfidenceScore: thisScore.score,
                 minConfidenceScore: thisScore.score,

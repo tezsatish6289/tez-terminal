@@ -30,6 +30,7 @@ import {
   TrendingUp,
   Shield,
   BookOpen,
+  Monitor,
 } from "lucide-react";
 import { RadarIcon } from "@/components/icons/RadarIcon";
 import { useState, useMemo, useCallback, useEffect } from "react";
@@ -798,12 +799,18 @@ export default function Home() {
   const isLoading = signalsLoading || eventsLoading;
 
   return (
-    <div className="flex h-screen bg-background text-foreground overflow-hidden">
+    <div className="flex min-h-screen lg:h-screen bg-background text-foreground lg:overflow-hidden">
       <main className="flex-1 flex flex-col min-w-0 h-full">
         <TopBar />
 
+        {/* Mobile desktop banner */}
+        <div className="lg:hidden flex items-center justify-center gap-2 px-4 py-2 bg-accent/10 border-b border-accent/20">
+          <Monitor className="w-3.5 h-3.5 text-accent" />
+          <span className="text-[11px] font-bold text-accent/80">For the best experience, switch to desktop</span>
+        </div>
+
         {/* Three-pane layout */}
-        <div className="flex-1 flex gap-4 p-4 overflow-hidden">
+        <div className="flex-1 flex flex-col lg:flex-row gap-4 p-4 overflow-y-auto lg:overflow-hidden">
 
           {/* Left pane: Opportunities (~50%) */}
           <div className="flex-[5] flex flex-col min-w-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 overflow-hidden relative">
@@ -1117,17 +1124,17 @@ export default function Home() {
             {/* Floating Telegram CTA */}
             <Link
               href="/settings"
-              className="absolute bottom-4 right-4 z-10 w-10 h-10 rounded-full bg-[#2AABEE] hover:bg-[#229ED9] shadow-lg shadow-black/40 flex items-center justify-center transition-all hover:scale-110"
+              className="absolute bottom-4 right-4 z-10 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 shadow-lg shadow-black/40 flex items-center justify-center transition-all hover:scale-110 border border-white/10"
               title="Get Telegram Alerts"
             >
-              <svg viewBox="0 0 24 24" className="w-5 h-5 text-white fill-current">
-                <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+              <svg viewBox="0 0 240 240" className="w-5 h-5 fill-[#2AABEE]">
+                <path d="M66.964 134.874s-32.08-10.062-51.344-16.002c-17.542-5.41-6.196-12.054 6.09-16.686 12.288-4.632 169.486-64.15 169.486-64.15s18.498-7.682 16.964 5.17c-.522 5.17-4.694 23.29-8.866 43.478L183.33 160.74s-1.566 12.396-14.636 1.304c-8.344-7.682-37.17-26.846-43.63-31.27-1.566-1.042-3.654-3.39.522-5.952 9.91-9.246 21.6-20.642 28.582-27.542 3.132-3.13 6.264-10.288-6.786-1.56L98.39 137.222c-6.264 4.108-12.004 1.304-12.004 1.304l-19.422-6.652z"/>
               </svg>
             </Link>
           </div>
 
           {/* Middle pane: Status Updates (~25%) */}
-          <div className="flex-[2.5] flex-col min-w-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 overflow-hidden hidden lg:flex">
+          <div className="flex-[2.5] flex flex-col min-w-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 overflow-hidden lg:max-h-full max-h-[400px]">
             <div className="px-4 py-3 border-b border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent">
               <div className="flex items-center gap-2">
                 <Target className="w-4 h-4 text-accent" />
@@ -1159,7 +1166,7 @@ export default function Home() {
           </div>
 
           {/* Right pane: Top Winners (~25%) */}
-          <div className="flex-[2.5] flex-col min-w-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 overflow-hidden hidden lg:flex">
+          <div className="flex-[2.5] flex flex-col min-w-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 overflow-hidden lg:max-h-full max-h-[400px]">
             <div className="px-4 py-3 border-b border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">

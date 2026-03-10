@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Layers,
   CalendarDays,
+  Monitor,
 } from "lucide-react";
 import { format, startOfDay, startOfWeek, startOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -173,16 +174,21 @@ function TradeAuditContent() {
     <div className="flex flex-col h-screen bg-background text-foreground">
       <TopBar />
 
-      <main className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className="lg:hidden flex items-center justify-center gap-2 px-4 py-2 bg-accent/10 border-b border-accent/20">
+        <Monitor className="w-3.5 h-3.5 text-accent" />
+        <span className="text-[11px] font-bold text-accent/80">For the best experience, switch to desktop</span>
+      </div>
+
+      <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-4 lg:space-y-6">
         <header className="space-y-2">
-          <h1 className="text-3xl font-black text-white tracking-tighter uppercase">Trade Audit</h1>
+          <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tighter uppercase">Trade Audit</h1>
           <p className="text-muted-foreground text-sm max-w-2xl">
             Individual signal details with full execution history.
           </p>
         </header>
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 lg:gap-3 overflow-x-auto pb-1">
           {/* Status filter */}
           <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-1">
             {([
@@ -340,7 +346,7 @@ function TradeAuditContent() {
         )}
 
         {/* Summary stats bar — grouped by theme */}
-        <div className="flex flex-wrap items-stretch gap-2 text-center">
+        <div className="grid grid-cols-2 lg:flex lg:flex-wrap items-stretch gap-2 text-center">
           {/* Overview group */}
           <div className="flex items-center gap-5 px-4 py-3 rounded-lg border border-white/5 bg-white/[0.02]">
             <div>
@@ -414,8 +420,102 @@ function TradeAuditContent() {
           </div>
         </div>
 
-        {/* Table */}
-        <div className="bg-card border border-white/5 rounded-lg overflow-x-auto">
+        {/* Mobile: Card layout */}
+        <div className="lg:hidden space-y-3">
+          {pageSignals.length === 0 ? (
+            <div className="flex flex-col items-center gap-4 py-16 opacity-40">
+              <Archive className="h-12 w-12 text-muted-foreground" />
+              <p className="text-xs font-bold uppercase tracking-widest text-white">No Signals Found</p>
+            </div>
+          ) : (
+            pageSignals.map((signal: any) => {
+              const leverage = getLeverage(signal.timeframe);
+              const pnl = effectivePnl(signal) * leverage;
+              const chartLabel = tfLabelMap[String(signal.timeframe).toUpperCase()] ?? `${signal.timeframe}m`;
+              const isRetired = signal.status === "INACTIVE";
+              const maxUp = calculatePercent(signal.maxUpsidePrice, signal.price, signal.type) * leverage;
+              const maxDown = calculatePercent(signal.maxDrawdownPrice, signal.price, signal.type) * leverage;
+
+              return (
+                <Link key={signal.id} href={`/chart/${signal.id}`} className="block">
+                  <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4 space-y-3 hover:bg-white/[0.04] transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-black text-white uppercase tracking-tighter">{signal.symbol}</span>
+                        <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", signal.type === "BUY" ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400")}>
+                          {signal.type}
+                        </Badge>
+                        <span className="text-[10px] font-bold text-muted-foreground">{chartLabel}</span>
+                        <Badge variant="outline" className="text-[9px] font-black h-5 px-1.5 border-accent/20 text-accent">{leverage}x</Badge>
+                      </div>
+                      <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", isRetired ? "bg-amber-500/15 text-amber-400" : "bg-emerald-500/15 text-emerald-400")}>
+                        {isRetired ? "Retired" : "Active"}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className={cn("flex items-center gap-1.5 font-mono text-base font-black", pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                        {pnl >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                        {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}%
+                      </div>
+                      <span className="text-[10px] font-mono text-muted-foreground/50">{format(new Date(signal.receivedAt), "MMM dd, HH:mm")}</span>
+                    </div>
+
+                    <div className="flex items-center gap-4 text-[10px]">
+                      <div className="flex items-center gap-3">
+                        <span className="text-muted-foreground/50">Entry</span>
+                        <span className="font-mono font-bold text-white/60">${formatPrice(signal.price)}</span>
+                      </div>
+                      <span className="text-white/10">→</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-muted-foreground/50">Current</span>
+                        <span className="font-mono font-bold text-white">${formatPrice(signal.currentPrice)}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 text-[10px]">
+                      <div className="flex items-center gap-1.5">
+                        {[
+                          { num: 1, hit: signal.tp1Hit },
+                          { num: 2, hit: signal.tp2Hit },
+                          { num: 3, hit: signal.tp3Hit },
+                        ].map((tp) => {
+                          const slKilled = !tp.hit && signal.slHitAt != null;
+                          return (
+                            <span
+                              key={tp.num}
+                              className={cn(
+                                "px-1.5 py-0.5 rounded text-[9px] font-bold",
+                                tp.hit
+                                  ? "bg-emerald-500/20 text-emerald-400"
+                                  : slKilled
+                                    ? "bg-rose-500/10 text-rose-400/50 line-through"
+                                    : "bg-white/5 text-muted-foreground/40"
+                              )}
+                            >
+                              TP{tp.num}{tp.hit ? "✓" : ""}
+                            </span>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center gap-3 ml-auto">
+                        <div className="flex items-center gap-1 font-mono text-[10px] font-bold text-emerald-400">
+                          <ArrowUpRight className="h-2.5 w-2.5" />{maxUp.toFixed(1)}%
+                        </div>
+                        <div className="flex items-center gap-1 font-mono text-[10px] font-bold text-rose-400">
+                          <ArrowDownRight className="h-2.5 w-2.5" />{maxDown.toFixed(1)}%
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop: Table layout */}
+        <div className="hidden lg:block bg-card border border-white/5 rounded-lg overflow-x-auto">
           <div className="min-w-[1000px]">
             <Table>
               <TableHeader className="bg-card sticky top-0 z-10 shadow-[0_1px_0_rgba(255,255,255,0.05)]">

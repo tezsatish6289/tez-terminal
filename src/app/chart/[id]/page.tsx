@@ -17,6 +17,7 @@ import {
   Target,
   X,
   BookOpen,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BinanceIcon, MexcIcon, PionexIcon, TradingViewIcon } from "@/components/icons/exchange-icons";
@@ -142,9 +143,28 @@ export default function DeepDiveChartPage() {
             <Button variant="ghost" size="sm" onClick={() => router.push("/")} className="text-muted-foreground hover:text-foreground gap-1 -ml-3 mb-3">
               <ChevronLeft className="h-4 w-4" /> Back
             </Button>
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-2xl font-black text-foreground leading-none tracking-tighter uppercase">{signal?.symbol}</h3>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2.5">
+                  <h3 className="text-2xl font-black text-foreground leading-none tracking-tighter uppercase truncate">{signal?.symbol}</h3>
+                  {signal?.confidenceScore != null && (
+                    <div
+                      className={cn(
+                        "flex items-center gap-1 px-2 py-1 rounded-lg border shrink-0",
+                        signal.confidenceScore >= 80
+                          ? "bg-positive/10 border-positive/25 text-positive"
+                          : signal.confidenceScore >= 65
+                            ? "bg-accent/10 border-accent/25 text-accent"
+                            : signal.confidenceScore >= 50
+                              ? "bg-amber-400/10 border-amber-400/25 text-amber-400"
+                              : "bg-orange-400/10 border-orange-400/25 text-orange-400"
+                      )}
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span className="text-[11px] font-black tabular-nums">{signal.confidenceScore}</span>
+                    </div>
+                  )}
+                </div>
                 <div className="flex items-center gap-1.5 mt-1.5">
                   <span className={cn("text-[11px] font-black uppercase", isBullish ? "text-positive" : "text-negative")}>{isBullish ? "▲ Long" : "▼ Short"}</span>
                   <span className="text-white/15">·</span>

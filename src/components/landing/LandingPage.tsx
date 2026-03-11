@@ -256,10 +256,6 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
                 )}
               </Button>
             </div>
-
-            <p className="text-[13px] text-muted-foreground/60">
-              Get <span className="text-accent font-bold">7 days free</span> on your sign up, 3 USDT per day thereafter, no credit card required.
-            </p>
           </div>
 
           {/* Stats Bar */}
@@ -522,7 +518,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
             </span>
           </h2>
           <p className="text-sm sm:text-base text-muted-foreground max-w-md mx-auto">
-            7 days free, then just 3 USDT/day. Join traders who use TezTerminal to find high-probability crypto setups across every timeframe.
+            Join traders who use TezTerminal to find high-probability crypto setups across every timeframe.
           </p>
           <Button
             onClick={onLogin}
@@ -538,8 +534,8 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
               </>
             )}
           </Button>
-          <p className="text-[11px] text-muted-foreground/50">
-            No credit card. Pay with crypto when you&apos;re ready.
+          <p className="text-[13px] text-muted-foreground/60">
+            Get <span className="text-accent font-bold">7 days free</span> on your sign up, 3 USDT per day thereafter, no credit card required.
           </p>
         </div>
       </section>

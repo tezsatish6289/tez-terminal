@@ -285,22 +285,6 @@ export default function SubscribePage() {
         {/* Step: Select Plan + Currency */}
         {step === "select" && (
           <div className="space-y-6">
-            {/* Subscription status banner */}
-            {subscription.isActive && (
-              <div className="rounded-xl border border-positive/20 bg-positive/[0.06] p-4 flex items-start gap-3">
-                <Check className="w-5 h-5 text-positive shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-bold text-positive">
-                    {subscription.isTrial ? "Free Trial Active" : "Subscription Active"}
-                  </p>
-                  <p className="text-[12px] text-positive/60 mt-0.5">
-                    {subscription.daysRemaining} day{subscription.daysRemaining !== 1 ? "s" : ""} remaining.
-                    {subscription.isTrial && " Subscribe now to extend beyond your trial."}
-                  </p>
-                </div>
-              </div>
-            )}
-
             {/* Plan cards */}
             <div>
               <h2 className="text-sm font-black uppercase tracking-wider mb-4">

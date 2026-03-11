@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useUser } from "@/firebase";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { useSubscription } from "@/hooks/use-subscription";
 import {
   PLAN_PRESETS,
-  POPULAR_CURRENCIES,
   calculatePrice,
   getEffectiveRate,
   getNetworkWarning,
@@ -22,9 +21,6 @@ import {
   ChevronRight,
   Sparkles,
   RefreshCw,
-  Search,
-  ChevronDown,
-  Star,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import Link from "next/link";
@@ -97,141 +93,7 @@ function StatusProgress({ status }: { status: string }) {
   );
 }
 
-function CurrencyDropdown({
-  currencies,
-  selected,
-  onSelect,
-  isLoading,
-}: {
-  currencies: string[];
-  selected: string;
-  onSelect: (c: string) => void;
-  isLoading: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (open && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [open]);
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    if (!q) {
-      const popular = POPULAR_CURRENCIES.filter((c) => currencies.includes(c));
-      const rest = currencies.filter((c) => !POPULAR_CURRENCIES.includes(c)).sort();
-      return { popular, rest };
-    }
-    const matched = currencies.filter((c) => c.toLowerCase().includes(q));
-    return { popular: [], rest: matched };
-  }, [currencies, search]);
-
-  return (
-    <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className={cn(
-          "w-full flex items-center justify-between gap-2 px-4 py-3 rounded-xl border transition-all cursor-pointer",
-          "bg-white/[0.03] hover:bg-white/[0.06]",
-          open ? "border-accent/40 ring-1 ring-accent/20" : "border-white/[0.08]"
-        )}
-      >
-        <span className="text-sm font-bold uppercase tracking-wide">
-          {isLoading ? "Loading..." : selected || "Select currency"}
-        </span>
-        <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", open && "rotate-180")} />
-      </button>
-
-      {open && (
-        <div className="absolute z-50 mt-2 w-full rounded-xl border border-white/[0.08] bg-[#141416] shadow-2xl shadow-black/50 overflow-hidden">
-          <div className="p-2 border-b border-white/[0.06]">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04]">
-              <Search className="w-4 h-4 text-muted-foreground/50 shrink-0" />
-              <input
-                ref={inputRef}
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search currencies..."
-                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="max-h-64 overflow-y-auto overscroll-contain">
-            {filtered.popular.length > 0 && (
-              <>
-                <div className="px-3 pt-2 pb-1">
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">Popular</span>
-                </div>
-                {filtered.popular.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => { onSelect(c); setOpen(false); setSearch(""); }}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer",
-                      selected === c ? "bg-accent/10 text-accent" : "hover:bg-white/[0.06] text-foreground"
-                    )}
-                  >
-                    <Star className="w-3 h-3 text-amber-400/60 shrink-0" />
-                    <span className="text-sm font-bold uppercase">{c}</span>
-                    {selected === c && <Check className="w-3.5 h-3.5 text-accent ml-auto" />}
-                  </button>
-                ))}
-              </>
-            )}
-
-            {filtered.rest.length > 0 && (
-              <>
-                {filtered.popular.length > 0 && (
-                  <div className="px-3 pt-3 pb-1 border-t border-white/[0.04]">
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">All Currencies</span>
-                  </div>
-                )}
-                {filtered.rest.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => { onSelect(c); setOpen(false); setSearch(""); }}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer",
-                      selected === c ? "bg-accent/10 text-accent" : "hover:bg-white/[0.06] text-foreground"
-                    )}
-                  >
-                    <span className="text-sm font-bold uppercase">{c}</span>
-                    {selected === c && <Check className="w-3.5 h-3.5 text-accent ml-auto" />}
-                  </button>
-                ))}
-              </>
-            )}
-
-            {filtered.popular.length === 0 && filtered.rest.length === 0 && (
-              <div className="px-3 py-6 text-center text-sm text-muted-foreground/40">
-                No currencies found
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+const PAY_CURRENCY = "usdttrc20";
 
 export default function SubscribePage() {
   const { user, isUserLoading } = useUser();
@@ -245,9 +107,6 @@ export default function SubscribePage() {
 
   const [step, setStep] = useState<Step>("select");
   const [selectedPreset, setSelectedPreset] = useState<number>(14);
-  const [selectedCurrency, setSelectedCurrency] = useState("usdttrc20");
-  const [currencies, setCurrencies] = useState<string[]>([]);
-  const [isCurrenciesLoading, setIsCurrenciesLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [payment, setPayment] = useState<PaymentInfo | null>(null);
   const [paymentStatus, setPaymentStatus] = useState("waiting");
@@ -268,17 +127,6 @@ export default function SubscribePage() {
       .finally(() => setIsTelegramLoading(false));
   }, [user]);
 
-  useEffect(() => {
-    setIsCurrenciesLoading(true);
-    fetch("/api/subscription/currencies")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.currencies?.length) setCurrencies(data.currencies);
-      })
-      .catch(() => {})
-      .finally(() => setIsCurrenciesLoading(false));
-  }, []);
-
   const handleCreatePayment = useCallback(async () => {
     if (!user) return;
     setIsCreating(true);
@@ -290,7 +138,7 @@ export default function SubscribePage() {
         body: JSON.stringify({
           uid: user.uid,
           days: selectedPreset,
-          payCurrency: selectedCurrency,
+          payCurrency: PAY_CURRENCY,
         }),
       });
 
@@ -317,7 +165,7 @@ export default function SubscribePage() {
     } finally {
       setIsCreating(false);
     }
-  }, [user, selectedPreset, selectedCurrency]);
+  }, [user, selectedPreset]);
 
   useEffect(() => {
     if (step !== "paying" || !payment) return;
@@ -380,7 +228,7 @@ export default function SubscribePage() {
 
   const totalPrice = calculatePrice(selectedPreset);
   const rate = getEffectiveRate(selectedPreset);
-  const networkWarning = getNetworkWarning(selectedCurrency);
+  const networkWarning = getNetworkWarning(PAY_CURRENCY);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -531,33 +379,10 @@ export default function SubscribePage() {
               </div>
             </div>
 
-            {/* Currency selector */}
-            <div>
-              <h2 className="text-sm font-black uppercase tracking-wider mb-3">
-                How do you want to pay?
-              </h2>
-
-              <CurrencyDropdown
-                currencies={currencies}
-                selected={selectedCurrency}
-                onSelect={setSelectedCurrency}
-                isLoading={isCurrenciesLoading}
-              />
-
-              {networkWarning && (
-                <div className="mt-3 flex items-start gap-2 p-3 rounded-lg bg-amber-400/[0.06] border border-amber-400/20">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-amber-400/80 leading-relaxed">
-                    {networkWarning}
-                  </p>
-                </div>
-              )}
-            </div>
-
             {/* Pay button */}
             <button
               onClick={handleCreatePayment}
-              disabled={isCreating || isTelegramLoading || isCurrenciesLoading}
+              disabled={isCreating || isTelegramLoading}
               className="w-full py-4 rounded-xl bg-accent text-accent-foreground text-sm font-black uppercase tracking-wider hover:bg-accent/90 transition-colors shadow-lg shadow-accent/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {isCreating ? (
@@ -566,9 +391,13 @@ export default function SubscribePage() {
                   Creating Payment...
                 </span>
               ) : (
-                `Pay $${totalPrice} in ${selectedCurrency.toUpperCase()}`
+                `Pay $${totalPrice} USDT`
               )}
             </button>
+
+            <p className="text-[11px] text-muted-foreground/40 text-center">
+              Payment via USDT (TRC20 network)
+            </p>
 
             <div className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground/40">
               <Shield className="w-3.5 h-3.5" />

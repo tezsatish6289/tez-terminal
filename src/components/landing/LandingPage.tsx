@@ -221,8 +221,8 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
         </div>
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/30 to-background pointer-events-none" />
 
-        <div className="relative max-w-6xl mx-auto px-4 pt-16 pb-12 sm:pt-24 sm:pb-20">
-          <div className="max-w-3xl mx-auto text-center space-y-6">
+        <div className="relative max-w-6xl mx-auto px-4 pt-14 pb-10 sm:pt-20 sm:pb-16">
+          <div className="max-w-3xl mx-auto text-center space-y-5">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-accent/20 bg-accent/5 text-xs font-bold text-accent uppercase tracking-widest">
               <Zap className="h-3 w-3" />
               AI-Powered Trading Terminal
@@ -240,7 +240,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
               high-probability trade setups — so you can focus on stacking gains.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            <div className="flex flex-col items-center gap-2.5 pt-1">
               <Button
                 onClick={onLogin}
                 disabled={isLoggingIn}
@@ -255,11 +255,14 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
                   </>
                 )}
               </Button>
+              <p className="text-[11px] text-muted-foreground/40">
+                No credit card required.
+              </p>
             </div>
           </div>
 
           {/* Stats Bar */}
-          <div className="mt-12 sm:mt-16 grid grid-cols-3 gap-4 max-w-xl mx-auto">
+          <div className="mt-10 sm:mt-14 grid grid-cols-3 gap-4 max-w-xl mx-auto">
             {[
               { value: stats ? `${stats.totalTrades}` : "—", label: "Trades" },
               { value: "4", label: "Timeframes" },

@@ -286,81 +286,68 @@ export default function SubscribePage() {
         {step === "select" && (
           <div className="space-y-6">
             {/* Plan cards */}
-            <div>
-              <h2 className="text-sm font-black uppercase tracking-wider mb-4">
-                Choose Your Plan
-              </h2>
+            <div className="space-y-2">
+              {PLAN_PRESETS.map((preset) => {
+                const tier = getEffectiveRate(preset);
+                const price = calculatePrice(preset);
+                const isSelected = selectedPreset === preset;
+                const originalPrice = preset * 3;
+                const isBestValue = preset === 365;
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {PLAN_PRESETS.map((preset) => {
-                  const tier = getEffectiveRate(preset);
-                  const price = calculatePrice(preset);
-                  const isSelected = selectedPreset === preset;
-                  const isBestValue = preset === 365;
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setSelectedPreset(preset)}
+                    className={cn(
+                      "w-full flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-all cursor-pointer",
+                      isSelected
+                        ? "border-accent/50 bg-accent/[0.08] ring-1 ring-accent/20"
+                        : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.12]"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center",
+                      isSelected ? "border-accent" : "border-white/20"
+                    )}>
+                      {isSelected && <div className="w-2 h-2 rounded-full bg-accent" />}
+                    </div>
 
-                  return (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => setSelectedPreset(preset)}
-                      className={cn(
-                        "relative flex flex-col items-center gap-1 p-4 rounded-xl border transition-all cursor-pointer text-center",
-                        isSelected
-                          ? "border-accent/50 bg-accent/[0.08] ring-1 ring-accent/20"
-                          : "border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.15]",
-                        isBestValue && !isSelected && "border-amber-500/20"
-                      )}
-                    >
-                      {isBestValue && (
-                        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-amber-500/90 text-[8px] font-black uppercase tracking-widest text-black whitespace-nowrap">
-                          Best Value
-                        </span>
-                      )}
-                      {tier.discountPercent > 0 && (
-                        <span className="absolute -top-2 right-2 px-1.5 py-0.5 rounded-md bg-positive/90 text-[8px] font-black uppercase text-black">
-                          -{tier.discountPercent}%
-                        </span>
-                      )}
-
-                      <span className="text-lg font-black text-foreground">
-                        {preset}
-                        <span className="text-xs font-bold text-muted-foreground ml-0.5">days</span>
-                      </span>
-
-                      <span className="text-[11px] text-muted-foreground">
+                    <div className="flex-1 text-left">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-black text-foreground">{preset} days</span>
+                        {isBestValue && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-500/90 text-[8px] font-black uppercase tracking-wider text-black leading-none">
+                            Best Value
+                          </span>
+                        )}
+                        {tier.discountPercent > 0 && (
+                          <span className="text-[11px] font-bold text-positive">
+                            Save {tier.discountPercent}%
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-muted-foreground/50">
                         ${tier.pricePerDay.toFixed(2)}/day
                       </span>
+                    </div>
 
+                    <div className="text-right shrink-0">
                       <span className={cn(
-                        "text-sm font-black mt-1",
-                        isSelected ? "text-accent" : "text-foreground/80"
+                        "text-base font-black tabular-nums",
+                        isSelected ? "text-accent" : "text-foreground"
                       )}>
                         ${price}
                       </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Summary */}
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">
-                {selectedPreset} days × ${rate.pricePerDay.toFixed(2)}/day
-                {rate.discountPercent > 0 && (
-                  <span className="ml-2 text-positive text-xs font-bold">
-                    Save {rate.discountPercent}%
-                  </span>
-                )}
-              </div>
-              <div className="text-right">
-                <span className="text-2xl font-black tabular-nums">${totalPrice}</span>
-                {rate.discountPercent > 0 && (
-                  <span className="block text-[10px] text-muted-foreground/40 line-through">
-                    ${selectedPreset * 3}
-                  </span>
-                )}
-              </div>
+                      {tier.discountPercent > 0 && (
+                        <span className="block text-[10px] text-muted-foreground/30 line-through tabular-nums">
+                          ${originalPrice}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Pay button */}

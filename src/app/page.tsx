@@ -852,7 +852,7 @@ export default function Home() {
                         : "text-positive/70"
                     )}
                   >
-                    {subscription.isTrial ? "Free Trial" : "Active"} · {subscription.daysRemaining} day{subscription.daysRemaining !== 1 ? "s" : ""} left
+                    <span className="hidden sm:inline">{subscription.isTrial ? "Free Trial" : "Active"} · </span>{subscription.daysRemaining}d left
                   </Link>
                 )}
                 {!subscription.isLoading && subscription.isExpired && (

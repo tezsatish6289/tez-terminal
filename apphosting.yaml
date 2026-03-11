@@ -18,3 +18,11 @@ env:
     secret: CRON_SECRET
     availability:
       - RUNTIME
+  - variable: NOWPAYMENTS_API_KEY
+    secret: NOWPAYMENTS_API_KEY
+    availability:
+      - RUNTIME
+  - variable: NOWPAYMENTS_IPN_SECRET
+    secret: NOWPAYMENTS_IPN_SECRET
+    availability:
+      - RUNTIME

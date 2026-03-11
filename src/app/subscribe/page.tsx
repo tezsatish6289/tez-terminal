@@ -1,0 +1,642 @@
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useUser } from "@/firebase";
+import { TopBar } from "@/components/dashboard/TopBar";
+import { useSubscription } from "@/hooks/use-subscription";
+import {
+  PRICE_PER_DAY_USD,
+  MIN_SUBSCRIPTION_DAYS,
+  SUPPORTED_CURRENCIES,
+  calculatePrice,
+  getNetworkWarning,
+  type SupportedCurrencyId,
+} from "@/lib/subscription";
+import {
+  Loader2,
+  Send,
+  Check,
+  Copy,
+  AlertTriangle,
+  ArrowLeft,
+  Clock,
+  Shield,
+  ChevronRight,
+  Sparkles,
+  RefreshCw,
+} from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import Link from "next/link";
+import { cn } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
+
+type Step = "telegram" | "select" | "paying" | "success";
+
+interface PaymentInfo {
+  paymentId: number;
+  payAddress: string;
+  payAmount: number;
+  payCurrency: string;
+  priceAmountUsd: number;
+  orderId: string;
+  expirationEstimate: string;
+}
+
+const STATUS_LABELS: Record<string, { label: string; icon: string; color: string }> = {
+  waiting: { label: "Waiting for payment", icon: "⏳", color: "text-muted-foreground" },
+  confirming: { label: "Payment detected — confirming", icon: "🔄", color: "text-amber-400" },
+  confirmed: { label: "Confirmed — processing", icon: "✅", color: "text-positive" },
+  sending: { label: "Processing payment", icon: "📤", color: "text-accent" },
+  finished: { label: "Payment complete!", icon: "🎉", color: "text-positive" },
+  partially_paid: { label: "Partial payment received", icon: "⚠️", color: "text-amber-400" },
+  failed: { label: "Payment failed", icon: "❌", color: "text-negative" },
+  expired: { label: "Payment expired", icon: "⏰", color: "text-negative" },
+  refunded: { label: "Payment refunded", icon: "↩️", color: "text-muted-foreground" },
+};
+
+const STATUS_ORDER = ["waiting", "confirming", "confirmed", "sending", "finished"];
+
+function StatusProgress({ status }: { status: string }) {
+  const currentIdx = STATUS_ORDER.indexOf(status);
+  const steps = [
+    { key: "waiting", label: "Waiting" },
+    { key: "confirming", label: "Detected" },
+    { key: "confirmed", label: "Confirming" },
+    { key: "finished", label: "Complete" },
+  ];
+
+  return (
+    <div className="flex items-center gap-1 w-full">
+      {steps.map((step, i) => {
+        const stepIdx = STATUS_ORDER.indexOf(step.key);
+        const isComplete = currentIdx >= stepIdx && currentIdx >= 0;
+        const isCurrent = status === step.key || (step.key === "finished" && (status === "sending" || status === "finished"));
+        return (
+          <div key={step.key} className="flex-1 flex flex-col items-center gap-1.5">
+            <div className="w-full flex items-center">
+              <div
+                className={cn(
+                  "h-1.5 flex-1 rounded-full transition-colors",
+                  isComplete ? "bg-positive" : "bg-white/10"
+                )}
+              />
+            </div>
+            <span
+              className={cn(
+                "text-[9px] font-bold uppercase tracking-wider",
+                isCurrent ? "text-foreground" : isComplete ? "text-positive/60" : "text-muted-foreground/30"
+              )}
+            >
+              {step.label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function SubscribePage() {
+  const { user, isUserLoading } = useUser();
+  const subscription = useSubscription(user?.uid);
+
+  const [telegramStatus, setTelegramStatus] = useState<{
+    connected: boolean;
+    enabled: boolean;
+  } | null>(null);
+  const [isTelegramLoading, setIsTelegramLoading] = useState(true);
+
+  const [step, setStep] = useState<Step>("select");
+  const [days, setDays] = useState(MIN_SUBSCRIPTION_DAYS);
+  const [selectedCurrency, setSelectedCurrency] = useState<SupportedCurrencyId>("usdttrc20");
+  const [isCreating, setIsCreating] = useState(false);
+  const [payment, setPayment] = useState<PaymentInfo | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState("waiting");
+  const [copied, setCopied] = useState(false);
+
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    setIsTelegramLoading(true);
+    fetch(`/api/telegram/status?uid=${user.uid}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setTelegramStatus({ connected: data.connected, enabled: data.enabled });
+        if (!data.connected) {
+          setStep("telegram");
+        }
+      })
+      .catch(() => {})
+      .finally(() => setIsTelegramLoading(false));
+  }, [user]);
+
+  const handleCreatePayment = useCallback(async () => {
+    if (!user) return;
+    setIsCreating(true);
+
+    try {
+      const res = await fetch("/api/subscription/create-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          uid: user.uid,
+          days,
+          payCurrency: selectedCurrency,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to create payment");
+      }
+
+      setPayment({
+        paymentId: data.paymentId,
+        payAddress: data.payAddress,
+        payAmount: data.payAmount,
+        payCurrency: data.payCurrency,
+        priceAmountUsd: data.priceAmountUsd,
+        orderId: data.orderId,
+        expirationEstimate: data.expirationEstimate,
+      });
+      setPaymentStatus("waiting");
+      setStep("paying");
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Payment Error",
+        description: error.message,
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  }, [user, days, selectedCurrency]);
+
+  useEffect(() => {
+    if (step !== "paying" || !payment) return;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(
+          `/api/subscription/payment-status/${payment.paymentId}`
+        );
+        const data = await res.json();
+        setPaymentStatus(data.status);
+
+        if (data.status === "finished" || data.status === "sending") {
+          setStep("success");
+          if (pollRef.current) clearInterval(pollRef.current);
+        }
+        if (data.status === "failed" || data.status === "expired" || data.status === "refunded") {
+          if (pollRef.current) clearInterval(pollRef.current);
+        }
+      } catch {}
+    };
+
+    poll();
+    pollRef.current = setInterval(poll, 5000);
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [step, payment]);
+
+  const handleCopyAddress = useCallback(() => {
+    if (!payment) return;
+    navigator.clipboard.writeText(payment.payAddress);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    toast({ title: "Address copied!" });
+  }, [payment]);
+
+  const handleCopyAmount = useCallback(() => {
+    if (!payment) return;
+    navigator.clipboard.writeText(String(payment.payAmount));
+    toast({ title: "Amount copied!" });
+  }, [payment]);
+
+  if (isUserLoading || subscription.isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <p className="text-muted-foreground">Please sign in to subscribe.</p>
+          <Link href="/" className="text-accent font-bold hover:underline">
+            Go to home page
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const totalPrice = calculatePrice(days);
+  const networkWarning = getNetworkWarning(selectedCurrency);
+  const currencyInfo = SUPPORTED_CURRENCIES.find((c) => c.id === selectedCurrency);
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <TopBar />
+
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        {/* Back link */}
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Terminal
+        </Link>
+
+        <div className="space-y-2 mb-8">
+          <h1 className="text-2xl font-black tracking-tight">
+            Subscribe to TezTerminal
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Unlock AI-powered trade signals, live updates, and Telegram alerts.
+          </p>
+        </div>
+
+        {/* Step: Connect Telegram */}
+        {step === "telegram" && (
+          <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-b from-[#141416] to-[#0f0f11] p-6 sm:p-8">
+            <div className="flex flex-col items-center text-center gap-5">
+              <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                <Send className="w-7 h-7 text-blue-400" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-lg font-black tracking-tight">
+                  Connect Telegram First
+                </h2>
+                <p className="text-[13px] text-muted-foreground/60 leading-relaxed max-w-sm">
+                  We send all payment confirmations, subscription updates, and renewal reminders via Telegram. Please connect your account to continue.
+                </p>
+              </div>
+              <Link
+                href="/settings"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-accent text-accent-foreground text-sm font-bold uppercase tracking-wider hover:bg-accent/90 transition-colors shadow-lg shadow-accent/20"
+              >
+                <Send className="w-4 h-4" />
+                Go to Settings
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+              <p className="text-[11px] text-muted-foreground/40">
+                Connect Telegram in Settings, then come back here to subscribe.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Step: Select Days + Currency */}
+        {step === "select" && (
+          <div className="space-y-6">
+            {/* Subscription status banner */}
+            {subscription.isActive && (
+              <div className="rounded-xl border border-positive/20 bg-positive/[0.06] p-4 flex items-start gap-3">
+                <Check className="w-5 h-5 text-positive shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-positive">
+                    {subscription.isTrial ? "Free Trial Active" : "Subscription Active"}
+                  </p>
+                  <p className="text-[12px] text-positive/60 mt-0.5">
+                    {subscription.daysRemaining} day{subscription.daysRemaining !== 1 ? "s" : ""} remaining.
+                    {subscription.isTrial && " Subscribe now to extend beyond your trial."}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Days selector */}
+            <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-b from-[#141416] to-[#0f0f11] p-6">
+              <h2 className="text-sm font-black uppercase tracking-wider mb-4">
+                Choose Your Plan
+              </h2>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Subscription Days</span>
+                  <span className="text-lg font-black text-accent tabular-nums">{days} days</span>
+                </div>
+
+                <input
+                  type="range"
+                  min={MIN_SUBSCRIPTION_DAYS}
+                  max={365}
+                  step={1}
+                  value={days}
+                  onChange={(e) => setDays(Number(e.target.value))}
+                  className="w-full accent-accent h-2 rounded-full appearance-none bg-white/10 cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:shadow-lg"
+                />
+
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground/40">
+                  <span>{MIN_SUBSCRIPTION_DAYS} days (min)</span>
+                  <span>365 days</span>
+                </div>
+
+                {/* Quick select buttons */}
+                <div className="flex flex-wrap gap-2">
+                  {[14, 30, 60, 90, 180, 365].map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setDays(d)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider border transition-all cursor-pointer",
+                        days === d
+                          ? "bg-accent/20 border-accent/40 text-accent"
+                          : "bg-white/[0.04] border-white/10 text-muted-foreground hover:bg-white/[0.08]"
+                      )}
+                    >
+                      {d}d
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-white/[0.06]">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-sm text-muted-foreground">Total</span>
+                    <div className="text-right">
+                      <span className="text-3xl font-black text-foreground tabular-nums">
+                        {totalPrice}
+                      </span>
+                      <span className="text-sm font-bold text-muted-foreground ml-1">USDT</span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground/40 text-right mt-1">
+                    {days} days × {PRICE_PER_DAY_USD} USDT/day
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Currency selector */}
+            <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-b from-[#141416] to-[#0f0f11] p-6">
+              <h2 className="text-sm font-black uppercase tracking-wider mb-4">
+                Select Payment Currency
+              </h2>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {SUPPORTED_CURRENCIES.map((currency) => (
+                  <button
+                    key={currency.id}
+                    onClick={() => setSelectedCurrency(currency.id)}
+                    className={cn(
+                      "flex flex-col items-center gap-2 p-4 rounded-xl border transition-all cursor-pointer",
+                      selectedCurrency === currency.id
+                        ? "border-accent/40 bg-accent/10 shadow-lg shadow-accent/10"
+                        : "border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.06] hover:border-white/20"
+                    )}
+                  >
+                    <span className="text-xl">{currency.icon}</span>
+                    <span className="text-[11px] font-bold text-foreground">{currency.label}</span>
+                    <span className="text-[9px] text-muted-foreground/50 uppercase">
+                      {currency.network}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {networkWarning && (
+                <div className="mt-4 flex items-start gap-2 p-3 rounded-lg bg-amber-400/[0.06] border border-amber-400/20">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-amber-400/80 leading-relaxed">
+                    {networkWarning}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Pay button */}
+            <button
+              onClick={handleCreatePayment}
+              disabled={isCreating || isTelegramLoading}
+              className="w-full py-4 rounded-xl bg-accent text-accent-foreground text-sm font-black uppercase tracking-wider hover:bg-accent/90 transition-colors shadow-lg shadow-accent/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {isCreating ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Creating Payment...
+                </span>
+              ) : (
+                `Pay ${totalPrice} USDT in ${currencyInfo?.label || selectedCurrency}`
+              )}
+            </button>
+
+            <div className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground/40">
+              <Shield className="w-3.5 h-3.5" />
+              Secured by NOWPayments — Verified on blockchain
+            </div>
+          </div>
+        )}
+
+        {/* Step: Payment Screen */}
+        {step === "paying" && payment && (
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-b from-[#141416] to-[#0f0f11] p-6 sm:p-8">
+              {/* Order header */}
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/[0.06]">
+                <div>
+                  <p className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">
+                    Order
+                  </p>
+                  <p className="text-sm font-bold text-foreground mt-0.5 font-mono">
+                    {payment.orderId}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">
+                    Amount
+                  </p>
+                  <p className="text-sm font-bold text-foreground mt-0.5">
+                    ${payment.priceAmountUsd} USD
+                  </p>
+                </div>
+              </div>
+
+              {/* Send amount */}
+              <div className="text-center mb-6">
+                <p className="text-[11px] text-muted-foreground/50 uppercase tracking-widest mb-2">
+                  Send exactly
+                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-3xl font-black text-foreground tabular-nums font-mono">
+                    {payment.payAmount}
+                  </span>
+                  <span className="text-lg font-bold text-accent uppercase">
+                    {payment.payCurrency}
+                  </span>
+                </div>
+                <button
+                  onClick={handleCopyAmount}
+                  className="mt-1 text-[11px] text-accent/60 hover:text-accent transition-colors cursor-pointer"
+                >
+                  Copy amount
+                </button>
+              </div>
+
+              {/* QR Code */}
+              <div className="flex justify-center mb-6">
+                <div className="bg-white p-4 rounded-xl">
+                  <QRCodeSVG
+                    value={payment.payAddress}
+                    size={180}
+                    level="M"
+                    includeMargin={false}
+                  />
+                </div>
+              </div>
+
+              {/* Address */}
+              <div className="mb-6">
+                <p className="text-[11px] text-muted-foreground/50 uppercase tracking-widest mb-2 text-center">
+                  To this address
+                </p>
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-white/[0.04] border border-white/[0.08]">
+                  <span className="flex-1 text-[12px] font-mono text-foreground/80 break-all">
+                    {payment.payAddress}
+                  </span>
+                  <button
+                    onClick={handleCopyAddress}
+                    className="shrink-0 p-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] transition-colors cursor-pointer"
+                    title="Copy address"
+                  >
+                    {copied ? (
+                      <Check className="w-4 h-4 text-positive" />
+                    ) : (
+                      <Copy className="w-4 h-4 text-muted-foreground" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Network Warning */}
+              {networkWarning && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-400/[0.06] border border-amber-400/20 mb-6">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-amber-400/80 leading-relaxed">
+                    {networkWarning}
+                  </p>
+                </div>
+              )}
+
+              {/* Status */}
+              <div className="space-y-4">
+                <StatusProgress status={paymentStatus} />
+
+                <div className="flex items-center justify-center gap-2 py-3">
+                  {(() => {
+                    const s = STATUS_LABELS[paymentStatus] || STATUS_LABELS.waiting;
+                    return (
+                      <>
+                        <span className="text-lg">{s.icon}</span>
+                        <span className={cn("text-sm font-bold", s.color)}>
+                          {s.label}
+                        </span>
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {paymentStatus === "waiting" && (
+                  <p className="text-[11px] text-muted-foreground/40 text-center">
+                    Status updates automatically. Do not close this page until payment is detected.
+                  </p>
+                )}
+
+                {(paymentStatus === "confirming" || paymentStatus === "confirmed") && (
+                  <p className="text-[11px] text-muted-foreground/40 text-center">
+                    Payment detected! Waiting for blockchain confirmations. This usually takes 2-5 minutes.
+                  </p>
+                )}
+
+                {(paymentStatus === "failed" || paymentStatus === "expired") && (
+                  <div className="flex flex-col items-center gap-3 pt-2">
+                    <p className="text-[12px] text-muted-foreground/50 text-center">
+                      You can try again or create a new payment request.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setPayment(null);
+                        setPaymentStatus("waiting");
+                        setStep("select");
+                      }}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent/15 border border-accent/25 text-accent text-xs font-bold uppercase tracking-wider hover:bg-accent/25 transition-colors cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Try Again
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Trust indicators */}
+            <div className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground/40">
+              <Shield className="w-3.5 h-3.5" />
+              Secured by NOWPayments — Transactions verified on blockchain
+            </div>
+          </div>
+        )}
+
+        {/* Step: Success */}
+        {step === "success" && payment && (
+          <div className="rounded-2xl border border-positive/20 bg-gradient-to-b from-positive/[0.06] to-transparent p-6 sm:p-8">
+            <div className="flex flex-col items-center text-center gap-5">
+              <div className="w-20 h-20 rounded-full bg-positive/10 border-2 border-positive/30 flex items-center justify-center">
+                <Check className="w-10 h-10 text-positive" />
+              </div>
+
+              <div className="space-y-2">
+                <h2 className="text-2xl font-black tracking-tight text-positive">
+                  Payment Successful!
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Your {days}-day subscription has been activated.
+                </p>
+              </div>
+
+              <div className="w-full max-w-sm space-y-3 py-4 border-y border-white/[0.06]">
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] text-muted-foreground/60">Order</span>
+                  <span className="text-[12px] font-bold font-mono">{payment.orderId}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] text-muted-foreground/60">Days Added</span>
+                  <span className="text-[12px] font-bold">{days} days</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] text-muted-foreground/60">Amount Paid</span>
+                  <span className="text-[12px] font-bold">
+                    {payment.payAmount} {payment.payCurrency.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-400/[0.06] border border-blue-400/20 w-full max-w-sm">
+                <Send className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                <p className="text-[11px] text-blue-400/80 leading-relaxed text-left">
+                  A confirmation has been sent to your Telegram. You&apos;ll also receive renewal reminders before your subscription expires.
+                </p>
+              </div>
+
+              <Link
+                href="/"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-accent text-accent-foreground text-sm font-bold uppercase tracking-wider hover:bg-accent/90 transition-colors shadow-lg shadow-accent/20"
+              >
+                <Sparkles className="w-4 h-4" />
+                Go to Signals
+              </Link>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

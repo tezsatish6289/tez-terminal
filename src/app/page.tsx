@@ -31,6 +31,7 @@ import {
   TrendingUp,
   Shield,
   BookOpen,
+  Lock,
 } from "lucide-react";
 import { RadarIcon } from "@/components/icons/RadarIcon";
 import { useState, useMemo, useCallback, useEffect } from "react";
@@ -45,6 +46,8 @@ import {
 import { getLeverage } from "@/lib/leverage";
 import { getEffectivePnl } from "@/lib/pnl";
 import { AUTO_FILTER_THRESHOLD, isRegimeStale, type ScoredSignal, type MarketRegimeData } from "@/lib/auto-filter";
+import { useSubscription } from "@/hooks/use-subscription";
+import { PRICE_PER_DAY_USD, FREE_TRIAL_DAYS } from "@/lib/subscription";
 
 const TIMEFRAME_OPTIONS = [
   { id: "all", label: "All" },
@@ -524,6 +527,8 @@ export default function Home() {
     connected: boolean;
     enabled: boolean;
   } | null>(null);
+
+  const subscription = useSubscription(user?.uid);
 
   useEffect(() => {
     if (!user) return;
@@ -1044,7 +1049,34 @@ export default function Home() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-3">
-              {isLoading ? (
+              {subscription.isExpired ? (
+                <div className="flex flex-col items-center justify-center h-full min-h-[300px]">
+                  <div className="flex flex-col items-center gap-5 max-w-sm text-center p-6">
+                    <div className="w-16 h-16 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center">
+                      <Lock className="w-7 h-7 text-accent" />
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-black tracking-tight text-foreground">
+                        Unlock AI-Powered Trade Signals
+                      </h3>
+                      <p className="text-[13px] text-muted-foreground/60 leading-relaxed">
+                        Subscribe to get real-time access to Top Picks, Radar signals, and Live Updates. Our AI scans the market 24/7 so you don&apos;t have to.
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-center gap-3 w-full">
+                      <Link
+                        href="/subscribe"
+                        className="w-full py-3 rounded-xl bg-accent text-accent-foreground text-sm font-black uppercase tracking-wider hover:bg-accent/90 transition-colors text-center shadow-lg shadow-accent/20"
+                      >
+                        Subscribe — {PRICE_PER_DAY_USD} USDT/day
+                      </Link>
+                      <p className="text-[11px] text-muted-foreground/40">
+                        Pay with crypto. No credit card needed.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : isLoading ? (
                 <div className="flex items-center justify-center h-32">
                   <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
                 </div>
@@ -1053,25 +1085,21 @@ export default function Home() {
                   {aiTab === "active" ? (
                     <div className="flex flex-col items-center gap-4 max-w-xs text-center">
                       <div className="relative w-20 h-20">
-                        {/* Static radar rings */}
                         <div className="absolute inset-0 rounded-full border border-accent/15" />
                         <div className="absolute inset-[25%] rounded-full border border-accent/10" />
                         <div className="absolute inset-[45%] rounded-full bg-accent/20 border border-accent/25" />
-                        {/* Sweep line with trailing glow */}
                         <div
                           className="absolute inset-0 rounded-full animate-[spin_3s_linear_infinite]"
                           style={{
                             background: "conic-gradient(from 0deg, transparent 0deg, transparent 270deg, hsl(var(--accent) / 0.15) 330deg, hsl(var(--accent) / 0.4) 360deg)",
                           }}
                         />
-                        {/* Sweep line */}
                         <div className="absolute inset-0 animate-[spin_3s_linear_infinite]">
                           <div
                             className="absolute left-1/2 bottom-1/2 w-[1.5px] bg-gradient-to-t from-accent to-transparent"
                             style={{ height: "50%", transformOrigin: "bottom center" }}
                           />
                         </div>
-                        {/* Center dot */}
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className="w-1.5 h-1.5 rounded-full bg-accent shadow-[0_0_6px_hsl(var(--accent))]" />
                         </div>
@@ -1155,7 +1183,27 @@ export default function Home() {
             </div>
 
             <div className="flex-1 overflow-y-auto">
-              {isLoading ? (
+              {subscription.isExpired ? (
+                <div className="flex flex-col items-center justify-center h-full min-h-[200px] p-6">
+                  <div className="flex flex-col items-center gap-3 text-center max-w-[220px]">
+                    <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center">
+                      <Lock className="w-4.5 h-4.5 text-accent" />
+                    </div>
+                    <p className="text-[13px] font-bold text-foreground/70">
+                      Subscribe to view live updates
+                    </p>
+                    <p className="text-[11px] text-muted-foreground/40 leading-relaxed">
+                      Real-time TP/SL events on running trades
+                    </p>
+                    <Link
+                      href="/subscribe"
+                      className="mt-1 px-4 py-2 rounded-lg bg-accent/15 border border-accent/25 text-accent text-xs font-bold uppercase tracking-wider hover:bg-accent/25 transition-colors"
+                    >
+                      Subscribe Now
+                    </Link>
+                  </div>
+                </div>
+              ) : isLoading ? (
                 <div className="flex items-center justify-center h-32">
                   <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
                 </div>

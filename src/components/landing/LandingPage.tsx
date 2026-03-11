@@ -18,6 +18,7 @@ import {
   Crosshair,
   ChevronDown,
   Send,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Chrome } from "lucide-react";
@@ -108,8 +109,12 @@ const FEATURES = [
 
 const FAQS = [
   {
-    q: "Is TezTerminal really free?",
-    a: "Yes — 100% free. Sign in with Google and get instant access. No credit card, no trial period, no hidden fees.",
+    q: "How much does TezTerminal cost?",
+    a: "You get 7 days completely free when you sign up — no credit card needed. After the trial, it's just 3 USDT per day. You can subscribe for as many days as you want (minimum 14 days) and pay with crypto.",
+  },
+  {
+    q: "How do I pay?",
+    a: "We accept crypto payments via NOWPayments. You can pay with USDT (TRC20 or ERC20), Bitcoin, Ethereum, or Litecoin. Just pick your days, choose your currency, and send to the generated address.",
   },
   {
     q: "Which exchanges are supported?",
@@ -117,7 +122,7 @@ const FAQS = [
   },
   {
     q: "How do I get notified about new signals?",
-    a: "Connect your Telegram account in Settings and our bot (@TezTerminalBot) will send you instant alerts when new Top Picks appear and when your trades hit targets.",
+    a: "Connect your Telegram account in Settings and our bot (@TezTerminalBot) will send you instant alerts when new Top Picks appear and when your trades hit targets. All communications are delivered via Telegram.",
   },
   {
     q: "What makes your signals different from others?",
@@ -231,8 +236,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
             </h1>
 
             <p className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
-              We scan the entire crypto market 24/7, filter the noise, and deliver 
-              high-probability trade setups — so you can focus on stacking gains.
+              Get <span className="text-accent font-bold">7 days free</span> on your sign up, 3 USDT per day thereafter, no credit card required.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
@@ -246,14 +250,14 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
                 ) : (
                   <>
                     <Chrome className="h-5 w-5" />
-                    Sign in with Google — It's Free
+                    Start Your Free Trial
                   </>
                 )}
               </Button>
             </div>
 
             <p className="text-[11px] text-muted-foreground/50">
-              No credit card required. Instant access after sign-in.
+              No credit card required. Pay with crypto when you&apos;re ready.
             </p>
           </div>
 
@@ -269,6 +273,44 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
                 <p className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">{s.label}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Callout */}
+      <section className="py-12 sm:py-16 border-t border-white/5 bg-gradient-to-b from-accent/[0.04] to-transparent">
+        <div className="max-w-3xl mx-auto px-4">
+          <div className="rounded-2xl border border-accent/20 bg-accent/[0.06] p-6 sm:p-8 text-center">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-positive/20 bg-positive/10 text-xs font-bold text-positive uppercase tracking-widest mb-4">
+              <Zap className="h-3 w-3" />
+              Limited Time
+            </div>
+            <h3 className="text-2xl sm:text-3xl font-black tracking-tighter mb-3">
+              Start with <span className="text-positive">7 Days Free</span>
+            </h3>
+            <p className="text-sm sm:text-base text-muted-foreground max-w-lg mx-auto mb-6">
+              Full access to AI-powered trade signals, live updates, and Telegram alerts — completely free for 7 days. Then just <span className="text-accent font-bold">3 USDT per day</span>, paid with crypto.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-positive/20 flex items-center justify-center">
+                  <Check className="w-3 h-3 text-positive" />
+                </div>
+                <span className="text-muted-foreground">No credit card required</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-positive/20 flex items-center justify-center">
+                  <Check className="w-3 h-3 text-positive" />
+                </div>
+                <span className="text-muted-foreground">Pay with USDT, BTC, ETH</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-positive/20 flex items-center justify-center">
+                  <Check className="w-3 h-3 text-positive" />
+                </div>
+                <span className="text-muted-foreground">Cancel anytime</span>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -479,7 +521,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
             </span>
           </h2>
           <p className="text-sm sm:text-base text-muted-foreground max-w-md mx-auto">
-            Join traders who use TezTerminal to find high-probability crypto setups across every timeframe.
+            7 days free, then just 3 USDT/day. Join traders who use TezTerminal to find high-probability crypto setups across every timeframe.
           </p>
           <Button
             onClick={onLogin}
@@ -491,12 +533,12 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
             ) : (
               <>
                 <Chrome className="h-5 w-5" />
-                Sign in with Google — It's Free
+                Start Your Free Trial
               </>
             )}
           </Button>
           <p className="text-[11px] text-muted-foreground/50">
-            No credit card. No setup. Instant access.
+            No credit card. Pay with crypto when you&apos;re ready.
           </p>
         </div>
       </section>

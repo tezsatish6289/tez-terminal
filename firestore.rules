@@ -75,5 +75,17 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow write: if false;
     }
+
+    // Subscriptions: user can read their own, server handles writes.
+    match /subscriptions/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    // Payments: user can read their own payments, server handles writes.
+    match /payments/{paymentId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
   }
 }

@@ -18,7 +18,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   Shield,
-  ChevronRight,
   Sparkles,
   RefreshCw,
 } from "lucide-react";
@@ -27,7 +26,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
-type Step = "telegram" | "select" | "paying" | "success";
+type Step = "select" | "paying" | "success";
 
 interface PaymentInfo {
   paymentId: number;
@@ -103,12 +102,6 @@ export default function SubscribePage() {
     photo: user?.photoURL,
   });
 
-  const [telegramStatus, setTelegramStatus] = useState<{
-    connected: boolean;
-    enabled: boolean;
-  } | null>(null);
-  const [isTelegramLoading, setIsTelegramLoading] = useState(true);
-
   const [step, setStep] = useState<Step>("select");
   const [plans, setPlans] = useState<Plan[]>(DEFAULT_PLANS);
   const [selectedDays, setSelectedDays] = useState<number>(90);
@@ -127,19 +120,6 @@ export default function SubscribePage() {
       })
       .catch(() => {});
   }, []);
-
-  useEffect(() => {
-    if (!user) return;
-    setIsTelegramLoading(true);
-    fetch(`/api/telegram/status?uid=${user.uid}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setTelegramStatus({ connected: data.connected, enabled: data.enabled });
-        if (!data.connected) setStep("telegram");
-      })
-      .catch(() => {})
-      .finally(() => setIsTelegramLoading(false));
-  }, [user]);
 
   const handleCreatePayment = useCallback(async () => {
     if (!user) return;
@@ -265,37 +245,7 @@ export default function SubscribePage() {
           </p>
         </div>
 
-        {/* Step: Connect Telegram */}
-        {step === "telegram" && (
-          <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-b from-[#141416] to-[#0f0f11] p-6 sm:p-8">
-            <div className="flex flex-col items-center text-center gap-5">
-              <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-                <Send className="w-7 h-7 text-blue-400" />
-              </div>
-              <div className="space-y-2">
-                <h2 className="text-lg font-black tracking-tight">
-                  Connect Telegram First
-                </h2>
-                <p className="text-[13px] text-muted-foreground/60 leading-relaxed max-w-sm">
-                  We send all payment confirmations, subscription updates, and renewal reminders via Telegram. Please connect your account to continue.
-                </p>
-              </div>
-              <Link
-                href="/settings"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-accent text-accent-foreground text-sm font-bold uppercase tracking-wider hover:bg-accent/90 transition-colors shadow-lg shadow-accent/20"
-              >
-                <Send className="w-4 h-4" />
-                Go to Settings
-                <ChevronRight className="w-4 h-4" />
-              </Link>
-              <p className="text-[11px] text-muted-foreground/40">
-                Connect Telegram in Settings, then come back here to subscribe.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Step: Select Plan + Currency */}
+        {/* Step: Select Plan */}
         {step === "select" && (
           <div className="space-y-6">
             {/* Plan cards */}
@@ -356,7 +306,7 @@ export default function SubscribePage() {
             {/* Pay button */}
             <button
               onClick={handleCreatePayment}
-              disabled={isCreating || isTelegramLoading}
+              disabled={isCreating}
               className="w-full py-4 rounded-xl bg-accent text-accent-foreground text-sm font-black uppercase tracking-wider hover:bg-accent/90 transition-colors shadow-lg shadow-accent/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {isCreating ? (

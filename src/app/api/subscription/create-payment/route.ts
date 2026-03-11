@@ -56,15 +56,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userSnap = await db.collection("users").doc(uid).get();
-    const userData = userSnap.exists ? userSnap.data() : null;
-    if (!userData?.telegramChatId) {
-      return NextResponse.json(
-        { error: "Please connect your Telegram account before subscribing" },
-        { status: 400 }
-      );
-    }
-
     const priceAmount = calculatePrice(days, plans);
     const orderId = generateOrderId(uid);
 

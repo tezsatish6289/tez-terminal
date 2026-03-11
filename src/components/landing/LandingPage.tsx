@@ -236,7 +236,8 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
             </h1>
 
             <p className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
-              Get <span className="text-accent font-bold">7 days free</span> on your sign up, 3 USDT per day thereafter, no credit card required.
+              We scan the entire crypto market 24/7, filter the noise, and deliver
+              high-probability trade setups — so you can focus on stacking gains.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
@@ -256,8 +257,8 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
               </Button>
             </div>
 
-            <p className="text-[11px] text-muted-foreground/50">
-              No credit card required. Pay with crypto when you&apos;re ready.
+            <p className="text-[13px] text-muted-foreground/60">
+              Get <span className="text-accent font-bold">7 days free</span> on your sign up, 3 USDT per day thereafter, no credit card required.
             </p>
           </div>
 

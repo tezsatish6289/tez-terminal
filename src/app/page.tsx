@@ -528,7 +528,11 @@ export default function Home() {
     enabled: boolean;
   } | null>(null);
 
-  const subscription = useSubscription(user?.uid);
+  const subscription = useSubscription(user?.uid, {
+    name: user?.displayName,
+    email: user?.email,
+    photo: user?.photoURL,
+  });
 
   useEffect(() => {
     if (!user) return;

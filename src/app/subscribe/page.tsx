@@ -96,7 +96,11 @@ const PAY_CURRENCY = "usdttrc20";
 
 export default function SubscribePage() {
   const { user, isUserLoading } = useUser();
-  const subscription = useSubscription(user?.uid);
+  const subscription = useSubscription(user?.uid, {
+    name: user?.displayName,
+    email: user?.email,
+    photo: user?.photoURL,
+  });
 
   const [telegramStatus, setTelegramStatus] = useState<{
     connected: boolean;

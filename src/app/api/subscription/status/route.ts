@@ -17,7 +17,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Missing uid" }, { status: 400 });
     }
 
+    const name = searchParams.get("name");
+    const email = searchParams.get("email");
+    const photo = searchParams.get("photo");
+
     const db = getAdminFirestore();
+
+    if (name || email) {
+      const profileData: Record<string, string> = {};
+      if (name) profileData.displayName = name;
+      if (email) profileData.email = email;
+      if (photo) profileData.photoURL = photo;
+      profileData.lastSeenAt = new Date().toISOString();
+      await db.collection("users").doc(uid).set(profileData, { merge: true });
+    }
+
     const subRef = db.collection("subscriptions").doc(uid);
     let subSnap = await subRef.get();
 

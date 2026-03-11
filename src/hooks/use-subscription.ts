@@ -14,7 +14,10 @@ export interface SubscriptionState {
   refresh: () => void;
 }
 
-export function useSubscription(uid: string | null | undefined): SubscriptionState {
+export function useSubscription(
+  uid: string | null | undefined,
+  profile?: { name?: string | null; email?: string | null; photo?: string | null }
+): SubscriptionState {
   const [state, setState] = useState<Omit<SubscriptionState, "refresh" | "isLoading"> & { isLoading: boolean }>({
     status: "loading",
     isTrial: false,
@@ -42,7 +45,11 @@ export function useSubscription(uid: string | null | undefined): SubscriptionSta
     }
 
     try {
-      const res = await fetch(`/api/subscription/status?uid=${uid}`);
+      const params = new URLSearchParams({ uid });
+      if (profile?.name) params.set("name", profile.name);
+      if (profile?.email) params.set("email", profile.email);
+      if (profile?.photo) params.set("photo", profile.photo);
+      const res = await fetch(`/api/subscription/status?${params}`);
       if (!res.ok) throw new Error("Failed to fetch subscription status");
       const data = await res.json();
 
@@ -59,7 +66,7 @@ export function useSubscription(uid: string | null | undefined): SubscriptionSta
     } catch {
       setState((prev) => ({ ...prev, isLoading: false }));
     }
-  }, [uid]);
+  }, [uid, profile?.name, profile?.email, profile?.photo]);
 
   useEffect(() => {
     fetchStatus();

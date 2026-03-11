@@ -837,37 +837,36 @@ export default function Home() {
           <div className="flex-[5] flex flex-col min-w-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 overflow-hidden">
             {/* Hero Header */}
             <div className="px-5 pt-5 pb-3 border-b border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent">
-              <div className="flex items-center gap-2 mb-1">
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400/70">AI-Powered</span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <h1 className="text-lg lg:text-xl font-black tracking-tight text-foreground leading-tight">
-                  AI-Powered Trade Signals
-                </h1>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400/70">AI-Powered</span>
+                </div>
                 {!subscription.isLoading && subscription.isActive && (
                   <Link
-                    href={subscription.isTrial ? "/subscribe" : "/subscribe"}
+                    href="/subscribe"
                     className={cn(
-                      "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border shrink-0 transition-colors",
+                      "text-[10px] font-bold tracking-wide shrink-0 transition-colors hover:underline",
                       subscription.isTrial
-                        ? "bg-amber-400/10 border-amber-400/20 text-amber-400 hover:bg-amber-400/20"
-                        : "bg-positive/10 border-positive/20 text-positive hover:bg-positive/20"
+                        ? "text-amber-400/70"
+                        : "text-positive/70"
                     )}
                   >
-                    <Clock className="w-3 h-3" />
-                    {subscription.isTrial ? "Trial" : "Active"} · {subscription.daysRemaining}d left
+                    {subscription.isTrial ? "Free Trial" : "Active"} · {subscription.daysRemaining} day{subscription.daysRemaining !== 1 ? "s" : ""} left
                   </Link>
                 )}
                 {!subscription.isLoading && subscription.isExpired && (
                   <Link
                     href="/subscribe"
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border bg-negative/10 border-negative/20 text-negative hover:bg-negative/20 shrink-0 transition-colors"
+                    className="text-[10px] font-bold tracking-wide text-negative/70 shrink-0 transition-colors hover:underline"
                   >
                     Expired · Subscribe
                   </Link>
                 )}
               </div>
+              <h1 className="text-lg lg:text-xl font-black tracking-tight text-foreground leading-tight">
+                AI-Powered Trade Signals
+              </h1>
               <div className="flex items-center justify-between mt-3 lg:mt-4 gap-2">
                 <div className="flex items-center gap-1 shrink-0">
                   <button

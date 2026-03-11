@@ -1,14 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import {
-  PLANS,
+  DEFAULT_PLANS,
   calculatePrice,
   generateOrderId,
+  type Plan,
   type PaymentDoc,
 } from "@/lib/subscription";
 import { createPayment } from "@/lib/nowpayments";
 
 export const dynamic = "force-dynamic";
+
+async function getPlans(db: FirebaseFirestore.Firestore): Promise<Plan[]> {
+  try {
+    const doc = await db.collection("config").doc("plans").get();
+    if (doc.exists) {
+      const data = doc.data();
+      if (data?.plans?.length) return data.plans as Plan[];
+    }
+  } catch {}
+  return DEFAULT_PLANS;
+}
 
 /**
  * POST /api/subscription/create-payment
@@ -26,14 +38,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const validPlan = PLANS.find((p) => p.days === days);
-    if (!validPlan) {
-      return NextResponse.json(
-        { error: `Invalid plan: ${days} days` },
-        { status: 400 }
-      );
-    }
-
     if (typeof payCurrency !== "string" || payCurrency.length < 2) {
       return NextResponse.json(
         { error: `Invalid currency: ${payCurrency}` },
@@ -42,6 +46,15 @@ export async function POST(request: NextRequest) {
     }
 
     const db = getAdminFirestore();
+    const plans = await getPlans(db);
+
+    const validPlan = plans.find((p) => p.days === days);
+    if (!validPlan) {
+      return NextResponse.json(
+        { error: `Invalid plan: ${days} days` },
+        { status: 400 }
+      );
+    }
 
     const userSnap = await db.collection("users").doc(uid).get();
     const userData = userSnap.exists ? userSnap.data() : null;
@@ -52,7 +65,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const priceAmount = calculatePrice(days);
+    const priceAmount = calculatePrice(days, plans);
     const orderId = generateOrderId(uid);
 
     const host = request.headers.get("host") || "tezterminal.com";

@@ -5,9 +5,10 @@ import { useUser } from "@/firebase";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { useSubscription } from "@/hooks/use-subscription";
 import {
-  PLANS,
+  DEFAULT_PLANS,
   calculatePrice,
   getNetworkWarning,
+  type Plan,
 } from "@/lib/subscription";
 import {
   Loader2,
@@ -109,6 +110,7 @@ export default function SubscribePage() {
   const [isTelegramLoading, setIsTelegramLoading] = useState(true);
 
   const [step, setStep] = useState<Step>("select");
+  const [plans, setPlans] = useState<Plan[]>(DEFAULT_PLANS);
   const [selectedDays, setSelectedDays] = useState<number>(90);
   const [isCreating, setIsCreating] = useState(false);
   const [payment, setPayment] = useState<PaymentInfo | null>(null);
@@ -116,6 +118,15 @@ export default function SubscribePage() {
   const [copied, setCopied] = useState(false);
 
   const pollRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    fetch("/api/subscription/plans")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.plans?.length) setPlans(data.plans);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -229,8 +240,7 @@ export default function SubscribePage() {
     );
   }
 
-  const totalPrice = calculatePrice(selectedDays);
-  const selectedPlan = PLANS.find((p) => p.days === selectedDays)!;
+  const totalPrice = calculatePrice(selectedDays, plans);
   const networkWarning = getNetworkWarning(PAY_CURRENCY);
 
   return (
@@ -290,7 +300,7 @@ export default function SubscribePage() {
           <div className="space-y-6">
             {/* Plan cards */}
             <div className="space-y-2">
-              {PLANS.map((plan) => {
+              {plans.map((plan) => {
                 const isSelected = selectedDays === plan.days;
                 const perDay = (plan.price / plan.days).toFixed(2);
 

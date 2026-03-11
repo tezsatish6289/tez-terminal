@@ -47,7 +47,7 @@ import { getLeverage } from "@/lib/leverage";
 import { getEffectivePnl } from "@/lib/pnl";
 import { AUTO_FILTER_THRESHOLD, isRegimeStale, type ScoredSignal, type MarketRegimeData } from "@/lib/auto-filter";
 import { useSubscription } from "@/hooks/use-subscription";
-import { PLANS, FREE_TRIAL_DAYS } from "@/lib/subscription";
+import { DEFAULT_PLANS, FREE_TRIAL_DAYS } from "@/lib/subscription";
 
 const TIMEFRAME_OPTIONS = [
   { id: "all", label: "All" },
@@ -1095,7 +1095,7 @@ export default function Home() {
                         href="/subscribe"
                         className="w-full py-3 rounded-xl bg-accent text-accent-foreground text-sm font-black uppercase tracking-wider hover:bg-accent/90 transition-colors text-center shadow-lg shadow-accent/20"
                       >
-                        Subscribe — from ${PLANS[0].price}/{PLANS[0].days} days
+                        Subscribe — from ${DEFAULT_PLANS[0].price}/{DEFAULT_PLANS[0].days} days
                       </Link>
                       <p className="text-[11px] text-muted-foreground/40">
                         Pay with crypto. No credit card needed.

@@ -11,11 +11,14 @@ export interface Plan {
   badge?: string;
 }
 
-export const PLANS: Plan[] = [
-  { days: 30,  price: 1,  label: "30 days" },
-  { days: 90,  price: 2, label: "90 days",  badge: "Most Popular" },
-  { days: 365, price: 3, label: "365 days", badge: "Best Value" },
+export const DEFAULT_PLANS: Plan[] = [
+  { days: 30,  price: 15,  label: "30 days" },
+  { days: 90,  price: 20, label: "90 days",  badge: "Most Popular" },
+  { days: 365, price: 25, label: "365 days", badge: "Best Value" },
 ];
+
+/** @deprecated Use fetchPlans() for server-side or /api/subscription/plans for client-side */
+export const PLANS = DEFAULT_PLANS;
 
 /** @deprecated Kept for backward compat in gating overlay */
 export const PRICE_PER_DAY_USD = 3;
@@ -56,8 +59,8 @@ export interface PaymentDoc {
   updatedAt: string;
 }
 
-export function calculatePrice(days: number): number {
-  const plan = PLANS.find((p) => p.days === days);
+export function calculatePrice(days: number, plans: Plan[] = DEFAULT_PLANS): number {
+  const plan = plans.find((p) => p.days === days);
   if (plan) return plan.price;
   return days * 3;
 }

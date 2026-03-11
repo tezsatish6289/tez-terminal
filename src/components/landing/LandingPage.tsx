@@ -109,7 +109,7 @@ const FEATURES = [
 const FAQS = [
   {
     q: "How much does TezTerminal cost?",
-    a: "You get 7 days completely free when you sign up — no credit card needed. After the trial, it's just 3 USDT per day. You can subscribe for as many days as you want (minimum 14 days) and pay with crypto.",
+    a: "You get 7 days completely free when you sign up — no credit card needed. After the trial, plans start from just $59 for 30 days. Pay with crypto.",
   },
   {
     q: "How do I pay?",
@@ -499,7 +499,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
             )}
           </Button>
           <p className="text-[13px] text-muted-foreground/60">
-            Get <span className="text-accent font-bold">7 days free</span> on your sign up, 3 USDT per day thereafter, no credit card required.
+            Get <span className="text-accent font-bold">7 days free</span> on your sign up, 0.82 USDT per day thereafter, no credit card required.
           </p>
         </div>
       </section>

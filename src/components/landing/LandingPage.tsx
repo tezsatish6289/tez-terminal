@@ -18,7 +18,6 @@ import {
   Crosshair,
   ChevronDown,
   Send,
-  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Chrome } from "lucide-react";
@@ -273,44 +272,6 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
                 <p className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">{s.label}</p>
               </div>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing Callout */}
-      <section className="py-12 sm:py-16 border-t border-white/5 bg-gradient-to-b from-accent/[0.04] to-transparent">
-        <div className="max-w-3xl mx-auto px-4">
-          <div className="rounded-2xl border border-accent/20 bg-accent/[0.06] p-6 sm:p-8 text-center">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-positive/20 bg-positive/10 text-xs font-bold text-positive uppercase tracking-widest mb-4">
-              <Zap className="h-3 w-3" />
-              Limited Time
-            </div>
-            <h3 className="text-2xl sm:text-3xl font-black tracking-tighter mb-3">
-              Start with <span className="text-positive">7 Days Free</span>
-            </h3>
-            <p className="text-sm sm:text-base text-muted-foreground max-w-lg mx-auto mb-6">
-              Full access to AI-powered trade signals, live updates, and Telegram alerts — completely free for 7 days. Then just <span className="text-accent font-bold">3 USDT per day</span>, paid with crypto.
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 rounded-full bg-positive/20 flex items-center justify-center">
-                  <Check className="w-3 h-3 text-positive" />
-                </div>
-                <span className="text-muted-foreground">No credit card required</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 rounded-full bg-positive/20 flex items-center justify-center">
-                  <Check className="w-3 h-3 text-positive" />
-                </div>
-                <span className="text-muted-foreground">Pay with USDT, BTC, ETH</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 rounded-full bg-positive/20 flex items-center justify-center">
-                  <Check className="w-3 h-3 text-positive" />
-                </div>
-                <span className="text-muted-foreground">Cancel anytime</span>
-              </div>
-            </div>
           </div>
         </div>
       </section>

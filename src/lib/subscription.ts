@@ -2,19 +2,40 @@
  * Subscription system constants, types, and helpers.
  */
 
-export const PRICE_PER_DAY_USD = 3;
+export const BASE_PRICE_PER_DAY_USD = 3;
 export const MIN_SUBSCRIPTION_DAYS = 14;
 export const FREE_TRIAL_DAYS = 7;
 
-export const SUPPORTED_CURRENCIES = [
-  { id: "usdttrc20", label: "USDT (TRC20)", network: "TRC20", icon: "💲" },
-  { id: "usdterc20", label: "USDT (ERC20)", network: "ERC20", icon: "💲" },
-  { id: "btc", label: "Bitcoin", network: "Bitcoin", icon: "₿" },
-  { id: "eth", label: "Ethereum", network: "ERC20", icon: "Ξ" },
-  { id: "ltc", label: "Litecoin", network: "Litecoin", icon: "Ł" },
-] as const;
+/** @deprecated Use getEffectiveRate() instead */
+export const PRICE_PER_DAY_USD = BASE_PRICE_PER_DAY_USD;
 
-export type SupportedCurrencyId = (typeof SUPPORTED_CURRENCIES)[number]["id"];
+export interface DiscountTier {
+  minDays: number;
+  label: string;
+  pricePerDay: number;
+  discountPercent: number;
+}
+
+export const DISCOUNT_TIERS: DiscountTier[] = [
+  { minDays: 365, label: "365 days", pricePerDay: 1.80, discountPercent: 40 },
+  { minDays: 180, label: "180 days", pricePerDay: 2.10, discountPercent: 30 },
+  { minDays: 90,  label: "90 days",  pricePerDay: 2.40, discountPercent: 20 },
+  { minDays: 30,  label: "30 days",  pricePerDay: 2.70, discountPercent: 10 },
+  { minDays: 14,  label: "14 days",  pricePerDay: 3.00, discountPercent: 0 },
+];
+
+export const PLAN_PRESETS = [14, 30, 90, 180, 365] as const;
+
+export function getEffectiveRate(days: number): DiscountTier {
+  for (const tier of DISCOUNT_TIERS) {
+    if (days >= tier.minDays) return tier;
+  }
+  return DISCOUNT_TIERS[DISCOUNT_TIERS.length - 1];
+}
+
+export const POPULAR_CURRENCIES = [
+  "usdttrc20", "btc", "eth", "usdterc20", "ltc", "sol",
+];
 
 export type SubscriptionStatus = "trial" | "active" | "expired";
 
@@ -53,7 +74,8 @@ export interface PaymentDoc {
 }
 
 export function calculatePrice(days: number): number {
-  return days * PRICE_PER_DAY_USD;
+  const tier = getEffectiveRate(days);
+  return Math.round(days * tier.pricePerDay * 100) / 100;
 }
 
 export function isSubscriptionActive(sub: SubscriptionDoc | null): boolean {
@@ -102,24 +124,21 @@ export function generateOrderId(uid: string): string {
   return `TEZ-${short}-${ts}`;
 }
 
-export function getNetworkWarning(currencyId: string): string | null {
-  const currency = SUPPORTED_CURRENCIES.find((c) => c.id === currencyId);
-  if (!currency) return null;
+const NETWORK_WARNINGS: Record<string, string> = {
+  usdttrc20: "Send only USDT on the TRC20 (Tron) network. Sending on other networks will result in permanent loss.",
+  usdterc20: "Send only USDT on the ERC20 (Ethereum) network. Sending on other networks will result in permanent loss.",
+  usdtbsc: "Send only USDT on the BSC (BNB Smart Chain) network. Sending on other networks will result in permanent loss.",
+  btc: "Send only BTC on the Bitcoin network.",
+  eth: "Send only ETH on the Ethereum network.",
+  ltc: "Send only LTC on the Litecoin network.",
+  sol: "Send only SOL on the Solana network.",
+  trx: "Send only TRX on the Tron network.",
+  xrp: "Send only XRP on the XRP Ledger. Ensure you include the correct destination tag.",
+  bnbbsc: "Send only BNB on the BSC (BNB Smart Chain) network.",
+  doge: "Send only DOGE on the Dogecoin network.",
+  matic: "Send only MATIC on the Polygon network.",
+};
 
-  if (currencyId === "usdttrc20") {
-    return "Send only USDT on the TRC20 (Tron) network. Sending on other networks will result in permanent loss.";
-  }
-  if (currencyId === "usdterc20") {
-    return "Send only USDT on the ERC20 (Ethereum) network. Sending on other networks will result in permanent loss.";
-  }
-  if (currencyId === "btc") {
-    return "Send only BTC on the Bitcoin network.";
-  }
-  if (currencyId === "eth") {
-    return "Send only ETH on the Ethereum network.";
-  }
-  if (currencyId === "ltc") {
-    return "Send only LTC on the Litecoin network.";
-  }
-  return null;
+export function getNetworkWarning(currencyId: string): string | null {
+  return NETWORK_WARNINGS[currencyId] ?? null;
 }

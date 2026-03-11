@@ -1,16 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useUser } from "@/firebase";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { useSubscription } from "@/hooks/use-subscription";
 import {
-  PRICE_PER_DAY_USD,
-  MIN_SUBSCRIPTION_DAYS,
-  SUPPORTED_CURRENCIES,
+  PLAN_PRESETS,
+  POPULAR_CURRENCIES,
   calculatePrice,
+  getEffectiveRate,
   getNetworkWarning,
-  type SupportedCurrencyId,
 } from "@/lib/subscription";
 import {
   Loader2,
@@ -19,11 +18,13 @@ import {
   Copy,
   AlertTriangle,
   ArrowLeft,
-  Clock,
   Shield,
   ChevronRight,
   Sparkles,
   RefreshCw,
+  Search,
+  ChevronDown,
+  Star,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import Link from "next/link";
@@ -67,7 +68,7 @@ function StatusProgress({ status }: { status: string }) {
 
   return (
     <div className="flex items-center gap-1 w-full">
-      {steps.map((step, i) => {
+      {steps.map((step) => {
         const stepIdx = STATUS_ORDER.indexOf(step.key);
         const isComplete = currentIdx >= stepIdx && currentIdx >= 0;
         const isCurrent = status === step.key || (step.key === "finished" && (status === "sending" || status === "finished"));
@@ -96,6 +97,142 @@ function StatusProgress({ status }: { status: string }) {
   );
 }
 
+function CurrencyDropdown({
+  currencies,
+  selected,
+  onSelect,
+  isLoading,
+}: {
+  currencies: string[];
+  selected: string;
+  onSelect: (c: string) => void;
+  isLoading: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (open && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [open]);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    if (!q) {
+      const popular = POPULAR_CURRENCIES.filter((c) => currencies.includes(c));
+      const rest = currencies.filter((c) => !POPULAR_CURRENCIES.includes(c)).sort();
+      return { popular, rest };
+    }
+    const matched = currencies.filter((c) => c.toLowerCase().includes(q));
+    return { popular: [], rest: matched };
+  }, [currencies, search]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "w-full flex items-center justify-between gap-2 px-4 py-3 rounded-xl border transition-all cursor-pointer",
+          "bg-white/[0.03] hover:bg-white/[0.06]",
+          open ? "border-accent/40 ring-1 ring-accent/20" : "border-white/[0.08]"
+        )}
+      >
+        <span className="text-sm font-bold uppercase tracking-wide">
+          {isLoading ? "Loading..." : selected || "Select currency"}
+        </span>
+        <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-2 w-full rounded-xl border border-white/[0.08] bg-[#141416] shadow-2xl shadow-black/50 overflow-hidden">
+          <div className="p-2 border-b border-white/[0.06]">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04]">
+              <Search className="w-4 h-4 text-muted-foreground/50 shrink-0" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search currencies..."
+                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="max-h-64 overflow-y-auto overscroll-contain">
+            {filtered.popular.length > 0 && (
+              <>
+                <div className="px-3 pt-2 pb-1">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">Popular</span>
+                </div>
+                {filtered.popular.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => { onSelect(c); setOpen(false); setSearch(""); }}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer",
+                      selected === c ? "bg-accent/10 text-accent" : "hover:bg-white/[0.06] text-foreground"
+                    )}
+                  >
+                    <Star className="w-3 h-3 text-amber-400/60 shrink-0" />
+                    <span className="text-sm font-bold uppercase">{c}</span>
+                    {selected === c && <Check className="w-3.5 h-3.5 text-accent ml-auto" />}
+                  </button>
+                ))}
+              </>
+            )}
+
+            {filtered.rest.length > 0 && (
+              <>
+                {filtered.popular.length > 0 && (
+                  <div className="px-3 pt-3 pb-1 border-t border-white/[0.04]">
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">All Currencies</span>
+                  </div>
+                )}
+                {filtered.rest.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => { onSelect(c); setOpen(false); setSearch(""); }}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer",
+                      selected === c ? "bg-accent/10 text-accent" : "hover:bg-white/[0.06] text-foreground"
+                    )}
+                  >
+                    <span className="text-sm font-bold uppercase">{c}</span>
+                    {selected === c && <Check className="w-3.5 h-3.5 text-accent ml-auto" />}
+                  </button>
+                ))}
+              </>
+            )}
+
+            {filtered.popular.length === 0 && filtered.rest.length === 0 && (
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground/40">
+                No currencies found
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SubscribePage() {
   const { user, isUserLoading } = useUser();
   const subscription = useSubscription(user?.uid);
@@ -107,8 +244,10 @@ export default function SubscribePage() {
   const [isTelegramLoading, setIsTelegramLoading] = useState(true);
 
   const [step, setStep] = useState<Step>("select");
-  const [days, setDays] = useState(MIN_SUBSCRIPTION_DAYS);
-  const [selectedCurrency, setSelectedCurrency] = useState<SupportedCurrencyId>("usdttrc20");
+  const [selectedPreset, setSelectedPreset] = useState<number>(14);
+  const [selectedCurrency, setSelectedCurrency] = useState("usdttrc20");
+  const [currencies, setCurrencies] = useState<string[]>([]);
+  const [isCurrenciesLoading, setIsCurrenciesLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [payment, setPayment] = useState<PaymentInfo | null>(null);
   const [paymentStatus, setPaymentStatus] = useState("waiting");
@@ -123,13 +262,22 @@ export default function SubscribePage() {
       .then((r) => r.json())
       .then((data) => {
         setTelegramStatus({ connected: data.connected, enabled: data.enabled });
-        if (!data.connected) {
-          setStep("telegram");
-        }
+        if (!data.connected) setStep("telegram");
       })
       .catch(() => {})
       .finally(() => setIsTelegramLoading(false));
   }, [user]);
+
+  useEffect(() => {
+    setIsCurrenciesLoading(true);
+    fetch("/api/subscription/currencies")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.currencies?.length) setCurrencies(data.currencies);
+      })
+      .catch(() => {})
+      .finally(() => setIsCurrenciesLoading(false));
+  }, []);
 
   const handleCreatePayment = useCallback(async () => {
     if (!user) return;
@@ -141,16 +289,13 @@ export default function SubscribePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           uid: user.uid,
-          days,
+          days: selectedPreset,
           payCurrency: selectedCurrency,
         }),
       });
 
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to create payment");
-      }
+      if (!res.ok) throw new Error(data.error || "Failed to create payment");
 
       setPayment({
         paymentId: data.paymentId,
@@ -172,16 +317,14 @@ export default function SubscribePage() {
     } finally {
       setIsCreating(false);
     }
-  }, [user, days, selectedCurrency]);
+  }, [user, selectedPreset, selectedCurrency]);
 
   useEffect(() => {
     if (step !== "paying" || !payment) return;
 
     const poll = async () => {
       try {
-        const res = await fetch(
-          `/api/subscription/payment-status/${payment.paymentId}`
-        );
+        const res = await fetch(`/api/subscription/payment-status/${payment.paymentId}`);
         const data = await res.json();
         setPaymentStatus(data.status);
 
@@ -197,10 +340,7 @@ export default function SubscribePage() {
 
     poll();
     pollRef.current = setInterval(poll, 5000);
-
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [step, payment]);
 
   const handleCopyAddress = useCallback(() => {
@@ -238,16 +378,15 @@ export default function SubscribePage() {
     );
   }
 
-  const totalPrice = calculatePrice(days);
+  const totalPrice = calculatePrice(selectedPreset);
+  const rate = getEffectiveRate(selectedPreset);
   const networkWarning = getNetworkWarning(selectedCurrency);
-  const currencyInfo = SUPPORTED_CURRENCIES.find((c) => c.id === selectedCurrency);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <TopBar />
 
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        {/* Back link */}
+      <div className="max-w-xl mx-auto px-4 py-8">
         <Link
           href="/"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
@@ -256,7 +395,7 @@ export default function SubscribePage() {
           Back to Terminal
         </Link>
 
-        <div className="space-y-2 mb-8">
+        <div className="space-y-1 mb-8">
           <h1 className="text-2xl font-black tracking-tight">
             Subscribe to TezTerminal
           </h1>
@@ -295,7 +434,7 @@ export default function SubscribePage() {
           </div>
         )}
 
-        {/* Step: Select Days + Currency */}
+        {/* Step: Select Plan + Currency */}
         {step === "select" && (
           <div className="space-y-6">
             {/* Subscription status banner */}
@@ -314,97 +453,99 @@ export default function SubscribePage() {
               </div>
             )}
 
-            {/* Days selector */}
-            <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-b from-[#141416] to-[#0f0f11] p-6">
+            {/* Plan cards */}
+            <div>
               <h2 className="text-sm font-black uppercase tracking-wider mb-4">
                 Choose Your Plan
               </h2>
 
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Subscription Days</span>
-                  <span className="text-lg font-black text-accent tabular-nums">{days} days</span>
-                </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {PLAN_PRESETS.map((preset) => {
+                  const tier = getEffectiveRate(preset);
+                  const price = calculatePrice(preset);
+                  const isSelected = selectedPreset === preset;
+                  const isBestValue = preset === 365;
 
-                <input
-                  type="range"
-                  min={MIN_SUBSCRIPTION_DAYS}
-                  max={365}
-                  step={1}
-                  value={days}
-                  onChange={(e) => setDays(Number(e.target.value))}
-                  className="w-full accent-accent h-2 rounded-full appearance-none bg-white/10 cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:shadow-lg"
-                />
-
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground/40">
-                  <span>{MIN_SUBSCRIPTION_DAYS} days (min)</span>
-                  <span>365 days</span>
-                </div>
-
-                {/* Quick select buttons */}
-                <div className="flex flex-wrap gap-2">
-                  {[14, 30, 60, 90, 180, 365].map((d) => (
+                  return (
                     <button
-                      key={d}
-                      onClick={() => setDays(d)}
+                      key={preset}
+                      type="button"
+                      onClick={() => setSelectedPreset(preset)}
                       className={cn(
-                        "px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider border transition-all cursor-pointer",
-                        days === d
-                          ? "bg-accent/20 border-accent/40 text-accent"
-                          : "bg-white/[0.04] border-white/10 text-muted-foreground hover:bg-white/[0.08]"
+                        "relative flex flex-col items-center gap-1 p-4 rounded-xl border transition-all cursor-pointer text-center",
+                        isSelected
+                          ? "border-accent/50 bg-accent/[0.08] ring-1 ring-accent/20"
+                          : "border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.15]",
+                        isBestValue && !isSelected && "border-amber-500/20"
                       )}
                     >
-                      {d}d
-                    </button>
-                  ))}
-                </div>
+                      {isBestValue && (
+                        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-amber-500/90 text-[8px] font-black uppercase tracking-widest text-black whitespace-nowrap">
+                          Best Value
+                        </span>
+                      )}
+                      {tier.discountPercent > 0 && (
+                        <span className="absolute -top-2 right-2 px-1.5 py-0.5 rounded-md bg-positive/90 text-[8px] font-black uppercase text-black">
+                          -{tier.discountPercent}%
+                        </span>
+                      )}
 
-                <div className="mt-4 pt-4 border-t border-white/[0.06]">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-sm text-muted-foreground">Total</span>
-                    <div className="text-right">
-                      <span className="text-3xl font-black text-foreground tabular-nums">
-                        {totalPrice}
+                      <span className="text-lg font-black text-foreground">
+                        {preset}
+                        <span className="text-xs font-bold text-muted-foreground ml-0.5">days</span>
                       </span>
-                      <span className="text-sm font-bold text-muted-foreground ml-1">USDT</span>
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground/40 text-right mt-1">
-                    {days} days × {PRICE_PER_DAY_USD} USDT/day
-                  </p>
-                </div>
+
+                      <span className="text-[11px] text-muted-foreground">
+                        ${tier.pricePerDay.toFixed(2)}/day
+                      </span>
+
+                      <span className={cn(
+                        "text-sm font-black mt-1",
+                        isSelected ? "text-accent" : "text-foreground/80"
+                      )}>
+                        ${price}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Summary */}
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                {selectedPreset} days × ${rate.pricePerDay.toFixed(2)}/day
+                {rate.discountPercent > 0 && (
+                  <span className="ml-2 text-positive text-xs font-bold">
+                    Save {rate.discountPercent}%
+                  </span>
+                )}
+              </div>
+              <div className="text-right">
+                <span className="text-2xl font-black tabular-nums">${totalPrice}</span>
+                {rate.discountPercent > 0 && (
+                  <span className="block text-[10px] text-muted-foreground/40 line-through">
+                    ${selectedPreset * 3}
+                  </span>
+                )}
               </div>
             </div>
 
             {/* Currency selector */}
-            <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-b from-[#141416] to-[#0f0f11] p-6">
-              <h2 className="text-sm font-black uppercase tracking-wider mb-4">
-                Select Payment Currency
+            <div>
+              <h2 className="text-sm font-black uppercase tracking-wider mb-3">
+                How do you want to pay?
               </h2>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {SUPPORTED_CURRENCIES.map((currency) => (
-                  <button
-                    key={currency.id}
-                    onClick={() => setSelectedCurrency(currency.id)}
-                    className={cn(
-                      "flex flex-col items-center gap-2 p-4 rounded-xl border transition-all cursor-pointer",
-                      selectedCurrency === currency.id
-                        ? "border-accent/40 bg-accent/10 shadow-lg shadow-accent/10"
-                        : "border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.06] hover:border-white/20"
-                    )}
-                  >
-                    <span className="text-xl">{currency.icon}</span>
-                    <span className="text-[11px] font-bold text-foreground">{currency.label}</span>
-                    <span className="text-[9px] text-muted-foreground/50 uppercase">
-                      {currency.network}
-                    </span>
-                  </button>
-                ))}
-              </div>
+              <CurrencyDropdown
+                currencies={currencies}
+                selected={selectedCurrency}
+                onSelect={setSelectedCurrency}
+                isLoading={isCurrenciesLoading}
+              />
 
               {networkWarning && (
-                <div className="mt-4 flex items-start gap-2 p-3 rounded-lg bg-amber-400/[0.06] border border-amber-400/20">
+                <div className="mt-3 flex items-start gap-2 p-3 rounded-lg bg-amber-400/[0.06] border border-amber-400/20">
                   <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                   <p className="text-[11px] text-amber-400/80 leading-relaxed">
                     {networkWarning}
@@ -416,7 +557,7 @@ export default function SubscribePage() {
             {/* Pay button */}
             <button
               onClick={handleCreatePayment}
-              disabled={isCreating || isTelegramLoading}
+              disabled={isCreating || isTelegramLoading || isCurrenciesLoading}
               className="w-full py-4 rounded-xl bg-accent text-accent-foreground text-sm font-black uppercase tracking-wider hover:bg-accent/90 transition-colors shadow-lg shadow-accent/20 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {isCreating ? (
@@ -425,7 +566,7 @@ export default function SubscribePage() {
                   Creating Payment...
                 </span>
               ) : (
-                `Pay ${totalPrice} USDT in ${currencyInfo?.label || selectedCurrency}`
+                `Pay $${totalPrice} in ${selectedCurrency.toUpperCase()}`
               )}
             </button>
 
@@ -440,7 +581,6 @@ export default function SubscribePage() {
         {step === "paying" && payment && (
           <div className="space-y-6">
             <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-b from-[#141416] to-[#0f0f11] p-6 sm:p-8">
-              {/* Order header */}
               <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/[0.06]">
                 <div>
                   <p className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">
@@ -460,7 +600,6 @@ export default function SubscribePage() {
                 </div>
               </div>
 
-              {/* Send amount */}
               <div className="text-center mb-6">
                 <p className="text-[11px] text-muted-foreground/50 uppercase tracking-widest mb-2">
                   Send exactly
@@ -481,7 +620,6 @@ export default function SubscribePage() {
                 </button>
               </div>
 
-              {/* QR Code */}
               <div className="flex justify-center mb-6">
                 <div className="bg-white p-4 rounded-xl">
                   <QRCodeSVG
@@ -493,7 +631,6 @@ export default function SubscribePage() {
                 </div>
               </div>
 
-              {/* Address */}
               <div className="mb-6">
                 <p className="text-[11px] text-muted-foreground/50 uppercase tracking-widest mb-2 text-center">
                   To this address
@@ -516,7 +653,6 @@ export default function SubscribePage() {
                 </div>
               </div>
 
-              {/* Network Warning */}
               {networkWarning && (
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-400/[0.06] border border-amber-400/20 mb-6">
                   <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
@@ -526,7 +662,6 @@ export default function SubscribePage() {
                 </div>
               )}
 
-              {/* Status */}
               <div className="space-y-4">
                 <StatusProgress status={paymentStatus} />
 
@@ -577,7 +712,6 @@ export default function SubscribePage() {
               </div>
             </div>
 
-            {/* Trust indicators */}
             <div className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground/40">
               <Shield className="w-3.5 h-3.5" />
               Secured by NOWPayments — Transactions verified on blockchain
@@ -598,7 +732,7 @@ export default function SubscribePage() {
                   Payment Successful!
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Your {days}-day subscription has been activated.
+                  Your {selectedPreset}-day subscription has been activated.
                 </p>
               </div>
 
@@ -609,7 +743,7 @@ export default function SubscribePage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] text-muted-foreground/60">Days Added</span>
-                  <span className="text-[12px] font-bold">{days} days</span>
+                  <span className="text-[12px] font-bold">{selectedPreset} days</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] text-muted-foreground/60">Amount Paid</span>

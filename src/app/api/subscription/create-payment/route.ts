@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import {
   MIN_SUBSCRIPTION_DAYS,
-  PRICE_PER_DAY_USD,
-  SUPPORTED_CURRENCIES,
+  calculatePrice,
   generateOrderId,
   type PaymentDoc,
 } from "@/lib/subscription";
@@ -34,10 +33,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const validCurrency = SUPPORTED_CURRENCIES.find((c) => c.id === payCurrency);
-    if (!validCurrency) {
+    if (typeof payCurrency !== "string" || payCurrency.length < 2) {
       return NextResponse.json(
-        { error: `Unsupported currency: ${payCurrency}` },
+        { error: `Invalid currency: ${payCurrency}` },
         { status: 400 }
       );
     }
@@ -53,7 +51,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const priceAmount = days * PRICE_PER_DAY_USD;
+    const priceAmount = calculatePrice(days);
     const orderId = generateOrderId(uid);
 
     const host = request.headers.get("host") || "tezterminal.com";

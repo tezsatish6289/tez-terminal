@@ -106,6 +106,11 @@ export async function getMinimumPaymentAmount(
   );
 }
 
+export async function getAvailableCurrencies(): Promise<string[]> {
+  const data = await apiCall("GET", "/currencies");
+  return data.currencies || [];
+}
+
 export async function getApiStatus(): Promise<{ message: string }> {
   return apiCall("GET", "/status");
 }

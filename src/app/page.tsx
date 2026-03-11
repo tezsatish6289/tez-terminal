@@ -1091,7 +1091,7 @@ export default function Home() {
                         href="/subscribe"
                         className="w-full py-3 rounded-xl bg-accent text-accent-foreground text-sm font-black uppercase tracking-wider hover:bg-accent/90 transition-colors text-center shadow-lg shadow-accent/20"
                       >
-                        Subscribe — {PRICE_PER_DAY_USD} USDT/day
+                        Subscribe — from ${PRICE_PER_DAY_USD}/day
                       </Link>
                       <p className="text-[11px] text-muted-foreground/40">
                         Pay with crypto. No credit card needed.

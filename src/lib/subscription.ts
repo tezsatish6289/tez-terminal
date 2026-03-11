@@ -12,9 +12,9 @@ export interface Plan {
 }
 
 export const PLANS: Plan[] = [
-  { days: 30,  price: 59,  label: "30 days" },
-  { days: 90,  price: 129, label: "90 days",  badge: "Most Popular" },
-  { days: 365, price: 299, label: "365 days", badge: "Best Value" },
+  { days: 30,  price: 1,  label: "30 days" },
+  { days: 90,  price: 2, label: "90 days",  badge: "Most Popular" },
+  { days: 365, price: 3, label: "365 days", badge: "Best Value" },
 ];
 
 /** @deprecated Kept for backward compat in gating overlay */

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import {
-  MIN_SUBSCRIPTION_DAYS,
+  PLANS,
   calculatePrice,
   generateOrderId,
   type PaymentDoc,
@@ -26,9 +26,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (typeof days !== "number" || days < MIN_SUBSCRIPTION_DAYS) {
+    const validPlan = PLANS.find((p) => p.days === days);
+    if (!validPlan) {
       return NextResponse.json(
-        { error: `Minimum subscription is ${MIN_SUBSCRIPTION_DAYS} days` },
+        { error: `Invalid plan: ${days} days` },
         { status: 400 }
       );
     }

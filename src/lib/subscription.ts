@@ -2,40 +2,23 @@
  * Subscription system constants, types, and helpers.
  */
 
-export const BASE_PRICE_PER_DAY_USD = 3;
-export const MIN_SUBSCRIPTION_DAYS = 14;
 export const FREE_TRIAL_DAYS = 7;
 
-/** @deprecated Use getEffectiveRate() instead */
-export const PRICE_PER_DAY_USD = BASE_PRICE_PER_DAY_USD;
-
-export interface DiscountTier {
-  minDays: number;
+export interface Plan {
+  days: number;
+  price: number;
   label: string;
-  pricePerDay: number;
-  discountPercent: number;
+  badge?: string;
 }
 
-export const DISCOUNT_TIERS: DiscountTier[] = [
-  { minDays: 365, label: "365 days", pricePerDay: 1.80, discountPercent: 40 },
-  { minDays: 180, label: "180 days", pricePerDay: 2.10, discountPercent: 30 },
-  { minDays: 90,  label: "90 days",  pricePerDay: 2.40, discountPercent: 20 },
-  { minDays: 30,  label: "30 days",  pricePerDay: 2.70, discountPercent: 10 },
-  { minDays: 14,  label: "14 days",  pricePerDay: 3.00, discountPercent: 0 },
+export const PLANS: Plan[] = [
+  { days: 30,  price: 59,  label: "30 days" },
+  { days: 90,  price: 129, label: "90 days",  badge: "Most Popular" },
+  { days: 365, price: 299, label: "365 days", badge: "Best Value" },
 ];
 
-export const PLAN_PRESETS = [14, 30, 90, 180, 365] as const;
-
-export function getEffectiveRate(days: number): DiscountTier {
-  for (const tier of DISCOUNT_TIERS) {
-    if (days >= tier.minDays) return tier;
-  }
-  return DISCOUNT_TIERS[DISCOUNT_TIERS.length - 1];
-}
-
-export const POPULAR_CURRENCIES = [
-  "usdttrc20", "btc", "eth", "usdterc20", "ltc", "sol",
-];
+/** @deprecated Kept for backward compat in gating overlay */
+export const PRICE_PER_DAY_USD = 3;
 
 export type SubscriptionStatus = "trial" | "active" | "expired";
 
@@ -74,8 +57,9 @@ export interface PaymentDoc {
 }
 
 export function calculatePrice(days: number): number {
-  const tier = getEffectiveRate(days);
-  return Math.round(days * tier.pricePerDay * 100) / 100;
+  const plan = PLANS.find((p) => p.days === days);
+  if (plan) return plan.price;
+  return days * 3;
 }
 
 export function isSubscriptionActive(sub: SubscriptionDoc | null): boolean {

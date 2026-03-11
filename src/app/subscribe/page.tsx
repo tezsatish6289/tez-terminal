@@ -5,9 +5,8 @@ import { useUser } from "@/firebase";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { useSubscription } from "@/hooks/use-subscription";
 import {
-  PLAN_PRESETS,
+  PLANS,
   calculatePrice,
-  getEffectiveRate,
   getNetworkWarning,
 } from "@/lib/subscription";
 import {
@@ -106,7 +105,7 @@ export default function SubscribePage() {
   const [isTelegramLoading, setIsTelegramLoading] = useState(true);
 
   const [step, setStep] = useState<Step>("select");
-  const [selectedPreset, setSelectedPreset] = useState<number>(14);
+  const [selectedDays, setSelectedDays] = useState<number>(90);
   const [isCreating, setIsCreating] = useState(false);
   const [payment, setPayment] = useState<PaymentInfo | null>(null);
   const [paymentStatus, setPaymentStatus] = useState("waiting");
@@ -137,7 +136,7 @@ export default function SubscribePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           uid: user.uid,
-          days: selectedPreset,
+          days: selectedDays,
           payCurrency: PAY_CURRENCY,
         }),
       });
@@ -165,7 +164,7 @@ export default function SubscribePage() {
     } finally {
       setIsCreating(false);
     }
-  }, [user, selectedPreset]);
+  }, [user, selectedDays]);
 
   useEffect(() => {
     if (step !== "paying" || !payment) return;
@@ -226,8 +225,8 @@ export default function SubscribePage() {
     );
   }
 
-  const totalPrice = calculatePrice(selectedPreset);
-  const rate = getEffectiveRate(selectedPreset);
+  const totalPrice = calculatePrice(selectedDays);
+  const selectedPlan = PLANS.find((p) => p.days === selectedDays)!;
   const networkWarning = getNetworkWarning(PAY_CURRENCY);
 
   return (
@@ -287,20 +286,17 @@ export default function SubscribePage() {
           <div className="space-y-6">
             {/* Plan cards */}
             <div className="space-y-2">
-              {PLAN_PRESETS.map((preset) => {
-                const tier = getEffectiveRate(preset);
-                const price = calculatePrice(preset);
-                const isSelected = selectedPreset === preset;
-                const originalPrice = preset * 3;
-                const isBestValue = preset === 365;
+              {PLANS.map((plan) => {
+                const isSelected = selectedDays === plan.days;
+                const perDay = (plan.price / plan.days).toFixed(2);
 
                 return (
                   <button
-                    key={preset}
+                    key={plan.days}
                     type="button"
-                    onClick={() => setSelectedPreset(preset)}
+                    onClick={() => setSelectedDays(plan.days)}
                     className={cn(
-                      "w-full flex items-center gap-4 px-4 py-3.5 rounded-xl border transition-all cursor-pointer",
+                      "w-full flex items-center gap-4 px-4 py-4 rounded-xl border transition-all cursor-pointer",
                       isSelected
                         ? "border-accent/50 bg-accent/[0.08] ring-1 ring-accent/20"
                         : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/[0.12]"
@@ -315,36 +311,29 @@ export default function SubscribePage() {
 
                     <div className="flex-1 text-left">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-black text-foreground">{preset} days</span>
-                        {isBestValue && (
-                          <span className="px-1.5 py-0.5 rounded bg-amber-500/90 text-[8px] font-black uppercase tracking-wider text-black leading-none">
-                            Best Value
-                          </span>
-                        )}
-                        {tier.discountPercent > 0 && (
-                          <span className="text-[11px] font-bold text-positive">
-                            Save {tier.discountPercent}%
+                        <span className="text-sm font-black text-foreground">{plan.label}</span>
+                        {plan.badge && (
+                          <span className={cn(
+                            "px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider leading-none",
+                            plan.badge === "Best Value"
+                              ? "bg-amber-500/90 text-black"
+                              : "bg-accent/80 text-accent-foreground"
+                          )}>
+                            {plan.badge}
                           </span>
                         )}
                       </div>
                       <span className="text-[11px] text-muted-foreground/50">
-                        ${tier.pricePerDay.toFixed(2)}/day
+                        ${perDay}/day
                       </span>
                     </div>
 
-                    <div className="text-right shrink-0">
-                      <span className={cn(
-                        "text-base font-black tabular-nums",
-                        isSelected ? "text-accent" : "text-foreground"
-                      )}>
-                        ${price}
-                      </span>
-                      {tier.discountPercent > 0 && (
-                        <span className="block text-[10px] text-muted-foreground/30 line-through tabular-nums">
-                          ${originalPrice}
-                        </span>
-                      )}
-                    </div>
+                    <span className={cn(
+                      "text-lg font-black tabular-nums shrink-0",
+                      isSelected ? "text-accent" : "text-foreground"
+                    )}>
+                      ${plan.price}
+                    </span>
                   </button>
                 );
               })}
@@ -532,7 +521,7 @@ export default function SubscribePage() {
                   Payment Successful!
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Your {selectedPreset}-day subscription has been activated.
+                  Your {selectedDays}-day subscription has been activated.
                 </p>
               </div>
 
@@ -543,7 +532,7 @@ export default function SubscribePage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] text-muted-foreground/60">Days Added</span>
-                  <span className="text-[12px] font-bold">{selectedPreset} days</span>
+                  <span className="text-[12px] font-bold">{selectedDays} days</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] text-muted-foreground/60">Amount Paid</span>

@@ -50,12 +50,26 @@ const PAYMENT_STATUS: Record<string, { label: string; color: string; icon: typeo
   refunded: { label: "Refunded", color: "text-muted-foreground", icon: XCircle },
 };
 
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("en-US", {
+function formatDate(dateVal: any) {
+  const ms = toMs(dateVal);
+  if (!ms) return "--";
+  return new Date(ms).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
+}
+
+function toMs(dateVal: any): number {
+  if (!dateVal) return 0;
+  if (typeof dateVal === "string") return new Date(dateVal).getTime();
+  if (dateVal._seconds) return dateVal._seconds * 1000;
+  if (dateVal.seconds) return dateVal.seconds * 1000;
+  return new Date(dateVal).getTime();
+}
+
+function toDateStr(dateVal: any): string {
+  return new Date(toMs(dateVal)).toISOString();
 }
 
 function getEffectiveStatus(sub: Subscription | null): { status: string; endDate: string | null; daysLeft: number } {
@@ -65,23 +79,24 @@ function getEffectiveStatus(sub: Subscription | null): { status: string; endDate
 
   // Check paid subscription first (takes priority over trial)
   if (sub.subscriptionEndDate) {
-    const end = new Date(sub.subscriptionEndDate).getTime();
+    const end = toMs(sub.subscriptionEndDate);
     const daysLeft = Math.max(0, Math.ceil((end - now) / (1000 * 60 * 60 * 24)));
     if (daysLeft > 0) {
-      return { status: "active", endDate: sub.subscriptionEndDate, daysLeft };
+      return { status: "active", endDate: toDateStr(sub.subscriptionEndDate), daysLeft };
     }
   }
 
   // Then check trial
   if (sub.trialEndDate) {
-    const end = new Date(sub.trialEndDate).getTime();
+    const end = toMs(sub.trialEndDate);
     const daysLeft = Math.max(0, Math.ceil((end - now) / (1000 * 60 * 60 * 24)));
     if (daysLeft > 0) {
-      return { status: "trial", endDate: sub.trialEndDate, daysLeft };
+      return { status: "trial", endDate: toDateStr(sub.trialEndDate), daysLeft };
     }
   }
 
-  return { status: "expired", endDate: sub.subscriptionEndDate || sub.trialEndDate, daysLeft: 0 };
+  const fallback = sub.subscriptionEndDate || sub.trialEndDate;
+  return { status: "expired", endDate: fallback ? toDateStr(fallback) : null, daysLeft: 0 };
 }
 
 export default function PurchasesPage() {
@@ -97,10 +112,14 @@ export default function PurchasesPage() {
     fetch(`/api/subscription/history?uid=${user.uid}`)
       .then((res) => res.json())
       .then((data) => {
-        setSubscription(data.subscription);
+        console.log("[Purchases] API response:", JSON.stringify(data));
+        if (data.error) {
+          console.error("[Purchases] API error:", data.error);
+        }
+        setSubscription(data.subscription ?? null);
         setPayments(data.payments || []);
       })
-      .catch(console.error)
+      .catch((err) => console.error("[Purchases] Fetch failed:", err))
       .finally(() => setLoading(false));
   }, [user?.uid]);
 
@@ -121,9 +140,10 @@ export default function PurchasesPage() {
   }
 
   const { status, endDate, daysLeft } = getEffectiveStatus(subscription);
+  console.log("[Purchases] subscription:", subscription, "→ effective:", { status, endDate, daysLeft });
   const isTrial = status === "trial";
   const isActive = status === "active";
-  const isExpired = status === "expired";
+  const isExpired = status === "expired" || status === "none";
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">

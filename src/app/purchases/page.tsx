@@ -117,7 +117,10 @@ export default function PurchasesPage() {
           console.error("[Purchases] API error:", data.error);
         }
         setSubscription(data.subscription ?? null);
-        setPayments(data.payments || []);
+        const completed = (data.payments || []).filter(
+          (p: Payment) => p.status === "finished" || p.status === "sending"
+        );
+        setPayments(completed);
       })
       .catch((err) => console.error("[Purchases] Fetch failed:", err))
       .finally(() => setLoading(false));

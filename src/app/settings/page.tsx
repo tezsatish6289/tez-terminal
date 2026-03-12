@@ -210,7 +210,7 @@ export default function SettingsPage() {
                 <ChevronLeft className="w-4 h-4" />
                 Back
               </Link>
-              <h1 className="text-2xl font-bold tracking-tight text-white">Settings</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-white">Notifications</h1>
               <p className="text-muted-foreground text-sm">Manage your Telegram alerts and preferences.</p>
             </div>
             <Settings className="h-8 w-8 text-accent opacity-20" />

@@ -16,17 +16,30 @@ export async function GET(request: NextRequest) {
 
     const db = getAdminFirestore();
 
-    const [subSnap, paymentsSnap] = await Promise.all([
-      db.collection("subscriptions").doc(uid).get(),
-      db.collection("payments").where("userId", "==", uid).orderBy("createdAt", "desc").get(),
-    ]);
+    let subscription = null;
+    try {
+      const subSnap = await db.collection("subscriptions").doc(uid).get();
+      subscription = subSnap.exists ? subSnap.data() : null;
+    } catch (e: any) {
+      console.error("[Billing History] subscription fetch failed:", e.message);
+    }
 
-    const subscription = subSnap.exists ? subSnap.data() : null;
-
-    const payments = paymentsSnap.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    let payments: any[] = [];
+    try {
+      const paymentsSnap = await db
+        .collection("payments")
+        .where("userId", "==", uid)
+        .get();
+      payments = paymentsSnap.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .sort((a: any, b: any) => {
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return bTime - aTime;
+        });
+    } catch (e: any) {
+      console.error("[Billing History] payments fetch failed:", e.message);
+    }
 
     return NextResponse.json({ subscription, payments });
   } catch (error: any) {

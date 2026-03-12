@@ -109,6 +109,7 @@ export default function SubscribePage() {
   const [payment, setPayment] = useState<PaymentInfo | null>(null);
   const [paymentStatus, setPaymentStatus] = useState("waiting");
   const [copied, setCopied] = useState(false);
+  const [qrExpanded, setQrExpanded] = useState(false);
 
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -385,20 +386,25 @@ export default function SubscribePage() {
                     <span className="w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-black flex items-center justify-center shrink-0">2</span>
                     <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Send to this address</span>
                   </div>
-                  <div className="flex justify-center mb-3">
-                    <div className="bg-white p-3 rounded-xl">
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.04] border border-white/[0.08]">
+                    <button
+                      type="button"
+                      onClick={() => setQrExpanded(!qrExpanded)}
+                      className="shrink-0 bg-white rounded-lg p-1 cursor-pointer hover:ring-2 hover:ring-accent/30 transition-all"
+                      title="Tap to expand QR"
+                    >
                       <QRCodeSVG
                         value={payment.payAddress}
-                        size={160}
+                        size={48}
                         level="M"
                         includeMargin={false}
                       />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[12px] font-mono text-foreground/80 break-all leading-relaxed">
+                        {payment.payAddress}
+                      </span>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2 p-3 rounded-lg bg-white/[0.04] border border-white/[0.08]">
-                    <span className="flex-1 text-[12px] font-mono text-foreground/80 break-all">
-                      {payment.payAddress}
-                    </span>
                     <button
                       onClick={handleCopyAddress}
                       className="shrink-0 p-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] transition-colors cursor-pointer"
@@ -411,6 +417,22 @@ export default function SubscribePage() {
                       )}
                     </button>
                   </div>
+                  {qrExpanded && (
+                    <div className="flex justify-center mt-3">
+                      <button
+                        type="button"
+                        onClick={() => setQrExpanded(false)}
+                        className="bg-white p-3 rounded-xl cursor-pointer hover:ring-2 hover:ring-accent/30 transition-all"
+                      >
+                        <QRCodeSVG
+                          value={payment.payAddress}
+                          size={200}
+                          level="M"
+                          includeMargin={false}
+                        />
+                      </button>
+                    </div>
+                  )}
                   {networkWarning && (
                     <p className="mt-2 text-[11px] text-amber-400/70 leading-relaxed">
                       {networkWarning}

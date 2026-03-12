@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
       return entry.adjustedThreshold;
     }
 
-    // --- Part 1: Consolidated Top Pick notification ---
+    // --- Part 1: Send individual Top Pick details to matching users ---
     const topPickSnap = await db.collection("signals")
       .where("autoFilterPassed", "==", true)
       .where("telegramNotified", "==", false)
@@ -87,18 +87,60 @@ export async function GET(request: NextRequest) {
 
     let topPicksSent = 0;
 
-    if (newTopPicks.length > 0 && allUsers.length > 0) {
-      const count = newTopPicks.length;
-      const message = count === 1
-        ? `✨ <b>New Top Pick available to trade now!</b>\n\nOur AI filter just identified a high-confidence signal. Check it out before it moves.`
-        : `✨ <b>${count} new Top Picks available to trade now!</b>\n\nOur AI filter just identified ${count} high-confidence signals. Check them out before they move.`;
+    function matchesUserPrefs(signal: any, prefs: any): boolean {
+      const tf = String(signal.timeframe || "15");
+      const side = signal.type || "BUY";
 
+      if (prefs.timeframes && !prefs.timeframes.includes("ALL") && !prefs.timeframes.includes(tf)) {
+        return false;
+      }
+      if (prefs.sides && !prefs.sides.includes("ALL") && !prefs.sides.includes(side)) {
+        return false;
+      }
+      if (prefs.symbols && prefs.symbols.length > 0) {
+        const sym = (signal.symbol || "").replace(/\.P$/i, "").toUpperCase();
+        if (!prefs.symbols.some((s: string) => sym.includes(s.toUpperCase()))) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    for (const signalDoc of newTopPicks) {
+      const signal = signalDoc.data();
+      const direction = signal.type === "BUY" ? "LONG" : "SHORT";
+      const dirIcon = signal.type === "BUY" ? "🟢" : "🔴";
+      const tfName = getTimeframeName(String(signal.timeframe || "15"));
+      const tfLabel = signal.timeframe === "D" ? "Daily" : signal.timeframe + "m";
+      const deepDiveUrl = `${SITE_URL}/chart/${signalDoc.id}`;
+
+      const lines = [
+        `${dirIcon} <b>TOP PICK: ${signal.symbol} — ${direction}</b>`,
+        ``,
+        `📊 ${tfName} (${tfLabel})`,
+        `💰 Entry: <b>${signal.price}</b>`,
+      ];
+      if (signal.tp1 != null && signal.tp2 != null && signal.tp3 != null) {
+        lines.push(`🎯 TP1: ${signal.tp1} | TP2: ${signal.tp2} | TP3: ${signal.tp3}`);
+      }
+      if (signal.stopLoss) {
+        lines.push(`🛑 SL: ${signal.stopLoss}`);
+      }
+      if (signal.confidenceScore != null) {
+        lines.push(`⚡ Confidence: <b>${signal.confidenceScore}</b>`);
+      }
+      lines.push(``);
+      lines.push(`<i>Strategy: Book 50% at TP1, 25% at TP2, 25% at TP3</i>`);
+
+      const message = lines.join("\n");
       const buttons: InlineKeyboardButton[][] = [
-        [{ text: "🚀 View Signals", url: SITE_URL }],
+        [{ text: "📈 View Signal Details", url: deepDiveUrl }],
       ];
 
-      for (let i = 0; i < allUsers.length; i += BATCH_SIZE) {
-        const batch = allUsers.slice(i, i + BATCH_SIZE);
+      const matchingUsers = allUsers.filter(u => matchesUserPrefs(signal, u.prefs));
+
+      for (let i = 0; i < matchingUsers.length; i += BATCH_SIZE) {
+        const batch = matchingUsers.slice(i, i + BATCH_SIZE);
         await Promise.all(
           batch.map(sub =>
             sendMessage(sub.chatId, message, {
@@ -110,12 +152,12 @@ export async function GET(request: NextRequest) {
         );
         totalMessages += batch.length;
 
-        if (i + BATCH_SIZE < allUsers.length) {
+        if (i + BATCH_SIZE < matchingUsers.length) {
           await sleep(BATCH_DELAY_MS);
         }
       }
 
-      topPicksSent = count;
+      topPicksSent++;
     }
 
     // Mark all qualifying Top Picks as notified
@@ -124,16 +166,6 @@ export async function GET(request: NextRequest) {
         telegramNotified: true,
         telegramNotifiedAt: new Date().toISOString(),
       });
-    }
-
-    // Also mark signals with no subscribers as notified
-    if (newTopPicks.length > 0 && allUsers.length === 0) {
-      for (const doc of newTopPicks) {
-        await doc.ref.update({
-          telegramNotified: true,
-          telegramNotifiedAt: new Date().toISOString(),
-        });
-      }
     }
 
     // --- Part 2: TP/SL events → send to tracked users ---

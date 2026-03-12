@@ -7,7 +7,7 @@ import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { useAuth } from "@/firebase";
 import {
   Loader2, Settings, Send, Link2, Unlink, Check,
-  ChevronLeft, ChevronRight, Bell, Lock, ExternalLink,
+  ChevronLeft, ChevronRight, Bell, Lock, ExternalLink, AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -353,9 +353,9 @@ export default function SettingsPage() {
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
                     <Bell className="h-4 w-4 text-accent" />
-                    Alert Preferences
+                    Top Pick Alert Preferences
                   </CardTitle>
-                  <CardDescription>Choose which alerts you receive on Telegram.</CardDescription>
+                  <CardDescription>Choose which Top Pick alerts you receive on Telegram. You'll get full signal details with entry, targets, and stop loss.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {/* Timeframes */}
@@ -376,6 +376,14 @@ export default function SettingsPage() {
                         />
                       ))}
                     </div>
+                    {(isSelected(prefs.timeframes, "5")) && (
+                      <div className="flex items-start gap-2 mt-3 p-2.5 rounded-lg bg-amber-400/[0.06] border border-amber-400/15">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                        <p className="text-[11px] text-amber-400/80 leading-relaxed">
+                          Scalping (5m) generates a high volume of alerts and can be noisy. Consider disabling it unless you actively trade scalping setups.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Sides */}

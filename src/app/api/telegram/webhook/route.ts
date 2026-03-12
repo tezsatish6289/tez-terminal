@@ -120,7 +120,7 @@ async function handleStart(
 
     await db.collection("telegram_preferences").doc(firebaseUid).set({
       enabled: true,
-      timeframes: ["ALL"],
+      timeframes: ["15", "60", "240"],
       sides: ["ALL"],
       symbols: [],
     }, { merge: true });

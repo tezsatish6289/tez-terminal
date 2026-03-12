@@ -123,6 +123,10 @@ export default {
           '50%': { backgroundColor: 'rgba(16, 185, 129, 0.06)' },
           '85%': { backgroundColor: 'rgba(16, 185, 129, 0.12)' },
         },
+        marquee: {
+          '0%': { transform: 'translateX(0%)' },
+          '100%': { transform: 'translateX(-50%)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -134,6 +138,7 @@ export default {
         'blob-4': 'blob4 18s ease-in-out infinite',
         'blob-5': 'blob5 28s ease-in-out infinite',
         'bar-flash': 'bar-flash 2s ease-in-out 5',
+        marquee: 'marquee 30s linear infinite',
       },
     },
   },

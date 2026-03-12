@@ -174,6 +174,17 @@ export default function DeepDiveChartPage() {
     <div className="flex flex-col min-h-screen lg:h-screen bg-background text-foreground lg:overflow-hidden">
       <TopBar />
 
+      <div className="overflow-hidden bg-white/[0.02] border-b border-white/[0.06]">
+        <div className="animate-marquee whitespace-nowrap py-1.5">
+          <span className="text-[10px] text-muted-foreground/50 mx-8">
+            TezTerminal does not manage funds, provide portfolio management services, or guarantee profits. Any trading signals or market insights are based on available data and should not be relied upon as a sole basis for trading.
+          </span>
+          <span className="text-[10px] text-muted-foreground/50 mx-8">
+            TezTerminal does not manage funds, provide portfolio management services, or guarantee profits. Any trading signals or market insights are based on available data and should not be relied upon as a sole basis for trading.
+          </span>
+        </div>
+      </div>
+
       <div className="flex-1 flex flex-col lg:flex-row gap-4 p-3 lg:p-4 overflow-y-auto lg:overflow-hidden">
         {/* Left: Signal Card */}
         <div ref={leftPanelRef} className="w-full lg:w-[380px] shrink-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 flex flex-col lg:overflow-y-auto">

@@ -353,70 +353,94 @@ export default function SubscribePage() {
                 </div>
               </div>
 
-              <div className="text-center mb-6">
-                <p className="text-[11px] text-muted-foreground/50 uppercase tracking-widest mb-2">
-                  This address must receive
-                </p>
-                <div className="flex items-center justify-center gap-2">
-                  <span className="text-3xl font-black text-foreground tabular-nums font-mono">
-                    {payment.payAmount}
-                  </span>
-                  <span className="text-lg font-bold text-accent uppercase">
-                    {payment.payCurrency}
-                  </span>
+              {/* Step-by-step payment guide */}
+              <div className="space-y-5 mb-6">
+                {/* Step 1: Amount */}
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-black flex items-center justify-center shrink-0">1</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Copy this amount</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-white/[0.04] border border-white/[0.08]">
+                    <div>
+                      <span className="text-2xl font-black text-foreground tabular-nums font-mono">
+                        {payment.payAmount}
+                      </span>
+                      <span className="text-sm font-bold text-accent uppercase ml-2">
+                        {payment.payCurrency}
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleCopyAmount}
+                      className="px-3 py-1.5 rounded-lg bg-accent/15 border border-accent/25 text-accent text-[10px] font-bold uppercase tracking-wider hover:bg-accent/25 transition-colors cursor-pointer"
+                    >
+                      Copy
+                    </button>
+                  </div>
                 </div>
-                <button
-                  onClick={handleCopyAmount}
-                  className="mt-1 text-[11px] text-accent/60 hover:text-accent transition-colors cursor-pointer"
-                >
-                  Copy amount
-                </button>
-                <p className="mt-2 text-[11px] text-amber-400/70 leading-relaxed max-w-xs mx-auto">
-                  If sending from an exchange, add the withdrawal fee to this amount so the full amount arrives.
-                </p>
-              </div>
 
-              <div className="flex justify-center mb-6">
-                <div className="bg-white p-4 rounded-xl">
-                  <QRCodeSVG
-                    value={payment.payAddress}
-                    size={180}
-                    level="M"
-                    includeMargin={false}
-                  />
+                {/* Step 2: Address */}
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-black flex items-center justify-center shrink-0">2</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Send to this address</span>
+                  </div>
+                  <div className="flex justify-center mb-3">
+                    <div className="bg-white p-3 rounded-xl">
+                      <QRCodeSVG
+                        value={payment.payAddress}
+                        size={160}
+                        level="M"
+                        includeMargin={false}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-white/[0.04] border border-white/[0.08]">
+                    <span className="flex-1 text-[12px] font-mono text-foreground/80 break-all">
+                      {payment.payAddress}
+                    </span>
+                    <button
+                      onClick={handleCopyAddress}
+                      className="shrink-0 p-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] transition-colors cursor-pointer"
+                      title="Copy address"
+                    >
+                      {copied ? (
+                        <Check className="w-4 h-4 text-positive" />
+                      ) : (
+                        <Copy className="w-4 h-4 text-muted-foreground" />
+                      )}
+                    </button>
+                  </div>
+                  {networkWarning && (
+                    <p className="mt-2 text-[11px] text-amber-400/70 leading-relaxed">
+                      {networkWarning}
+                    </p>
+                  )}
                 </div>
-              </div>
 
-              <div className="mb-6">
-                <p className="text-[11px] text-muted-foreground/50 uppercase tracking-widest mb-2 text-center">
-                  To this address
-                </p>
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-white/[0.04] border border-white/[0.08]">
-                  <span className="flex-1 text-[12px] font-mono text-foreground/80 break-all">
-                    {payment.payAddress}
-                  </span>
-                  <button
-                    onClick={handleCopyAddress}
-                    className="shrink-0 p-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] transition-colors cursor-pointer"
-                    title="Copy address"
-                  >
-                    {copied ? (
-                      <Check className="w-4 h-4 text-positive" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-muted-foreground" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {networkWarning && (
-                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-400/[0.06] border border-amber-400/20 mb-6">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-amber-400/80 leading-relaxed">
-                    {networkWarning}
+                {/* Step 3: Verify & send */}
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-black flex items-center justify-center shrink-0">3</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Verify &amp; send</span>
+                  </div>
+                  <p className="text-[12px] text-foreground/70 leading-relaxed mb-3">
+                    Make sure the address receives <span className="font-bold text-foreground">{payment.payAmount} {payment.payCurrency.toUpperCase()}</span>. If your exchange charges a withdrawal fee, <span className="text-amber-400 font-bold">you must add it on top</span>.
+                  </p>
+                  <div className="rounded-lg bg-amber-400/[0.06] border border-amber-400/15 p-3 space-y-1.5">
+                    <p className="text-[11px] font-bold text-amber-400/90 uppercase tracking-wider">Example</p>
+                    <div className="text-[12px] text-foreground/60 leading-relaxed space-y-0.5">
+                      <p>Required amount: <span className="font-bold text-foreground">{payment.payAmount}</span> USDT</p>
+                      <p>Exchange withdrawal fee: <span className="font-bold text-foreground">1.00</span> USDT</p>
+                      <div className="border-t border-amber-400/10 my-1.5" />
+                      <p>You must enter: <span className="font-bold text-amber-400">{(payment.payAmount + 1).toFixed(6)}</span> USDT in your exchange</p>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-[10px] text-negative/70 leading-relaxed">
+                    If the address receives less than the required amount, the payment may fail and funds could be lost.
                   </p>
                 </div>
-              )}
+              </div>
 
               <div className="space-y-4">
                 <StatusProgress status={paymentStatus} />

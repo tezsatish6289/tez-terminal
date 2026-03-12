@@ -61,7 +61,7 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
   const [globalPerformanceFilter, setGlobalPerformanceFilter] = useState<string>("working");
   const [activeSideFilter, setActiveSideFilter] = useState<string>("all");
 
-  // Initialization — URL params (from Opportunity Finder links) override sessionStorage
+  // Initialization — URL params (from Signals page links) override sessionStorage
   useEffect(() => {
     setMounted(true);
     const savedTab = sessionStorage.getItem(STORAGE_KEY_TAB);

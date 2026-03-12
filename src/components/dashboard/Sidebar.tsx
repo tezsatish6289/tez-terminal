@@ -1,7 +1,7 @@
 
 "use client";
 
-import { LayoutDashboard, LineChart, History, Zap, ShieldCheck, Heart, Webhook } from "lucide-react";
+import { LayoutDashboard, LineChart, History, Zap, ShieldCheck, Heart, Webhook, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WATCHLIST } from "@/app/lib/mock-data";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -18,6 +18,7 @@ export function LeftSidebar() {
   const navItems = [
     { name: "Terminal", icon: LayoutDashboard, href: "/" },
     { name: "Trade Audit", icon: LineChart, href: "/trade-audit" },
+    { name: "Purchases", icon: CreditCard, href: "/billing" },
     { name: "History", icon: History, href: "/history" },
   ];
 

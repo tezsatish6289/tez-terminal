@@ -240,7 +240,7 @@ export default function SubscribePage() {
 
         <div className="space-y-1 mb-8">
           <h1 className="text-2xl font-black tracking-tight">
-            Subscribe to TezTerminal
+            Get TezTerminal Access
           </h1>
           <p className="text-sm text-muted-foreground">
             Unlock AI-powered trade signals, live updates, and Telegram alerts.

@@ -360,7 +360,7 @@ export default function SubscribePage() {
                 {/* Step 1: Amount */}
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-black flex items-center justify-center shrink-0">1</span>
+                    <span className="w-5 h-5 rounded-full bg-white/[0.08] text-muted-foreground text-[10px] font-black flex items-center justify-center shrink-0">1</span>
                     <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Copy this amount</span>
                   </div>
                   <div className="flex items-center justify-between p-3 rounded-lg bg-white/[0.04] border border-white/[0.08]">
@@ -368,7 +368,7 @@ export default function SubscribePage() {
                       <span className="text-2xl font-black text-foreground tabular-nums font-mono">
                         {payment.payAmount}
                       </span>
-                      <span className="text-sm font-bold text-accent uppercase ml-2">
+                      <span className="text-sm font-bold text-foreground/60 uppercase ml-2">
                         {PAY_CURRENCY_DISPLAY}
                       </span>
                     </div>
@@ -385,14 +385,14 @@ export default function SubscribePage() {
                 {/* Step 2: Address */}
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-black flex items-center justify-center shrink-0">2</span>
+                    <span className="w-5 h-5 rounded-full bg-white/[0.08] text-muted-foreground text-[10px] font-black flex items-center justify-center shrink-0">2</span>
                     <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Send to this address</span>
                   </div>
                   <div className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.04] border border-white/[0.08]">
                     <button
                       type="button"
                       onClick={() => setQrExpanded(!qrExpanded)}
-                      className="shrink-0 bg-white rounded-lg p-1 cursor-pointer hover:ring-2 hover:ring-accent/30 transition-all"
+                      className="shrink-0 bg-white rounded-lg p-1 cursor-pointer hover:ring-2 hover:ring-white/30 transition-all"
                       title="Tap to expand QR"
                     >
                       <QRCodeSVG
@@ -424,7 +424,7 @@ export default function SubscribePage() {
                       <button
                         type="button"
                         onClick={() => setQrExpanded(false)}
-                        className="bg-white p-3 rounded-xl cursor-pointer hover:ring-2 hover:ring-accent/30 transition-all"
+                        className="bg-white p-3 rounded-xl cursor-pointer hover:ring-2 hover:ring-white/30 transition-all"
                       >
                         <QRCodeSVG
                           value={payment.payAddress}
@@ -436,7 +436,7 @@ export default function SubscribePage() {
                     </div>
                   )}
                   {networkWarning && (
-                    <p className="mt-2 text-[11px] text-amber-400/70 leading-relaxed">
+                    <p className="mt-2 text-[11px] text-muted-foreground/70 leading-relaxed">
                       {networkWarning}
                     </p>
                   )}
@@ -445,19 +445,19 @@ export default function SubscribePage() {
                 {/* Step 3: Verify & send */}
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-black flex items-center justify-center shrink-0">3</span>
+                    <span className="w-5 h-5 rounded-full bg-white/[0.08] text-muted-foreground text-[10px] font-black flex items-center justify-center shrink-0">3</span>
                     <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Verify &amp; send</span>
                   </div>
                   <p className="text-[12px] text-foreground/70 leading-relaxed mb-3">
-                    Make sure the address receives <span className="font-bold text-foreground">{payment.payAmount} {PAY_CURRENCY_DISPLAY}</span>. If your exchange charges a withdrawal fee, <span className="text-amber-400 font-bold">you must add it on top</span>.
+                    Make sure the address receives <span className="font-bold text-foreground">{payment.payAmount} {PAY_CURRENCY_DISPLAY}</span>. If your exchange charges a withdrawal fee, <span className="font-semibold text-foreground underline">you must add it on top</span>.
                   </p>
-                  <div className="rounded-lg bg-amber-400/[0.06] border border-amber-400/15 p-3 space-y-1.5">
-                    <p className="text-[11px] font-bold text-amber-400/90 uppercase tracking-wider">Example</p>
+                  <div className="rounded-lg bg-white/[0.03] border border-white/[0.08] p-3 space-y-1.5">
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Example</p>
                     <div className="text-[12px] text-foreground/60 leading-relaxed space-y-0.5">
                       <p>Required amount: <span className="font-bold text-foreground">{payment.payAmount}</span> USDT</p>
                       <p>Exchange withdrawal fee: <span className="font-bold text-foreground">1.00</span> USDT</p>
-                      <div className="border-t border-amber-400/10 my-1.5" />
-                      <p>You must enter: <span className="font-bold text-amber-400">{(payment.payAmount + 1).toFixed(6)}</span> USDT in your exchange</p>
+                      <div className="border-t border-white/[0.06] my-1.5" />
+                      <p>You must enter: <span className="font-bold text-foreground">{(payment.payAmount + 1).toFixed(6)}</span> USDT in your exchange</p>
                     </div>
                   </div>
                   <p className="mt-2 text-[10px] text-negative/70 leading-relaxed">

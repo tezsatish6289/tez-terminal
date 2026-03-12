@@ -40,9 +40,7 @@ export async function GET(request: NextRequest) {
       await userRef.set({ referralCode }, { merge: true });
     }
 
-    const host = request.headers.get("host") || "tezterminal.com";
-    const protocol = host.includes("localhost") ? "http" : "https";
-    const referralLink = `${protocol}://${host}?ref=${referralCode}`;
+    const referralLink = `https://tezterminal.com?ref=${referralCode}`;
 
     return NextResponse.json({ referralCode, referralLink });
   } catch (error: any) {

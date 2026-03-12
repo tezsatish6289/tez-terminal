@@ -63,27 +63,25 @@ function getEffectiveStatus(sub: Subscription | null): { status: string; endDate
 
   const now = Date.now();
 
-  if (sub.status === "trial" || (!sub.subscriptionEndDate && sub.trialEndDate)) {
-    const end = new Date(sub.trialEndDate).getTime();
-    const daysLeft = Math.max(0, Math.ceil((end - now) / (1000 * 60 * 60 * 24)));
-    return {
-      status: daysLeft > 0 ? "trial" : "expired",
-      endDate: sub.trialEndDate,
-      daysLeft,
-    };
-  }
-
-  if (sub.status === "active" && sub.subscriptionEndDate) {
+  // Check paid subscription first (takes priority over trial)
+  if (sub.subscriptionEndDate) {
     const end = new Date(sub.subscriptionEndDate).getTime();
     const daysLeft = Math.max(0, Math.ceil((end - now) / (1000 * 60 * 60 * 24)));
-    return {
-      status: daysLeft > 0 ? "active" : "expired",
-      endDate: sub.subscriptionEndDate,
-      daysLeft,
-    };
+    if (daysLeft > 0) {
+      return { status: "active", endDate: sub.subscriptionEndDate, daysLeft };
+    }
   }
 
-  return { status: sub.status, endDate: sub.subscriptionEndDate || sub.trialEndDate, daysLeft: 0 };
+  // Then check trial
+  if (sub.trialEndDate) {
+    const end = new Date(sub.trialEndDate).getTime();
+    const daysLeft = Math.max(0, Math.ceil((end - now) / (1000 * 60 * 60 * 24)));
+    if (daysLeft > 0) {
+      return { status: "trial", endDate: sub.trialEndDate, daysLeft };
+    }
+  }
+
+  return { status: "expired", endDate: sub.subscriptionEndDate || sub.trialEndDate, daysLeft: 0 };
 }
 
 export default function PurchasesPage() {

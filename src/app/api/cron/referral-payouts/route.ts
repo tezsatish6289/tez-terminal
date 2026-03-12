@@ -154,7 +154,6 @@ export async function GET(request: NextRequest) {
             .collection("referral_payouts")
             .where("referrerId", "==", referrerId)
             .where("status", "==", "processing")
-            .orderBy("createdAt", "desc")
             .limit(1)
             .get();
 

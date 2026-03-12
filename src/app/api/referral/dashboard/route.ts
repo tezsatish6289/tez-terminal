@@ -34,29 +34,31 @@ export async function GET(request: NextRequest) {
       joinedAt: doc.data().createdAt || doc.data().lastSeenAt || null,
     }));
 
-    // Get all commissions for this referrer
+    // Get all commissions for this referrer (sorted in JS to avoid composite index)
     const commissionsSnap = await db
       .collection("referral_commissions")
       .where("referrerId", "==", uid)
-      .orderBy("createdAt", "desc")
       .get();
 
-    const commissions = commissionsSnap.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const commissions = commissionsSnap.docs
+      .map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+      .sort((a: any, b: any) => (b.createdAt || "").localeCompare(a.createdAt || ""));
 
-    // Get all payouts for this referrer
+    // Get all payouts for this referrer (sorted in JS to avoid composite index)
     const payoutsSnap = await db
       .collection("referral_payouts")
       .where("referrerId", "==", uid)
-      .orderBy("createdAt", "desc")
       .get();
 
-    const payouts = payoutsSnap.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const payouts = payoutsSnap.docs
+      .map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+      .sort((a: any, b: any) => (b.createdAt || "").localeCompare(a.createdAt || ""));
 
     // Calculate summary stats
     const totalEarned = commissions.reduce(

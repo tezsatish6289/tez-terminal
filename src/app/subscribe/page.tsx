@@ -361,7 +361,7 @@ export default function SubscribePage() {
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-black flex items-center justify-center shrink-0">1</span>
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Copy this amount</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-accent">Copy this amount</span>
                   </div>
                   <div className="flex items-center justify-between p-3 rounded-lg bg-white/[0.04] border border-white/[0.08]">
                     <div>
@@ -386,7 +386,7 @@ export default function SubscribePage() {
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-black flex items-center justify-center shrink-0">2</span>
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Send to this address</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-accent">Send to this address</span>
                   </div>
                   <div className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.04] border border-white/[0.08]">
                     <button
@@ -446,7 +446,7 @@ export default function SubscribePage() {
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-black flex items-center justify-center shrink-0">3</span>
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Verify &amp; send</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-accent">Verify &amp; send</span>
                   </div>
                   <p className="text-[12px] text-foreground/70 leading-relaxed mb-3">
                     Make sure the address receives <span className="font-bold text-foreground">{payment.payAmount} {PAY_CURRENCY_DISPLAY}</span>. If your exchange charges a withdrawal fee, <span className="font-semibold text-foreground underline">you must add it on top</span>.

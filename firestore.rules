@@ -87,5 +87,19 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow write: if false;
     }
+
+    // Referral commissions: referrer can read their own, server handles writes.
+    match /referral_commissions/{commissionId} {
+      allow read: if request.auth != null
+        && resource.data.referrerId == request.auth.uid;
+      allow write: if false;
+    }
+
+    // Referral payouts: referrer can read their own, server handles writes.
+    match /referral_payouts/{payoutId} {
+      allow read: if request.auth != null
+        && resource.data.referrerId == request.auth.uid;
+      allow write: if false;
+    }
   }
 }

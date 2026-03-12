@@ -114,3 +114,55 @@ export async function getAvailableCurrencies(): Promise<string[]> {
 export async function getApiStatus(): Promise<{ message: string }> {
   return apiCall("GET", "/status");
 }
+
+// --- Mass Payout API ---
+
+export interface PayoutWithdrawal {
+  address: string;
+  currency: string;
+  amount: number;
+  ipn_callback_url?: string;
+  extra_id?: string;
+}
+
+export interface CreatePayoutParams {
+  ipn_callback_url?: string;
+  withdrawals: PayoutWithdrawal[];
+}
+
+export interface CreatePayoutResponse {
+  id: string;
+  status: string;
+  withdrawals: Array<{
+    id: string;
+    address: string;
+    currency: string;
+    amount: number;
+    status: string;
+  }>;
+}
+
+export async function createMassPayout(params: CreatePayoutParams): Promise<CreatePayoutResponse> {
+  return apiCall("POST", "/payout", params);
+}
+
+export async function verifyMassPayout(payoutId: string): Promise<{ id: string; status: string }> {
+  return apiCall("POST", `/payout/${payoutId}/verify`);
+}
+
+export interface PayoutStatusResponse {
+  id: string;
+  status: string;
+  withdrawals: Array<{
+    id: string;
+    address: string;
+    currency: string;
+    amount: number;
+    status: string;
+    hash?: string;
+  }>;
+}
+
+export async function getMassPayoutStatus(payoutId: string): Promise<PayoutStatusResponse> {
+  return apiCall("GET", `/payout/${payoutId}`);
+}

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { LineChart, History, Zap, ShieldCheck, Heart, Webhook, CreditCard } from "lucide-react";
+import { LineChart, History, Zap, ShieldCheck, Heart, Webhook, CreditCard, Gift } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WATCHLIST } from "@/app/lib/mock-data";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,6 +19,7 @@ export function LeftSidebar() {
     { name: "Signals", icon: Zap, href: "/signals" },
     { name: "Trade Audit", icon: LineChart, href: "/trade-audit" },
     { name: "Purchases", icon: CreditCard, href: "/purchases" },
+    { name: "Referrals", icon: Gift, href: "/referrals" },
     { name: "History", icon: History, href: "/history" },
   ];
 

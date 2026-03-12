@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { getIpnSecret } from "@/lib/nowpayments";
 import { computeNewEndDate, type SubscriptionDoc } from "@/lib/subscription";
+import { fetchReferralConfig, type ReferralCommissionDoc } from "@/lib/referral";
 import { sendMessage } from "@/lib/telegram";
 import crypto from "crypto";
 
@@ -130,6 +131,44 @@ export async function POST(request: NextRequest) {
             }
           ).catch(() => {});
         }
+      }
+    }
+
+    // Create referral commission when payment is confirmed
+    if (paymentStatus === "finished") {
+      try {
+        const referredUserDoc = await db.collection("users").doc(userId).get();
+        const referredBy = referredUserDoc.exists ? referredUserDoc.data()?.referredBy : null;
+
+        if (referredBy) {
+          const existingCommission = await db
+            .collection("referral_commissions")
+            .where("paymentId", "==", paymentId)
+            .limit(1)
+            .get();
+
+          if (existingCommission.empty) {
+            const config = await fetchReferralConfig();
+            if (config.enabled) {
+              const purchaseAmountUsd = paymentData.priceAmountUsd || 0;
+              const commissionDoc: ReferralCommissionDoc = {
+                referrerId: referredBy,
+                referredUserId: userId,
+                paymentId,
+                purchaseAmountUsd,
+                commissionRate: config.commissionRate,
+                commissionAmountUsd: Math.round(purchaseAmountUsd * config.commissionRate * 100) / 100,
+                status: "pending",
+                payoutBatchId: null,
+                createdAt: now,
+                paidAt: null,
+              };
+              await db.collection("referral_commissions").add(commissionDoc);
+            }
+          }
+        }
+      } catch (refErr: any) {
+        console.error("[IPN Webhook] Referral commission error:", refErr.message);
       }
     }
 

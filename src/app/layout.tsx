@@ -3,6 +3,7 @@ import type {Metadata, Viewport} from 'next';
 import './globals.css';
 import { FirebaseClientProvider } from '@/firebase';
 import { Toaster } from "@/components/ui/toaster";
+import { ReferralTracker } from "@/components/ReferralTracker";
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -68,6 +69,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased selection:bg-accent/30 selection:text-accent">
         <FirebaseClientProvider>
+          <ReferralTracker />
           {children}
           <Toaster />
         </FirebaseClientProvider>

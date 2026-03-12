@@ -93,6 +93,7 @@ function StatusProgress({ status }: { status: string }) {
 }
 
 const PAY_CURRENCY = "usdttrc20";
+const PAY_CURRENCY_DISPLAY = "USDT";
 
 export default function SubscribePage() {
   const { user, isUserLoading } = useUser();
@@ -368,14 +369,15 @@ export default function SubscribePage() {
                         {payment.payAmount}
                       </span>
                       <span className="text-sm font-bold text-accent uppercase ml-2">
-                        {payment.payCurrency}
+                        {PAY_CURRENCY_DISPLAY}
                       </span>
                     </div>
                     <button
                       onClick={handleCopyAmount}
-                      className="px-3 py-1.5 rounded-lg bg-accent/15 border border-accent/25 text-accent text-[10px] font-bold uppercase tracking-wider hover:bg-accent/25 transition-colors cursor-pointer"
+                      className="shrink-0 p-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] transition-colors cursor-pointer"
+                      title="Copy amount"
                     >
-                      Copy
+                      <Copy className="w-4 h-4 text-muted-foreground" />
                     </button>
                   </div>
                 </div>
@@ -447,7 +449,7 @@ export default function SubscribePage() {
                     <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Verify &amp; send</span>
                   </div>
                   <p className="text-[12px] text-foreground/70 leading-relaxed mb-3">
-                    Make sure the address receives <span className="font-bold text-foreground">{payment.payAmount} {payment.payCurrency.toUpperCase()}</span>. If your exchange charges a withdrawal fee, <span className="text-amber-400 font-bold">you must add it on top</span>.
+                    Make sure the address receives <span className="font-bold text-foreground">{payment.payAmount} {PAY_CURRENCY_DISPLAY}</span>. If your exchange charges a withdrawal fee, <span className="text-amber-400 font-bold">you must add it on top</span>.
                   </p>
                   <div className="rounded-lg bg-amber-400/[0.06] border border-amber-400/15 p-3 space-y-1.5">
                     <p className="text-[11px] font-bold text-amber-400/90 uppercase tracking-wider">Example</p>
@@ -550,7 +552,7 @@ export default function SubscribePage() {
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] text-muted-foreground/60">Amount Paid</span>
                   <span className="text-[12px] font-bold">
-                    {payment.payAmount} {payment.payCurrency.toUpperCase()}
+                    {payment.payAmount} {PAY_CURRENCY_DISPLAY}
                   </span>
                 </div>
               </div>

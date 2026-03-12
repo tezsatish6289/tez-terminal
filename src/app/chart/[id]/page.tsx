@@ -136,7 +136,7 @@ export default function DeepDiveChartPage() {
       <div className="flex h-screen flex-col items-center justify-center bg-background p-6 gap-6">
         <AlertTriangle className="h-16 w-16 text-destructive" />
         <h2 className="text-2xl font-bold">Signal Not Found</h2>
-        <Button onClick={() => router.push("/")} variant="outline">Return to Terminal</Button>
+        <Button onClick={() => router.push("/signals")} variant="outline">Return to Signals</Button>
       </div>
     );
   }
@@ -190,7 +190,7 @@ export default function DeepDiveChartPage() {
         <div ref={leftPanelRef} className="w-full lg:w-[380px] shrink-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 flex flex-col lg:overflow-y-auto">
           {/* Header */}
           <div className="px-5 pt-4 pb-3 border-b border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent">
-            <Button variant="ghost" size="sm" onClick={() => router.push("/")} className="text-muted-foreground hover:text-foreground gap-1 -ml-3 mb-3">
+            <Button variant="ghost" size="sm" onClick={() => router.push("/signals")} className="text-muted-foreground hover:text-foreground gap-1 -ml-3 mb-3">
               <ChevronLeft className="h-4 w-4" /> Back
             </Button>
             <div className="flex items-start justify-between gap-2">

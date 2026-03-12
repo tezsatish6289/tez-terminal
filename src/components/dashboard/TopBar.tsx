@@ -37,9 +37,9 @@ export function TopBar() {
   };
 
   const navItems = [
-    { name: "Signals", icon: Zap, href: "/" },
+    { name: "Signals", icon: Zap, href: "/signals" },
     { name: "Trade Audit", icon: LineChart, href: "/trade-audit" },
-    { name: "Purchases", icon: CreditCard, href: "/billing" },
+    { name: "Purchases", icon: CreditCard, href: "/purchases" },
     { name: "Settings", icon: Settings, href: "/settings" },
   ];
 
@@ -51,7 +51,7 @@ export function TopBar() {
   return (
     <header className="h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 w-full">
       <div className="relative flex h-full items-center px-4 justify-between gap-4">
-        <Link href="/" className="flex items-center gap-2.5">
+        <Link href="/signals" className="flex items-center gap-2.5">
           <RadarIcon className="h-5 w-5 text-accent" />
           <span className="font-black text-lg text-accent tracking-tight leading-tight">TezTerminal.com</span>
         </Link>

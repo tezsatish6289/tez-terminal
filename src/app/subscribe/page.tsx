@@ -215,7 +215,7 @@ export default function SubscribePage() {
         <div className="text-center space-y-4">
           <p className="text-muted-foreground">Please sign in to subscribe.</p>
           <Link href="/" className="text-accent font-bold hover:underline">
-            Go to home page
+            Go to home
           </Link>
         </div>
       </div>
@@ -231,11 +231,11 @@ export default function SubscribePage() {
 
       <div className="max-w-xl mx-auto px-4 py-8">
         <Link
-          href="/"
+          href="/signals"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Terminal
+          Back to Signals
         </Link>
 
         <div className="space-y-1 mb-8">
@@ -565,7 +565,7 @@ export default function SubscribePage() {
               </div>
 
               <Link
-                href="/"
+                href="/signals"
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-accent text-accent-foreground text-sm font-bold uppercase tracking-wider hover:bg-accent/90 transition-colors shadow-lg shadow-accent/20"
               >
                 <Sparkles className="w-4 h-4" />

@@ -120,7 +120,7 @@ function TerminalContent() {
           <div className="flex items-center justify-between max-w-6xl">
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm">
-                <Link href="/" className="text-accent hover:underline font-bold">Opportunities</Link>
+                <Link href="/signals" className="text-accent hover:underline font-bold">Signals</Link>
                 {sideLabel && (
                   <>
                     <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
@@ -164,7 +164,7 @@ function TerminalContent() {
 
           {/* Sticky bottom CTA */}
           <div className="sticky bottom-0 w-full border-t border-accent/20 bg-background/95 backdrop-blur-md pt-4 px-6 z-30 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
-            <Link href="/" className="block max-w-md mx-auto">
+            <Link href="/signals" className="block max-w-md mx-auto">
               <Button className="w-full h-12 gap-3 bg-accent/15 text-accent border-2 border-accent/40 hover:bg-accent/25 font-black uppercase text-sm tracking-wider rounded-xl shadow-lg shadow-accent/10">
                 <RadarIcon className="h-5 w-5" />
                 Find More Opportunities

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { LayoutDashboard, LineChart, History, Zap, ShieldCheck, Heart, Webhook, CreditCard } from "lucide-react";
+import { LineChart, History, Zap, ShieldCheck, Heart, Webhook, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WATCHLIST } from "@/app/lib/mock-data";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -16,9 +16,9 @@ export function LeftSidebar() {
   const isAdmin = user?.email === "hello@tezterminal.com";
 
   const navItems = [
-    { name: "Terminal", icon: LayoutDashboard, href: "/" },
+    { name: "Signals", icon: Zap, href: "/signals" },
     { name: "Trade Audit", icon: LineChart, href: "/trade-audit" },
-    { name: "Purchases", icon: CreditCard, href: "/billing" },
+    { name: "Purchases", icon: CreditCard, href: "/purchases" },
     { name: "History", icon: History, href: "/history" },
   ];
 
@@ -29,7 +29,7 @@ export function LeftSidebar() {
   return (
     <aside className="w-64 border-r bg-sidebar hidden lg:flex flex-col h-screen sticky top-0 overflow-hidden">
       <div className="p-6">
-        <Link href="/" className="flex items-center gap-3">
+        <Link href="/signals" className="flex items-center gap-3">
           <div className="bg-primary p-1.5 rounded-lg border border-accent/20">
             <Zap className="h-6 w-6 text-accent fill-accent/20" />
           </div>

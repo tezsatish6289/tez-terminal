@@ -204,7 +204,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between">
             <div>
               <Link
-                href="/"
+                href="/signals"
                 className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2"
               >
                 <ChevronLeft className="w-4 h-4" />

@@ -355,7 +355,7 @@ export default function SubscribePage() {
 
               <div className="text-center mb-6">
                 <p className="text-[11px] text-muted-foreground/50 uppercase tracking-widest mb-2">
-                  Send exactly
+                  This address must receive
                 </p>
                 <div className="flex items-center justify-center gap-2">
                   <span className="text-3xl font-black text-foreground tabular-nums font-mono">
@@ -371,6 +371,9 @@ export default function SubscribePage() {
                 >
                   Copy amount
                 </button>
+                <p className="mt-2 text-[11px] text-amber-400/70 leading-relaxed max-w-xs mx-auto">
+                  If sending from an exchange, add the withdrawal fee to this amount so the full amount arrives.
+                </p>
               </div>
 
               <div className="flex justify-center mb-6">

@@ -154,9 +154,21 @@ export default function DeepDiveChartPage() {
   const tradingViewUrl = `https://www.tradingview.com/chart/?symbol=${signal?.exchange || 'BINANCE'}:${signal?.symbol}&interval=${signal?.timeframe || '15'}`;
 
   const cleanSymbol = (signal?.symbol || "").replace(/\.P$/i, "");
+  // MEXC expects BASE_QUOTE format (e.g. BTC_USDT)
+  const mexcSymbol = cleanSymbol.replace(/USDT$/, "_USDT");
+  // Map our timeframes to exchange interval params
+  const tfMap: Record<string, { binance: string; pionex: string }> = {
+    "5": { binance: "5", pionex: "5" },
+    "15": { binance: "15", pionex: "15" },
+    "60": { binance: "60", pionex: "60" },
+    "240": { binance: "240", pionex: "240" },
+    "D": { binance: "1D", pionex: "1D" },
+  };
+  const tf = String(signal?.timeframe || "15");
+  const intervals = tfMap[tf] || tfMap["15"];
   const tradeLinks = [
-    { name: "Binance", icon: BinanceIcon, url: `https://www.binance.com/en/futures/${cleanSymbol}`, color: "bg-[#F0B90B]/15 text-[#F0B90B] border-[#F0B90B]/30 hover:bg-[#F0B90B]/25" },
-    { name: "MEXC", icon: MexcIcon, url: `https://futures.mexc.com/exchange/${cleanSymbol}`, color: "bg-[#2EBD85]/15 text-[#2EBD85] border-[#2EBD85]/30 hover:bg-[#2EBD85]/25" },
+    { name: "Binance", icon: BinanceIcon, url: `https://www.binance.com/en/futures/${cleanSymbol}?timeInterval=${intervals.binance}`, color: "bg-[#F0B90B]/15 text-[#F0B90B] border-[#F0B90B]/30 hover:bg-[#F0B90B]/25" },
+    { name: "MEXC", icon: MexcIcon, url: `https://futures.mexc.com/exchange/${mexcSymbol}`, color: "bg-[#2EBD85]/15 text-[#2EBD85] border-[#2EBD85]/30 hover:bg-[#2EBD85]/25" },
     { name: "Pionex", icon: PionexIcon, url: `https://www.pionex.com/en/futures/${cleanSymbol}`, color: "bg-[#E8B342]/15 text-[#E8B342] border-[#E8B342]/30 hover:bg-[#E8B342]/25" },
   ];
 

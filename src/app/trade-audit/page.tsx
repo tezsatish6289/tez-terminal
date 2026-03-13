@@ -50,6 +50,7 @@ function TradeAuditContent() {
   const [sideFilter, setSideFilter] = useState<"all" | "BUY" | "SELL">("all");
   const [tfFilter, setTfFilter] = useState(initialTf);
   const [algoFilter, setAlgoFilter] = useState<string>("all");
+  const [outcomeFilter, setOutcomeFilter] = useState<"all" | "tp1" | "tp2" | "tp3" | "sl">("all");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("all");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -112,13 +113,17 @@ function TradeAuditContent() {
       if (sideFilter !== "all" && s.type !== sideFilter) return false;
       if (tfFilter !== "all" && String(s.timeframe).toUpperCase() !== tfFilter.toUpperCase()) return false;
       if (algoFilter !== "all" && (s.algo || "V8 Reversal") !== algoFilter) return false;
+      if (outcomeFilter === "tp1" && !s.tp1Hit) return false;
+      if (outcomeFilter === "tp2" && !s.tp2Hit) return false;
+      if (outcomeFilter === "tp3" && !s.tp3Hit) return false;
+      if (outcomeFilter === "sl" && !(s.slHitAt != null && !s.tp1Hit)) return false;
       if (dateCutoff > 0 || dateEnd < Infinity) {
         const t = s.receivedAt ? new Date(s.receivedAt).getTime() : 0;
         if (t < dateCutoff || t > dateEnd) return false;
       }
       return true;
     });
-  }, [allSignals, statusFilter, sideFilter, tfFilter, algoFilter, dateCutoff, dateEnd]);
+  }, [allSignals, statusFilter, sideFilter, tfFilter, algoFilter, outcomeFilter, dateCutoff, dateEnd]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageSignals = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -317,6 +322,32 @@ function TradeAuditContent() {
               ))}
             </div>
           )}
+
+          {/* Outcome filter */}
+          <div className="flex items-center rounded-lg border border-white/10 bg-white/[0.03] p-1">
+            {([
+              { id: "all", label: "All" },
+              { id: "tp1", label: "TP1" },
+              { id: "tp2", label: "TP2" },
+              { id: "tp3", label: "TP3" },
+              { id: "sl", label: "SL" },
+            ] as const).map(o => (
+              <button
+                key={o.id}
+                onClick={() => setFilterAndResetPage(setOutcomeFilter)(o.id)}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
+                  outcomeFilter === o.id
+                    ? o.id === "sl" ? "bg-rose-500/15 text-rose-400 shadow-sm"
+                    : o.id !== "all" ? "bg-emerald-500/15 text-emerald-400 shadow-sm"
+                    : "bg-accent/15 text-accent shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
 
         </div>
 

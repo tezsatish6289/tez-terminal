@@ -463,77 +463,91 @@ function TradeAuditContent() {
               const pnl = effectivePnl(signal) * leverage;
               const chartLabel = tfLabelMap[String(signal.timeframe).toUpperCase()] ?? `${signal.timeframe}m`;
               const isRetired = signal.status === "INACTIVE";
+              const isBuy = signal.type === "BUY";
               const maxUp = calculatePercent(signal.maxUpsidePrice, signal.price, signal.type) * leverage;
               const maxDown = calculatePercent(signal.maxDrawdownPrice, signal.price, signal.type) * leverage;
 
               return (
                 <Link key={signal.id} href={`/chart/${signal.id}`} className="block">
-                  <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4 space-y-3 hover:bg-white/[0.04] transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-black text-white uppercase tracking-tighter">{signal.symbol}</span>
-                        <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", signal.type === "BUY" ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400")}>
-                          {signal.type}
-                        </Badge>
-                        <span className="text-[10px] font-bold text-muted-foreground">{chartLabel}</span>
-                        <Badge variant="outline" className="text-[9px] font-black h-5 px-1.5 border-accent/20 text-accent">{leverage}x</Badge>
-                      </div>
-                      <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", isRetired ? "bg-amber-500/15 text-amber-400" : "bg-emerald-500/15 text-emerald-400")}>
-                        {isRetired ? "Retired" : "Active"}
-                      </Badge>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div className={cn("flex items-center gap-1.5 font-mono text-base font-black", pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                        {pnl >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-                        {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}%
-                      </div>
-                      <span className="text-[10px] font-mono text-muted-foreground/50">{format(new Date(signal.receivedAt), "MMM dd, HH:mm")}</span>
-                    </div>
-
-                    <div className="flex items-center gap-4 text-[10px]">
-                      <div className="flex items-center gap-3">
-                        <span className="text-muted-foreground/50">Entry</span>
-                        <span className="font-mono font-bold text-white/60">${formatPrice(signal.price)}</span>
-                      </div>
-                      <span className="text-white/10">→</span>
-                      <div className="flex items-center gap-3">
-                        <span className="text-muted-foreground/50">Current</span>
-                        <span className="font-mono font-bold text-white">${formatPrice(signal.currentPrice)}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4 text-[10px]">
-                      <div className="flex items-center gap-1.5">
-                        {[
-                          { num: 1, hit: signal.tp1Hit },
-                          { num: 2, hit: signal.tp2Hit },
-                          { num: 3, hit: signal.tp3Hit },
-                        ].map((tp) => {
-                          const slKilled = !tp.hit && signal.slHitAt != null;
-                          return (
-                            <span
-                              key={tp.num}
-                              className={cn(
-                                "px-1.5 py-0.5 rounded text-[9px] font-bold",
-                                tp.hit
-                                  ? "bg-emerald-500/20 text-emerald-400"
-                                  : slKilled
-                                    ? "bg-rose-500/10 text-rose-400/50 line-through"
-                                    : "bg-white/5 text-muted-foreground/40"
-                              )}
-                            >
-                              TP{tp.num}{tp.hit ? "✓" : ""}
-                            </span>
-                          );
-                        })}
-                      </div>
-                      <div className="flex items-center gap-3 ml-auto">
-                        <div className="flex items-center gap-1 font-mono text-[10px] font-bold text-emerald-400">
-                          <ArrowUpRight className="h-2.5 w-2.5" />{maxUp.toFixed(1)}%
+                  <div className="rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-lg shadow-black/20 overflow-hidden hover:border-white/[0.12] transition-all">
+                    {/* Header row */}
+                    <div className="px-4 pt-4 pb-3 border-b border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] font-black text-foreground uppercase tracking-tight">{signal.symbol}</span>
+                          <span className={cn("text-[11px] font-bold uppercase", isBuy ? "text-emerald-400/70" : "text-rose-400/70")}>
+                            {isBuy ? "▲ Long" : "▼ Short"}
+                          </span>
+                          <span className="text-white/15">·</span>
+                          <span className="text-[11px] text-muted-foreground/60 uppercase">{chartLabel}</span>
+                          <span className="text-[9px] font-bold text-muted-foreground/40">{leverage}x</span>
                         </div>
-                        <div className="flex items-center gap-1 font-mono text-[10px] font-bold text-rose-400">
-                          <ArrowDownRight className="h-2.5 w-2.5" />{maxDown.toFixed(1)}%
+                        <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", isRetired ? "bg-amber-500/15 text-amber-400" : "bg-emerald-500/15 text-emerald-400")}>
+                          {isRetired ? "Retired" : "Active"}
+                        </Badge>
+                      </div>
+                      <div className="text-[10px] font-bold text-muted-foreground/30 uppercase mt-1">
+                        {signal.algo || "V8 Reversal"}
+                      </div>
+                    </div>
+
+                    {/* Body */}
+                    <div className="px-4 py-3 space-y-3">
+                      {/* PNL + Date */}
+                      <div className="flex items-center justify-between">
+                        <div className={cn("flex items-center gap-1.5 font-mono text-lg font-black", pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                          {pnl >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                          {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}%
+                        </div>
+                        <span className="text-[10px] font-mono text-muted-foreground/40">{format(new Date(signal.receivedAt), "MMM dd, HH:mm")}</span>
+                      </div>
+
+                      {/* Entry / Current */}
+                      <div className="flex items-center gap-3 text-[11px]">
+                        <div>
+                          <span className="text-muted-foreground/40 mr-1.5">Entry</span>
+                          <span className="font-mono font-bold text-white/50">${formatPrice(signal.price)}</span>
+                        </div>
+                        <span className="text-white/10">→</span>
+                        <div>
+                          <span className="text-muted-foreground/40 mr-1.5">Current</span>
+                          <span className="font-mono font-bold text-white">${formatPrice(signal.currentPrice)}</span>
+                        </div>
+                      </div>
+
+                      {/* Targets + Excursion */}
+                      <div className="flex items-center justify-between pt-1 border-t border-white/[0.04]">
+                        <div className="flex items-center gap-1.5">
+                          {[
+                            { num: 1, hit: signal.tp1Hit },
+                            { num: 2, hit: signal.tp2Hit },
+                            { num: 3, hit: signal.tp3Hit },
+                          ].map((tp) => {
+                            const slKilled = !tp.hit && signal.slHitAt != null;
+                            return (
+                              <span
+                                key={tp.num}
+                                className={cn(
+                                  "px-1.5 py-0.5 rounded text-[9px] font-bold",
+                                  tp.hit
+                                    ? "bg-emerald-500/20 text-emerald-400"
+                                    : slKilled
+                                      ? "bg-rose-500/10 text-rose-400/50 line-through"
+                                      : "bg-white/5 text-muted-foreground/40"
+                                )}
+                              >
+                                TP{tp.num}{tp.hit ? "✓" : ""}
+                              </span>
+                            );
+                          })}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1 font-mono text-[10px] font-bold text-emerald-400/80">
+                            <ArrowUpRight className="h-2.5 w-2.5" />{maxUp.toFixed(1)}%
+                          </div>
+                          <div className="flex items-center gap-1 font-mono text-[10px] font-bold text-rose-400/80">
+                            <ArrowDownRight className="h-2.5 w-2.5" />{maxDown.toFixed(1)}%
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -546,24 +560,24 @@ function TradeAuditContent() {
 
         {/* Desktop: Table layout */}
         <div className="hidden lg:block bg-card border border-white/5 rounded-lg overflow-x-auto">
-          <div className="min-w-[1000px]">
+          <div className="min-w-[1100px]">
             <Table>
               <TableHeader className="bg-card sticky top-0 z-10 shadow-[0_1px_0_rgba(255,255,255,0.05)]">
                     <TableRow className="hover:bg-transparent border-white/5">
-                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Symbol</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Side</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Chart</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Algo</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Lev.</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[120px]">Symbol</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[48px]">Side</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[36px]">Chart</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[70px]">Algo</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[36px]">Lev.</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Entry</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Current</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">SL</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Targets</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[72px]">Targets</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Net PNL</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Max Excursion</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">AI Score</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Status</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 text-right">Date</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[72px]">AI Score</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[64px]">Status</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[90px] text-right">Date</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -603,7 +617,7 @@ function TradeAuditContent() {
                               </Badge>
                             </TableCell>
                             <TableCell className="text-xs font-bold text-muted-foreground uppercase">{chartLabel}</TableCell>
-                            <TableCell className="text-[10px] font-bold text-muted-foreground/50 uppercase">{signal.algo || "V8 Reversal"}</TableCell>
+                            <TableCell className="text-[10px] font-bold text-muted-foreground/50 uppercase max-w-[70px] truncate">{signal.algo || "V8 Reversal"}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-[9px] font-black h-5 px-1.5 border-accent/20 text-accent">{leverage}x</Badge>
                             </TableCell>

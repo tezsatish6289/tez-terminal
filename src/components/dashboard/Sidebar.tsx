@@ -1,7 +1,7 @@
 
 "use client";
 
-import { LineChart, History, Zap, ShieldCheck, Heart, Webhook, CreditCard, Gift } from "lucide-react";
+import { LineChart, History, Zap, ShieldCheck, Heart, Webhook, CreditCard, Gift, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WATCHLIST } from "@/app/lib/mock-data";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -24,6 +24,7 @@ export function LeftSidebar() {
   ];
 
   const adminItems = [
+    { name: "Users", icon: Users, href: "/admin/users" },
     { name: "Bridge Config", icon: Webhook, href: "/webhooks" },
   ];
 

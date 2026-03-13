@@ -1,7 +1,7 @@
 
 "use client";
 
-import { User, LogOut, Zap, History, LineChart, Webhook, Settings, CreditCard, Bell, Gift } from "lucide-react";
+import { User, LogOut, Zap, History, LineChart, Webhook, Settings, CreditCard, Bell, Gift, Users } from "lucide-react";
 import { RadarIcon } from "@/components/icons/RadarIcon";
 import { Button } from "@/components/ui/button";
 import { useUser, useAuth } from "@/firebase";
@@ -45,6 +45,7 @@ export function TopBar() {
   ];
 
   const adminItems = [
+    { name: "Users", icon: Users, href: "/admin/users" },
     { name: "History", icon: History, href: "/history" },
     { name: "Bridge Config", icon: Webhook, href: "/webhooks" },
   ];

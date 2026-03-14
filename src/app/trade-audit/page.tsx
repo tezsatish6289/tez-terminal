@@ -23,11 +23,26 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useMemo, useState, Suspense } from "react";
+import { useMemo, useState, useEffect, useCallback, Suspense } from "react";
 import { getLeverage } from "@/lib/leverage";
 import { getEffectivePnl as effectivePnl } from "@/lib/pnl";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as ReTooltip,
+  ReferenceLine,
+  ResponsiveContainer,
+} from "recharts";
 
 const PAGE_SIZE = 25;
 
@@ -39,6 +54,219 @@ const TIMEFRAMES = [
   { id: "240", name: "Positional" },
   { id: "D", name: "Buy & Hold" },
 ];
+
+const TREND_TF_OPTIONS = [
+  { id: "composite", label: "All" },
+  { id: "5", label: "5m" },
+  { id: "15", label: "15m" },
+  { id: "60", label: "1h" },
+  { id: "240", label: "4h" },
+] as const;
+
+function Sparkline({ data, color }: { data: number[]; color: string }) {
+  if (data.length < 2) return null;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const h = 28;
+  const w = 80;
+  const points = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * w;
+    const y = h - ((v - min) / range) * h;
+    return `${x},${y}`;
+  });
+  return (
+    <svg width={w} height={h} className="shrink-0">
+      <polyline fill="none" stroke={color} strokeWidth={1.5} points={points.join(" ")} />
+    </svg>
+  );
+}
+
+function WinRateTrendCard() {
+  const [metrics, setMetrics] = useState<any[]>([]);
+  const [tfFilter, setTfFilter] = useState("composite");
+  const [algoFilter, setAlgoFilter] = useState("all");
+  const [loaded, setLoaded] = useState(false);
+
+  const fetchMetrics = useCallback(() => {
+    fetch("/api/admin/daily-metrics")
+      .then((r) => r.json())
+      .then((d) => { setMetrics(d.metrics || []); setLoaded(true); })
+      .catch(() => setLoaded(true));
+  }, []);
+
+  useEffect(() => { fetchMetrics(); }, [fetchMetrics]);
+
+  const allAlgos = useMemo(() => {
+    const set = new Set<string>();
+    metrics.forEach((m) => {
+      if (m.algo) Object.keys(m.algo).forEach((a) => set.add(a));
+    });
+    return Array.from(set).sort();
+  }, [metrics]);
+
+  const chartData = useMemo(() => {
+    return metrics.map((m) => {
+      let src = m.composite;
+      if (tfFilter !== "composite" && m.tf?.[tfFilter]) {
+        src = m.tf[tfFilter];
+      }
+      if (algoFilter !== "all" && m.algo?.[algoFilter]) {
+        src = m.algo[algoFilter];
+      }
+      return {
+        date: m.date,
+        winRate: src?.winRate ?? null,
+        profitFactor: src?.profitFactor ?? null,
+        trades: src?.trades ?? 0,
+      };
+    }).filter((d) => d.winRate !== null);
+  }, [metrics, tfFilter, algoFilter]);
+
+  const sparklineValues = chartData.map((d) => d.winRate);
+  const latestWr = sparklineValues.length > 0 ? sparklineValues[sparklineValues.length - 1] : null;
+  const prevWr = sparklineValues.length > 1 ? sparklineValues[sparklineValues.length - 2] : null;
+  const trending = latestWr !== null && prevWr !== null ? (latestWr >= prevWr ? "up" : "down") : null;
+
+  if (!loaded || chartData.length === 0) {
+    return (
+      <div className="flex items-center gap-3 px-3 lg:px-4 py-3 rounded-lg border border-white/5 bg-white/[0.02] opacity-40">
+        <div>
+          <span className="text-[8px] lg:text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Win Rate Trend</span>
+          <span className="text-[10px] text-muted-foreground/30">{loaded ? "No data yet" : "Loading..."}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className="flex items-center gap-3 px-3 lg:px-4 py-3 rounded-lg border border-accent/10 bg-accent/[0.03] hover:bg-accent/[0.06] transition-colors cursor-pointer text-left">
+          <div>
+            <span className="text-[8px] lg:text-[9px] font-bold uppercase tracking-widest text-accent/40 block">Win Rate Trend</span>
+            <div className="flex items-center gap-2">
+              <span className={cn("text-base lg:text-lg font-black font-mono", (latestWr ?? 0) >= 50 ? "text-emerald-400" : "text-rose-400")}>
+                {latestWr?.toFixed(1)}%
+              </span>
+              {trending && (
+                trending === "up"
+                  ? <TrendingUp className="h-3 w-3 text-emerald-400" />
+                  : <TrendingDown className="h-3 w-3 text-rose-400" />
+              )}
+            </div>
+          </div>
+          <Sparkline data={sparklineValues} color={trending === "down" ? "#f87171" : "#34d399"} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[480px] bg-card border-white/10 shadow-2xl p-0">
+        <div className="px-4 py-3 border-b border-white/[0.06]">
+          <span className="text-sm font-black uppercase tracking-wider">Performance Trend</span>
+        </div>
+
+        {/* Filters */}
+        <div className="px-4 py-2 border-b border-white/[0.06] flex flex-wrap items-center gap-2">
+          <div className="flex items-center rounded-md border border-white/10 bg-white/[0.03] p-0.5">
+            {TREND_TF_OPTIONS.map((o) => (
+              <button
+                key={o.id}
+                onClick={() => setTfFilter(o.id)}
+                className={cn(
+                  "px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all",
+                  tfFilter === o.id ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          {allAlgos.length > 1 && (
+            <div className="flex items-center rounded-md border border-white/10 bg-white/[0.03] p-0.5">
+              <button
+                onClick={() => setAlgoFilter("all")}
+                className={cn(
+                  "px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all",
+                  algoFilter === "all" ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                All Algos
+              </button>
+              {allAlgos.map((a) => (
+                <button
+                  key={a}
+                  onClick={() => setAlgoFilter(a)}
+                  className={cn(
+                    "px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all",
+                    algoFilter === a ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {a}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Charts */}
+        <div className="p-4 space-y-4">
+          <div>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block mb-2">Win Rate %</span>
+            <ResponsiveContainer width="100%" height={160}>
+              <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }}
+                  tickFormatter={(v: string) => v.slice(5)}
+                />
+                <YAxis
+                  domain={[0, 100]}
+                  tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }}
+                  tickFormatter={(v: number) => `${v}%`}
+                />
+                <ReTooltip
+                  contentStyle={{ background: "#1a1a1e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }}
+                  formatter={(v: number) => [`${v.toFixed(1)}%`, "Win Rate"]}
+                  labelFormatter={(l: string) => l}
+                />
+                <ReferenceLine y={50} stroke="rgba(255,255,255,0.1)" strokeDasharray="3 3" />
+                <Line type="monotone" dataKey="winRate" stroke="#34d399" strokeWidth={2} dot={{ r: 3, fill: "#34d399" }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block mb-2">Profit Factor</span>
+            <ResponsiveContainer width="100%" height={120}>
+              <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }}
+                  tickFormatter={(v: string) => v.slice(5)}
+                />
+                <YAxis
+                  tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }}
+                />
+                <ReTooltip
+                  contentStyle={{ background: "#1a1a1e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }}
+                  formatter={(v: number) => [v.toFixed(2), "Profit Factor"]}
+                  labelFormatter={(l: string) => l}
+                />
+                <ReferenceLine y={1} stroke="rgba(255,255,255,0.1)" strokeDasharray="3 3" />
+                <Line type="monotone" dataKey="profitFactor" stroke="#60a5fa" strokeWidth={2} dot={{ r: 3, fill: "#60a5fa" }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="text-center text-[9px] text-muted-foreground/30 font-bold uppercase tracking-widest">
+            {chartData.length} data points · Retired trades only
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 function TradeAuditContent() {
   const { user, isUserLoading } = useUser();
@@ -448,6 +676,9 @@ function TradeAuditContent() {
               <span className="text-base lg:text-lg font-black font-mono text-rose-400">{summaryStats.sl}</span>
             </div>
           </div>
+
+          {/* Win Rate Trend */}
+          <WinRateTrendCard />
         </div>
 
         {/* Mobile: Card layout */}

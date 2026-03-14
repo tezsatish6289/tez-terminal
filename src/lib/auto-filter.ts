@@ -163,11 +163,11 @@ export function computeMarketRegime(
 // ── Timeframe metadata ──────────────────────────────────────
 
 const TF_RANK: Record<string, number> = {
-  "1": 0, "5": 1, "15": 2, "60": 3, "240": 4, "D": 5,
+  "1": 0, "5": 1, "15": 2, "60": 3, "240": 4, "D": 5, "W": 6,
 };
 
 const CANDLE_MINUTES: Record<string, number> = {
-  "1": 1, "5": 5, "15": 15, "60": 60, "240": 240, "D": 1440,
+  "1": 1, "5": 5, "15": 15, "60": 60, "240": 240, "D": 1440, "W": 10080,
 };
 
 const PNL_THRESHOLDS: Record<string, number> = {
@@ -321,7 +321,7 @@ export function buildSentimentMap(
 
 // ── Factor 1: Multi-Timeframe Confluence (0-25) ─────────────
 
-const TF_IDS_ASCENDING = ["1", "5", "15", "60", "240", "D"];
+const TF_IDS_ASCENDING = ["1", "5", "15", "60", "240", "D", "W"];
 
 function scoreMtfConfluence(
   signal: SignalForScoring,
@@ -392,9 +392,12 @@ function scoreMtfConfluence(
 
     // B2. Higher-TF sentiment alignment (0-7)
     let b2 = 0;
-    const higherTfs = TF_IDS_ASCENDING.filter(
-      (tf) => (TF_RANK[tf] ?? 0) > signalRank,
-    );
+    const higherTfs = TF_IDS_ASCENDING.filter((tf) => {
+      const rank = TF_RANK[tf] ?? 0;
+      if (rank <= signalRank) return false;
+      if (tf === "W" && signalRank < 3) return false;
+      return true;
+    });
     if (higherTfs.length > 0) {
       let alignedCount = 0;
       let opposedCount = 0;

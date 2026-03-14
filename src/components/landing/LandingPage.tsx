@@ -186,6 +186,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
         setFrequency(data.frequency || []);
       })
       .catch(() => {});
+    fetch("/api/track-visit", { method: "POST" }).catch(() => {});
   }, []);
 
   return (

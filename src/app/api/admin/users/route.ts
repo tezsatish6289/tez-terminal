@@ -130,7 +130,17 @@ export async function GET() {
       return bTime - aTime;
     });
 
-    return NextResponse.json({ users, total: users.length });
+    let visits = { total: 0, today: 0 };
+    try {
+      const visitSnap = await db.collection("config").doc("site_visits").get();
+      if (visitSnap.exists) {
+        const vd = visitSnap.data()!;
+        const today = new Date().toISOString().slice(0, 10);
+        visits = { total: vd.total || 0, today: vd.daily?.[today] || 0 };
+      }
+    } catch {}
+
+    return NextResponse.json({ users, total: users.length, visits });
   } catch (error: any) {
     console.error("[Admin Users]", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -10,6 +10,8 @@ env:
     value: production
   - variable: NEXT_PUBLIC_REGION
     value: asia-southeast1
+  - variable: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+    value: G-9SSXWJTR1L
   - variable: TELEGRAM_BOT_TOKEN
     secret: TELEGRAM_BOT_TOKEN
     availability:

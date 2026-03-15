@@ -14,7 +14,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const origin = new URL(request.url).origin;
+    const forwardedHost = request.headers.get('x-forwarded-host') || request.headers.get('host');
+    const origin = forwardedHost ? `https://${forwardedHost}` : new URL(request.url).origin;
     const callbackUrl = `${origin}/api/auth/twitter/callback`;
 
     const { url, codeVerifier, state } = generateAuthLink(callbackUrl);

@@ -9,7 +9,8 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code');
   const state = searchParams.get('state');
   const error = searchParams.get('error');
-  const origin = new URL(request.url).origin;
+  const forwardedHost = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  const origin = forwardedHost ? `https://${forwardedHost}` : new URL(request.url).origin;
 
   if (error) {
     return NextResponse.redirect(

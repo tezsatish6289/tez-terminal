@@ -40,7 +40,7 @@ export async function analyzeSignal(input: AnalyzeSignalInput): Promise<AnalyzeS
 
 const prompt = ai.definePrompt({
   name: 'analyzeSignalPrompt',
-  model: googleAI.model('gemini-2.0-flash'),
+  model: googleAI.model('gemini-2.5-flash'),
   input: { schema: AnalyzeSignalInputSchema },
   output: { schema: AnalyzeSignalOutputSchema },
   prompt: `You are the Lead Quantitative Strategist at a Tier-1 Global Hedge Fund. Your expertise is in Technical Analysis (TA), Market Microstructure, and Risk Management.

@@ -102,11 +102,13 @@ export async function GET(request: NextRequest) {
           });
         }
       } catch (userErr: unknown) {
-        const msg = userErr instanceof Error ? userErr.message : '';
+        const msg = userErr instanceof Error ? userErr.message : String(userErr);
         if (msg.includes('403') || msg.includes('Forbidden')) {
           return NextResponse.json({
             skipped: true,
             reason: 'Timeline API not available on current Twitter tier',
+            handle,
+            error: msg,
             delayMs,
           });
         }
@@ -171,45 +173,59 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      const { data: posted } = await client.v2.tweet({
-        text: result.reply,
-        reply: { in_reply_to_tweet_id: tweet.id },
-      });
+      try {
+        const { data: posted } = await client.v2.tweet({
+          text: result.reply,
+          reply: { in_reply_to_tweet_id: tweet.id },
+        });
 
-      await saveProcessedTweet({
-        tweetId: tweet.id,
-        username: tweet.authorUsername,
-        timestamp: new Date().toISOString(),
-        agent_name: AGENT,
-        action: 'replied',
-      });
+        await saveProcessedTweet({
+          tweetId: tweet.id,
+          username: tweet.authorUsername,
+          timestamp: new Date().toISOString(),
+          agent_name: AGENT,
+          action: 'replied',
+        });
 
-      await savePost({
-        tweetId: posted.id,
-        content: result.reply,
-        timestamp: new Date().toISOString(),
-        agent_name: AGENT,
-        postType: POST_TYPE,
-        metadata: {
+        await savePost({
+          tweetId: posted.id,
+          content: result.reply,
+          timestamp: new Date().toISOString(),
+          agent_name: AGENT,
+          postType: POST_TYPE,
+          metadata: {
+            sourceTweetId: tweet.id,
+            sourceUser: tweet.authorUsername,
+            sourceLikes: tweet.likes,
+            sourceReplies: tweet.replies,
+            aiReason: result.reason,
+          },
+        });
+
+        repliesMade.push({
+          replyTweetId: posted.id,
           sourceTweetId: tweet.id,
           sourceUser: tweet.authorUsername,
           sourceLikes: tweet.likes,
-          sourceReplies: tweet.replies,
-          aiReason: result.reason,
-        },
-      });
+          replyText: result.reply,
+        });
 
-      repliesMade.push({
-        replyTweetId: posted.id,
-        sourceTweetId: tweet.id,
-        sourceUser: tweet.authorUsername,
-        sourceLikes: tweet.likes,
-        replyText: result.reply,
-      });
-
-      if (repliesMade.length < remainingBudget) {
-        const pause = 30_000 + Math.random() * 30_000;
-        await new Promise((r) => setTimeout(r, pause));
+        if (repliesMade.length < remainingBudget) {
+          const pause = 30_000 + Math.random() * 30_000;
+          await new Promise((r) => setTimeout(r, pause));
+        }
+      } catch (tweetErr: unknown) {
+        const msg = tweetErr instanceof Error ? tweetErr.message : String(tweetErr);
+        console.error(`[${AGENT}] Failed to post reply to @${tweet.authorUsername}:`, msg);
+        if (msg.includes('403') || msg.includes('Forbidden')) {
+          return NextResponse.json({
+            error: 'Reply posting returned 403 — check Twitter API tier and credits',
+            candidatesFound: candidates.length,
+            attemptedReplyTo: `@${tweet.authorUsername} (${tweet.likes} likes)`,
+            generatedReply: result.reply,
+            delayMs,
+          }, { status: 403 });
+        }
       }
     }
 

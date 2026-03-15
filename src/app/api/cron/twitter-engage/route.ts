@@ -17,9 +17,9 @@ const POST_TYPE = 'engagement_reply' as const;
 const MAX_REPLIES_PER_SESSION = 3;
 const MAX_REPLIES_PER_DAY = 12;
 const MAX_REPLIES_PER_USER_PER_DAY = 2;
-const HANDLES_PER_SESSION = 15;
-const MIN_LIKES = 50;
-const MAX_TWEET_AGE_HOURS = 6;
+const HANDLES_PER_SESSION = 25;
+const MIN_LIKES = 20;
+const MAX_TWEET_AGE_HOURS = 12;
 
 interface CandidateTweet {
   id: string;

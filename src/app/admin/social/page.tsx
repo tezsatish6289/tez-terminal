@@ -13,6 +13,8 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
+  ChevronDown,
+  ChevronRight,
   Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -157,6 +159,7 @@ function WatchlistCard({
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     setHandles(watchlist);
@@ -205,69 +208,85 @@ function WatchlistCard({
   };
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-bold text-white">Influencer Watchlist</h3>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            The Influencer Insight agent monitors these accounts daily.
-          </p>
+    <div className="rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] overflow-hidden">
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center justify-between p-6 hover:bg-white/[0.02] transition-colors text-left"
+      >
+        <div className="flex items-center gap-3">
+          {expanded ? (
+            <ChevronDown className="h-4 w-4 text-accent shrink-0" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+          )}
+          <div>
+            <h3 className="text-sm font-bold text-white">Influencer Watchlist</h3>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              {handles.length} handles · The Influencer Insight agent monitors these accounts daily.
+            </p>
+          </div>
         </div>
-        {dirty && (
-          <button
-            onClick={save}
-            disabled={saving}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold text-accent bg-accent/10 border border-accent/20 hover:bg-accent/20 transition-colors disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-            Save Changes
-          </button>
-        )}
-      </div>
-
-      <div className="flex gap-2">
-        <textarea
-          placeholder="Paste handles — comma or newline separated, e.g. saylor, VitalikButerin, CryptoHayes"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              addHandle();
-            }
-          }}
-          rows={2}
-          className="flex-1 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03] text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-accent/30 resize-none"
-        />
-        <button
-          onClick={addHandle}
-          disabled={!input.trim()}
-          className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-muted-foreground hover:bg-white/10 hover:text-white transition-colors disabled:opacity-30 self-end"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
-      </div>
-
-      {handles.length === 0 ? (
-        <p className="text-[11px] text-muted-foreground/40 text-center py-4">
-          No handles added yet. Add influencer usernames to monitor.
-        </p>
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          {handles.map((h) => (
-            <span
-              key={h}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[11px] font-bold"
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          {dirty && (
+            <button
+              onClick={save}
+              disabled={saving}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold text-accent bg-accent/10 border border-accent/20 hover:bg-accent/20 transition-colors disabled:opacity-50"
             >
-              @{h}
-              <button
-                onClick={() => removeHandle(h)}
-                className="hover:text-rose-400 transition-colors"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          ))}
+              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              Save Changes
+            </button>
+          )}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="px-6 pb-6 space-y-4 border-t border-white/[0.04] pt-4">
+          <div className="flex gap-2">
+            <textarea
+              placeholder="Paste handles — comma or newline separated, e.g. saylor, VitalikButerin, CryptoHayes"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  addHandle();
+                }
+              }}
+              rows={2}
+              className="flex-1 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03] text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-accent/30 resize-none"
+            />
+            <button
+              onClick={addHandle}
+              disabled={!input.trim()}
+              className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-muted-foreground hover:bg-white/10 hover:text-white transition-colors disabled:opacity-30 self-end"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+
+          {handles.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground/40 text-center py-4">
+              No handles added yet. Add influencer usernames to monitor.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {handles.map((h) => (
+                <span
+                  key={h}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[11px] font-bold"
+                >
+                  @{h}
+                  <button
+                    onClick={() => removeHandle(h)}
+                    className="hover:text-rose-400 transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -26,3 +26,11 @@ env:
     secret: NOWPAYMENTS_IPN_SECRET
     availability:
       - RUNTIME
+  - variable: TWITTER_CLIENT_ID
+    secret: TWITTER_CLIENT_ID
+    availability:
+      - RUNTIME
+  - variable: TWITTER_CLIENT_SECRET
+    secret: TWITTER_CLIENT_SECRET
+    availability:
+      - RUNTIME

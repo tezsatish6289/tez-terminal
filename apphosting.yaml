@@ -34,3 +34,7 @@ env:
     secret: TWITTER_CLIENT_SECRET
     availability:
       - RUNTIME
+  - variable: GOOGLE_GENAI_API_KEY
+    secret: GOOGLE_GENAI_API_KEY
+    availability:
+      - RUNTIME

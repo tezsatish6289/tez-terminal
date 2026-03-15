@@ -163,9 +163,13 @@ function WatchlistCard({
   }, [watchlist]);
 
   const addHandle = () => {
-    const clean = input.replace(/^@/, "").trim().toLowerCase();
-    if (!clean || handles.includes(clean)) return;
-    setHandles((prev) => [...prev, clean]);
+    const raw = input
+      .split(/[,\n\r\t]+/)
+      .map((s) => s.replace(/^@/, "").trim().toLowerCase())
+      .filter(Boolean);
+    const unique = raw.filter((h) => !handles.includes(h));
+    if (unique.length === 0) return;
+    setHandles((prev) => [...prev, ...unique]);
     setInput("");
     setDirty(true);
   };
@@ -222,18 +226,23 @@ function WatchlistCard({
       </div>
 
       <div className="flex gap-2">
-        <input
-          type="text"
-          placeholder="@username"
+        <textarea
+          placeholder="Paste handles — comma or newline separated, e.g. saylor, VitalikButerin, CryptoHayes"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addHandle()}
-          className="flex-1 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03] text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-accent/30"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              addHandle();
+            }
+          }}
+          rows={2}
+          className="flex-1 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03] text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-accent/30 resize-none"
         />
         <button
           onClick={addHandle}
           disabled={!input.trim()}
-          className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-muted-foreground hover:bg-white/10 hover:text-white transition-colors disabled:opacity-30"
+          className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-muted-foreground hover:bg-white/10 hover:text-white transition-colors disabled:opacity-30 self-end"
         >
           <Plus className="h-4 w-4" />
         </button>

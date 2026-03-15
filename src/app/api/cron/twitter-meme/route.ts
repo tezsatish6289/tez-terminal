@@ -22,7 +22,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    if (await hasPostedToday(POST_TYPE)) {
+    const isTest = new URL(request.url).searchParams.get('test') === 'true';
+    if (!isTest && await hasPostedToday(POST_TYPE)) {
       return NextResponse.json({ skipped: true, reason: 'Already posted today' });
     }
 
@@ -31,7 +32,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ skipped: true, reason: 'Twitter not connected' });
     }
 
-    const isTest = new URL(request.url).searchParams.get('test') === 'true';
     const delayMs = isTest ? 0 : await randomDelay(15);
 
     const query = SEARCH_QUERIES[Math.floor(Math.random() * SEARCH_QUERIES.length)];

@@ -74,7 +74,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ skipped: true, reason: 'Twitter not connected' });
     }
 
-    const delayMs = await randomDelay(15);
+    const isTest = new URL(request.url).searchParams.get('test') === 'true';
+    const delayMs = isTest ? 0 : await randomDelay(15);
 
     const liqData = await fetchLiquidationData();
 

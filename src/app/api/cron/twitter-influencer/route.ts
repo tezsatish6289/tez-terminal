@@ -40,7 +40,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ skipped: true, reason: 'Watchlist is empty' });
     }
 
-    const delayMs = await randomDelay(15);
+    const isTest = new URL(request.url).searchParams.get('test') === 'true';
+    const delayMs = isTest ? 0 : await randomDelay(15);
 
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const candidates: CandidateTweet[] = [];

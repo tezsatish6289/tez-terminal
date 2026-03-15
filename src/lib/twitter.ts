@@ -164,3 +164,14 @@ export async function randomDelay(windowMinutes: number = 15): Promise<number> {
   await new Promise((resolve) => setTimeout(resolve, delayMs));
   return delayMs;
 }
+
+/**
+ * Resolve the public origin from a request, handling Cloud Run's internal proxy.
+ */
+export function resolveOrigin(request: Request): string {
+  const forwardedHost = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  if (forwardedHost && !forwardedHost.includes('0.0.0.0') && !forwardedHost.includes('localhost')) {
+    return `https://${forwardedHost}`;
+  }
+  return new URL(request.url).origin;
+}

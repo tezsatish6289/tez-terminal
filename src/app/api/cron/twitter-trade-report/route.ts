@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTwitterClient, randomDelay } from '@/lib/twitter';
+import { getTwitterClient, randomDelay, resolveOrigin } from '@/lib/twitter';
 import { hasPostedToday, savePost } from '@/lib/twitter-db';
 import { generateTradeReportTweet } from '@/ai/flows/tweet-generator';
 
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const isTest = new URL(request.url).searchParams.get('test') === 'true';
     const delayMs = isTest ? 0 : await randomDelay(15);
 
-    const origin = new URL(request.url).origin;
+    const origin = resolveOrigin(request);
     const res = await fetch(`${origin}/api/yesterday-winners`);
     if (!res.ok) {
       return NextResponse.json({ error: 'Failed to fetch yesterday winners', status: res.status }, { status: 500 });

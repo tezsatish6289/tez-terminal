@@ -73,40 +73,41 @@ const LiquidationInputSchema = z.object({
   amount: z.string().optional(),
   direction: z.string().optional(),
   timeframe: z.string().optional(),
-  source: z.string().optional(),
+  btcPrice: z.string().optional(),
+  btcChange: z.string().optional(),
+  ethPrice: z.string().optional(),
+  ethChange: z.string().optional(),
 });
 
 const liquidationPrompt = ai.definePrompt({
   name: 'liquidationTweet',
   input: { schema: LiquidationInputSchema },
   output: { schema: z.object({ tweet: z.string() }) },
-  prompt: `You are the social media voice for TezTerminal, a crypto algo-trading platform. Write a high-energy tweet about crypto liquidations.
+  prompt: `You are the social media voice for TezTerminal, a crypto algo-trading platform. Write a high-energy tweet about crypto market conditions, liquidations, and risk.
 
+MARKET DATA (use these real numbers in your tweet):
+BTC: {{btcPrice}} ({{btcChange}} 24h)
+ETH: {{ethPrice}} ({{ethChange}} 24h)
 {{#if amount}}
-DATA:
-Asset: {{asset}}
-Liquidation Amount: {{amount}}
-Direction: {{direction}}
-Timeframe: {{timeframe}}
-{{else}}
-No specific liquidation data available. Write a general risk-management / anti-leverage tweet based on current crypto market conditions.
+Liquidations ({{timeframe}}): {{amount}} — mostly {{direction}}
 {{/if}}
 
 RULES:
 - Max 260 characters
+- MUST reference at least one real number from the data above (price, % change, liquidation amount)
 - Use line breaks for dramatic effect
-- Sound like a seasoned trader who's seen this before
-- Emphasize the lesson: risk management, position sizing, overleveraging
-- Never mock individual traders
+- Sound like a seasoned trader observing the market
+- Connect the price action to a lesson about risk, leverage, or position sizing
 - No hashtags, no emojis
-- Be punchy. Short sentences. High impact.
+- Be punchy. Short sentences. Real numbers.
+- NEVER be vague or generic. Every tweet must feel grounded in today's market.
 
 Example energy (DO NOT copy verbatim):
-"$380M wiped in 2 hours.
+"BTC down 4.2% today. $240M in longs liquidated.
 
-Overleveraged longs just got nuked.
+Same pattern. Leverage builds, market resets.
 
-This is why risk management matters."`,
+Size your positions or the market sizes them for you."`,
 });
 
 export async function generateLiquidationTweet(data: z.infer<typeof LiquidationInputSchema>): Promise<string> {

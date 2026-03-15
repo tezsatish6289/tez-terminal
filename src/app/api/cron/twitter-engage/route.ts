@@ -178,62 +178,79 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
+      let posted: { id: string } | null = null;
+      let method: 'reply' | 'quote' = 'reply';
+
       try {
-        const { data: posted } = await client.v2.tweet({
+        const res = await client.v2.tweet({
           text: result.reply,
           reply: { in_reply_to_tweet_id: tweet.id },
         });
-
-        await saveProcessedTweet({
-          tweetId: tweet.id,
-          username: tweet.authorUsername,
-          timestamp: new Date().toISOString(),
-          agent_name: AGENT,
-          action: 'replied',
-        });
-
-        await savePost({
-          tweetId: posted.id,
-          content: result.reply,
-          timestamp: new Date().toISOString(),
-          agent_name: AGENT,
-          postType: POST_TYPE,
-          metadata: {
-            sourceTweetId: tweet.id,
+        posted = res.data;
+        method = 'reply';
+      } catch {
+        try {
+          const quoteText = `@${tweet.authorUsername} ${result.reply}`;
+          const res = await client.v2.tweet({
+            text: quoteText.length <= 280 ? quoteText : result.reply,
+            quote_tweet_id: tweet.id,
+          });
+          posted = res.data;
+          method = 'quote';
+        } catch (quoteErr: unknown) {
+          const msg = quoteErr instanceof Error ? quoteErr.message : String(quoteErr);
+          console.warn(`[${AGENT}] Both reply and quote failed for @${tweet.authorUsername}: ${msg}`);
+          await saveProcessedTweet({
+            tweetId: tweet.id,
+            username: tweet.authorUsername,
+            timestamp: new Date().toISOString(),
+            agent_name: AGENT,
+            action: 'skipped',
+          });
+          skippedReplies.push({
             sourceUser: tweet.authorUsername,
             sourceLikes: tweet.likes,
-            sourceReplies: tweet.replies,
-            aiReason: result.reason,
-          },
-        });
+            reason: msg.includes('403') ? 'api_restricted' : msg,
+          });
+          continue;
+        }
+      }
 
-        repliesMade.push({
-          replyTweetId: posted.id,
+      await saveProcessedTweet({
+        tweetId: tweet.id,
+        username: tweet.authorUsername,
+        timestamp: new Date().toISOString(),
+        agent_name: AGENT,
+        action: 'replied',
+      });
+
+      await savePost({
+        tweetId: posted.id,
+        content: result.reply,
+        timestamp: new Date().toISOString(),
+        agent_name: AGENT,
+        postType: POST_TYPE,
+        metadata: {
           sourceTweetId: tweet.id,
           sourceUser: tweet.authorUsername,
           sourceLikes: tweet.likes,
-          replyText: result.reply,
-        });
+          sourceReplies: tweet.replies,
+          aiReason: result.reason,
+          method,
+        },
+      });
 
-        if (repliesMade.length < remainingBudget) {
-          const pause = 30_000 + Math.random() * 30_000;
-          await new Promise((r) => setTimeout(r, pause));
-        }
-      } catch (tweetErr: unknown) {
-        const msg = tweetErr instanceof Error ? tweetErr.message : String(tweetErr);
-        console.warn(`[${AGENT}] Reply failed for @${tweet.authorUsername} — skipping (${msg})`);
-        await saveProcessedTweet({
-          tweetId: tweet.id,
-          username: tweet.authorUsername,
-          timestamp: new Date().toISOString(),
-          agent_name: AGENT,
-          action: 'skipped',
-        });
-        skippedReplies.push({
-          sourceUser: tweet.authorUsername,
-          sourceLikes: tweet.likes,
-          reason: msg.includes('403') ? 'reply_restricted' : msg,
-        });
+      repliesMade.push({
+        replyTweetId: posted.id,
+        sourceTweetId: tweet.id,
+        sourceUser: tweet.authorUsername,
+        sourceLikes: tweet.likes,
+        replyText: result.reply,
+      });
+
+      if (repliesMade.length < remainingBudget) {
+        const pause = 30_000 + Math.random() * 30_000;
+        await new Promise((r) => setTimeout(r, pause));
       }
     }
 

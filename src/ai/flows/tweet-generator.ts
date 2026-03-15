@@ -217,3 +217,63 @@ export async function generateInfluencerCommentary(data: z.infer<typeof Influenc
   const { output } = await influencerEvalPrompt(data);
   return output!;
 }
+
+// ─── Engagement Reply ────────────────────────────────────────────────
+
+const EngagementReplyInputSchema = z.object({
+  originalText: z.string(),
+  authorUsername: z.string(),
+  authorFollowers: z.number().optional(),
+  likeCount: z.number(),
+  replyCount: z.number().optional(),
+});
+
+const engagementReplyPrompt = ai.definePrompt({
+  name: 'engagementReply',
+  input: { schema: EngagementReplyInputSchema },
+  output: { schema: z.object({
+    isRelevant: z.boolean().describe('true ONLY if the tweet is directly about crypto, trading, markets, or blockchain'),
+    reply: z.string().describe('the reply text if relevant, empty if not'),
+    reason: z.string().describe('why relevant or not'),
+  }) },
+  prompt: `You are a sharp crypto trader writing a reply to a viral tweet. Your goal: add value so people like YOUR reply and follow YOU.
+
+TWEET by @{{authorUsername}} ({{likeCount}} likes):
+"{{originalText}}"
+
+STEP 1 — Is this tweet about crypto, trading, markets, Bitcoin, DeFi, or blockchain?
+If NO → isRelevant = false. Do not reply to politics, personal life, tech opinions, etc.
+
+STEP 2 — If relevant, write a reply that gets engagement.
+
+WHAT MAKES A GREAT REPLY:
+- Adds a specific data point or observation the author didn't mention
+- Asks a smart follow-up question that sparks discussion
+- Shares a respectful contrarian angle with reasoning
+- Connects the point to a specific price level, pattern, or on-chain metric
+
+HARD RULES:
+- Max 200 characters (short replies perform best)
+- NEVER mention TezTerminal, "our platform", "our algo", or any brand name
+- NEVER be sycophantic ("Great tweet!", "So true!", "This is the way")
+- NEVER just agree — ADD something
+- NEVER use hashtags or emojis
+- Sound like a knowledgeable individual trader, not a company
+- Be conversational, not formal
+- One key point only. Don't try to say too much.
+
+GREAT reply examples (DO NOT copy):
+"Funding rates are actually negative across majors right now. If this flips, the squeeze could be violent."
+"What level invalidates this? 64K on the weekly close would change everything for me."
+"Disagree on the timeline. Monthly RSI suggests we chop here for another 2-3 weeks before the move."
+
+BAD replies (NEVER do this):
+"Great insight! We agree at TezTerminal."
+"Interesting take 🔥"
+"This is so true. Markets are wild."`,
+});
+
+export async function generateEngagementReply(data: z.infer<typeof EngagementReplyInputSchema>) {
+  const { output } = await engagementReplyPrompt(data);
+  return output!;
+}

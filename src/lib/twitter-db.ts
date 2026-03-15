@@ -8,7 +8,7 @@ export interface PostRecord {
   content: string;
   timestamp: string;
   agent_name: string;
-  postType: 'trade_report' | 'liquidation' | 'meme' | 'influencer';
+  postType: 'trade_report' | 'liquidation' | 'meme' | 'influencer' | 'engagement_reply';
   metadata?: Record<string, unknown>;
 }
 
@@ -17,7 +17,7 @@ export interface ProcessedRecord {
   username: string;
   timestamp: string;
   agent_name: string;
-  action: 'quoted' | 'commented' | 'skipped';
+  action: 'quoted' | 'commented' | 'skipped' | 'replied';
 }
 
 // ─── Dedup Guards ────────────────────────────────────────────────────
@@ -78,4 +78,30 @@ export async function getTodayStats() {
   const snap = await db.collection(POSTED).where('date', '==', today).get();
   const postTypes = snap.docs.map((d) => d.data().postType as string);
   return { postsToday: snap.size, postTypes };
+}
+
+export async function getDailyReplyCount(): Promise<number> {
+  const db = getAdminFirestore();
+  const today = new Date().toISOString().slice(0, 10);
+  const snap = await db
+    .collection(POSTED)
+    .where('postType', '==', 'engagement_reply')
+    .where('date', '==', today)
+    .get();
+  return snap.size;
+}
+
+export async function getRepliedToUserToday(username: string): Promise<number> {
+  const db = getAdminFirestore();
+  const today = new Date().toISOString().slice(0, 10);
+  const snap = await db
+    .collection(PROCESSED)
+    .where('username', '==', username)
+    .where('action', '==', 'replied')
+    .get();
+  const todayReplies = snap.docs.filter((d) => {
+    const ts = d.data().timestamp as string;
+    return ts?.startsWith(today);
+  });
+  return todayReplies.length;
 }

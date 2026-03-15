@@ -53,6 +53,7 @@ const POST_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   liquidation: { label: "Liquidation", color: "text-rose-400 bg-rose-500/15" },
   meme: { label: "Meme", color: "text-amber-400 bg-amber-500/15" },
   influencer: { label: "Influencer", color: "text-blue-400 bg-blue-500/15" },
+  engagement_reply: { label: "Reply", color: "text-violet-400 bg-violet-500/15" },
 };
 
 function ConnectionCard({
@@ -222,7 +223,7 @@ function WatchlistCard({
           <div>
             <h3 className="text-sm font-bold text-white">Influencer Watchlist</h3>
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              {handles.length} handles · The Influencer Insight agent monitors these accounts daily.
+              {handles.length} handles · Used by the Influencer and Engagement agents.
             </p>
           </div>
         </div>
@@ -295,6 +296,8 @@ function WatchlistCard({
 
 function StatsCards({ stats }: { stats: SocialData["todayStats"] }) {
   const posted = new Set(stats.postTypes);
+  const replyCount = stats.postTypes.filter((t) => t === "engagement_reply").length;
+
   const agents = [
     { key: "trade_report", label: "Trade Report", window: "05:30 IST" },
     { key: "liquidation", label: "Liquidation", window: "12:00 IST" },
@@ -303,7 +306,7 @@ function StatsCards({ stats }: { stats: SocialData["todayStats"] }) {
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
       {agents.map((a) => {
         const done = posted.has(a.key);
         return (
@@ -335,6 +338,31 @@ function StatsCards({ stats }: { stats: SocialData["todayStats"] }) {
           </div>
         );
       })}
+      <div
+        className={cn(
+          "rounded-xl border p-4",
+          replyCount > 0
+            ? "border-violet-500/20 bg-gradient-to-b from-violet-500/[0.03] to-[#0f0f11]"
+            : "border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11]"
+        )}
+      >
+        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">
+          Engagement
+        </span>
+        <div className="flex items-center justify-between mt-1">
+          <span
+            className={cn(
+              "text-sm font-black",
+              replyCount > 0 ? "text-violet-400" : "text-muted-foreground/40"
+            )}
+          >
+            {replyCount}/12
+          </span>
+          <span className="text-[9px] font-mono text-muted-foreground/30">
+            replies
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

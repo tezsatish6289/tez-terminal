@@ -6,6 +6,7 @@ import { Firestore } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 import { handleRedirectResult, ensureAuthPersistence } from '@/firebase/non-blocking-login';
+import { identifyUser, clearUserIdentity } from '@/firebase/analytics';
 
 interface FirebaseProviderProps {
   children: ReactNode;
@@ -89,7 +90,16 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       unsubscribe = onAuthStateChanged(
         auth,
         (firebaseUser) => {
-          if (!cancelled) setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
+          if (!cancelled) {
+            setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
+            if (firebaseUser) {
+              identifyUser(firebaseUser.uid, {
+                sign_in_method: firebaseUser.providerData[0]?.providerId ?? 'unknown',
+              });
+            } else {
+              clearUserIdentity();
+            }
+          }
         },
         (error) => {
           console.error("FirebaseProvider: onAuthStateChanged error:", error);

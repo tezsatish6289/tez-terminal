@@ -3,8 +3,9 @@
 import { LandingPage } from "@/components/landing/LandingPage";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
+import { trackLandingCTAClick, trackLogin } from "@/firebase/analytics";
 import { useRouter } from "next/navigation";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -13,6 +14,14 @@ export default function Home() {
   const auth = useAuth();
   const router = useRouter();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const prevUser = useRef(user);
+
+  useEffect(() => {
+    if (user && !prevUser.current) {
+      trackLogin('google');
+    }
+    prevUser.current = user;
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -22,6 +31,7 @@ export default function Home() {
 
   const handleGoogleLogin = useCallback(async () => {
     if (auth) {
+      trackLandingCTAClick();
       setIsLoggingIn(true);
       try {
         await initiateGoogleSignIn(auth);

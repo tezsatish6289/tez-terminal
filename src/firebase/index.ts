@@ -3,14 +3,10 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore'
 
-// This file is now server-safe (removed 'use client') so it can be used in API routes.
-// The hooks and providers remain 'use client' in their respective files.
-
 export function initializeFirebase() {
   if (!getApps().length) {
     let firebaseApp;
     try {
-      // Prefer explicit config for workstation stability
       firebaseApp = initializeApp(firebaseConfig);
     } catch (e) {
       if (process.env.NODE_ENV === "production") {
@@ -39,3 +35,4 @@ export * from './non-blocking-updates';
 export * from './non-blocking-login';
 export * from './errors';
 export * from './error-emitter';
+export * from './analytics';

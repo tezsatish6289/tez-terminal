@@ -5,6 +5,7 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { useUser } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { useAuth } from "@/firebase";
+import { trackTelegramConnected, trackTelegramEnabled } from "@/firebase/analytics";
 import {
   Loader2, Settings, Send, Link2, Unlink, Check,
   ChevronLeft, ChevronRight, Bell, Lock, ExternalLink, AlertTriangle,
@@ -83,6 +84,7 @@ export default function SettingsPage() {
       const data = await res.json();
       if (data.deepLink) {
         setDeepLink(data.deepLink);
+        trackTelegramConnected();
         toast({
           title: "Link generated!",
           description: "Click the link below to open Telegram and complete the connection.",
@@ -282,6 +284,7 @@ export default function SettingsPage() {
                       onCheckedChange={(checked) => {
                         updatePreference("enabled", checked);
                         setStatus(prev => prev ? { ...prev, enabled: checked } : null);
+                        if (checked) trackTelegramEnabled();
                       }}
                       className="data-[state=checked]:bg-accent"
                     />

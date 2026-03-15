@@ -36,6 +36,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
 import Link from "next/link";
+import { trackFilterApplied, trackTabChanged, trackPageView } from "@/firebase/analytics";
 import { cn } from "@/lib/utils";
 import {
   Popover,
@@ -590,6 +591,12 @@ export default function SignalsPage() {
     setFilterPerf(draftPerf);
     setFilterAlgo(draftAlgo);
     setFilterOpen(false);
+    trackFilterApplied({
+      timeframe: draftTimeframe,
+      side: draftSide,
+      perf: draftPerf,
+      algo: draftAlgo,
+    });
     try {
       localStorage.setItem(
         FILTER_STORAGE_KEY,
@@ -858,7 +865,7 @@ export default function SignalsPage() {
               <div className="flex items-center justify-between mt-3 lg:mt-4 gap-2">
                 <div className="flex items-center gap-1 shrink-0">
                   <button
-                    onClick={() => setAiTab("active")}
+                    onClick={() => { setAiTab("active"); trackTabChanged("top_picks"); }}
                     className={cn(
                       "px-2.5 lg:px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap",
                       aiTab === "active"
@@ -869,7 +876,7 @@ export default function SignalsPage() {
                     Top Picks {!isLoading && `(${activeCount})`}
                   </button>
                   <button
-                    onClick={() => setAiTab("watch")}
+                    onClick={() => { setAiTab("watch"); trackTabChanged("radar"); }}
                     className={cn(
                       "px-2.5 lg:px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap",
                       aiTab === "watch"

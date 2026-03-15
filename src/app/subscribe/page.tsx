@@ -25,6 +25,12 @@ import { QRCodeSVG } from "qrcode.react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import {
+  trackSubscribePageView,
+  trackPlanSelected,
+  trackPaymentInitiated,
+  trackPaymentCompleted,
+} from "@/firebase/analytics";
 
 type Step = "select" | "paying" | "success";
 
@@ -115,6 +121,7 @@ export default function SubscribePage() {
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    trackSubscribePageView();
     fetch("/api/subscription/plans")
       .then((r) => r.json())
       .then((data) => {
@@ -126,6 +133,9 @@ export default function SubscribePage() {
   const handleCreatePayment = useCallback(async () => {
     if (!user) return;
     setIsCreating(true);
+
+    const price = calculatePrice(selectedDays, plans);
+    trackPaymentInitiated(selectedDays, price, PAY_CURRENCY);
 
     try {
       const res = await fetch("/api/subscription/create-payment", {
@@ -161,7 +171,7 @@ export default function SubscribePage() {
     } finally {
       setIsCreating(false);
     }
-  }, [user, selectedDays]);
+  }, [user, selectedDays, plans]);
 
   useEffect(() => {
     if (step !== "paying" || !payment) return;
@@ -174,6 +184,7 @@ export default function SubscribePage() {
 
         if (data.status === "finished" || data.status === "sending") {
           setStep("success");
+          trackPaymentCompleted(selectedDays, payment.priceAmountUsd, payment.payCurrency);
           if (pollRef.current) clearInterval(pollRef.current);
         }
         if (data.status === "failed" || data.status === "expired" || data.status === "refunded") {
@@ -260,7 +271,7 @@ export default function SubscribePage() {
                   <button
                     key={plan.days}
                     type="button"
-                    onClick={() => setSelectedDays(plan.days)}
+                    onClick={() => { setSelectedDays(plan.days); trackPlanSelected(plan.days, plan.price); }}
                     className={cn(
                       "w-full flex items-center gap-4 px-4 py-4 rounded-xl border transition-all cursor-pointer",
                       isSelected

@@ -27,6 +27,7 @@ import { BinanceIcon, MexcIcon, PionexIcon, TradingViewIcon } from "@/components
 import { useEffect, useRef, useState } from "react";
 import { format, differenceInMinutes } from "date-fns";
 import { getLeverage } from "@/lib/leverage";
+import { trackChartViewed } from "@/firebase/analytics";
 
 const TIMEFRAME_NAMES: Record<string, string> = {
   "5": "Scalping",
@@ -57,6 +58,7 @@ export default function DeepDiveChartPage() {
   const [leftHeight, setLeftHeight] = useState<number | null>(null);
 
   useEffect(() => {
+    if (id) trackChartViewed(id as string);
     setMounted(true);
     const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);

@@ -101,5 +101,16 @@ service cloud.firestore {
         && resource.data.referrerId == request.auth.uid;
       allow write: if false;
     }
+
+    // Twitter agent data — server-only via Admin SDK
+    match /twitter_config/{docId} {
+      allow read, write: if false;
+    }
+    match /twitter_posted/{docId} {
+      allow read, write: if false;
+    }
+    match /twitter_processed/{docId} {
+      allow read, write: if false;
+    }
   }
 }

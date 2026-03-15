@@ -102,21 +102,32 @@ export async function GET(request: NextRequest) {
 
     candidates.sort((a, b) => (b.likes + b.retweets) - (a.likes + a.retweets));
 
-    for (const best of candidates.slice(0, 5)) {
+    for (const best of candidates.slice(0, 10)) {
       if (await hasProcessedTweet(best.id)) continue;
 
-      const commentary = await generateInfluencerCommentary({
+      const result = await generateInfluencerCommentary({
         originalText: best.text,
         authorUsername: best.authorUsername,
         authorDisplayName: best.authorName,
         tweetUrl: `https://x.com/${best.authorUsername}/status/${best.id}`,
       });
 
+      if (!result.isRelevant) {
+        await saveProcessedTweet({
+          tweetId: best.id,
+          username: best.authorUsername,
+          timestamp: new Date().toISOString(),
+          agent_name: AGENT,
+          action: 'skipped',
+        });
+        continue;
+      }
+
       const tweetUrl = `https://x.com/${best.authorUsername}/status/${best.id}`;
-      const fullTweet = `${commentary}\n\n${tweetUrl}`;
+      const fullTweet = `${result.tweet}\n\n${tweetUrl}`;
 
       const { data: posted } = await client.v2.tweet(
-        fullTweet.length <= 280 ? fullTweet : commentary,
+        fullTweet.length <= 280 ? fullTweet : result.tweet,
       );
 
       await saveProcessedTweet({
@@ -129,7 +140,7 @@ export async function GET(request: NextRequest) {
 
       await savePost({
         tweetId: posted.id,
-        content: commentary,
+        content: result.tweet,
         timestamp: new Date().toISOString(),
         agent_name: AGENT,
         postType: POST_TYPE,

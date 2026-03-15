@@ -133,6 +133,11 @@ export async function GET(request: NextRequest) {
       sourceLikes: number;
       replyText: string;
     }> = [];
+    const skippedReplies: Array<{
+      sourceUser: string;
+      sourceLikes: number;
+      reason: string;
+    }> = [];
 
     const remainingBudget = isTest
       ? MAX_REPLIES_PER_SESSION
@@ -216,23 +221,28 @@ export async function GET(request: NextRequest) {
         }
       } catch (tweetErr: unknown) {
         const msg = tweetErr instanceof Error ? tweetErr.message : String(tweetErr);
-        console.error(`[${AGENT}] Failed to post reply to @${tweet.authorUsername}:`, msg);
-        if (msg.includes('403') || msg.includes('Forbidden')) {
-          return NextResponse.json({
-            error: 'Reply posting returned 403 — check Twitter API tier and credits',
-            candidatesFound: candidates.length,
-            attemptedReplyTo: `@${tweet.authorUsername} (${tweet.likes} likes)`,
-            generatedReply: result.reply,
-            delayMs,
-          }, { status: 403 });
-        }
+        console.warn(`[${AGENT}] Reply failed for @${tweet.authorUsername} — skipping (${msg})`);
+        await saveProcessedTweet({
+          tweetId: tweet.id,
+          username: tweet.authorUsername,
+          timestamp: new Date().toISOString(),
+          agent_name: AGENT,
+          action: 'skipped',
+        });
+        skippedReplies.push({
+          sourceUser: tweet.authorUsername,
+          sourceLikes: tweet.likes,
+          reason: msg.includes('403') ? 'reply_restricted' : msg,
+        });
       }
     }
 
     if (repliesMade.length === 0) {
       return NextResponse.json({
         skipped: true,
-        reason: 'All candidate tweets were irrelevant or already processed',
+        reason: 'No replies posted — all candidates had reply restrictions or were irrelevant',
+        candidatesFound: candidates.length,
+        skippedReplies,
         delayMs,
       });
     }
@@ -242,6 +252,7 @@ export async function GET(request: NextRequest) {
       agent: AGENT,
       postType: POST_TYPE,
       replies: repliesMade,
+      skippedReplies,
       dailyTotal: dailyCount + repliesMade.length,
       delayMs,
     });

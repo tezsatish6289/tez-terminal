@@ -246,15 +246,12 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
-  const [visits, setVisits] = useState({ total: 0, today: 0 });
-
   useEffect(() => {
     if (!isAdmin) return;
     fetch("/api/admin/users")
       .then((r) => r.json())
       .then((data) => {
         setUsers(data.users || []);
-        if (data.visits) setVisits(data.visits);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -321,18 +318,6 @@ export default function AdminUsersPage() {
               <Users className="h-5 w-5 text-accent" />
               <h1 className="text-3xl font-black text-white tracking-tighter uppercase">Users</h1>
             </div>
-            {!loading && (
-              <div className="flex items-center gap-4">
-                <div className="text-right">
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Landing · Today</span>
-                  <span className="text-lg font-black font-mono text-accent">{visits.today.toLocaleString()}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">Landing · Total</span>
-                  <span className="text-lg font-black font-mono text-white">{visits.total.toLocaleString()}</span>
-                </div>
-              </div>
-            )}
           </div>
           <p className="text-muted-foreground text-sm">User analytics and engagement overview.</p>
         </header>

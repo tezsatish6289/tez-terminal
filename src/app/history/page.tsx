@@ -505,7 +505,7 @@ export default function HistoryPage() {
                                   <th className="text-center py-2 px-3 font-bold text-muted-foreground uppercase tracking-widest text-[9px]">Win Rate</th>
                                   <th className="text-center py-2 px-3 font-bold text-muted-foreground uppercase tracking-widest text-[9px]">Active</th>
                                   <th className="text-center py-2 px-3 font-bold text-muted-foreground uppercase tracking-widest text-[9px]">SL Hits</th>
-                                  <th className="text-center py-2 px-3 font-bold text-muted-foreground uppercase tracking-widest text-[9px]">MA History</th>
+                                  <th className="text-center py-2 px-3 font-bold text-muted-foreground uppercase tracking-widest text-[9px]">History</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -556,7 +556,7 @@ export default function HistoryPage() {
                       <CardContent className="text-[11px] text-muted-foreground space-y-3 leading-relaxed">
                         <p><b className="text-white">Formula:</b> threshold = base + (0.5 − winRate) × 40 + slPenalty + crowdingPenalty</p>
                         <p><b className="text-white">Crowding:</b> 10-20 signals/side → +5, 20-30 → +10, 30+ → +15. Prevents directional overexposure.</p>
-                        <p><b className="text-white">Smoothing:</b> 5-period rolling MA to prevent spikes.</p>
+                        <p><b className="text-white">Reaction:</b> Immediate — no smoothing. Threshold uses raw value each cycle.</p>
                         <p><b className="text-white">Staleness:</b> If no update for 5 min, falls back to base threshold.</p>
                         <p><b className="text-white">SL Window:</b> 6 candles per timeframe (uses actual SL hit time).</p>
                         <p><b className="text-white">Min Active:</b> 3 signals to activate regime.</p>

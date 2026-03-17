@@ -169,9 +169,6 @@ export function computeMarketRegime(
       const rawThreshold = getAdjustedThreshold(winRate, sampleSize, recentSlCount, baseThresholdOverride, activeSideCount);
       const prevHistory = previousRegime?.[key]?.thresholdHistory ?? [];
       const newHistory = [...prevHistory, rawThreshold].slice(-REGIME_MA_PERIOD);
-      const smoothed = Math.round(
-        newHistory.reduce((a, b) => a + b, 0) / newHistory.length,
-      );
 
       regime[key] = {
         winRate,
@@ -180,7 +177,7 @@ export function computeMarketRegime(
         wins,
         losses,
         recentSlCount,
-        adjustedThreshold: smoothed,
+        adjustedThreshold: rawThreshold,
         thresholdHistory: newHistory,
         lastUpdated: new Date().toISOString(),
       };

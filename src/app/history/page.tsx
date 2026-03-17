@@ -171,7 +171,7 @@ export default function HistoryPage() {
 
   const regimeEntries = useMemo(() => {
     if (!regimeDoc) return [];
-    const entries: { key: string; tf: string; side: string; winRate: number; sampleSize: number; slCount: number; threshold: number; history: number[]; lastUpdated: string }[] = [];
+    const entries: { key: string; tf: string; side: string; winRate: number; activeCount: number; sampleSize: number; slCount: number; threshold: number; history: number[]; lastUpdated: string }[] = [];
     for (const [key, val] of Object.entries(regimeDoc)) {
       if (key === "id" || key === "lastUpdated") continue;
       if (!val || typeof val !== "object" || !("adjustedThreshold" in val)) continue;
@@ -181,6 +181,7 @@ export default function HistoryPage() {
         tf: tf || "?",
         side: side || "?",
         winRate: val.winRate ?? 0,
+        activeCount: val.activeCount ?? val.sampleSize ?? 0,
         sampleSize: val.sampleSize ?? 0,
         slCount: val.recentSlCount ?? 0,
         threshold: val.adjustedThreshold ?? 55,
@@ -502,7 +503,7 @@ export default function HistoryPage() {
                                   <th className="text-left py-2 px-3 font-bold text-muted-foreground uppercase tracking-widest text-[9px]">Regime</th>
                                   <th className="text-center py-2 px-3 font-bold text-muted-foreground uppercase tracking-widest text-[9px]">Threshold</th>
                                   <th className="text-center py-2 px-3 font-bold text-muted-foreground uppercase tracking-widest text-[9px]">Win Rate</th>
-                                  <th className="text-center py-2 px-3 font-bold text-muted-foreground uppercase tracking-widest text-[9px]">Sample</th>
+                                  <th className="text-center py-2 px-3 font-bold text-muted-foreground uppercase tracking-widest text-[9px]">Active</th>
                                   <th className="text-center py-2 px-3 font-bold text-muted-foreground uppercase tracking-widest text-[9px]">SL Hits</th>
                                   <th className="text-center py-2 px-3 font-bold text-muted-foreground uppercase tracking-widest text-[9px]">MA History</th>
                                 </tr>
@@ -528,7 +529,7 @@ export default function HistoryPage() {
                                       <td className="py-2.5 px-3 text-center">
                                         <span className={cn("font-bold", wrColor)}>{wrPct}%</span>
                                       </td>
-                                      <td className="py-2.5 px-3 text-center font-mono text-white/60">{e.sampleSize}</td>
+                                      <td className="py-2.5 px-3 text-center font-mono text-white/60">{e.activeCount}</td>
                                       <td className="py-2.5 px-3 text-center">
                                         <span className={cn("font-bold", e.slCount > 0 ? "text-rose-400" : "text-white/30")}>{e.slCount}</span>
                                       </td>
@@ -553,11 +554,12 @@ export default function HistoryPage() {
                         <div className="flex items-center gap-2"><ArrowUpDown className="h-5 w-5 text-accent" /><CardTitle className="text-md font-bold text-white">How It Works</CardTitle></div>
                       </CardHeader>
                       <CardContent className="text-[11px] text-muted-foreground space-y-3 leading-relaxed">
-                        <p><b className="text-white">Formula:</b> threshold = 55 + (0.5 − winRate) × 40 + slPenalty</p>
+                        <p><b className="text-white">Formula:</b> threshold = base + (0.5 − winRate) × 40 + slPenalty + crowdingPenalty</p>
+                        <p><b className="text-white">Crowding:</b> 10-20 signals/side → +5, 20-30 → +10, 30+ → +15. Prevents directional overexposure.</p>
                         <p><b className="text-white">Smoothing:</b> 5-period rolling MA to prevent spikes.</p>
-                        <p><b className="text-white">Staleness:</b> If no update for 5 min, falls back to static 55.</p>
-                        <p><b className="text-white">SL Window:</b> 6 candles per timeframe.</p>
-                        <p><b className="text-white">Min Sample:</b> 5 signals to activate.</p>
+                        <p><b className="text-white">Staleness:</b> If no update for 5 min, falls back to base threshold.</p>
+                        <p><b className="text-white">SL Window:</b> 6 candles per timeframe (uses actual SL hit time).</p>
+                        <p><b className="text-white">Min Active:</b> 3 signals to activate regime.</p>
                         <p><b className="text-white">Range:</b> Clamped to [35, 85].</p>
                       </CardContent>
                     </Card>

@@ -187,6 +187,14 @@ function OpportunityCard({
   const isWinning = signal.pnl > 0.05;
   const isLosing = signal.pnl < -0.05;
 
+  const tp3Pnl = useMemo(() => {
+    if (signal.tp3 == null || !signal.price) return null;
+    const raw = isBuy
+      ? ((signal.tp3 - signal.price) / signal.price) * 100
+      : ((signal.price - signal.tp3) / signal.price) * 100;
+    return raw * signal.leverage;
+  }, [signal.tp3, signal.price, signal.leverage, isBuy]);
+
   return (
     <Link
       href={`/chart/${signal.id}`}
@@ -260,21 +268,31 @@ function OpportunityCard({
         </div>
       </div>
 
-      {/* PnL */}
+      {/* PnL + TP3 Target */}
       <div className="px-4 py-2.5">
-        <span
-          className={cn(
-            "text-2xl font-black font-mono tabular-nums leading-none",
-            isWinning
-              ? "text-positive"
-              : isLosing
-                ? "text-negative"
-                : "text-muted-foreground"
+        <div className="flex items-baseline gap-1.5">
+          <span
+            className={cn(
+              "text-[11px] font-bold font-mono tabular-nums",
+              isWinning
+                ? "text-positive"
+                : isLosing
+                  ? "text-negative"
+                  : "text-muted-foreground/50"
+            )}
+          >
+            {signal.leveragedPnl >= 0 ? "+" : ""}
+            {signal.leveragedPnl.toFixed(2)}%
+          </span>
+          {tp3Pnl != null && (
+            <>
+              <span className="text-muted-foreground/20 text-[11px]">/</span>
+              <span className="text-2xl font-black font-mono tabular-nums leading-none text-muted-foreground">
+                +{tp3Pnl.toFixed(1)}%
+              </span>
+            </>
           )}
-        >
-          {signal.leveragedPnl >= 0 ? "+" : ""}
-          {signal.leveragedPnl.toFixed(2)}%
-        </span>
+        </div>
       </div>
 
       {/* Price */}

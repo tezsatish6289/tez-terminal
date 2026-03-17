@@ -4,7 +4,7 @@ import { after } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { computeSentiment, type SignalForSentiment } from "@/lib/sentiment";
-import { deriveTp3, areTpsValid, areTpDistancesSane } from "@/lib/pnl";
+import { deriveTp3, areTpsValid, areTpDistancesSane, deriveTpsFromRisk } from "@/lib/pnl";
 
 import {
   computeAutoFilter,
@@ -108,32 +108,38 @@ export async function POST(request: NextRequest) {
 
     const algo = String(body.algo || "V8 Reversal").trim();
 
-    if (signalType !== "NEUTRAL" && price > 0 && tp1 != null && tp2 != null) {
-      if (!areTpsValid(signalType, price, tp1, tp2)) {
-        await db.collection("logs").add({
-          timestamp, level: "ERROR",
-          message: "TP direction mismatch at ingestion — signal rejected",
-          details: `symbol=${symbol} type=${signalType} price=${price} tp1=${tp1} tp2=${tp2} sl=${stopLoss} body=${rawBody}`,
-          webhookId,
-        });
-        return NextResponse.json(
-          { success: false, message: `TP direction invalid: ${signalType} signal but TPs are on the wrong side of entry price.` },
-          { status: 400 }
-        );
-      }
+    // Resolve TP values: use incoming if valid, else derive from SL distance
+    let finalTp1 = tp1;
+    let finalTp2 = tp2;
+    let finalTp3: number | null = null;
+    let tpSource: "webhook" | "derived" = "webhook";
 
-      if (!areTpDistancesSane(price, tp1, timeframe)) {
-        await db.collection("logs").add({
-          timestamp, level: "ERROR",
-          message: "TP distance too large — signal rejected",
-          details: `symbol=${symbol} type=${signalType} price=${price} tp1=${tp1} tp2=${tp2} sl=${stopLoss} tf=${timeframe} tp1Dist=${(Math.abs(tp1 - price) / price * 100).toFixed(2)}% body=${rawBody}`,
-          webhookId,
-        });
-        return NextResponse.json(
-          { success: false, message: `TP1 distance from entry is irrationally large for ${timeframe} timeframe.` },
-          { status: 400 }
-        );
+    if (signalType !== "NEUTRAL" && price > 0) {
+      const incomingTpsOk =
+        tp1 != null &&
+        tp2 != null &&
+        areTpsValid(signalType, price, tp1, tp2) &&
+        areTpDistancesSane(price, tp1, timeframe);
+
+      if (!incomingTpsOk && stopLoss > 0) {
+        const derived = deriveTpsFromRisk(signalType, price, stopLoss);
+        if (derived) {
+          finalTp1 = derived.tp1;
+          finalTp2 = derived.tp2;
+          finalTp3 = derived.tp3;
+          tpSource = "derived";
+          await db.collection("logs").add({
+            timestamp, level: "WARN",
+            message: "TPs invalid — recalculated from SL distance (1.5R/2.5R/3.5R)",
+            details: `symbol=${symbol} type=${signalType} price=${price} originalTp1=${tp1} originalTp2=${tp2} sl=${stopLoss} newTp1=${finalTp1} newTp2=${finalTp2} newTp3=${finalTp3}`,
+            webhookId,
+          });
+        }
       }
+    }
+
+    if (finalTp3 === null && finalTp1 != null && finalTp2 != null) {
+      finalTp3 = deriveTp3(finalTp1, finalTp2);
     }
 
     const signalData: Record<string, any> = {
@@ -158,9 +164,10 @@ export async function POST(request: NextRequest) {
       source: configData.name || "TradingView",
       aligned: false,
       sentimentAtEntry: "",
-      tp1: tp1,
-      tp2: tp2,
-      tp3: (tp1 != null && tp2 != null) ? deriveTp3(tp1, tp2) : null,
+      tpSource,
+      tp1: finalTp1,
+      tp2: finalTp2,
+      tp3: finalTp3,
       tp1Hit: false,
       tp2Hit: false,
       tp3Hit: false,
@@ -302,7 +309,6 @@ export async function POST(request: NextRequest) {
 
           // Only create the NEW_SIGNAL event if AI filter passed
           if (scoreUpdate.autoFilterPassed === true) {
-            const tp3Val = (tp1 != null && tp2 != null) ? deriveTp3(tp1, tp2) : null;
             await db.collection("signal_events").add({
               type: "NEW_SIGNAL",
               signalId: docRef.id,
@@ -313,7 +319,7 @@ export async function POST(request: NextRequest) {
               entryPrice: price,
               price,
               stopLoss,
-              tp1, tp2, tp3: tp3Val,
+              tp1: finalTp1, tp2: finalTp2, tp3: finalTp3,
               guidance: "New signal received.",
               createdAt: timestamp,
               notified: false,

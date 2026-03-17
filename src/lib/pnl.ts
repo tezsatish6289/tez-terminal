@@ -127,3 +127,24 @@ export function areTpDistancesSane(
 export function deriveTp3(tp1: number, tp2: number): number {
   return tp2 + (tp2 - tp1);
 }
+
+/**
+ * Derive TP1/TP2/TP3 from SL distance when incoming TPs are invalid.
+ * Uses fixed risk-reward multiples: 1.5R, 2.5R, 3.5R.
+ */
+export function deriveTpsFromRisk(
+  type: string,
+  entryPrice: number,
+  stopLoss: number,
+): { tp1: number; tp2: number; tp3: number } | null {
+  if (!entryPrice || !stopLoss || entryPrice === stopLoss) return null;
+
+  const slDistance = Math.abs(entryPrice - stopLoss);
+  const dir = type === "BUY" ? 1 : -1;
+
+  return {
+    tp1: entryPrice + dir * slDistance * 1.5,
+    tp2: entryPrice + dir * slDistance * 2.5,
+    tp3: entryPrice + dir * slDistance * 3.5,
+  };
+}

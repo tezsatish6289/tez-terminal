@@ -88,31 +88,32 @@ function WinRateTrendCard() {
   const [algoFilter, setAlgoFilter] = useState("all");
   const [loaded, setLoaded] = useState(false);
 
+  const [availableAlgos, setAvailableAlgos] = useState<string[]>([]);
+
   const fetchMetrics = useCallback(() => {
     fetch("/api/admin/daily-metrics")
       .then((r) => r.json())
-      .then((d) => { setMetrics(d.metrics || []); setLoaded(true); })
+      .then((d) => {
+        setMetrics(d.metrics || []);
+        if (d.availableAlgos) setAvailableAlgos(d.availableAlgos);
+        setLoaded(true);
+      })
       .catch(() => setLoaded(true));
   }, []);
 
   useEffect(() => { fetchMetrics(); }, [fetchMetrics]);
 
-  const allAlgos = useMemo(() => {
-    const set = new Set<string>();
-    metrics.forEach((m) => {
-      if (m.algo) Object.keys(m.algo).forEach((a) => set.add(a));
-    });
-    return Array.from(set).sort();
-  }, [metrics]);
+  const allAlgos = availableAlgos;
 
   const chartData = useMemo(() => {
     return metrics.map((m) => {
-      let src = m.composite;
-      if (tfFilter !== "composite" && m.tf?.[tfFilter]) {
-        src = m.tf[tfFilter];
-      }
+      let src = null;
       if (algoFilter !== "all" && m.algo?.[algoFilter]) {
         src = m.algo[algoFilter];
+      } else if (tfFilter !== "composite" && m.tf?.[tfFilter]) {
+        src = m.tf[tfFilter];
+      } else {
+        src = m.composite;
       }
       return {
         date: m.date,

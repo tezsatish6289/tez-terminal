@@ -31,7 +31,7 @@ import {
   BookOpen,
   Lock,
 } from "lucide-react";
-import { RadarIcon } from "@/components/icons/RadarIcon";
+
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
@@ -45,7 +45,7 @@ import {
 } from "@/components/ui/popover";
 import { getLeverage } from "@/lib/leverage";
 import { getEffectivePnl } from "@/lib/pnl";
-import { AUTO_FILTER_THRESHOLD, isRegimeStale, type ScoredSignal, type MarketRegimeData } from "@/lib/auto-filter";
+import { AUTO_FILTER_THRESHOLD, type ScoredSignal } from "@/lib/auto-filter";
 import { useSubscription } from "@/hooks/use-subscription";
 import { DEFAULT_PLANS, FREE_TRIAL_DAYS } from "@/lib/subscription";
 
@@ -658,12 +658,6 @@ export default function SignalsPage() {
   const { data: rawEvents, isLoading: eventsLoading } =
     useCollection(eventsQuery);
 
-  const regimeRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, "config", "market_regime");
-  }, [firestore, user]);
-  const { data: regimeData } = useDoc(regimeRef);
-
   const filterCfgRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, "config", "auto_filter");
@@ -769,33 +763,9 @@ export default function SignalsPage() {
       }));
   }, [rawEvents, signalAlgoMap, aiPassedIds]);
 
-  const [aiTab, setAiTab] = useState<"active" | "watch">("active");
+  const [aiTab, setAiTab] = useState<"bulls" | "bears">("bulls");
 
-  const getSignalThreshold = useCallback((timeframe: string, side: string) => {
-    if (!regimeData) return configuredThreshold;
-    const key = `${timeframe}_${side}`;
-    const entry = (regimeData as unknown as MarketRegimeData)[key];
-    if (!entry || isRegimeStale(entry.lastUpdated)) return configuredThreshold;
-    return entry.adjustedThreshold;
-  }, [regimeData, configuredThreshold]);
-
-  const aiActiveSignals = useMemo(() => {
-    const base = filteredSignals.filter(
-      (s) =>
-        s.status !== "INACTIVE" &&
-        !s.tp1Hit &&
-        !s.tp2Hit &&
-        !s.tp3Hit &&
-        !s.slHitAt &&
-        s.autoFilterPassed === true &&
-        (s.confidenceScore ?? 0) >= getSignalThreshold(s.timeframe, s.type),
-    );
-    return base.sort(
-      (a, b) => (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0),
-    );
-  }, [filteredSignals, getSignalThreshold]);
-
-  const aiWatchSignals = useMemo(() => {
+  const aiPassedActive = useMemo(() => {
     return filteredSignals
       .filter(
         (s) =>
@@ -804,17 +774,19 @@ export default function SignalsPage() {
           !s.tp2Hit &&
           !s.tp3Hit &&
           !s.slHitAt &&
-          s.autoFilterPassed === true &&
-          (s.confidenceScore ?? 0) < getSignalThreshold(s.timeframe, s.type),
+          s.autoFilterPassed === true,
       )
       .sort((a, b) => (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0));
-  }, [filteredSignals, getSignalThreshold]);
+  }, [filteredSignals]);
 
-  const liveOpportunities = aiTab === "active" ? aiActiveSignals : aiWatchSignals;
+  const bullSignals = useMemo(() => aiPassedActive.filter((s) => s.type === "BUY"), [aiPassedActive]);
+  const bearSignals = useMemo(() => aiPassedActive.filter((s) => s.type === "SELL"), [aiPassedActive]);
 
-  const activeCount = aiActiveSignals.length;
-  const watchCount = aiWatchSignals.length;
-  const winningCount = aiActiveSignals.filter((s) => s.pnl > 0.05).length;
+  const liveOpportunities = aiTab === "bulls" ? bullSignals : bearSignals;
+
+  const bullCount = bullSignals.length;
+  const bearCount = bearSignals.length;
+  const winningCount = aiPassedActive.filter((s) => s.pnl > 0.05).length;
 
   const topWinners = useMemo(() => {
     return processedSignals
@@ -890,26 +862,26 @@ export default function SignalsPage() {
               <div className="flex items-center justify-between mt-3 lg:mt-4 gap-2">
                 <div className="flex items-center gap-1 shrink-0">
                   <button
-                    onClick={() => { setAiTab("active"); trackTabChanged("top_picks"); }}
+                    onClick={() => { setAiTab("bulls"); trackTabChanged("bulls"); }}
                     className={cn(
                       "px-2.5 lg:px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap",
-                      aiTab === "active"
+                      aiTab === "bulls"
                         ? "bg-positive/15 text-positive"
                         : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/[0.04]"
                     )}
                   >
-                    Top Picks {!isLoading && `(${activeCount})`}
+                    Bulls {!isLoading && `(${bullCount})`}
                   </button>
                   <button
-                    onClick={() => { setAiTab("watch"); trackTabChanged("radar"); }}
+                    onClick={() => { setAiTab("bears"); trackTabChanged("bears"); }}
                     className={cn(
                       "px-2.5 lg:px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap",
-                      aiTab === "watch"
-                        ? "bg-amber-400/15 text-amber-400"
+                      aiTab === "bears"
+                        ? "bg-negative/15 text-negative"
                         : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/[0.04]"
                     )}
                   >
-                    Radar {!isLoading && watchCount > 0 && `(${watchCount})`}
+                    Bears {!isLoading && `(${bearCount})`}
                   </button>
                 </div>
               <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
@@ -929,14 +901,14 @@ export default function SignalsPage() {
                   </div>
                   <div className="p-5 space-y-5">
                     <GuideItem
-                      icon={<Sparkles className="w-3.5 h-3.5 text-positive" />}
-                      title="Top Picks"
-                      desc="High-confidence signals our AI recommends. These pass all scoring filters and are ready to act on."
+                      icon={<ArrowUpRight className="w-3.5 h-3.5 text-positive" />}
+                      title="Bulls"
+                      desc="AI-filtered long signals ranked by confidence score. Higher score = stronger conviction."
                     />
                     <GuideItem
-                      icon={<Target className="w-3.5 h-3.5 text-amber-400" />}
-                      title="Market Radar"
-                      desc="Signals being tracked but haven't crossed the confidence threshold yet. Watch for upgrades."
+                      icon={<ArrowDownRight className="w-3.5 h-3.5 text-negative" />}
+                      title="Bears"
+                      desc="AI-filtered short signals ranked by confidence score. Compare counts to gauge market direction."
                     />
                     <GuideItem
                       icon={<SlidersHorizontal className="w-3.5 h-3.5 text-accent" />}
@@ -967,7 +939,7 @@ export default function SignalsPage() {
                     <GuideItem
                       icon={<Send className="w-3.5 h-3.5 text-blue-400" />}
                       title="Telegram Alerts"
-                      desc="Get instant notifications when new Top Picks appear and when your trades hit targets."
+                      desc="Get instant notifications when new high-conviction signals appear and when your trades hit targets."
                     />
                     <Link
                       href="/settings"
@@ -1103,7 +1075,7 @@ export default function SignalsPage() {
                         Unlock AI-Powered Trade Signals
                       </h3>
                       <p className="text-[13px] text-muted-foreground/60 leading-relaxed">
-                        Subscribe to get real-time access to Top Picks, Radar signals, and Live Updates. Our AI scans the market 24/7 so you don&apos;t have to.
+                        Subscribe to get real-time access to Bull &amp; Bear signals, Live Updates, and Telegram alerts. Our AI scans the market 24/7 so you don&apos;t have to.
                       </p>
                     </div>
                     <div className="flex flex-col items-center gap-3 w-full">
@@ -1125,7 +1097,6 @@ export default function SignalsPage() {
                 </div>
               ) : liveOpportunities.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full min-h-[200px]">
-                  {aiTab === "active" ? (
                     <div className="flex flex-col items-center gap-4 max-w-xs text-center">
                       <div className="relative w-20 h-20">
                         <div className="absolute inset-0 rounded-full border border-accent/15" />
@@ -1149,10 +1120,10 @@ export default function SignalsPage() {
                       </div>
                       <div className="space-y-1.5">
                         <p className="text-sm font-bold text-foreground/70">
-                          Scanning the market for winning opportunities
+                          No {aiTab === "bulls" ? "bull" : "bear"} signals right now
                         </p>
                         <p className="text-[11px] text-muted-foreground/40">
-                          High-confidence signals scoring {configuredThreshold}+ will appear here
+                          Scanning for {aiTab === "bulls" ? "long" : "short"} opportunities scoring {configuredThreshold}+
                         </p>
                       </div>
                       {telegramStatus && !telegramStatus.connected ? (
@@ -1178,14 +1149,6 @@ export default function SignalsPage() {
                         </div>
                       ) : null}
                     </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center text-muted-foreground/30">
-                      <Zap className="w-6 h-6 mb-2" />
-                      <span className="text-xs font-bold">
-                        No demoted signals
-                      </span>
-                    </div>
-                  )}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">

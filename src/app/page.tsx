@@ -3,7 +3,7 @@
 import { LandingPage } from "@/components/landing/LandingPage";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { trackLandingCTAClick, trackLogin } from "@/firebase/analytics";
+import { trackSignInClicked, trackLogin } from "@/firebase/analytics";
 import { useRouter } from "next/navigation";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
@@ -31,7 +31,7 @@ export default function Home() {
 
   const handleGoogleLogin = useCallback(async () => {
     if (auth) {
-      trackLandingCTAClick();
+      trackSignInClicked();
       setIsLoggingIn(true);
       try {
         await initiateGoogleSignIn(auth);

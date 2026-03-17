@@ -47,8 +47,8 @@ export function clearUserIdentity() {
 }
 
 // ─── Landing ────────────────────────────────────────────────────
-export function trackLandingCTAClick() {
-  track('landing_cta_click');
+export function trackSignInClicked() {
+  track('sign_in_clicked');
 }
 
 // ─── Auth ───────────────────────────────────────────────────────
@@ -109,9 +109,29 @@ export function trackReferralLinkCopied() {
   track('referral_link_copied');
 }
 
-// ─── Navigation ─────────────────────────────────────────────────
-export function trackPageView(pageName: string, path: string) {
-  track('screen_view', { screen_name: pageName, page_path: path });
+// ─── Page views (each page gets its own event for easy counting) ─
+export function trackLandingPageView() {
+  track('landing_page_view');
+}
+
+export function trackSignalsPageView() {
+  track('signals_page_view');
+}
+
+export function trackTradeAuditPageView() {
+  track('trade_audit_page_view');
+}
+
+export function trackReferralPageView() {
+  track('referral_page_view');
+}
+
+export function trackPurchasesPageView() {
+  track('purchases_page_view');
+}
+
+export function trackNotificationsPageView() {
+  track('notifications_page_view');
 }
 
 // ─── Guide ──────────────────────────────────────────────────────

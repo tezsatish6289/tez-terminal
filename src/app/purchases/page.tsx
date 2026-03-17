@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { trackPurchasesPageView } from "@/firebase/analytics";
 
 interface Payment {
   id: string;
@@ -105,6 +106,8 @@ export default function PurchasesPage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => { trackPurchasesPageView(); }, []);
 
   useEffect(() => {
     if (!user?.uid) return;

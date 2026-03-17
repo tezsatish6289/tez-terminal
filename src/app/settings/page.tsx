@@ -5,7 +5,7 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { useUser } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { useAuth } from "@/firebase";
-import { trackTelegramConnected, trackTelegramEnabled } from "@/firebase/analytics";
+import { trackTelegramConnected, trackTelegramEnabled, trackNotificationsPageView } from "@/firebase/analytics";
 import {
   Loader2, Settings, Send, Link2, Unlink, Check,
   ChevronLeft, ChevronRight, Bell, Lock, ExternalLink, AlertTriangle,
@@ -65,6 +65,8 @@ export default function SettingsPage() {
       setIsLoadingStatus(false);
     }
   }, [user]);
+
+  useEffect(() => { trackNotificationsPageView(); }, []);
 
   useEffect(() => {
     if (user) fetchStatus();

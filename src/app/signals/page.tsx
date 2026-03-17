@@ -36,7 +36,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
 import Link from "next/link";
-import { trackFilterApplied, trackTabChanged, trackPageView } from "@/firebase/analytics";
+import { trackFilterApplied, trackTabChanged, trackSignalsPageView } from "@/firebase/analytics";
 import { cn } from "@/lib/utils";
 import {
   Popover,
@@ -551,6 +551,10 @@ export default function SignalsPage() {
     email: user?.email,
     photo: user?.photoURL,
   });
+
+  useEffect(() => {
+    trackSignalsPageView();
+  }, []);
 
   useEffect(() => {
     if (!user) return;

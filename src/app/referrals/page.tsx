@@ -4,7 +4,7 @@ import { useUser } from "@/firebase";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { trackReferralLinkCopied } from "@/firebase/analytics";
+import { trackReferralLinkCopied, trackReferralPageView } from "@/firebase/analytics";
 import {
   Loader2,
   Copy,
@@ -142,6 +142,10 @@ export default function ReferralsPage() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    trackReferralPageView();
   }, []);
 
   useEffect(() => {

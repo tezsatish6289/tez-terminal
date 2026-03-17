@@ -22,7 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Chrome } from "lucide-react";
 import { RadarIcon } from "@/components/icons/RadarIcon";
-import { trackPageView } from "@/firebase/analytics";
+import { trackLandingPageView } from "@/firebase/analytics";
 
 interface PlatformStats {
   totalTrades: number;
@@ -187,7 +187,7 @@ export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
         setFrequency(data.frequency || []);
       })
       .catch(() => {});
-    trackPageView("Landing", "/");
+    trackLandingPageView();
   }, []);
 
   return (

@@ -26,6 +26,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useMemo, useState, useEffect, useCallback, Suspense } from "react";
 import { getLeverage } from "@/lib/leverage";
 import { getEffectivePnl as effectivePnl } from "@/lib/pnl";
+import { trackTradeAuditPageView } from "@/firebase/analytics";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -101,7 +102,7 @@ function WinRateTrendCard() {
       .catch(() => setLoaded(true));
   }, []);
 
-  useEffect(() => { fetchMetrics(); }, [fetchMetrics]);
+  useEffect(() => { trackTradeAuditPageView(); fetchMetrics(); }, [fetchMetrics]);
 
   const allAlgos = availableAlgos;
 

@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
       if (!regimeData) return baseThreshold;
       const key = `${timeframe}_${side}`;
       const entry = regimeData[key];
-      if (!entry || isRegimeStale(entry.lastUpdated)) return baseThreshold;
+      if (!entry || isRegimeStale(entry.lastUpdated, timeframe)) return baseThreshold;
       return entry.adjustedThreshold;
     }
 

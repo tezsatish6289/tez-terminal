@@ -307,16 +307,14 @@ export async function GET(request: NextRequest) {
         }
       } catch {}
 
-      // Read existing regime for dynamic thresholds + smoothing history
+      // Read existing regime for dynamic thresholds + history
       let regimeData: Record<string, any> = {};
       try {
         const regimeDoc = await db.collection("config").doc("market_regime").get();
         if (regimeDoc.exists) {
           const raw = regimeDoc.data() || {};
           previousRegime = raw as MarketRegimeData;
-          if (!isRegimeStale(raw.lastUpdated as string | undefined)) {
-            regimeData = raw;
-          }
+          regimeData = raw;
         }
       } catch {}
 
@@ -334,7 +332,10 @@ export async function GET(request: NextRequest) {
         };
 
         const regimeKey = `${signal.timeframe || "15"}_${signal.type || "BUY"}`;
-        const threshold = regimeData[regimeKey]?.adjustedThreshold ?? baseThreshold;
+        const regimeEntry = regimeData[regimeKey];
+        const threshold = (regimeEntry?.adjustedThreshold && !isRegimeStale(regimeEntry.lastUpdated, signal.timeframe || "15"))
+          ? regimeEntry.adjustedThreshold
+          : baseThreshold;
 
         if (signal.autoFilterPassed === null || signal.autoFilterPassed === undefined) {
           // First-time scoring (webhook after() must have failed)

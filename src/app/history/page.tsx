@@ -557,7 +557,7 @@ export default function HistoryPage() {
                         <p><b className="text-white">Formula:</b> threshold = base + (0.5 − winRate) × 40 + slPenalty + crowdingPenalty</p>
                         <p><b className="text-white">Crowding:</b> 10-20 signals/side → +5, 20-30 → +10, 30+ → +15. Prevents directional overexposure.</p>
                         <p><b className="text-white">Reaction:</b> Immediate — no smoothing. Threshold uses raw value each cycle.</p>
-                        <p><b className="text-white">Staleness:</b> If no update for 5 min, falls back to base threshold.</p>
+                        <p><b className="text-white">Staleness:</b> 3× candle duration (e.g. 15 min for 5M, 45 min for 15M). Falls back to base if exceeded.</p>
                         <p><b className="text-white">SL Window:</b> 6 candles per timeframe (uses actual SL hit time).</p>
                         <p><b className="text-white">Min Active:</b> 3 signals to activate regime.</p>
                         <p><b className="text-white">Range:</b> Clamped to [35, 85].</p>

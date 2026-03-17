@@ -44,7 +44,7 @@ const REGIME_SL_PENALTY = 3;
 const REGIME_SL_CAP = 15;
 const REGIME_MIN_THRESHOLD = 35;
 const REGIME_MAX_THRESHOLD = 85;
-const REGIME_STALENESS_MS = 5 * 60 * 1000;
+const REGIME_STALENESS_CANDLES = 3;
 const REGIME_MA_PERIOD = 5;
 const SL_WINDOW_CANDLES = 6;
 
@@ -54,9 +54,11 @@ const CROWDING_TIERS = [
   { above: 10, penalty: 5 },
 ] as const;
 
-export function isRegimeStale(lastUpdated?: string): boolean {
+export function isRegimeStale(lastUpdated?: string, timeframe?: string): boolean {
   if (!lastUpdated) return true;
-  return Date.now() - new Date(lastUpdated).getTime() > REGIME_STALENESS_MS;
+  const candleMs = (CANDLE_MINUTES[timeframe ?? "15"] ?? 15) * 60 * 1000;
+  const stalenessMs = candleMs * REGIME_STALENESS_CANDLES;
+  return Date.now() - new Date(lastUpdated).getTime() > stalenessMs;
 }
 
 export function getAdjustedThreshold(

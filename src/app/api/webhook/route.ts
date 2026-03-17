@@ -293,7 +293,7 @@ export async function POST(request: NextRequest) {
                 const key = `${timeframe}_${signalType}`;
                 if (
                   regimeData?.[key]?.adjustedThreshold &&
-                  !isRegimeStale(regimeData[key].lastUpdated)
+                  !isRegimeStale(regimeData[key].lastUpdated, timeframe)
                 ) {
                   threshold = regimeData[key].adjustedThreshold;
                 }

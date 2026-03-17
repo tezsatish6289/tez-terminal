@@ -19,7 +19,7 @@
 
 import { getEffectivePnl } from "./pnl";
 
-export const AUTO_FILTER_THRESHOLD = 55;
+export const AUTO_FILTER_THRESHOLD = 45;
 export const STALE_CANDLE_LIMIT = 6;
 export const MIN_REGIME_SAMPLE = 5;
 
@@ -56,12 +56,14 @@ export function getAdjustedThreshold(
   winRate: number,
   sampleSize: number,
   recentSlCount: number = 0,
+  baseOverride?: number,
 ): number {
-  if (sampleSize < MIN_REGIME_SAMPLE) return AUTO_FILTER_THRESHOLD;
+  const base = baseOverride ?? AUTO_FILTER_THRESHOLD;
+  if (sampleSize < MIN_REGIME_SAMPLE) return base;
 
   const wrAdjust = (0.5 - winRate) * REGIME_WR_SCALE;
   const slPenalty = Math.min(recentSlCount * REGIME_SL_PENALTY, REGIME_SL_CAP);
-  const raw = AUTO_FILTER_THRESHOLD + wrAdjust + slPenalty;
+  const raw = base + wrAdjust + slPenalty;
 
   return Math.round(
     Math.max(REGIME_MIN_THRESHOLD, Math.min(REGIME_MAX_THRESHOLD, raw)),
@@ -83,6 +85,7 @@ interface RegimeSignal {
 export function computeMarketRegime(
   signals: RegimeSignal[],
   previousRegime?: MarketRegimeData,
+  baseThresholdOverride?: number,
 ): MarketRegimeData {
   const now = Date.now();
   const regime: MarketRegimeData = {};
@@ -137,7 +140,7 @@ export function computeMarketRegime(
       const sampleSize = total + recentSlCount;
 
       const key = `${tfId}_${side}`;
-      const rawThreshold = getAdjustedThreshold(winRate, sampleSize, recentSlCount);
+      const rawThreshold = getAdjustedThreshold(winRate, sampleSize, recentSlCount, baseThresholdOverride);
       const prevHistory = previousRegime?.[key]?.thresholdHistory ?? [];
       const newHistory = [...prevHistory, rawThreshold].slice(-REGIME_MA_PERIOD);
       const smoothed = Math.round(

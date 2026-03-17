@@ -60,15 +60,25 @@ export async function GET(request: NextRequest) {
 
     let totalMessages = 0;
 
+    // --- Load configurable base threshold ---
+    let baseThreshold = AUTO_FILTER_THRESHOLD;
+    try {
+      const filterCfg = await db.collection("config").doc("auto_filter").get();
+      if (filterCfg.exists) {
+        const val = filterCfg.data()?.baseThreshold;
+        if (typeof val === "number" && val > 0) baseThreshold = val;
+      }
+    } catch {}
+
     // --- Load dynamic thresholds ---
     const regimeSnap = await db.collection("config").doc("market_regime").get();
     const regimeData = regimeSnap.exists ? (regimeSnap.data() as MarketRegimeData) : null;
 
     function getThresholdForSignal(timeframe: string, side: string): number {
-      if (!regimeData) return AUTO_FILTER_THRESHOLD;
+      if (!regimeData) return baseThreshold;
       const key = `${timeframe}_${side}`;
       const entry = regimeData[key];
-      if (!entry || isRegimeStale(entry.lastUpdated)) return AUTO_FILTER_THRESHOLD;
+      if (!entry || isRegimeStale(entry.lastUpdated)) return baseThreshold;
       return entry.adjustedThreshold;
     }
 

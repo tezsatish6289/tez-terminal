@@ -3,7 +3,7 @@
 import { TopBar } from "@/components/dashboard/TopBar";
 import { SignalHistory } from "@/components/dashboard/SignalHistory";
 import { useUser, useAuth, useCollection, useDoc, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, limit, where, getDocs, doc } from "firebase/firestore";
+import { collection, query, orderBy, limit, where, getDocs, doc, setDoc } from "firebase/firestore";
 import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -41,7 +41,8 @@ import {
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ChromeIcon } from "@/components/icons";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { AUTO_FILTER_THRESHOLD } from "@/lib/auto-filter";
 import { useToast } from "@/hooks/use-toast";
 
 export default function HistoryPage() {
@@ -74,6 +75,38 @@ export default function HistoryPage() {
   const hasRegionBlock = useMemo(() => {
     return logs?.some(log => log.level === 'ERROR' && (log.details?.includes('451') || log.message?.includes('Mirror Exhaustion')));
   }, [logs]);
+
+  // ── AI Filter config ─────────────────────────────────────
+  const filterCfgRef = useMemoFirebase(() => {
+    if (!firestore || !isAdmin) return null;
+    return doc(firestore, "config", "auto_filter");
+  }, [firestore, isAdmin]);
+  const { data: filterCfgDoc } = useDoc<Record<string, any>>(filterCfgRef);
+  const savedBaseThreshold = (filterCfgDoc as any)?.baseThreshold ?? AUTO_FILTER_THRESHOLD;
+  const [pendingThreshold, setPendingThreshold] = useState<number | null>(null);
+  const [isSavingThreshold, setIsSavingThreshold] = useState(false);
+
+  useEffect(() => {
+    setPendingThreshold(null);
+  }, [savedBaseThreshold]);
+
+  const handleSaveThreshold = useCallback(async () => {
+    if (!firestore || pendingThreshold === null) return;
+    setIsSavingThreshold(true);
+    try {
+      await setDoc(doc(firestore, "config", "auto_filter"), {
+        baseThreshold: pendingThreshold,
+        updatedAt: new Date().toISOString(),
+        updatedBy: user?.email || "unknown",
+      }, { merge: true });
+      toast({ title: "Base threshold updated", description: `Set to ${pendingThreshold}` });
+      setPendingThreshold(null);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Failed to save", description: e.message });
+    } finally {
+      setIsSavingThreshold(false);
+    }
+  }, [firestore, pendingThreshold, user?.email, toast]);
 
   // ── AI Filter data ────────────────────────────────────────
   const regimeDocRef = useMemoFirebase(() => {
@@ -400,6 +433,46 @@ export default function HistoryPage() {
                     </CardContent>
                   </Card>
                 </div>
+
+                {/* ── Base Gate Threshold Control ───────── */}
+                <Card className="bg-card border-border shadow-lg">
+                  <CardContent className="pt-5 pb-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-white mb-1">Base Gate Threshold</p>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">
+                          Minimum AI score required for a signal to pass. Dynamic regime adjustments layer on top.
+                          Lower = more signals pass. Higher = stricter filter.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min={20}
+                            max={80}
+                            step={5}
+                            value={pendingThreshold ?? savedBaseThreshold}
+                            onChange={(e) => {
+                              const v = parseInt(e.target.value, 10);
+                              if (!isNaN(v)) setPendingThreshold(v);
+                            }}
+                            className="w-20 h-9 text-center font-mono font-bold text-lg bg-secondary/30 border-border"
+                          />
+                          <span className="text-xs text-muted-foreground">/ 100</span>
+                        </div>
+                        <Button
+                          size="sm"
+                          disabled={isSavingThreshold || pendingThreshold === null || pendingThreshold === savedBaseThreshold}
+                          onClick={handleSaveThreshold}
+                          className="h-9 px-4"
+                        >
+                          {isSavingThreshold ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* ── Dynamic Thresholds ────────────────── */}

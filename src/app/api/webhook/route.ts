@@ -250,8 +250,18 @@ export async function POST(request: NextRequest) {
             );
             const btcSentiment = buildSentimentMap(sentimentReadings);
 
+            // Read configurable base threshold
+            let baseThreshold = AUTO_FILTER_THRESHOLD;
+            try {
+              const filterCfg = await db.collection("config").doc("auto_filter").get();
+              if (filterCfg.exists) {
+                const val = filterCfg.data()?.baseThreshold;
+                if (typeof val === "number" && val > 0) baseThreshold = val;
+              }
+            } catch {}
+
             // Read market regime for dynamic threshold
-            let threshold = AUTO_FILTER_THRESHOLD;
+            let threshold = baseThreshold;
             try {
               const regimeDoc = await db.collection("config").doc("market_regime").get();
               if (regimeDoc.exists) {

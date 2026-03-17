@@ -646,6 +646,13 @@ export default function SignalsPage() {
   }, [firestore, user]);
   const { data: regimeData } = useDoc(regimeRef);
 
+  const filterCfgRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, "config", "auto_filter");
+  }, [firestore, user]);
+  const { data: filterCfgData } = useDoc(filterCfgRef);
+  const configuredThreshold = (filterCfgData as any)?.baseThreshold ?? AUTO_FILTER_THRESHOLD;
+
   const processedSignals: ProcessedSignal[] = useMemo(() => {
     if (!rawSignals) return [];
     return rawSignals
@@ -747,12 +754,12 @@ export default function SignalsPage() {
   const [aiTab, setAiTab] = useState<"active" | "watch">("active");
 
   const getSignalThreshold = useCallback((timeframe: string, side: string) => {
-    if (!regimeData) return AUTO_FILTER_THRESHOLD;
+    if (!regimeData) return configuredThreshold;
     const key = `${timeframe}_${side}`;
     const entry = (regimeData as unknown as MarketRegimeData)[key];
-    if (!entry || isRegimeStale(entry.lastUpdated)) return AUTO_FILTER_THRESHOLD;
+    if (!entry || isRegimeStale(entry.lastUpdated)) return configuredThreshold;
     return entry.adjustedThreshold;
-  }, [regimeData]);
+  }, [regimeData, configuredThreshold]);
 
   const aiActiveSignals = useMemo(() => {
     const base = filteredSignals.filter(
@@ -1127,7 +1134,7 @@ export default function SignalsPage() {
                           Scanning the market for winning opportunities
                         </p>
                         <p className="text-[11px] text-muted-foreground/40">
-                          High-confidence signals scoring {AUTO_FILTER_THRESHOLD}+ will appear here
+                          High-confidence signals scoring {configuredThreshold}+ will appear here
                         </p>
                       </div>
                       {telegramStatus && !telegramStatus.connected ? (

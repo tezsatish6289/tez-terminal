@@ -286,6 +286,7 @@ export async function GET(request: NextRequest) {
     // ── AI Filter Rescoring Pass ──────────────────────────
     let scoreCount = 0;
     let previousRegime: MarketRegimeData | undefined;
+    let baseThreshold = AUTO_FILTER_THRESHOLD;
     try {
       const sentimentSnap = await db
         .collection("sentiment_signals")
@@ -296,6 +297,15 @@ export async function GET(request: NextRequest) {
         mapFirestoreSentiment(d.data()),
       );
       const btcSentiment = buildSentimentMap(sentimentReadings);
+
+      // Read configurable base threshold
+      try {
+        const filterCfg = await db.collection("config").doc("auto_filter").get();
+        if (filterCfg.exists) {
+          const val = filterCfg.data()?.baseThreshold;
+          if (typeof val === "number" && val > 0) baseThreshold = val;
+        }
+      } catch {}
 
       // Read existing regime for dynamic thresholds + smoothing history
       let regimeData: Record<string, any> = {};
@@ -324,7 +334,7 @@ export async function GET(request: NextRequest) {
         };
 
         const regimeKey = `${signal.timeframe || "15"}_${signal.type || "BUY"}`;
-        const threshold = regimeData[regimeKey]?.adjustedThreshold ?? AUTO_FILTER_THRESHOLD;
+        const threshold = regimeData[regimeKey]?.adjustedThreshold ?? baseThreshold;
 
         if (signal.autoFilterPassed === null || signal.autoFilterPassed === undefined) {
           // First-time scoring (webhook after() must have failed)
@@ -379,6 +389,7 @@ export async function GET(request: NextRequest) {
           receivedAt: d.receivedAt || "",
         })),
         previousRegime,
+        baseThreshold,
       );
       await db.collection("config").doc("market_regime").set({
         ...regime,

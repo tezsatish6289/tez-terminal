@@ -4,7 +4,7 @@ import { after } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { computeSentiment, type SignalForSentiment } from "@/lib/sentiment";
-import { deriveTp3, areTpsValid, areTpDistancesSane, deriveTpsFromRisk } from "@/lib/pnl";
+import { deriveTp3, areTpsValid, areTpDistancesSane, deriveTpsFromRisk, isSlDistanceSane } from "@/lib/pnl";
 
 import {
   computeAutoFilter,
@@ -107,6 +107,23 @@ export async function POST(request: NextRequest) {
     const timeframe = tfMap[rawTf] || rawTf;
 
     const algo = String(body.algo || "V8 Reversal").trim();
+
+    // Reject signals with SL too wide for the timeframe's leverage
+    if (signalType !== "NEUTRAL" && price > 0 && stopLoss > 0) {
+      if (!isSlDistanceSane(price, stopLoss, timeframe)) {
+        const slPct = (Math.abs(price - stopLoss) / price * 100).toFixed(2);
+        await db.collection("logs").add({
+          timestamp, level: "ERROR",
+          message: "SL distance too wide for timeframe — signal rejected",
+          details: `symbol=${symbol} type=${signalType} price=${price} sl=${stopLoss} slDist=${slPct}% tf=${timeframe}`,
+          webhookId,
+        });
+        return NextResponse.json(
+          { success: false, message: `SL distance ${slPct}% too wide for ${timeframe} timeframe.` },
+          { status: 400 }
+        );
+      }
+    }
 
     // Resolve TP values: use incoming if valid, else derive from SL distance
     let finalTp1 = tp1;

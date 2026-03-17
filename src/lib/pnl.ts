@@ -122,6 +122,29 @@ export function areTpDistancesSane(
 }
 
 /**
+ * Max allowed raw (unleveraged) SL distance from entry, per timeframe.
+ * Caps leveraged loss at ~10%: 5m@10x→1%, 15m@5x→2%, 60m@3x→3.3%, etc.
+ */
+const MAX_SL_DISTANCE: Record<string, number> = {
+  "1": 0.5, "5": 1, "15": 2, "60": 3.3, "240": 3.3, "D": 10,
+};
+
+/**
+ * Check if SL distance from entry is within a sane range for the given timeframe.
+ * Rejects signals where SL is too wide relative to leverage.
+ */
+export function isSlDistanceSane(
+  entryPrice: number,
+  stopLoss: number,
+  timeframe: string,
+): boolean {
+  if (!entryPrice || !stopLoss) return true;
+  const pctDistance = Math.abs(entryPrice - stopLoss) / entryPrice * 100;
+  const maxDistance = MAX_SL_DISTANCE[timeframe] ?? 5;
+  return pctDistance <= maxDistance;
+}
+
+/**
  * Derive TP3 from TP1 and TP2 (uniform ATR spacing).
  */
 export function deriveTp3(tp1: number, tp2: number): number {

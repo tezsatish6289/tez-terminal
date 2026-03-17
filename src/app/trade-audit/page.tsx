@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useMemo, useState, useEffect, useCallback, Suspense } from "react";
+import { useMemo, useState, useEffect, Suspense } from "react";
 import { getLeverage } from "@/lib/leverage";
 import { getEffectivePnl as effectivePnl } from "@/lib/pnl";
 import { trackTradeAuditPageView } from "@/firebase/analytics";
@@ -64,6 +64,27 @@ const TREND_TF_OPTIONS = [
   { id: "240", label: "4h" },
 ] as const;
 
+const DAILY_RANGE_OPTIONS = [
+  { id: "30", label: "30D" },
+  { id: "90", label: "3M" },
+  { id: "180", label: "6M" },
+  { id: "365", label: "1Y" },
+  { id: "all", label: "All" },
+] as const;
+
+const HOURLY_RANGE_OPTIONS = [
+  { id: "1", label: "1D" },
+  { id: "3", label: "3D" },
+  { id: "7", label: "7D" },
+  { id: "14", label: "14D" },
+  { id: "30", label: "30D" },
+] as const;
+
+const ALGO_COLORS = [
+  "#34d399", "#60a5fa", "#f472b6", "#fbbf24", "#a78bfa",
+  "#fb923c", "#2dd4bf", "#e879f9", "#facc15", "#4ade80",
+];
+
 function Sparkline({ data, color }: { data: number[]; color: string }) {
   if (data.length < 2) return null;
   const min = Math.min(...data);
@@ -83,49 +104,109 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
   );
 }
 
+const TOOLTIP_STYLE = {
+  background: "#1a1a1e",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 8,
+  fontSize: 11,
+};
+
+function PillGroup({ options, value, onChange }: { options: readonly { id: string; label: string }[]; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex items-center rounded-md border border-white/10 bg-white/[0.03] p-0.5">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          onClick={() => onChange(o.id)}
+          className={cn(
+            "px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all",
+            value === o.id ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function WinRateTrendCard() {
-  const [metrics, setMetrics] = useState<any[]>([]);
-  const [tfFilter, setTfFilter] = useState("composite");
-  const [algoFilter, setAlgoFilter] = useState("all");
+  const [dailyMetrics, setDailyMetrics] = useState<any[]>([]);
+  const [hourlyMetrics, setHourlyMetrics] = useState<any[]>([]);
+  const [availableAlgos, setAvailableAlgos] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
 
-  const [availableAlgos, setAvailableAlgos] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<"daily" | "hourly">("daily");
+  const [tfFilter, setTfFilter] = useState("composite");
+  const [algoFilter, setAlgoFilter] = useState("all");
+  const [dailyRange, setDailyRange] = useState("30");
+  const [hourlyRange, setHourlyRange] = useState("7");
 
-  const fetchMetrics = useCallback(() => {
+  useEffect(() => {
     fetch("/api/admin/daily-metrics")
       .then((r) => r.json())
       .then((d) => {
-        setMetrics(d.metrics || []);
+        setDailyMetrics(d.metrics || []);
+        setHourlyMetrics(d.hourly || []);
         if (d.availableAlgos) setAvailableAlgos(d.availableAlgos);
         setLoaded(true);
       })
       .catch(() => setLoaded(true));
   }, []);
 
-  useEffect(() => { trackTradeAuditPageView(); fetchMetrics(); }, [fetchMetrics]);
+  const rawData = viewMode === "daily" ? dailyMetrics : hourlyMetrics;
 
-  const allAlgos = availableAlgos;
+  const filteredByRange = useMemo(() => {
+    const rangeStr = viewMode === "daily" ? dailyRange : hourlyRange;
+    if (rangeStr === "all") return rawData;
+    const days = parseInt(rangeStr, 10);
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    return rawData.filter((m: any) => (m.date || m.key || "") >= cutoff);
+  }, [rawData, viewMode, dailyRange, hourlyRange]);
 
   const chartData = useMemo(() => {
-    return metrics.map((m) => {
-      let src = null;
-      if (algoFilter !== "all" && m.algo?.[algoFilter]) {
-        src = m.algo[algoFilter];
-      } else if (tfFilter !== "composite" && m.tf?.[tfFilter]) {
-        src = m.tf[tfFilter];
-      } else {
-        src = m.composite;
-      }
-      return {
-        date: m.date,
-        winRate: src?.winRate ?? null,
-        profitFactor: src?.profitFactor ?? null,
-        trades: src?.trades ?? 0,
-      };
-    }).filter((d) => d.winRate !== null);
-  }, [metrics, tfFilter, algoFilter]);
+    const isMultiAlgo = algoFilter === "all" && availableAlgos.length > 1;
+    return filteredByRange.map((m: any) => {
+      const label = viewMode === "hourly" && m.key
+        ? m.key.replace("T", " ") + ":00"
+        : m.date;
 
-  const sparklineValues = chartData.map((d) => d.winRate);
+      const row: any = { label };
+
+      const getSrc = (metric: any, filter: string) => {
+        if (filter !== "composite" && metric.tf?.[filter]) return metric.tf[filter];
+        return metric.composite;
+      };
+
+      if (isMultiAlgo) {
+        const compositeSrc = getSrc(m, tfFilter);
+        row["Blended"] = compositeSrc?.winRate ?? null;
+        row["Blended_pf"] = compositeSrc?.profitFactor ?? null;
+        for (const algo of availableAlgos) {
+          const algoSrc = m.algo?.[algo];
+          row[algo] = algoSrc?.winRate ?? null;
+          row[`${algo}_pf`] = algoSrc?.profitFactor ?? null;
+        }
+      } else {
+        let src = null;
+        if (algoFilter !== "all" && m.algo?.[algoFilter]) {
+          src = m.algo[algoFilter];
+        } else {
+          src = getSrc(m, tfFilter);
+        }
+        row["winRate"] = src?.winRate ?? null;
+        row["profitFactor"] = src?.profitFactor ?? null;
+      }
+      return row;
+    });
+  }, [filteredByRange, tfFilter, algoFilter, availableAlgos, viewMode]);
+
+  const isMultiAlgo = algoFilter === "all" && availableAlgos.length > 1;
+
+  const sparklineValues = useMemo(() => {
+    return chartData.map((d: any) => isMultiAlgo ? d["Blended"] : d["winRate"]).filter((v: any) => v !== null);
+  }, [chartData, isMultiAlgo]);
+
   const latestWr = sparklineValues.length > 0 ? sparklineValues[sparklineValues.length - 1] : null;
   const prevWr = sparklineValues.length > 1 ? sparklineValues[sparklineValues.length - 2] : null;
   const trending = latestWr !== null && prevWr !== null ? (latestWr >= prevWr ? "up" : "down") : null;
@@ -140,6 +221,18 @@ function WinRateTrendCard() {
       </div>
     );
   }
+
+  const wrLines = isMultiAlgo
+    ? [{ key: "Blended", color: "#ffffff", width: 2.5 }, ...availableAlgos.map((a, i) => ({ key: a, color: ALGO_COLORS[i % ALGO_COLORS.length], width: 1.5 }))]
+    : [{ key: "winRate", color: "#34d399", width: 2 }];
+
+  const pfLines = isMultiAlgo
+    ? [{ key: "Blended_pf", color: "#ffffff", width: 2.5 }, ...availableAlgos.map((a, i) => ({ key: `${a}_pf`, color: ALGO_COLORS[i % ALGO_COLORS.length], width: 1.5 }))]
+    : [{ key: "profitFactor", color: "#60a5fa", width: 2 }];
+
+  const rangeOptions = viewMode === "daily" ? DAILY_RANGE_OPTIONS : HOURLY_RANGE_OPTIONS;
+  const rangeValue = viewMode === "daily" ? dailyRange : hourlyRange;
+  const setRange = viewMode === "daily" ? setDailyRange : setHourlyRange;
 
   return (
     <Popover>
@@ -161,65 +254,53 @@ function WinRateTrendCard() {
           <Sparkline data={sparklineValues} color={trending === "down" ? "#f87171" : "#34d399"} />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[480px] bg-card border-white/10 shadow-2xl p-0">
-        <div className="px-4 py-3 border-b border-white/[0.06]">
+      <PopoverContent align="end" className="w-[720px] bg-card border-white/10 shadow-2xl p-0 max-h-[85vh] overflow-y-auto">
+        <div className="px-5 py-3 border-b border-white/[0.06] flex items-center justify-between">
           <span className="text-sm font-black uppercase tracking-wider">Performance Trend</span>
+          <PillGroup
+            options={[{ id: "daily", label: "Daily" }, { id: "hourly", label: "Hourly" }]}
+            value={viewMode}
+            onChange={(v) => setViewMode(v as "daily" | "hourly")}
+          />
         </div>
 
         {/* Filters */}
-        <div className="px-4 py-2 border-b border-white/[0.06] flex flex-wrap items-center gap-2">
-          <div className="flex items-center rounded-md border border-white/10 bg-white/[0.03] p-0.5">
-            {TREND_TF_OPTIONS.map((o) => (
-              <button
-                key={o.id}
-                onClick={() => setTfFilter(o.id)}
-                className={cn(
-                  "px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all",
-                  tfFilter === o.id ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-          {allAlgos.length > 1 && (
-            <div className="flex items-center rounded-md border border-white/10 bg-white/[0.03] p-0.5">
-              <button
-                onClick={() => setAlgoFilter("all")}
-                className={cn(
-                  "px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all",
-                  algoFilter === "all" ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                All Algos
-              </button>
-              {allAlgos.map((a) => (
-                <button
-                  key={a}
-                  onClick={() => setAlgoFilter(a)}
-                  className={cn(
-                    "px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all",
-                    algoFilter === a ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {a}
-                </button>
-              ))}
-            </div>
+        <div className="px-5 py-2.5 border-b border-white/[0.06] flex flex-wrap items-center gap-2">
+          <PillGroup options={TREND_TF_OPTIONS} value={tfFilter} onChange={setTfFilter} />
+          {availableAlgos.length > 1 && (
+            <PillGroup
+              options={[{ id: "all", label: "All Algos" }, ...availableAlgos.map((a) => ({ id: a, label: a }))]}
+              value={algoFilter}
+              onChange={setAlgoFilter}
+            />
           )}
+          <PillGroup options={rangeOptions} value={rangeValue} onChange={setRange} />
         </div>
 
+        {/* Legend (multi-algo only) */}
+        {isMultiAlgo && (
+          <div className="px-5 py-2 border-b border-white/[0.06] flex flex-wrap items-center gap-3">
+            {wrLines.map((l) => (
+              <div key={l.key} className="flex items-center gap-1.5">
+                <span className="w-3 h-[2px] rounded-full" style={{ background: l.color }} />
+                <span className="text-[9px] font-bold text-muted-foreground/60 uppercase">{l.key}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Charts */}
-        <div className="p-4 space-y-4">
+        <div className="p-5 space-y-5">
           <div>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block mb-2">Win Rate %</span>
-            <ResponsiveContainer width="100%" height={160}>
-              <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block mb-3">Win Rate %</span>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={chartData} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                 <XAxis
-                  dataKey="date"
+                  dataKey="label"
                   tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }}
-                  tickFormatter={(v: string) => v.slice(5)}
+                  tickFormatter={(v: string) => viewMode === "hourly" ? v.slice(5, 13) : v.slice(5)}
+                  interval="preserveStartEnd"
                 />
                 <YAxis
                   domain={[0, 100]}
@@ -227,42 +308,65 @@ function WinRateTrendCard() {
                   tickFormatter={(v: number) => `${v}%`}
                 />
                 <ReTooltip
-                  contentStyle={{ background: "#1a1a1e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }}
-                  formatter={(v: number) => [`${v.toFixed(1)}%`, "Win Rate"]}
+                  contentStyle={TOOLTIP_STYLE}
+                  formatter={(v: any, name: string) => [v != null ? `${Number(v).toFixed(1)}%` : "—", name.replace("_pf", "")]}
                   labelFormatter={(l: string) => l}
                 />
-                <ReferenceLine y={50} stroke="rgba(255,255,255,0.1)" strokeDasharray="3 3" />
-                <Line type="monotone" dataKey="winRate" stroke="#34d399" strokeWidth={2} dot={{ r: 3, fill: "#34d399" }} />
+                <ReferenceLine y={50} stroke="rgba(255,255,255,0.15)" strokeDasharray="3 3" />
+                {wrLines.map((l) => (
+                  <Line
+                    key={l.key}
+                    type="monotone"
+                    dataKey={l.key}
+                    stroke={l.color}
+                    strokeWidth={l.width}
+                    dot={{ r: chartData.length <= 60 ? 2.5 : 0, fill: l.color }}
+                    connectNulls={false}
+                    strokeOpacity={l.key === "Blended" ? 1 : 0.7}
+                  />
+                ))}
               </LineChart>
             </ResponsiveContainer>
           </div>
 
           <div>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block mb-2">Profit Factor</span>
-            <ResponsiveContainer width="100%" height={120}>
-              <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block mb-3">Profit Factor</span>
+            <ResponsiveContainer width="100%" height={180}>
+              <LineChart data={chartData} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                 <XAxis
-                  dataKey="date"
+                  dataKey="label"
                   tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }}
-                  tickFormatter={(v: string) => v.slice(5)}
+                  tickFormatter={(v: string) => viewMode === "hourly" ? v.slice(5, 13) : v.slice(5)}
+                  interval="preserveStartEnd"
                 />
                 <YAxis
                   tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }}
                 />
                 <ReTooltip
-                  contentStyle={{ background: "#1a1a1e", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }}
-                  formatter={(v: number) => [v.toFixed(2), "Profit Factor"]}
+                  contentStyle={TOOLTIP_STYLE}
+                  formatter={(v: any, name: string) => [v != null ? Number(v).toFixed(2) : "—", name.replace("_pf", "")]}
                   labelFormatter={(l: string) => l}
                 />
-                <ReferenceLine y={1} stroke="rgba(255,255,255,0.1)" strokeDasharray="3 3" />
-                <Line type="monotone" dataKey="profitFactor" stroke="#60a5fa" strokeWidth={2} dot={{ r: 3, fill: "#60a5fa" }} />
+                <ReferenceLine y={1} stroke="rgba(255,255,255,0.15)" strokeDasharray="3 3" />
+                {pfLines.map((l) => (
+                  <Line
+                    key={l.key}
+                    type="monotone"
+                    dataKey={l.key}
+                    stroke={l.color}
+                    strokeWidth={l.width}
+                    dot={{ r: chartData.length <= 60 ? 2.5 : 0, fill: l.color }}
+                    connectNulls={false}
+                    strokeOpacity={l.key === "Blended_pf" ? 1 : 0.7}
+                  />
+                ))}
               </LineChart>
             </ResponsiveContainer>
           </div>
 
           <div className="text-center text-[9px] text-muted-foreground/30 font-bold uppercase tracking-widest">
-            {chartData.length} data points · Retired trades only
+            {chartData.length} data points · {viewMode === "daily" ? "Daily" : "Hourly"} · Retired trades only
           </div>
         </div>
       </PopoverContent>
@@ -285,6 +389,8 @@ function TradeAuditContent() {
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [page, setPage] = useState(0);
+
+  useEffect(() => { trackTradeAuditPageView(); }, []);
 
   const signalsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;

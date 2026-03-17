@@ -28,6 +28,36 @@ function computeMetrics(signals: any[]): MetricSnapshot {
   };
 }
 
+function buildSnapshot(retired: any[]) {
+  const composite = computeMetrics(retired);
+
+  const byTf: Record<string, MetricSnapshot> = {};
+  const tfGroups: Record<string, any[]> = {};
+  retired.forEach((s) => {
+    const tf = String(s.timeframe || "15");
+    if (!tfGroups[tf]) tfGroups[tf] = [];
+    tfGroups[tf].push(s);
+  });
+  for (const [tf, sigs] of Object.entries(tfGroups)) {
+    byTf[tf] = computeMetrics(sigs);
+  }
+
+  const byAlgo: Record<string, MetricSnapshot> = {};
+  const algoGroups: Record<string, any[]> = {};
+  retired.forEach((s) => {
+    const algo = s.algo || "V8 Reversal";
+    if (!algoGroups[algo]) algoGroups[algo] = [];
+    algoGroups[algo].push(s);
+  });
+  for (const [algo, sigs] of Object.entries(algoGroups)) {
+    byAlgo[algo] = computeMetrics(sigs);
+  }
+
+  return { composite, tf: byTf, algo: byAlgo };
+}
+
+const HOURLY_RETENTION_DAYS = 30;
+
 export async function GET(request: NextRequest) {
   const key = new URL(request.url).searchParams.get("key");
   const cronSecret = process.env.CRON_SECRET;
@@ -38,6 +68,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = getAdminFirestore();
+    const now = new Date();
 
     const signalsSnap = await db.collection("signals").get();
     const retired = signalsSnap.docs
@@ -47,46 +78,51 @@ export async function GET(request: NextRequest) {
       })
       .map((d) => d.data());
 
-    const composite = computeMetrics(retired);
+    const snapshot = buildSnapshot(retired);
 
-    const byTf: Record<string, MetricSnapshot> = {};
-    const tfGroups: Record<string, any[]> = {};
-    retired.forEach((s) => {
-      const tf = String(s.timeframe || "15");
-      if (!tfGroups[tf]) tfGroups[tf] = [];
-      tfGroups[tf].push(s);
-    });
-    for (const [tf, sigs] of Object.entries(tfGroups)) {
-      byTf[tf] = computeMetrics(sigs);
+    const dailyKey = now.toISOString().slice(0, 10);
+    const hourlyKey = `${dailyKey}T${String(now.getUTCHours()).padStart(2, "0")}`;
+
+    await Promise.all([
+      db.collection("daily_metrics").doc(dailyKey).set({
+        date: dailyKey,
+        ...snapshot,
+        createdAt: now.toISOString(),
+      }),
+      db.collection("hourly_metrics").doc(hourlyKey).set({
+        date: dailyKey,
+        hour: now.getUTCHours(),
+        key: hourlyKey,
+        ...snapshot,
+        createdAt: now.toISOString(),
+      }),
+    ]);
+
+    let purged = 0;
+    const cutoffDate = new Date(now.getTime() - HOURLY_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    const cutoffKey = `${cutoffDate.toISOString().slice(0, 10)}T${String(cutoffDate.getUTCHours()).padStart(2, "0")}`;
+
+    const oldHourly = await db
+      .collection("hourly_metrics")
+      .where("key", "<", cutoffKey)
+      .limit(100)
+      .get();
+
+    if (!oldHourly.empty) {
+      const batch = db.batch();
+      oldHourly.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+      purged = oldHourly.size;
     }
-
-    const byAlgo: Record<string, MetricSnapshot> = {};
-    const algoGroups: Record<string, any[]> = {};
-    retired.forEach((s) => {
-      const algo = s.algo || "V8 Reversal";
-      if (!algoGroups[algo]) algoGroups[algo] = [];
-      algoGroups[algo].push(s);
-    });
-    for (const [algo, sigs] of Object.entries(algoGroups)) {
-      byAlgo[algo] = computeMetrics(sigs);
-    }
-
-    const today = new Date().toISOString().slice(0, 10);
-    const docRef = db.collection("daily_metrics").doc(today);
-    await docRef.set({
-      date: today,
-      composite,
-      tf: byTf,
-      algo: byAlgo,
-      createdAt: new Date().toISOString(),
-    });
 
     return NextResponse.json({
       success: true,
-      date: today,
-      composite,
-      timeframes: Object.keys(byTf).length,
-      algos: Object.keys(byAlgo).length,
+      dailyKey,
+      hourlyKey,
+      composite: snapshot.composite,
+      timeframes: Object.keys(snapshot.tf).length,
+      algos: Object.keys(snapshot.algo).length,
+      hourlyPurged: purged,
     });
   } catch (error: any) {
     console.error("[Daily Metrics]", error.message);

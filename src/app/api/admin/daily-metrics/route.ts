@@ -6,12 +6,14 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const db = getAdminFirestore();
-    const [metricsSnap, signalsSnap] = await Promise.all([
+    const [dailySnap, hourlySnap, signalsSnap] = await Promise.all([
       db.collection("daily_metrics").orderBy("date", "asc").get(),
+      db.collection("hourly_metrics").orderBy("key", "asc").get(),
       db.collection("signals").get(),
     ]);
 
-    const data = metricsSnap.docs.map((d) => d.data());
+    const daily = dailySnap.docs.map((d) => d.data());
+    const hourly = hourlySnap.docs.map((d) => d.data());
 
     const algoSet = new Set<string>();
     signalsSnap.docs.forEach((d) => {
@@ -22,7 +24,8 @@ export async function GET() {
     });
 
     return NextResponse.json({
-      metrics: data,
+      metrics: daily,
+      hourly,
       availableAlgos: Array.from(algoSet).sort(),
     });
   } catch (error: any) {

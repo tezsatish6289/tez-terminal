@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     const rawSide = String(body.side ?? "").toLowerCase();
     const signalType = rawSide.includes("sell") ? "SELL" : rawSide.includes("buy") ? "BUY" : "NEUTRAL";
 
-    const rawPrice = body.price_at_alert;
+    const rawPrice = body.price_at_alert ?? body.price;
     let price = 0;
     if (rawPrice != null && rawPrice !== "") {
       const parsed = parseFloat(String(rawPrice).trim());

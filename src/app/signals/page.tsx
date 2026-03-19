@@ -669,6 +669,16 @@ export default function SignalsPage() {
   const { data: filterCfgData } = useDoc(filterCfgRef);
   const configuredThreshold = (filterCfgData as any)?.baseThreshold ?? AUTO_FILTER_THRESHOLD;
 
+  const biasRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, "config", "market_bias");
+  }, [firestore, user]);
+  const { data: biasData } = useDoc(biasRef);
+  const bullAggScore = (biasData as any)?.bullScore ?? 0;
+  const bearAggScore = (biasData as any)?.bearScore ?? 0;
+  const bullAggCount = (biasData as any)?.bullCount ?? 0;
+  const bearAggCount = (biasData as any)?.bearCount ?? 0;
+
   const processedSignals: ProcessedSignal[] = useMemo(() => {
     if (!rawSignals) return [];
     return rawSignals
@@ -1279,6 +1289,95 @@ export default function SignalsPage() {
           </div>
         </div>
       </main>
+
+      {/* Market Bias Indicator */}
+      {(bullAggScore > 0 || bearAggScore > 0) && (
+        <div className="max-w-[1800px] mx-auto px-4 pb-6">
+          <div className="rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="w-4 h-4 text-accent" />
+              <h3 className="text-xs font-black tracking-tight uppercase text-muted-foreground">
+                Market Bias
+              </h3>
+            </div>
+            <div className="flex items-stretch gap-4">
+              {/* Bull Score */}
+              <div className="flex-1 rounded-lg border border-positive/15 bg-positive/[0.04] p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <TrendingUp className="w-3.5 h-3.5 text-positive/70" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-positive/70">Bulls</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground/40">{bullAggCount} signals</span>
+                </div>
+                <div className="text-2xl font-black text-positive tabular-nums">
+                  {bullAggScore}
+                </div>
+                <div className="mt-1.5 w-full bg-white/[0.06] rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="h-full bg-positive/60 rounded-full transition-all duration-700"
+                    style={{ width: `${Math.min(100, bullAggScore)}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* VS divider */}
+              <div className="flex flex-col items-center justify-center px-1">
+                <span className="text-[10px] font-bold text-muted-foreground/30 uppercase">vs</span>
+                {bullAggScore > 0 && bearAggScore > 0 && (
+                  <div className={cn(
+                    "mt-1 text-[10px] font-bold",
+                    bullAggScore > bearAggScore + 10 ? "text-positive/60" :
+                    bearAggScore > bullAggScore + 10 ? "text-negative/60" :
+                    "text-muted-foreground/30"
+                  )}>
+                    {bullAggScore > bearAggScore + 10 ? "▲" :
+                     bearAggScore > bullAggScore + 10 ? "▼" : "—"}
+                  </div>
+                )}
+              </div>
+
+              {/* Bear Score */}
+              <div className="flex-1 rounded-lg border border-negative/15 bg-negative/[0.04] p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <TrendingDown className="w-3.5 h-3.5 text-negative/70" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-negative/70">Bears</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground/40">{bearAggCount} signals</span>
+                </div>
+                <div className="text-2xl font-black text-negative tabular-nums">
+                  {bearAggScore}
+                </div>
+                <div className="mt-1.5 w-full bg-white/[0.06] rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="h-full bg-negative/60 rounded-full transition-all duration-700"
+                    style={{ width: `${Math.min(100, bearAggScore)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Suggestion label */}
+            {bullAggScore > 0 && bearAggScore > 0 && (
+              <div className="mt-3 text-center">
+                <span className={cn(
+                  "text-[11px] font-bold",
+                  bullAggScore > bearAggScore + 15 ? "text-positive/70" :
+                  bearAggScore > bullAggScore + 15 ? "text-negative/70" :
+                  "text-muted-foreground/40"
+                )}>
+                  {bullAggScore > bearAggScore + 15
+                    ? "Market leaning bullish — favor long setups"
+                    : bearAggScore > bullAggScore + 15
+                      ? "Market leaning bearish — favor short setups"
+                      : "No clear directional edge — be selective"}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Floating Telegram CTA — page-level */}
       <Link

@@ -285,6 +285,7 @@ export async function GET(request: NextRequest) {
     let scoreCount = 0;
     let previousRegime: MarketRegimeData | undefined;
     let baseThreshold = AUTO_FILTER_THRESHOLD;
+    let scores = new Map<string, { signalId: string; score: number; label: string; color: string; breakdown: any }>();
     try {
       // Read configurable base threshold
       try {
@@ -307,7 +308,7 @@ export async function GET(request: NextRequest) {
       } catch {}
 
       const allSignalsForScoring = postUpdateDocs.map(mapFirestoreSignal);
-      const scores = computeAutoFilter(allSignalsForScoring);
+      scores = computeAutoFilter(allSignalsForScoring);
 
       for (const signalDoc of signalsSnap.docs) {
         const signal = signalDoc.data();
@@ -361,6 +362,55 @@ export async function GET(request: NextRequest) {
       }
     } catch (scoreErr: any) {
       console.error("[Sync] AI rescoring failed:", scoreErr.message);
+    }
+
+    // ── Market Bias Aggregation (Phase 1.5) ─────────────
+    try {
+      const TF_WEIGHTS: Record<string, number> = { "5": 1, "15": 2, "60": 3, "240": 4 };
+      const biasData: Record<string, number> = {};
+
+      for (const side of ["BUY", "SELL"] as const) {
+        let weightedSum = 0;
+        let totalWeight = 0;
+
+        for (const [tf, weight] of Object.entries(TF_WEIGHTS)) {
+          const tfSignals = postUpdateDocs.filter(
+            (d) =>
+              d.autoFilterPassed === true &&
+              d.status === "ACTIVE" &&
+              !d.tp1Hit && !d.tp2Hit && !d.tp3Hit && !d.slHitAt &&
+              String(d.timeframe) === tf &&
+              d.type === side,
+          );
+
+          if (tfSignals.length === 0) continue;
+
+          const tfScores = tfSignals
+            .map((d) => scores.get(d.id)?.score ?? d.confidenceScore)
+            .filter((s): s is number => s != null);
+
+          if (tfScores.length === 0) continue;
+
+          const avg = tfScores.reduce((a, b) => a + b, 0) / tfScores.length;
+          weightedSum += avg * weight;
+          totalWeight += weight;
+        }
+
+        biasData[side === "BUY" ? "bullScore" : "bearScore"] =
+          totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0;
+        biasData[side === "BUY" ? "bullCount" : "bearCount"] =
+          postUpdateDocs.filter(
+            (d) => d.autoFilterPassed === true && d.status === "ACTIVE" &&
+              !d.tp1Hit && !d.tp2Hit && !d.tp3Hit && !d.slHitAt && d.type === side,
+          ).length;
+      }
+
+      await db.collection("config").doc("market_bias").set({
+        ...biasData,
+        lastUpdated: new Date().toISOString(),
+      });
+    } catch (biasErr: any) {
+      console.error("[Sync] Market bias computation failed:", biasErr.message);
     }
 
     // ── Market Regime Computation (Phase 2) ───────────────

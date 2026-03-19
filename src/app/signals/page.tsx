@@ -676,8 +676,6 @@ export default function SignalsPage() {
   const { data: biasData } = useDoc(biasRef);
   const bullAggScore = (biasData as any)?.bullScore ?? 0;
   const bearAggScore = (biasData as any)?.bearScore ?? 0;
-  const bullAggCount = (biasData as any)?.bullCount ?? 0;
-  const bearAggCount = (biasData as any)?.bearCount ?? 0;
 
   const processedSignals: ProcessedSignal[] = useMemo(() => {
     if (!rawSignals) return [];
@@ -1080,14 +1078,15 @@ export default function SignalsPage() {
             {/* Market Bias — compact bar */}
             {(bullAggScore > 0 || bearAggScore > 0) && (
               <div className="px-4 py-2 border-b border-white/[0.06] bg-white/[0.02]">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 shrink-0">
                     <TrendingUp className="w-3 h-3 text-positive/60" />
-                    <span className="text-[10px] font-bold text-positive tabular-nums">{bullAggScore}</span>
-                    <span className="text-[9px] text-muted-foreground/30">({bullAggCount})</span>
+                    <span className="text-[9px] font-bold uppercase text-positive/60">Bulls</span>
+                    <span className="text-[11px] font-black text-positive tabular-nums">{bullAggScore}</span>
+                    <span className="text-[8px] text-positive/40">pts</span>
                   </div>
 
-                  <div className="flex-1 flex items-center gap-1 h-1.5">
+                  <div className="flex-1 flex items-center gap-0.5 h-1.5">
                     <div
                       className="h-full bg-positive/50 rounded-l-full transition-all duration-700"
                       style={{ width: `${bullAggScore + bearAggScore > 0 ? (bullAggScore / (bullAggScore + bearAggScore)) * 100 : 50}%` }}
@@ -1098,22 +1097,27 @@ export default function SignalsPage() {
                     />
                   </div>
 
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] text-muted-foreground/30">({bearAggCount})</span>
-                    <span className="text-[10px] font-bold text-negative tabular-nums">{bearAggScore}</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[11px] font-black text-negative tabular-nums">{bearAggScore}</span>
+                    <span className="text-[8px] text-negative/40">pts</span>
+                    <span className="text-[9px] font-bold uppercase text-negative/60">Bears</span>
                     <TrendingDown className="w-3 h-3 text-negative/60" />
                   </div>
 
-                  <span className={cn(
-                    "text-[9px] font-bold ml-1 hidden sm:inline",
-                    bullAggScore > bearAggScore + 15 ? "text-positive/50" :
-                    bearAggScore > bullAggScore + 15 ? "text-negative/50" :
-                    "text-muted-foreground/25"
+                  <div className={cn(
+                    "shrink-0 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider",
+                    bullAggScore > bearAggScore + 10
+                      ? "bg-positive/15 text-positive"
+                      : bearAggScore > bullAggScore + 10
+                        ? "bg-negative/15 text-negative"
+                        : "bg-white/[0.06] text-muted-foreground/40"
                   )}>
-                    {bullAggScore > bearAggScore + 15 ? "Lean Bull"
-                      : bearAggScore > bullAggScore + 15 ? "Lean Bear"
-                      : "Neutral"}
-                  </span>
+                    {bullAggScore > bearAggScore + 10
+                      ? "Go Bull"
+                      : bearAggScore > bullAggScore + 10
+                        ? "Go Bear"
+                        : "Wait"}
+                  </div>
                 </div>
               </div>
             )}

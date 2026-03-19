@@ -1086,7 +1086,7 @@ export default function SignalsPage() {
                     <span className="text-[8px] text-positive/40">pts</span>
                   </div>
 
-                  <div className="flex-1 flex items-center gap-0.5 h-1.5">
+                  <div className="w-16 sm:w-24 flex items-center gap-0.5 h-1.5 shrink-0">
                     <div
                       className="h-full bg-positive/50 rounded-l-full transition-all duration-700"
                       style={{ width: `${bullAggScore + bearAggScore > 0 ? (bullAggScore / (bullAggScore + bearAggScore)) * 100 : 50}%` }}
@@ -1104,19 +1104,21 @@ export default function SignalsPage() {
                     <TrendingDown className="w-3 h-3 text-negative/60" />
                   </div>
 
+                  <div className="flex-1" />
+
                   <div className={cn(
-                    "shrink-0 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider",
+                    "shrink-0 px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wider animate-pulse",
                     bullAggScore > bearAggScore + 10
-                      ? "bg-positive/15 text-positive"
+                      ? "bg-amber-400/15 text-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.15)]"
                       : bearAggScore > bullAggScore + 10
-                        ? "bg-negative/15 text-negative"
-                        : "bg-white/[0.06] text-muted-foreground/40"
+                        ? "bg-amber-400/15 text-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.15)]"
+                        : "bg-amber-400/10 text-amber-400/60"
                   )}>
                     {bullAggScore > bearAggScore + 10
-                      ? "Go Bull"
+                      ? "⚡ Go Bull"
                       : bearAggScore > bullAggScore + 10
-                        ? "Go Bear"
-                        : "Wait"}
+                        ? "⚡ Go Bear"
+                        : "◆ Wait"}
                   </div>
                 </div>
               </div>

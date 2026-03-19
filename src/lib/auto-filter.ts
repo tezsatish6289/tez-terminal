@@ -240,108 +240,13 @@ interface AlgoTfStats {
   sampleSize: number;
 }
 
-// ── BTC Sentiment types ─────────────────────────────────────
-
-export interface SentimentReading {
-  sentiment: "bullish" | "bearish" | "neutral";
-  score: number;
-  rawScore: number;
-  timeframe: string;
-  receivedAt: string;
-}
-
-export interface TfSentimentAnalysis {
-  current: SentimentReading;
-  direction: number;         // +1 bullish, -1 bearish, 0 neutral
-  smoothTrend: number;       // rate of change of smooth score
-  rawMomentum: number;       // rate of change of raw score
-  divergence: number;        // raw - smooth (positive = raw leading up)
-  divergenceTrend: number;   // is divergence widening (+) or narrowing (-)
-  confidence: number;        // 0-1 how much to trust this reading
-}
-
-/**
- * Processes raw sentiment docs into per-timeframe analysis with
- * trend direction, momentum, and raw-vs-smooth divergence.
- */
-export function buildSentimentMap(
-  readings: SentimentReading[],
-): Map<string, TfSentimentAnalysis> {
-  const result = new Map<string, TfSentimentAnalysis>();
-
-  // Group by timeframe, sorted newest first
-  const byTf = new Map<string, SentimentReading[]>();
-  for (const r of readings) {
-    if (!byTf.has(r.timeframe)) byTf.set(r.timeframe, []);
-    byTf.get(r.timeframe)!.push(r);
-  }
-
-  for (const [tf, tfReadings] of byTf) {
-    const sorted = tfReadings.sort(
-      (a, b) =>
-        new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime(),
-    );
-    if (sorted.length === 0) continue;
-
-    const current = sorted[0];
-    const direction =
-      current.sentiment === "bullish"
-        ? 1
-        : current.sentiment === "bearish"
-          ? -1
-          : 0;
-
-    let smoothTrend = 0;
-    let rawMomentum = 0;
-    let divergence = current.rawScore - current.score;
-    let divergenceTrend = 0;
-
-    if (sorted.length >= 2) {
-      const prev = sorted[1];
-      smoothTrend = current.score - prev.score;
-      rawMomentum = current.rawScore - prev.rawScore;
-      const prevDivergence = prev.rawScore - prev.score;
-      divergenceTrend = divergence - prevDivergence;
-    }
-
-    if (sorted.length >= 3) {
-      // Use 3-point average for smoother trend estimation
-      const scores = sorted.slice(0, 3).map((r) => r.score);
-      const rawScores = sorted.slice(0, 3).map((r) => r.rawScore);
-      smoothTrend = (scores[0] - scores[2]) / 2;
-      rawMomentum = (rawScores[0] - rawScores[2]) / 2;
-    }
-
-    // Confidence based on freshness of the reading
-    const ageMs = Date.now() - new Date(current.receivedAt).getTime();
-    const candleMins = CANDLE_MINUTES[tf] ?? 15;
-    const ageInCandles = ageMs / (candleMins * 60 * 1000);
-    const confidence = ageInCandles <= 2 ? 1 : ageInCandles <= 5 ? 0.8 : 0.5;
-
-    result.set(tf, {
-      current,
-      direction,
-      smoothTrend,
-      rawMomentum,
-      divergence,
-      divergenceTrend,
-      confidence,
-    });
-  }
-
-  return result;
-}
-
-// ── Factor 1: Multi-Timeframe Confluence (0-25) ─────────────
-
-const TF_IDS_ASCENDING = ["1", "5", "15", "60", "240", "D", "W"];
+// ── Factor 1: Cross-TF Signal Confluence (0-4) ──────────────
 
 function scoreMtfConfluence(
   signal: SignalForScoring,
   allSignals: SignalForScoring[],
-  btcSentiment: Map<string, TfSentimentAnalysis>,
 ): number {
-  const MAX = 25;
+  const MAX = 4;
   const signalRank = TF_RANK[signal.timeframe];
   if (signalRank == null) return Math.round(MAX * 0.4);
 
@@ -353,11 +258,9 @@ function scoreMtfConfluence(
       TF_RANK[s.timeframe] != null,
   );
 
-  const isBuySignal = signal.type === "BUY";
   let score = 0;
 
-  // ─── A. Same-symbol cross-TF signals (0-4 bonus) ───
-  // Rare but valuable when available — kept as a small bonus, not a pillar
+  // Same-symbol cross-TF signals: higher TF aligned = strong confirmation
   const sameSymbol = activeSignals.filter((s) => s.symbol === signal.symbol);
   if (sameSymbol.length > 0) {
     let symScore = 0;
@@ -370,131 +273,23 @@ function scoreMtfConfluence(
         symScore += aligned ? 1 : -1;
       }
     }
-    score += Math.max(-2, Math.min(4, symScore));
-  }
-
-  // ─── B. BTC Sentiment 4D — equal-weight tripod (0-21) ───
-  if (btcSentiment.size > 0) {
-    const EACH = 7;
-
-    // B1. Same-TF sentiment direction + raw momentum (0-7)
-    let b1 = 0;
-    const sameTfSent = btcSentiment.get(signal.timeframe);
-    if (sameTfSent) {
-      const aligned =
-        (isBuySignal && sameTfSent.direction === 1) ||
-        (!isBuySignal && sameTfSent.direction === -1);
-      const opposed =
-        (isBuySignal && sameTfSent.direction === -1) ||
-        (!isBuySignal && sameTfSent.direction === 1);
-
-      if (aligned) b1 += 4 * sameTfSent.confidence;
-      else if (opposed) b1 -= 3 * sameTfSent.confidence;
-
-      // Raw momentum in signal's direction
-      const momentumAligned = isBuySignal
-        ? sameTfSent.rawMomentum > 0
-        : sameTfSent.rawMomentum < 0;
-      const momentumOpposed = isBuySignal
-        ? sameTfSent.rawMomentum < 0
-        : sameTfSent.rawMomentum > 0;
-      if (momentumAligned) b1 += 3 * sameTfSent.confidence;
-      else if (momentumOpposed) b1 -= 1;
-    }
-    score += Math.max(-3, Math.min(EACH, Math.round(b1)));
-
-    // B2. Higher-TF sentiment alignment (0-7)
-    let b2 = 0;
-    const higherTfs = TF_IDS_ASCENDING.filter((tf) => {
-      const rank = TF_RANK[tf] ?? 0;
-      if (rank <= signalRank) return false;
-      if (tf === "W" && signalRank < 3) return false;
-      return true;
-    });
-    if (higherTfs.length > 0) {
-      let alignedCount = 0;
-      let opposedCount = 0;
-      let totalWeight = 0;
-      for (const htf of higherTfs) {
-        const htfSent = btcSentiment.get(htf);
-        if (!htfSent) continue;
-        const tfGap = (TF_RANK[htf] ?? 0) - signalRank;
-        const weight = (1 + tfGap * 0.3) * htfSent.confidence;
-        totalWeight += weight;
-        const aligned =
-          (isBuySignal && htfSent.direction === 1) ||
-          (!isBuySignal && htfSent.direction === -1);
-        const opposed =
-          (isBuySignal && htfSent.direction === -1) ||
-          (!isBuySignal && htfSent.direction === 1);
-        if (aligned) alignedCount += weight;
-        else if (opposed) opposedCount += weight;
-      }
-      if (totalWeight > 0) {
-        const alignRatio = alignedCount / totalWeight;
-        const opposeRatio = opposedCount / totalWeight;
-        if (alignRatio > 0.7) b2 = EACH;
-        else if (alignRatio > 0.5) b2 = EACH * 0.7;
-        else if (opposeRatio > 0.7) b2 = -3;
-        else if (opposeRatio > 0.5) b2 = -1;
-        else b2 = EACH * 0.3;
-      }
-    }
-    score += Math.max(-3, Math.min(EACH, Math.round(b2)));
-
-    // B3. Divergence analysis: raw vs smooth + smooth trend (0-7)
-    let b3 = 0;
-    const primaryTf = sameTfSent ?? btcSentiment.get("60");
-    if (primaryTf) {
-      // Divergence: raw leading smooth in signal's direction = strengthening
-      const divAligned = isBuySignal
-        ? primaryTf.divergence > 0
-        : primaryTf.divergence < 0;
-      const divOpposed = isBuySignal
-        ? primaryTf.divergence < 0
-        : primaryTf.divergence > 0;
-
-      if (divAligned) b3 += 2 * primaryTf.confidence;
-      else if (divOpposed) b3 -= 1.5 * primaryTf.confidence;
-
-      // Divergence trend: gap widening in signal's direction = accelerating
-      const trendWidening = isBuySignal
-        ? primaryTf.divergenceTrend > 0
-        : primaryTf.divergenceTrend < 0;
-      const trendNarrowing = isBuySignal
-        ? primaryTf.divergenceTrend < 0
-        : primaryTf.divergenceTrend > 0;
-
-      if (trendWidening) b3 += 2 * primaryTf.confidence;
-      else if (trendNarrowing) b3 -= 1;
-
-      // Smooth trend confirmation
-      const smoothAligned = isBuySignal
-        ? primaryTf.smoothTrend > 0
-        : primaryTf.smoothTrend < 0;
-      if (smoothAligned) b3 += 3 * primaryTf.confidence;
-      else b3 -= 1;
-    }
-    score += Math.max(-3, Math.min(EACH, Math.round(b3)));
-  } else {
-    // No BTC sentiment data — fall back to signal's aligned flag
-    if (signal.aligned) score += 7;
+    score += Math.max(-2, Math.min(MAX, symScore));
   }
 
   return Math.max(0, Math.min(MAX, score));
 }
 
-// ── Factor 2: Entry Quality & Market Regime (0-25) ──────────
+// ── Factor 2: Entry Quality & Market Regime (0-28) ──────────
 
 function scoreMomentum(
   signal: SignalForScoring,
   allSignals: SignalForScoring[],
 ): number {
-  const MAX = 25;
+  const MAX = 28;
   const threshold = PNL_THRESHOLDS[signal.timeframe] ?? 0.5;
   let score = 0;
 
-  // ─── A. 3D Entry Quality (0-10) ───
+  // ─── A. 3D Entry Quality (0-12) ───
   // Three dimensions: current PnL, positive excursion, negative excursion
   const isBuy = signal.type === "BUY";
   const entry = signal.price;
@@ -521,38 +316,28 @@ function scoreMomentum(
   const isPulledBack = hadPositiveExcursion && pnl < positiveExcursion * 0.5;
 
   if (hadPositiveExcursion && neverWentNegative && isPulledBack && pnl >= 0) {
-    // Healthy pullback: thesis proven, never showed weakness, near entry
-    score += 10;
+    score += 12;
   } else if (hadPositiveExcursion && neverWentNegative && pnl > 0) {
-    // At or near peak with clean history
-    score += 9;
+    score += 11;
   } else if (pnl > 0 && pnl <= threshold) {
-    // Small positive, sweet spot for fresh entries
-    score += 8;
+    score += 10;
   } else if (hadPositiveExcursion && neverWentNegative && pnl <= 0 && pnl > -threshold * 0.3) {
-    // Pulled back to entry, never negative beyond noise — still healthy
-    score += 7;
+    score += 8;
   } else if (hadPositiveExcursion && !neverWentNegative && pnl > 0) {
-    // Volatile but currently positive — went both ways
-    score += 5;
+    score += 6;
   } else if (!hadPositiveExcursion && neverWentNegative) {
-    // Fresh/untested — no excursion data yet
-    score += 5;
+    score += 6;
   } else if (pnl > threshold * 2) {
-    // Extended — working but late entry risk
-    score += 4;
+    score += 5;
   } else if (hadPositiveExcursion && !neverWentNegative && pnl <= 0) {
-    // Was working but went both ways, now flat/negative
     score += 2;
   } else if (pnl > -threshold) {
-    // Mildly negative
     score += 2;
   } else {
-    // Deep negative, never showed positive excursion
     score += 0;
   }
 
-  // ─── B. Side-Aware Market Regime (0-15) ───
+  // ─── B. Side-Aware Market Regime (0-16) ───
   // "Are signals on MY side winning?" + "Are signals on the OTHER side losing?"
   const sameTfActive = allSignals.filter(
     (s) =>
@@ -567,20 +352,20 @@ function scoreMomentum(
 
   let regimeScore = 0;
 
-  // Same-side performance (0-9)
+  // Same-side performance (0-10)
   if (sameSide.length >= 2) {
     const sameWinning = sameSide.filter((s) => s.pnl > threshold).length;
     const sameLosing = sameSide.filter((s) => s.pnl < -threshold).length;
     const sameWinRate = sameWinning / sameSide.length;
     const sameLossRate = sameLosing / sameSide.length;
 
-    if (sameWinRate > 0.65) regimeScore += 9;
-    else if (sameWinRate > 0.5) regimeScore += 7;
+    if (sameWinRate > 0.65) regimeScore += 10;
+    else if (sameWinRate > 0.5) regimeScore += 8;
     else if (sameWinRate > sameLossRate) regimeScore += 5;
     else if (sameLossRate > 0.65) regimeScore += 0;
     else regimeScore += 3;
   } else {
-    regimeScore += 4;
+    regimeScore += 5;
   }
 
   // Opposite-side performance as contrarian confirmation (0-6)
@@ -633,15 +418,15 @@ function scoreMomentum(
     else if (sideRatio >= 0.65) regimeScore -= 2;
   }
 
-  score += Math.max(0, Math.min(15, regimeScore));
+  score += Math.max(0, Math.min(16, regimeScore));
 
   return Math.max(0, Math.min(MAX, score));
 }
 
-// ── Factor 3: Risk-Reward Quality (0-15) ────────────────────
+// ── Factor 3: Risk-Reward Quality (0-18) ────────────────────
 
 function scoreRiskReward(signal: SignalForScoring): number {
-  const MAX = 15;
+  const MAX = 18;
 
   if (
     signal.tp1 == null ||
@@ -672,7 +457,7 @@ function scoreRiskReward(signal: SignalForScoring): number {
   return Math.round(MAX * 0.2);
 }
 
-// ── Factor 4: Historical Algo Performance (0-15) ────────────
+// ── Factor 4: Historical Algo Performance (0-22) ────────────
 
 function computeAlgoTfStats(
   allSignals: SignalForScoring[],
@@ -732,7 +517,7 @@ function scoreAlgoPerformance(
   statsMap: Map<string, AlgoTfStats>,
   allSignals: SignalForScoring[],
 ): number {
-  const MAX = 15;
+  const MAX = 22;
   const key = `${signal.algo}|${signal.timeframe}`;
   const stats = statsMap.get(key);
 
@@ -775,10 +560,10 @@ function scoreAlgoPerformance(
   return Math.max(0, Math.min(MAX, baseScore));
 }
 
-// ── Factor 5: Trade Health / Drawdown (0-12) ────────────────
+// ── Factor 5: Trade Health / Drawdown (0-20) ────────────────
 
 function scoreTradeHealth(signal: SignalForScoring): number {
-  const MAX = 12;
+  const MAX = 20;
 
   if (signal.maxDrawdownPrice == null || signal.currentPrice == null) {
     return Math.round(MAX * 0.5);
@@ -859,10 +644,8 @@ function getConfidenceLabel(score: number): { label: string; color: string } {
 
 export function computeAutoFilter(
   allSignals: SignalForScoring[],
-  btcSentiment?: Map<string, TfSentimentAnalysis>,
 ): Map<string, ScoredSignal> {
   const algoStats = computeAlgoTfStats(allSignals);
-  const sentimentMap = btcSentiment ?? new Map();
   const scores = new Map<string, ScoredSignal>();
 
   // Score only active, unresolved signals
@@ -877,7 +660,7 @@ export function computeAutoFilter(
 
   for (const signal of candidates) {
     const breakdown: ScoreBreakdown = {
-      mtfConfluence: Math.round(scoreMtfConfluence(signal, allSignals, sentimentMap)),
+      mtfConfluence: Math.round(scoreMtfConfluence(signal, allSignals)),
       momentum: Math.round(scoreMomentum(signal, allSignals)),
       riskReward: Math.round(scoreRiskReward(signal)),
       algoPerformance: Math.round(scoreAlgoPerformance(signal, algoStats, allSignals)),
@@ -888,7 +671,7 @@ export function computeAutoFilter(
     const rawScore = Object.values(breakdown).reduce((a, b) => a + b, 0);
 
     // Synergy bonus: multiple strong factors compound confidence
-    const factorMaxes = [25, 25, 15, 15, 12, 8];
+    const factorMaxes = [4, 28, 18, 22, 20, 8];
     const factorValues = Object.values(breakdown);
     const strongCount = factorValues.filter(
       (v, i) => v / factorMaxes[i] >= 0.7,
@@ -966,12 +749,3 @@ export function mapFirestoreSignal(doc: { id: string; [key: string]: any }): Sig
   };
 }
 
-export function mapFirestoreSentiment(doc: any): SentimentReading {
-  return {
-    sentiment: doc.sentiment ?? "neutral",
-    score: Number(doc.score ?? 0),
-    rawScore: Number(doc.rawScore ?? 0),
-    timeframe: String(doc.timeframe ?? "15"),
-    receivedAt: doc.receivedAt ?? "",
-  };
-}

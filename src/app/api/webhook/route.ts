@@ -8,9 +8,7 @@ import { deriveTp3, areTpsValid, areTpDistancesSane, deriveTpsFromRisk, isSlDist
 
 import {
   computeAutoFilter,
-  buildSentimentMap,
   mapFirestoreSignal,
-  mapFirestoreSentiment,
   AUTO_FILTER_THRESHOLD,
   isRegimeStale,
   type MarketRegimeData,
@@ -264,16 +262,6 @@ export async function POST(request: NextRequest) {
               allSignals[newIdx] = { ...allSignals[newIdx], aligned };
             }
 
-            const sentimentSnap = await db
-              .collection("sentiment_signals")
-              .orderBy("receivedAt", "desc")
-              .limit(100)
-              .get();
-            const sentimentReadings = sentimentSnap.docs.map((d) =>
-              mapFirestoreSentiment(d.data()),
-            );
-            const btcSentiment = buildSentimentMap(sentimentReadings);
-
             // Read configurable base threshold
             let baseThreshold = AUTO_FILTER_THRESHOLD;
             try {
@@ -300,7 +288,7 @@ export async function POST(request: NextRequest) {
               }
             } catch {}
 
-            const scores = computeAutoFilter(allSignals, btcSentiment);
+            const scores = computeAutoFilter(allSignals);
             const thisScore = scores.get(docRef.id);
 
             if (thisScore) {

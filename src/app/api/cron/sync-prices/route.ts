@@ -4,9 +4,7 @@ import { rawPnlPercent, calcBookedPnl, deriveTp3, areTpsValid, areTpDistancesSan
 import type { SignalEvent } from "@/lib/telegram";
 import {
   computeAutoFilter,
-  buildSentimentMap,
   mapFirestoreSignal,
-  mapFirestoreSentiment,
   isSignalStale,
   AUTO_FILTER_THRESHOLD,
   isRegimeStale,
@@ -288,16 +286,6 @@ export async function GET(request: NextRequest) {
     let previousRegime: MarketRegimeData | undefined;
     let baseThreshold = AUTO_FILTER_THRESHOLD;
     try {
-      const sentimentSnap = await db
-        .collection("sentiment_signals")
-        .orderBy("receivedAt", "desc")
-        .limit(100)
-        .get();
-      const sentimentReadings = sentimentSnap.docs.map((d) =>
-        mapFirestoreSentiment(d.data()),
-      );
-      const btcSentiment = buildSentimentMap(sentimentReadings);
-
       // Read configurable base threshold
       try {
         const filterCfg = await db.collection("config").doc("auto_filter").get();
@@ -319,7 +307,7 @@ export async function GET(request: NextRequest) {
       } catch {}
 
       const allSignalsForScoring = postUpdateDocs.map(mapFirestoreSignal);
-      const scores = computeAutoFilter(allSignalsForScoring, btcSentiment);
+      const scores = computeAutoFilter(allSignalsForScoring);
 
       for (const signalDoc of signalsSnap.docs) {
         const signal = signalDoc.data();

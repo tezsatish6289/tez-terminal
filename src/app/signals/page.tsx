@@ -1106,20 +1106,31 @@ export default function SignalsPage() {
 
                   <div className="flex-1" />
 
-                  <div className={cn(
-                    "shrink-0 px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wider animate-pulse",
-                    bullAggScore > bearAggScore + 10
-                      ? "bg-amber-400/15 text-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.15)]"
-                      : bearAggScore > bullAggScore + 10
-                        ? "bg-amber-400/15 text-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.15)]"
-                        : "bg-amber-400/10 text-amber-400/60"
-                  )}>
+                  <button
+                    onClick={() => {
+                      if (bullAggScore > bearAggScore + 10) {
+                        setAiTab("bulls");
+                        trackTabChanged("bulls");
+                      } else if (bearAggScore > bullAggScore + 10) {
+                        setAiTab("bears");
+                        trackTabChanged("bears");
+                      }
+                    }}
+                    className={cn(
+                      "shrink-0 px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wider animate-pulse transition-all",
+                      bullAggScore > bearAggScore + 10
+                        ? "bg-amber-400/15 text-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.15)] hover:bg-amber-400/25 cursor-pointer"
+                        : bearAggScore > bullAggScore + 10
+                          ? "bg-amber-400/15 text-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.15)] hover:bg-amber-400/25 cursor-pointer"
+                          : "bg-amber-400/10 text-amber-400/60 cursor-default"
+                    )}
+                  >
                     {bullAggScore > bearAggScore + 10
                       ? "⚡ Go Bull"
                       : bearAggScore > bullAggScore + 10
                         ? "⚡ Go Bear"
                         : "◆ Wait"}
-                  </div>
+                  </button>
                 </div>
               </div>
             )}

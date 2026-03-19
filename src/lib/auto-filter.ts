@@ -48,11 +48,8 @@ const REGIME_STALENESS_CANDLES = 3;
 const REGIME_MA_PERIOD = 5;
 const SL_WINDOW_CANDLES = 6;
 
-const CROWDING_TIERS = [
-  { above: 30, penalty: 15 },
-  { above: 20, penalty: 10 },
-  { above: 10, penalty: 5 },
-] as const;
+const CROWDING_FREE_SLOTS = 5;
+const CROWDING_PER_SIGNAL = 2;
 
 export function isRegimeStale(lastUpdated?: string, timeframe?: string): boolean {
   if (!lastUpdated) return true;
@@ -74,13 +71,7 @@ export function getAdjustedThreshold(
   const wrAdjust = (0.5 - winRate) * REGIME_WR_SCALE;
   const slPenalty = Math.min(recentSlCount * REGIME_SL_PENALTY, REGIME_SL_CAP);
 
-  let crowdingPenalty = 0;
-  for (const tier of CROWDING_TIERS) {
-    if (activeSideCount > tier.above) {
-      crowdingPenalty = tier.penalty;
-      break;
-    }
-  }
+  const crowdingPenalty = Math.max(0, activeSideCount - CROWDING_FREE_SLOTS) * CROWDING_PER_SIGNAL;
 
   const raw = base + wrAdjust + slPenalty + crowdingPenalty;
 
@@ -158,17 +149,10 @@ export function computeMarketRegime(
       const winRate = total > 0 ? wins / total : 0.5;
       const sampleSize = activeCount + recentSlCount;
 
-      const activeSideCount = signals.filter(
-        (s) =>
-          s.autoFilterPassed === true &&
-          s.status === "ACTIVE" &&
-          !s.tp1Hit &&
-          !s.slHitAt &&
-          s.type === side,
-      ).length;
+      const activeSideTfCount = active.length;
 
       const key = `${tfId}_${side}`;
-      const rawThreshold = getAdjustedThreshold(winRate, sampleSize, recentSlCount, baseThresholdOverride, activeSideCount);
+      const rawThreshold = getAdjustedThreshold(winRate, sampleSize, recentSlCount, baseThresholdOverride, activeSideTfCount);
       const prevHistory = previousRegime?.[key]?.thresholdHistory ?? [];
       const newHistory = [...prevHistory, rawThreshold].slice(-REGIME_MA_PERIOD);
 

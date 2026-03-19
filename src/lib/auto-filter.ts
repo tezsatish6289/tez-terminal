@@ -51,6 +51,10 @@ const SL_WINDOW_CANDLES = 6;
 const CROWDING_FREE_SLOTS = 5;
 const CROWDING_PER_SIGNAL = 2;
 
+const OPP_SL_ORIGINAL_BENEFIT = 2;
+const OPP_SL_TRAILING_BENEFIT = 1;
+const OPP_SL_BENEFIT_CAP = 8;
+
 export function isRegimeStale(lastUpdated?: string, timeframe?: string): boolean {
   if (!lastUpdated) return true;
   const candleMs = (CANDLE_MINUTES[timeframe ?? "15"] ?? 15) * 60 * 1000;
@@ -64,6 +68,8 @@ export function getAdjustedThreshold(
   recentSlCount: number = 0,
   baseOverride?: number,
   activeSideCount: number = 0,
+  oppOriginalSlCount: number = 0,
+  oppTrailingSlCount: number = 0,
 ): number {
   const base = baseOverride ?? AUTO_FILTER_THRESHOLD;
   if (sampleSize < MIN_REGIME_SAMPLE) return base;
@@ -73,7 +79,12 @@ export function getAdjustedThreshold(
 
   const crowdingPenalty = Math.max(0, activeSideCount - CROWDING_FREE_SLOTS) * CROWDING_PER_SIGNAL;
 
-  const raw = base + wrAdjust + slPenalty + crowdingPenalty;
+  const oppSlBenefit = Math.min(
+    oppOriginalSlCount * OPP_SL_ORIGINAL_BENEFIT + oppTrailingSlCount * OPP_SL_TRAILING_BENEFIT,
+    OPP_SL_BENEFIT_CAP,
+  );
+
+  const raw = base + wrAdjust + slPenalty + crowdingPenalty - oppSlBenefit;
 
   return Math.round(
     Math.max(REGIME_MIN_THRESHOLD, Math.min(REGIME_MAX_THRESHOLD, raw)),
@@ -142,9 +153,34 @@ export function computeMarketRegime(
           now - new Date(s.slHitAt).getTime() < slWindowMs,
       ).length;
 
+      // ── Opposite-side SL hits (directional evidence) ──
+      const oppSide = side === "BUY" ? "SELL" : "BUY";
+
+      const oppOriginalSlCount = signals.filter(
+        (s) =>
+          s.autoFilterPassed === true &&
+          s.status === "INACTIVE" &&
+          s.slHitAt != null &&
+          !s.tp1Hit &&
+          String(s.timeframe) === tfId &&
+          s.type === oppSide &&
+          now - new Date(s.slHitAt).getTime() < slWindowMs,
+      ).length;
+
+      const oppTrailingSlCount = signals.filter(
+        (s) =>
+          s.autoFilterPassed === true &&
+          s.status === "INACTIVE" &&
+          s.slHitAt != null &&
+          s.tp1Hit === true &&
+          String(s.timeframe) === tfId &&
+          s.type === oppSide &&
+          now - new Date(s.slHitAt).getTime() < slWindowMs,
+      ).length;
+
       const activeCount = active.length;
       const total = wins + losses;
-      if (activeCount < 3 && recentSlCount === 0) continue;
+      if (activeCount < 3 && recentSlCount === 0 && oppOriginalSlCount === 0 && oppTrailingSlCount === 0) continue;
 
       const winRate = total > 0 ? wins / total : 0.5;
       const sampleSize = activeCount + recentSlCount;
@@ -152,7 +188,7 @@ export function computeMarketRegime(
       const activeSideTfCount = active.length;
 
       const key = `${tfId}_${side}`;
-      const rawThreshold = getAdjustedThreshold(winRate, sampleSize, recentSlCount, baseThresholdOverride, activeSideTfCount);
+      const rawThreshold = getAdjustedThreshold(winRate, sampleSize, recentSlCount, baseThresholdOverride, activeSideTfCount, oppOriginalSlCount, oppTrailingSlCount);
       const prevHistory = previousRegime?.[key]?.thresholdHistory ?? [];
       const newHistory = [...prevHistory, rawThreshold].slice(-REGIME_MA_PERIOD);
 

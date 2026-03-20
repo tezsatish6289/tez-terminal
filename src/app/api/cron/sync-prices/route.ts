@@ -322,10 +322,8 @@ export async function GET(request: NextRequest) {
             });
 
             if (result) {
-              await db.collection("simulator_trades").doc(simTradeDoc.id).update({
-                ...result.updatedTrade,
-                id: undefined,
-              });
+              const { id: _tid, ...tradeUpdate } = result.updatedTrade;
+              await db.collection("simulator_trades").doc(simTradeDoc.id).update(tradeUpdate);
               simState = result.updatedState;
               await db.collection("simulator_logs").add(result.log);
             }
@@ -392,10 +390,8 @@ export async function GET(request: NextRequest) {
                   await db.collection("simulator_logs").add(result.log);
                 }
               }
-              await db.collection("simulator_trades").doc(simDoc.id).update({
-                ...currentTrade,
-                id: undefined,
-              });
+              const { id: _cid, ...catchUpUpdate } = currentTrade;
+              await db.collection("simulator_trades").doc(simDoc.id).update(catchUpUpdate);
               continue;
             }
           }

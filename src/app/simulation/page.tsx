@@ -22,7 +22,7 @@ import {
   Pause,
   BarChart3,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -100,17 +100,18 @@ export default function SimulationPage() {
     ? (simState.totalWins / (simState.totalWins + simState.totalLosses)) * 100
     : 0;
 
-  if (isUserLoading) {
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.replace("/");
+    }
+  }, [isUserLoading, user, router]);
+
+  if (isUserLoading || !user) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-accent" />
       </div>
     );
-  }
-
-  if (!user) {
-    router.push("/");
-    return null;
   }
 
   return (

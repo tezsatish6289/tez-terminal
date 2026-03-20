@@ -136,10 +136,26 @@ export default function SimulationPage() {
                 <Loader2 className="h-6 w-6 animate-spin text-accent/50" />
               </div>
             ) : !simState ? (
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-8 text-center">
-                <Activity className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
-                <p className="text-sm font-bold text-muted-foreground/50">Simulator not started yet</p>
-                <p className="text-[11px] text-muted-foreground/30 mt-1">The simulator will activate when the next AI-passed signal arrives.</p>
+              <div className="space-y-4">
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-8 text-center">
+                  <Activity className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
+                  <p className="text-sm font-bold text-muted-foreground/50">Simulator not started yet</p>
+                  <p className="text-[11px] text-muted-foreground/30 mt-1">The simulator will activate when the next AI-passed signal arrives.</p>
+                </div>
+
+                {logs.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Decision Logs</span>
+                      <span className="text-[9px] text-muted-foreground/30">({logs.length})</span>
+                    </div>
+                    <div className="space-y-1">
+                      {logs.map((log, i) => (
+                        <LogRow key={i} log={log} />
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
               <>

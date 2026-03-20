@@ -396,6 +396,11 @@ export async function POST(request: NextRequest) {
                 openTrades,
               });
 
+              // Persist initial state if it didn't exist yet
+              if (!simStateDoc.exists) {
+                await db.collection("config").doc("simulator_state").set(simState);
+              }
+
               if (evaluation.canTrade && evaluation.positionSize) {
                 const result = openTrade({
                   signal: {
@@ -434,7 +439,25 @@ export async function POST(request: NextRequest) {
               }
             } catch (simErr) {
               console.error("[Webhook] Simulator evaluation failed:", simErr);
+              await db.collection("simulator_logs").add({
+                timestamp: new Date().toISOString(),
+                action: "ERROR",
+                details: `Simulator evaluation error: ${simErr instanceof Error ? simErr.message : String(simErr)}`,
+                signalId: docRef.id,
+                symbol,
+              }).catch(() => {});
             }
+          } else {
+            // Signal didn't pass AI filter — log for visibility
+            try {
+              await db.collection("simulator_logs").add({
+                timestamp: new Date().toISOString(),
+                action: "SIGNAL_SKIPPED",
+                details: `AI filter not passed (score=${scoreUpdate.confidenceScore ?? "?"} threshold=${scoreUpdate.scoredAtThreshold ?? "?"})`,
+                signalId: docRef.id,
+                symbol,
+              });
+            } catch {}
           }
         } catch (err) {
           console.error("[Webhook after()] Background processing failed:", err);

@@ -5,7 +5,7 @@ import { getLeverage } from "./leverage";
 export const SIM_CONFIG = {
   STARTING_CAPITAL: 1000,
   RISK_PER_TRADE: 0.01,         // 1% of capital
-  MAX_OPEN_TRADES: 3,
+  MAX_OPEN_TRADES: 10,
   CONFIDENCE_MIN: 55,
   CONFIDENCE_MIN_LOW_SAMPLE: 60, // when < 3 active signals on side+TF
   LIVE_WIN_RATE_MIN: 0.65,

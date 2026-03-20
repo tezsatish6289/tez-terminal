@@ -59,6 +59,8 @@ export interface SimTrade {
   tp3Hit: boolean;
   slHit: boolean;
   realizedPnl: number;
+  currentPrice: number | null;
+  unrealizedPnl: number;
   fees: number;
   confidenceScore: number;
   biasAtEntry: string;
@@ -94,6 +96,17 @@ export interface TradeEvaluation {
   canTrade: boolean;
   reason: string;
   positionSize?: number;
+}
+
+// ── Compute unrealized P&L for an open trade ─────────────────
+
+export function computeUnrealizedPnl(trade: SimTrade, currentPrice: number): number {
+  const isBuy = trade.side === "BUY";
+  const priceDelta = isBuy
+    ? currentPrice - trade.entryPrice
+    : trade.entryPrice - currentPrice;
+  const pctMove = priceDelta / trade.entryPrice;
+  return trade.positionSize * trade.remainingPct * pctMove * trade.leverage;
 }
 
 // ── Helper: get today's date string in UTC ───────────────────
@@ -316,6 +329,8 @@ export function openTrade(params: {
     tp3Hit: false,
     slHit: false,
     realizedPnl: 0,
+    currentPrice: signal.price,
+    unrealizedPnl: 0,
     fees: entryFee,
     confidenceScore: signal.confidenceScore,
     biasAtEntry: biasLabel,

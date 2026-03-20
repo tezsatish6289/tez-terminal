@@ -14,6 +14,7 @@ import {
 import {
   processTradeExit,
   checkDailyReset,
+  computeUnrealizedPnl,
   type SimulatorState,
   type SimTrade,
 } from "@/lib/simulator";
@@ -335,6 +336,29 @@ export async function GET(request: NextRequest) {
       } catch (simErr: any) {
         console.error("[Sync] Simulator trade closing failed:", simErr.message);
       }
+    }
+
+    // ── Simulator: update live prices on open trades ──
+    try {
+      const openSimSnap = await db.collection("simulator_trades")
+        .where("status", "==", "OPEN").get();
+
+      for (const simDoc of openSimSnap.docs) {
+        const t = simDoc.data() as SimTrade;
+        const rawSym = t.symbol.replace(/\.P$|\.PERP$/i, "").toUpperCase();
+        const livePrice = perpetualsPriceMap[rawSym] ?? perpetualsPriceMap[rawSym + "USDT"]
+          ?? spotPriceMap[rawSym] ?? spotPriceMap[rawSym + "USDT"];
+
+        if (livePrice != null) {
+          const unrealizedPnl = computeUnrealizedPnl(t, livePrice);
+          await db.collection("simulator_trades").doc(simDoc.id).update({
+            currentPrice: livePrice,
+            unrealizedPnl: Math.round(unrealizedPnl * 100) / 100,
+          });
+        }
+      }
+    } catch (priceErr: any) {
+      console.error("[Sync] Simulator price update failed:", priceErr.message);
     }
 
     // ── AI Filter Rescoring Pass ──────────────────────────

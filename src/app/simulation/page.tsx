@@ -334,15 +334,33 @@ function TradeRow({ trade }: { trade: SimTrade }) {
         </div>
       </div>
       <div className="text-right shrink-0">
-        <div className={cn(
-          "text-sm font-black tabular-nums",
-          trade.realizedPnl >= 0 ? "text-positive" : "text-negative"
-        )}>
-          {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
-        </div>
-        <div className="text-[9px] text-muted-foreground/30">
-          fees: {formatUsd(trade.fees)}
-        </div>
+        {isOpen ? (
+          <>
+            <div className={cn(
+              "text-sm font-black tabular-nums",
+              (trade.unrealizedPnl ?? 0) >= 0 ? "text-positive" : "text-negative"
+            )}>
+              {(trade.unrealizedPnl ?? 0) >= 0 ? "+" : ""}{formatUsd(trade.unrealizedPnl ?? 0)}
+            </div>
+            {trade.currentPrice != null && (
+              <div className="text-[9px] text-muted-foreground/30 tabular-nums">
+                ${trade.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div className={cn(
+              "text-sm font-black tabular-nums",
+              trade.realizedPnl >= 0 ? "text-positive" : "text-negative"
+            )}>
+              {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
+            </div>
+            <div className="text-[9px] text-muted-foreground/30">
+              fees: {formatUsd(trade.fees)}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

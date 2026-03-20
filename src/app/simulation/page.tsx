@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { SimulatorState, SimTrade, SimLog } from "@/lib/simulator";
 
@@ -299,14 +300,19 @@ function TradeRow({ trade }: { trade: SimTrade }) {
   const isWin = trade.realizedPnl > 0;
 
   return (
-    <div className={cn(
-      "rounded-lg border p-3 flex items-center gap-3",
-      isOpen
-        ? "border-accent/15 bg-accent/[0.03]"
-        : isWin
-          ? "border-positive/10 bg-positive/[0.02]"
-          : "border-negative/10 bg-negative/[0.02]"
-    )}>
+    <Link
+      href={`/chart/${trade.signalId}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        "rounded-lg border p-3 flex items-center gap-3 transition-colors hover:bg-white/[0.04] cursor-pointer",
+        isOpen
+          ? "border-accent/15 bg-accent/[0.03]"
+          : isWin
+            ? "border-positive/10 bg-positive/[0.02]"
+            : "border-negative/10 bg-negative/[0.02]"
+      )}
+    >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
           <span className="text-[11px] font-black">{trade.symbol}</span>
@@ -362,7 +368,7 @@ function TradeRow({ trade }: { trade: SimTrade }) {
           </>
         )}
       </div>
-    </div>
+    </Link>
   );
 }
 

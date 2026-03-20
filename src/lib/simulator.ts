@@ -447,6 +447,8 @@ export function processTradeExit(params: {
     slHit: newSlHit,
     remainingPct: Math.max(0, newRemainingPct),
     realizedPnl: trade.realizedPnl + netPnl,
+    currentPrice: exitPrice,
+    unrealizedPnl: isClosed ? 0 : trade.unrealizedPnl,
     fees: trade.fees + exitFee,
     status: isClosed ? "CLOSED" : "OPEN",
     closedAt: isClosed ? new Date().toISOString() : trade.closedAt,

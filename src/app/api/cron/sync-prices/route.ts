@@ -338,23 +338,79 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ── Simulator: update live prices on open trades ──
+    // ── Simulator: update live prices + catch-up missed TP/SL on open trades ──
     try {
       const openSimSnap = await db.collection("simulator_trades")
         .where("status", "==", "OPEN").get();
 
-      for (const simDoc of openSimSnap.docs) {
-        const t = simDoc.data() as SimTrade;
-        const rawSym = t.symbol.replace(/\.P$|\.PERP$/i, "").toUpperCase();
-        const livePrice = perpetualsPriceMap[rawSym] ?? perpetualsPriceMap[rawSym + "USDT"]
-          ?? spotPriceMap[rawSym] ?? spotPriceMap[rawSym + "USDT"];
+      if (!openSimSnap.empty) {
+        const simStateDoc2 = await db.collection("config").doc("simulator_state").get();
+        let simState2 = simStateDoc2.exists
+          ? checkDailyReset(simStateDoc2.data() as SimulatorState)
+          : null;
 
-        if (livePrice != null) {
-          const unrealizedPnl = computeUnrealizedPnl(t, livePrice);
-          await db.collection("simulator_trades").doc(simDoc.id).update({
-            currentPrice: livePrice,
-            unrealizedPnl: Math.round(unrealizedPnl * 100) / 100,
-          });
+        for (const simDoc of openSimSnap.docs) {
+          const t = simDoc.data() as SimTrade;
+          const rawSym = t.symbol.replace(/\.P$|\.PERP$/i, "").toUpperCase();
+          const livePrice = perpetualsPriceMap[rawSym] ?? perpetualsPriceMap[rawSym + "USDT"]
+            ?? spotPriceMap[rawSym] ?? spotPriceMap[rawSym + "USDT"];
+
+          // Check if the underlying signal has already closed (SL/TP hit)
+          const signalDoc = await db.collection("signals").doc(t.signalId).get();
+          const signal = signalDoc.exists ? signalDoc.data() : null;
+
+          if (signal && simState2) {
+            // Process missed exits in order: TP1 → TP2 → TP3 → SL
+            // so partial profits are booked before an SL closes the remainder
+            const missedExits: { type: "TP1" | "TP2" | "TP3" | "SL"; price: number }[] = [];
+            if (signal.tp1Hit && !t.tp1Hit) {
+              missedExits.push({ type: "TP1", price: signal.tp1 ?? t.tp1 });
+            }
+            if (signal.tp2Hit && !t.tp2Hit) {
+              missedExits.push({ type: "TP2", price: signal.tp2 ?? t.tp2 });
+            }
+            if (signal.tp3Hit && !t.tp3Hit) {
+              missedExits.push({ type: "TP3", price: signal.tp3 ?? t.tp3 });
+            }
+            if (signal.slHitAt && !t.slHit) {
+              missedExits.push({ type: "SL", price: signal.currentPrice ?? t.stopLoss });
+            }
+
+            if (missedExits.length > 0) {
+              let currentTrade: SimTrade = { ...t, id: simDoc.id };
+              for (const exit of missedExits) {
+                if (currentTrade.status === "CLOSED") break;
+                const result = processTradeExit({
+                  trade: currentTrade,
+                  state: simState2,
+                  exitType: exit.type,
+                  exitPrice: exit.price,
+                });
+                if (result) {
+                  currentTrade = result.updatedTrade;
+                  simState2 = result.updatedState;
+                  await db.collection("simulator_logs").add(result.log);
+                }
+              }
+              await db.collection("simulator_trades").doc(simDoc.id).update({
+                ...currentTrade,
+                id: undefined,
+              });
+              continue;
+            }
+          }
+
+          if (livePrice != null) {
+            const unrealizedPnl = computeUnrealizedPnl(t, livePrice);
+            await db.collection("simulator_trades").doc(simDoc.id).update({
+              currentPrice: livePrice,
+              unrealizedPnl: Math.round(unrealizedPnl * 100) / 100,
+            });
+          }
+        }
+
+        if (simState2) {
+          await db.collection("config").doc("simulator_state").set(simState2);
         }
       }
     } catch (priceErr: any) {

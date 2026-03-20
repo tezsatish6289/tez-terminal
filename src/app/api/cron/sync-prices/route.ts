@@ -11,6 +11,12 @@ import {
   computeMarketRegime,
   type MarketRegimeData,
 } from "@/lib/auto-filter";
+import {
+  processTradeExit,
+  checkDailyReset,
+  type SimulatorState,
+  type SimTrade,
+} from "@/lib/simulator";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -279,6 +285,56 @@ export async function GET(request: NextRequest) {
         notified: false,
         notifiedAt: null,
       });
+    }
+
+    // ── Simulator: process TP/SL hits on open sim trades ──
+    if (signalEvents.length > 0) {
+      try {
+        const simStateDoc = await db.collection("config").doc("simulator_state").get();
+        if (simStateDoc.exists) {
+          let simState = checkDailyReset(simStateDoc.data() as SimulatorState);
+
+          const tpSlEvents = signalEvents.filter(
+            (e) => e.type === "TP1_HIT" || e.type === "TP2_HIT" || e.type === "TP3_HIT" || e.type === "SL_HIT",
+          );
+
+          for (const evt of tpSlEvents) {
+            const simTradeSnap = await db.collection("simulator_trades")
+              .where("signalId", "==", evt.signalId)
+              .where("status", "==", "OPEN")
+              .limit(1)
+              .get();
+
+            if (simTradeSnap.empty) continue;
+
+            const simTradeDoc = simTradeSnap.docs[0];
+            const simTrade = { id: simTradeDoc.id, ...simTradeDoc.data() } as SimTrade;
+
+            const exitType = evt.type.replace("_HIT", "") as "TP1" | "TP2" | "TP3" | "SL";
+            const exitPrice = evt.price ?? simTrade.entryPrice;
+
+            const result = processTradeExit({
+              trade: simTrade,
+              state: simState,
+              exitType,
+              exitPrice,
+            });
+
+            if (result) {
+              await db.collection("simulator_trades").doc(simTradeDoc.id).update({
+                ...result.updatedTrade,
+                id: undefined,
+              });
+              simState = result.updatedState;
+              await db.collection("simulator_logs").add(result.log);
+            }
+          }
+
+          await db.collection("config").doc("simulator_state").set(simState);
+        }
+      } catch (simErr: any) {
+        console.error("[Sync] Simulator trade closing failed:", simErr.message);
+      }
     }
 
     // ── AI Filter Rescoring Pass ──────────────────────────

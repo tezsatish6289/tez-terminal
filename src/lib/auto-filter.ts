@@ -270,7 +270,7 @@ export interface ScoredSignal {
   breakdown: ScoreBreakdown;
 }
 
-interface AlgoTfStats {
+export interface AlgoTfStats {
   winRate: number;
   profitFactor: number;
   sampleSize: number;
@@ -495,7 +495,7 @@ function scoreRiskReward(signal: SignalForScoring): number {
 
 // ── Factor 4: Historical Algo Performance (0-22) ────────────
 
-function computeAlgoTfStats(
+export function computeAlgoTfStats(
   allSignals: SignalForScoring[],
 ): Map<string, AlgoTfStats> {
   const statsMap = new Map<string, AlgoTfStats>();

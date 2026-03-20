@@ -102,6 +102,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Simulator trades: readable by authenticated users, server handles writes.
+    match /simulator_trades/{tradeId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // Simulator logs: readable by authenticated users, server handles writes.
+    match /simulator_logs/{logId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
     // Twitter agent data — server-only via Admin SDK
     match /twitter_config/{docId} {
       allow read, write: if false;

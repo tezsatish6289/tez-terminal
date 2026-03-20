@@ -8,11 +8,20 @@ import { deriveTp3, areTpsValid, areTpDistancesSane, deriveTpsFromRisk, isSlDist
 
 import {
   computeAutoFilter,
+  computeAlgoTfStats,
   mapFirestoreSignal,
   AUTO_FILTER_THRESHOLD,
   isRegimeStale,
   type MarketRegimeData,
 } from "@/lib/auto-filter";
+import {
+  evaluateTrade,
+  openTrade,
+  checkDailyReset,
+  createInitialState,
+  type SimulatorState,
+  type SimTrade,
+} from "@/lib/simulator";
 
 /**
  * Webhook ingestion for TradingView alerts.
@@ -330,6 +339,102 @@ export async function POST(request: NextRequest) {
               notified: false,
               notifiedAt: null,
             });
+
+            // ── Simulator: evaluate and possibly open trade ──
+            try {
+              const simStateDoc = await db.collection("config").doc("simulator_state").get();
+              let simState: SimulatorState = simStateDoc.exists
+                ? simStateDoc.data() as SimulatorState
+                : createInitialState();
+              simState = checkDailyReset(simState);
+
+              const biasDoc = await db.collection("config").doc("market_bias").get();
+              const bullScore = biasDoc.exists ? (biasDoc.data()?.bullScore ?? 0) : 0;
+              const bearScore = biasDoc.exists ? (biasDoc.data()?.bearScore ?? 0) : 0;
+
+              const regimeDoc2 = await db.collection("config").doc("market_regime").get();
+              const regimeData2 = regimeDoc2.exists ? regimeDoc2.data() : {};
+              const regimeKey = `${timeframe}_${signalType}`;
+              const regimeEntry = regimeData2?.[regimeKey];
+              const liveWinRate = regimeEntry?.winRate ?? null;
+              const liveSampleSize = regimeEntry?.sampleSize ?? 0;
+
+              const allSignals2 = activeSnap.docs.map((d) =>
+                mapFirestoreSignal({ id: d.id, ...d.data() }),
+              );
+              const algoStats = computeAlgoTfStats(allSignals2);
+              const algoKey = `${algo}|${timeframe}`;
+              const algoEntry = algoStats.get(algoKey);
+              const algoWinRate = algoEntry?.winRate ?? null;
+              const algoSampleSize = algoEntry?.sampleSize ?? 0;
+
+              const openTradesSnap = await db.collection("simulator_trades")
+                .where("status", "==", "OPEN").get();
+              const openTrades = openTradesSnap.docs.map((d) => ({ id: d.id, ...d.data() } as SimTrade));
+
+              const evaluation = evaluateTrade({
+                state: simState,
+                signal: {
+                  id: docRef.id,
+                  symbol,
+                  type: signalType as "BUY" | "SELL",
+                  timeframe,
+                  algo,
+                  price,
+                  stopLoss,
+                  tp1: finalTp1,
+                  tp2: finalTp2,
+                  tp3: finalTp3,
+                  confidenceScore: scoreUpdate.confidenceScore ?? 0,
+                },
+                bullScore,
+                bearScore,
+                liveWinRate,
+                liveSampleSize,
+                algoWinRate,
+                algoSampleSize,
+                openTrades,
+              });
+
+              if (evaluation.canTrade && evaluation.positionSize) {
+                const result = openTrade({
+                  signal: {
+                    id: docRef.id,
+                    symbol,
+                    type: signalType as "BUY" | "SELL",
+                    timeframe,
+                    algo,
+                    price,
+                    stopLoss,
+                    tp1: finalTp1!,
+                    tp2: finalTp2!,
+                    tp3: finalTp3!,
+                    confidenceScore: scoreUpdate.confidenceScore ?? 0,
+                  },
+                  positionSize: evaluation.positionSize,
+                  state: simState,
+                  bullScore,
+                  bearScore,
+                  liveWinRate: liveWinRate ?? 0,
+                  algoWinRate: algoWinRate ?? 0,
+                });
+
+                await db.collection("simulator_trades").add(result.trade);
+                await db.collection("config").doc("simulator_state").set(result.updatedState);
+                await db.collection("simulator_logs").add(result.log);
+              } else {
+                await db.collection("simulator_logs").add({
+                  timestamp: new Date().toISOString(),
+                  action: "SIGNAL_SKIPPED",
+                  details: evaluation.reason,
+                  signalId: docRef.id,
+                  symbol,
+                  capital: simState.capital,
+                });
+              }
+            } catch (simErr) {
+              console.error("[Webhook] Simulator evaluation failed:", simErr);
+            }
           }
         } catch (err) {
           console.error("[Webhook after()] Background processing failed:", err);

@@ -21,13 +21,7 @@ export const SIM_CONFIG = {
   // Incubated signal selection
   INCUBATED_SL_CONSUMED_MAX: 0.40,   // price hasn't consumed > 40% of SL distance
   INCUBATED_TP1_CONSUMED_MAX: 0.50,  // price hasn't consumed > 50% of TP1 distance
-  INCUBATED_AGE_TF_MIN: 6,           // min age = 6x timeframe candle duration
-  INCUBATED_AGE_TF_MAX: 9,           // max age = 9x timeframe candle duration
 } as const;
-
-const TF_MINUTES: Record<string, number> = {
-  "5": 5, "15": 15, "60": 60, "240": 240, "D": 1440,
-};
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -133,7 +127,6 @@ export interface IncubatedCandidate {
   tp2: number;
   tp3: number;
   confidenceScore: number;
-  receivedAt: string;
   tp1Hit: boolean;
   slHitAt: string | null;
 }
@@ -175,7 +168,6 @@ export function selectIncubatedSignals(params: {
   const currentOpen = openTrades.filter((t) => t.status === "OPEN");
   const openSymbols = new Set(currentOpen.map((t) => t.symbol));
   const openSignalIds = new Set(currentOpen.map((t) => t.signalId));
-  const now = Date.now();
 
   // Sort by confidence score descending — pick the best first
   const sorted = [...candidates].sort((a, b) => b.confidenceScore - a.confidenceScore);
@@ -207,21 +199,6 @@ export function selectIncubatedSignals(params: {
     // TP1 already hit or SL already hit — skip
     if (c.tp1Hit || c.slHitAt) {
       skipped.push({ symbol: c.symbol, reason: c.slHitAt ? "SL already hit" : "TP1 already hit" });
-      continue;
-    }
-
-    // Signal age check: between 6x and 9x timeframe
-    const tfMinutes = TF_MINUTES[c.timeframe] ?? 15;
-    const minAgeMs = tfMinutes * SIM_CONFIG.INCUBATED_AGE_TF_MIN * 60_000;
-    const maxAgeMs = tfMinutes * SIM_CONFIG.INCUBATED_AGE_TF_MAX * 60_000;
-    const ageMs = now - new Date(c.receivedAt).getTime();
-
-    if (ageMs < minAgeMs) {
-      skipped.push({ symbol: c.symbol, reason: `Too fresh (${Math.round(ageMs / 60_000)}m < ${Math.round(minAgeMs / 60_000)}m)` });
-      continue;
-    }
-    if (ageMs > maxAgeMs) {
-      skipped.push({ symbol: c.symbol, reason: `Too stale (${Math.round(ageMs / 60_000)}m > ${Math.round(maxAgeMs / 60_000)}m)` });
       continue;
     }
 

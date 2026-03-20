@@ -598,8 +598,7 @@ export async function GET(request: NextRequest) {
           d.status === "ACTIVE" &&
           d.currentPrice != null &&
           d.price != null &&
-          d.stopLoss != null &&
-          d.receivedAt,
+          d.stopLoss != null,
         )
         .map((d) => ({
           id: d.id,
@@ -614,7 +613,6 @@ export async function GET(request: NextRequest) {
           tp2: Number(d.tp2 || 0),
           tp3: Number(d.tp3 || 0),
           confidenceScore: d.confidenceScore ?? (scores.get(d.id)?.score ?? 0),
-          receivedAt: d.receivedAt,
           tp1Hit: d.tp1Hit === true,
           slHitAt: d.slHitAt ?? null,
         }));

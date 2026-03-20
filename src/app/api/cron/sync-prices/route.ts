@@ -15,9 +15,14 @@ import {
   processTradeExit,
   checkDailyReset,
   computeUnrealizedPnl,
+  selectIncubatedSignals,
+  openTrade,
+  createInitialState,
   type SimulatorState,
   type SimTrade,
+  type IncubatedCandidate,
 } from "@/lib/simulator";
+import { computeAlgoTfStats } from "@/lib/auto-filter";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -570,10 +575,150 @@ export async function GET(request: NextRequest) {
       console.error("[Sync] Regime computation failed:", regimeErr.message);
     }
 
+    // ── Simulator: incubated signal selection ──────────────
+    let incubatedCount = 0;
+    try {
+      const simStateDoc3 = await db.collection("config").doc("simulator_state").get();
+      let simState3: SimulatorState = simStateDoc3.exists
+        ? checkDailyReset(simStateDoc3.data() as SimulatorState)
+        : createInitialState();
+
+      const biasDoc = await db.collection("config").doc("market_bias").get();
+      const bullScore = biasDoc.exists ? (biasDoc.data()?.bullScore ?? 0) : 0;
+      const bearScore = biasDoc.exists ? (biasDoc.data()?.bearScore ?? 0) : 0;
+
+      const openSimSnap2 = await db.collection("simulator_trades")
+        .where("status", "==", "OPEN").get();
+      const openSimTrades = openSimSnap2.docs.map((d) => ({ id: d.id, ...d.data() } as SimTrade));
+
+      // Build candidates from active AI-passed signals
+      const candidates: IncubatedCandidate[] = postUpdateDocs
+        .filter((d) =>
+          d.autoFilterPassed === true &&
+          d.status === "ACTIVE" &&
+          d.currentPrice != null &&
+          d.price != null &&
+          d.stopLoss != null &&
+          d.receivedAt,
+        )
+        .map((d) => ({
+          id: d.id,
+          symbol: d.symbol || "",
+          type: (d.type || "BUY") as "BUY" | "SELL",
+          timeframe: String(d.timeframe || "15"),
+          algo: d.algo || "",
+          entryPrice: Number(d.price),
+          currentPrice: Number(d.currentPrice),
+          stopLoss: Number(d.stopLoss),
+          tp1: Number(d.tp1 || 0),
+          tp2: Number(d.tp2 || 0),
+          tp3: Number(d.tp3 || 0),
+          confidenceScore: d.confidenceScore ?? (scores.get(d.id)?.score ?? 0),
+          receivedAt: d.receivedAt,
+          tp1Hit: d.tp1Hit === true,
+          slHitAt: d.slHitAt ?? null,
+        }));
+
+      // Build live win rate map from regime data
+      const regimeDoc = await db.collection("config").doc("market_regime").get();
+      const regimeData = regimeDoc.exists ? regimeDoc.data() : {};
+      const liveWinRates = new Map<string, { winRate: number | null; sampleSize: number }>();
+      if (regimeData) {
+        for (const [key, val] of Object.entries(regimeData)) {
+          if (key === "lastUpdated") continue;
+          const v = val as any;
+          liveWinRates.set(key, { winRate: v.winRate ?? null, sampleSize: v.sampleSize ?? 0 });
+        }
+      }
+
+      // Build algo stats
+      const allSignalsForAlgo = postUpdateDocs.map(mapFirestoreSignal);
+      const algoTfStats = computeAlgoTfStats(allSignalsForAlgo);
+      const algoStatsMap = new Map<string, { winRate: number | null; sampleSize: number }>();
+      for (const [key, val] of algoTfStats.entries()) {
+        algoStatsMap.set(key, { winRate: val.winRate, sampleSize: val.sampleSize });
+      }
+
+      const { selected, skipped: incubSkipped } = selectIncubatedSignals({
+        candidates,
+        state: simState3,
+        bullScore,
+        bearScore,
+        openTrades: openSimTrades,
+        liveWinRates,
+        algoStats: algoStatsMap,
+      });
+
+      // Open trades for selected incubated signals
+      for (const c of selected) {
+        const isBuy = c.type === "BUY";
+        const slDistancePct = isBuy
+          ? (c.currentPrice - c.stopLoss) / c.currentPrice
+          : (c.stopLoss - c.currentPrice) / c.currentPrice;
+
+        if (slDistancePct <= 0) continue;
+
+        const leverage = (await import("@/lib/leverage")).getLeverage(c.timeframe);
+        const riskAmount = simState3.capital * 0.01;
+        let positionSize = riskAmount / (slDistancePct * leverage);
+        if (positionSize > simState3.capital * 0.5 || positionSize < 1) continue;
+        positionSize = Math.round(positionSize * 100) / 100;
+
+        const regimeKey = `${c.timeframe}_${c.type}`;
+        const liveEntry = liveWinRates.get(regimeKey);
+        const algoKey = `${c.algo}|${c.timeframe}`;
+        const algoEntry = algoStatsMap.get(algoKey);
+
+        const result = openTrade({
+          signal: {
+            id: c.id,
+            symbol: c.symbol,
+            type: c.type,
+            timeframe: c.timeframe,
+            algo: c.algo,
+            price: c.currentPrice,  // actual entry = current market price
+            stopLoss: c.stopLoss,
+            tp1: c.tp1,
+            tp2: c.tp2,
+            tp3: c.tp3,
+            confidenceScore: c.confidenceScore,
+          },
+          positionSize,
+          state: simState3,
+          bullScore,
+          bearScore,
+          liveWinRate: liveEntry?.winRate ?? 0,
+          algoWinRate: algoEntry?.winRate ?? 0,
+        });
+
+        await db.collection("simulator_trades").add(result.trade);
+        simState3 = result.updatedState;
+        result.log.details = `[INCUBATED] ${result.log.details}`;
+        await db.collection("simulator_logs").add(result.log);
+        incubatedCount++;
+      }
+
+      // Log skipped for visibility (top 5 only to avoid noise)
+      for (const skip of incubSkipped.slice(0, 5)) {
+        await db.collection("simulator_logs").add({
+          timestamp: new Date().toISOString(),
+          action: "INCUBATED_SKIPPED",
+          details: `${skip.symbol}: ${skip.reason}`,
+          capital: simState3.capital,
+        });
+      }
+
+      if (selected.length > 0 || !simStateDoc3.exists) {
+        await db.collection("config").doc("simulator_state").set(simState3);
+      }
+    } catch (incErr: any) {
+      console.error("[Sync] Incubated signal selection failed:", incErr.message);
+    }
+
     await db.collection("logs").add({
       timestamp: new Date().toISOString(),
       level: "INFO",
-      message: `ASIA SYNC: updated=${updateCount} skipped=${skipCount} events=${signalEvents.length} scored=${scoreCount}`,
+      message: `ASIA SYNC: updated=${updateCount} skipped=${skipCount} events=${signalEvents.length} scored=${scoreCount} incubated=${incubatedCount}`,
       webhookId: "SYSTEM_CRON",
     });
 

@@ -18,7 +18,16 @@ export const SIM_CONFIG = {
   TP1_CLOSE_PCT: 0.50,
   TP2_CLOSE_PCT: 0.25,
   TP3_CLOSE_PCT: 0.25,
+  // Incubated signal selection
+  INCUBATED_SL_CONSUMED_MAX: 0.40,   // price hasn't consumed > 40% of SL distance
+  INCUBATED_TP1_CONSUMED_MAX: 0.50,  // price hasn't consumed > 50% of TP1 distance
+  INCUBATED_AGE_TF_MIN: 6,           // min age = 6x timeframe candle duration
+  INCUBATED_AGE_TF_MAX: 9,           // max age = 9x timeframe candle duration
 } as const;
+
+const TF_MINUTES: Record<string, number> = {
+  "5": 5, "15": 15, "60": 60, "240": 240, "D": 1440,
+};
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -107,6 +116,189 @@ export function computeUnrealizedPnl(trade: SimTrade, currentPrice: number): num
     : trade.entryPrice - currentPrice;
   const pctMove = priceDelta / trade.entryPrice;
   return trade.positionSize * trade.remainingPct * pctMove * trade.leverage;
+}
+
+// ── Incubated signal candidate ────────────────────────────────
+
+export interface IncubatedCandidate {
+  id: string;
+  symbol: string;
+  type: "BUY" | "SELL";
+  timeframe: string;
+  algo: string;
+  entryPrice: number;        // original signal entry
+  currentPrice: number;      // live market price
+  stopLoss: number;
+  tp1: number;
+  tp2: number;
+  tp3: number;
+  confidenceScore: number;
+  receivedAt: string;
+  tp1Hit: boolean;
+  slHitAt: string | null;
+}
+
+export interface IncubatedResult {
+  selected: IncubatedCandidate[];
+  skipped: { symbol: string; reason: string }[];
+}
+
+export function selectIncubatedSignals(params: {
+  candidates: IncubatedCandidate[];
+  state: SimulatorState;
+  bullScore: number;
+  bearScore: number;
+  openTrades: SimTrade[];
+  liveWinRates: Map<string, { winRate: number | null; sampleSize: number }>;
+  algoStats: Map<string, { winRate: number | null; sampleSize: number }>;
+}): IncubatedResult {
+  const { candidates, state, bullScore, bearScore, openTrades, liveWinRates, algoStats } = params;
+  const selected: IncubatedCandidate[] = [];
+  const skipped: { symbol: string; reason: string }[] = [];
+
+  const currentState = checkDailyReset(state);
+
+  if (!currentState.isActive) return { selected, skipped };
+
+  // Cool-off check
+  if (currentState.coolOffUntil && new Date() < new Date(currentState.coolOffUntil)) {
+    return { selected, skipped };
+  }
+
+  // Bias gate
+  const biasGap = bullScore - bearScore;
+  const isBullBias = biasGap > SIM_CONFIG.BIAS_GAP_MIN;
+  const isBearBias = biasGap < -SIM_CONFIG.BIAS_GAP_MIN;
+  if (!isBullBias && !isBearBias) return { selected, skipped };
+  const biasedSide = isBullBias ? "BUY" : "SELL";
+
+  const currentOpen = openTrades.filter((t) => t.status === "OPEN");
+  const openSymbols = new Set(currentOpen.map((t) => t.symbol));
+  const openSignalIds = new Set(currentOpen.map((t) => t.signalId));
+  const now = Date.now();
+
+  // Sort by confidence score descending — pick the best first
+  const sorted = [...candidates].sort((a, b) => b.confidenceScore - a.confidenceScore);
+
+  for (const c of sorted) {
+    if (currentOpen.length + selected.length >= SIM_CONFIG.MAX_OPEN_TRADES) break;
+
+    // Already in simulator
+    if (openSignalIds.has(c.id)) {
+      skipped.push({ symbol: c.symbol, reason: "Already in simulator" });
+      continue;
+    }
+
+    // Already selected in this batch
+    if (selected.some((s) => s.id === c.id)) continue;
+
+    // Side must match bias
+    if (c.type !== biasedSide) {
+      skipped.push({ symbol: c.symbol, reason: `Side ${c.type} != bias ${biasedSide}` });
+      continue;
+    }
+
+    // No duplicate symbols
+    if (openSymbols.has(c.symbol) || selected.some((s) => s.symbol === c.symbol)) {
+      skipped.push({ symbol: c.symbol, reason: "Duplicate symbol" });
+      continue;
+    }
+
+    // TP1 already hit or SL already hit — skip
+    if (c.tp1Hit || c.slHitAt) {
+      skipped.push({ symbol: c.symbol, reason: c.slHitAt ? "SL already hit" : "TP1 already hit" });
+      continue;
+    }
+
+    // Signal age check: between 6x and 9x timeframe
+    const tfMinutes = TF_MINUTES[c.timeframe] ?? 15;
+    const minAgeMs = tfMinutes * SIM_CONFIG.INCUBATED_AGE_TF_MIN * 60_000;
+    const maxAgeMs = tfMinutes * SIM_CONFIG.INCUBATED_AGE_TF_MAX * 60_000;
+    const ageMs = now - new Date(c.receivedAt).getTime();
+
+    if (ageMs < minAgeMs) {
+      skipped.push({ symbol: c.symbol, reason: `Too fresh (${Math.round(ageMs / 60_000)}m < ${Math.round(minAgeMs / 60_000)}m)` });
+      continue;
+    }
+    if (ageMs > maxAgeMs) {
+      skipped.push({ symbol: c.symbol, reason: `Too stale (${Math.round(ageMs / 60_000)}m > ${Math.round(maxAgeMs / 60_000)}m)` });
+      continue;
+    }
+
+    // Price drift check — dynamic based on SL and TP1 distance
+    const isBuy = c.type === "BUY";
+    const slDistance = Math.abs(c.entryPrice - c.stopLoss);
+    const tp1Distance = Math.abs(c.tp1 - c.entryPrice);
+
+    if (slDistance <= 0 || tp1Distance <= 0) {
+      skipped.push({ symbol: c.symbol, reason: "Invalid SL/TP1 distance" });
+      continue;
+    }
+
+    const priceMovedAgainst = isBuy
+      ? c.entryPrice - c.currentPrice
+      : c.currentPrice - c.entryPrice;
+
+    if (priceMovedAgainst > 0 && priceMovedAgainst / slDistance > SIM_CONFIG.INCUBATED_SL_CONSUMED_MAX) {
+      skipped.push({ symbol: c.symbol, reason: `${(priceMovedAgainst / slDistance * 100).toFixed(0)}% of SL consumed (>${SIM_CONFIG.INCUBATED_SL_CONSUMED_MAX * 100}%)` });
+      continue;
+    }
+
+    const priceMovedInFavor = isBuy
+      ? c.currentPrice - c.entryPrice
+      : c.entryPrice - c.currentPrice;
+
+    if (priceMovedInFavor > 0 && priceMovedInFavor / tp1Distance > SIM_CONFIG.INCUBATED_TP1_CONSUMED_MAX) {
+      skipped.push({ symbol: c.symbol, reason: `${(priceMovedInFavor / tp1Distance * 100).toFixed(0)}% of TP1 consumed (>${SIM_CONFIG.INCUBATED_TP1_CONSUMED_MAX * 100}%)` });
+      continue;
+    }
+
+    // Confidence threshold
+    const regimeKey = `${c.timeframe}_${c.type}`;
+    const liveEntry = liveWinRates.get(regimeKey);
+    const liveSampleSize = liveEntry?.sampleSize ?? 0;
+    const liveWinRate = liveEntry?.winRate ?? null;
+
+    const minConfidence = liveSampleSize < SIM_CONFIG.LIVE_WIN_RATE_SAMPLE_MIN
+      ? SIM_CONFIG.CONFIDENCE_MIN_LOW_SAMPLE
+      : SIM_CONFIG.CONFIDENCE_MIN;
+
+    if (c.confidenceScore < minConfidence) {
+      skipped.push({ symbol: c.symbol, reason: `Score ${c.confidenceScore} < ${minConfidence}` });
+      continue;
+    }
+
+    // Live win rate check
+    if (liveSampleSize >= SIM_CONFIG.LIVE_WIN_RATE_SAMPLE_MIN) {
+      if (liveWinRate != null && liveWinRate < SIM_CONFIG.LIVE_WIN_RATE_MIN) {
+        skipped.push({ symbol: c.symbol, reason: `Live WR ${(liveWinRate * 100).toFixed(0)}% < 65% for ${c.type}|${c.timeframe}` });
+        continue;
+      }
+    }
+
+    // Algo historical win rate check
+    const algoKey = `${c.algo}|${c.timeframe}`;
+    const algoEntry = algoStats.get(algoKey);
+    const algoSampleSize = algoEntry?.sampleSize ?? 0;
+    const algoWinRate = algoEntry?.winRate ?? null;
+
+    if (algoSampleSize >= SIM_CONFIG.ALGO_HIST_SAMPLE_MIN) {
+      if (algoWinRate != null && algoWinRate < SIM_CONFIG.ALGO_HIST_WIN_RATE_MIN) {
+        skipped.push({ symbol: c.symbol, reason: `Algo WR ${(algoWinRate * 100).toFixed(0)}% < 60% for ${c.algo}|${c.timeframe}` });
+        continue;
+      }
+    }
+
+    // SL / TP validation
+    if (c.stopLoss <= 0 || !c.tp1 || !c.tp2 || !c.tp3) {
+      skipped.push({ symbol: c.symbol, reason: "Missing SL/TP levels" });
+      continue;
+    }
+
+    selected.push(c);
+  }
+
+  return { selected, skipped };
 }
 
 // ── Helper: get today's date string in UTC ───────────────────

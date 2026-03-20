@@ -23,6 +23,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { SimulatorState, SimTrade, SimLog } from "@/lib/simulator";
 
@@ -46,8 +47,9 @@ function formatTimeAgo(dateStr: string) {
 }
 
 export default function SimulationPage() {
-  const user = useUser();
+  const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
+  const router = useRouter();
   const [tab, setTab] = useState<"overview" | "trades" | "logs">("overview");
 
   const stateRef = useMemoFirebase(() => {
@@ -96,6 +98,19 @@ export default function SimulationPage() {
   const winRate = simState && (simState.totalWins + simState.totalLosses) > 0
     ? (simState.totalWins / (simState.totalWins + simState.totalLosses)) * 100
     : 0;
+
+  if (isUserLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    router.push("/");
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">

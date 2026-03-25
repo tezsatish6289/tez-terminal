@@ -9,6 +9,7 @@ import {
   AUTO_FILTER_THRESHOLD,
   isRegimeStale,
   computeMarketRegime,
+  computeAlgoTfStats,
   type MarketRegimeData,
 } from "@/lib/auto-filter";
 import {
@@ -22,7 +23,6 @@ import {
   type SimTrade,
   type IncubatedCandidate,
 } from "@/lib/simulator";
-import { computeAlgoTfStats } from "@/lib/auto-filter";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -720,7 +720,7 @@ export async function GET(request: NextRequest) {
       webhookId: "SYSTEM_CRON",
     });
 
-    return NextResponse.json({ success: true, updated: updateCount, skipped: skipCount, events: signalEvents.length, scored: scoreCount });
+    return NextResponse.json({ success: true, updated: updateCount, skipped: skipCount, events: signalEvents.length, scored: scoreCount, incubated: incubatedCount });
   } catch (error: any) {
     await db.collection("logs").add({
       timestamp: new Date().toISOString(),

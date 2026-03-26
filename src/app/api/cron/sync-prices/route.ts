@@ -20,9 +20,12 @@ import {
   selectIncubatedSignals,
   openTrade,
   createInitialState,
+  detectMarketTurn,
+  SIM_CONFIG,
   type SimulatorState,
   type SimTrade,
   type IncubatedCandidate,
+  type MarketTurnInput,
 } from "@/lib/simulator";
 
 export const dynamic = 'force-dynamic';
@@ -609,6 +612,115 @@ export async function GET(request: NextRequest) {
       console.error("[Sync] Regime computation failed:", regimeErr.message);
     }
 
+    // ── Simulator: market turn detection + score degradation ──
+    let marketTurnCloses = 0;
+    let scoreDegradedCloses = 0;
+    try {
+      const simStateDocMT = await db.collection("config").doc("simulator_state").get();
+      if (simStateDocMT.exists) {
+        let simStateMT = checkDailyReset(simStateDocMT.data() as SimulatorState);
+
+        const openSimSnapMT = await db.collection("simulator_trades")
+          .where("status", "==", "OPEN").get();
+
+        if (!openSimSnapMT.empty) {
+          const openSimTradesMT = openSimSnapMT.docs.map((d) => ({ id: d.id, ...d.data() } as SimTrade));
+
+          // Build market turn input from all signals
+          const turnInputs: MarketTurnInput[] = postUpdateDocs.map((d) => ({
+            symbol: d.symbol || "",
+            type: (d.type || "BUY") as "BUY" | "SELL",
+            timeframe: String(d.timeframe || "15"),
+            status: d.status || "",
+            receivedAt: d.receivedAt || "",
+            slHitAt: d.slHitAt ?? null,
+            tp1Hit: d.tp1Hit === true,
+            tp2Hit: d.tp2Hit === true,
+            tp3Hit: d.tp3Hit === true,
+            confidenceScore: d.confidenceScore ?? 0,
+          }));
+
+          // Group open trades by side+timeframe for batch detection
+          const sidesTfs = new Set(openSimTradesMT.map((t) => `${t.side}|${t.timeframe}`));
+
+          for (const key of sidesTfs) {
+            const [side, tf] = key.split("|");
+            const turn = detectMarketTurn(turnInputs, side as "BUY" | "SELL", tf);
+
+            if (turn.triggered) {
+              const tradesToClose = openSimTradesMT.filter(
+                (t) => t.side === side && t.timeframe === tf && t.status === "OPEN",
+              );
+
+              for (const trade of tradesToClose) {
+                const livePrice = trade.currentPrice ?? trade.entryPrice;
+                const exitResult = processTradeExit({
+                  trade,
+                  event: "SL",
+                  price: livePrice,
+                  state: simStateMT,
+                });
+                if (exitResult) {
+                  simStateMT = exitResult.updatedState;
+                  const { id: _mtId, ...mtUpdate } = exitResult.updatedTrade;
+                  await db.collection("simulator_trades").doc(trade.id!).update({
+                    ...mtUpdate,
+                    closeReason: "MARKET_TURN",
+                  });
+                  await db.collection("simulator_logs").add({
+                    ...exitResult.log,
+                    action: "MARKET_TURN",
+                    details: `${turn.reason} → closed ${trade.symbol} ${trade.side} at $${livePrice}`,
+                  });
+                  trade.status = "CLOSED";
+                  marketTurnCloses++;
+                }
+              }
+            }
+          }
+
+          // Individual score degradation check
+          for (const trade of openSimTradesMT) {
+            if (trade.status === "CLOSED") continue;
+
+            const signalScore = scores.get(trade.signalId);
+            const liveScore = signalScore?.score;
+
+            if (liveScore != null && liveScore < SIM_CONFIG.SCORE_FLOOR) {
+              const livePrice = trade.currentPrice ?? trade.entryPrice;
+              const exitResult = processTradeExit({
+                trade,
+                event: "SL",
+                price: livePrice,
+                state: simStateMT,
+              });
+              if (exitResult) {
+                simStateMT = exitResult.updatedState;
+                const { id: _sdId, ...sdUpdate } = exitResult.updatedTrade;
+                await db.collection("simulator_trades").doc(trade.id!).update({
+                  ...sdUpdate,
+                  closeReason: "SCORE_DEGRADED",
+                });
+                await db.collection("simulator_logs").add({
+                  ...exitResult.log,
+                  action: "SCORE_DEGRADED",
+                  details: `${trade.symbol} score dropped to ${liveScore} (floor: ${SIM_CONFIG.SCORE_FLOOR}) → closed at $${livePrice}`,
+                });
+                trade.status = "CLOSED";
+                scoreDegradedCloses++;
+              }
+            }
+          }
+
+          if (marketTurnCloses > 0 || scoreDegradedCloses > 0) {
+            await db.collection("config").doc("simulator_state").set(simStateMT);
+          }
+        }
+      }
+    } catch (mtErr: any) {
+      console.error("[Sync] Market turn / score degradation check failed:", mtErr.message);
+    }
+
     // ── Simulator: incubated signal selection ──────────────
     let incubatedCount = 0;
     try {
@@ -750,11 +862,11 @@ export async function GET(request: NextRequest) {
     await db.collection("logs").add({
       timestamp: new Date().toISOString(),
       level: "INFO",
-      message: `ASIA SYNC: updated=${updateCount} skipped=${skipCount} events=${signalEvents.length} scored=${scoreCount} incubated=${incubatedCount}`,
+      message: `ASIA SYNC: updated=${updateCount} skipped=${skipCount} events=${signalEvents.length} scored=${scoreCount} incubated=${incubatedCount} mktTurn=${marketTurnCloses} scoreDeg=${scoreDegradedCloses}`,
       webhookId: "SYSTEM_CRON",
     });
 
-    return NextResponse.json({ success: true, updated: updateCount, skipped: skipCount, events: signalEvents.length, scored: scoreCount, incubated: incubatedCount });
+    return NextResponse.json({ success: true, updated: updateCount, skipped: skipCount, events: signalEvents.length, scored: scoreCount, incubated: incubatedCount, marketTurnCloses, scoreDegradedCloses });
   } catch (error: any) {
     await db.collection("logs").add({
       timestamp: new Date().toISOString(),

@@ -284,6 +284,21 @@ function StatCard({ label, value, icon, color }: { label: string; value: string;
   );
 }
 
+const CLOSE_REASON_MAP: Record<string, { label: string; color: string }> = {
+  SL: { label: "SL", color: "bg-rose-500/15 text-rose-400" },
+  TRAILING_SL: { label: "SL→BE", color: "bg-rose-500/15 text-rose-400" },
+  MARKET_TURN: { label: "Mkt Turn", color: "bg-amber-500/15 text-amber-400" },
+  SCORE_DEGRADED: { label: "Score↓", color: "bg-amber-500/15 text-amber-400" },
+  TP1: { label: "TP1", color: "bg-emerald-500/15 text-emerald-400" },
+  TP2: { label: "TP2", color: "bg-emerald-500/15 text-emerald-400" },
+  TP3: { label: "TP3", color: "bg-emerald-500/15 text-emerald-400" },
+};
+
+function getCloseDisplay(reason: string | null) {
+  if (!reason) return { label: "Closed", color: "bg-white/5 text-muted-foreground" };
+  return CLOSE_REASON_MAP[reason] ?? { label: reason, color: "bg-white/5 text-muted-foreground" };
+}
+
 function getSlDisplay(trade: SimTrade) {
   if (trade.trailingSl != null) return { price: trade.trailingSl, label: "Moved to Entry" };
   if (trade.tp1Hit) return { price: trade.entryPrice, label: "Moved to Entry" };
@@ -346,12 +361,10 @@ function TradeList({ trades, emptyIcon, emptyLabel }: { trades: SimTrade[]; empt
 function DesktopTradeRow({ trade }: { trade: SimTrade }) {
   const isBuy = trade.side === "BUY";
   const isOpen = trade.status === "OPEN";
-  const isWin = trade.realizedPnl > 0;
   const chartLabel = tfLabelMap[String(trade.timeframe).toUpperCase()] ?? `${trade.timeframe}m`;
   const sl = getSlDisplay(trade);
   const pnl = isOpen ? (trade.unrealizedPnl ?? 0) : trade.realizedPnl;
-  const closeReasonLabel = trade.closeReason === "TRAILING_SL" ? "SL→BE" : trade.closeReason;
-  const isSlClose = trade.closeReason === "SL" || trade.closeReason === "TRAILING_SL";
+  const closeDisplay = getCloseDisplay(trade.closeReason ?? null);
 
   return (
     <TableRow className="border-white/5 hover:bg-white/[0.02] transition-colors">
@@ -424,8 +437,8 @@ function DesktopTradeRow({ trade }: { trade: SimTrade }) {
         {isOpen ? (
           <Badge className="text-[9px] font-black h-5 uppercase px-2 bg-accent/15 text-accent">Open</Badge>
         ) : (
-          <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", isSlClose ? "bg-rose-500/15 text-rose-400" : "bg-emerald-500/15 text-emerald-400")}>
-            {closeReasonLabel ?? "Closed"}
+          <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", closeDisplay.color)}>
+            {closeDisplay.label}
           </Badge>
         )}
       </TableCell>
@@ -446,8 +459,7 @@ function MobileTradeCard({ trade }: { trade: SimTrade }) {
   const chartLabel = tfLabelMap[String(trade.timeframe).toUpperCase()] ?? `${trade.timeframe}m`;
   const sl = getSlDisplay(trade);
   const pnl = isOpen ? (trade.unrealizedPnl ?? 0) : trade.realizedPnl;
-  const closeReasonLabel = trade.closeReason === "TRAILING_SL" ? "SL→BE" : trade.closeReason;
-  const isSlClose = trade.closeReason === "SL" || trade.closeReason === "TRAILING_SL";
+  const closeDisplay = getCloseDisplay(trade.closeReason ?? null);
 
   return (
     <Link href={`/chart/${trade.signalId}`} target="_blank" className="block">
@@ -474,8 +486,8 @@ function MobileTradeCard({ trade }: { trade: SimTrade }) {
             {isOpen ? (
               <Badge className="text-[9px] font-black h-5 uppercase px-2 bg-accent/15 text-accent">Open</Badge>
             ) : (
-              <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", isSlClose ? "bg-rose-500/15 text-rose-400" : "bg-emerald-500/15 text-emerald-400")}>
-                {closeReasonLabel ?? "Closed"}
+              <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", closeDisplay.color)}>
+                {closeDisplay.label}
               </Badge>
             )}
           </div>
@@ -569,6 +581,8 @@ function LogRow({ log }: { log: SimLog }) {
     TRADE_OPENED: "text-accent",
     TP_HIT: "text-positive",
     SL_HIT: "text-negative",
+    MARKET_TURN: "text-amber-400",
+    SCORE_DEGRADED: "text-amber-400",
     SIGNAL_SKIPPED: "text-muted-foreground/40",
     COOLOFF_ACTIVATED: "text-amber-400",
     DAILY_RESET: "text-accent",

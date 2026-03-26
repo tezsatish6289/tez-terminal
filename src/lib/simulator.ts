@@ -19,8 +19,15 @@ export const SIM_CONFIG = {
   TP2_CLOSE_PCT: 0.25,
   TP3_CLOSE_PCT: 0.25,
   // Incubated signal selection
-  INCUBATED_SL_CONSUMED_MAX: 0.40,   // price hasn't consumed > 40% of SL distance
-  INCUBATED_TP1_CONSUMED_MAX: 0.50,  // price hasn't consumed > 50% of TP1 distance
+  INCUBATED_SL_CONSUMED_MAX: 0.40,
+  INCUBATED_TP1_CONSUMED_MAX: 0.50,
+  // Market turn detection (batch layer)
+  TURN_LOOKBACK_TF_MULTIPLIER: 3,       // lookback window = timeframe × 3
+  TURN_SAME_SIDE_SL_WARN: 0.30,         // 30% same-side SL → warning
+  TURN_OPP_SIDE_TP_CONFIRM: 0.25,       // 25% opposite-side TP → confirms turn
+  TURN_SINGLE_CONDITION_TRIGGER: 0.50,   // 50% alone triggers exit
+  // Individual score degradation
+  SCORE_FLOOR: 38,                       // exit if live score drops below this
 } as const;
 
 // ── Types ────────────────────────────────────────────────────
@@ -310,6 +317,100 @@ export function computeTrailingSl(trade: SimTrade, currentPrice: number): number
   }
 
   return trade.trailingSl;
+}
+
+// ── Market Turn Detection ────────────────────────────────────
+
+const TF_MINUTES: Record<string, number> = {
+  "5": 5, "15": 15, "60": 60, "240": 240, "D": 1440,
+};
+
+export interface MarketTurnSignal {
+  side: "BUY" | "SELL";
+  sameSideSlRate: number;
+  oppSideTpRate: number;
+  triggered: boolean;
+  reason: string;
+}
+
+export interface MarketTurnInput {
+  symbol: string;
+  type: "BUY" | "SELL";
+  timeframe: string;
+  status: string;
+  receivedAt: string;
+  slHitAt: string | null;
+  tp1Hit: boolean;
+  tp2Hit: boolean;
+  tp3Hit: boolean;
+  confidenceScore: number;
+}
+
+export function detectMarketTurn(
+  allSignals: MarketTurnInput[],
+  side: "BUY" | "SELL",
+  timeframe: string,
+): MarketTurnSignal {
+  const oppSide = side === "BUY" ? "SELL" : "BUY";
+  const tfMinutes = TF_MINUTES[timeframe] ?? 60;
+  const lookbackMs = tfMinutes * SIM_CONFIG.TURN_LOOKBACK_TF_MULTIPLIER * 60 * 1000;
+  const cutoff = Date.now() - lookbackMs;
+
+  const recentSignals = allSignals.filter((s) => {
+    const t = new Date(s.receivedAt).getTime();
+    return t >= cutoff && s.timeframe === timeframe;
+  });
+
+  const sameSide = recentSignals.filter((s) => s.type === side);
+  const oppositeSide = recentSignals.filter((s) => s.type === oppSide);
+
+  const sameSideSlCount = sameSide.filter((s) => s.slHitAt != null).length;
+  const sameSideTotal = sameSide.length;
+  const sameSideSlRate = sameSideTotal > 0 ? sameSideSlCount / sameSideTotal : 0;
+
+  const oppTpCount = oppositeSide.filter((s) => s.tp1Hit || s.tp2Hit || s.tp3Hit).length;
+  const oppTotal = oppositeSide.length;
+  const oppTpRate = oppTotal > 0 ? oppTpCount / oppTotal : 0;
+
+  // Confirmed turn: both conditions met
+  if (sameSideSlRate >= SIM_CONFIG.TURN_SAME_SIDE_SL_WARN && oppTpRate >= SIM_CONFIG.TURN_OPP_SIDE_TP_CONFIRM) {
+    return {
+      side,
+      sameSideSlRate,
+      oppSideTpRate: oppTpRate,
+      triggered: true,
+      reason: `Confirmed turn: ${(sameSideSlRate * 100).toFixed(0)}% same-side SL (${sameSideSlCount}/${sameSideTotal}) + ${(oppTpRate * 100).toFixed(0)}% opp-side TP (${oppTpCount}/${oppTotal}) in ${timeframe} lookback`,
+    };
+  }
+
+  // Single condition at high rate
+  if (sameSideSlRate >= SIM_CONFIG.TURN_SINGLE_CONDITION_TRIGGER) {
+    return {
+      side,
+      sameSideSlRate,
+      oppSideTpRate: oppTpRate,
+      triggered: true,
+      reason: `High SL rate: ${(sameSideSlRate * 100).toFixed(0)}% same-side SL (${sameSideSlCount}/${sameSideTotal}) in ${timeframe} lookback`,
+    };
+  }
+
+  if (oppTpRate >= SIM_CONFIG.TURN_SINGLE_CONDITION_TRIGGER) {
+    return {
+      side,
+      sameSideSlRate,
+      oppSideTpRate: oppTpRate,
+      triggered: true,
+      reason: `High opp TP rate: ${(oppTpRate * 100).toFixed(0)}% opp-side TP (${oppTpCount}/${oppTotal}) in ${timeframe} lookback`,
+    };
+  }
+
+  return {
+    side,
+    sameSideSlRate,
+    oppSideTpRate: oppTpRate,
+    triggered: false,
+    reason: `No turn: ${(sameSideSlRate * 100).toFixed(0)}% SL, ${(oppTpRate * 100).toFixed(0)}% opp TP`,
+  };
 }
 
 // ── Helper: get today's date string in UTC ───────────────────

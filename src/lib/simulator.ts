@@ -52,6 +52,7 @@ export interface SimTrade {
   positionSize: number;
   leverage: number;
   stopLoss: number;
+  trailingSl: number | null;
   tp1: number;
   tp2: number;
   tp3: number;
@@ -278,6 +279,39 @@ export function selectIncubatedSignals(params: {
   return { selected, skipped };
 }
 
+// ── Trailing SL: move SL to breakeven at 50% of TP1 distance ─
+
+export function computeTrailingSl(trade: SimTrade, currentPrice: number): number | null {
+  if (trade.status !== "OPEN") return trade.trailingSl;
+
+  const isBuy = trade.side === "BUY";
+  const tp1Distance = Math.abs(trade.tp1 - trade.entryPrice);
+  if (tp1Distance <= 0) return trade.trailingSl;
+
+  const priceMovedInFavor = isBuy
+    ? currentPrice - trade.entryPrice
+    : trade.entryPrice - currentPrice;
+
+  const tp1Progress = priceMovedInFavor / tp1Distance;
+
+  // Once price crosses 50% of entry→TP1, move SL to breakeven
+  if (tp1Progress >= 0.50) {
+    const currentTrailing = trade.trailingSl;
+    // Only move SL in the favorable direction, never back
+    if (currentTrailing == null) {
+      return trade.entryPrice;
+    }
+    // Keep the better of existing trailing SL and breakeven
+    if (isBuy) {
+      return Math.max(currentTrailing, trade.entryPrice);
+    } else {
+      return Math.min(currentTrailing, trade.entryPrice);
+    }
+  }
+
+  return trade.trailingSl;
+}
+
 // ── Helper: get today's date string in UTC ───────────────────
 
 function utcDateString(): string {
@@ -488,6 +522,7 @@ export function openTrade(params: {
     positionSize,
     leverage,
     stopLoss: signal.stopLoss,
+    trailingSl: null,
     tp1: signal.tp1,
     tp2: signal.tp2,
     tp3: signal.tp3,

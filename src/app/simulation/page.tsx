@@ -8,7 +8,7 @@ import {
   useDoc,
   useMemoFirebase,
 } from "@/firebase";
-import { collection, query, orderBy, limit, doc, where } from "firebase/firestore";
+import { collection, query, orderBy, limit, doc } from "firebase/firestore";
 import {
   Loader2,
   TrendingUp,
@@ -18,7 +18,6 @@ import {
   Shield,
   AlertTriangle,
   CheckCircle2,
-  XCircle,
   Pause,
   BarChart3,
 } from "lucide-react";
@@ -26,7 +25,10 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { SimulatorState, SimTrade, SimLog } from "@/lib/simulator";
+import { format } from "date-fns";
 
 function formatUsd(val: number): string {
   return `$${val.toFixed(2)}`;
@@ -45,6 +47,15 @@ function formatTimeAgo(dateStr: string) {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
+}
+
+const tfLabelMap: Record<string, string> = { "5": "5m", "15": "15m", "60": "1h", "240": "4h", "D": "1D" };
+
+function formatPrice(val: number | null | undefined): string {
+  if (val == null || val === 0) return "—";
+  if (val >= 100) return val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (val >= 1) return val.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+  return val.toLocaleString(undefined, { minimumFractionDigits: 6, maximumFractionDigits: 6 });
 }
 
 export default function SimulationPage() {
@@ -231,33 +242,11 @@ export default function SimulationPage() {
 
                 {/* Tab Content */}
                 {tab === "overview" && (
-                  <div className="space-y-2">
-                    {openTrades.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground/30">
-                        <Activity className="w-6 h-6 mx-auto mb-2" />
-                        <p className="text-xs font-bold">No open trades</p>
-                      </div>
-                    ) : (
-                      openTrades.map((trade) => (
-                        <TradeRow key={trade.id ?? trade.signalId} trade={trade} />
-                      ))
-                    )}
-                  </div>
+                  <TradeList trades={openTrades} emptyIcon={<Activity className="w-6 h-6" />} emptyLabel="No open trades" />
                 )}
 
                 {tab === "trades" && (
-                  <div className="space-y-2">
-                    {closedTrades.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground/30">
-                        <BarChart3 className="w-6 h-6 mx-auto mb-2" />
-                        <p className="text-xs font-bold">No closed trades yet</p>
-                      </div>
-                    ) : (
-                      closedTrades.map((trade) => (
-                        <TradeRow key={trade.id ?? trade.signalId} trade={trade} />
-                      ))
-                    )}
-                  </div>
+                  <TradeList trades={closedTrades} emptyIcon={<BarChart3 className="w-6 h-6" />} emptyLabel="No closed trades yet" />
                 )}
 
                 {tab === "logs" && (
@@ -295,79 +284,281 @@ function StatCard({ label, value, icon, color }: { label: string; value: string;
   );
 }
 
-function TradeRow({ trade }: { trade: SimTrade }) {
+function getSlDisplay(trade: SimTrade) {
+  if (trade.trailingSl != null) return { price: trade.trailingSl, label: "Moved to Entry" };
+  if (trade.tp1Hit) return { price: trade.entryPrice, label: "Moved to Entry" };
+  return { price: trade.stopLoss, label: "Original" };
+}
+
+function TradeList({ trades, emptyIcon, emptyLabel }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string }) {
+  if (trades.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground/30">
+        {emptyIcon}
+        <p className="text-xs font-bold mt-2">{emptyLabel}</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* Mobile: Card layout */}
+      <div className="lg:hidden space-y-3">
+        {trades.map((trade) => (
+          <MobileTradeCard key={trade.id ?? trade.signalId} trade={trade} />
+        ))}
+      </div>
+
+      {/* Desktop: Table layout */}
+      <div className="hidden lg:block bg-card border border-white/5 rounded-lg overflow-x-auto">
+        <div className="min-w-[1100px]">
+          <Table>
+            <TableHeader className="bg-card sticky top-0 z-10 shadow-[0_1px_0_rgba(255,255,255,0.05)]">
+              <TableRow className="hover:bg-transparent border-white/5">
+                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[120px]">Symbol</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[48px]">Side</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[36px]">Chart</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[70px]">Algo</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[36px]">Lev.</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Entry</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Current</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">SL</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[72px]">Targets</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Net PNL</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Size</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[50px]">Score</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[64px]">Status</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[90px] text-right">Date</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {trades.map((trade) => (
+                <DesktopTradeRow key={trade.id ?? trade.signalId} trade={trade} />
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function DesktopTradeRow({ trade }: { trade: SimTrade }) {
   const isBuy = trade.side === "BUY";
   const isOpen = trade.status === "OPEN";
   const isWin = trade.realizedPnl > 0;
+  const chartLabel = tfLabelMap[String(trade.timeframe).toUpperCase()] ?? `${trade.timeframe}m`;
+  const sl = getSlDisplay(trade);
+  const pnl = isOpen ? (trade.unrealizedPnl ?? 0) : trade.realizedPnl;
+  const closeReasonLabel = trade.closeReason === "TRAILING_SL" ? "SL→BE" : trade.closeReason;
+  const isSlClose = trade.closeReason === "SL" || trade.closeReason === "TRAILING_SL";
 
   return (
-    <Link
-      href={`/chart/${trade.signalId}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={cn(
-        "rounded-lg border p-3 flex items-center gap-3 transition-colors hover:bg-white/[0.04] cursor-pointer",
-        isOpen
-          ? "border-accent/15 bg-accent/[0.03]"
-          : isWin
-            ? "border-positive/10 bg-positive/[0.02]"
-            : "border-negative/10 bg-negative/[0.02]"
-      )}
-    >
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5">
-          <span className="text-[11px] font-black">{trade.symbol}</span>
-          <span className={cn(
-            "text-[9px] font-bold uppercase px-1.5 py-0.5 rounded",
-            isBuy ? "bg-positive/15 text-positive" : "bg-negative/15 text-negative"
-          )}>
-            {trade.side}
-          </span>
-          <span className="text-[9px] text-muted-foreground/40">{trade.timeframe} · {trade.leverage}x</span>
-          {isOpen && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent/15 text-accent font-bold">OPEN</span>
-          )}
-          {!isOpen && trade.closeReason && (
-            <span className={cn(
-              "text-[9px] px-1.5 py-0.5 rounded font-bold",
-              trade.closeReason === "SL" ? "bg-negative/15 text-negative" : "bg-positive/15 text-positive"
-            )}>
-              {trade.closeReason}
-            </span>
-          )}
+    <TableRow className="border-white/5 hover:bg-white/[0.02] transition-colors">
+      <TableCell className="py-4">
+        <Link href={`/chart/${trade.signalId}`} target="_blank" className="text-sm font-black text-white leading-none uppercase tracking-tighter hover:text-accent transition-colors">
+          {trade.symbol}
+        </Link>
+      </TableCell>
+      <TableCell>
+        <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", isBuy ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400")}>
+          {trade.side}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-xs font-bold text-muted-foreground uppercase">{chartLabel}</TableCell>
+      <TableCell className="text-[10px] font-bold text-muted-foreground/50 uppercase max-w-[70px] truncate">{trade.algo || "—"}</TableCell>
+      <TableCell>
+        <Badge variant="outline" className="text-[9px] font-black h-5 px-1.5 border-accent/20 text-accent">{trade.leverage}x</Badge>
+      </TableCell>
+      <TableCell className="font-mono text-xs font-bold text-white/60">${formatPrice(trade.entryPrice)}</TableCell>
+      <TableCell className="font-mono text-xs font-bold text-white">
+        {isOpen && trade.currentPrice != null ? `$${formatPrice(trade.currentPrice)}` : "—"}
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-col">
+          <span className="font-mono text-xs font-bold text-white">${formatPrice(sl.price)}</span>
+          <span className="text-[9px] text-muted-foreground/60">{sl.label}</span>
         </div>
-        <div className="text-[10px] text-muted-foreground/40">
-          Size: {formatUsd(trade.positionSize)} · Score: {trade.confidenceScore} · {trade.biasAtEntry} · {formatTimeAgo(trade.openedAt)}
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase">
+          {[
+            { num: 1, hit: trade.tp1Hit },
+            { num: 2, hit: trade.tp2Hit },
+            { num: 3, hit: trade.tp3Hit },
+          ].map((tp) => {
+            const slKilled = !tp.hit && trade.slHit;
+            return (
+              <span
+                key={tp.num}
+                className={cn(
+                  "relative px-1.5 py-0.5 rounded",
+                  tp.hit
+                    ? "bg-emerald-500/20 text-emerald-400"
+                    : slKilled
+                      ? "bg-rose-500/10 text-rose-400/50 line-through decoration-rose-400/60"
+                      : "bg-white/5 text-muted-foreground/40"
+                )}
+              >
+                {tp.num}{tp.hit ? "✓" : ""}
+              </span>
+            );
+          })}
         </div>
-      </div>
-      <div className="text-right shrink-0">
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-col">
+          <div className={cn("flex items-center gap-1 font-mono text-xs font-black", pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+            {pnl >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+            {pnl >= 0 ? "+" : ""}{formatUsd(pnl)}
+          </div>
+          {!isOpen && <span className="text-[9px] text-muted-foreground/30 font-mono">fees: {formatUsd(trade.fees)}</span>}
+          {isOpen && <span className="text-[9px] text-muted-foreground/30 font-mono">unrealized</span>}
+        </div>
+      </TableCell>
+      <TableCell className="font-mono text-xs font-bold text-white/60">{formatUsd(trade.positionSize)}</TableCell>
+      <TableCell>
+        <span className="font-mono text-xs font-bold text-accent">{trade.confidenceScore}</span>
+      </TableCell>
+      <TableCell>
         {isOpen ? (
-          <>
-            <div className={cn(
-              "text-sm font-black tabular-nums",
-              (trade.unrealizedPnl ?? 0) >= 0 ? "text-positive" : "text-negative"
-            )}>
-              {(trade.unrealizedPnl ?? 0) >= 0 ? "+" : ""}{formatUsd(trade.unrealizedPnl ?? 0)}
-            </div>
-            {trade.currentPrice != null && (
-              <div className="text-[9px] text-muted-foreground/30 tabular-nums">
-                ${trade.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
-              </div>
-            )}
-          </>
+          <Badge className="text-[9px] font-black h-5 uppercase px-2 bg-accent/15 text-accent">Open</Badge>
         ) : (
-          <>
-            <div className={cn(
-              "text-sm font-black tabular-nums",
-              trade.realizedPnl >= 0 ? "text-positive" : "text-negative"
-            )}>
-              {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
-            </div>
-            <div className="text-[9px] text-muted-foreground/30">
-              fees: {formatUsd(trade.fees)}
-            </div>
-          </>
+          <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", isSlClose ? "bg-rose-500/15 text-rose-400" : "bg-emerald-500/15 text-emerald-400")}>
+            {closeReasonLabel ?? "Closed"}
+          </Badge>
         )}
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="flex flex-col items-end">
+          <span className="text-[10px] font-mono font-bold text-white/40">{format(new Date(trade.openedAt), "yyyy-MM-dd")}</span>
+          <span className="text-[10px] font-mono font-bold text-accent/40">{format(new Date(trade.openedAt), "HH:mm")}</span>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function MobileTradeCard({ trade }: { trade: SimTrade }) {
+  const isBuy = trade.side === "BUY";
+  const isOpen = trade.status === "OPEN";
+  const isWin = trade.realizedPnl > 0;
+  const chartLabel = tfLabelMap[String(trade.timeframe).toUpperCase()] ?? `${trade.timeframe}m`;
+  const sl = getSlDisplay(trade);
+  const pnl = isOpen ? (trade.unrealizedPnl ?? 0) : trade.realizedPnl;
+  const closeReasonLabel = trade.closeReason === "TRAILING_SL" ? "SL→BE" : trade.closeReason;
+  const isSlClose = trade.closeReason === "SL" || trade.closeReason === "TRAILING_SL";
+
+  return (
+    <Link href={`/chart/${trade.signalId}`} target="_blank" className="block">
+      <div className={cn(
+        "rounded-xl border overflow-hidden hover:border-white/[0.12] transition-all",
+        isOpen
+          ? "border-accent/15 bg-gradient-to-b from-[#141416] to-[#0f0f11]"
+          : isWin
+            ? "border-positive/10 bg-gradient-to-b from-[#141416] to-[#0f0f11]"
+            : "border-negative/10 bg-gradient-to-b from-[#141416] to-[#0f0f11]"
+      )}>
+        {/* Header */}
+        <div className="px-4 pt-4 pb-3 border-b border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-black text-foreground uppercase tracking-tight">{trade.symbol}</span>
+              <span className={cn("text-[11px] font-bold uppercase", isBuy ? "text-emerald-400/70" : "text-rose-400/70")}>
+                {isBuy ? "▲ Long" : "▼ Short"}
+              </span>
+              <span className="text-white/15">·</span>
+              <span className="text-[11px] text-muted-foreground/60 uppercase">{chartLabel}</span>
+              <span className="text-[9px] font-bold text-muted-foreground/40">{trade.leverage}x</span>
+            </div>
+            {isOpen ? (
+              <Badge className="text-[9px] font-black h-5 uppercase px-2 bg-accent/15 text-accent">Open</Badge>
+            ) : (
+              <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", isSlClose ? "bg-rose-500/15 text-rose-400" : "bg-emerald-500/15 text-emerald-400")}>
+                {closeReasonLabel ?? "Closed"}
+              </Badge>
+            )}
+          </div>
+          <div className="text-[10px] font-bold text-muted-foreground/30 uppercase mt-1">
+            {trade.algo || "—"} · Score: {trade.confidenceScore} · {trade.biasAtEntry}
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="px-4 py-3 space-y-3">
+          {/* PNL + Date */}
+          <div className="flex items-center justify-between">
+            <div className={cn("flex items-center gap-1.5 font-mono text-lg font-black", pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+              {pnl >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+              {pnl >= 0 ? "+" : ""}{formatUsd(pnl)}
+              {isOpen && <span className="text-[9px] font-bold text-muted-foreground/30 ml-1">(unreal.)</span>}
+              {!isOpen && <span className="text-[9px] font-bold text-muted-foreground/30 ml-1">fees: {formatUsd(trade.fees)}</span>}
+            </div>
+            <span className="text-[10px] font-mono text-muted-foreground/40">{format(new Date(trade.openedAt), "MMM dd, HH:mm")}</span>
+          </div>
+
+          {/* Entry / Current / SL */}
+          <div className="flex items-center gap-3 text-[11px] flex-wrap">
+            <div>
+              <span className="text-muted-foreground/40 mr-1.5">Entry</span>
+              <span className="font-mono font-bold text-white/50">${formatPrice(trade.entryPrice)}</span>
+            </div>
+            {isOpen && trade.currentPrice != null && (
+              <>
+                <span className="text-white/10">→</span>
+                <div>
+                  <span className="text-muted-foreground/40 mr-1.5">Current</span>
+                  <span className="font-mono font-bold text-white">${formatPrice(trade.currentPrice)}</span>
+                </div>
+              </>
+            )}
+            <span className="text-white/10">|</span>
+            <div>
+              <span className="text-muted-foreground/40 mr-1.5">SL</span>
+              <span className="font-mono font-bold text-white/50">${formatPrice(sl.price)}</span>
+              <span className="text-[9px] text-muted-foreground/40 ml-1">({sl.label})</span>
+            </div>
+          </div>
+
+          {/* Size */}
+          <div className="text-[11px]">
+            <span className="text-muted-foreground/40 mr-1.5">Size</span>
+            <span className="font-mono font-bold text-white/50">{formatUsd(trade.positionSize)}</span>
+            <span className="text-muted-foreground/40 ml-3 mr-1.5">Remaining</span>
+            <span className="font-mono font-bold text-white/50">{(trade.remainingPct * 100).toFixed(0)}%</span>
+          </div>
+
+          {/* Targets */}
+          <div className="flex items-center justify-between pt-1 border-t border-white/[0.04]">
+            <div className="flex items-center gap-1.5">
+              {[
+                { num: 1, hit: trade.tp1Hit, price: trade.tp1 },
+                { num: 2, hit: trade.tp2Hit, price: trade.tp2 },
+                { num: 3, hit: trade.tp3Hit, price: trade.tp3 },
+              ].map((tp) => {
+                const slKilled = !tp.hit && trade.slHit;
+                return (
+                  <span
+                    key={tp.num}
+                    className={cn(
+                      "px-1.5 py-0.5 rounded text-[9px] font-bold",
+                      tp.hit
+                        ? "bg-emerald-500/20 text-emerald-400"
+                        : slKilled
+                          ? "bg-rose-500/10 text-rose-400/50 line-through"
+                          : "bg-white/5 text-muted-foreground/40"
+                    )}
+                  >
+                    TP{tp.num}{tp.hit ? "✓" : ""}
+                  </span>
+                );
+              })}
+            </div>
+            <span className="text-[10px] font-mono text-muted-foreground/30">
+              {formatTimeAgo(trade.openedAt)}
+            </span>
+          </div>
+        </div>
       </div>
     </Link>
   );

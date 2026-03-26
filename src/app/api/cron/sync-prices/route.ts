@@ -16,6 +16,7 @@ import {
   processTradeExit,
   checkDailyReset,
   computeUnrealizedPnl,
+  computeTrailingSl,
   selectIncubatedSignals,
   openTrade,
   createInitialState,
@@ -402,11 +403,44 @@ export async function GET(request: NextRequest) {
           }
 
           if (livePrice != null) {
-            const unrealizedPnl = computeUnrealizedPnl(t, livePrice);
-            await db.collection("simulator_trades").doc(simDoc.id).update({
-              currentPrice: livePrice,
-              unrealizedPnl: Math.round(unrealizedPnl * 100) / 100,
-            });
+            // Trailing SL: move to breakeven once price crosses 50% of TP1 distance
+            const newTrailingSl = computeTrailingSl(t, livePrice);
+            const effectiveSl = newTrailingSl ?? t.stopLoss;
+            const isBuy = t.side === "BUY";
+
+            // Check if trailing SL was hit
+            const trailingSlHit = isBuy
+              ? livePrice <= effectiveSl && newTrailingSl != null
+              : livePrice >= effectiveSl && newTrailingSl != null;
+
+            if (trailingSlHit && simState2) {
+              const exitResult = processTradeExit({
+                trade: t,
+                event: "SL",
+                price: effectiveSl,
+                state: simState2,
+              });
+              if (exitResult) {
+                simState2 = exitResult.updatedState;
+                const { id: _tslId, ...tslUpdate } = exitResult.updatedTrade;
+                await db.collection("simulator_trades").doc(simDoc.id).update({
+                  ...tslUpdate,
+                  trailingSl: newTrailingSl,
+                  closeReason: "TRAILING_SL",
+                });
+                await db.collection("simulator_logs").add(exitResult.log);
+              }
+            } else {
+              const unrealizedPnl = computeUnrealizedPnl(t, livePrice);
+              const updatePayload: Record<string, unknown> = {
+                currentPrice: livePrice,
+                unrealizedPnl: Math.round(unrealizedPnl * 100) / 100,
+              };
+              if (newTrailingSl !== t.trailingSl) {
+                updatePayload.trailingSl = newTrailingSl;
+              }
+              await db.collection("simulator_trades").doc(simDoc.id).update(updatePayload);
+            }
           }
         }
 

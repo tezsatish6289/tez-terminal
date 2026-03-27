@@ -40,3 +40,9 @@ env:
     secret: GOOGLE_GENAI_API_KEY
     availability:
       - RUNTIME
+  - variable: ENCRYPTION_KEY
+    secret: ENCRYPTION_KEY
+    availability:
+      - RUNTIME
+  - variable: BYBIT_TESTNET
+    value: "true"

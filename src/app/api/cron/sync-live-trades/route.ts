@@ -114,8 +114,22 @@ async function syncUserTrades(
 
         if (lt.status === "CLOSED") continue;
 
-        // ── 2. Trailing SL → breakeven ──────────────────────
+        // ── 2. Update current price + unrealized PnL ─────────
         const livePrice = getPrice(allPrices, lt.signalSymbol, exchange);
+        if (livePrice != null) {
+          const isBuy = lt.side === "BUY";
+          const priceDiff = isBuy ? livePrice - lt.entryPrice : lt.entryPrice - livePrice;
+          const unrealizedPnl = (priceDiff / lt.entryPrice) * lt.positionSize * lt.leverage;
+
+          await db.collection("live_trades").doc(lt.id!).update({
+            currentPrice: livePrice,
+            unrealizedPnl: Math.round(unrealizedPnl * 100) / 100,
+          });
+          lt.currentPrice = livePrice;
+          lt.unrealizedPnl = Math.round(unrealizedPnl * 100) / 100;
+        }
+
+        // ── 3. Trailing SL → breakeven ──────────────────────
         if (livePrice != null && lt.trailingSl == null) {
           const slBeResult = await moveSlToBreakeven(lt, livePrice, creds);
           if (slBeResult.moved && slBeResult.updatedFields && slBeResult.newEvent) {

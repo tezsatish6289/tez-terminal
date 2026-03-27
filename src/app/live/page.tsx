@@ -364,6 +364,7 @@ function TradeListView({ trades, emptyIcon, emptyLabel, emptyHint, onSelectTrade
                 <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[70px]">Algo</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[36px]">Lev.</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Entry</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Current</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">SL</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[72px]">Targets</TableHead>
                 <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">P&L</TableHead>
@@ -410,6 +411,9 @@ function DesktopTradeRow({ trade, onSelect }: { trade: LiveTrade; onSelect: (t: 
         <Badge variant="outline" className="text-[9px] font-black h-5 px-1.5 border-accent/20 text-accent">{trade.leverage}x</Badge>
       </TableCell>
       <TableCell className="font-mono text-xs font-bold text-white/60">${formatPrice(trade.entryPrice)}</TableCell>
+      <TableCell className="font-mono text-xs font-bold text-white">
+        {isOpen && trade.currentPrice != null ? `$${formatPrice(trade.currentPrice)}` : "—"}
+      </TableCell>
       <TableCell>
         <div className="flex flex-col">
           <span className="font-mono text-xs font-bold text-white">${formatPrice(sl.price)}</span>

@@ -55,12 +55,9 @@ export async function GET(request: NextRequest) {
       allPrices = deserializePrices(priceDoc.data() as Record<string, Record<string, number>>);
     }
 
-    // Build legacy flat maps for simulator (uses Binance)
-    const perpetualsPriceMap: Record<string, number> = {};
-    const spotPriceMap: Record<string, number> = {};
-    for (const [symbol, price] of allPrices.BINANCE) {
-      perpetualsPriceMap[symbol] = price;
-    }
+    // Helper: get Binance reference price for a sim trade symbol
+    const getSimPrice = (symbol: string): number | null =>
+      getReferencePrice(allPrices, symbol);
 
     // ── Load signals for scoring context ────────────────────
     const signalsSnap = await db.collection("signals").get();
@@ -143,9 +140,7 @@ export async function GET(request: NextRequest) {
 
         for (const simDoc of openSimSnap.docs) {
           const t = simDoc.data() as SimTrade;
-          const rawSym = t.symbol.replace(/\.P$|\.PERP$/i, "").toUpperCase();
-          const livePrice = perpetualsPriceMap[rawSym] ?? perpetualsPriceMap[rawSym + "USDT"]
-            ?? spotPriceMap[rawSym] ?? spotPriceMap[rawSym + "USDT"];
+          const livePrice = getSimPrice(t.symbol);
 
           // Check if underlying signal already closed
           const signalDoc = await db.collection("signals").doc(t.signalId).get();

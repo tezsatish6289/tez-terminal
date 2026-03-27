@@ -46,6 +46,8 @@ export interface LiveTrade {
   tp2Hit: boolean;
   tp3Hit: boolean;
   slHit: boolean;
+  currentPrice: number | null;
+  unrealizedPnl: number;
   status: "OPEN" | "CLOSED";
   realizedPnl: number;
   fees: number;
@@ -226,6 +228,8 @@ export async function executeTrade(
       tp2Hit: false,
       tp3Hit: false,
       slHit: false,
+      currentPrice: fillPrice,
+      unrealizedPnl: 0,
       status: "OPEN",
       realizedPnl: 0,
       fees: entryFee,

@@ -192,34 +192,19 @@ export class BinanceConnector implements ExchangeConnector {
   // ── Prices ──────────────────────────────────────────────────
 
   async getAllPrices(_testnet?: boolean): Promise<Map<string, number>> {
-    const [spotRes, futuresRes] = await Promise.allSettled([
-      fetch("https://api.binance.com/api/v3/ticker/price", { cache: "no-store" }),
-      fetch("https://fapi.binance.com/fapi/v2/ticker/price", { cache: "no-store" }),
-    ]);
+    const res = await fetch("https://fapi.binance.com/fapi/v2/ticker/price", {
+      cache: "no-store",
+    });
 
     const map = new Map<string, number>();
-
-    if (futuresRes.status === "fulfilled" && futuresRes.value.ok) {
-      const data = await futuresRes.value.json();
+    if (res.ok) {
+      const data = await res.json();
       if (Array.isArray(data)) {
         for (const t of data) {
           if (t.symbol && t.price) map.set(t.symbol.toUpperCase(), parseFloat(t.price));
         }
       }
     }
-
-    // Spot as fallback for symbols not in futures
-    if (spotRes.status === "fulfilled" && spotRes.value.ok) {
-      const data = await spotRes.value.json();
-      if (Array.isArray(data)) {
-        for (const t of data) {
-          if (t.symbol && t.price && !map.has(t.symbol.toUpperCase())) {
-            map.set(t.symbol.toUpperCase(), parseFloat(t.price));
-          }
-        }
-      }
-    }
-
     return map;
   }
 

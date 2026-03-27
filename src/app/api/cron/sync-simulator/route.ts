@@ -55,6 +55,9 @@ export async function GET(request: NextRequest) {
       allPrices = deserializePrices(priceDoc.data() as Record<string, Record<string, number>>);
     }
 
+    const binancePriceCount = allPrices.BINANCE.size;
+    const bybitPriceCount = allPrices.BYBIT.size;
+
     // Helper: get Binance reference price for a sim trade symbol
     const getSimPrice = (symbol: string): number | null =>
       getReferencePrice(allPrices, symbol);
@@ -485,6 +488,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      prices: { binance: binancePriceCount, bybit: bybitPriceCount },
       eventCloses,
       priceUpdates,
       trailingSlCloses,

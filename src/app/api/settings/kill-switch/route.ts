@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
   const secretDoc = await db.collection("users").doc(uid).collection("secrets").doc("binance").get();
   if (!secretDoc.exists) {
-    return NextResponse.json({ error: "No Binance credentials configured" }, { status: 400 });
+    return NextResponse.json({ error: "No Bybit credentials configured" }, { status: 400 });
   }
 
   const atData = secretDoc.data()!;

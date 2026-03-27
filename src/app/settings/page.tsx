@@ -91,7 +91,7 @@ export default function SettingsPage() {
       const data = await res.json();
       setBinanceConfig(data);
     } catch {
-      console.error("Failed to fetch Binance config");
+      console.error("Failed to fetch Bybit config");
     } finally {
       setIsLoadingBinance(false);
     }
@@ -212,7 +212,7 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (data.success) {
-        toast({ title: "Saved", description: "Binance API credentials validated and saved." });
+        toast({ title: "Saved", description: "Bybit API credentials validated and saved." });
         setApiKeyInput("");
         setApiSecretInput("");
         fetchBinanceConfig();
@@ -309,9 +309,9 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-3">
                   <Zap className="h-5 w-5 text-accent" />
                   <div>
-                    <CardTitle className="text-lg">Auto-Trade · Binance Futures</CardTitle>
+                    <CardTitle className="text-lg">Auto-Trade · Bybit Futures</CardTitle>
                     <CardDescription>
-                      Automatically execute trades on Binance based on simulator decisions.
+                      Automatically execute trades on Bybit based on simulator decisions.
                     </CardDescription>
                   </div>
                 </div>
@@ -345,7 +345,7 @@ export default function SettingsPage() {
                       <p className="text-sm font-medium text-foreground">Auto-Trade Enabled</p>
                       <p className="text-[10px] text-muted-foreground">
                         {binanceConfig.autoTradeEnabled
-                          ? "Live trading is ON. Trades will execute on Binance."
+                          ? "Live trading is ON. Trades will execute on Bybit."
                           : "Trading paused. Simulator runs but no real orders."}
                       </p>
                     </div>
@@ -361,7 +361,7 @@ export default function SettingsPage() {
                     <div>
                       <p className="text-sm font-medium text-foreground">Testnet Mode</p>
                       <p className="text-[10px] text-muted-foreground">
-                        {binanceConfig.useTestnet ? "Using Binance testnet (fake money)." : "Using PRODUCTION Binance (real money)."}
+                        {binanceConfig.useTestnet ? "Using Bybit testnet (fake money)." : "Using PRODUCTION Bybit (real money)."}
                       </p>
                     </div>
                     <Switch
@@ -460,7 +460,7 @@ export default function SettingsPage() {
                     <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-accent/10 border border-accent/20 mb-3">
                       <Zap className="h-8 w-8 text-accent" />
                     </div>
-                    <p className="text-sm text-foreground font-medium">Connect your Binance account</p>
+                    <p className="text-sm text-foreground font-medium">Connect your Bybit account</p>
                     <p className="text-xs text-muted-foreground mt-1">
                       API keys are encrypted with AES-256 and stored server-side only.
                     </p>
@@ -472,7 +472,7 @@ export default function SettingsPage() {
                       type="text"
                       value={apiKeyInput}
                       onChange={(e) => setApiKeyInput(e.target.value)}
-                      placeholder="Enter your Binance API key"
+                      placeholder="Enter your Bybit API key"
                       className="w-full h-10 px-3 rounded-md border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent font-mono"
                     />
                   </div>
@@ -484,7 +484,7 @@ export default function SettingsPage() {
                         type={showSecret ? "text" : "password"}
                         value={apiSecretInput}
                         onChange={(e) => setApiSecretInput(e.target.value)}
-                        placeholder="Enter your Binance API secret"
+                        placeholder="Enter your Bybit API secret"
                         className="w-full h-10 px-3 pr-10 rounded-md border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent font-mono"
                       />
                       <button
@@ -500,7 +500,7 @@ export default function SettingsPage() {
                   <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-400/[0.06] border border-amber-400/15">
                     <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
                     <p className="text-[11px] text-amber-400/80 leading-relaxed">
-                      Only enable <strong>Futures trading</strong> permission on your API key. Never enable withdrawals. Your credentials will be validated against Binance before saving.
+                      Only enable <strong>Contract</strong> trading permission on your API key. Never enable withdrawals. Your credentials will be validated against Bybit before saving.
                     </p>
                   </div>
 

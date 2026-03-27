@@ -884,7 +884,7 @@ export async function GET(request: NextRequest) {
       console.error("[Sync] Incubated signal selection failed:", incErr.message);
     }
 
-    // ── Live Trade Management (Binance Auto-Trade) ──────────────
+    // ── Live Trade Management (Bybit Auto-Trade) ──────────────
     let liveTradeUpdates = 0;
     let liveTradeFills = 0;
     let liveProtectiveCloses = 0;

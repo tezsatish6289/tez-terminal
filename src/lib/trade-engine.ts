@@ -33,7 +33,7 @@ export interface LiveTrade {
   signalSymbol: string;        // Original signal symbol (with .P)
   side: "BUY" | "SELL";
   leverage: number;
-  entryOrderId: number;
+  entryOrderId: string;
   entryPrice: number;          // actual fill price
   quantity: number;            // in contracts
   positionSize: number;        // in USDT
@@ -43,10 +43,10 @@ export interface LiveTrade {
   tp1: number;
   tp2: number;
   tp3: number;
-  slOrderId: number | null;
-  tp1OrderId: number | null;
-  tp2OrderId: number | null;
-  tp3OrderId: number | null;
+  slOrderId: string | null;
+  tp1OrderId: string | null;
+  tp2OrderId: string | null;
+  tp3OrderId: string | null;
   tp1Hit: boolean;
   tp2Hit: boolean;
   tp3Hit: boolean;
@@ -72,7 +72,7 @@ export interface LiveTradeEvent {
   fee: number;
   closePct: number;
   quantity: number;
-  orderId: number | null;
+  orderId: string | null;
   timestamp: string;
 }
 
@@ -536,7 +536,7 @@ interface OrderFillCheck {
   tp2Filled: boolean;
   tp3Filled: boolean;
   slFilled: boolean;
-  fills: Array<{ type: "TP1" | "TP2" | "TP3" | "SL"; price: number; qty: number; orderId: number }>;
+  fills: Array<{ type: "TP1" | "TP2" | "TP3" | "SL"; price: number; qty: number; orderId: string }>;
 }
 
 /**
@@ -556,7 +556,7 @@ export async function checkOrderFills(
   };
 
   const checkOrder = async (
-    orderId: number | null,
+    orderId: string | null,
     type: "TP1" | "TP2" | "TP3" | "SL",
     alreadyHit: boolean
   ) => {

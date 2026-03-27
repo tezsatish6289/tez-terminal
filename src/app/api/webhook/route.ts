@@ -22,7 +22,7 @@ import {
   type SimulatorState,
   type SimTrade,
 } from "@/lib/simulator";
-import { executeTrade as executeBinanceTrade, type Credentials } from "@/lib/trade-engine";
+import { executeTrade as executeExchangeTrade, type Credentials } from "@/lib/trade-engine";
 import { decrypt } from "@/lib/crypto";
 
 /**
@@ -430,7 +430,7 @@ export async function POST(request: NextRequest) {
                 await db.collection("config").doc("simulator_state").set(result.updatedState);
                 await db.collection("simulator_logs").add(result.log);
 
-                // ── Auto-Trade: execute on Binance if enabled ──
+                // ── Auto-Trade: execute on Bybit if enabled ──
                 try {
                   const autoTradeDoc = await db.collection("users").doc("99V4s5wPXcgmthTaMa0k7YyLm702")
                     .collection("secrets").doc("binance").get();
@@ -443,7 +443,7 @@ export async function POST(request: NextRequest) {
                         apiSecret: decrypt(atData.encryptedSecret),
                       };
 
-                      const binanceResult = await executeBinanceTrade(
+                      const liveResult = await executeExchangeTrade(
                         result.trade,
                         "99V4s5wPXcgmthTaMa0k7YyLm702",
                         simTradeRef.id,
@@ -451,12 +451,12 @@ export async function POST(request: NextRequest) {
                         creds,
                       );
 
-                      if (binanceResult.success && binanceResult.trade) {
-                        await db.collection("live_trades").add(binanceResult.trade);
+                      if (liveResult.success && liveResult.trade) {
+                        await db.collection("live_trades").add(liveResult.trade);
                         await db.collection("simulator_logs").add({
                           timestamp: new Date().toISOString(),
                           action: "LIVE_TRADE_OPENED",
-                          details: `${symbol} ${signalType} executed on Binance @ $${binanceResult.trade.entryPrice} qty=${binanceResult.trade.quantity}${binanceResult.warnings.length ? ` warnings: ${binanceResult.warnings.join("; ")}` : ""}`,
+                          details: `${symbol} ${signalType} executed on Bybit @ $${liveResult.trade.entryPrice} qty=${liveResult.trade.quantity}${liveResult.warnings.length ? ` warnings: ${liveResult.warnings.join("; ")}` : ""}`,
                           signalId: docRef.id,
                           symbol,
                           capital: simState.capital,
@@ -465,7 +465,7 @@ export async function POST(request: NextRequest) {
                         await db.collection("simulator_logs").add({
                           timestamp: new Date().toISOString(),
                           action: "LIVE_TRADE_FAILED",
-                          details: `${symbol} ${signalType} Binance execution failed: ${binanceResult.error}`,
+                          details: `${symbol} ${signalType} Bybit execution failed: ${liveResult.error}`,
                           signalId: docRef.id,
                           symbol,
                         });

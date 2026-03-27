@@ -1,94 +1,127 @@
+/**
+ * Exchange client — Bybit v5 Unified API
+ *
+ * Kept as binance.ts to minimize import changes across the codebase.
+ * All exported function signatures remain compatible with trade-engine.ts.
+ */
 import crypto from "crypto";
 
 // ── Configuration ────────────────────────────────────────────
 
-const FUTURES_BASE = "https://fapi.binance.com";
-const TESTNET_BASE = "https://testnet.binancefuture.com";
+const PROD_BASE = "https://api.bybit.com";
+const TESTNET_BASE = "https://api-testnet.bybit.com";
 
 function getBaseUrl(): string {
-  return process.env.BINANCE_TESTNET === "true" ? TESTNET_BASE : FUTURES_BASE;
+  return process.env.BYBIT_TESTNET === "true" ? TESTNET_BASE : PROD_BASE;
 }
 
-// ── HMAC Signing ────────────────────────────────────────────
+// ── HMAC Signing (Bybit v5) ────────────────────────────────
 
-function sign(queryString: string, secret: string): string {
-  return crypto.createHmac("sha256", secret).update(queryString).digest("hex");
-}
-
-function buildSignedParams(
-  params: Record<string, string | number | boolean>,
+function sign(
+  timestamp: number,
+  apiKey: string,
+  recvWindow: number,
+  payload: string,
   secret: string
 ): string {
-  const qs = Object.entries(params)
-    .filter(([, v]) => v !== undefined && v !== null)
-    .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
-    .join("&");
-  const signature = sign(qs, secret);
-  return `${qs}&signature=${signature}`;
+  const signStr = `${timestamp}${apiKey}${recvWindow}${payload}`;
+  return crypto.createHmac("sha256", secret).update(signStr).digest("hex");
 }
 
 // ── Request Helpers ────────────────────────────────────────────
 
-interface BinanceCredentials {
+export interface BinanceCredentials {
   apiKey: string;
   apiSecret: string;
 }
 
-async function signedRequest<T>(
-  method: "GET" | "POST" | "PUT" | "DELETE",
+interface BybitResponse<T> {
+  retCode: number;
+  retMsg: string;
+  result: T;
+  time: number;
+}
+
+async function signedGet<T>(
   path: string,
   params: Record<string, string | number | boolean>,
   creds: BinanceCredentials
 ): Promise<T> {
   const baseUrl = getBaseUrl();
-  const fullParams = { ...params, timestamp: Date.now(), recvWindow: 5000 };
-  const queryString = buildSignedParams(fullParams, creds.apiSecret);
+  const timestamp = Date.now();
+  const recvWindow = 5000;
 
-  const url =
-    method === "GET" || method === "DELETE"
-      ? `${baseUrl}${path}?${queryString}`
-      : `${baseUrl}${path}`;
+  const qs = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null)
+    .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
+    .join("&");
 
-  const res = await fetch(url, {
-    method,
+  const signature = sign(timestamp, creds.apiKey, recvWindow, qs, creds.apiSecret);
+
+  const res = await fetch(`${baseUrl}${path}${qs ? `?${qs}` : ""}`, {
+    method: "GET",
     headers: {
-      "X-MBX-APIKEY": creds.apiKey,
-      ...(method === "POST" || method === "PUT"
-        ? { "Content-Type": "application/x-www-form-urlencoded" }
-        : {}),
+      "X-BAPI-API-KEY": creds.apiKey,
+      "X-BAPI-SIGN": signature,
+      "X-BAPI-SIGN-TYPE": "2",
+      "X-BAPI-TIMESTAMP": String(timestamp),
+      "X-BAPI-RECV-WINDOW": String(recvWindow),
     },
-    body: method === "POST" || method === "PUT" ? queryString : undefined,
   });
 
-  const data = await res.json();
-
-  if (!res.ok) {
-    const err = data as { code?: number; msg?: string };
-    throw new BinanceApiError(
-      err.msg ?? `Binance API error ${res.status}`,
-      err.code ?? res.status,
-      path
-    );
+  const data = (await res.json()) as BybitResponse<T>;
+  if (data.retCode !== 0) {
+    throw new BinanceApiError(data.retMsg, data.retCode, path);
   }
-
-  return data as T;
+  return data.result;
 }
 
-async function publicRequest<T>(path: string, params?: Record<string, string | number>): Promise<T> {
+async function signedPost<T>(
+  path: string,
+  body: Record<string, unknown>,
+  creds: BinanceCredentials
+): Promise<T> {
+  const baseUrl = getBaseUrl();
+  const timestamp = Date.now();
+  const recvWindow = 5000;
+
+  const bodyStr = JSON.stringify(body);
+  const signature = sign(timestamp, creds.apiKey, recvWindow, bodyStr, creds.apiSecret);
+
+  const res = await fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: {
+      "X-BAPI-API-KEY": creds.apiKey,
+      "X-BAPI-SIGN": signature,
+      "X-BAPI-SIGN-TYPE": "2",
+      "X-BAPI-TIMESTAMP": String(timestamp),
+      "X-BAPI-RECV-WINDOW": String(recvWindow),
+      "Content-Type": "application/json",
+    },
+    body: bodyStr,
+  });
+
+  const data = (await res.json()) as BybitResponse<T>;
+  if (data.retCode !== 0) {
+    throw new BinanceApiError(data.retMsg, data.retCode, path);
+  }
+  return data.result;
+}
+
+async function publicGet<T>(
+  path: string,
+  params?: Record<string, string | number>
+): Promise<T> {
   const baseUrl = getBaseUrl();
   const qs = params
-    ? "?" +
-      Object.entries(params)
-        .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
-        .join("&")
+    ? "?" + Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join("&")
     : "";
   const res = await fetch(`${baseUrl}${path}${qs}`);
-  const data = await res.json();
-  if (!res.ok) {
-    const err = data as { code?: number; msg?: string };
-    throw new BinanceApiError(err.msg ?? `Binance API error ${res.status}`, err.code ?? res.status, path);
+  const data = (await res.json()) as BybitResponse<T>;
+  if (data.retCode !== 0) {
+    throw new BinanceApiError(data.retMsg, data.retCode, path);
   }
-  return data as T;
+  return data.result;
 }
 
 // ── Error Class ────────────────────────────────────────────
@@ -99,7 +132,7 @@ export class BinanceApiError extends Error {
     public code: number,
     public endpoint: string
   ) {
-    super(`[Binance ${code}] ${endpoint}: ${message}`);
+    super(`[Bybit ${code}] ${endpoint}: ${message}`);
     this.name = "BinanceApiError";
   }
 }
@@ -117,48 +150,51 @@ export interface SymbolInfo {
   minNotional: number;
 }
 
-interface ExchangeInfoSymbol {
+interface BybitInstrument {
   symbol: string;
-  pricePrecision: number;
-  quantityPrecision: number;
-  filters: Array<{
-    filterType: string;
-    minQty?: string;
-    maxQty?: string;
-    stepSize?: string;
-    tickSize?: string;
-    notional?: string;
-    minPrice?: string;
-    maxPrice?: string;
-  }>;
+  lotSizeFilter: {
+    maxOrderQty: string;
+    minOrderQty: string;
+    qtyStep: string;
+    minNotionalValue?: string;
+  };
+  priceFilter: {
+    tickSize: string;
+    minPrice: string;
+    maxPrice: string;
+  };
 }
 
 let cachedSymbols: Map<string, SymbolInfo> = new Map();
 let cacheTimestamp = 0;
-const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
+const CACHE_TTL_MS = 4 * 60 * 60 * 1000;
 
 export async function getExchangeInfo(forceRefresh = false): Promise<Map<string, SymbolInfo>> {
   if (!forceRefresh && cachedSymbols.size > 0 && Date.now() - cacheTimestamp < CACHE_TTL_MS) {
     return cachedSymbols;
   }
 
-  const data = await publicRequest<{ symbols: ExchangeInfoSymbol[] }>("/fapi/v1/exchangeInfo");
+  const data = await publicGet<{ list: BybitInstrument[] }>(
+    "/v5/market/instruments-info",
+    { category: "linear" }
+  );
   const map = new Map<string, SymbolInfo>();
 
-  for (const s of data.symbols) {
-    const lotSize = s.filters.find((f) => f.filterType === "LOT_SIZE");
-    const priceFilter = s.filters.find((f) => f.filterType === "PRICE_FILTER");
-    const minNotional = s.filters.find((f) => f.filterType === "MIN_NOTIONAL");
+  for (const s of data.list) {
+    const stepSize = parseFloat(s.lotSizeFilter.qtyStep);
+    const tickSize = parseFloat(s.priceFilter.tickSize);
+    const qtyPrecision = Math.max(0, Math.round(-Math.log10(stepSize)));
+    const pricePrecision = Math.max(0, Math.round(-Math.log10(tickSize)));
 
     map.set(s.symbol, {
       symbol: s.symbol,
-      pricePrecision: s.pricePrecision,
-      quantityPrecision: s.quantityPrecision,
-      minQty: parseFloat(lotSize?.minQty ?? "0.001"),
-      maxQty: parseFloat(lotSize?.maxQty ?? "1000000"),
-      stepSize: parseFloat(lotSize?.stepSize ?? "0.001"),
-      tickSize: parseFloat(priceFilter?.tickSize ?? "0.01"),
-      minNotional: parseFloat(minNotional?.notional ?? "5"),
+      pricePrecision,
+      quantityPrecision: qtyPrecision,
+      minQty: parseFloat(s.lotSizeFilter.minOrderQty),
+      maxQty: parseFloat(s.lotSizeFilter.maxOrderQty),
+      stepSize,
+      tickSize,
+      minNotional: parseFloat(s.lotSizeFilter.minNotionalValue ?? "5"),
     });
   }
 
@@ -170,27 +206,24 @@ export async function getExchangeInfo(forceRefresh = false): Promise<Map<string,
 export async function getSymbolInfo(symbol: string): Promise<SymbolInfo> {
   const map = await getExchangeInfo();
   const info = map.get(symbol);
-  if (!info) throw new Error(`Symbol ${symbol} not found on Binance Futures`);
+  if (!info) throw new Error(`Symbol ${symbol} not found on Bybit Futures`);
   return info;
 }
 
 // ── Quantity & Price Utilities ────────────────────────────────
 
-/** Round quantity DOWN to the nearest stepSize. */
 export function floorToStep(value: number, stepSize: number): number {
   const precision = Math.max(0, Math.round(-Math.log10(stepSize)));
   const steps = Math.floor(value / stepSize);
   return parseFloat((steps * stepSize).toFixed(precision));
 }
 
-/** Round price to tickSize precision. */
 export function roundToTick(price: number, tickSize: number): number {
   const precision = Math.max(0, Math.round(-Math.log10(tickSize)));
   const ticks = Math.round(price / tickSize);
   return parseFloat((ticks * tickSize).toFixed(precision));
 }
 
-/** Validate and adjust quantity for Binance rules. Returns null if impossible. */
 export function adjustQuantity(
   rawQty: number,
   info: SymbolInfo
@@ -201,16 +234,20 @@ export function adjustQuantity(
   return { quantity: qty };
 }
 
-/** Validate notional (price * qty >= minNotional). */
 export function checkNotional(price: number, qty: number, info: SymbolInfo): boolean {
   return price * qty >= info.minNotional;
 }
 
 // ── Symbol Mapping ────────────────────────────────────────────
 
-/** Convert signal symbol to Binance Futures symbol. e.g., "MLNUSDT.P" → "MLNUSDT" */
 export function toBinanceSymbol(signalSymbol: string): string {
   return signalSymbol.replace(/\.P$/i, "");
+}
+
+// ── Bybit side mapping ────────────────────────────────────────
+
+function toBybitSide(side: "BUY" | "SELL"): "Buy" | "Sell" {
+  return side === "BUY" ? "Buy" : "Sell";
 }
 
 // ── Account & Position ────────────────────────────────────────
@@ -222,8 +259,40 @@ export interface FuturesBalance {
   crossUnPnl: string;
 }
 
+interface BybitWalletResult {
+  list: Array<{
+    accountType: string;
+    coin: Array<{
+      coin: string;
+      walletBalance: string;
+      availableToWithdraw: string;
+      unrealisedPnl: string;
+    }>;
+  }>;
+}
+
 export async function getBalance(creds: BinanceCredentials): Promise<FuturesBalance[]> {
-  return signedRequest<FuturesBalance[]>("GET", "/fapi/v2/balance", {}, creds);
+  // Try UNIFIED first, fall back to CONTRACT
+  for (const accountType of ["UNIFIED", "CONTRACT"]) {
+    try {
+      const data = await signedGet<BybitWalletResult>(
+        "/v5/account/wallet-balance",
+        { accountType },
+        creds
+      );
+      if (data.list.length > 0 && data.list[0].coin.length > 0) {
+        return data.list[0].coin.map((c) => ({
+          asset: c.coin,
+          balance: c.walletBalance,
+          availableBalance: c.availableToWithdraw,
+          crossUnPnl: c.unrealisedPnl,
+        }));
+      }
+    } catch {
+      continue;
+    }
+  }
+  return [];
 }
 
 export async function getUsdtBalance(creds: BinanceCredentials): Promise<{ total: number; available: number }> {
@@ -249,13 +318,47 @@ export interface FuturesPosition {
 }
 
 export async function getPositions(creds: BinanceCredentials): Promise<FuturesPosition[]> {
-  const all = await signedRequest<FuturesPosition[]>("GET", "/fapi/v2/positionRisk", {}, creds);
-  return all.filter((p) => parseFloat(p.positionAmt) !== 0);
+  const data = await signedGet<{ list: Array<Record<string, string>> }>(
+    "/v5/position/list",
+    { category: "linear", settleCoin: "USDT" },
+    creds
+  );
+  return data.list
+    .filter((p) => parseFloat(p.size) !== 0)
+    .map((p) => ({
+      symbol: p.symbol,
+      positionAmt: p.side === "Sell" ? `-${p.size}` : p.size,
+      entryPrice: p.avgPrice,
+      markPrice: p.markPrice,
+      unRealizedProfit: p.unrealisedPnl,
+      liquidationPrice: p.liqPrice,
+      leverage: p.leverage,
+      marginType: p.tradeMode === "1" ? "isolated" : "cross",
+      isolatedMargin: p.positionIM || "0",
+      positionSide: "BOTH",
+    }));
 }
 
 export async function getPosition(symbol: string, creds: BinanceCredentials): Promise<FuturesPosition | null> {
-  const all = await signedRequest<FuturesPosition[]>("GET", "/fapi/v2/positionRisk", { symbol }, creds);
-  return all.find((p) => parseFloat(p.positionAmt) !== 0) ?? null;
+  const data = await signedGet<{ list: Array<Record<string, string>> }>(
+    "/v5/position/list",
+    { category: "linear", symbol },
+    creds
+  );
+  const pos = data.list.find((p) => parseFloat(p.size) !== 0);
+  if (!pos) return null;
+  return {
+    symbol: pos.symbol,
+    positionAmt: pos.side === "Sell" ? `-${pos.size}` : pos.size,
+    entryPrice: pos.avgPrice,
+    markPrice: pos.markPrice,
+    unRealizedProfit: pos.unrealisedPnl,
+    liquidationPrice: pos.liqPrice,
+    leverage: pos.leverage,
+    marginType: pos.tradeMode === "1" ? "isolated" : "cross",
+    isolatedMargin: pos.positionIM || "0",
+    positionSide: "BOTH",
+  };
 }
 
 // ── Margin & Leverage ────────────────────────────────────────
@@ -266,10 +369,20 @@ export async function setMarginType(
   creds: BinanceCredentials
 ): Promise<void> {
   try {
-    await signedRequest("POST", "/fapi/v1/marginType", { symbol, marginType }, creds);
+    await signedPost(
+      "/v5/position/switch-isolated",
+      {
+        category: "linear",
+        symbol,
+        tradeMode: marginType === "ISOLATED" ? 1 : 0,
+        buyLeverage: "10",
+        sellLeverage: "10",
+      },
+      creds
+    );
   } catch (e) {
-    // Code -4046 means "No need to change margin type" (already set)
-    if (e instanceof BinanceApiError && e.code === -4046) return;
+    // 110026 = margin mode not modified (already set)
+    if (e instanceof BinanceApiError && e.code === 110026) return;
     throw e;
   }
 }
@@ -279,13 +392,28 @@ export async function setLeverage(
   leverage: number,
   creds: BinanceCredentials
 ): Promise<void> {
-  await signedRequest("POST", "/fapi/v1/leverage", { symbol, leverage }, creds);
+  try {
+    await signedPost(
+      "/v5/position/set-leverage",
+      {
+        category: "linear",
+        symbol,
+        buyLeverage: String(leverage),
+        sellLeverage: String(leverage),
+      },
+      creds
+    );
+  } catch (e) {
+    // 110043 = leverage not modified (already set)
+    if (e instanceof BinanceApiError && e.code === 110043) return;
+    throw e;
+  }
 }
 
 // ── Order Types ────────────────────────────────────────────
 
 export interface BinanceOrder {
-  orderId: number;
+  orderId: string;
   symbol: string;
   status: string;
   clientOrderId: string;
@@ -301,20 +429,84 @@ export interface BinanceOrder {
   updateTime: number;
 }
 
-/** Place a MARKET order for entry. Returns the order with fill info. */
+interface BybitOrderResult {
+  orderId: string;
+  orderLinkId: string;
+}
+
+interface BybitOrderDetail {
+  orderId: string;
+  orderLinkId: string;
+  symbol: string;
+  side: string;
+  orderType: string;
+  price: string;
+  qty: string;
+  cumExecQty: string;
+  cumExecValue: string;
+  avgPrice: string;
+  orderStatus: string;
+  triggerPrice: string;
+  createdTime: string;
+  updatedTime: string;
+}
+
+function mapBybitOrder(o: BybitOrderDetail): BinanceOrder {
+  return {
+    orderId: o.orderId,
+    symbol: o.symbol,
+    status: mapBybitStatus(o.orderStatus),
+    clientOrderId: o.orderLinkId,
+    price: o.price,
+    avgPrice: o.avgPrice,
+    origQty: o.qty,
+    executedQty: o.cumExecQty,
+    cumQuote: o.cumExecValue,
+    type: o.orderType,
+    side: o.side === "Buy" ? "BUY" : "SELL",
+    stopPrice: o.triggerPrice,
+    time: parseInt(o.createdTime) || 0,
+    updateTime: parseInt(o.updatedTime) || 0,
+  };
+}
+
+function mapBybitStatus(s: string): string {
+  const map: Record<string, string> = {
+    New: "NEW",
+    PartiallyFilled: "PARTIALLY_FILLED",
+    Filled: "FILLED",
+    Cancelled: "CANCELED",
+    Rejected: "REJECTED",
+    Deactivated: "CANCELED",
+    Triggered: "NEW",
+    Untriggered: "NEW",
+  };
+  return map[s] || s;
+}
+
+/** Place a MARKET order for entry. */
 export async function placeMarketOrder(
   symbol: string,
   side: "BUY" | "SELL",
   quantity: number,
   creds: BinanceCredentials
 ): Promise<BinanceOrder> {
-  return signedRequest<BinanceOrder>("POST", "/fapi/v1/order", {
-    symbol,
-    side,
-    type: "MARKET",
-    quantity,
-    newOrderRespType: "RESULT",
-  }, creds);
+  const result = await signedPost<BybitOrderResult>(
+    "/v5/order/create",
+    {
+      category: "linear",
+      symbol,
+      side: toBybitSide(side),
+      orderType: "Market",
+      qty: String(quantity),
+      timeInForce: "GTC",
+    },
+    creds
+  );
+
+  // Fetch filled order details
+  await new Promise((r) => setTimeout(r, 500));
+  return getOrder(symbol, result.orderId, creds);
 }
 
 /** Place a STOP_MARKET order (for SL). Uses reduceOnly. */
@@ -326,16 +518,41 @@ export async function placeStopMarket(
   creds: BinanceCredentials,
   tickSize: number
 ): Promise<BinanceOrder> {
-  return signedRequest<BinanceOrder>("POST", "/fapi/v1/order", {
+  // SL: exit side SELL → price falls (dir=2), exit side BUY → price rises (dir=1)
+  const triggerDirection = side === "SELL" ? 2 : 1;
+
+  const result = await signedPost<BybitOrderResult>(
+    "/v5/order/create",
+    {
+      category: "linear",
+      symbol,
+      side: toBybitSide(side),
+      orderType: "Market",
+      qty: String(quantity),
+      triggerPrice: String(roundToTick(stopPrice, tickSize)),
+      triggerDirection,
+      reduceOnly: true,
+      timeInForce: "GTC",
+    },
+    creds
+  );
+
+  return {
+    orderId: result.orderId,
     symbol,
-    side,
+    status: "NEW",
+    clientOrderId: result.orderLinkId || "",
+    price: "0",
+    avgPrice: "0",
+    origQty: String(quantity),
+    executedQty: "0",
+    cumQuote: "0",
     type: "STOP_MARKET",
-    stopPrice: roundToTick(stopPrice, tickSize),
-    quantity,
-    reduceOnly: true,
-    workingType: "CONTRACT_PRICE",
-    newOrderRespType: "RESULT",
-  }, creds);
+    side: side,
+    stopPrice: String(roundToTick(stopPrice, tickSize)),
+    time: Date.now(),
+    updateTime: Date.now(),
+  };
 }
 
 /** Place a TAKE_PROFIT_MARKET order. Uses reduceOnly. */
@@ -347,19 +564,44 @@ export async function placeTakeProfitMarket(
   creds: BinanceCredentials,
   tickSize: number
 ): Promise<BinanceOrder> {
-  return signedRequest<BinanceOrder>("POST", "/fapi/v1/order", {
+  // TP: exit side SELL → price rises (dir=1), exit side BUY → price falls (dir=2)
+  const triggerDirection = side === "SELL" ? 1 : 2;
+
+  const result = await signedPost<BybitOrderResult>(
+    "/v5/order/create",
+    {
+      category: "linear",
+      symbol,
+      side: toBybitSide(side),
+      orderType: "Market",
+      qty: String(quantity),
+      triggerPrice: String(roundToTick(stopPrice, tickSize)),
+      triggerDirection,
+      reduceOnly: true,
+      timeInForce: "GTC",
+    },
+    creds
+  );
+
+  return {
+    orderId: result.orderId,
     symbol,
-    side,
+    status: "NEW",
+    clientOrderId: result.orderLinkId || "",
+    price: "0",
+    avgPrice: "0",
+    origQty: String(quantity),
+    executedQty: "0",
+    cumQuote: "0",
     type: "TAKE_PROFIT_MARKET",
-    stopPrice: roundToTick(stopPrice, tickSize),
-    quantity,
-    reduceOnly: true,
-    workingType: "CONTRACT_PRICE",
-    newOrderRespType: "RESULT",
-  }, creds);
+    side: side,
+    stopPrice: String(roundToTick(stopPrice, tickSize)),
+    time: Date.now(),
+    updateTime: Date.now(),
+  };
 }
 
-/** Place a reduceOnly MARKET order to force-close a position (market turn, score degradation, kill switch). */
+/** Place a reduceOnly MARKET order to force-close a position. */
 export async function placeMarketClose(
   symbol: string,
   side: "BUY" | "SELL",
@@ -367,55 +609,147 @@ export async function placeMarketClose(
   creds: BinanceCredentials
 ): Promise<BinanceOrder> {
   const closeSide = side === "BUY" ? "SELL" : "BUY";
-  return signedRequest<BinanceOrder>("POST", "/fapi/v1/order", {
-    symbol,
-    side: closeSide,
-    type: "MARKET",
-    quantity,
-    reduceOnly: true,
-    newOrderRespType: "RESULT",
-  }, creds);
+  const result = await signedPost<BybitOrderResult>(
+    "/v5/order/create",
+    {
+      category: "linear",
+      symbol,
+      side: toBybitSide(closeSide),
+      orderType: "Market",
+      qty: String(quantity),
+      reduceOnly: true,
+      timeInForce: "GTC",
+    },
+    creds
+  );
+
+  await new Promise((r) => setTimeout(r, 500));
+  return getOrder(symbol, result.orderId, creds);
 }
 
 // ── Order Management ────────────────────────────────────────
 
 export async function cancelOrder(
   symbol: string,
-  orderId: number,
+  orderId: string,
   creds: BinanceCredentials
 ): Promise<BinanceOrder> {
-  return signedRequest<BinanceOrder>("DELETE", "/fapi/v1/order", { symbol, orderId }, creds);
+  // Try StopOrder first (SL/TP), then regular Order
+  for (const orderFilter of ["StopOrder", "Order"]) {
+    try {
+      await signedPost(
+        "/v5/order/cancel",
+        { category: "linear", symbol, orderId, orderFilter },
+        creds
+      );
+      return {
+        orderId,
+        symbol,
+        status: "CANCELED",
+        clientOrderId: "",
+        price: "0",
+        avgPrice: "0",
+        origQty: "0",
+        executedQty: "0",
+        cumQuote: "0",
+        type: "",
+        side: "",
+        stopPrice: "0",
+        time: 0,
+        updateTime: Date.now(),
+      };
+    } catch (e) {
+      if (e instanceof BinanceApiError && orderFilter === "StopOrder") continue;
+      throw e;
+    }
+  }
+  throw new BinanceApiError("Order not found for cancellation", 110001, "/v5/order/cancel");
 }
 
 export async function cancelAllOrders(
   symbol: string,
   creds: BinanceCredentials
 ): Promise<void> {
-  await signedRequest("DELETE", "/fapi/v1/allOpenOrders", { symbol }, creds);
+  // Cancel both regular and conditional orders
+  const filters = ["Order", "StopOrder"];
+  for (const orderFilter of filters) {
+    try {
+      await signedPost(
+        "/v5/order/cancel-all",
+        { category: "linear", symbol, orderFilter },
+        creds
+      );
+    } catch {
+      // best effort
+    }
+  }
 }
 
 export async function getOpenOrders(
   symbol: string,
   creds: BinanceCredentials
 ): Promise<BinanceOrder[]> {
-  return signedRequest<BinanceOrder[]>("GET", "/fapi/v1/openOrders", { symbol }, creds);
+  const results: BinanceOrder[] = [];
+  for (const orderFilter of ["Order", "StopOrder"]) {
+    try {
+      const data = await signedGet<{ list: BybitOrderDetail[] }>(
+        "/v5/order/realtime",
+        { category: "linear", symbol, orderFilter },
+        creds
+      );
+      results.push(...data.list.map(mapBybitOrder));
+    } catch {
+      continue;
+    }
+  }
+  return results;
 }
 
 export async function getOrder(
   symbol: string,
-  orderId: number,
+  orderId: string,
   creds: BinanceCredentials
 ): Promise<BinanceOrder> {
-  return signedRequest<BinanceOrder>("GET", "/fapi/v1/order", { symbol, orderId }, creds);
+  // Check order history first (filled/cancelled orders)
+  try {
+    const hist = await signedGet<{ list: BybitOrderDetail[] }>(
+      "/v5/order/history",
+      { category: "linear", symbol, orderId },
+      creds
+    );
+    if (hist.list.length > 0) return mapBybitOrder(hist.list[0]);
+  } catch {
+    // continue to realtime
+  }
+
+  // Check active orders
+  for (const orderFilter of ["Order", "StopOrder"]) {
+    try {
+      const data = await signedGet<{ list: BybitOrderDetail[] }>(
+        "/v5/order/realtime",
+        { category: "linear", symbol, orderId, orderFilter },
+        creds
+      );
+      if (data.list.length > 0) return mapBybitOrder(data.list[0]);
+    } catch {
+      continue;
+    }
+  }
+
+  throw new BinanceApiError(`Order ${orderId} not found`, 110001, "/v5/order");
 }
 
-/** Get all orders for a symbol (filled, cancelled, etc.). */
 export async function getAllOrders(
   symbol: string,
   creds: BinanceCredentials,
   limit = 50
 ): Promise<BinanceOrder[]> {
-  return signedRequest<BinanceOrder[]>("GET", "/fapi/v1/allOrders", { symbol, limit }, creds);
+  const data = await signedGet<{ list: BybitOrderDetail[] }>(
+    "/v5/order/history",
+    { category: "linear", symbol, limit },
+    creds
+  );
+  return data.list.map(mapBybitOrder);
 }
 
 // ── Batch Operations ────────────────────────────────────────
@@ -426,11 +760,6 @@ export interface BatchOrderResult {
   error?: string;
 }
 
-/**
- * Place the full set of exit orders for a trade:
- * SL (100% qty), TP1 (50%), TP2 (25%), TP3 (25%).
- * Returns individual results so caller can handle partial failures.
- */
 export async function placeExitOrders(
   symbol: string,
   side: "BUY" | "SELL",
@@ -463,24 +792,19 @@ export async function placeExitOrders(
     }
   };
 
-  const [slOrder, tp1Order, tp2Order, tp3Order] = await Promise.all([
-    exec(() => placeStopMarket(symbol, exitSide, sl, quantity, creds, info.tickSize)),
-    exec(() => placeTakeProfitMarket(symbol, exitSide, tp1, tp1Qty, creds, info.tickSize)),
-    exec(() => placeTakeProfitMarket(symbol, exitSide, tp2, tp2Qty, creds, info.tickSize)),
-    exec(() => placeTakeProfitMarket(symbol, exitSide, tp3, tp3Qty, creds, info.tickSize)),
-  ]);
+  // Place sequentially to avoid Bybit rate limits on conditional orders
+  const slOrder = await exec(() => placeStopMarket(symbol, exitSide, sl, quantity, creds, info.tickSize));
+  const tp1Order = await exec(() => placeTakeProfitMarket(symbol, exitSide, tp1, tp1Qty, creds, info.tickSize));
+  const tp2Order = await exec(() => placeTakeProfitMarket(symbol, exitSide, tp2, tp2Qty, creds, info.tickSize));
+  const tp3Order = await exec(() => placeTakeProfitMarket(symbol, exitSide, tp3, tp3Qty, creds, info.tickSize));
 
   return { slOrder, tp1Order, tp2Order, tp3Order };
 }
 
-/**
- * Replace the SL order after a TP hit.
- * Cancels old SL and places new one at the given price for the remaining quantity.
- */
 export async function replaceSl(
   symbol: string,
   side: "BUY" | "SELL",
-  oldSlOrderId: number,
+  oldSlOrderId: string,
   newSlPrice: number,
   remainingQty: number,
   info: SymbolInfo,
@@ -491,7 +815,7 @@ export async function replaceSl(
     await cancelOrder(symbol, oldSlOrderId, creds);
     cancelled = true;
   } catch (e) {
-    if (e instanceof BinanceApiError && e.code === -2011) {
+    if (e instanceof BinanceApiError) {
       cancelled = true; // already cancelled or filled
     }
   }

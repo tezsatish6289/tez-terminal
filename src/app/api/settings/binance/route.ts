@@ -5,7 +5,7 @@ import { getUsdtBalance } from "@/lib/binance";
 
 /**
  * GET  — check if credentials are saved + auto-trade status
- * POST — save (encrypted) Binance API key + secret
+ * POST — save (encrypted) Bybit API key + secret
  * PUT  — update auto-trade config (toggle, risk, max trades, etc.)
  */
 export async function GET(request: NextRequest) {
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     if (balance.total < 0) throw new Error("Unexpected negative balance");
   } catch (e) {
     return NextResponse.json({
-      error: `Invalid Binance credentials: ${e instanceof Error ? e.message : String(e)}`,
+      error: `Invalid Bybit credentials: ${e instanceof Error ? e.message : String(e)}`,
     }, { status: 400 });
   }
 
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     savedAt: new Date().toISOString(),
   });
 
-  return NextResponse.json({ success: true, message: "Binance credentials saved and validated." });
+  return NextResponse.json({ success: true, message: "Bybit credentials saved and validated." });
 }
 
 export async function PUT(request: NextRequest) {
@@ -87,7 +87,7 @@ export async function PUT(request: NextRequest) {
   const ref = db.collection("users").doc(uid).collection("secrets").doc("binance");
   const doc = await ref.get();
   if (!doc.exists) {
-    return NextResponse.json({ error: "Binance credentials not configured yet" }, { status: 400 });
+    return NextResponse.json({ error: "Bybit credentials not configured yet" }, { status: 400 });
   }
 
   await ref.update(filtered);

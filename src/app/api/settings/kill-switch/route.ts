@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
   const creds: Credentials = {
     apiKey: decrypt(atData.encryptedKey),
     apiSecret: decrypt(atData.encryptedSecret),
+    testnet: atData.useTestnet === true,
   };
 
   const openSnap = await db.collection("live_trades")

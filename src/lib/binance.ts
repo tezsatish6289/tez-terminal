@@ -11,8 +11,8 @@ import crypto from "crypto";
 const PROD_BASE = "https://api.bybit.com";
 const TESTNET_BASE = "https://api-testnet.bybit.com";
 
-function getBaseUrl(): string {
-  return process.env.BYBIT_TESTNET === "true" ? TESTNET_BASE : PROD_BASE;
+function baseUrl(testnet?: boolean): string {
+  return testnet ? TESTNET_BASE : PROD_BASE;
 }
 
 // ── HMAC Signing (Bybit v5) ────────────────────────────────
@@ -33,6 +33,7 @@ function sign(
 export interface BinanceCredentials {
   apiKey: string;
   apiSecret: string;
+  testnet?: boolean;
 }
 
 interface BybitResponse<T> {
@@ -47,7 +48,7 @@ async function signedGet<T>(
   params: Record<string, string | number | boolean>,
   creds: BinanceCredentials
 ): Promise<T> {
-  const baseUrl = getBaseUrl();
+  const base = baseUrl(creds.testnet);
   const timestamp = Date.now();
   const recvWindow = 5000;
 
@@ -58,7 +59,7 @@ async function signedGet<T>(
 
   const signature = sign(timestamp, creds.apiKey, recvWindow, qs, creds.apiSecret);
 
-  const res = await fetch(`${baseUrl}${path}${qs ? `?${qs}` : ""}`, {
+  const res = await fetch(`${base}${path}${qs ? `?${qs}` : ""}`, {
     method: "GET",
     headers: {
       "X-BAPI-API-KEY": creds.apiKey,
@@ -81,14 +82,14 @@ async function signedPost<T>(
   body: Record<string, unknown>,
   creds: BinanceCredentials
 ): Promise<T> {
-  const baseUrl = getBaseUrl();
+  const base = baseUrl(creds.testnet);
   const timestamp = Date.now();
   const recvWindow = 5000;
 
   const bodyStr = JSON.stringify(body);
   const signature = sign(timestamp, creds.apiKey, recvWindow, bodyStr, creds.apiSecret);
 
-  const res = await fetch(`${baseUrl}${path}`, {
+  const res = await fetch(`${base}${path}`, {
     method: "POST",
     headers: {
       "X-BAPI-API-KEY": creds.apiKey,
@@ -110,13 +111,14 @@ async function signedPost<T>(
 
 async function publicGet<T>(
   path: string,
-  params?: Record<string, string | number>
+  params?: Record<string, string | number>,
+  testnet?: boolean
 ): Promise<T> {
-  const baseUrl = getBaseUrl();
+  const base = baseUrl(testnet);
   const qs = params
     ? "?" + Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join("&")
     : "";
-  const res = await fetch(`${baseUrl}${path}${qs}`);
+  const res = await fetch(`${base}${path}${qs}`);
   const data = (await res.json()) as BybitResponse<T>;
   if (data.retCode !== 0) {
     throw new BinanceApiError(data.retMsg, data.retCode, path);
@@ -165,18 +167,20 @@ interface BybitInstrument {
   };
 }
 
-let cachedSymbols: Map<string, SymbolInfo> = new Map();
-let cacheTimestamp = 0;
+const cache: Record<string, { symbols: Map<string, SymbolInfo>; ts: number }> = {};
 const CACHE_TTL_MS = 4 * 60 * 60 * 1000;
 
-export async function getExchangeInfo(forceRefresh = false): Promise<Map<string, SymbolInfo>> {
-  if (!forceRefresh && cachedSymbols.size > 0 && Date.now() - cacheTimestamp < CACHE_TTL_MS) {
-    return cachedSymbols;
+export async function getExchangeInfo(forceRefresh = false, testnet?: boolean): Promise<Map<string, SymbolInfo>> {
+  const key = testnet ? "testnet" : "prod";
+  const cached = cache[key];
+  if (!forceRefresh && cached && cached.symbols.size > 0 && Date.now() - cached.ts < CACHE_TTL_MS) {
+    return cached.symbols;
   }
 
   const data = await publicGet<{ list: BybitInstrument[] }>(
     "/v5/market/instruments-info",
-    { category: "linear" }
+    { category: "linear" },
+    testnet
   );
   const map = new Map<string, SymbolInfo>();
 
@@ -198,13 +202,12 @@ export async function getExchangeInfo(forceRefresh = false): Promise<Map<string,
     });
   }
 
-  cachedSymbols = map;
-  cacheTimestamp = Date.now();
+  cache[key] = { symbols: map, ts: Date.now() };
   return map;
 }
 
-export async function getSymbolInfo(symbol: string): Promise<SymbolInfo> {
-  const map = await getExchangeInfo();
+export async function getSymbolInfo(symbol: string, testnet?: boolean): Promise<SymbolInfo> {
+  const map = await getExchangeInfo(false, testnet);
   const info = map.get(symbol);
   if (!info) throw new Error(`Symbol ${symbol} not found on Bybit Futures`);
   return info;

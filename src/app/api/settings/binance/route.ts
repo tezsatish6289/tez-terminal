@@ -42,13 +42,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing uid, apiKey, or apiSecret" }, { status: 400 });
     }
 
-    // Validate the credentials by attempting a balance check
+    const useTestnet = body.useTestnet === true;
+
+    // Validate the credentials by attempting a balance check against the correct environment
     try {
-      const balance = await getUsdtBalance({ apiKey, apiSecret });
+      const balance = await getUsdtBalance({ apiKey, apiSecret, testnet: useTestnet });
       if (balance.total < 0) throw new Error("Unexpected negative balance");
     } catch (e) {
       return NextResponse.json({
-        error: `Invalid Bybit credentials: ${e instanceof Error ? e.message : String(e)}`,
+        error: `Invalid Bybit credentials for ${useTestnet ? "testnet" : "production"}: ${e instanceof Error ? e.message : String(e)}`,
       }, { status: 400 });
     }
 
@@ -61,7 +63,7 @@ export async function POST(request: NextRequest) {
       riskPerTrade: 0.5,
       maxConcurrentTrades: 1,
       dailyLossLimit: 5,
-      useTestnet: true,
+      useTestnet,
       savedAt: new Date().toISOString(),
     });
 

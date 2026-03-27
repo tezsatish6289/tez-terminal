@@ -441,6 +441,7 @@ export async function POST(request: NextRequest) {
                       const creds: Credentials = {
                         apiKey: decrypt(atData.encryptedKey),
                         apiSecret: decrypt(atData.encryptedSecret),
+                        testnet: atData.useTestnet === true,
                       };
 
                       const liveResult = await executeExchangeTrade(

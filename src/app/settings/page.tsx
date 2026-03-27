@@ -208,7 +208,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/settings/binance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid: user.uid, apiKey: apiKeyInput, apiSecret: apiSecretInput }),
+        body: JSON.stringify({ uid: user.uid, apiKey: apiKeyInput, apiSecret: apiSecretInput, useTestnet: binanceConfig?.useTestnet ?? false }),
       });
       const data = await res.json().catch(() => ({ error: `Server returned ${res.status}` }));
       if (data.success) {
@@ -302,8 +302,13 @@ export default function SettingsPage() {
             <Settings className="h-8 w-8 text-accent opacity-20" />
           </div>
 
-          {/* Auto-Trade (Binance) Section */}
-          <Card className="bg-secondary/20 border-accent/20">
+          {/* Auto-Trade · Bybit Section */}
+          <Card className={cn(
+            "border-2",
+            binanceConfig?.configured && !binanceConfig.useTestnet
+              ? "bg-secondary/20 border-amber-400/30"
+              : "bg-secondary/20 border-accent/20"
+          )}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -318,11 +323,15 @@ export default function SettingsPage() {
                 {binanceConfig?.configured ? (
                   <Badge className={cn(
                     binanceConfig.autoTradeEnabled
-                      ? "bg-positive/20 text-positive border-positive/30"
-                      : "bg-amber-400/15 text-amber-400 border-amber-400/30"
+                      ? binanceConfig.useTestnet
+                        ? "bg-blue-400/20 text-blue-400 border-blue-400/30"
+                        : "bg-positive/20 text-positive border-positive/30"
+                      : "bg-zinc-400/15 text-zinc-400 border-zinc-400/30"
                   )}>
                     {binanceConfig.autoTradeEnabled ? (
-                      <><Power className="h-3 w-3 mr-1" /> Live</>
+                      binanceConfig.useTestnet
+                        ? <><Shield className="h-3 w-3 mr-1" /> Testnet</>
+                        : <><Power className="h-3 w-3 mr-1" /> Live</>
                     ) : (
                       <><Shield className="h-3 w-3 mr-1" /> Standby</>
                     )}
@@ -339,35 +348,74 @@ export default function SettingsPage() {
                 </div>
               ) : binanceConfig?.configured ? (
                 <div className="space-y-4">
+                  {/* Mode Banner */}
+                  {binanceConfig.useTestnet ? (
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-400/[0.08] border border-blue-400/20">
+                      <Shield className="w-5 h-5 text-blue-400 shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-blue-400">TESTNET MODE</p>
+                        <p className="text-[10px] text-blue-400/70">Fake money. Safe to experiment. No real risk.</p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-[10px] border-amber-400/30 text-amber-400 hover:bg-amber-400/10"
+                        onClick={() => {
+                          if (confirm("Switch to PRODUCTION? You will need to re-enter your production API keys. Real money will be at risk.")) {
+                            updateBinanceSetting("useTestnet", false);
+                            setBinanceConfig((prev) => prev ? { ...prev, configured: false, useTestnet: false } : null);
+                          }
+                        }}
+                      >
+                        Switch to Production
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-400/[0.08] border border-amber-400/20">
+                      <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-amber-400">PRODUCTION MODE</p>
+                        <p className="text-[10px] text-amber-400/70">Real money. Real trades. Real profit & loss.</p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-[10px] border-blue-400/30 text-blue-400 hover:bg-blue-400/10"
+                        onClick={() => {
+                          updateBinanceSetting("useTestnet", true);
+                          setBinanceConfig((prev) => prev ? { ...prev, configured: false, useTestnet: true } : null);
+                        }}
+                      >
+                        Switch to Testnet
+                      </Button>
+                    </div>
+                  )}
+
                   {/* Kill Switch */}
                   <div className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-white/5">
                     <div>
                       <p className="text-sm font-medium text-foreground">Auto-Trade Enabled</p>
                       <p className="text-[10px] text-muted-foreground">
                         {binanceConfig.autoTradeEnabled
-                          ? "Live trading is ON. Trades will execute on Bybit."
-                          : "Trading paused. Simulator runs but no real orders."}
+                          ? binanceConfig.useTestnet
+                            ? "Testnet trading is ON. Using fake money."
+                            : "Live trading is ON. Trades will execute with real money."
+                          : "Trading paused. Simulator runs but no orders placed."}
                       </p>
                     </div>
                     <Switch
                       checked={binanceConfig.autoTradeEnabled}
-                      onCheckedChange={(checked) => updateBinanceSetting("autoTradeEnabled", checked)}
-                      className="data-[state=checked]:bg-positive"
-                    />
-                  </div>
-
-                  {/* Testnet Toggle */}
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-white/5">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">Testnet Mode</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {binanceConfig.useTestnet ? "Using Bybit testnet (fake money)." : "Using PRODUCTION Bybit (real money)."}
-                      </p>
-                    </div>
-                    <Switch
-                      checked={binanceConfig.useTestnet}
-                      onCheckedChange={(checked) => updateBinanceSetting("useTestnet", checked)}
-                      className="data-[state=checked]:bg-accent"
+                      onCheckedChange={(checked) => {
+                        if (checked && !binanceConfig.useTestnet) {
+                          if (!confirm("Enable auto-trade in PRODUCTION mode? Real money will be used for trades.")) return;
+                        }
+                        updateBinanceSetting("autoTradeEnabled", checked);
+                      }}
+                      className={cn(
+                        binanceConfig.useTestnet
+                          ? "data-[state=checked]:bg-blue-500"
+                          : "data-[state=checked]:bg-positive"
+                      )}
                     />
                   </div>
 
@@ -375,7 +423,7 @@ export default function SettingsPage() {
                     <div className="flex items-start gap-2 p-2.5 rounded-lg bg-rose-400/[0.06] border border-rose-400/15">
                       <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
                       <p className="text-[11px] text-rose-400/80 leading-relaxed">
-                        Live trading with real money is active. Ensure you understand the risks. Use the kill switch above to stop all trading immediately.
+                        Live trading with real money is active. Toggle off above to stop all new trades immediately.
                       </p>
                     </div>
                   )}
@@ -385,7 +433,7 @@ export default function SettingsPage() {
                     <div className="flex items-center gap-3">
                       <Shield className="h-4 w-4 text-accent" />
                       <div>
-                        <p className="text-sm font-medium text-foreground">API Key</p>
+                        <p className="text-sm font-medium text-foreground">API Key ({binanceConfig.useTestnet ? "Testnet" : "Production"})</p>
                         <p className="text-[10px] text-muted-foreground">
                           Ending in ****{binanceConfig.keyLastFour} · Saved {binanceConfig.savedAt ? new Date(binanceConfig.savedAt).toLocaleDateString() : ""}
                         </p>
@@ -449,20 +497,60 @@ export default function SettingsPage() {
                   <div className="flex items-start gap-2 p-2.5 rounded-lg bg-accent/[0.04] border border-accent/10">
                     <Shield className="w-3.5 h-3.5 text-accent shrink-0 mt-0.5" />
                     <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
-                      The adaptive throttle system manages these dynamically: risk scales from {binanceConfig.riskPerTrade}% → 1% on win streaks, concurrent trades scale from {binanceConfig.maxConcurrentTrades} → 5 on consecutive wins. A single loss resets both to base values. These are hard caps on top of that.
+                      The adaptive throttle manages these dynamically: risk scales from {binanceConfig.riskPerTrade}% → 1% on win streaks, concurrent trades scale from {binanceConfig.maxConcurrentTrades} → 5 on consecutive wins. A single loss resets both to base values.
                     </p>
                   </div>
                 </div>
               ) : (
                 /* API Key Entry Form */
                 <div className="space-y-4">
+                  {/* Mode Selector */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setBinanceConfig((prev) => prev ? { ...prev, useTestnet: true } : { configured: false, autoTradeEnabled: false, keyLastFour: "", riskPerTrade: 0.5, maxConcurrentTrades: 1, dailyLossLimit: 5, useTestnet: true, savedAt: null })}
+                      className={cn(
+                        "p-3 rounded-lg border-2 text-left transition-all",
+                        (binanceConfig?.useTestnet ?? true)
+                          ? "border-blue-400/40 bg-blue-400/[0.08]"
+                          : "border-white/5 bg-background/50 hover:border-white/10"
+                      )}
+                    >
+                      <p className={cn("text-sm font-bold", (binanceConfig?.useTestnet ?? true) ? "text-blue-400" : "text-muted-foreground")}>
+                        Testnet
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">Fake money, safe to test</p>
+                    </button>
+                    <button
+                      onClick={() => setBinanceConfig((prev) => prev ? { ...prev, useTestnet: false } : { configured: false, autoTradeEnabled: false, keyLastFour: "", riskPerTrade: 0.5, maxConcurrentTrades: 1, dailyLossLimit: 5, useTestnet: false, savedAt: null })}
+                      className={cn(
+                        "p-3 rounded-lg border-2 text-left transition-all",
+                        binanceConfig && !binanceConfig.useTestnet
+                          ? "border-amber-400/40 bg-amber-400/[0.08]"
+                          : "border-white/5 bg-background/50 hover:border-white/10"
+                      )}
+                    >
+                      <p className={cn("text-sm font-bold", binanceConfig && !binanceConfig.useTestnet ? "text-amber-400" : "text-muted-foreground")}>
+                        Production
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">Real money, real trades</p>
+                    </button>
+                  </div>
+
                   <div className="text-center py-2">
-                    <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-accent/10 border border-accent/20 mb-3">
-                      <Zap className="h-8 w-8 text-accent" />
+                    <div className={cn(
+                      "inline-flex items-center justify-center h-16 w-16 rounded-2xl border mb-3",
+                      (binanceConfig?.useTestnet ?? true) ? "bg-blue-400/10 border-blue-400/20" : "bg-amber-400/10 border-amber-400/20"
+                    )}>
+                      <Zap className={cn("h-8 w-8", (binanceConfig?.useTestnet ?? true) ? "text-blue-400" : "text-amber-400")} />
                     </div>
-                    <p className="text-sm text-foreground font-medium">Connect your Bybit account</p>
+                    <p className="text-sm text-foreground font-medium">
+                      Connect your Bybit {(binanceConfig?.useTestnet ?? true) ? "Testnet" : "Production"} account
+                    </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      API keys are encrypted with AES-256 and stored server-side only.
+                      {(binanceConfig?.useTestnet ?? true)
+                        ? "Get testnet API keys from testnet.bybit.com"
+                        : "Get production API keys from bybit.com"}
+                      {" · "}Encrypted with AES-256, stored server-side only.
                     </p>
                   </div>
 
@@ -472,7 +560,7 @@ export default function SettingsPage() {
                       type="text"
                       value={apiKeyInput}
                       onChange={(e) => setApiKeyInput(e.target.value)}
-                      placeholder="Enter your Bybit API key"
+                      placeholder={`Enter your Bybit ${(binanceConfig?.useTestnet ?? true) ? "testnet" : "production"} API key`}
                       className="w-full h-10 px-3 rounded-md border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent font-mono"
                     />
                   </div>
@@ -484,7 +572,7 @@ export default function SettingsPage() {
                         type={showSecret ? "text" : "password"}
                         value={apiSecretInput}
                         onChange={(e) => setApiSecretInput(e.target.value)}
-                        placeholder="Enter your Bybit API secret"
+                        placeholder={`Enter your Bybit ${(binanceConfig?.useTestnet ?? true) ? "testnet" : "production"} API secret`}
                         className="w-full h-10 px-3 pr-10 rounded-md border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent font-mono"
                       />
                       <button
@@ -497,20 +585,27 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-400/[0.06] border border-amber-400/15">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-                    <p className="text-[11px] text-amber-400/80 leading-relaxed">
-                      Only enable <strong>Contract</strong> trading permission on your API key. Never enable withdrawals. Your credentials will be validated against Bybit before saving.
-                    </p>
-                  </div>
+                  {binanceConfig && !binanceConfig.useTestnet && (
+                    <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-400/[0.06] border border-amber-400/15">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                      <p className="text-[11px] text-amber-400/80 leading-relaxed">
+                        You are connecting a <strong>production</strong> account. Only enable <strong>Contract</strong> trading permission on your API key. Never enable withdrawals.
+                      </p>
+                    </div>
+                  )}
 
                   <Button
                     onClick={saveBinanceKeys}
                     disabled={!apiKeyInput || !apiSecretInput || isSavingBinance}
-                    className="w-full gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
+                    className={cn(
+                      "w-full gap-2",
+                      (binanceConfig?.useTestnet ?? true)
+                        ? "bg-blue-500 text-white hover:bg-blue-500/90"
+                        : "bg-amber-500 text-black hover:bg-amber-500/90"
+                    )}
                   >
                     {isSavingBinance ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
-                    Validate & Save
+                    Validate & Save ({(binanceConfig?.useTestnet ?? true) ? "Testnet" : "Production"})
                   </Button>
                 </div>
               )}

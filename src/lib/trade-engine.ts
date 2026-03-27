@@ -86,6 +86,7 @@ export interface TradeExecutionResult {
 export interface Credentials {
   apiKey: string;
   apiSecret: string;
+  testnet?: boolean;
 }
 
 // ── Credential Helpers ────────────────────────────────────────
@@ -118,7 +119,7 @@ export async function executeTrade(
   const binanceSymbol = toBinanceSymbol(simTrade.symbol);
 
   try {
-    const info = await getSymbolInfo(binanceSymbol);
+    const info = await getSymbolInfo(binanceSymbol, creds.testnet);
 
     // 1. Set isolated margin
     await setMarginType(binanceSymbol, "ISOLATED", creds);
@@ -270,7 +271,7 @@ export async function handleTpFill(
   warnings: string[];
 }> {
   const warnings: string[] = [];
-  const info = await getSymbolInfo(trade.symbol);
+  const info = await getSymbolInfo(trade.symbol, creds.testnet);
 
   const newRemainingQty = floorToStep(trade.remainingQty - fillQty, info.stepSize);
   const closePct = fillQty / trade.quantity;
@@ -409,7 +410,7 @@ export async function moveSlToBreakeven(
 
   if (!crossed) return { moved: false };
 
-  const info = await getSymbolInfo(trade.symbol);
+  const info = await getSymbolInfo(trade.symbol, creds.testnet);
 
   if (!trade.slOrderId) {
     return { moved: false, warning: "No SL order ID to replace" };

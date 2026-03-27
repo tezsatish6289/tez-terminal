@@ -44,5 +44,3 @@ env:
     secret: ENCRYPTION_KEY
     availability:
       - RUNTIME
-  - variable: BYBIT_TESTNET
-    value: "true"

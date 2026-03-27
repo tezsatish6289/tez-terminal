@@ -897,6 +897,7 @@ export async function GET(request: NextRequest) {
         const creds: Credentials = {
           apiKey: decrypt(atData.encryptedKey),
           apiSecret: decrypt(atData.encryptedSecret),
+          testnet: atData.useTestnet === true,
         };
 
         const liveTradesSnap = await db.collection("live_trades")

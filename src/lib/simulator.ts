@@ -167,11 +167,6 @@ export function selectIncubatedSignals(params: {
 
   if (!currentState.isActive) return { selected, skipped };
 
-  // Cool-off check
-  if (currentState.coolOffUntil && new Date() < new Date(currentState.coolOffUntil)) {
-    return { selected, skipped };
-  }
-
   // Bias gate
   const biasGap = bullScore - bearScore;
   const isBullBias = biasGap > SIM_CONFIG.BIAS_GAP_MIN;
@@ -179,6 +174,7 @@ export function selectIncubatedSignals(params: {
   if (!isBullBias && !isBearBias) return { selected, skipped };
   const biasedSide = isBullBias ? "BUY" : "SELL";
 
+  const maxTrades = currentState.currentMaxTrades ?? SIM_CONFIG.MAX_OPEN_TRADES_BASE;
   const currentOpen = openTrades.filter((t) => t.status === "OPEN");
   const openSymbols = new Set(currentOpen.map((t) => t.symbol));
   const openSignalIds = new Set(currentOpen.map((t) => t.signalId));
@@ -187,7 +183,7 @@ export function selectIncubatedSignals(params: {
   const sorted = [...candidates].sort((a, b) => b.confidenceScore - a.confidenceScore);
 
   for (const c of sorted) {
-    if (currentOpen.length + selected.length >= SIM_CONFIG.MAX_OPEN_TRADES) break;
+    if (currentOpen.length + selected.length >= maxTrades) break;
 
     // Already in simulator
     if (openSignalIds.has(c.id)) {

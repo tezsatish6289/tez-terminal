@@ -1,27 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { encrypt, decrypt } from "@/lib/crypto";
-import { getConnector, isExchangeSupported, type ExchangeName } from "@/lib/exchanges";
+import {
+  getConnector,
+  isExchangeSupported,
+  getSecretDocId,
+  getSecretDocIds,
+  docMatchesExchange,
+  type ExchangeName,
+} from "@/lib/exchanges";
 
 /**
  * Exchange credentials management.
  *
  * Supports multiple exchanges via the `exchange` parameter.
- * Backward compatible: defaults to "BYBIT" when no exchange is specified.
- * Credentials are stored at: users/{uid}/secrets/{exchange_lowercase}
+ * Credentials are stored at: users/{uid}/secrets/{docId}
+ *   - BYBIT   → secrets/bybit   (fallback: legacy secrets/binance)
+ *   - BINANCE → secrets/binance_futures
+ *   - MEXC    → secrets/mexc
  *
- * GET  — check if credentials are saved + auto-trade status
- * POST — save (encrypted) API key + secret
- * PUT  — update auto-trade config (toggle, risk, max trades, etc.)
+ * GET    — check if credentials are saved + auto-trade status
+ * POST   — save (encrypted) API key + secret
+ * PUT    — update auto-trade config (toggle, risk, max trades, etc.)
+ * DELETE — remove credentials for an exchange
  */
 
-function resolveExchange(param: string | null): { name: ExchangeName; docId: string } {
+function resolveExchangeName(param: string | null | undefined): ExchangeName {
   const raw = (param || "BYBIT").toUpperCase();
-  // Backward compat: treat "BINANCE" param as Bybit when it's the legacy doc
-  if (!isExchangeSupported(raw)) {
-    return { name: "BYBIT", docId: "binance" };
-  }
-  return { name: raw as ExchangeName, docId: raw.toLowerCase() };
+  if (!isExchangeSupported(raw)) return "BYBIT";
+  return raw as ExchangeName;
 }
 
 export async function GET(request: NextRequest) {
@@ -29,21 +36,27 @@ export async function GET(request: NextRequest) {
   const uid = searchParams.get("uid");
   if (!uid) return NextResponse.json({ error: "Missing uid" }, { status: 400 });
 
-  const { name: exchangeName, docId } = resolveExchange(searchParams.get("exchange"));
-
+  const exchangeName = resolveExchangeName(searchParams.get("exchange"));
   const db = getAdminFirestore();
 
-  // Check the exchange-specific doc, falling back to legacy "binance" doc for Bybit
-  let doc = await db.collection("users").doc(uid).collection("secrets").doc(docId).get();
-  if (!doc.exists && exchangeName === "BYBIT" && docId !== "binance") {
-    doc = await db.collection("users").doc(uid).collection("secrets").doc("binance").get();
+  const docIds = getSecretDocIds(exchangeName);
+  let data: Record<string, unknown> | null = null;
+
+  for (const id of docIds) {
+    const doc = await db.collection("users").doc(uid).collection("secrets").doc(id).get();
+    if (doc.exists) {
+      const docData = doc.data()!;
+      if (docMatchesExchange(docData, exchangeName)) {
+        data = docData;
+        break;
+      }
+    }
   }
 
-  if (!doc.exists) {
+  if (!data) {
     return NextResponse.json({ configured: false, autoTradeEnabled: false, exchange: exchangeName });
   }
 
-  const data = doc.data()!;
   return NextResponse.json({
     configured: true,
     exchange: exchangeName,
@@ -66,10 +79,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing uid, apiKey, or apiSecret" }, { status: 400 });
     }
 
-    const { name: exchangeName, docId } = resolveExchange(body.exchange);
+    const exchangeName = resolveExchangeName(body.exchange);
     const useTestnet = body.useTestnet === true;
+    const docId = getSecretDocId(exchangeName);
 
-    // Validate credentials by attempting a balance check on the target exchange
+    // Validate credentials by attempting a balance check
     try {
       const connector = getConnector(exchangeName);
       const balance = await connector.getUsdtBalance({ apiKey, apiSecret, testnet: useTestnet });
@@ -109,8 +123,7 @@ export async function PUT(request: NextRequest) {
 
   if (!uid) return NextResponse.json({ error: "Missing uid" }, { status: 400 });
 
-  const { name: exchangeName, docId } = resolveExchange(body.exchange);
-
+  const exchangeName = resolveExchangeName(body.exchange);
   const allowed = ["autoTradeEnabled", "riskPerTrade", "maxConcurrentTrades", "dailyLossLimit", "useTestnet"];
   const filtered: Record<string, unknown> = {};
   for (const key of allowed) {
@@ -122,19 +135,49 @@ export async function PUT(request: NextRequest) {
   }
 
   const db = getAdminFirestore();
+  const docIds = getSecretDocIds(exchangeName);
+  let ref: FirebaseFirestore.DocumentReference | null = null;
 
-  // Check exchange-specific doc, fall back to legacy "binance" doc
-  let ref = db.collection("users").doc(uid).collection("secrets").doc(docId);
-  let doc = await ref.get();
-  if (!doc.exists && exchangeName === "BYBIT" && docId !== "binance") {
-    ref = db.collection("users").doc(uid).collection("secrets").doc("binance");
-    doc = await ref.get();
+  for (const id of docIds) {
+    const docRef = db.collection("users").doc(uid).collection("secrets").doc(id);
+    const doc = await docRef.get();
+    if (doc.exists && docMatchesExchange(doc.data()!, exchangeName)) {
+      ref = docRef;
+      break;
+    }
   }
 
-  if (!doc.exists) {
+  if (!ref) {
     return NextResponse.json({ error: `${exchangeName} credentials not configured yet` }, { status: 400 });
   }
 
   await ref.update(filtered);
   return NextResponse.json({ success: true, exchange: exchangeName, updated: Object.keys(filtered) });
+}
+
+export async function DELETE(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const uid = searchParams.get("uid");
+  if (!uid) return NextResponse.json({ error: "Missing uid" }, { status: 400 });
+
+  const exchangeName = resolveExchangeName(searchParams.get("exchange"));
+  const db = getAdminFirestore();
+  const docIds = getSecretDocIds(exchangeName);
+
+  let deleted = false;
+  for (const id of docIds) {
+    const docRef = db.collection("users").doc(uid).collection("secrets").doc(id);
+    const doc = await docRef.get();
+    if (doc.exists && docMatchesExchange(doc.data()!, exchangeName)) {
+      await docRef.delete();
+      deleted = true;
+      break;
+    }
+  }
+
+  if (!deleted) {
+    return NextResponse.json({ error: `No ${exchangeName} credentials found` }, { status: 404 });
+  }
+
+  return NextResponse.json({ success: true, message: `${exchangeName} credentials deleted.` });
 }

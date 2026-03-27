@@ -18,6 +18,8 @@ import {
   SUPPORTED_EXCHANGES,
   deserializePrices,
   getPrice,
+  getSecretDocIds,
+  docMatchesExchange,
   type AllExchangePrices,
 } from "@/lib/exchanges";
 
@@ -256,9 +258,15 @@ async function syncUserTrades(
         }
 
         // Disable auto-trade for this exchange
-        const exchangeDocId = exchange.toLowerCase();
-        await db.collection("users").doc(userId)
-          .collection("secrets").doc(exchangeDocId).update({ autoTradeEnabled: false });
+        const killDocIds = getSecretDocIds(exchange);
+        for (const killId of killDocIds) {
+          const killRef = db.collection("users").doc(userId).collection("secrets").doc(killId);
+          const killDoc = await killRef.get();
+          if (killDoc.exists && docMatchesExchange(killDoc.data()!, exchange)) {
+            await killRef.update({ autoTradeEnabled: false });
+            break;
+          }
+        }
 
         // Telegram alerts
         try {
@@ -363,11 +371,8 @@ export async function GET(request: NextRequest) {
     const userChecks = usersSnap.docs.map(async (userDoc) => {
       const userId = userDoc.id;
 
-      // Check each exchange for credentials
       const exchangeChecks = SUPPORTED_EXCHANGES.map(async (exchangeName) => {
-        const docId = exchangeName.toLowerCase();
-        // Also check legacy "binance" doc for backward compatibility with Bybit
-        const docIds = exchangeName === "BYBIT" ? [docId, "binance"] : [docId];
+        const docIds = getSecretDocIds(exchangeName);
 
         for (const id of docIds) {
           try {
@@ -376,6 +381,7 @@ export async function GET(request: NextRequest) {
 
             if (secretDoc.exists) {
               const data = secretDoc.data()!;
+              if (!docMatchesExchange(data, exchangeName)) continue;
               if (data.autoTradeEnabled === true) {
                 pairs.push({
                   userId,
@@ -389,7 +395,7 @@ export async function GET(request: NextRequest) {
                     dailyLossLimit: data.dailyLossLimit ?? 5,
                   },
                 });
-                break; // found creds for this exchange, don't check alternate doc id
+                break;
               }
             }
           } catch {

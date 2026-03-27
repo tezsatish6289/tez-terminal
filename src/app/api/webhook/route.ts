@@ -24,7 +24,13 @@ import {
 } from "@/lib/simulator";
 import { executeTrade as executeExchangeTrade, type Credentials } from "@/lib/trade-engine";
 import { decrypt } from "@/lib/crypto";
-import { type ExchangeName, SUPPORTED_EXCHANGES, isExchangeSupported } from "@/lib/exchanges";
+import {
+  type ExchangeName,
+  SUPPORTED_EXCHANGES,
+  isExchangeSupported,
+  getSecretDocIds,
+  docMatchesExchange,
+} from "@/lib/exchanges";
 
 /**
  * Webhook ingestion for TradingView alerts.
@@ -513,8 +519,7 @@ async function executeForAllUsers(
     const userId = userDoc.id;
 
     for (const exchangeName of SUPPORTED_EXCHANGES) {
-      const docId = exchangeName.toLowerCase();
-      const docIds = exchangeName === "BYBIT" ? [docId, "binance"] : [docId];
+      const docIds = getSecretDocIds(exchangeName);
 
       for (const id of docIds) {
         try {
@@ -523,6 +528,7 @@ async function executeForAllUsers(
 
           if (secretDoc.exists) {
             const data = secretDoc.data()!;
+            if (!docMatchesExchange(data, exchangeName)) continue;
             if (data.autoTradeEnabled === true) {
               tasks.push({
                 userId,

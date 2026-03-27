@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { decrypt } from "@/lib/crypto";
-import { getConnector, isExchangeSupported, type ExchangeName } from "@/lib/exchanges";
+import {
+  getConnector,
+  isExchangeSupported,
+  getSecretDocIds,
+  docMatchesExchange,
+  type ExchangeName,
+} from "@/lib/exchanges";
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,24 +17,26 @@ export async function GET(request: NextRequest) {
 
     const exchangeParam = (searchParams.get("exchange") || "BYBIT").toUpperCase();
     const exchangeName = isExchangeSupported(exchangeParam) ? exchangeParam as ExchangeName : "BYBIT";
-    const docId = exchangeName.toLowerCase();
 
     const db = getAdminFirestore();
+    const docIds = getSecretDocIds(exchangeName);
 
-    // Try exchange-specific doc, fall back to legacy "binance" doc for Bybit
-    let doc = await db.collection("users").doc(uid).collection("secrets").doc(docId).get();
-    if (!doc.exists && exchangeName === "BYBIT") {
-      doc = await db.collection("users").doc(uid).collection("secrets").doc("binance").get();
+    let data: Record<string, unknown> | null = null;
+    for (const id of docIds) {
+      const doc = await db.collection("users").doc(uid).collection("secrets").doc(id).get();
+      if (doc.exists && docMatchesExchange(doc.data()!, exchangeName)) {
+        data = doc.data()!;
+        break;
+      }
     }
 
-    if (!doc.exists) {
+    if (!data) {
       return NextResponse.json({ error: "Not configured" }, { status: 400 });
     }
 
-    const data = doc.data()!;
     const creds = {
-      apiKey: decrypt(data.encryptedKey),
-      apiSecret: decrypt(data.encryptedSecret),
+      apiKey: decrypt(data.encryptedKey as string),
+      apiSecret: decrypt(data.encryptedSecret as string),
       testnet: data.useTestnet === true,
     };
 

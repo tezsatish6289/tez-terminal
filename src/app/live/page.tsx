@@ -117,6 +117,7 @@ export default function LiveTradingPage() {
     if (!firestore || !user) return null;
     return query(
       collection(firestore, "live_trade_logs"),
+      where("userId", "==", user.uid),
       orderBy("timestamp", "desc"),
       limit(200),
     );

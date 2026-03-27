@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, type SVGProps, type ReactNode } from "react";
 import {
-  Loader2, Zap, Eye, EyeOff, Shield, Power, AlertTriangle, Settings, Check, X,
+  Loader2, Zap, Eye, EyeOff, Shield, Power, AlertTriangle, Settings, Check, X, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -219,8 +219,28 @@ function ExchangeSettingsPanel({
   const [apiSecretInput, setApiSecretInput] = useState("");
   const [showSecret, setShowSecret] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const meta = getExchangeMeta(exchange);
+
+  const deleteCredentials = async () => {
+    if (!confirm(`Remove ${meta.name} credentials? This will disable auto-trade on ${meta.name}.`)) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/settings/binance?uid=${uid}&exchange=${exchange}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({ error: `Server returned ${res.status}` }));
+      if (data.success) {
+        toast({ title: "Removed", description: `${meta.name} credentials deleted.` });
+        fetchConfig();
+      } else {
+        toast({ title: "Error", description: data.error || "Failed to delete.", variant: "destructive" });
+      }
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to delete.", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
   const isTestnet = mode === "testnet";
   const configMatchesMode = config?.configured && config.useTestnet === isTestnet;
 
@@ -397,14 +417,25 @@ function ExchangeSettingsPanel({
             </p>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-xs text-muted-foreground hover:text-accent"
-          onClick={() => setConfig((prev) => prev ? { ...prev, configured: false } : null)}
-        >
-          Change
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-muted-foreground hover:text-accent"
+            onClick={() => setConfig((prev) => prev ? { ...prev, configured: false } : null)}
+          >
+            Change
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-muted-foreground hover:text-rose-400"
+            onClick={deleteCredentials}
+            disabled={isDeleting}
+          >
+            {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+          </Button>
+        </div>
       </div>
 
       {/* Risk Config */}

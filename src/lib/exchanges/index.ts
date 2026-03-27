@@ -24,7 +24,14 @@ export { BybitConnector } from "./bybit";
 export { BinanceConnector } from "./binance";
 export { MexcConnector } from "./mexc";
 
-export { getConnector, isExchangeSupported, getAllConnectors } from "./registry";
+export {
+  getConnector,
+  isExchangeSupported,
+  getAllConnectors,
+  getSecretDocId,
+  getSecretDocIds,
+  docMatchesExchange,
+} from "./registry";
 
 export {
   fetchAllExchangePrices,

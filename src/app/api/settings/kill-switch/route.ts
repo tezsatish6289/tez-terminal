@@ -3,7 +3,13 @@ import { getAdminFirestore } from "@/firebase/admin";
 import { decrypt } from "@/lib/crypto";
 import { protectiveClose, type LiveTrade, type Credentials } from "@/lib/trade-engine";
 import { sendMessage } from "@/lib/telegram";
-import { type ExchangeName, SUPPORTED_EXCHANGES, isExchangeSupported } from "@/lib/exchanges";
+import {
+  type ExchangeName,
+  SUPPORTED_EXCHANGES,
+  isExchangeSupported,
+  getSecretDocIds,
+  docMatchesExchange,
+} from "@/lib/exchanges";
 
 /**
  * POST — Emergency kill switch: close all open live trades across all exchanges
@@ -28,8 +34,7 @@ export async function POST(request: NextRequest) {
   const exchangesToKill = targetExchange ? [targetExchange] : SUPPORTED_EXCHANGES;
 
   for (const exchangeName of exchangesToKill) {
-    const docId = exchangeName.toLowerCase();
-    const docIds = exchangeName === "BYBIT" ? [docId, "binance"] : [docId];
+    const docIds = getSecretDocIds(exchangeName);
 
     let secretDoc = null;
     let secretDocRef = null;
@@ -37,7 +42,7 @@ export async function POST(request: NextRequest) {
     for (const id of docIds) {
       const ref = db.collection("users").doc(uid).collection("secrets").doc(id);
       const doc = await ref.get();
-      if (doc.exists) {
+      if (doc.exists && docMatchesExchange(doc.data()!, exchangeName)) {
         secretDoc = doc;
         secretDocRef = ref;
         break;

@@ -33,10 +33,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import type { SimulatorState, SimTrade, SimLog, SimTradeEvent } from "@/lib/simulator";
 import type { LiveTrade } from "@/lib/trade-engine";
 import { ExchangeSettingsDialog, ExchangeStatusBadge, useExchangeConfig } from "@/components/exchange/ExchangeSettings";
-import { format } from "date-fns";
+import { format, startOfDay, startOfWeek, startOfMonth, isAfter } from "date-fns";
 
 function formatUsd(val: number): string {
   return `$${val.toFixed(2)}`;
@@ -257,6 +258,9 @@ export default function SimulationPage() {
                   />
                 </div>
 
+                {/* Equity Curve */}
+                <EquityCurve trades={closedTrades} startingCapital={simState.startingCapital} />
+
                 {/* Streak scaling indicator */}
                 {(simState.consecutiveWins ?? 0) >= 2 && (
                   <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-400/10 border border-emerald-400/20">
@@ -318,6 +322,204 @@ export default function SimulationPage() {
 
       {/* Trade Narration Dialog */}
       <TradeNarrationDialog trade={selectedTrade} onClose={() => setSelectedTrade(null)} />
+    </div>
+  );
+}
+
+// ── Equity Curve ──────────────────────────
+
+type Period = "all" | "today" | "week" | "month" | "custom";
+
+function EquityCurve({ trades, startingCapital }: { trades: SimTrade[]; startingCapital: number }) {
+  const [period, setPeriod] = useState<Period>("all");
+
+  const filteredTrades = useMemo(() => {
+    if (!trades.length) return [];
+    const sorted = [...trades]
+      .filter((t) => t.closedAt)
+      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
+
+    if (period === "all") return sorted;
+
+    const now = new Date();
+    let cutoff: Date;
+    switch (period) {
+      case "today": cutoff = startOfDay(now); break;
+      case "week": cutoff = startOfWeek(now, { weekStartsOn: 1 }); break;
+      case "month": cutoff = startOfMonth(now); break;
+      default: cutoff = new Date(0);
+    }
+    return sorted.filter((t) => isAfter(new Date(t.closedAt!), cutoff));
+  }, [trades, period]);
+
+  const chartData = useMemo(() => {
+    if (!filteredTrades.length) return [];
+
+    const allSorted = [...trades]
+      .filter((t) => t.closedAt)
+      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
+
+    let capital = startingCapital;
+    const capitalMap = new Map<string, number>();
+
+    for (const t of allSorted) {
+      capital += t.realizedPnl;
+      capitalMap.set(t.closedAt!, capital);
+    }
+
+    const firstFilteredIdx = allSorted.findIndex((t) => filteredTrades.includes(t));
+    let startCapital = startingCapital;
+    if (firstFilteredIdx > 0) {
+      const prev = allSorted[firstFilteredIdx - 1];
+      startCapital = capitalMap.get(prev.closedAt!) ?? startingCapital;
+    }
+
+    const points = [{ trade: 0, value: startCapital, label: "Start", date: "" }];
+    let running = startCapital;
+    filteredTrades.forEach((t, i) => {
+      running += t.realizedPnl;
+      points.push({
+        trade: i + 1,
+        value: parseFloat(running.toFixed(2)),
+        label: t.symbol,
+        date: format(new Date(t.closedAt!), "MMM dd HH:mm"),
+      });
+    });
+    return points;
+  }, [filteredTrades, trades, startingCapital]);
+
+  const stats = useMemo(() => {
+    const totalTrades = filteredTrades.length;
+    const grossProfit = filteredTrades.reduce((s, t) => s + (t.realizedPnl > 0 ? t.realizedPnl : 0), 0);
+    const grossLoss = Math.abs(filteredTrades.reduce((s, t) => s + (t.realizedPnl < 0 ? t.realizedPnl : 0), 0));
+    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
+    const startVal = chartData.length > 0 ? chartData[0].value : startingCapital;
+    const endVal = chartData.length > 0 ? chartData[chartData.length - 1].value : startingCapital;
+    const growthPct = startVal > 0 ? ((endVal - startVal) / startVal) * 100 : 0;
+    return { totalTrades, profitFactor, growthPct, startVal, endVal };
+  }, [filteredTrades, chartData, startingCapital]);
+
+  if (trades.filter((t) => t.closedAt).length < 2) return null;
+
+  const isPositive = stats.growthPct >= 0;
+  const chartColor = isPositive ? "#34d399" : "#f87171";
+  const yMin = Math.floor(Math.min(...chartData.map((d) => d.value)) * 0.995);
+  const yMax = Math.ceil(Math.max(...chartData.map((d) => d.value)) * 1.005);
+
+  return (
+    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+      {/* Header: Title + Period Selector */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="w-4 h-4 text-accent" />
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/60">Fund Value</span>
+        </div>
+        <div className="flex items-center gap-1">
+          {(["all", "today", "week", "month"] as Period[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={cn(
+                "px-2.5 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all",
+                period === p
+                  ? "bg-accent/15 text-accent"
+                  : "text-muted-foreground/40 hover:text-muted-foreground"
+              )}
+            >
+              {p === "all" ? "All" : p === "today" ? "Today" : p === "week" ? "Week" : "Month"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Stats Row */}
+      <div className="flex items-center gap-4 text-[11px]">
+        <div>
+          <span className="text-muted-foreground/40 mr-1">Trades</span>
+          <span className="font-mono font-bold text-foreground/70">{stats.totalTrades}</span>
+        </div>
+        <div>
+          <span className="text-muted-foreground/40 mr-1">Profit Factor</span>
+          <span className={cn("font-mono font-bold", stats.profitFactor >= 1 ? "text-emerald-400" : "text-rose-400")}>
+            {stats.profitFactor === Infinity ? "∞" : stats.profitFactor.toFixed(2)}
+          </span>
+        </div>
+        <div>
+          <span className="text-muted-foreground/40 mr-1">Growth</span>
+          <span className={cn("font-mono font-bold", isPositive ? "text-emerald-400" : "text-rose-400")}>
+            {isPositive ? "+" : ""}{stats.growthPct.toFixed(2)}%
+          </span>
+        </div>
+        <div className="ml-auto">
+          <span className="font-mono font-bold text-foreground/70">{formatUsd(stats.startVal)}</span>
+          <span className="text-muted-foreground/30 mx-1.5">→</span>
+          <span className={cn("font-mono font-bold", isPositive ? "text-emerald-400" : "text-rose-400")}>{formatUsd(stats.endVal)}</span>
+        </div>
+      </div>
+
+      {/* Chart */}
+      {chartData.length < 2 ? (
+        <div className="text-center py-6 text-muted-foreground/30">
+          <p className="text-[10px] font-bold">Not enough trades in this period</p>
+        </div>
+      ) : (
+        <div className="h-[200px] sm:h-[260px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="equityGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={chartColor} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+              <XAxis
+                dataKey="trade"
+                tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }}
+                tickLine={false}
+                axisLine={{ stroke: "rgba(255,255,255,0.06)" }}
+                label={{ value: "Trade #", position: "insideBottomRight", offset: -5, fontSize: 9, fill: "rgba(255,255,255,0.2)" }}
+              />
+              <YAxis
+                domain={[yMin, yMax]}
+                tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }}
+                tickLine={false}
+                axisLine={{ stroke: "rgba(255,255,255,0.06)" }}
+                tickFormatter={(v: number) => `$${v.toFixed(0)}`}
+                width={55}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "#1a1a1d",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "8px",
+                  fontSize: "11px",
+                }}
+                labelFormatter={(v: number) => `Trade #${v}`}
+                formatter={(value: number, _name: string, props: any) => [
+                  `$${value.toFixed(2)}`,
+                  `${props.payload.label}${props.payload.date ? ` · ${props.payload.date}` : ""}`,
+                ]}
+              />
+              <ReferenceLine
+                y={startingCapital}
+                stroke="rgba(255,255,255,0.1)"
+                strokeDasharray="4 4"
+                label={{ value: `$${startingCapital}`, position: "right", fontSize: 9, fill: "rgba(255,255,255,0.2)" }}
+              />
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke={chartColor}
+                strokeWidth={2}
+                fill="url(#equityGradient)"
+                dot={false}
+                activeDot={{ r: 4, fill: chartColor, stroke: "#0f0f11", strokeWidth: 2 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }

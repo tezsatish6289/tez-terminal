@@ -444,6 +444,14 @@ export async function POST(request: NextRequest) {
                         testnet: atData.useTestnet === true,
                       };
 
+                      await db.collection("live_trade_logs").add({
+                        timestamp: new Date().toISOString(),
+                        action: "EVALUATING",
+                        details: `${symbol} ${signalType} — attempting Bybit execution (score=${result.trade.confidenceScore}, bias=${result.trade.biasAtEntry})`,
+                        signalId: docRef.id,
+                        symbol,
+                      });
+
                       const liveResult = await executeExchangeTrade(
                         result.trade,
                         "99V4s5wPXcgmthTaMa0k7YyLm702",
@@ -454,34 +462,55 @@ export async function POST(request: NextRequest) {
 
                       if (liveResult.success && liveResult.trade) {
                         await db.collection("live_trades").add(liveResult.trade);
-                        await db.collection("simulator_logs").add({
+                        const logEntry = {
                           timestamp: new Date().toISOString(),
-                          action: "LIVE_TRADE_OPENED",
-                          details: `${symbol} ${signalType} executed on Bybit @ $${liveResult.trade.entryPrice} qty=${liveResult.trade.quantity}${liveResult.warnings.length ? ` warnings: ${liveResult.warnings.join("; ")}` : ""}`,
+                          action: "TRADE_OPENED",
+                          details: `${symbol} ${signalType} executed on Bybit @ $${liveResult.trade.entryPrice} qty=${liveResult.trade.quantity} size=$${liveResult.trade.positionSize.toFixed(2)} lev=${liveResult.trade.leverage}x${liveResult.warnings.length ? ` ⚠ ${liveResult.warnings.join("; ")}` : ""}`,
                           signalId: docRef.id,
                           symbol,
-                          capital: simState.capital,
-                        });
+                        };
+                        await db.collection("simulator_logs").add(logEntry);
+                        await db.collection("live_trade_logs").add(logEntry);
                       } else {
-                        await db.collection("simulator_logs").add({
+                        const logEntry = {
                           timestamp: new Date().toISOString(),
-                          action: "LIVE_TRADE_FAILED",
+                          action: "TRADE_FAILED",
                           details: `${symbol} ${signalType} Bybit execution failed: ${liveResult.error}`,
                           signalId: docRef.id,
                           symbol,
-                        });
+                        };
+                        await db.collection("simulator_logs").add(logEntry);
+                        await db.collection("live_trade_logs").add(logEntry);
                       }
+                    } else {
+                      await db.collection("live_trade_logs").add({
+                        timestamp: new Date().toISOString(),
+                        action: "SKIPPED",
+                        details: `${symbol} ${signalType} — auto-trade disabled. Simulator-only.`,
+                        signalId: docRef.id,
+                        symbol,
+                      });
                     }
+                  } else {
+                    await db.collection("live_trade_logs").add({
+                      timestamp: new Date().toISOString(),
+                      action: "SKIPPED",
+                      details: `${symbol} ${signalType} — no Bybit credentials configured.`,
+                      signalId: docRef.id,
+                      symbol,
+                    });
                   }
                 } catch (liveErr) {
                   console.error("[Webhook] Auto-trade execution failed:", liveErr);
-                  await db.collection("simulator_logs").add({
+                  const logEntry = {
                     timestamp: new Date().toISOString(),
-                    action: "LIVE_TRADE_ERROR",
+                    action: "ERROR",
                     details: `Auto-trade error: ${liveErr instanceof Error ? liveErr.message : String(liveErr)}`,
                     signalId: docRef.id,
                     symbol,
-                  }).catch(() => {});
+                  };
+                  await db.collection("simulator_logs").add(logEntry).catch(() => {});
+                  await db.collection("live_trade_logs").add(logEntry).catch(() => {});
                 }
               } else {
                 await db.collection("simulator_logs").add({

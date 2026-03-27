@@ -919,12 +919,14 @@ export async function GET(request: NextRequest) {
                     ...slFields,
                     events: [...(lt.events || []), slResult.newEvent],
                   });
-                  await db.collection("simulator_logs").add({
+                  const slLog = {
                     timestamp: new Date().toISOString(),
-                    action: "LIVE_SL_HIT",
+                    action: "SL_HIT",
                     details: `${lt.signalSymbol} ${lt.side} SL hit @ $${fill.price} PnL: $${slResult.newEvent.pnl.toFixed(2)}`,
                     symbol: lt.signalSymbol,
-                  });
+                  };
+                  await db.collection("simulator_logs").add(slLog);
+                  await db.collection("live_trade_logs").add(slLog);
                   lt.status = "CLOSED";
                   liveTradeFills++;
                 } else {
@@ -936,19 +938,23 @@ export async function GET(request: NextRequest) {
                     events: updatedEvents,
                   });
                   if (tpResult.warnings.length) {
-                    await db.collection("simulator_logs").add({
+                    const warnLog = {
                       timestamp: new Date().toISOString(),
-                      action: "LIVE_TRADE_WARNING",
+                      action: "WARNING",
                       details: `${lt.signalSymbol} TP${tpLevel} warnings: ${tpResult.warnings.join("; ")}`,
                       symbol: lt.signalSymbol,
-                    });
+                    };
+                    await db.collection("simulator_logs").add(warnLog);
+                    await db.collection("live_trade_logs").add(warnLog);
                   }
-                  await db.collection("simulator_logs").add({
+                  const tpLog = {
                     timestamp: new Date().toISOString(),
-                    action: `LIVE_TP${tpLevel}_HIT`,
+                    action: `TP${tpLevel}_HIT`,
                     details: `${lt.signalSymbol} ${lt.side} TP${tpLevel} hit @ $${fill.price} PnL: $${tpResult.newEvent.pnl.toFixed(2)}`,
                     symbol: lt.signalSymbol,
-                  });
+                  };
+                  await db.collection("simulator_logs").add(tpLog);
+                  await db.collection("live_trade_logs").add(tpLog);
                   // Update local reference for subsequent checks
                   Object.assign(lt, tpResult.updatedFields);
                   lt.events = updatedEvents;
@@ -970,13 +976,23 @@ export async function GET(request: NextRequest) {
                   Object.assign(lt, slBeResult.updatedFields);
                   liveTradeUpdates++;
                 }
-                if (slBeResult.warning) {
-                  await db.collection("simulator_logs").add({
+                if (slBeResult.moved) {
+                  await db.collection("live_trade_logs").add({
                     timestamp: new Date().toISOString(),
-                    action: "LIVE_TRADE_WARNING",
-                    details: `${lt.signalSymbol} SL→BE: ${slBeResult.warning}`,
+                    action: "SL_TO_BREAKEVEN",
+                    details: `${lt.signalSymbol} ${lt.side} SL moved to breakeven @ $${lt.entryPrice}`,
                     symbol: lt.signalSymbol,
                   });
+                }
+                if (slBeResult.warning) {
+                  const warnLog = {
+                    timestamp: new Date().toISOString(),
+                    action: "WARNING",
+                    details: `${lt.signalSymbol} SL→BE: ${slBeResult.warning}`,
+                    symbol: lt.signalSymbol,
+                  };
+                  await db.collection("simulator_logs").add(warnLog);
+                  await db.collection("live_trade_logs").add(warnLog);
                 }
               }
             } catch (ltErr) {
@@ -1014,12 +1030,14 @@ export async function GET(request: NextRequest) {
                   ...closeResult.updatedFields,
                   events: [...(trade.events || []), closeResult.newEvent],
                 });
-                await db.collection("simulator_logs").add({
+                const turnLog = {
                   timestamp: new Date().toISOString(),
-                  action: "LIVE_MARKET_TURN",
+                  action: "MARKET_TURN_CLOSE",
                   details: `${trade.signalSymbol} ${trade.side} closed: ${turn.reason}${closeResult.warning ? ` (${closeResult.warning})` : ""}`,
                   symbol: trade.signalSymbol,
-                });
+                };
+                await db.collection("simulator_logs").add(turnLog);
+                await db.collection("live_trade_logs").add(turnLog);
                 trade.status = "CLOSED";
                 liveProtectiveCloses++;
               }
@@ -1039,12 +1057,14 @@ export async function GET(request: NextRequest) {
                 ...closeResult.updatedFields,
                 events: [...(trade.events || []), closeResult.newEvent],
               });
-              await db.collection("simulator_logs").add({
+              const degLog = {
                 timestamp: new Date().toISOString(),
-                action: "LIVE_SCORE_DEGRADED",
+                action: "SCORE_DEGRADED_CLOSE",
                 details: `${trade.signalSymbol} score=${liveScore} < ${SIM_CONFIG.SCORE_FLOOR} → closed${closeResult.warning ? ` (${closeResult.warning})` : ""}`,
                 symbol: trade.signalSymbol,
-              });
+              };
+              await db.collection("simulator_logs").add(degLog);
+              await db.collection("live_trade_logs").add(degLog);
               trade.status = "CLOSED";
               liveProtectiveCloses++;
             }
@@ -1119,11 +1139,13 @@ export async function GET(request: NextRequest) {
                 console.error("[Sync] Telegram kill switch alert failed:", tgErr);
               }
 
-              await db.collection("simulator_logs").add({
+              const killLog = {
                 timestamp: new Date().toISOString(),
                 action: "AUTO_KILL_SWITCH",
                 details: `Daily loss ${(dailyDrawdown * 100).toFixed(1)}% >= limit ${(dailyLossLimit * 100).toFixed(0)}%. Closed ${stillOpen.length} positions. Auto-trade disabled.`,
-              });
+              };
+              await db.collection("simulator_logs").add(killLog);
+              await db.collection("live_trade_logs").add(killLog);
             }
           } catch (killErr) {
             console.error("[Sync] Auto kill switch check failed:", killErr);

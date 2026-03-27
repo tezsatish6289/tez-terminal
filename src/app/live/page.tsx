@@ -92,7 +92,7 @@ export default function LiveTradingPage() {
   const firestore = useFirestore();
   const router = useRouter();
   const { config, isLoading: configLoading } = useExchangeConfig(user?.uid);
-  const [tab, setTab] = useState<"overview" | "trades">("overview");
+  const [tab, setTab] = useState<"overview" | "trades" | "logs">("overview");
   const [balance, setBalance] = useState<{ total: number; available: number } | null>(null);
   const [selectedTrade, setSelectedTrade] = useState<LiveTrade | null>(null);
 
@@ -125,6 +125,29 @@ export default function LiveTradingPage() {
     );
   }, [firestore, user]);
   const { data: rawLiveTrades, isLoading: tradesLoading } = useCollection(liveTradesQuery);
+
+  const logsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, "live_trade_logs"),
+      orderBy("timestamp", "desc"),
+      limit(200),
+    );
+  }, [firestore, user]);
+  const { data: rawLogs, isLoading: logsLoading } = useCollection(logsQuery);
+
+  interface LiveLog {
+    timestamp: string;
+    action: string;
+    details: string;
+    symbol?: string;
+    signalId?: string;
+  }
+
+  const logs = useMemo(() => {
+    if (!rawLogs) return [];
+    return rawLogs.map((d: any) => d as LiveLog);
+  }, [rawLogs]);
 
   const liveTrades = useMemo(() => {
     if (!rawLiveTrades) return [];
@@ -238,7 +261,7 @@ export default function LiveTradingPage() {
 
                 {/* Tabs */}
                 <div className="flex items-center gap-1 border-b border-white/[0.06] pb-0">
-                  {(["overview", "trades"] as const).map((t) => (
+                  {(["overview", "trades", "logs"] as const).map((t) => (
                     <button
                       key={t}
                       onClick={() => setTab(t)}
@@ -249,12 +272,12 @@ export default function LiveTradingPage() {
                           : "border-transparent text-muted-foreground/40 hover:text-muted-foreground"
                       )}
                     >
-                      {t === "overview" ? `Open (${openTrades.length})` : `History (${closedTrades.length})`}
+                      {t === "overview" ? `Open (${openTrades.length})` : t === "trades" ? `History (${closedTrades.length})` : `Logs (${logs.length})`}
                     </button>
                   ))}
                 </div>
 
-                {tradesLoading ? (
+                {tradesLoading || logsLoading ? (
                   <div className="flex items-center justify-center h-20">
                     <Loader2 className="h-5 w-5 animate-spin text-amber-400/50" />
                   </div>
@@ -266,13 +289,27 @@ export default function LiveTradingPage() {
                     emptyHint={config.autoTradeEnabled ? "Waiting for signals that pass all filters." : "Enable auto-trade in Settings to start."}
                     onSelectTrade={setSelectedTrade}
                   />
-                ) : (
+                ) : tab === "trades" ? (
                   <TradeListView
                     trades={closedTrades}
                     emptyIcon={<BarChart3 className="w-6 h-6" />}
                     emptyLabel="No trade history yet"
                     onSelectTrade={setSelectedTrade}
                   />
+                ) : (
+                  <div className="space-y-1">
+                    {logs.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground/30">
+                        <Activity className="w-6 h-6 mx-auto mb-2" />
+                        <p className="text-xs font-bold">No logs yet</p>
+                        <p className="text-[10px] text-muted-foreground/20 mt-1">Logs appear when signals are evaluated, trades open/close, or errors occur.</p>
+                      </div>
+                    ) : (
+                      logs.map((log, i) => (
+                        <LogRow key={i} log={log} />
+                      ))
+                    )}
+                  </div>
                 )}
               </>
             )}
@@ -777,5 +814,44 @@ function LiveTradeNarrationDialog({ trade, onClose }: { trade: LiveTrade | null;
         </Link>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Log Row ──────────────────────────
+
+const LOG_ACTION_STYLES: Record<string, { color: string; bg: string }> = {
+  TRADE_OPENED: { color: "text-emerald-400", bg: "bg-emerald-400/10" },
+  TRADE_FAILED: { color: "text-rose-400", bg: "bg-rose-400/10" },
+  ERROR: { color: "text-rose-400", bg: "bg-rose-400/10" },
+  EVALUATING: { color: "text-accent", bg: "bg-accent/10" },
+  SKIPPED: { color: "text-muted-foreground/60", bg: "bg-white/5" },
+  SL_HIT: { color: "text-rose-400", bg: "bg-rose-400/10" },
+  TP1_HIT: { color: "text-emerald-400", bg: "bg-emerald-400/10" },
+  TP2_HIT: { color: "text-emerald-400", bg: "bg-emerald-400/10" },
+  TP3_HIT: { color: "text-emerald-400", bg: "bg-emerald-400/10" },
+  SL_TO_BREAKEVEN: { color: "text-accent", bg: "bg-accent/10" },
+  MARKET_TURN_CLOSE: { color: "text-amber-400", bg: "bg-amber-400/10" },
+  SCORE_DEGRADED_CLOSE: { color: "text-amber-400", bg: "bg-amber-400/10" },
+  AUTO_KILL_SWITCH: { color: "text-rose-400", bg: "bg-rose-400/15" },
+  WARNING: { color: "text-amber-400", bg: "bg-amber-400/10" },
+};
+
+function LogRow({ log }: { log: { timestamp: string; action: string; details: string; symbol?: string } }) {
+  const style = LOG_ACTION_STYLES[log.action] ?? { color: "text-muted-foreground/50", bg: "bg-white/5" };
+  const ts = log.timestamp ? format(new Date(log.timestamp), "MMM dd, HH:mm:ss") : "—";
+
+  return (
+    <div className="flex items-start gap-3 py-2 px-3 rounded-lg hover:bg-white/[0.02] transition-colors">
+      <Badge className={cn("text-[8px] font-black h-5 px-2 uppercase shrink-0 mt-0.5", style.bg, style.color)}>
+        {log.action.replace(/_/g, " ")}
+      </Badge>
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] text-foreground/70 leading-relaxed break-words">{log.details}</p>
+        {log.symbol && (
+          <span className="text-[9px] font-bold text-muted-foreground/30 uppercase">{log.symbol}</span>
+        )}
+      </div>
+      <span className="text-[9px] font-mono text-muted-foreground/30 shrink-0 mt-0.5">{ts}</span>
+    </div>
   );
 }

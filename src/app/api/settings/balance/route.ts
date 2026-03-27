@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { decrypt } from "@/lib/crypto";
-import { getUsdtBalance } from "@/lib/binance";
+import { getConnector, isExchangeSupported, type ExchangeName } from "@/lib/exchanges";
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,8 +9,17 @@ export async function GET(request: NextRequest) {
     const uid = searchParams.get("uid");
     if (!uid) return NextResponse.json({ error: "Missing uid" }, { status: 400 });
 
+    const exchangeParam = (searchParams.get("exchange") || "BYBIT").toUpperCase();
+    const exchangeName = isExchangeSupported(exchangeParam) ? exchangeParam as ExchangeName : "BYBIT";
+    const docId = exchangeName.toLowerCase();
+
     const db = getAdminFirestore();
-    const doc = await db.collection("users").doc(uid).collection("secrets").doc("binance").get();
+
+    // Try exchange-specific doc, fall back to legacy "binance" doc for Bybit
+    let doc = await db.collection("users").doc(uid).collection("secrets").doc(docId).get();
+    if (!doc.exists && exchangeName === "BYBIT") {
+      doc = await db.collection("users").doc(uid).collection("secrets").doc("binance").get();
+    }
 
     if (!doc.exists) {
       return NextResponse.json({ error: "Not configured" }, { status: 400 });
@@ -23,8 +32,11 @@ export async function GET(request: NextRequest) {
       testnet: data.useTestnet === true,
     };
 
-    const balance = await getUsdtBalance(creds);
+    const connector = getConnector(exchangeName);
+    const balance = await connector.getUsdtBalance(creds);
+
     return NextResponse.json({
+      exchange: exchangeName,
       total: balance.total,
       available: balance.available,
       testnet: data.useTestnet === true,

@@ -12,14 +12,13 @@ import {
   Loader2,
   TrendingUp,
   TrendingDown,
-  DollarSign,
   Activity,
   AlertTriangle,
   BarChart3,
   Zap,
   Shield,
 } from "lucide-react";
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -31,7 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ExchangeSettingsDialog, ExchangeStatusBadge, useExchangeConfig } from "@/components/exchange/ExchangeSettings";
+import { ExchangeSettingsDialog, MultiExchangeStatusBadges, useExchangeConfig } from "@/components/exchange/ExchangeSettings";
 import type { LiveTrade, LiveTradeEvent } from "@/lib/trade-engine";
 import { format } from "date-fns";
 
@@ -91,34 +90,22 @@ export default function LiveTradingPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
-  const { config, isLoading: configLoading } = useExchangeConfig(user?.uid);
+  const bybit = useExchangeConfig(user?.uid, "BYBIT");
+  const binance = useExchangeConfig(user?.uid, "BINANCE");
+  const mexc = useExchangeConfig(user?.uid, "MEXC");
+  const allConfigs = [bybit, binance, mexc];
+  const anyConfigured = allConfigs.some((c) => c.config?.configured && !c.config.useTestnet);
+  const anyAutoTradeOn = allConfigs.some((c) => c.config?.configured && !c.config.useTestnet && c.config.autoTradeEnabled);
+  const configLoading = allConfigs.some((c) => c.isLoading);
+
   const [tab, setTab] = useState<"overview" | "trades" | "logs">("overview");
-  const [balance, setBalance] = useState<{ total: number; available: number } | null>(null);
   const [selectedTrade, setSelectedTrade] = useState<LiveTrade | null>(null);
-
-  const fetchBalance = useCallback(async () => {
-    if (!user) return;
-    try {
-      const res = await fetch(`/api/settings/balance?uid=${user.uid}`);
-      const data = await res.json();
-      if (data.total !== undefined) setBalance(data);
-    } catch { /* ignore */ }
-  }, [user]);
-
-  useEffect(() => {
-    if (user && config?.configured && !config.useTestnet) fetchBalance();
-  }, [user, config, fetchBalance]);
-
-  useEffect(() => {
-    if (!user || !config?.configured || config.useTestnet) return;
-    const interval = setInterval(fetchBalance, 60000);
-    return () => clearInterval(interval);
-  }, [user, config, fetchBalance]);
 
   const liveTradesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
       collection(firestore, "live_trades"),
+      where("userId", "==", user.uid),
       where("testnet", "==", false),
       orderBy("openedAt", "desc"),
       limit(100),
@@ -174,7 +161,7 @@ export default function LiveTradingPage() {
     );
   }
 
-  const isConfiguredForProd = config?.configured && !config.useTestnet;
+  const isConfiguredForProd = anyConfigured;
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -199,16 +186,16 @@ export default function LiveTradingPage() {
                 <div>
                   <p className="text-sm font-bold text-amber-400">PRODUCTION — REAL MONEY</p>
                   <p className="text-[10px] text-amber-400/60">
-                    {isConfiguredForProd
-                      ? config.autoTradeEnabled
-                        ? "Auto-trade is LIVE. Real trades executing on Bybit."
-                        : "Connected but auto-trade is off. No trades will execute."
-                      : "Not connected. Configure production API keys to start."}
+                    {anyAutoTradeOn
+                      ? "Auto-trade is LIVE. Real trades executing on your exchanges."
+                      : anyConfigured
+                        ? "Exchanges connected but auto-trade is off. No trades will execute."
+                        : "No exchanges connected. Configure API keys in Settings to start."}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <ExchangeStatusBadge config={config} />
+                <MultiExchangeStatusBadges uid={user.uid} />
                 <ExchangeSettingsDialog uid={user.uid} mode="production" />
               </div>
             </div>
@@ -221,22 +208,22 @@ export default function LiveTradingPage() {
               <div className="rounded-xl border border-amber-400/10 bg-white/[0.02] p-8 text-center">
                 <Zap className="w-8 h-8 text-amber-400/30 mx-auto mb-3" />
                 <p className="text-sm font-bold text-muted-foreground/50">Production trading not configured</p>
-                <p className="text-[11px] text-muted-foreground/30 mt-1">Click Settings above to connect your Bybit production API keys.</p>
+                <p className="text-[11px] text-muted-foreground/30 mt-1">Click Settings above to connect your exchange API keys.</p>
               </div>
             ) : (
               <>
                 {/* Stats */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                   <StatCard
-                    label="Total Balance"
-                    value={balance ? formatUsd(balance.total) : "—"}
-                    icon={<DollarSign className="w-3.5 h-3.5" />}
+                    label="Open Positions"
+                    value={`${openTrades.length}`}
+                    icon={<Activity className="w-3.5 h-3.5" />}
                     color="text-amber-400"
                   />
                   <StatCard
-                    label="Available"
-                    value={balance ? formatUsd(balance.available) : "—"}
-                    icon={<Shield className="w-3.5 h-3.5" />}
+                    label="Total Trades"
+                    value={`${liveTrades.length}`}
+                    icon={<BarChart3 className="w-3.5 h-3.5" />}
                     color="text-foreground/70"
                   />
                   <StatCard
@@ -286,7 +273,7 @@ export default function LiveTradingPage() {
                     trades={openTrades}
                     emptyIcon={<Activity className="w-6 h-6" />}
                     emptyLabel="No open positions"
-                    emptyHint={config.autoTradeEnabled ? "Waiting for signals that pass all filters." : "Enable auto-trade in Settings to start."}
+                    emptyHint={anyAutoTradeOn ? "Waiting for signals that pass all filters." : "Enable auto-trade on at least one exchange in Settings."}
                     onSelectTrade={setSelectedTrade}
                   />
                 ) : tab === "trades" ? (

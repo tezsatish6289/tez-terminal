@@ -24,11 +24,15 @@ import {
 } from "@/lib/simulator";
 import { executeTrade as executeExchangeTrade, type Credentials } from "@/lib/trade-engine";
 import { decrypt } from "@/lib/crypto";
+import { type ExchangeName, SUPPORTED_EXCHANGES, isExchangeSupported } from "@/lib/exchanges";
 
 /**
  * Webhook ingestion for TradingView alerts.
  * Auth + write happen synchronously for a fast response.
  * Sentiment/alignment is computed in the background via next/server after().
+ *
+ * Multi-user: after AI filter passes, queries ALL users with autoTradeEnabled
+ * on the signal's exchange and executes trades for each in parallel.
  */
 export async function POST(request: NextRequest) {
   const db = getAdminFirestore();
@@ -77,7 +81,6 @@ export async function POST(request: NextRequest) {
     if (rawAt.includes("INDIAN")) assetType = "INDIAN STOCKS";
     else if (rawAt.includes("US") || rawAt.includes("NASDAQ")) assetType = "US STOCKS";
 
-    // Only accept USDT perpetual symbols for crypto
     if (assetType === "CRYPTO" && !symbol.endsWith("USDT.P")) {
       await db.collection("logs").add({
         timestamp, level: "WARN",
@@ -117,7 +120,6 @@ export async function POST(request: NextRequest) {
 
     const algo = String(body.algo || "V8 Reversal").trim();
 
-    // Reject signals with SL too wide for the timeframe's leverage
     if (signalType !== "NEUTRAL" && price > 0 && stopLoss > 0) {
       if (!isSlDistanceSane(price, stopLoss, timeframe)) {
         const slPct = (Math.abs(price - stopLoss) / price * 100).toFixed(2);
@@ -134,7 +136,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Resolve TP values: use incoming if valid, else derive from SL distance
     let finalTp1 = tp1;
     let finalTp2 = tp2;
     let finalTp3: number | null = null;
@@ -267,13 +268,11 @@ export async function POST(request: NextRequest) {
               mapFirestoreSignal({ id: d.id, ...d.data() }),
             );
 
-            // Ensure the new signal has the aligned flag for scoring
             const newIdx = allSignals.findIndex((s) => s.id === docRef.id);
             if (newIdx >= 0) {
               allSignals[newIdx] = { ...allSignals[newIdx], aligned };
             }
 
-            // Read configurable base threshold
             let baseThreshold = AUTO_FILTER_THRESHOLD;
             try {
               const filterCfg = await db.collection("config").doc("auto_filter").get();
@@ -283,7 +282,6 @@ export async function POST(request: NextRequest) {
               }
             } catch {}
 
-            // Read market regime for dynamic threshold
             let threshold = baseThreshold;
             try {
               const regimeDoc = await db.collection("config").doc("market_regime").get();
@@ -323,7 +321,6 @@ export async function POST(request: NextRequest) {
 
           await db.collection("signals").doc(docRef.id).update(scoreUpdate);
 
-          // Only create the NEW_SIGNAL event if AI filter passed
           if (scoreUpdate.autoFilterPassed === true) {
             await db.collection("signal_events").add({
               type: "NEW_SIGNAL",
@@ -398,7 +395,6 @@ export async function POST(request: NextRequest) {
                 openTrades,
               });
 
-              // Persist initial state if it didn't exist yet
               if (!simStateDoc.exists) {
                 await db.collection("config").doc("simulator_state").set(simState);
               }
@@ -430,85 +426,11 @@ export async function POST(request: NextRequest) {
                 await db.collection("config").doc("simulator_state").set(result.updatedState);
                 await db.collection("simulator_logs").add(result.log);
 
-                // ── Auto-Trade: execute on Bybit if enabled ──
-                try {
-                  const autoTradeDoc = await db.collection("users").doc("99V4s5wPXcgmthTaMa0k7YyLm702")
-                    .collection("secrets").doc("binance").get();
-
-                  if (autoTradeDoc.exists) {
-                    const atData = autoTradeDoc.data()!;
-                    if (atData.autoTradeEnabled === true) {
-                      const creds: Credentials = {
-                        apiKey: decrypt(atData.encryptedKey),
-                        apiSecret: decrypt(atData.encryptedSecret),
-                        testnet: atData.useTestnet === true,
-                      };
-
-                      await db.collection("live_trade_logs").add({
-                        timestamp: new Date().toISOString(),
-                        action: "EVALUATING",
-                        details: `${symbol} ${signalType} — attempting Bybit execution (score=${result.trade.confidenceScore}, bias=${result.trade.biasAtEntry})`,
-                        signalId: docRef.id,
-                        symbol,
-                      });
-
-                      const liveResult = await executeExchangeTrade(
-                        result.trade,
-                        "99V4s5wPXcgmthTaMa0k7YyLm702",
-                        simTradeRef.id,
-                        simState.capital,
-                        creds,
-                      );
-
-                      if (liveResult.success && liveResult.trade) {
-                        await db.collection("live_trades").add(liveResult.trade);
-                        const logEntry = {
-                          timestamp: new Date().toISOString(),
-                          action: "TRADE_OPENED",
-                          details: `${symbol} ${signalType} executed on Bybit @ $${liveResult.trade.entryPrice} qty=${liveResult.trade.quantity} size=$${liveResult.trade.positionSize.toFixed(2)} lev=${liveResult.trade.leverage}x${liveResult.warnings.length ? ` ⚠ ${liveResult.warnings.join("; ")}` : ""}`,
-                          signalId: docRef.id,
-                          symbol,
-                        };
-                        await db.collection("live_trade_logs").add(logEntry);
-                      } else {
-                        const logEntry = {
-                          timestamp: new Date().toISOString(),
-                          action: "TRADE_FAILED",
-                          details: `${symbol} ${signalType} Bybit execution failed: ${liveResult.error}`,
-                          signalId: docRef.id,
-                          symbol,
-                        };
-                        await db.collection("live_trade_logs").add(logEntry);
-                      }
-                    } else {
-                      await db.collection("live_trade_logs").add({
-                        timestamp: new Date().toISOString(),
-                        action: "SKIPPED",
-                        details: `${symbol} ${signalType} — auto-trade disabled. Simulator-only.`,
-                        signalId: docRef.id,
-                        symbol,
-                      });
-                    }
-                  } else {
-                    await db.collection("live_trade_logs").add({
-                      timestamp: new Date().toISOString(),
-                      action: "SKIPPED",
-                      details: `${symbol} ${signalType} — no Bybit credentials configured.`,
-                      signalId: docRef.id,
-                      symbol,
-                    });
-                  }
-                } catch (liveErr) {
-                  console.error("[Webhook] Auto-trade execution failed:", liveErr);
-                  const logEntry = {
-                    timestamp: new Date().toISOString(),
-                    action: "ERROR",
-                    details: `Auto-trade error: ${liveErr instanceof Error ? liveErr.message : String(liveErr)}`,
-                    signalId: docRef.id,
-                    symbol,
-                  };
-                  await db.collection("live_trade_logs").add(logEntry).catch(() => {});
-                }
+                // ── Multi-user auto-trade: execute for ALL qualifying users ──
+                await executeForAllUsers(
+                  db, result.trade, simTradeRef.id, simState.capital,
+                  docRef.id, symbol, signalType, exchange
+                );
               } else {
                 await db.collection("simulator_logs").add({
                   timestamp: new Date().toISOString(),
@@ -530,7 +452,6 @@ export async function POST(request: NextRequest) {
               }).catch(() => {});
             }
           } else {
-            // Signal didn't pass AI filter — log for visibility
             try {
               await db.collection("simulator_logs").add({
                 timestamp: new Date().toISOString(),
@@ -560,5 +481,138 @@ export async function POST(request: NextRequest) {
       });
     } catch (logErr) {}
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+  }
+}
+
+/**
+ * Execute a trade for ALL users who have autoTradeEnabled on any supported exchange.
+ * Each user is executed independently via Promise.allSettled.
+ */
+async function executeForAllUsers(
+  db: FirebaseFirestore.Firestore,
+  simTrade: SimTrade,
+  simTradeId: string,
+  simulatorCapital: number,
+  signalId: string,
+  symbol: string,
+  signalType: string,
+  signalExchange: string
+) {
+  const usersSnap = await db.collection("users").get();
+
+  interface UserExecutionTask {
+    userId: string;
+    exchange: ExchangeName;
+    creds: Credentials;
+  }
+
+  const tasks: UserExecutionTask[] = [];
+
+  // Find all users with auto-trade enabled on any exchange
+  for (const userDoc of usersSnap.docs) {
+    const userId = userDoc.id;
+
+    for (const exchangeName of SUPPORTED_EXCHANGES) {
+      const docId = exchangeName.toLowerCase();
+      const docIds = exchangeName === "BYBIT" ? [docId, "binance"] : [docId];
+
+      for (const id of docIds) {
+        try {
+          const secretDoc = await db.collection("users").doc(userId)
+            .collection("secrets").doc(id).get();
+
+          if (secretDoc.exists) {
+            const data = secretDoc.data()!;
+            if (data.autoTradeEnabled === true) {
+              tasks.push({
+                userId,
+                exchange: exchangeName,
+                creds: {
+                  apiKey: decrypt(data.encryptedKey),
+                  apiSecret: decrypt(data.encryptedSecret),
+                  testnet: data.useTestnet === true,
+                },
+              });
+              break;
+            }
+          }
+        } catch {
+          continue;
+        }
+      }
+    }
+  }
+
+  if (tasks.length === 0) {
+    await db.collection("live_trade_logs").add({
+      timestamp: new Date().toISOString(),
+      action: "SKIPPED",
+      details: `${symbol} ${signalType} — no users with auto-trade enabled on any exchange.`,
+      signalId,
+      symbol,
+    });
+    return;
+  }
+
+  // Execute all users in parallel
+  const results = await Promise.allSettled(
+    tasks.map(async (task) => {
+      await db.collection("live_trade_logs").add({
+        timestamp: new Date().toISOString(),
+        action: "EVALUATING",
+        details: `${symbol} ${signalType} — attempting ${task.exchange} execution for user ${task.userId} (score=${simTrade.confidenceScore}, bias=${simTrade.biasAtEntry})`,
+        signalId,
+        symbol,
+        userId: task.userId,
+        exchange: task.exchange,
+      });
+
+      const liveResult = await executeExchangeTrade(
+        simTrade,
+        task.userId,
+        simTradeId,
+        simulatorCapital,
+        task.creds,
+        task.exchange
+      );
+
+      if (liveResult.success && liveResult.trade) {
+        await db.collection("live_trades").add(liveResult.trade);
+        await db.collection("live_trade_logs").add({
+          timestamp: new Date().toISOString(),
+          action: "TRADE_OPENED",
+          details: `${symbol} ${signalType} executed on ${task.exchange} @ $${liveResult.trade.entryPrice} qty=${liveResult.trade.quantity} size=$${liveResult.trade.positionSize.toFixed(2)} lev=${liveResult.trade.leverage}x${liveResult.warnings.length ? ` ⚠ ${liveResult.warnings.join("; ")}` : ""}`,
+          signalId,
+          symbol,
+          userId: task.userId,
+          exchange: task.exchange,
+        });
+      } else {
+        await db.collection("live_trade_logs").add({
+          timestamp: new Date().toISOString(),
+          action: "TRADE_FAILED",
+          details: `${symbol} ${signalType} ${task.exchange} execution failed for user ${task.userId}: ${liveResult.error}`,
+          signalId,
+          symbol,
+          userId: task.userId,
+          exchange: task.exchange,
+        });
+      }
+
+      return liveResult;
+    })
+  );
+
+  // Log summary
+  const succeeded = results.filter((r) => r.status === "fulfilled").length;
+  const failed = results.filter((r) => r.status === "rejected").length;
+  if (tasks.length > 1 || failed > 0) {
+    await db.collection("live_trade_logs").add({
+      timestamp: new Date().toISOString(),
+      action: "MULTI_USER_SUMMARY",
+      details: `${symbol} ${signalType} — ${succeeded}/${tasks.length} users executed successfully, ${failed} failures`,
+      signalId,
+      symbol,
+    });
   }
 }

@@ -21,7 +21,7 @@ import {
   BarChart3,
   Zap,
 } from "lucide-react";
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -36,7 +36,7 @@ import {
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import type { SimulatorState, SimTrade, SimLog, SimTradeEvent } from "@/lib/simulator";
 import type { LiveTrade } from "@/lib/trade-engine";
-import { ExchangeSettingsDialog, ExchangeStatusBadge, useExchangeConfig } from "@/components/exchange/ExchangeSettings";
+import { ExchangeSettingsDialog, MultiExchangeStatusBadges, useExchangeConfig } from "@/components/exchange/ExchangeSettings";
 import { format, startOfDay, startOfWeek, startOfMonth, isAfter } from "date-fns";
 
 function formatUsd(val: number): string {
@@ -528,27 +528,20 @@ function EquityCurve({ trades, startingCapital }: { trades: SimTrade[]; starting
 
 function BybitSimulationTab({ uid }: { uid: string | undefined }) {
   const firestore = useFirestore();
-  const { config, isLoading: configLoading } = useExchangeConfig(uid);
+  const bybit = useExchangeConfig(uid, "BYBIT");
+  const binance = useExchangeConfig(uid, "BINANCE");
+  const allConfigs = [bybit, binance];
+  const anyConfiguredForTestnet = allConfigs.some((c) => c.config?.configured && c.config.useTestnet);
+  const anyAutoTradeOn = allConfigs.some((c) => c.config?.configured && c.config.useTestnet && c.config.autoTradeEnabled);
+  const configLoading = allConfigs.some((c) => c.isLoading);
+
   const [bybitTab, setBybitTab] = useState<"overview" | "trades">("overview");
-  const [balance, setBalance] = useState<{ total: number; available: number } | null>(null);
-
-  const fetchBalance = useCallback(async () => {
-    if (!uid) return;
-    try {
-      const res = await fetch(`/api/settings/balance?uid=${uid}`);
-      const data = await res.json();
-      if (data.total !== undefined) setBalance(data);
-    } catch { /* ignore */ }
-  }, [uid]);
-
-  useEffect(() => {
-    if (uid && config?.configured && config.useTestnet) fetchBalance();
-  }, [uid, config, fetchBalance]);
 
   const liveTradesQuery = useMemoFirebase(() => {
     if (!firestore || !uid) return null;
     return query(
       collection(firestore, "live_trades"),
+      where("userId", "==", uid),
       where("testnet", "==", true),
       orderBy("openedAt", "desc"),
       limit(100),
@@ -571,8 +564,6 @@ function BybitSimulationTab({ uid }: { uid: string | undefined }) {
 
   if (!uid) return null;
 
-  const isConfiguredForTestnet = config?.configured && config.useTestnet;
-
   return (
     <div className="space-y-4">
       {/* Testnet banner + settings */}
@@ -580,18 +571,18 @@ function BybitSimulationTab({ uid }: { uid: string | undefined }) {
         <div className="flex items-center gap-3">
           <Shield className="w-5 h-5 text-blue-400 shrink-0" />
           <div>
-            <p className="text-sm font-bold text-blue-400">BYBIT TESTNET</p>
+            <p className="text-sm font-bold text-blue-400">EXCHANGE TESTNET</p>
             <p className="text-[10px] text-blue-400/60">
-              {isConfiguredForTestnet
-                ? config.autoTradeEnabled
-                  ? "Auto-trade active on testnet. Fake money."
-                  : "Connected but auto-trade is off."
-                : "Not connected. Configure testnet API keys to start."}
+              {anyAutoTradeOn
+                ? "Auto-trade active on testnet. Fake money."
+                : anyConfiguredForTestnet
+                  ? "Connected but auto-trade is off."
+                  : "Not connected. Configure testnet API keys to start."}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <ExchangeStatusBadge config={config} />
+          <MultiExchangeStatusBadges uid={uid} />
           <ExchangeSettingsDialog uid={uid} mode="testnet" />
         </div>
       </div>
@@ -600,20 +591,20 @@ function BybitSimulationTab({ uid }: { uid: string | undefined }) {
         <div className="flex items-center justify-center h-40">
           <Loader2 className="h-6 w-6 animate-spin text-blue-400/50" />
         </div>
-      ) : !isConfiguredForTestnet ? (
+      ) : !anyConfiguredForTestnet ? (
         <div className="rounded-xl border border-blue-400/10 bg-white/[0.02] p-8 text-center">
           <Zap className="w-8 h-8 text-blue-400/30 mx-auto mb-3" />
-          <p className="text-sm font-bold text-muted-foreground/50">Bybit testnet not configured</p>
-          <p className="text-[11px] text-muted-foreground/30 mt-1">Click Settings above to connect your Bybit testnet API keys.</p>
+          <p className="text-sm font-bold text-muted-foreground/50">Exchange testnet not configured</p>
+          <p className="text-[11px] text-muted-foreground/30 mt-1">Click Settings above to connect your exchange testnet API keys.</p>
         </div>
       ) : (
         <>
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatCard
-              label="Balance"
-              value={balance ? formatUsd(balance.total) : "—"}
-              icon={<DollarSign className="w-3.5 h-3.5" />}
+              label="Open Positions"
+              value={`${openTrades.length}`}
+              icon={<Activity className="w-3.5 h-3.5" />}
               color="text-blue-400"
             />
             <StatCard

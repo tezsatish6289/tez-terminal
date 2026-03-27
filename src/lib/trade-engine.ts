@@ -1,23 +1,17 @@
 import {
-  toBinanceSymbol,
-  getSymbolInfo,
+  type ExchangeConnector,
+  type ExchangeCredentials,
+  type ExchangeName,
+  type Order,
+  type SymbolInfo,
+  ExchangeApiError,
+  floorToStep,
   adjustQuantity,
   checkNotional,
-  floorToStep,
-  setMarginType,
-  setLeverage,
-  placeMarketOrder,
   placeExitOrders,
   replaceSl,
-  placeMarketClose,
-  cancelAllOrders,
-  getOpenOrders,
-  getOrder,
-  getUsdtBalance,
-  type BinanceOrder,
-  type SymbolInfo,
-  BinanceApiError,
-} from "./binance";
+  getConnector,
+} from "./exchanges";
 import { decrypt } from "./crypto";
 import { SIM_CONFIG } from "./simulator";
 import type { SimTrade } from "./simulator";
@@ -29,12 +23,13 @@ export interface LiveTrade {
   userId: string;
   signalId: string;
   simTradeId: string;
-  symbol: string;              // Binance symbol (no .P)
+  exchange: ExchangeName;
+  symbol: string;              // Exchange-native symbol (no .P)
   signalSymbol: string;        // Original signal symbol (with .P)
   side: "BUY" | "SELL";
   leverage: number;
   entryOrderId: string;
-  entryPrice: number;          // actual fill price
+  entryPrice: number;          // actual fill price on THIS exchange
   quantity: number;            // in contracts
   positionSize: number;        // in USDT
   remainingQty: number;        // decreases as TPs fill
@@ -102,38 +97,42 @@ export function decryptCredentials(encryptedKey: string, encryptedSecret: string
 // ── Core: Execute Trade ────────────────────────────────────────
 
 /**
- * Full trade execution pipeline:
+ * Full trade execution pipeline on ANY exchange:
  * 1. Set isolated margin
  * 2. Set leverage
  * 3. Place market entry
  * 4. Place SL + TP1/TP2/TP3 orders
  * 5. Return LiveTrade with all order IDs
+ *
+ * @param exchange - Exchange to execute on (defaults to BYBIT for backward compat)
  */
 export async function executeTrade(
   simTrade: SimTrade,
   userId: string,
   simTradeId: string,
   _simulatorCapital: number,
-  creds: Credentials
+  creds: Credentials,
+  exchange: ExchangeName = "BYBIT"
 ): Promise<TradeExecutionResult> {
   const warnings: string[] = [];
-  const binanceSymbol = toBinanceSymbol(simTrade.symbol);
+  const connector = getConnector(exchange);
+  const exchangeSymbol = connector.normalizeSymbol(simTrade.symbol);
 
   try {
-    const info = await getSymbolInfo(binanceSymbol, creds.testnet);
+    const info = await connector.getSymbolInfo(exchangeSymbol, creds.testnet);
 
     // 1. Query actual exchange balance for position sizing
-    const balance = await getUsdtBalance(creds);
+    const balance = await connector.getUsdtBalance(creds);
     const exchangeCapital = balance.total;
     if (exchangeCapital <= 0) {
-      return { success: false, error: `No USDT balance on Bybit (${creds.testnet ? "testnet" : "production"})`, warnings };
+      return { success: false, error: `No USDT balance on ${exchange} (${creds.testnet ? "testnet" : "production"})`, warnings };
     }
 
     // 2. Set isolated margin
-    await setMarginType(binanceSymbol, "ISOLATED", creds);
+    await connector.setMarginType(exchangeSymbol, "ISOLATED", creds);
 
     // 3. Set leverage
-    await setLeverage(binanceSymbol, simTrade.leverage, creds);
+    await connector.setLeverage(exchangeSymbol, simTrade.leverage, creds);
 
     // 4. Calculate position size from real exchange balance
     const riskPct = SIM_CONFIG.RISK_PER_TRADE_BASE;
@@ -158,8 +157,8 @@ export async function executeTrade(
       return { success: false, error: `Insufficient margin: need ~$${marginRequired.toFixed(2)}, have $${balance.available.toFixed(2)} available`, warnings };
     }
 
-    // 5. Place market entry
-    const entryOrder = await placeMarketOrder(binanceSymbol, simTrade.side, quantity, creds);
+    // 6. Place market entry
+    const entryOrder = await connector.placeMarketOrder(exchangeSymbol, simTrade.side, quantity, creds);
     const fillPrice = parseFloat(entryOrder.avgPrice || entryOrder.price);
     const fillQty = parseFloat(entryOrder.executedQty);
 
@@ -169,9 +168,10 @@ export async function executeTrade(
       warnings.push(`Entry slippage: ${(slippage * 100).toFixed(2)}% (expected ${simTrade.entryPrice}, got ${fillPrice})`);
     }
 
-    // 6. Place exit orders (SL + TP1/TP2/TP3)
+    // 7. Place exit orders (SL + TP1/TP2/TP3)
     const exitResults = await placeExitOrders(
-      binanceSymbol,
+      connector,
+      exchangeSymbol,
       simTrade.side,
       fillQty,
       simTrade.stopLoss,
@@ -186,7 +186,7 @@ export async function executeTrade(
     if (!exitResults.slOrder.success) {
       warnings.push(`SL order failed: ${exitResults.slOrder.error}. Emergency closing position.`);
       try {
-        await placeMarketClose(binanceSymbol, simTrade.side, fillQty, creds);
+        await connector.placeMarketClose(exchangeSymbol, simTrade.side, fillQty, creds);
       } catch {
         // worst case — will be caught by reconciliation
       }
@@ -203,7 +203,8 @@ export async function executeTrade(
       userId,
       signalId: simTrade.signalId,
       simTradeId,
-      symbol: binanceSymbol,
+      exchange,
+      symbol: exchangeSymbol,
       signalSymbol: simTrade.symbol,
       side: simTrade.side,
       leverage: simTrade.leverage,
@@ -263,10 +264,6 @@ export async function executeTrade(
 
 // ── TP Hit Handler ────────────────────────────────────────────
 
-/**
- * Called when we detect a TP order has been filled on Binance.
- * Adjusts the SL order for remaining quantity.
- */
 export async function handleTpFill(
   trade: LiveTrade,
   tpLevel: 1 | 2 | 3,
@@ -279,12 +276,12 @@ export async function handleTpFill(
   warnings: string[];
 }> {
   const warnings: string[] = [];
-  const info = await getSymbolInfo(trade.symbol, creds.testnet);
+  const connector = getConnector(trade.exchange);
+  const info = await connector.getSymbolInfo(trade.symbol, creds.testnet);
 
   const newRemainingQty = floorToStep(trade.remainingQty - fillQty, info.stepSize);
   const closePct = fillQty / trade.quantity;
 
-  // Calculate PnL for this TP hit
   const priceDiff = trade.side === "BUY"
     ? fillPrice - trade.entryPrice
     : trade.entryPrice - fillPrice;
@@ -309,10 +306,10 @@ export async function handleTpFill(
     fees: trade.fees + fee,
   };
 
-  // Replace SL with updated quantity (or at breakeven if TP1)
   if (newRemainingQty > 0 && trade.slOrderId) {
     const newSlPrice = tpLevel === 1 ? trade.entryPrice : (trade.trailingSl ?? trade.entryPrice);
     const slResult = await replaceSl(
+      connector,
       trade.symbol,
       trade.side,
       trade.slOrderId,
@@ -332,14 +329,12 @@ export async function handleTpFill(
     }
   }
 
-  // If position fully closed (TP3 or no remaining qty)
   if (newRemainingQty <= 0 || tpLevel === 3) {
     updatedFields.status = "CLOSED";
     updatedFields.closedAt = new Date().toISOString();
     updatedFields.closeReason = `TP${tpLevel}`;
-    // Cancel any remaining open orders
     try {
-      await cancelAllOrders(trade.symbol, creds);
+      await connector.cancelAllOrders(trade.symbol, creds);
     } catch {
       // best effort
     }
@@ -391,10 +386,6 @@ export async function handleSlFill(
 
 // ── Trailing SL Handler ────────────────────────────────────────
 
-/**
- * Check if SL should be moved to breakeven (entry).
- * Triggered when price crosses 50% of distance from entry to TP1.
- */
 export async function moveSlToBreakeven(
   trade: LiveTrade,
   currentPrice: number,
@@ -418,13 +409,15 @@ export async function moveSlToBreakeven(
 
   if (!crossed) return { moved: false };
 
-  const info = await getSymbolInfo(trade.symbol, creds.testnet);
+  const connector = getConnector(trade.exchange);
+  const info = await connector.getSymbolInfo(trade.symbol, creds.testnet);
 
   if (!trade.slOrderId) {
     return { moved: false, warning: "No SL order ID to replace" };
   }
 
   const slResult = await replaceSl(
+    connector,
     trade.symbol,
     trade.side,
     trade.slOrderId,
@@ -459,10 +452,6 @@ export async function moveSlToBreakeven(
 
 // ── Protective Closes ────────────────────────────────────────
 
-/**
- * Force close a live trade (market turn, score degradation, kill switch).
- * Cancels all open orders and market closes the position.
- */
 export async function protectiveClose(
   trade: LiveTrade,
   reason: "MARKET_TURN" | "SCORE_DEGRADED" | "KILL_SWITCH",
@@ -473,18 +462,18 @@ export async function protectiveClose(
   newEvent: LiveTradeEvent;
   warning?: string;
 }> {
-  // Cancel all pending orders for this symbol
+  const connector = getConnector(trade.exchange);
+
   try {
-    await cancelAllOrders(trade.symbol, creds);
+    await connector.cancelAllOrders(trade.symbol, creds);
   } catch {
     // best effort
   }
 
-  // Market close the remaining position
   let fillPrice = currentPrice;
   let fillQty = trade.remainingQty;
   try {
-    const closeOrder = await placeMarketClose(trade.symbol, trade.side, trade.remainingQty, creds);
+    const closeOrder = await connector.placeMarketClose(trade.symbol, trade.side, trade.remainingQty, creds);
     fillPrice = parseFloat(closeOrder.avgPrice || closeOrder.price) || currentPrice;
     fillQty = parseFloat(closeOrder.executedQty) || trade.remainingQty;
   } catch (e) {
@@ -548,14 +537,12 @@ interface OrderFillCheck {
   fills: Array<{ type: "TP1" | "TP2" | "TP3" | "SL"; price: number; qty: number; orderId: string }>;
 }
 
-/**
- * Check which orders have been filled for a live trade.
- * Called by the cron job to detect fills via polling.
- */
 export async function checkOrderFills(
   trade: LiveTrade,
   creds: Credentials
 ): Promise<OrderFillCheck> {
+  const connector = getConnector(trade.exchange);
+
   const result: OrderFillCheck = {
     tp1Filled: false,
     tp2Filled: false,
@@ -571,7 +558,7 @@ export async function checkOrderFills(
   ) => {
     if (!orderId || alreadyHit) return;
     try {
-      const order = await getOrder(trade.symbol, orderId, creds);
+      const order = await connector.getOrder(trade.symbol, orderId, creds);
       if (order.status === "FILLED") {
         const price = parseFloat(order.avgPrice || order.price);
         const qty = parseFloat(order.executedQty);
@@ -601,22 +588,20 @@ export async function checkOrderFills(
 export interface ReconciliationResult {
   symbol: string;
   firestoreQty: number;
-  binanceQty: number;
+  exchangeQty: number;
   mismatch: boolean;
   details: string;
 }
 
-/**
- * Compare Firestore live_trades state vs actual Binance positions.
- * Returns discrepancies for alerting.
- */
 export async function reconcile(
   trades: LiveTrade[],
-  creds: Credentials
+  creds: Credentials,
+  exchange: ExchangeName = "BYBIT"
 ): Promise<ReconciliationResult[]> {
+  const connector = getConnector(exchange);
   const results: ReconciliationResult[] = [];
 
-  const openTrades = trades.filter((t) => t.status === "OPEN");
+  const openTrades = trades.filter((t) => t.status === "OPEN" && t.exchange === exchange);
   const symbolMap = new Map<string, number>();
 
   for (const t of openTrades) {
@@ -627,25 +612,24 @@ export async function reconcile(
 
   for (const [symbol, expectedQty] of symbolMap) {
     try {
-      const { getPosition } = await import("./binance");
-      const pos = await getPosition(symbol, creds);
+      const pos = await connector.getPosition(symbol, creds);
       const actualQty = pos ? parseFloat(pos.positionAmt) : 0;
       const mismatch = Math.abs(actualQty - expectedQty) > 0.001;
 
       results.push({
         symbol,
         firestoreQty: expectedQty,
-        binanceQty: actualQty,
+        exchangeQty: actualQty,
         mismatch,
         details: mismatch
-          ? `Expected ${expectedQty}, Binance has ${actualQty}`
+          ? `Expected ${expectedQty}, ${exchange} has ${actualQty}`
           : "In sync",
       });
     } catch (e) {
       results.push({
         symbol,
         firestoreQty: expectedQty,
-        binanceQty: 0,
+        exchangeQty: 0,
         mismatch: true,
         details: `Failed to check: ${e instanceof Error ? e.message : String(e)}`,
       });

@@ -9,6 +9,14 @@ export function TradingViewIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function BybitIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path d="M56.9 47.5h30.5l-35.8 63.2h39.9L56.9 175.2l71.4-87.5H88.9L120 47.5h22.2L56.9 175.2" fill="#F7A600" />
+    </svg>
+  );
+}
+
 export function BinanceIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 127 113" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>

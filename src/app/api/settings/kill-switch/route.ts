@@ -3,9 +3,14 @@ import { getAdminFirestore } from "@/firebase/admin";
 import { decrypt } from "@/lib/crypto";
 import { protectiveClose, type LiveTrade, type Credentials } from "@/lib/trade-engine";
 import { sendMessage } from "@/lib/telegram";
+import { type ExchangeName, SUPPORTED_EXCHANGES, isExchangeSupported } from "@/lib/exchanges";
 
 /**
- * POST — Emergency kill switch: close all open live trades, disable auto-trade, alert via Telegram.
+ * POST — Emergency kill switch: close all open live trades across all exchanges
+ * (or a specific exchange), disable auto-trade, alert via Telegram.
+ *
+ * Supports optional `exchange` param to target a specific exchange.
+ * Without it, kills ALL exchanges for the user.
  */
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -13,73 +18,98 @@ export async function POST(request: NextRequest) {
 
   if (!uid) return NextResponse.json({ error: "Missing uid" }, { status: 400 });
 
+  const targetExchange = body.exchange
+    ? (isExchangeSupported(body.exchange) ? body.exchange.toUpperCase() as ExchangeName : null)
+    : null; // null = kill all exchanges
+
   const db = getAdminFirestore();
 
-  const secretDoc = await db.collection("users").doc(uid).collection("secrets").doc("binance").get();
-  if (!secretDoc.exists) {
-    return NextResponse.json({ error: "No Bybit credentials configured" }, { status: 400 });
-  }
+  const results: Array<{ symbol: string; exchange: string; success: boolean; error?: string }> = [];
+  const exchangesToKill = targetExchange ? [targetExchange] : SUPPORTED_EXCHANGES;
 
-  const atData = secretDoc.data()!;
+  for (const exchangeName of exchangesToKill) {
+    const docId = exchangeName.toLowerCase();
+    const docIds = exchangeName === "BYBIT" ? [docId, "binance"] : [docId];
 
-  // Disable auto-trade immediately
-  await db.collection("users").doc(uid).collection("secrets").doc("binance").update({
-    autoTradeEnabled: false,
-  });
+    let secretDoc = null;
+    let secretDocRef = null;
 
-  const creds: Credentials = {
-    apiKey: decrypt(atData.encryptedKey),
-    apiSecret: decrypt(atData.encryptedSecret),
-    testnet: atData.useTestnet === true,
-  };
+    for (const id of docIds) {
+      const ref = db.collection("users").doc(uid).collection("secrets").doc(id);
+      const doc = await ref.get();
+      if (doc.exists) {
+        secretDoc = doc;
+        secretDocRef = ref;
+        break;
+      }
+    }
 
-  const openSnap = await db.collection("live_trades")
-    .where("status", "==", "OPEN")
-    .where("userId", "==", uid)
-    .get();
+    if (!secretDoc || !secretDocRef) continue;
 
-  const results: Array<{ symbol: string; success: boolean; error?: string }> = [];
+    const atData = secretDoc.data()!;
 
-  for (const d of openSnap.docs) {
-    const trade = { id: d.id, ...d.data() } as LiveTrade;
-    try {
-      const closeResult = await protectiveClose(trade, "KILL_SWITCH", trade.entryPrice, creds);
-      await db.collection("live_trades").doc(d.id).update({
-        ...closeResult.updatedFields,
-        events: [...(trade.events || []), closeResult.newEvent],
-      });
-      results.push({ symbol: trade.signalSymbol, success: true });
+    // Disable auto-trade immediately
+    await secretDocRef.update({ autoTradeEnabled: false });
 
-      await db.collection("simulator_logs").add({
-        timestamp: new Date().toISOString(),
-        action: "KILL_SWITCH",
-        details: `${trade.signalSymbol} ${trade.side} emergency closed${closeResult.warning ? ` (${closeResult.warning})` : ""}`,
-        symbol: trade.signalSymbol,
-      });
-    } catch (e) {
-      results.push({
-        symbol: trade.signalSymbol,
-        success: false,
-        error: e instanceof Error ? e.message : String(e),
-      });
+    const creds: Credentials = {
+      apiKey: decrypt(atData.encryptedKey),
+      apiSecret: decrypt(atData.encryptedSecret),
+      testnet: atData.useTestnet === true,
+    };
+
+    // Close all open trades for this user on this exchange
+    const openSnap = await db.collection("live_trades")
+      .where("status", "==", "OPEN")
+      .where("userId", "==", uid)
+      .where("exchange", "==", exchangeName)
+      .get();
+
+    for (const d of openSnap.docs) {
+      const trade = { id: d.id, ...d.data() } as LiveTrade;
+      try {
+        const closeResult = await protectiveClose(trade, "KILL_SWITCH", trade.entryPrice, creds);
+        await db.collection("live_trades").doc(d.id).update({
+          ...closeResult.updatedFields,
+          events: [...(trade.events || []), closeResult.newEvent],
+        });
+        results.push({ symbol: trade.signalSymbol, exchange: exchangeName, success: true });
+
+        await db.collection("live_trade_logs").add({
+          timestamp: new Date().toISOString(),
+          action: "KILL_SWITCH",
+          details: `${trade.signalSymbol} ${trade.side} emergency closed on ${exchangeName}${closeResult.warning ? ` (${closeResult.warning})` : ""}`,
+          symbol: trade.signalSymbol,
+          userId: uid,
+          exchange: exchangeName,
+        });
+      } catch (e) {
+        results.push({
+          symbol: trade.signalSymbol,
+          exchange: exchangeName,
+          success: false,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
     }
   }
 
-  // Send Telegram alerts (3 messages for urgency)
+  // Telegram alerts
   try {
     const userDoc = await db.collection("users").doc(uid).get();
     const chatId = userDoc.data()?.telegramChatId;
     if (chatId) {
       const closed = results.filter((r) => r.success).length;
       const failed = results.filter((r) => !r.success);
-      const symbols = results.map((r) => r.symbol).join(", ");
+      const exchanges = [...new Set(results.map((r) => r.exchange))].join(", ") || "none";
+      const symbols = results.map((r) => r.symbol).join(", ") || "none";
 
       await sendMessage(chatId,
         `🚨 <b>KILL SWITCH ACTIVATED</b> 🚨\n\n` +
         `⛔ Auto-trade has been <b>DISABLED</b>.\n` +
+        `Exchanges: <b>${exchanges}</b>\n` +
         `Positions closed: <b>${closed}/${results.length}</b>\n` +
-        `Symbols: ${symbols || "none"}\n\n` +
-        (failed.length ? `⚠️ Failed to close: ${failed.map((f) => `${f.symbol} (${f.error})`).join(", ")}\n\n` : "") +
+        `Symbols: ${symbols}\n\n` +
+        (failed.length ? `⚠️ Failed to close: ${failed.map((f) => `${f.symbol}@${f.exchange} (${f.error})`).join(", ")}\n\n` : "") +
         `Re-enable manually from Settings when ready.`
       );
       await new Promise((r) => setTimeout(r, 2000));

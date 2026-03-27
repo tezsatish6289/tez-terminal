@@ -63,6 +63,7 @@ export interface LiveTrade {
   capitalAtEntry: number;
   timeframe: string;
   algo: string;
+  testnet: boolean;
 }
 
 export interface LiveTradeEvent {
@@ -112,7 +113,7 @@ export async function executeTrade(
   simTrade: SimTrade,
   userId: string,
   simTradeId: string,
-  capital: number,
+  _simulatorCapital: number,
   creds: Credentials
 ): Promise<TradeExecutionResult> {
   const warnings: string[] = [];
@@ -121,34 +122,40 @@ export async function executeTrade(
   try {
     const info = await getSymbolInfo(binanceSymbol, creds.testnet);
 
-    // 1. Set isolated margin
+    // 1. Query actual exchange balance for position sizing
+    const balance = await getUsdtBalance(creds);
+    const exchangeCapital = balance.total;
+    if (exchangeCapital <= 0) {
+      return { success: false, error: `No USDT balance on Bybit (${creds.testnet ? "testnet" : "production"})`, warnings };
+    }
+
+    // 2. Set isolated margin
     await setMarginType(binanceSymbol, "ISOLATED", creds);
 
-    // 2. Set leverage
+    // 3. Set leverage
     await setLeverage(binanceSymbol, simTrade.leverage, creds);
 
-    // 3. Calculate position size and quantity
+    // 4. Calculate position size from real exchange balance
     const riskPct = SIM_CONFIG.RISK_PER_TRADE_BASE;
-    const riskAmount = capital * riskPct;
+    const riskAmount = exchangeCapital * riskPct;
     const slDistance = Math.abs(simTrade.entryPrice - simTrade.stopLoss) / simTrade.entryPrice;
     const notionalSize = slDistance > 0 ? (riskAmount / slDistance) : riskAmount * simTrade.leverage;
     const rawQty = notionalSize / simTrade.entryPrice;
 
     const qtyResult = adjustQuantity(rawQty, info);
     if ("error" in qtyResult) {
-      return { success: false, error: qtyResult.error, warnings };
+      return { success: false, error: `${qtyResult.error} (balance: $${exchangeCapital.toFixed(2)})`, warnings };
     }
     const { quantity } = qtyResult;
 
     if (!checkNotional(simTrade.entryPrice, quantity, info)) {
-      return { success: false, error: `Below minimum notional: ${simTrade.entryPrice * quantity} < ${info.minNotional}`, warnings };
+      return { success: false, error: `Below minimum notional: $${(simTrade.entryPrice * quantity).toFixed(2)} < $${info.minNotional} (balance: $${exchangeCapital.toFixed(2)})`, warnings };
     }
 
-    // 4. Verify sufficient balance
-    const balance = await getUsdtBalance(creds);
+    // 5. Verify sufficient available margin
     const marginRequired = (quantity * simTrade.entryPrice) / simTrade.leverage;
     if (balance.available < marginRequired * 1.05) {
-      return { success: false, error: `Insufficient balance: need ~${marginRequired.toFixed(2)} USDT margin, have ${balance.available.toFixed(2)}`, warnings };
+      return { success: false, error: `Insufficient margin: need ~$${marginRequired.toFixed(2)}, have $${balance.available.toFixed(2)} available`, warnings };
     }
 
     // 5. Place market entry
@@ -238,9 +245,10 @@ export async function executeTrade(
       closedAt: null,
       confidenceScore: simTrade.confidenceScore,
       biasAtEntry: simTrade.biasAtEntry,
-      capitalAtEntry: capital,
+      capitalAtEntry: exchangeCapital,
       timeframe: simTrade.timeframe,
       algo: simTrade.algo,
+      testnet: creds.testnet === true,
     };
 
     return { success: true, trade: liveTrade, warnings };

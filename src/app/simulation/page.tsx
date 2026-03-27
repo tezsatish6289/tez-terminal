@@ -8,7 +8,7 @@ import {
   useDoc,
   useMemoFirebase,
 } from "@/firebase";
-import { collection, query, orderBy, limit, doc } from "firebase/firestore";
+import { collection, query, orderBy, limit, doc, where } from "firebase/firestore";
 import {
   Loader2,
   TrendingUp,
@@ -19,8 +19,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   BarChart3,
+  Zap,
 } from "lucide-react";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { SimulatorState, SimTrade, SimLog, SimTradeEvent } from "@/lib/simulator";
+import type { LiveTrade } from "@/lib/trade-engine";
+import { ExchangeSettingsDialog, ExchangeStatusBadge, useExchangeConfig } from "@/components/exchange/ExchangeSettings";
 import { format } from "date-fns";
 
 function formatUsd(val: number): string {
@@ -67,6 +70,7 @@ export default function SimulationPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
+  const [mode, setMode] = useState<"internal" | "bybit">("internal");
   const [tab, setTab] = useState<"overview" | "trades" | "logs">("overview");
   const [selectedTrade, setSelectedTrade] = useState<SimTrade | null>(null);
 
@@ -139,16 +143,51 @@ export default function SimulationPage() {
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           <div className="max-w-[1400px] mx-auto space-y-4">
             {/* Header */}
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Activity className="w-4 h-4 text-accent" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-accent">Model Simulation</span>
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Activity className="w-4 h-4 text-accent" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-accent">Simulation</span>
+                </div>
+                <h1 className="text-xl font-black tracking-tight">Trade Simulator</h1>
               </div>
-              <h1 className="text-xl font-black tracking-tight">Trade Simulator</h1>
-              <p className="text-[11px] text-muted-foreground/50 mt-1">
-                Live forward simulation starting with $1,000 USDT — trades automatically based on AI signals and market bias.
-              </p>
             </div>
+
+            {/* Mode Selector: Internal vs Bybit */}
+            <div className="flex items-center gap-1 p-1 rounded-lg bg-white/[0.03] border border-white/[0.06] w-fit">
+              <button
+                onClick={() => setMode("internal")}
+                className={cn(
+                  "px-4 py-2 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all",
+                  mode === "internal"
+                    ? "bg-accent/15 text-accent shadow-sm"
+                    : "text-muted-foreground/50 hover:text-muted-foreground"
+                )}
+              >
+                <Activity className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />
+                Internal Simulation
+              </button>
+              <button
+                onClick={() => setMode("bybit")}
+                className={cn(
+                  "px-4 py-2 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all",
+                  mode === "bybit"
+                    ? "bg-blue-400/15 text-blue-400 shadow-sm"
+                    : "text-muted-foreground/50 hover:text-muted-foreground"
+                )}
+              >
+                <Zap className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />
+                Bybit Testnet
+              </button>
+            </div>
+
+            {mode === "bybit" ? (
+              <BybitSimulationTab uid={user?.uid} />
+            ) : (
+            <>
+            <p className="text-[11px] text-muted-foreground/50">
+              Virtual $1,000 USDT — trades automatically based on AI signals and market bias. No real money.
+            </p>
 
             {isLoading ? (
               <div className="flex items-center justify-center h-40">
@@ -271,12 +310,262 @@ export default function SimulationPage() {
                 )}
               </>
             )}
+            </>
+            )}
           </div>
         </div>
       </main>
 
       {/* Trade Narration Dialog */}
       <TradeNarrationDialog trade={selectedTrade} onClose={() => setSelectedTrade(null)} />
+    </div>
+  );
+}
+
+// ── Bybit Testnet Simulation Tab ──────────────────────────
+
+function BybitSimulationTab({ uid }: { uid: string | undefined }) {
+  const firestore = useFirestore();
+  const { config, isLoading: configLoading } = useExchangeConfig(uid);
+  const [bybitTab, setBybitTab] = useState<"overview" | "trades">("overview");
+  const [balance, setBalance] = useState<{ total: number; available: number } | null>(null);
+
+  const fetchBalance = useCallback(async () => {
+    if (!uid) return;
+    try {
+      const res = await fetch(`/api/settings/balance?uid=${uid}`);
+      const data = await res.json();
+      if (data.total !== undefined) setBalance(data);
+    } catch { /* ignore */ }
+  }, [uid]);
+
+  useEffect(() => {
+    if (uid && config?.configured && config.useTestnet) fetchBalance();
+  }, [uid, config, fetchBalance]);
+
+  const liveTradesQuery = useMemoFirebase(() => {
+    if (!firestore || !uid) return null;
+    return query(
+      collection(firestore, "live_trades"),
+      where("testnet", "==", true),
+      orderBy("openedAt", "desc"),
+      limit(100),
+    );
+  }, [firestore, uid]);
+  const { data: rawLiveTrades, isLoading: tradesLoading } = useCollection(liveTradesQuery);
+
+  const liveTrades = useMemo(() => {
+    if (!rawLiveTrades) return [];
+    return rawLiveTrades.map((d: any) => ({ id: d.id, ...d } as LiveTrade));
+  }, [rawLiveTrades]);
+
+  const openTrades = useMemo(() => liveTrades.filter((t) => t.status === "OPEN"), [liveTrades]);
+  const closedTrades = useMemo(() => liveTrades.filter((t) => t.status === "CLOSED"), [liveTrades]);
+
+  const totalPnl = closedTrades.reduce((sum, t) => sum + (t.realizedPnl || 0), 0);
+  const wins = closedTrades.filter((t) => t.realizedPnl > 0).length;
+  const losses = closedTrades.filter((t) => t.realizedPnl < 0).length;
+  const winRate = (wins + losses) > 0 ? (wins / (wins + losses)) * 100 : 0;
+
+  if (!uid) return null;
+
+  const isConfiguredForTestnet = config?.configured && config.useTestnet;
+
+  return (
+    <div className="space-y-4">
+      {/* Testnet banner + settings */}
+      <div className="flex items-center justify-between p-3 rounded-lg bg-blue-400/[0.06] border border-blue-400/20">
+        <div className="flex items-center gap-3">
+          <Shield className="w-5 h-5 text-blue-400 shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-blue-400">BYBIT TESTNET</p>
+            <p className="text-[10px] text-blue-400/60">
+              {isConfiguredForTestnet
+                ? config.autoTradeEnabled
+                  ? "Auto-trade active on testnet. Fake money."
+                  : "Connected but auto-trade is off."
+                : "Not connected. Configure testnet API keys to start."}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <ExchangeStatusBadge config={config} />
+          <ExchangeSettingsDialog uid={uid} mode="testnet" />
+        </div>
+      </div>
+
+      {configLoading ? (
+        <div className="flex items-center justify-center h-40">
+          <Loader2 className="h-6 w-6 animate-spin text-blue-400/50" />
+        </div>
+      ) : !isConfiguredForTestnet ? (
+        <div className="rounded-xl border border-blue-400/10 bg-white/[0.02] p-8 text-center">
+          <Zap className="w-8 h-8 text-blue-400/30 mx-auto mb-3" />
+          <p className="text-sm font-bold text-muted-foreground/50">Bybit testnet not configured</p>
+          <p className="text-[11px] text-muted-foreground/30 mt-1">Click Settings above to connect your Bybit testnet API keys.</p>
+        </div>
+      ) : (
+        <>
+          {/* Stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard
+              label="Balance"
+              value={balance ? formatUsd(balance.total) : "—"}
+              icon={<DollarSign className="w-3.5 h-3.5" />}
+              color="text-blue-400"
+            />
+            <StatCard
+              label="Total P&L"
+              value={formatUsd(totalPnl)}
+              icon={totalPnl >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+              color={totalPnl >= 0 ? "text-positive" : "text-negative"}
+            />
+            <StatCard
+              label="Win Rate"
+              value={`${winRate.toFixed(0)}%`}
+              icon={<BarChart3 className="w-3.5 h-3.5" />}
+              color={winRate >= 60 ? "text-positive" : winRate >= 45 ? "text-amber-400" : "text-negative"}
+            />
+            <StatCard
+              label="Trades"
+              value={`${wins}W / ${losses}L`}
+              icon={<Activity className="w-3.5 h-3.5" />}
+              color="text-foreground/70"
+            />
+          </div>
+
+          {/* Tabs */}
+          <div className="flex items-center gap-1 border-b border-white/[0.06] pb-0">
+            {(["overview", "trades"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setBybitTab(t)}
+                className={cn(
+                  "px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer border-b-2",
+                  bybitTab === t
+                    ? "border-blue-400 text-blue-400"
+                    : "border-transparent text-muted-foreground/40 hover:text-muted-foreground"
+                )}
+              >
+                {t === "overview" ? `Open (${openTrades.length})` : `History (${closedTrades.length})`}
+              </button>
+            ))}
+          </div>
+
+          {tradesLoading ? (
+            <div className="flex items-center justify-center h-20">
+              <Loader2 className="h-5 w-5 animate-spin text-blue-400/50" />
+            </div>
+          ) : bybitTab === "overview" ? (
+            liveTrades.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground/30">
+                <Activity className="w-6 h-6 mx-auto mb-2" />
+                <p className="text-xs font-bold">No testnet trades yet</p>
+                <p className="text-[10px] text-muted-foreground/20 mt-1">Enable auto-trade and wait for signals.</p>
+              </div>
+            ) : (
+              <LiveTradeList trades={openTrades} emptyLabel="No open trades" />
+            )
+          ) : (
+            <LiveTradeList trades={closedTrades} emptyLabel="No closed trades yet" />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function LiveTradeList({ trades, emptyLabel }: { trades: LiveTrade[]; emptyLabel: string }) {
+  if (trades.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground/30">
+        <Activity className="w-6 h-6 mx-auto mb-2" />
+        <p className="text-xs font-bold">{emptyLabel}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {trades.map((trade) => (
+        <LiveTradeCard key={trade.id} trade={trade} />
+      ))}
+    </div>
+  );
+}
+
+function LiveTradeCard({ trade }: { trade: LiveTrade }) {
+  const isBuy = trade.side === "BUY";
+  const isOpen = trade.status === "OPEN";
+  const lastEvent = trade.events?.[trade.events.length - 1];
+
+  return (
+    <div className={cn(
+      "rounded-lg border p-3 space-y-2",
+      isOpen ? "border-blue-400/15 bg-white/[0.02]" : "border-white/[0.06] bg-white/[0.01]"
+    )}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-black text-foreground uppercase tracking-tight">{trade.signalSymbol}</span>
+          <Badge className={cn("text-[9px] font-black h-5 px-2", isBuy ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400")}>
+            {trade.side}
+          </Badge>
+          <span className="text-[9px] font-bold text-muted-foreground/40">{trade.leverage}x</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {isOpen ? (
+            <Badge className="text-[9px] font-black h-5 px-2 bg-blue-400/15 text-blue-400">Open</Badge>
+          ) : (
+            <Badge className={cn("text-[9px] font-black h-5 px-2",
+              trade.realizedPnl >= 0 ? "bg-emerald-500/15 text-emerald-400" : "bg-rose-500/15 text-rose-400"
+            )}>
+              {trade.closeReason || "Closed"}
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4 text-[11px]">
+        <div>
+          <span className="text-muted-foreground/40 mr-1">Entry</span>
+          <span className="font-mono font-bold text-white/60">${formatPrice(trade.entryPrice)}</span>
+        </div>
+        <div>
+          <span className="text-muted-foreground/40 mr-1">Size</span>
+          <span className="font-mono font-bold text-white/60">${trade.positionSize.toFixed(2)}</span>
+        </div>
+        <div>
+          <span className="text-muted-foreground/40 mr-1">P&L</span>
+          <span className={cn("font-mono font-bold", trade.realizedPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+            {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
+          </span>
+        </div>
+      </div>
+
+      {/* TP progress */}
+      <div className="flex items-center gap-1.5 text-[9px] font-bold">
+        {[
+          { num: 1, hit: trade.tp1Hit },
+          { num: 2, hit: trade.tp2Hit },
+          { num: 3, hit: trade.tp3Hit },
+        ].map((tp) => (
+          <span
+            key={tp.num}
+            className={cn(
+              "px-1.5 py-0.5 rounded",
+              tp.hit ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-muted-foreground/40"
+            )}
+          >
+            TP{tp.num}{tp.hit ? "✓" : ""}
+          </span>
+        ))}
+        {trade.slHit && (
+          <span className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400">SL✓</span>
+        )}
+        <span className="text-muted-foreground/30 ml-auto">
+          {format(new Date(trade.openedAt), "MMM dd, HH:mm")}
+        </span>
+      </div>
     </div>
   );
 }

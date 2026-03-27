@@ -39,10 +39,11 @@ export function TopBar() {
   const navItems = [
     { name: "Signals", icon: Zap, href: "/signals" },
     { name: "Simulator", icon: Activity, href: "/simulation" },
+    { name: "Live", icon: Zap, href: "/live" },
     { name: "Trade Audit", icon: LineChart, href: "/trade-audit" },
     { name: "Purchases", icon: CreditCard, href: "/purchases" },
     { name: "Referrals", icon: Gift, href: "/referrals" },
-    { name: "Notifications", icon: Bell, href: "/settings" },
+    { name: "Settings", icon: Bell, href: "/settings" },
   ];
 
   const adminItems = [

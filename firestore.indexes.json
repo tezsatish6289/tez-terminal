@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "live_trades",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "testnet", "order": "ASCENDING" },
+        { "fieldPath": "openedAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

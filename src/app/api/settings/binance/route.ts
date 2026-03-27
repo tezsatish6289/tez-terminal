@@ -34,37 +34,44 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const { uid, apiKey, apiSecret } = body;
-
-  if (!uid || !apiKey || !apiSecret) {
-    return NextResponse.json({ error: "Missing uid, apiKey, or apiSecret" }, { status: 400 });
-  }
-
-  // Validate the credentials by attempting a balance check
   try {
-    const balance = await getUsdtBalance({ apiKey, apiSecret });
-    if (balance.total < 0) throw new Error("Unexpected negative balance");
+    const body = await request.json();
+    const { uid, apiKey, apiSecret } = body;
+
+    if (!uid || !apiKey || !apiSecret) {
+      return NextResponse.json({ error: "Missing uid, apiKey, or apiSecret" }, { status: 400 });
+    }
+
+    // Validate the credentials by attempting a balance check
+    try {
+      const balance = await getUsdtBalance({ apiKey, apiSecret });
+      if (balance.total < 0) throw new Error("Unexpected negative balance");
+    } catch (e) {
+      return NextResponse.json({
+        error: `Invalid Bybit credentials: ${e instanceof Error ? e.message : String(e)}`,
+      }, { status: 400 });
+    }
+
+    const db = getAdminFirestore();
+    await db.collection("users").doc(uid).collection("secrets").doc("binance").set({
+      encryptedKey: encrypt(apiKey),
+      encryptedSecret: encrypt(apiSecret),
+      keyLastFour: apiKey.slice(-4),
+      autoTradeEnabled: false,
+      riskPerTrade: 0.5,
+      maxConcurrentTrades: 1,
+      dailyLossLimit: 5,
+      useTestnet: true,
+      savedAt: new Date().toISOString(),
+    });
+
+    return NextResponse.json({ success: true, message: "Bybit credentials saved and validated." });
   } catch (e) {
+    console.error("[settings/binance POST]", e);
     return NextResponse.json({
-      error: `Invalid Bybit credentials: ${e instanceof Error ? e.message : String(e)}`,
-    }, { status: 400 });
+      error: `Server error: ${e instanceof Error ? e.message : String(e)}`,
+    }, { status: 500 });
   }
-
-  const db = getAdminFirestore();
-  await db.collection("users").doc(uid).collection("secrets").doc("binance").set({
-    encryptedKey: encrypt(apiKey),
-    encryptedSecret: encrypt(apiSecret),
-    keyLastFour: apiKey.slice(-4),
-    autoTradeEnabled: false,
-    riskPerTrade: 0.5,
-    maxConcurrentTrades: 1,
-    dailyLossLimit: 5,
-    useTestnet: true,
-    savedAt: new Date().toISOString(),
-  });
-
-  return NextResponse.json({ success: true, message: "Bybit credentials saved and validated." });
 }
 
 export async function PUT(request: NextRequest) {

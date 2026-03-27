@@ -210,7 +210,7 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ uid: user.uid, apiKey: apiKeyInput, apiSecret: apiSecretInput }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({ error: `Server returned ${res.status}` }));
       if (data.success) {
         toast({ title: "Saved", description: "Bybit API credentials validated and saved." });
         setApiKeyInput("");
@@ -219,8 +219,8 @@ export default function SettingsPage() {
       } else {
         toast({ title: "Error", description: data.error || "Failed to save credentials.", variant: "destructive" });
       }
-    } catch {
-      toast({ title: "Error", description: "Failed to save. Please try again.", variant: "destructive" });
+    } catch (e) {
+      toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to save. Please try again.", variant: "destructive" });
     } finally {
       setIsSavingBinance(false);
     }

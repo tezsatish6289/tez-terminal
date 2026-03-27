@@ -439,7 +439,19 @@ export async function GET(request: NextRequest) {
                 currentPrice: livePrice,
                 unrealizedPnl: Math.round(unrealizedPnl * 100) / 100,
               };
-              if (newTrailingSl !== t.trailingSl) {
+              if (newTrailingSl !== t.trailingSl && newTrailingSl != null && t.trailingSl == null) {
+                updatePayload.trailingSl = newTrailingSl;
+                // Record the SL→BE event in the trade timeline
+                const slToBeEvent = {
+                  type: "SL_TO_BE",
+                  price: livePrice,
+                  pnl: 0,
+                  fee: 0,
+                  closePct: 0,
+                  timestamp: new Date().toISOString(),
+                };
+                updatePayload.events = [...(t.events || []), slToBeEvent];
+              } else if (newTrailingSl !== t.trailingSl) {
                 updatePayload.trailingSl = newTrailingSl;
               }
               await db.collection("simulator_trades").doc(simDoc.id).update(updatePayload);

@@ -26,7 +26,13 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { SimulatorState, SimTrade, SimLog } from "@/lib/simulator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import type { SimulatorState, SimTrade, SimLog, SimTradeEvent } from "@/lib/simulator";
 import { format } from "date-fns";
 
 function formatUsd(val: number): string {
@@ -62,6 +68,7 @@ export default function SimulationPage() {
   const firestore = useFirestore();
   const router = useRouter();
   const [tab, setTab] = useState<"overview" | "trades" | "logs">("overview");
+  const [selectedTrade, setSelectedTrade] = useState<SimTrade | null>(null);
 
   const stateRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -241,11 +248,11 @@ export default function SimulationPage() {
 
                 {/* Tab Content */}
                 {tab === "overview" && (
-                  <TradeList trades={openTrades} emptyIcon={<Activity className="w-6 h-6" />} emptyLabel="No open trades" />
+                  <TradeList trades={openTrades} emptyIcon={<Activity className="w-6 h-6" />} emptyLabel="No open trades" onSelectTrade={setSelectedTrade} />
                 )}
 
                 {tab === "trades" && (
-                  <TradeList trades={closedTrades} emptyIcon={<BarChart3 className="w-6 h-6" />} emptyLabel="No closed trades yet" />
+                  <TradeList trades={closedTrades} emptyIcon={<BarChart3 className="w-6 h-6" />} emptyLabel="No closed trades yet" onSelectTrade={setSelectedTrade} />
                 )}
 
                 {tab === "logs" && (
@@ -267,6 +274,9 @@ export default function SimulationPage() {
           </div>
         </div>
       </main>
+
+      {/* Trade Narration Dialog */}
+      <TradeNarrationDialog trade={selectedTrade} onClose={() => setSelectedTrade(null)} />
     </div>
   );
 }
@@ -304,7 +314,7 @@ function getSlDisplay(trade: SimTrade) {
   return { price: trade.stopLoss, label: "Original" };
 }
 
-function TradeList({ trades, emptyIcon, emptyLabel }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string }) {
+function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string; onSelectTrade: (t: SimTrade) => void }) {
   if (trades.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground/30">
@@ -319,7 +329,7 @@ function TradeList({ trades, emptyIcon, emptyLabel }: { trades: SimTrade[]; empt
       {/* Mobile: Card layout */}
       <div className="lg:hidden space-y-3">
         {trades.map((trade) => (
-          <MobileTradeCard key={trade.id ?? trade.signalId} trade={trade} />
+          <MobileTradeCard key={trade.id ?? trade.signalId} trade={trade} onSelect={onSelectTrade} />
         ))}
       </div>
 
@@ -347,7 +357,7 @@ function TradeList({ trades, emptyIcon, emptyLabel }: { trades: SimTrade[]; empt
             </TableHeader>
             <TableBody>
               {trades.map((trade) => (
-                <DesktopTradeRow key={trade.id ?? trade.signalId} trade={trade} />
+                <DesktopTradeRow key={trade.id ?? trade.signalId} trade={trade} onSelect={onSelectTrade} />
               ))}
             </TableBody>
           </Table>
@@ -357,18 +367,17 @@ function TradeList({ trades, emptyIcon, emptyLabel }: { trades: SimTrade[]; empt
   );
 }
 
-function DesktopTradeRow({ trade }: { trade: SimTrade }) {
+function DesktopTradeRow({ trade, onSelect }: { trade: SimTrade; onSelect: (t: SimTrade) => void }) {
   const isBuy = trade.side === "BUY";
   const isOpen = trade.status === "OPEN";
   const chartLabel = tfLabelMap[String(trade.timeframe).toUpperCase()] ?? `${trade.timeframe}m`;
   const sl = getSlDisplay(trade);
-  const pnl = isOpen ? (trade.unrealizedPnl ?? 0) : trade.realizedPnl;
   const closeDisplay = getCloseDisplay(trade.closeReason ?? null);
 
   return (
-    <TableRow className="border-white/5 hover:bg-white/[0.02] transition-colors">
+    <TableRow className="border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer" onClick={() => onSelect(trade)}>
       <TableCell className="py-4">
-        <Link href={`/chart/${trade.signalId}`} target="_blank" className="text-sm font-black text-white leading-none uppercase tracking-tighter hover:text-accent transition-colors">
+        <Link href={`/chart/${trade.signalId}`} target="_blank" className="text-sm font-black text-white leading-none uppercase tracking-tighter hover:text-accent transition-colors" onClick={(e) => e.stopPropagation()}>
           {trade.symbol}
         </Link>
       </TableCell>
@@ -467,17 +476,16 @@ function DesktopTradeRow({ trade }: { trade: SimTrade }) {
   );
 }
 
-function MobileTradeCard({ trade }: { trade: SimTrade }) {
+function MobileTradeCard({ trade, onSelect }: { trade: SimTrade; onSelect: (t: SimTrade) => void }) {
   const isBuy = trade.side === "BUY";
   const isOpen = trade.status === "OPEN";
   const isWin = trade.realizedPnl > 0;
   const chartLabel = tfLabelMap[String(trade.timeframe).toUpperCase()] ?? `${trade.timeframe}m`;
   const sl = getSlDisplay(trade);
-  const pnl = isOpen ? (trade.unrealizedPnl ?? 0) : trade.realizedPnl;
   const closeDisplay = getCloseDisplay(trade.closeReason ?? null);
 
   return (
-    <Link href={`/chart/${trade.signalId}`} target="_blank" className="block">
+    <div className="block cursor-pointer" onClick={() => onSelect(trade)}>
       <div className={cn(
         "rounded-xl border overflow-hidden hover:border-white/[0.12] transition-all",
         isOpen
@@ -603,7 +611,7 @@ function MobileTradeCard({ trade }: { trade: SimTrade }) {
           </div>
         </div>
       </div>
-    </Link>
+    </div>
   );
 }
 
@@ -636,5 +644,223 @@ function LogRow({ log }: { log: SimLog }) {
         </span>
       )}
     </div>
+  );
+}
+
+const EVENT_DISPLAY: Record<string, { label: string; icon: string; color: string }> = {
+  OPEN: { label: "Trade Opened", icon: "🟢", color: "text-accent" },
+  SL_TO_BE: { label: "SL → Breakeven", icon: "🛡️", color: "text-accent" },
+  TP1: { label: "TP1 Hit", icon: "🎯", color: "text-emerald-400" },
+  TP2: { label: "TP2 Hit", icon: "🎯", color: "text-emerald-400" },
+  TP3: { label: "TP3 Hit", icon: "🏆", color: "text-emerald-400" },
+  SL: { label: "Stop Loss Hit", icon: "🔴", color: "text-rose-400" },
+};
+
+function TradeNarrationDialog({ trade, onClose }: { trade: SimTrade | null; onClose: () => void }) {
+  if (!trade) return null;
+
+  const isBuy = trade.side === "BUY";
+  const isOpen = trade.status === "OPEN";
+  const chartLabel = tfLabelMap[String(trade.timeframe).toUpperCase()] ?? `${trade.timeframe}m`;
+  const closeDisplay = getCloseDisplay(trade.closeReason ?? null);
+
+  const duration = trade.closedAt
+    ? Math.round((new Date(trade.closedAt).getTime() - new Date(trade.openedAt).getTime()) / 60000)
+    : Math.round((Date.now() - new Date(trade.openedAt).getTime()) / 60000);
+  const durationLabel = duration < 60 ? `${duration}m` : duration < 1440 ? `${Math.floor(duration / 60)}h ${duration % 60}m` : `${Math.floor(duration / 1440)}d`;
+
+  let runningPnl = 0;
+  let runningFees = 0;
+  let runningRemaining = 1.0;
+
+  return (
+    <Dialog open={!!trade} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto bg-[#0f0f11] border-white/[0.08]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className="text-lg font-black uppercase tracking-tight">{trade.symbol}</span>
+            <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", isBuy ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400")}>
+              {trade.side}
+            </Badge>
+            <span className="text-[11px] text-muted-foreground/60">{chartLabel} · {trade.leverage}x</span>
+            {isOpen ? (
+              <Badge className="text-[9px] font-black h-5 uppercase px-2 bg-accent/15 text-accent ml-auto">Open</Badge>
+            ) : (
+              <Badge className={cn("text-[9px] font-black h-5 uppercase px-2 ml-auto", closeDisplay.color)}>
+                {closeDisplay.label}
+              </Badge>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* Trade Metadata */}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[11px] border-b border-white/[0.06] pb-3">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground/40">Entry</span>
+            <span className="font-mono font-bold text-white/70">${formatPrice(trade.entryPrice)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground/40">Size</span>
+            <span className="font-mono font-bold text-white/70">{formatUsd(trade.positionSize)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground/40">SL</span>
+            <span className="font-mono font-bold text-rose-400/70">${formatPrice(trade.stopLoss)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground/40">Capital</span>
+            <span className="font-mono font-bold text-white/70">{formatUsd(trade.capitalAtEntry)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground/40">TP1</span>
+            <span className="font-mono font-bold text-emerald-400/70">${formatPrice(trade.tp1)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground/40">Score</span>
+            <span className="font-mono font-bold text-accent">{trade.confidenceScore}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground/40">TP2</span>
+            <span className="font-mono font-bold text-emerald-400/70">${formatPrice(trade.tp2)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground/40">Bias</span>
+            <span className="font-mono font-bold text-white/70">{trade.biasAtEntry}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground/40">TP3</span>
+            <span className="font-mono font-bold text-emerald-400/70">${formatPrice(trade.tp3)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground/40">Duration</span>
+            <span className="font-mono font-bold text-white/70">{durationLabel}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground/40">Live WR</span>
+            <span className="font-mono font-bold text-white/70">{(trade.liveWinRateAtEntry * 100).toFixed(0)}%</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground/40">Algo WR</span>
+            <span className="font-mono font-bold text-white/70">{(trade.algoWinRateAtEntry * 100).toFixed(0)}%</span>
+          </div>
+        </div>
+
+        {/* Timeline */}
+        <div className="space-y-0">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/40 mb-2">Trade Timeline</div>
+          {(trade.events || []).map((evt, i) => {
+            const display = EVENT_DISPLAY[evt.type] ?? { label: evt.type, icon: "•", color: "text-muted-foreground" };
+
+            if (evt.type === "OPEN") {
+              runningFees += evt.fee;
+            } else if (evt.type === "SL_TO_BE") {
+              // no PnL change
+            } else {
+              runningPnl += evt.pnl;
+              runningFees += evt.fee;
+              runningRemaining -= evt.closePct;
+            }
+
+            return (
+              <div key={i} className="flex gap-3 py-2 border-b border-white/[0.03] last:border-0">
+                <div className="flex flex-col items-center shrink-0 w-5">
+                  <span className="text-sm">{display.icon}</span>
+                  {i < trade.events.length - 1 && <div className="w-px flex-1 bg-white/[0.06] mt-1" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className={cn("text-[11px] font-bold", display.color)}>{display.label}</span>
+                    <span className="text-[9px] text-muted-foreground/30 font-mono">
+                      {format(new Date(evt.timestamp), "MMM dd, HH:mm:ss")}
+                    </span>
+                  </div>
+
+                  {evt.type === "OPEN" && (
+                    <div className="text-[10px] text-muted-foreground/50 mt-0.5">
+                      Entry @ <span className="font-mono text-white/60">${formatPrice(evt.price)}</span>
+                      {" · "}Size: <span className="font-mono text-white/60">{formatUsd(trade.positionSize)}</span>
+                      {" · "}Fee: <span className="font-mono text-rose-400/50">{formatUsd(evt.fee)}</span>
+                    </div>
+                  )}
+
+                  {evt.type === "SL_TO_BE" && (
+                    <div className="text-[10px] text-muted-foreground/50 mt-0.5">
+                      Price crossed 50% of TP1 @ <span className="font-mono text-white/60">${formatPrice(evt.price)}</span>
+                      {" · "}SL moved to entry <span className="font-mono text-white/60">${formatPrice(trade.entryPrice)}</span>
+                    </div>
+                  )}
+
+                  {(evt.type === "TP1" || evt.type === "TP2" || evt.type === "TP3") && (
+                    <div className="text-[10px] text-muted-foreground/50 mt-0.5 space-y-0.5">
+                      <div>
+                        @ <span className="font-mono text-white/60">${formatPrice(evt.price)}</span>
+                        {" · "}Closed <span className="font-mono text-white/60">{(evt.closePct * 100).toFixed(0)}%</span> ({formatUsd(trade.positionSize * evt.closePct)})
+                      </div>
+                      <div>
+                        PnL: <span className={cn("font-mono font-bold", evt.pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>{evt.pnl >= 0 ? "+" : ""}{formatUsd(evt.pnl)}</span>
+                        {" · "}Fee: <span className="font-mono text-rose-400/50">{formatUsd(evt.fee)}</span>
+                        {" · "}Remaining: <span className="font-mono text-white/60">{Math.max(0, runningRemaining * 100).toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {evt.type === "SL" && (
+                    <div className="text-[10px] text-muted-foreground/50 mt-0.5 space-y-0.5">
+                      <div>
+                        @ <span className="font-mono text-white/60">${formatPrice(evt.price)}</span>
+                        {" · "}Closed <span className="font-mono text-white/60">{(evt.closePct * 100).toFixed(0)}%</span> remaining
+                      </div>
+                      <div>
+                        PnL: <span className={cn("font-mono font-bold", evt.pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>{evt.pnl >= 0 ? "+" : ""}{formatUsd(evt.pnl)}</span>
+                        {" · "}Fee: <span className="font-mono text-rose-400/50">{formatUsd(evt.fee)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Summary Footer */}
+        <div className="border-t border-white/[0.06] pt-3 mt-1">
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div>
+              <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/40 mb-0.5">Realized PnL</div>
+              <div className={cn("text-sm font-black font-mono", trade.realizedPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
+              </div>
+            </div>
+            <div>
+              <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/40 mb-0.5">Total Fees</div>
+              <div className="text-sm font-black font-mono text-rose-400/60">{formatUsd(trade.fees)}</div>
+            </div>
+            <div>
+              <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/40 mb-0.5">
+                {isOpen ? "Unrealized" : "Net Result"}
+              </div>
+              {isOpen ? (
+                <div className={cn("text-sm font-black font-mono", (trade.unrealizedPnl ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                  {(trade.unrealizedPnl ?? 0) >= 0 ? "+" : ""}{formatUsd(trade.unrealizedPnl ?? 0)}
+                </div>
+              ) : (
+                <div className={cn("text-sm font-black font-mono", (trade.realizedPnl - trade.fees) >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                  {(trade.realizedPnl - trade.fees) >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Deep dive link */}
+        <Link
+          href={`/chart/${trade.signalId}`}
+          target="_blank"
+          className="flex items-center justify-center gap-2 text-[11px] font-bold text-accent hover:text-accent/80 transition-colors pt-1"
+        >
+          View signal deep dive →
+        </Link>
+      </DialogContent>
+    </Dialog>
   );
 }

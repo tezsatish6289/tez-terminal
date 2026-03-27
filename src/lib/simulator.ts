@@ -91,7 +91,7 @@ export interface SimTrade {
 }
 
 export interface SimTradeEvent {
-  type: "OPEN" | "TP1" | "TP2" | "TP3" | "SL";
+  type: "OPEN" | "TP1" | "TP2" | "TP3" | "SL" | "SL_TO_BE";
   price: number;
   pnl: number;
   fee: number;

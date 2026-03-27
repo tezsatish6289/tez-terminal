@@ -114,6 +114,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Live trades (Binance auto-trade): readable by authenticated users, server handles writes.
+    match /live_trades/{tradeId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
     // Twitter agent data — server-only via Admin SDK
     match /twitter_config/{docId} {
       allow read, write: if false;

@@ -27,6 +27,17 @@ import {
   type IncubatedCandidate,
   type MarketTurnInput,
 } from "@/lib/simulator";
+import {
+  checkOrderFills,
+  handleTpFill,
+  handleSlFill,
+  moveSlToBreakeven,
+  protectiveClose,
+  type LiveTrade,
+  type Credentials,
+} from "@/lib/trade-engine";
+import { decrypt } from "@/lib/crypto";
+import { sendMessage } from "@/lib/telegram";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -873,14 +884,263 @@ export async function GET(request: NextRequest) {
       console.error("[Sync] Incubated signal selection failed:", incErr.message);
     }
 
+    // ── Live Trade Management (Binance Auto-Trade) ──────────────
+    let liveTradeUpdates = 0;
+    let liveTradeFills = 0;
+    let liveProtectiveCloses = 0;
+    try {
+      const autoTradeDoc = await db.collection("users").doc("99V4s5wPXcgmthTaMa0k7YyLm702")
+        .collection("secrets").doc("binance").get();
+
+      if (autoTradeDoc.exists && autoTradeDoc.data()?.autoTradeEnabled === true) {
+        const atData = autoTradeDoc.data()!;
+        const creds: Credentials = {
+          apiKey: decrypt(atData.encryptedKey),
+          apiSecret: decrypt(atData.encryptedSecret),
+        };
+
+        const liveTradesSnap = await db.collection("live_trades")
+          .where("status", "==", "OPEN").get();
+
+        if (!liveTradesSnap.empty) {
+          const liveTrades = liveTradesSnap.docs.map((d) => ({ id: d.id, ...d.data() } as LiveTrade));
+
+          for (const lt of liveTrades) {
+            try {
+              // 1. Check for order fills (TP/SL)
+              const fills = await checkOrderFills(lt, creds);
+
+              for (const fill of fills.fills) {
+                if (fill.type === "SL") {
+                  const slResult = await handleSlFill(lt, fill.price, fill.qty);
+                  const { id: _slId, ...slFields } = { id: lt.id, ...slResult.updatedFields };
+                  await db.collection("live_trades").doc(lt.id!).update({
+                    ...slFields,
+                    events: [...(lt.events || []), slResult.newEvent],
+                  });
+                  await db.collection("simulator_logs").add({
+                    timestamp: new Date().toISOString(),
+                    action: "LIVE_SL_HIT",
+                    details: `${lt.signalSymbol} ${lt.side} SL hit @ $${fill.price} PnL: $${slResult.newEvent.pnl.toFixed(2)}`,
+                    symbol: lt.signalSymbol,
+                  });
+                  lt.status = "CLOSED";
+                  liveTradeFills++;
+                } else {
+                  const tpLevel = fill.type === "TP1" ? 1 : fill.type === "TP2" ? 2 : 3;
+                  const tpResult = await handleTpFill(lt, tpLevel as 1 | 2 | 3, fill.price, fill.qty, creds);
+                  const updatedEvents = [...(lt.events || []), tpResult.newEvent];
+                  await db.collection("live_trades").doc(lt.id!).update({
+                    ...tpResult.updatedFields,
+                    events: updatedEvents,
+                  });
+                  if (tpResult.warnings.length) {
+                    await db.collection("simulator_logs").add({
+                      timestamp: new Date().toISOString(),
+                      action: "LIVE_TRADE_WARNING",
+                      details: `${lt.signalSymbol} TP${tpLevel} warnings: ${tpResult.warnings.join("; ")}`,
+                      symbol: lt.signalSymbol,
+                    });
+                  }
+                  await db.collection("simulator_logs").add({
+                    timestamp: new Date().toISOString(),
+                    action: `LIVE_TP${tpLevel}_HIT`,
+                    details: `${lt.signalSymbol} ${lt.side} TP${tpLevel} hit @ $${fill.price} PnL: $${tpResult.newEvent.pnl.toFixed(2)}`,
+                    symbol: lt.signalSymbol,
+                  });
+                  // Update local reference for subsequent checks
+                  Object.assign(lt, tpResult.updatedFields);
+                  lt.events = updatedEvents;
+                  liveTradeFills++;
+                }
+              }
+
+              if (lt.status === "CLOSED") continue;
+
+              // 2. Check trailing SL → breakeven
+              const livePrice = perpetualsPriceMap[lt.signalSymbol] ?? spotPriceMap[lt.signalSymbol.replace(/\.P$/i, "")];
+              if (livePrice != null && lt.trailingSl == null) {
+                const slBeResult = await moveSlToBreakeven(lt, livePrice, creds);
+                if (slBeResult.moved && slBeResult.updatedFields && slBeResult.newEvent) {
+                  await db.collection("live_trades").doc(lt.id!).update({
+                    ...slBeResult.updatedFields,
+                    events: [...(lt.events || []), slBeResult.newEvent],
+                  });
+                  Object.assign(lt, slBeResult.updatedFields);
+                  liveTradeUpdates++;
+                }
+                if (slBeResult.warning) {
+                  await db.collection("simulator_logs").add({
+                    timestamp: new Date().toISOString(),
+                    action: "LIVE_TRADE_WARNING",
+                    details: `${lt.signalSymbol} SL→BE: ${slBeResult.warning}`,
+                    symbol: lt.signalSymbol,
+                  });
+                }
+              }
+            } catch (ltErr) {
+              console.error(`[Sync] Live trade update failed for ${lt.signalSymbol}:`, ltErr);
+            }
+          }
+
+          // 3. Protective closes: market turn
+          const sidesTfsLive = new Set(liveTrades.filter((t) => t.status === "OPEN").map((t) => `${t.side}|${t.timeframe}`));
+          const turnInputsLive: MarketTurnInput[] = postUpdateDocs.map((d) => ({
+            symbol: d.symbol || "",
+            type: (d.type || "BUY") as "BUY" | "SELL",
+            timeframe: String(d.timeframe || "15"),
+            status: d.status || "",
+            receivedAt: d.receivedAt || "",
+            slHitAt: d.slHitAt ?? null,
+            tp1Hit: d.tp1Hit === true,
+            tp2Hit: d.tp2Hit === true,
+            tp3Hit: d.tp3Hit === true,
+            confidenceScore: d.confidenceScore ?? 0,
+          }));
+
+          for (const key of sidesTfsLive) {
+            const [side, tf] = key.split("|");
+            const turn = detectMarketTurn(turnInputsLive, side as "BUY" | "SELL", tf);
+
+            if (turn.triggered) {
+              const tradesToClose = liveTrades.filter(
+                (t) => t.side === side && t.timeframe === tf && t.status === "OPEN",
+              );
+              for (const trade of tradesToClose) {
+                const curPrice = perpetualsPriceMap[trade.signalSymbol] ?? trade.entryPrice;
+                const closeResult = await protectiveClose(trade, "MARKET_TURN", curPrice, creds);
+                await db.collection("live_trades").doc(trade.id!).update({
+                  ...closeResult.updatedFields,
+                  events: [...(trade.events || []), closeResult.newEvent],
+                });
+                await db.collection("simulator_logs").add({
+                  timestamp: new Date().toISOString(),
+                  action: "LIVE_MARKET_TURN",
+                  details: `${trade.signalSymbol} ${trade.side} closed: ${turn.reason}${closeResult.warning ? ` (${closeResult.warning})` : ""}`,
+                  symbol: trade.signalSymbol,
+                });
+                trade.status = "CLOSED";
+                liveProtectiveCloses++;
+              }
+            }
+          }
+
+          // 4. Protective closes: score degradation
+          for (const trade of liveTrades) {
+            if (trade.status === "CLOSED") continue;
+            const signalScore = scores.get(trade.signalId);
+            const liveScore = signalScore?.score;
+
+            if (liveScore != null && liveScore < SIM_CONFIG.SCORE_FLOOR) {
+              const curPrice = perpetualsPriceMap[trade.signalSymbol] ?? trade.entryPrice;
+              const closeResult = await protectiveClose(trade, "SCORE_DEGRADED", curPrice, creds);
+              await db.collection("live_trades").doc(trade.id!).update({
+                ...closeResult.updatedFields,
+                events: [...(trade.events || []), closeResult.newEvent],
+              });
+              await db.collection("simulator_logs").add({
+                timestamp: new Date().toISOString(),
+                action: "LIVE_SCORE_DEGRADED",
+                details: `${trade.signalSymbol} score=${liveScore} < ${SIM_CONFIG.SCORE_FLOOR} → closed${closeResult.warning ? ` (${closeResult.warning})` : ""}`,
+                symbol: trade.signalSymbol,
+              });
+              trade.status = "CLOSED";
+              liveProtectiveCloses++;
+            }
+          }
+
+          // 5. Auto kill switch: daily loss limit check
+          try {
+            const dailyLossLimit = (atData.dailyLossLimit ?? 5) / 100;
+
+            // Sum realized PnL from all trades closed today
+            const todayStart = new Date();
+            todayStart.setUTCHours(0, 0, 0, 0);
+            const closedTodaySnap = await db.collection("live_trades")
+              .where("status", "==", "CLOSED")
+              .where("closedAt", ">=", todayStart.toISOString())
+              .get();
+
+            let dailyRealizedPnl = 0;
+            for (const d of closedTodaySnap.docs) {
+              dailyRealizedPnl += (d.data().realizedPnl ?? 0) - (d.data().fees ?? 0);
+            }
+
+            // Also include unrealized PnL from open trades
+            let unrealizedPnl = 0;
+            for (const t of liveTrades) {
+              if (t.status !== "OPEN") continue;
+              const lp = perpetualsPriceMap[t.signalSymbol] ?? t.entryPrice;
+              const priceDiff = t.side === "BUY" ? lp - t.entryPrice : t.entryPrice - lp;
+              unrealizedPnl += priceDiff * t.remainingQty * t.leverage;
+            }
+
+            const totalDailyPnl = dailyRealizedPnl + unrealizedPnl;
+            const capitalBase = liveTrades[0]?.capitalAtEntry ?? 1000;
+            const dailyDrawdown = -totalDailyPnl / capitalBase;
+
+            if (dailyDrawdown >= dailyLossLimit) {
+              // Close all remaining open trades
+              const stillOpen = liveTrades.filter((t) => t.status === "OPEN");
+              for (const trade of stillOpen) {
+                const curPrice = perpetualsPriceMap[trade.signalSymbol] ?? trade.entryPrice;
+                const closeResult = await protectiveClose(trade, "KILL_SWITCH", curPrice, creds);
+                await db.collection("live_trades").doc(trade.id!).update({
+                  ...closeResult.updatedFields,
+                  events: [...(trade.events || []), closeResult.newEvent],
+                });
+                trade.status = "CLOSED";
+                liveProtectiveCloses++;
+              }
+
+              // Disable auto-trade
+              await db.collection("users").doc("99V4s5wPXcgmthTaMa0k7YyLm702")
+                .collection("secrets").doc("binance").update({ autoTradeEnabled: false });
+
+              // Send Telegram alerts (3 times for urgency)
+              try {
+                const userDoc = await db.collection("users").doc("99V4s5wPXcgmthTaMa0k7YyLm702").get();
+                const chatId = userDoc.data()?.telegramChatId;
+                if (chatId) {
+                  const msg = `🚨 <b>AUTO KILL SWITCH TRIGGERED</b> 🚨\n\n` +
+                    `Daily loss limit breached: <b>${(dailyDrawdown * 100).toFixed(1)}%</b> (limit: ${(dailyLossLimit * 100).toFixed(0)}%)\n` +
+                    `Daily PnL: <b>$${totalDailyPnl.toFixed(2)}</b>\n` +
+                    `Positions closed: <b>${stillOpen.length}</b>\n\n` +
+                    `⛔ Auto-trade has been <b>DISABLED</b>.\n` +
+                    `Re-enable manually from Settings when ready.`;
+                  await sendMessage(chatId, msg);
+                  await new Promise((r) => setTimeout(r, 2000));
+                  await sendMessage(chatId, `🚨 REMINDER: Auto-trade KILLED. ${stillOpen.length} positions closed. Daily loss: $${totalDailyPnl.toFixed(2)}`);
+                  await new Promise((r) => setTimeout(r, 2000));
+                  await sendMessage(chatId, `⛔ Auto-trade is OFF. Go to Settings to review and re-enable.`);
+                }
+              } catch (tgErr) {
+                console.error("[Sync] Telegram kill switch alert failed:", tgErr);
+              }
+
+              await db.collection("simulator_logs").add({
+                timestamp: new Date().toISOString(),
+                action: "AUTO_KILL_SWITCH",
+                details: `Daily loss ${(dailyDrawdown * 100).toFixed(1)}% >= limit ${(dailyLossLimit * 100).toFixed(0)}%. Closed ${stillOpen.length} positions. Auto-trade disabled.`,
+              });
+            }
+          } catch (killErr) {
+            console.error("[Sync] Auto kill switch check failed:", killErr);
+          }
+        }
+      }
+    } catch (liveErr: any) {
+      console.error("[Sync] Live trade management failed:", liveErr.message);
+    }
+
     await db.collection("logs").add({
       timestamp: new Date().toISOString(),
       level: "INFO",
-      message: `ASIA SYNC: updated=${updateCount} skipped=${skipCount} events=${signalEvents.length} scored=${scoreCount} incubated=${incubatedCount} mktTurn=${marketTurnCloses} scoreDeg=${scoreDegradedCloses}`,
+      message: `ASIA SYNC: updated=${updateCount} skipped=${skipCount} events=${signalEvents.length} scored=${scoreCount} incubated=${incubatedCount} mktTurn=${marketTurnCloses} scoreDeg=${scoreDegradedCloses} liveFills=${liveTradeFills} liveUpdates=${liveTradeUpdates} liveProtective=${liveProtectiveCloses}`,
       webhookId: "SYSTEM_CRON",
     });
 
-    return NextResponse.json({ success: true, updated: updateCount, skipped: skipCount, events: signalEvents.length, scored: scoreCount, incubated: incubatedCount, marketTurnCloses, scoreDegradedCloses });
+    return NextResponse.json({ success: true, updated: updateCount, skipped: skipCount, events: signalEvents.length, scored: scoreCount, incubated: incubatedCount, marketTurnCloses, scoreDegradedCloses, liveTradeFills, liveTradeUpdates, liveProtectiveCloses });
   } catch (error: any) {
     await db.collection("logs").add({
       timestamp: new Date().toISOString(),

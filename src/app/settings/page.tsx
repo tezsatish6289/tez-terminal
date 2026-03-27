@@ -9,6 +9,7 @@ import { trackTelegramConnected, trackTelegramEnabled, trackNotificationsPageVie
 import {
   Loader2, Settings, Send, Link2, Unlink, Check,
   ChevronLeft, ChevronRight, Bell, Lock, ExternalLink, AlertTriangle,
+  Zap, Eye, EyeOff, Shield, Power,
 } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -53,6 +54,23 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [symbolInput, setSymbolInput] = useState("");
 
+  // Auto-trade state
+  const [binanceConfig, setBinanceConfig] = useState<{
+    configured: boolean;
+    autoTradeEnabled: boolean;
+    keyLastFour: string;
+    riskPerTrade: number;
+    maxConcurrentTrades: number;
+    dailyLossLimit: number;
+    useTestnet: boolean;
+    savedAt: string | null;
+  } | null>(null);
+  const [isLoadingBinance, setIsLoadingBinance] = useState(true);
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [apiSecretInput, setApiSecretInput] = useState("");
+  const [showSecret, setShowSecret] = useState(false);
+  const [isSavingBinance, setIsSavingBinance] = useState(false);
+
   const fetchStatus = useCallback(async () => {
     if (!user) return;
     try {
@@ -66,11 +84,27 @@ export default function SettingsPage() {
     }
   }, [user]);
 
+  const fetchBinanceConfig = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await fetch(`/api/settings/binance?uid=${user.uid}`);
+      const data = await res.json();
+      setBinanceConfig(data);
+    } catch {
+      console.error("Failed to fetch Binance config");
+    } finally {
+      setIsLoadingBinance(false);
+    }
+  }, [user]);
+
   useEffect(() => { trackNotificationsPageView(); }, []);
 
   useEffect(() => {
-    if (user) fetchStatus();
-  }, [user, fetchStatus]);
+    if (user) {
+      fetchStatus();
+      fetchBinanceConfig();
+    }
+  }, [user, fetchStatus, fetchBinanceConfig]);
 
   const [deepLink, setDeepLink] = useState<string | null>(null);
 
@@ -167,6 +201,54 @@ export default function SettingsPage() {
     return values.includes(value);
   };
 
+  const saveBinanceKeys = async () => {
+    if (!user || !apiKeyInput || !apiSecretInput) return;
+    setIsSavingBinance(true);
+    try {
+      const res = await fetch("/api/settings/binance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: user.uid, apiKey: apiKeyInput, apiSecret: apiSecretInput }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: "Saved", description: "Binance API credentials validated and saved." });
+        setApiKeyInput("");
+        setApiSecretInput("");
+        fetchBinanceConfig();
+      } else {
+        toast({ title: "Error", description: data.error || "Failed to save credentials.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to save. Please try again.", variant: "destructive" });
+    } finally {
+      setIsSavingBinance(false);
+    }
+  };
+
+  const updateBinanceSetting = async (field: string, value: unknown) => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/settings/binance", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: user.uid, [field]: value }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setBinanceConfig((prev) => prev ? { ...prev, [field]: value } : null);
+        toast({ title: "Saved", description: `${field === "autoTradeEnabled" ? "Auto-trade" : field} updated.` });
+      } else {
+        toast({ title: "Error", description: data.error, variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to update.", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   if (isUserLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -214,11 +296,226 @@ export default function SettingsPage() {
                 <ChevronLeft className="w-4 h-4" />
                 Back
               </Link>
-              <h1 className="text-2xl font-bold tracking-tight text-white">Notifications</h1>
-              <p className="text-muted-foreground text-sm">Manage your Telegram alerts and preferences.</p>
+              <h1 className="text-2xl font-bold tracking-tight text-white">Settings</h1>
+              <p className="text-muted-foreground text-sm">Manage auto-trading, alerts, and preferences.</p>
             </div>
             <Settings className="h-8 w-8 text-accent opacity-20" />
           </div>
+
+          {/* Auto-Trade (Binance) Section */}
+          <Card className="bg-secondary/20 border-accent/20">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Zap className="h-5 w-5 text-accent" />
+                  <div>
+                    <CardTitle className="text-lg">Auto-Trade · Binance Futures</CardTitle>
+                    <CardDescription>
+                      Automatically execute trades on Binance based on simulator decisions.
+                    </CardDescription>
+                  </div>
+                </div>
+                {binanceConfig?.configured ? (
+                  <Badge className={cn(
+                    binanceConfig.autoTradeEnabled
+                      ? "bg-positive/20 text-positive border-positive/30"
+                      : "bg-amber-400/15 text-amber-400 border-amber-400/30"
+                  )}>
+                    {binanceConfig.autoTradeEnabled ? (
+                      <><Power className="h-3 w-3 mr-1" /> Live</>
+                    ) : (
+                      <><Shield className="h-3 w-3 mr-1" /> Standby</>
+                    )}
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-muted-foreground">Not configured</Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoadingBinance ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-accent" />
+                </div>
+              ) : binanceConfig?.configured ? (
+                <div className="space-y-4">
+                  {/* Kill Switch */}
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-white/5">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Auto-Trade Enabled</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {binanceConfig.autoTradeEnabled
+                          ? "Live trading is ON. Trades will execute on Binance."
+                          : "Trading paused. Simulator runs but no real orders."}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={binanceConfig.autoTradeEnabled}
+                      onCheckedChange={(checked) => updateBinanceSetting("autoTradeEnabled", checked)}
+                      className="data-[state=checked]:bg-positive"
+                    />
+                  </div>
+
+                  {/* Testnet Toggle */}
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-white/5">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Testnet Mode</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {binanceConfig.useTestnet ? "Using Binance testnet (fake money)." : "Using PRODUCTION Binance (real money)."}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={binanceConfig.useTestnet}
+                      onCheckedChange={(checked) => updateBinanceSetting("useTestnet", checked)}
+                      className="data-[state=checked]:bg-accent"
+                    />
+                  </div>
+
+                  {!binanceConfig.useTestnet && binanceConfig.autoTradeEnabled && (
+                    <div className="flex items-start gap-2 p-2.5 rounded-lg bg-rose-400/[0.06] border border-rose-400/15">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
+                      <p className="text-[11px] text-rose-400/80 leading-relaxed">
+                        Live trading with real money is active. Ensure you understand the risks. Use the kill switch above to stop all trading immediately.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* API Key Info */}
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-white/5">
+                    <div className="flex items-center gap-3">
+                      <Shield className="h-4 w-4 text-accent" />
+                      <div>
+                        <p className="text-sm font-medium text-foreground">API Key</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Ending in ****{binanceConfig.keyLastFour} · Saved {binanceConfig.savedAt ? new Date(binanceConfig.savedAt).toLocaleDateString() : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground hover:text-accent"
+                      onClick={() => {
+                        setBinanceConfig((prev) => prev ? { ...prev, configured: false } : null);
+                      }}
+                    >
+                      Change Keys
+                    </Button>
+                  </div>
+
+                  {/* Risk Config */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="p-3 rounded-lg bg-background/50 border border-white/5">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-1">Risk Per Trade</p>
+                      <p className="text-[9px] text-muted-foreground/40 mb-2">Base risk. Scales to 1% on win streaks.</p>
+                      <select
+                        value={binanceConfig.riskPerTrade}
+                        onChange={(e) => updateBinanceSetting("riskPerTrade", parseFloat(e.target.value))}
+                        className="w-full h-9 px-2 rounded-md border border-border bg-background text-sm text-foreground"
+                      >
+                        <option value={0.25}>0.25%</option>
+                        <option value={0.5}>0.5% ← suggested</option>
+                        <option value={0.75}>0.75%</option>
+                        <option value={1}>1%</option>
+                      </select>
+                    </div>
+                    <div className="p-3 rounded-lg bg-background/50 border border-white/5">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-1">Max Concurrent</p>
+                      <p className="text-[9px] text-muted-foreground/40 mb-2">Starts here, scales up on win streaks (cap 5).</p>
+                      <select
+                        value={binanceConfig.maxConcurrentTrades}
+                        onChange={(e) => updateBinanceSetting("maxConcurrentTrades", parseInt(e.target.value))}
+                        className="w-full h-9 px-2 rounded-md border border-border bg-background text-sm text-foreground"
+                      >
+                        {[1, 2, 3, 5].map((n) => (
+                          <option key={n} value={n}>{n} trade{n > 1 ? "s" : ""}{n === 1 ? " ← suggested" : ""}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="p-3 rounded-lg bg-background/50 border border-white/5">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-1">Daily Loss Limit</p>
+                      <p className="text-[9px] text-muted-foreground/40 mb-2">Safety net. Disables trading for the day.</p>
+                      <select
+                        value={binanceConfig.dailyLossLimit}
+                        onChange={(e) => updateBinanceSetting("dailyLossLimit", parseFloat(e.target.value))}
+                        className="w-full h-9 px-2 rounded-md border border-border bg-background text-sm text-foreground"
+                      >
+                        {[2, 3, 5, 10].map((n) => (
+                          <option key={n} value={n}>{n}%{n === 5 ? " ← suggested" : ""}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2 p-2.5 rounded-lg bg-accent/[0.04] border border-accent/10">
+                    <Shield className="w-3.5 h-3.5 text-accent shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
+                      The adaptive throttle system manages these dynamically: risk scales from {binanceConfig.riskPerTrade}% → 1% on win streaks, concurrent trades scale from {binanceConfig.maxConcurrentTrades} → 5 on consecutive wins. A single loss resets both to base values. These are hard caps on top of that.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                /* API Key Entry Form */
+                <div className="space-y-4">
+                  <div className="text-center py-2">
+                    <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-accent/10 border border-accent/20 mb-3">
+                      <Zap className="h-8 w-8 text-accent" />
+                    </div>
+                    <p className="text-sm text-foreground font-medium">Connect your Binance account</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      API keys are encrypted with AES-256 and stored server-side only.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold block mb-1.5">API Key</label>
+                    <input
+                      type="text"
+                      value={apiKeyInput}
+                      onChange={(e) => setApiKeyInput(e.target.value)}
+                      placeholder="Enter your Binance API key"
+                      className="w-full h-10 px-3 rounded-md border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold block mb-1.5">API Secret</label>
+                    <div className="relative">
+                      <input
+                        type={showSecret ? "text" : "password"}
+                        value={apiSecretInput}
+                        onChange={(e) => setApiSecretInput(e.target.value)}
+                        placeholder="Enter your Binance API secret"
+                        className="w-full h-10 px-3 pr-10 rounded-md border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSecret(!showSecret)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-400/[0.06] border border-amber-400/15">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                    <p className="text-[11px] text-amber-400/80 leading-relaxed">
+                      Only enable <strong>Futures trading</strong> permission on your API key. Never enable withdrawals. Your credentials will be validated against Binance before saving.
+                    </p>
+                  </div>
+
+                  <Button
+                    onClick={saveBinanceKeys}
+                    disabled={!apiKeyInput || !apiSecretInput || isSavingBinance}
+                    className="w-full gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
+                  >
+                    {isSavingBinance ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
+                    Validate & Save
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Telegram Connection Card */}
           <Card className="bg-secondary/20 border-accent/20">

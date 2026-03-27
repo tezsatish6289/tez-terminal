@@ -22,6 +22,8 @@ import {
   type SimulatorState,
   type SimTrade,
 } from "@/lib/simulator";
+import { executeTrade as executeBinanceTrade, type Credentials } from "@/lib/trade-engine";
+import { decrypt } from "@/lib/crypto";
 
 /**
  * Webhook ingestion for TradingView alerts.
@@ -424,9 +426,62 @@ export async function POST(request: NextRequest) {
                   algoWinRate: algoWinRate ?? 0,
                 });
 
-                await db.collection("simulator_trades").add(result.trade);
+                const simTradeRef = await db.collection("simulator_trades").add(result.trade);
                 await db.collection("config").doc("simulator_state").set(result.updatedState);
                 await db.collection("simulator_logs").add(result.log);
+
+                // ── Auto-Trade: execute on Binance if enabled ──
+                try {
+                  const autoTradeDoc = await db.collection("users").doc("99V4s5wPXcgmthTaMa0k7YyLm702")
+                    .collection("secrets").doc("binance").get();
+
+                  if (autoTradeDoc.exists) {
+                    const atData = autoTradeDoc.data()!;
+                    if (atData.autoTradeEnabled === true) {
+                      const creds: Credentials = {
+                        apiKey: decrypt(atData.encryptedKey),
+                        apiSecret: decrypt(atData.encryptedSecret),
+                      };
+
+                      const binanceResult = await executeBinanceTrade(
+                        result.trade,
+                        "99V4s5wPXcgmthTaMa0k7YyLm702",
+                        simTradeRef.id,
+                        simState.capital,
+                        creds,
+                      );
+
+                      if (binanceResult.success && binanceResult.trade) {
+                        await db.collection("live_trades").add(binanceResult.trade);
+                        await db.collection("simulator_logs").add({
+                          timestamp: new Date().toISOString(),
+                          action: "LIVE_TRADE_OPENED",
+                          details: `${symbol} ${signalType} executed on Binance @ $${binanceResult.trade.entryPrice} qty=${binanceResult.trade.quantity}${binanceResult.warnings.length ? ` warnings: ${binanceResult.warnings.join("; ")}` : ""}`,
+                          signalId: docRef.id,
+                          symbol,
+                          capital: simState.capital,
+                        });
+                      } else {
+                        await db.collection("simulator_logs").add({
+                          timestamp: new Date().toISOString(),
+                          action: "LIVE_TRADE_FAILED",
+                          details: `${symbol} ${signalType} Binance execution failed: ${binanceResult.error}`,
+                          signalId: docRef.id,
+                          symbol,
+                        });
+                      }
+                    }
+                  }
+                } catch (liveErr) {
+                  console.error("[Webhook] Auto-trade execution failed:", liveErr);
+                  await db.collection("simulator_logs").add({
+                    timestamp: new Date().toISOString(),
+                    action: "LIVE_TRADE_ERROR",
+                    details: `Auto-trade error: ${liveErr instanceof Error ? liveErr.message : String(liveErr)}`,
+                    signalId: docRef.id,
+                    symbol,
+                  }).catch(() => {});
+                }
               } else {
                 await db.collection("simulator_logs").add({
                   timestamp: new Date().toISOString(),

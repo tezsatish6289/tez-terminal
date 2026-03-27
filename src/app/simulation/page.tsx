@@ -419,13 +419,29 @@ function DesktopTradeRow({ trade }: { trade: SimTrade }) {
         </div>
       </TableCell>
       <TableCell>
-        <div className="flex flex-col">
-          <div className={cn("flex items-center gap-1 font-mono text-xs font-black", pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
-            {pnl >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-            {pnl >= 0 ? "+" : ""}{formatUsd(pnl)}
-          </div>
-          {!isOpen && <span className="text-[9px] text-muted-foreground/30 font-mono">fees: {formatUsd(trade.fees)}</span>}
-          {isOpen && <span className="text-[9px] text-muted-foreground/30 font-mono">unrealized</span>}
+        <div className="flex flex-col gap-0.5">
+          {isOpen ? (
+            <>
+              <div className={cn("flex items-center gap-1 font-mono text-xs font-black", (trade.unrealizedPnl ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                {(trade.unrealizedPnl ?? 0) >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                {(trade.unrealizedPnl ?? 0) >= 0 ? "+" : ""}{formatUsd(trade.unrealizedPnl ?? 0)}
+              </div>
+              <span className="text-[9px] text-muted-foreground/30 font-mono">unreal.</span>
+              {trade.realizedPnl !== 0 && (
+                <span className={cn("text-[9px] font-mono font-bold", trade.realizedPnl >= 0 ? "text-emerald-400/60" : "text-rose-400/60")}>
+                  {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)} real.
+                </span>
+              )}
+            </>
+          ) : (
+            <>
+              <div className={cn("flex items-center gap-1 font-mono text-xs font-black", trade.realizedPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                {trade.realizedPnl >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
+              </div>
+              <span className="text-[9px] text-muted-foreground/30 font-mono">fees: {formatUsd(trade.fees)}</span>
+            </>
+          )}
         </div>
       </TableCell>
       <TableCell className="font-mono text-xs font-bold text-white/60">{formatUsd(trade.positionSize)}</TableCell>
@@ -499,11 +515,27 @@ function MobileTradeCard({ trade }: { trade: SimTrade }) {
         <div className="px-4 py-3 space-y-3">
           {/* PNL + Date */}
           <div className="flex items-center justify-between">
-            <div className={cn("flex items-center gap-1.5 font-mono text-lg font-black", pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
-              {pnl >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-              {pnl >= 0 ? "+" : ""}{formatUsd(pnl)}
-              {isOpen && <span className="text-[9px] font-bold text-muted-foreground/30 ml-1">(unreal.)</span>}
-              {!isOpen && <span className="text-[9px] font-bold text-muted-foreground/30 ml-1">fees: {formatUsd(trade.fees)}</span>}
+            <div>
+              {isOpen ? (
+                <div className="flex flex-col">
+                  <div className={cn("flex items-center gap-1.5 font-mono text-lg font-black", (trade.unrealizedPnl ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                    {(trade.unrealizedPnl ?? 0) >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                    {(trade.unrealizedPnl ?? 0) >= 0 ? "+" : ""}{formatUsd(trade.unrealizedPnl ?? 0)}
+                    <span className="text-[9px] font-bold text-muted-foreground/30 ml-1">unreal.</span>
+                  </div>
+                  {trade.realizedPnl !== 0 && (
+                    <span className={cn("text-[10px] font-mono font-bold", trade.realizedPnl >= 0 ? "text-emerald-400/60" : "text-rose-400/60")}>
+                      {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)} realized
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className={cn("flex items-center gap-1.5 font-mono text-lg font-black", trade.realizedPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                  {trade.realizedPnl >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                  {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
+                  <span className="text-[9px] font-bold text-muted-foreground/30 ml-1">fees: {formatUsd(trade.fees)}</span>
+                </div>
+              )}
             </div>
             <span className="text-[10px] font-mono text-muted-foreground/40">{format(new Date(trade.openedAt), "MMM dd, HH:mm")}</span>
           </div>

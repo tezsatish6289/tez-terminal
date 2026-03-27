@@ -469,7 +469,6 @@ export async function POST(request: NextRequest) {
                           signalId: docRef.id,
                           symbol,
                         };
-                        await db.collection("simulator_logs").add(logEntry);
                         await db.collection("live_trade_logs").add(logEntry);
                       } else {
                         const logEntry = {
@@ -479,7 +478,6 @@ export async function POST(request: NextRequest) {
                           signalId: docRef.id,
                           symbol,
                         };
-                        await db.collection("simulator_logs").add(logEntry);
                         await db.collection("live_trade_logs").add(logEntry);
                       }
                     } else {
@@ -509,7 +507,6 @@ export async function POST(request: NextRequest) {
                     signalId: docRef.id,
                     symbol,
                   };
-                  await db.collection("simulator_logs").add(logEntry).catch(() => {});
                   await db.collection("live_trade_logs").add(logEntry).catch(() => {});
                 }
               } else {

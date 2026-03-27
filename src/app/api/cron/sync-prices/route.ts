@@ -925,7 +925,6 @@ export async function GET(request: NextRequest) {
                     details: `${lt.signalSymbol} ${lt.side} SL hit @ $${fill.price} PnL: $${slResult.newEvent.pnl.toFixed(2)}`,
                     symbol: lt.signalSymbol,
                   };
-                  await db.collection("simulator_logs").add(slLog);
                   await db.collection("live_trade_logs").add(slLog);
                   lt.status = "CLOSED";
                   liveTradeFills++;
@@ -944,7 +943,6 @@ export async function GET(request: NextRequest) {
                       details: `${lt.signalSymbol} TP${tpLevel} warnings: ${tpResult.warnings.join("; ")}`,
                       symbol: lt.signalSymbol,
                     };
-                    await db.collection("simulator_logs").add(warnLog);
                     await db.collection("live_trade_logs").add(warnLog);
                   }
                   const tpLog = {
@@ -953,7 +951,6 @@ export async function GET(request: NextRequest) {
                     details: `${lt.signalSymbol} ${lt.side} TP${tpLevel} hit @ $${fill.price} PnL: $${tpResult.newEvent.pnl.toFixed(2)}`,
                     symbol: lt.signalSymbol,
                   };
-                  await db.collection("simulator_logs").add(tpLog);
                   await db.collection("live_trade_logs").add(tpLog);
                   // Update local reference for subsequent checks
                   Object.assign(lt, tpResult.updatedFields);
@@ -991,7 +988,6 @@ export async function GET(request: NextRequest) {
                     details: `${lt.signalSymbol} SL→BE: ${slBeResult.warning}`,
                     symbol: lt.signalSymbol,
                   };
-                  await db.collection("simulator_logs").add(warnLog);
                   await db.collection("live_trade_logs").add(warnLog);
                 }
               }
@@ -1036,7 +1032,6 @@ export async function GET(request: NextRequest) {
                   details: `${trade.signalSymbol} ${trade.side} closed: ${turn.reason}${closeResult.warning ? ` (${closeResult.warning})` : ""}`,
                   symbol: trade.signalSymbol,
                 };
-                await db.collection("simulator_logs").add(turnLog);
                 await db.collection("live_trade_logs").add(turnLog);
                 trade.status = "CLOSED";
                 liveProtectiveCloses++;
@@ -1063,7 +1058,6 @@ export async function GET(request: NextRequest) {
                 details: `${trade.signalSymbol} score=${liveScore} < ${SIM_CONFIG.SCORE_FLOOR} → closed${closeResult.warning ? ` (${closeResult.warning})` : ""}`,
                 symbol: trade.signalSymbol,
               };
-              await db.collection("simulator_logs").add(degLog);
               await db.collection("live_trade_logs").add(degLog);
               trade.status = "CLOSED";
               liveProtectiveCloses++;
@@ -1144,7 +1138,6 @@ export async function GET(request: NextRequest) {
                 action: "AUTO_KILL_SWITCH",
                 details: `Daily loss ${(dailyDrawdown * 100).toFixed(1)}% >= limit ${(dailyLossLimit * 100).toFixed(0)}%. Closed ${stillOpen.length} positions. Auto-trade disabled.`,
               };
-              await db.collection("simulator_logs").add(killLog);
               await db.collection("live_trade_logs").add(killLog);
             }
           } catch (killErr) {

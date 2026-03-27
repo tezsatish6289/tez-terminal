@@ -18,7 +18,6 @@ import {
   Shield,
   AlertTriangle,
   CheckCircle2,
-  Pause,
   BarChart3,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
@@ -205,19 +204,19 @@ export default function SimulationPage() {
                     color={simState.dailyPnl >= 0 ? "text-positive" : "text-negative"}
                   />
                   <StatCard
-                    label="Fees Paid"
-                    value={formatUsd(simState.totalFeesPaid)}
+                    label="Streak / Max Trades"
+                    value={`${simState.consecutiveWins ?? 0}W → ${simState.currentMaxTrades ?? 1}`}
                     icon={<Shield className="w-3.5 h-3.5" />}
-                    color="text-muted-foreground/50"
+                    color={(simState.consecutiveWins ?? 0) >= 2 ? "text-positive" : "text-muted-foreground/50"}
                   />
                 </div>
 
-                {/* Cool-off warning */}
-                {simState.coolOffUntil && new Date(simState.coolOffUntil) > new Date() && (
-                  <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-400/10 border border-amber-400/20">
-                    <Pause className="w-4 h-4 text-amber-400" />
-                    <span className="text-[11px] font-bold text-amber-400">
-                      Cool-off active — no new trades until midnight UTC (3% daily drawdown reached)
+                {/* Streak scaling indicator */}
+                {(simState.consecutiveWins ?? 0) >= 2 && (
+                  <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-400/10 border border-emerald-400/20">
+                    <TrendingUp className="w-4 h-4 text-emerald-400" />
+                    <span className="text-[11px] font-bold text-emerald-400">
+                      Streak active — {simState.consecutiveWins} consecutive {simState.streakSide === "BUY" ? "bull" : "bear"} wins → trading up to {simState.currentMaxTrades} concurrent at 1% risk
                     </span>
                   </div>
                 )}

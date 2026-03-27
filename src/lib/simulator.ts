@@ -4,17 +4,19 @@ import { getLeverage } from "./leverage";
 
 export const SIM_CONFIG = {
   STARTING_CAPITAL: 1000,
-  RISK_PER_TRADE: 0.01,         // 1% of capital
-  MAX_OPEN_TRADES: 5,
+  RISK_PER_TRADE_BASE: 0.005,   // 0.5% base risk (chop mode)
+  RISK_PER_TRADE_STREAK: 0.01,  // 1% risk when streak is active
+  MAX_OPEN_TRADES_BASE: 1,      // start with 1, scales with streak
+  MAX_OPEN_TRADES_CAP: 5,       // hard cap
+  STREAK_WINS_TO_SCALE: 2,      // 2 consecutive wins → +1 max trade
   CONFIDENCE_MIN: 55,
-  CONFIDENCE_MIN_LOW_SAMPLE: 60, // when < 3 active signals on side+TF
+  CONFIDENCE_MIN_LOW_SAMPLE: 60,
   LIVE_WIN_RATE_MIN: 0.65,
   LIVE_WIN_RATE_SAMPLE_MIN: 3,
   ALGO_HIST_WIN_RATE_MIN: 0.60,
   ALGO_HIST_SAMPLE_MIN: 5,
-  BIAS_GAP_MIN: 10,             // must exceed this for "Go Bull"/"Go Bear"
-  DAILY_DRAWDOWN_LIMIT: 0.03,   // 3% of starting capital
-  EXCHANGE_FEE: 0.0005,         // 0.05% per transaction
+  BIAS_GAP_MIN: 10,
+  EXCHANGE_FEE: 0.0005,
   TP1_CLOSE_PCT: 0.50,
   TP2_CLOSE_PCT: 0.25,
   TP3_CLOSE_PCT: 0.25,
@@ -38,7 +40,7 @@ export interface SimulatorState {
   dailyPnl: number;
   dailyFees: number;
   dailyPnlResetDate: string;    // "2026-03-19"
-  coolOffUntil: string | null;
+  coolOffUntil: string | null;  // kept for backward compat, no longer used
   totalRealizedPnl: number;
   totalFeesPaid: number;
   totalTradesTaken: number;
@@ -46,6 +48,10 @@ export interface SimulatorState {
   totalLosses: number;
   isActive: boolean;
   lastUpdated: string;
+  // Adaptive streak tracking
+  consecutiveWins: number;      // current win streak on streakSide
+  streakSide: "BUY" | "SELL" | null;
+  currentMaxTrades: number;     // dynamic max open trades (1 → scales with streak)
 }
 
 export interface SimTrade {
@@ -437,6 +443,9 @@ export function createInitialState(): SimulatorState {
     totalLosses: 0,
     isActive: true,
     lastUpdated: new Date().toISOString(),
+    consecutiveWins: 0,
+    streakSide: null,
+    currentMaxTrades: SIM_CONFIG.MAX_OPEN_TRADES_BASE,
   };
 }
 
@@ -490,14 +499,6 @@ export function evaluateTrade(params: {
   // Daily reset
   const currentState = checkDailyReset(state);
 
-  // Cool-off check
-  if (currentState.coolOffUntil) {
-    const coolOffEnd = new Date(currentState.coolOffUntil);
-    if (new Date() < coolOffEnd) {
-      return { canTrade: false, reason: `Cool-off active until ${currentState.coolOffUntil}` };
-    }
-  }
-
   // Bias gate: must have clear directional bias
   const biasGap = bullScore - bearScore;
   const isBullBias = biasGap > SIM_CONFIG.BIAS_GAP_MIN;
@@ -536,10 +537,11 @@ export function evaluateTrade(params: {
     }
   }
 
-  // Max open trades
+  // Adaptive max open trades: based on streak
+  const maxTrades = currentState.currentMaxTrades ?? SIM_CONFIG.MAX_OPEN_TRADES_BASE;
   const currentOpen = openTrades.filter((t) => t.status === "OPEN");
-  if (currentOpen.length >= SIM_CONFIG.MAX_OPEN_TRADES) {
-    return { canTrade: false, reason: `Max open trades reached (${currentOpen.length}/${SIM_CONFIG.MAX_OPEN_TRADES})` };
+  if (currentOpen.length >= maxTrades) {
+    return { canTrade: false, reason: `Max open trades reached (${currentOpen.length}/${maxTrades}, streak: ${currentState.consecutiveWins ?? 0})` };
   }
 
   // Duplicate symbol
@@ -556,7 +558,10 @@ export function evaluateTrade(params: {
     return { canTrade: false, reason: "Missing TP levels" };
   }
 
-  // Position sizing: risk 1% of capital
+  // Adaptive risk: 0.5% base, 1% when streak is active
+  const hasStreak = (currentState.consecutiveWins ?? 0) >= SIM_CONFIG.STREAK_WINS_TO_SCALE;
+  const riskPct = hasStreak ? SIM_CONFIG.RISK_PER_TRADE_STREAK : SIM_CONFIG.RISK_PER_TRADE_BASE;
+
   const isBuy = signal.type === "BUY";
   const slDistancePct = isBuy
     ? (signal.price - signal.stopLoss) / signal.price
@@ -567,7 +572,7 @@ export function evaluateTrade(params: {
   }
 
   const leverage = getLeverage(signal.timeframe);
-  const riskAmount = currentState.capital * SIM_CONFIG.RISK_PER_TRADE;
+  const riskAmount = currentState.capital * riskPct;
   const positionSize = riskAmount / (slDistancePct * leverage);
 
   if (positionSize > currentState.capital * 0.5) {
@@ -580,7 +585,7 @@ export function evaluateTrade(params: {
 
   return {
     canTrade: true,
-    reason: "All checks passed",
+    reason: `All checks passed (risk=${(riskPct * 100).toFixed(1)}%, maxTrades=${maxTrades}, streak=${currentState.consecutiveWins ?? 0})`,
     positionSize: Math.round(positionSize * 100) / 100,
   };
 }
@@ -667,7 +672,7 @@ export function openTrade(params: {
   const log: SimLog = {
     timestamp: new Date().toISOString(),
     action: "TRADE_OPENED",
-    details: `${signal.type} ${signal.symbol} on ${signal.timeframe} | size=$${positionSize.toFixed(2)} lev=${leverage}x score=${signal.confidenceScore} bias=${biasLabel} fee=$${entryFee.toFixed(4)}`,
+    details: `${signal.type} ${signal.symbol} on ${signal.timeframe} | size=$${positionSize.toFixed(2)} lev=${leverage}x score=${signal.confidenceScore} bias=${biasLabel} fee=$${entryFee.toFixed(4)} | streak: ${state.consecutiveWins ?? 0} max: ${state.currentMaxTrades ?? 1}`,
     signalId: signal.id,
     symbol: signal.symbol,
     capital: updatedState.capital,
@@ -733,7 +738,6 @@ export function processTradeExit(params: {
     : trade.remainingPct - closePct;
 
   const isClosed = newRemainingPct <= 0.001;
-  const isWin = exitType !== "SL";
 
   const event: SimTradeEvent = {
     type: exitType,
@@ -744,6 +748,8 @@ export function processTradeExit(params: {
     timestamp: new Date().toISOString(),
   };
 
+  const totalRealizedPnl = trade.realizedPnl + netPnl;
+
   const updatedTrade: SimTrade = {
     ...trade,
     tp1Hit: newTp1Hit,
@@ -751,7 +757,7 @@ export function processTradeExit(params: {
     tp3Hit: newTp3Hit,
     slHit: newSlHit,
     remainingPct: Math.max(0, newRemainingPct),
-    realizedPnl: trade.realizedPnl + netPnl,
+    realizedPnl: totalRealizedPnl,
     currentPrice: exitPrice,
     unrealizedPnl: isClosed ? 0 : trade.unrealizedPnl,
     fees: trade.fees + exitFee,
@@ -762,15 +768,44 @@ export function processTradeExit(params: {
   };
 
   const newDailyPnl = state.dailyPnl + netPnl;
-  const drawdownTriggered = newDailyPnl <= -(state.startingCapital * SIM_CONFIG.DAILY_DRAWDOWN_LIMIT);
 
-  // Cool-off: rest of the day (midnight UTC)
-  let coolOffUntil = state.coolOffUntil;
-  if (drawdownTriggered && !coolOffUntil) {
-    const tomorrow = new Date();
-    tomorrow.setUTCHours(24, 0, 0, 0);
-    coolOffUntil = tomorrow.toISOString();
+  // Three-state streak tracking (only on fully closed trades):
+  //   WIN: TP2 or TP3 hit → increments streak
+  //   BREAKEVEN: closed with non-negative PnL but no TP2/TP3 → streak unchanged
+  //   LOSS: closed with negative PnL → resets streak
+  let { consecutiveWins = 0, streakSide = null, currentMaxTrades = SIM_CONFIG.MAX_OPEN_TRADES_BASE } = state;
+  let streakOutcome: "WIN" | "BREAKEVEN" | "LOSS" | null = null;
+
+  if (isClosed) {
+    const isWin = newTp2Hit || newTp3Hit;
+    const isLoss = totalRealizedPnl < 0;
+
+    if (isWin) {
+      streakOutcome = "WIN";
+      if (streakSide === trade.side) {
+        consecutiveWins += 1;
+      } else {
+        consecutiveWins = 1;
+        streakSide = trade.side;
+      }
+      currentMaxTrades = Math.min(
+        SIM_CONFIG.MAX_OPEN_TRADES_CAP,
+        SIM_CONFIG.MAX_OPEN_TRADES_BASE + Math.max(0, consecutiveWins - SIM_CONFIG.STREAK_WINS_TO_SCALE + 1),
+      );
+    } else if (isLoss) {
+      streakOutcome = "LOSS";
+      consecutiveWins = 0;
+      streakSide = null;
+      currentMaxTrades = SIM_CONFIG.MAX_OPEN_TRADES_BASE;
+    } else {
+      streakOutcome = "BREAKEVEN";
+      // No change to streak — direction was right, just didn't follow through
+    }
   }
+
+  // Count wins/losses for overall stats (TP2/TP3 = win, negative PnL = loss)
+  const statsWin = isClosed && streakOutcome === "WIN";
+  const statsLoss = isClosed && streakOutcome === "LOSS";
 
   const updatedState: SimulatorState = {
     ...state,
@@ -779,16 +814,22 @@ export function processTradeExit(params: {
     dailyFees: state.dailyFees + exitFee,
     totalRealizedPnl: state.totalRealizedPnl + netPnl,
     totalFeesPaid: state.totalFeesPaid + exitFee,
-    totalWins: state.totalWins + (isClosed && isWin ? 1 : 0),
-    totalLosses: state.totalLosses + (isClosed && !isWin ? 1 : 0),
-    coolOffUntil,
+    totalWins: state.totalWins + (statsWin ? 1 : 0),
+    totalLosses: state.totalLosses + (statsLoss ? 1 : 0),
+    consecutiveWins,
+    streakSide,
+    currentMaxTrades,
     lastUpdated: new Date().toISOString(),
   };
+
+  const streakInfo = isClosed && streakOutcome
+    ? ` | ${streakOutcome} streak: ${consecutiveWins}${streakSide ? ` ${streakSide}` : ""} → max ${currentMaxTrades}`
+    : "";
 
   const log: SimLog = {
     timestamp: new Date().toISOString(),
     action: exitType === "SL" ? "SL_HIT" : "TP_HIT",
-    details: `${exitType} on ${trade.symbol} | closed ${(closePct * 100).toFixed(0)}% @ $${exitPrice.toFixed(4)} pnl=$${netPnl.toFixed(4)} fee=$${exitFee.toFixed(4)}${drawdownTriggered ? " ⚠️ COOL-OFF ACTIVATED" : ""}`,
+    details: `${exitType} on ${trade.symbol} | closed ${(closePct * 100).toFixed(0)}% @ $${exitPrice.toFixed(4)} pnl=$${netPnl.toFixed(4)} fee=$${exitFee.toFixed(4)}${streakInfo}`,
     signalId: trade.signalId,
     symbol: trade.symbol,
     capital: updatedState.capital,

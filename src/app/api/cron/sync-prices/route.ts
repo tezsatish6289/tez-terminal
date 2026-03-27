@@ -419,8 +419,8 @@ export async function GET(request: NextRequest) {
             if (trailingSlHit && simState2) {
               const exitResult = processTradeExit({
                 trade: t,
-                event: "SL",
-                price: effectiveSl,
+                exitType: "SL",
+                exitPrice: effectiveSl,
                 state: simState2,
               });
               if (exitResult) {
@@ -656,8 +656,8 @@ export async function GET(request: NextRequest) {
                 const livePrice = trade.currentPrice ?? trade.entryPrice;
                 const exitResult = processTradeExit({
                   trade,
-                  event: "SL",
-                  price: livePrice,
+                  exitType: "SL",
+                  exitPrice: livePrice,
                   state: simStateMT,
                 });
                 if (exitResult) {
@@ -690,8 +690,8 @@ export async function GET(request: NextRequest) {
               const livePrice = trade.currentPrice ?? trade.entryPrice;
               const exitResult = processTradeExit({
                 trade,
-                event: "SL",
-                price: livePrice,
+                exitType: "SL",
+                exitPrice: livePrice,
                 state: simStateMT,
               });
               if (exitResult) {
@@ -803,7 +803,9 @@ export async function GET(request: NextRequest) {
         if (slDistancePct <= 0) continue;
 
         const leverage = (await import("@/lib/leverage")).getLeverage(c.timeframe);
-        const riskAmount = simState3.capital * 0.01;
+        const hasStreak = (simState3.consecutiveWins ?? 0) >= SIM_CONFIG.STREAK_WINS_TO_SCALE;
+        const riskPct = hasStreak ? SIM_CONFIG.RISK_PER_TRADE_STREAK : SIM_CONFIG.RISK_PER_TRADE_BASE;
+        const riskAmount = simState3.capital * riskPct;
         let positionSize = riskAmount / (slDistancePct * leverage);
         if (positionSize > simState3.capital * 0.5 || positionSize < 1) continue;
         positionSize = Math.round(positionSize * 100) / 100;

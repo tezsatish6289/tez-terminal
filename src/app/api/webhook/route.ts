@@ -7,29 +7,22 @@ import { deriveTp3, areTpsValid, areTpDistancesSane, deriveTpsFromRisk, isSlDist
 
 import {
   computeAutoFilter,
-  computeAlgoTfStats,
   mapFirestoreSignal,
   AUTO_FILTER_THRESHOLD,
   isRegimeStale,
   type MarketRegimeData,
 } from "@/lib/auto-filter";
-import {
-  evaluateTrade,
-  openTrade,
-  checkDailyReset,
-  createInitialState,
-  type SimulatorState,
-  type SimTrade,
-} from "@/lib/simulator";
-import { executeForAllUsers } from "@/lib/live-execution";
 
 /**
  * Webhook ingestion for TradingView alerts.
- * Auth + write happen synchronously for a fast response.
- * Sentiment/alignment is computed in the background via next/server after().
  *
- * Multi-user: after AI filter passes, queries ALL users with autoTradeEnabled
- * on the signal's exchange and executes trades for each in parallel.
+ * Responsibilities (synchronous, fast):
+ *   1. Validate & store the signal
+ *   2. Compute sentiment alignment
+ *   3. Run AI confidence scoring
+ *
+ * Trade evaluation, simulator entries, and live execution are handled
+ * by the sync-simulator cron (Cron 2) on the next cycle.
  */
 export async function POST(request: NextRequest) {
   const db = getAdminFirestore();
@@ -217,8 +210,6 @@ export async function POST(request: NextRequest) {
 
     const docRef = await db.collection("signals").add(signalData);
 
-    // ── Synchronous processing: scoring → simulator → live execution ──
-    // Runs BEFORE the response to guarantee completion on Cloud Run.
     let processingResult = "Signal ingested as ACTIVE";
 
     if (signalType !== "NEUTRAL" && assetType === "CRYPTO") {
@@ -338,157 +329,9 @@ export async function POST(request: NextRequest) {
             notified: false,
             notifiedAt: null,
           });
-
-          // ── Simulator: evaluate and possibly open trade ──
-          try {
-            const simStateDoc = await db.collection("config").doc("simulator_state").get();
-            let simState: SimulatorState = simStateDoc.exists
-              ? simStateDoc.data() as SimulatorState
-              : createInitialState();
-            simState = checkDailyReset(simState);
-
-            const biasDoc = await db.collection("config").doc("market_bias").get();
-            const bullScore = biasDoc.exists ? (biasDoc.data()?.bullScore ?? 0) : 0;
-            const bearScore = biasDoc.exists ? (biasDoc.data()?.bearScore ?? 0) : 0;
-
-            const regimeDoc2 = await db.collection("config").doc("market_regime").get();
-            const regimeData2 = regimeDoc2.exists ? regimeDoc2.data() : {};
-            const regimeKey = `${timeframe}_${signalType}`;
-            const regimeEntry = regimeData2?.[regimeKey];
-            const liveWinRate = regimeEntry?.winRate ?? null;
-            const liveSampleSize = regimeEntry?.sampleSize ?? 0;
-
-            const allSignals2 = activeSnap.docs.map((d) =>
-              mapFirestoreSignal({ id: d.id, ...d.data() }),
-            );
-            const algoStats = computeAlgoTfStats(allSignals2);
-            const algoKey = `${algo}|${timeframe}`;
-            const algoEntry = algoStats.get(algoKey);
-            const algoWinRate = algoEntry?.winRate ?? null;
-            const algoSampleSize = algoEntry?.sampleSize ?? 0;
-
-            const openTradesSnap = await db.collection("simulator_trades")
-              .where("status", "==", "OPEN").get();
-            const openTrades = openTradesSnap.docs.map((d) => ({ id: d.id, ...d.data() } as SimTrade));
-
-            let chopRatio: number | null = null;
-            try {
-              const chopDoc = await db.collection("config").doc("chop_filter").get();
-              if (chopDoc.exists) {
-                const chopEntry = chopDoc.data()?.[timeframe];
-                if (chopEntry?.ratio != null) chopRatio = chopEntry.ratio;
-              }
-            } catch {}
-
-            const evaluation = evaluateTrade({
-              state: simState,
-              signal: {
-                id: docRef.id,
-                symbol,
-                type: signalType as "BUY" | "SELL",
-                timeframe,
-                algo,
-                price,
-                stopLoss,
-                tp1: finalTp1,
-                tp2: finalTp2,
-                tp3: finalTp3,
-                confidenceScore: scoreUpdate.confidenceScore ?? 0,
-              },
-              bullScore,
-              bearScore,
-              liveWinRate,
-              liveSampleSize,
-              algoWinRate,
-              algoSampleSize,
-              openTrades,
-              chopRatio,
-            });
-
-            if (!simStateDoc.exists) {
-              await db.collection("config").doc("simulator_state").set(simState);
-            }
-
-            if (evaluation.canTrade && evaluation.positionSize) {
-              const result = openTrade({
-                signal: {
-                  id: docRef.id,
-                  symbol,
-                  type: signalType as "BUY" | "SELL",
-                  timeframe,
-                  algo,
-                  price,
-                  stopLoss,
-                  tp1: finalTp1!,
-                  tp2: finalTp2!,
-                  tp3: finalTp3!,
-                  confidenceScore: scoreUpdate.confidenceScore ?? 0,
-                },
-                positionSize: evaluation.positionSize,
-                state: simState,
-                bullScore,
-                bearScore,
-                liveWinRate: liveWinRate ?? 0,
-                algoWinRate: algoWinRate ?? 0,
-              });
-
-              const simTradeRef = await db.collection("simulator_trades").add(result.trade);
-              await db.collection("config").doc("simulator_state").set(result.updatedState);
-              await db.collection("simulator_logs").add(result.log);
-
-              // ── Multi-user auto-trade: execute for ALL qualifying users ──
-              try {
-                await executeForAllUsers(
-                  db, result.trade, simTradeRef.id, simState.capital,
-                  docRef.id, symbol, signalType, exchange
-                );
-                processingResult = `Signal processed: sim trade opened + live execution attempted for ${symbol}`;
-              } catch (liveErr) {
-                const errMsg = liveErr instanceof Error ? liveErr.message : String(liveErr);
-                console.error("[Webhook] executeForAllUsers failed:", liveErr);
-                await db.collection("live_trade_logs").add({
-                  timestamp: new Date().toISOString(),
-                  action: "ERROR",
-                  details: `Live execution crashed for ${symbol} ${signalType}: ${errMsg}`,
-                  signalId: docRef.id,
-                  symbol,
-                }).catch(() => {});
-                processingResult = `Signal processed: sim trade opened, live execution error: ${errMsg}`;
-              }
-            } else {
-              await db.collection("simulator_logs").add({
-                timestamp: new Date().toISOString(),
-                action: "SIGNAL_SKIPPED",
-                details: evaluation.reason,
-                signalId: docRef.id,
-                symbol,
-                capital: simState.capital,
-              });
-              processingResult = `Signal processed: simulator skipped — ${evaluation.reason}`;
-            }
-          } catch (simErr) {
-            const errMsg = simErr instanceof Error ? simErr.message : String(simErr);
-            console.error("[Webhook] Simulator evaluation failed:", simErr);
-            await db.collection("simulator_logs").add({
-              timestamp: new Date().toISOString(),
-              action: "ERROR",
-              details: `Simulator evaluation error: ${errMsg}`,
-              signalId: docRef.id,
-              symbol,
-            }).catch(() => {});
-            processingResult = `Signal ingested, simulator error: ${errMsg}`;
-          }
+          processingResult = `Signal scored & passed AI filter (score=${scoreUpdate.confidenceScore}) — trade evaluation deferred to simulator cron`;
         } else {
-          try {
-            await db.collection("simulator_logs").add({
-              timestamp: new Date().toISOString(),
-              action: "SIGNAL_SKIPPED",
-              details: `AI filter not passed (score=${scoreUpdate.confidenceScore ?? "?"} threshold=${scoreUpdate.scoredAtThreshold ?? "?"})`,
-              signalId: docRef.id,
-              symbol,
-            });
-          } catch {}
-          processingResult = `Signal ingested: AI filter not passed (score=${scoreUpdate.confidenceScore ?? "?"})`;
+          processingResult = `Signal scored: AI filter not passed (score=${scoreUpdate.confidenceScore ?? "?"} threshold=${scoreUpdate.scoredAtThreshold ?? "?"})`;
         }
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);

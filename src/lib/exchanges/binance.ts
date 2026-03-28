@@ -239,6 +239,7 @@ export class BinanceConnector implements ExchangeConnector {
         stepSize,
         tickSize,
         minNotional: parseFloat(notionalFilter?.notional ?? notionalFilter?.minNotional ?? "5"),
+        maxLeverage: 10,
       });
     }
 

@@ -31,6 +31,7 @@ export interface SymbolInfo {
   stepSize: number;
   tickSize: number;
   minNotional: number;
+  maxLeverage: number;
 }
 
 // ── Order ───────────────────────────────────────────────────────

@@ -200,6 +200,11 @@ interface BybitInstrument {
     minPrice: string;
     maxPrice: string;
   };
+  leverageFilter?: {
+    minLeverage: string;
+    maxLeverage: string;
+    leverageStep: string;
+  };
 }
 
 const infoCache: Record<string, { symbols: Map<string, SymbolInfo>; ts: number }> = {};
@@ -263,6 +268,7 @@ export class BybitConnector implements ExchangeConnector {
         stepSize,
         tickSize,
         minNotional: parseFloat(s.lotSizeFilter.minNotionalValue ?? "5"),
+        maxLeverage: Math.min(parseFloat(s.leverageFilter?.maxLeverage ?? "10"), 10),
       });
     }
 
@@ -402,7 +408,11 @@ export class BybitConnector implements ExchangeConnector {
         creds
       );
     } catch (e) {
-      if (e instanceof ExchangeApiError && e.code === 110043) return;
+      if (e instanceof ExchangeApiError) {
+        // 110043: leverage not modified (already set)
+        // 110013: leverage exceeds max — will be retried with clamped value by caller
+        if (e.code === 110043 || e.code === 110013) return;
+      }
       throw e;
     }
   }

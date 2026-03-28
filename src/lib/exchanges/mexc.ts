@@ -198,6 +198,7 @@ export class MexcConnector implements ExchangeConnector {
           stepSize,
           tickSize,
           minNotional: 5,
+          maxLeverage: 10,
         });
       }
     }

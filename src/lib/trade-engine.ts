@@ -133,14 +133,16 @@ export async function executeTrade(
     // 2. Set isolated margin
     await connector.setMarginType(exchangeSymbol, "ISOLATED", creds);
 
-    // 3. Set leverage
-    await connector.setLeverage(exchangeSymbol, simTrade.leverage, creds);
+    // 3. Set leverage (clamped to exchange max for this symbol)
+    const desiredLeverage = simTrade.leverage;
+    const leverage = Math.min(desiredLeverage, info.maxLeverage);
+    await connector.setLeverage(exchangeSymbol, leverage, creds);
 
     // 4. Calculate position size from real exchange balance
     const riskPct = SIM_CONFIG.RISK_PER_TRADE_BASE;
     const riskAmount = exchangeCapital * riskPct;
     const slDistance = Math.abs(simTrade.entryPrice - simTrade.stopLoss) / simTrade.entryPrice;
-    const notionalSize = slDistance > 0 ? (riskAmount / slDistance) : riskAmount * simTrade.leverage;
+    const notionalSize = slDistance > 0 ? (riskAmount / slDistance) : riskAmount * leverage;
     const rawQty = notionalSize / simTrade.entryPrice;
 
     const qtyResult = adjustQuantity(rawQty, info);
@@ -154,7 +156,7 @@ export async function executeTrade(
     }
 
     // 5. Verify sufficient available margin
-    const marginRequired = (quantity * simTrade.entryPrice) / simTrade.leverage;
+    const marginRequired = (quantity * simTrade.entryPrice) / leverage;
     if (balance.available < marginRequired * 1.05) {
       return { success: false, error: `Insufficient margin: need ~$${marginRequired.toFixed(2)}, have $${balance.available.toFixed(2)} available`, warnings };
     }
@@ -209,7 +211,7 @@ export async function executeTrade(
       symbol: exchangeSymbol,
       signalSymbol: simTrade.symbol,
       side: simTrade.side,
-      leverage: simTrade.leverage,
+      leverage,
       entryOrderId: entryOrder.orderId,
       entryPrice: fillPrice,
       quantity: fillQty,

@@ -106,9 +106,6 @@ export default function LiveTradingPage() {
     return query(
       collection(firestore, "live_trades"),
       where("userId", "==", user.uid),
-      where("testnet", "==", false),
-      orderBy("openedAt", "desc"),
-      limit(100),
     );
   }, [firestore, user]);
   const { data: rawLiveTrades, isLoading: tradesLoading } = useCollection(liveTradesQuery);
@@ -118,8 +115,6 @@ export default function LiveTradingPage() {
     return query(
       collection(firestore, "live_trade_logs"),
       where("userId", "==", user.uid),
-      orderBy("timestamp", "desc"),
-      limit(200),
     );
   }, [firestore, user]);
   const { data: rawLogs, isLoading: logsLoading } = useCollection(logsQuery);
@@ -134,12 +129,18 @@ export default function LiveTradingPage() {
 
   const logs = useMemo(() => {
     if (!rawLogs) return [];
-    return rawLogs.map((d: any) => d as LiveLog);
+    return (rawLogs.map((d: any) => d as LiveLog))
+      .sort((a, b) => (b.timestamp || "").localeCompare(a.timestamp || ""))
+      .slice(0, 200);
   }, [rawLogs]);
 
   const liveTrades = useMemo(() => {
     if (!rawLiveTrades) return [];
-    return rawLiveTrades.map((d: any) => ({ id: d.id, ...d } as LiveTrade));
+    return rawLiveTrades
+      .map((d: any) => ({ id: d.id, ...d } as LiveTrade))
+      .filter((t) => t.testnet === false)
+      .sort((a, b) => (b.openedAt || "").localeCompare(a.openedAt || ""))
+      .slice(0, 100);
   }, [rawLiveTrades]);
 
   const openTrades = useMemo(() => liveTrades.filter((t) => t.status === "OPEN"), [liveTrades]);

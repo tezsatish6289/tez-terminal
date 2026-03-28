@@ -114,13 +114,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Live trades: readable by authenticated users, server handles writes.
+    // Live trades: only the owning user can read from the client.
     match /live_trades/{tradeId} {
-      allow read: if request.auth != null;
+      allow read: if request.auth != null
+        && resource.data.userId == request.auth.uid;
       allow write: if false;
     }
+    // Live trade logs: only the owning user can read from the client.
     match /live_trade_logs/{logId} {
-      allow read: if request.auth != null;
+      allow read: if request.auth != null
+        && resource.data.userId == request.auth.uid;
       allow write: if false;
     }
 

@@ -542,16 +542,17 @@ function BybitSimulationTab({ uid }: { uid: string | undefined }) {
     return query(
       collection(firestore, "live_trades"),
       where("userId", "==", uid),
-      where("testnet", "==", true),
-      orderBy("openedAt", "desc"),
-      limit(100),
     );
   }, [firestore, uid]);
   const { data: rawLiveTrades, isLoading: tradesLoading } = useCollection(liveTradesQuery);
 
   const liveTrades = useMemo(() => {
     if (!rawLiveTrades) return [];
-    return rawLiveTrades.map((d: any) => ({ id: d.id, ...d } as LiveTrade));
+    return rawLiveTrades
+      .map((d: any) => ({ id: d.id, ...d } as LiveTrade))
+      .filter((t) => t.testnet === true)
+      .sort((a, b) => (b.openedAt || "").localeCompare(a.openedAt || ""))
+      .slice(0, 100);
   }, [rawLiveTrades]);
 
   const openTrades = useMemo(() => liveTrades.filter((t) => t.status === "OPEN"), [liveTrades]);

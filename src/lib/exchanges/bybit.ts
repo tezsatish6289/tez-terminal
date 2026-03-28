@@ -380,7 +380,11 @@ export class BybitConnector implements ExchangeConnector {
         creds
       );
     } catch (e) {
-      if (e instanceof ExchangeApiError && e.code === 110026) return;
+      if (e instanceof ExchangeApiError) {
+        // 110026: margin mode already set — no-op
+        // 100028: Unified Trading Account — switch-isolated not supported, skip gracefully
+        if (e.code === 110026 || e.code === 100028) return;
+      }
       throw e;
     }
   }

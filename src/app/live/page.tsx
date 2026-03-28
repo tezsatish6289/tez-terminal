@@ -831,7 +831,7 @@ const LOG_ACTION_STYLES: Record<string, { color: string; bg: string }> = {
 
 function LogRow({ log }: { log: { timestamp: string; action: string; details: string; symbol?: string } }) {
   const style = LOG_ACTION_STYLES[log.action] ?? { color: "text-muted-foreground/50", bg: "bg-white/5" };
-  const ts = log.timestamp ? format(new Date(log.timestamp), "MMM dd, HH:mm:ss") : "—";
+  const date = log.timestamp ? new Date(log.timestamp) : null;
 
   return (
     <div className="flex items-start gap-3 py-2 px-3 rounded-lg hover:bg-white/[0.02] transition-colors">
@@ -844,7 +844,10 @@ function LogRow({ log }: { log: { timestamp: string; action: string; details: st
           <span className="text-[9px] font-bold text-muted-foreground/30 uppercase">{log.symbol}</span>
         )}
       </div>
-      <span className="text-[9px] font-mono text-muted-foreground/30 shrink-0 mt-0.5">{ts}</span>
+      <div className="flex flex-col items-end shrink-0 mt-0.5">
+        <span className="text-[9px] font-mono text-muted-foreground/30">{date ? format(date, "MMM dd") : "—"}</span>
+        <span className="text-[10px] font-mono text-muted-foreground/50">{date ? format(date, "hh:mm:ss a") : ""}</span>
+      </div>
     </div>
   );
 }

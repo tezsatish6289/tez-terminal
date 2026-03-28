@@ -209,6 +209,132 @@ export function computeMarketRegime(
   return regime;
 }
 
+// ── Chop Filter (market choppiness detection) ──────────────
+
+const CHOP_LOOKBACK_CANDLES = 9;
+const CHOP_THRESHOLD = 0.4;
+const CHOP_MIN_EVENTS = 3;
+const CHOP_SL_POINTS = 3;
+const CHOP_TRAILING_SL_POINTS = 4;
+const CHOP_TP_POINTS = 1;
+
+export interface ChopFilterEntry {
+  bullishKills: number;
+  bearishKills: number;
+  totalEvents: number;
+  ratio: number | null;
+  isChoppy: boolean;
+  lastUpdated: string;
+}
+
+export type ChopFilterData = Record<string, ChopFilterEntry>;
+
+interface ChopSignal {
+  timeframe: string;
+  type: string;
+  slHitAt: string | null;
+  tp1Hit: boolean;
+  tp1HitAt: string | null;
+  tp2HitAt: string | null;
+  tp3HitAt: string | null;
+}
+
+/**
+ * Compute choppiness per timeframe using opposite-side "kill points".
+ *
+ * Scoring:
+ *   Bear SL hit (original)  → +3 bullish kills
+ *   Bear trailing SL hit    → +4 bullish kills
+ *   Bull TP1/TP2/TP3 hit    → +1 bullish kills each
+ *   (vice versa for bearish kills)
+ *
+ * Ratio = min(bull, bear) / max(bull, bear)
+ *   near 0 → one-sided → trending → safe
+ *   near 1 → evenly matched → chop → stay out
+ */
+export function computeChopFilter(
+  signals: ChopSignal[],
+  thresholdOverride?: number,
+): ChopFilterData {
+  const now = Date.now();
+  const threshold = thresholdOverride ?? CHOP_THRESHOLD;
+  const result: ChopFilterData = {};
+
+  for (const tfId of Object.keys(CANDLE_MINUTES)) {
+    const candleMs = (CANDLE_MINUTES[tfId] ?? 15) * 60 * 1000;
+    const windowMs = candleMs * CHOP_LOOKBACK_CANDLES;
+    const cutoff = now - windowMs;
+
+    let bullishKills = 0;
+    let bearishKills = 0;
+    let totalEvents = 0;
+
+    const tfSignals = signals.filter((s) => String(s.timeframe) === tfId);
+
+    for (const s of tfSignals) {
+      const isBuy = s.type === "BUY";
+
+      if (s.slHitAt) {
+        const slTime = new Date(s.slHitAt).getTime();
+        if (slTime >= cutoff) {
+          const isTrailing = s.tp1Hit === true;
+          const pts = isTrailing ? CHOP_TRAILING_SL_POINTS : CHOP_SL_POINTS;
+          if (isBuy) bearishKills += pts;
+          else bullishKills += pts;
+          totalEvents++;
+        }
+      }
+
+      if (s.tp1HitAt) {
+        const t = new Date(s.tp1HitAt).getTime();
+        if (t >= cutoff) {
+          if (isBuy) bullishKills += CHOP_TP_POINTS;
+          else bearishKills += CHOP_TP_POINTS;
+          totalEvents++;
+        }
+      }
+
+      if (s.tp2HitAt) {
+        const t = new Date(s.tp2HitAt).getTime();
+        if (t >= cutoff) {
+          if (isBuy) bullishKills += CHOP_TP_POINTS;
+          else bearishKills += CHOP_TP_POINTS;
+          totalEvents++;
+        }
+      }
+
+      if (s.tp3HitAt) {
+        const t = new Date(s.tp3HitAt).getTime();
+        if (t >= cutoff) {
+          if (isBuy) bullishKills += CHOP_TP_POINTS;
+          else bearishKills += CHOP_TP_POINTS;
+          totalEvents++;
+        }
+      }
+    }
+
+    let ratio: number | null = null;
+    let isChoppy = false;
+    const maxKills = Math.max(bullishKills, bearishKills);
+
+    if (totalEvents >= CHOP_MIN_EVENTS && maxKills > 0) {
+      ratio = Math.min(bullishKills, bearishKills) / maxKills;
+      isChoppy = ratio > threshold;
+    }
+
+    result[tfId] = {
+      bullishKills,
+      bearishKills,
+      totalEvents,
+      ratio,
+      isChoppy,
+      lastUpdated: new Date().toISOString(),
+    };
+  }
+
+  return result;
+}
+
 // ── Timeframe metadata ──────────────────────────────────────
 
 const TF_RANK: Record<string, number> = {

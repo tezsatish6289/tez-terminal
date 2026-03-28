@@ -30,6 +30,8 @@ export const SIM_CONFIG = {
   TURN_SINGLE_CONDITION_TRIGGER: 0.50,   // 50% alone triggers exit
   // Individual score degradation
   SCORE_FLOOR: 38,                       // exit if live score drops below this
+  // Chop filter
+  CHOP_THRESHOLD: 0.4,                   // ratio > this → choppy → block trade
 } as const;
 
 // ── Types ────────────────────────────────────────────────────
@@ -158,8 +160,9 @@ export function selectIncubatedSignals(params: {
   openTrades: SimTrade[];
   liveWinRates: Map<string, { winRate: number | null; sampleSize: number }>;
   algoStats: Map<string, { winRate: number | null; sampleSize: number }>;
+  chopData?: Record<string, { ratio: number | null; isChoppy: boolean }>;
 }): IncubatedResult {
-  const { candidates, state, bullScore, bearScore, openTrades, liveWinRates, algoStats } = params;
+  const { candidates, state, bullScore, bearScore, openTrades, liveWinRates, algoStats, chopData } = params;
   const selected: IncubatedCandidate[] = [];
   const skipped: { symbol: string; reason: string }[] = [];
 
@@ -279,6 +282,13 @@ export function selectIncubatedSignals(params: {
     // SL / TP validation
     if (c.stopLoss <= 0 || !c.tp1 || !c.tp2 || !c.tp3) {
       skipped.push({ symbol: c.symbol, reason: "Missing SL/TP levels" });
+      continue;
+    }
+
+    // Chop filter — last gate
+    const chopEntry = chopData?.[c.timeframe];
+    if (chopEntry?.ratio != null && chopEntry.ratio > SIM_CONFIG.CHOP_THRESHOLD) {
+      skipped.push({ symbol: c.symbol, reason: `Choppy market (ratio=${chopEntry.ratio.toFixed(2)} > ${SIM_CONFIG.CHOP_THRESHOLD}) on ${c.timeframe}` });
       continue;
     }
 
@@ -485,8 +495,9 @@ export function evaluateTrade(params: {
   algoWinRate: number | null;
   algoSampleSize: number;
   openTrades: SimTrade[];
+  chopRatio?: number | null;
 }): TradeEvaluation {
-  const { state, signal, bullScore, bearScore, liveWinRate, liveSampleSize, algoWinRate, algoSampleSize, openTrades } = params;
+  const { state, signal, bullScore, bearScore, liveWinRate, liveSampleSize, algoWinRate, algoSampleSize, openTrades, chopRatio } = params;
 
   if (!state.isActive) {
     return { canTrade: false, reason: "Simulator is paused" };
@@ -552,6 +563,11 @@ export function evaluateTrade(params: {
 
   if (signal.tp1 == null || signal.tp2 == null || signal.tp3 == null) {
     return { canTrade: false, reason: "Missing TP levels" };
+  }
+
+  // Chop filter — last gate: block if market is choppy for this timeframe
+  if (chopRatio != null && chopRatio > SIM_CONFIG.CHOP_THRESHOLD) {
+    return { canTrade: false, reason: `Choppy market (ratio=${chopRatio.toFixed(2)} > ${SIM_CONFIG.CHOP_THRESHOLD}) on ${signal.timeframe}` };
   }
 
   // Adaptive risk: 0.5% base, 1% when streak is active

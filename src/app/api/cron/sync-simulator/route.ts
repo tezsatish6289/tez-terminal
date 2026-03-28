@@ -21,6 +21,7 @@ import {
   computeAlgoTfStats,
 } from "@/lib/auto-filter";
 import { deserializePrices, getReferencePrice, type AllExchangePrices } from "@/lib/exchanges";
+import { executeForAllUsers } from "@/lib/live-execution";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -403,6 +404,22 @@ export async function GET(request: NextRequest) {
         algoStatsMap.set(key, { winRate: val.winRate, sampleSize: val.sampleSize });
       }
 
+      let chopData: Record<string, { ratio: number | null; isChoppy: boolean }> | undefined;
+      try {
+        const chopDoc = await db.collection("config").doc("chop_filter").get();
+        if (chopDoc.exists) {
+          const raw = chopDoc.data() ?? {};
+          chopData = {};
+          for (const [key, val] of Object.entries(raw)) {
+            if (key === "lastUpdated") continue;
+            const v = val as any;
+            if (v && typeof v.ratio !== "undefined") {
+              chopData[key] = { ratio: v.ratio, isChoppy: v.isChoppy === true };
+            }
+          }
+        }
+      } catch {}
+
       const { selected, skipped: incubSkipped } = selectIncubatedSignals({
         candidates,
         state: simState3,
@@ -411,6 +428,7 @@ export async function GET(request: NextRequest) {
         openTrades: openSimTrades,
         liveWinRates,
         algoStats: algoStatsMap,
+        chopData,
       });
 
       for (const c of selected) {
@@ -456,11 +474,31 @@ export async function GET(request: NextRequest) {
           algoWinRate: algoEntry?.winRate ?? 0,
         });
 
-        await db.collection("simulator_trades").add(result.trade);
+        const simTradeRef = await db.collection("simulator_trades").add(result.trade);
         simState3 = result.updatedState;
         result.log.details = `[INCUBATED] ${result.log.details}`;
         await db.collection("simulator_logs").add(result.log);
         incubatedCount++;
+
+        // Trigger live execution for all qualifying users
+        try {
+          const signalData = postUpdateDocs.find((d) => d.id === c.id);
+          const signalExchange = signalData?.exchange ?? "BINANCE";
+          await executeForAllUsers(
+            db, result.trade, simTradeRef.id, simState3.capital,
+            c.id, c.symbol, c.type, signalExchange,
+          );
+        } catch (liveErr) {
+          const errMsg = liveErr instanceof Error ? liveErr.message : String(liveErr);
+          console.error("[SimSync] Incubated live execution failed:", errMsg);
+          await db.collection("live_trade_logs").add({
+            timestamp: new Date().toISOString(),
+            action: "ERROR",
+            details: `[INCUBATED] Live execution crashed for ${c.symbol} ${c.type}: ${errMsg}`,
+            signalId: c.id,
+            symbol: c.symbol,
+          }).catch(() => {});
+        }
       }
 
       for (const skip of incubSkipped.slice(0, 5)) {

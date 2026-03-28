@@ -1,6 +1,5 @@
 
 import { NextRequest, NextResponse } from "next/server";
-import { after } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { computeSentiment, type SignalForSentiment } from "@/lib/sentiment";
@@ -226,159 +225,190 @@ export async function POST(request: NextRequest) {
 
     const docRef = await db.collection("signals").add(signalData);
 
-    if (signalType !== "NEUTRAL" && assetType === "CRYPTO") {
-      after(async () => {
-        try {
-          const activeSnap = await db.collection("signals")
-            .where("status", "==", "ACTIVE")
-            .limit(200)
-            .get();
+    // ── Synchronous processing: scoring → simulator → live execution ──
+    // Runs BEFORE the response to guarantee completion on Cloud Run.
+    let processingResult = "Signal ingested as ACTIVE";
 
-          let k = 7;
+    if (signalType !== "NEUTRAL" && assetType === "CRYPTO") {
+      try {
+        const activeSnap = await db.collection("signals")
+          .where("status", "==", "ACTIVE")
+          .limit(200)
+          .get();
+
+        let k = 7;
+        try {
+          const sentimentConfig = await db.collection("config").doc("sentiment").get();
+          if (sentimentConfig.exists) {
+            const ck = sentimentConfig.data()?.k;
+            if (typeof ck === "number" && ck > 0) k = ck;
+          }
+        } catch {}
+
+        const tfSignals: SignalForSentiment[] = [];
+        for (const d of activeSnap.docs) {
+          const s = d.data();
+          const sTf = String(s.timeframe || "").toUpperCase();
+          if (sTf !== timeframe.toUpperCase()) continue;
+          const sAt = String(s.assetType || "CRYPTO").toUpperCase();
+          if (!sAt.includes("CRYPTO") && sAt !== "CRYPTO") continue;
+          tfSignals.push({
+            type: s.type === "BUY" ? "BUY" : "SELL",
+            receivedAt: s.receivedAt,
+            currentPrice: s.currentPrice ?? null,
+            price: Number(s.price || 0),
+          });
+        }
+
+        const sentiment = computeSentiment(tfSignals, timeframe, k);
+        const bullish = sentiment.label === "Bulls in control" || sentiment.label === "Bulls taking over";
+        const bearish = sentiment.label === "Bears in control" || sentiment.label === "Bears taking over";
+        const aligned = (signalType === "BUY" && bullish) || (signalType === "SELL" && bearish);
+
+        // ── AI Filter Scoring ───────────────────────────
+        let scoreUpdate: Record<string, any> = {
+          aligned,
+          sentimentAtEntry: sentiment.label,
+        };
+
+        try {
+          const allSignals = activeSnap.docs.map((d) =>
+            mapFirestoreSignal({ id: d.id, ...d.data() }),
+          );
+
+          const newIdx = allSignals.findIndex((s) => s.id === docRef.id);
+          if (newIdx >= 0) {
+            allSignals[newIdx] = { ...allSignals[newIdx], aligned };
+          }
+
+          let baseThreshold = AUTO_FILTER_THRESHOLD;
           try {
-            const sentimentConfig = await db.collection("config").doc("sentiment").get();
-            if (sentimentConfig.exists) {
-              const ck = sentimentConfig.data()?.k;
-              if (typeof ck === "number" && ck > 0) k = ck;
+            const filterCfg = await db.collection("config").doc("auto_filter").get();
+            if (filterCfg.exists) {
+              const val = filterCfg.data()?.baseThreshold;
+              if (typeof val === "number" && val > 0) baseThreshold = val;
             }
           } catch {}
 
-          const tfSignals: SignalForSentiment[] = [];
-          for (const d of activeSnap.docs) {
-            const s = d.data();
-            const sTf = String(s.timeframe || "").toUpperCase();
-            if (sTf !== timeframe.toUpperCase()) continue;
-            const sAt = String(s.assetType || "CRYPTO").toUpperCase();
-            if (!sAt.includes("CRYPTO") && sAt !== "CRYPTO") continue;
-            tfSignals.push({
-              type: s.type === "BUY" ? "BUY" : "SELL",
-              receivedAt: s.receivedAt,
-              currentPrice: s.currentPrice ?? null,
-              price: Number(s.price || 0),
-            });
-          }
-
-          const sentiment = computeSentiment(tfSignals, timeframe, k);
-          const bullish = sentiment.label === "Bulls in control" || sentiment.label === "Bulls taking over";
-          const bearish = sentiment.label === "Bears in control" || sentiment.label === "Bears taking over";
-          const aligned = (signalType === "BUY" && bullish) || (signalType === "SELL" && bearish);
-
-          // ── AI Filter Scoring ───────────────────────────
-          let scoreUpdate: Record<string, any> = {
-            aligned,
-            sentimentAtEntry: sentiment.label,
-          };
-
+          let threshold = baseThreshold;
           try {
-            const allSignals = activeSnap.docs.map((d) =>
+            const regimeDoc = await db.collection("config").doc("market_regime").get();
+            if (regimeDoc.exists) {
+              const regimeData = regimeDoc.data() as MarketRegimeData;
+              const key2 = `${timeframe}_${signalType}`;
+              if (
+                regimeData?.[key2]?.adjustedThreshold &&
+                !isRegimeStale(regimeData[key2].lastUpdated, timeframe)
+              ) {
+                threshold = regimeData[key2].adjustedThreshold;
+              }
+            }
+          } catch {}
+
+          const scores = computeAutoFilter(allSignals);
+          const thisScore = scores.get(docRef.id);
+
+          if (thisScore) {
+            const passed = thisScore.score >= threshold;
+            scoreUpdate = {
+              ...scoreUpdate,
+              autoFilterPassed: passed,
+              confidenceScore: thisScore.score,
+              confidenceLabel: thisScore.label,
+              scoreBreakdown: thisScore.breakdown,
+              lastScoredAt: new Date().toISOString(),
+              scoredAtThreshold: threshold,
+              initialConfidenceScore: thisScore.score,
+              maxConfidenceScore: thisScore.score,
+              minConfidenceScore: thisScore.score,
+            };
+          }
+        } catch (scoreErr) {
+          console.error("[Webhook] AI scoring failed, cron will retry:", scoreErr);
+        }
+
+        await db.collection("signals").doc(docRef.id).update(scoreUpdate);
+
+        if (scoreUpdate.autoFilterPassed === true) {
+          await db.collection("signal_events").add({
+            type: "NEW_SIGNAL",
+            signalId: docRef.id,
+            symbol,
+            side: signalType as "BUY" | "SELL",
+            timeframe,
+            assetType,
+            entryPrice: price,
+            price,
+            stopLoss,
+            tp1: finalTp1, tp2: finalTp2, tp3: finalTp3,
+            guidance: "New signal received.",
+            createdAt: timestamp,
+            notified: false,
+            notifiedAt: null,
+          });
+
+          // ── Simulator: evaluate and possibly open trade ──
+          try {
+            const simStateDoc = await db.collection("config").doc("simulator_state").get();
+            let simState: SimulatorState = simStateDoc.exists
+              ? simStateDoc.data() as SimulatorState
+              : createInitialState();
+            simState = checkDailyReset(simState);
+
+            const biasDoc = await db.collection("config").doc("market_bias").get();
+            const bullScore = biasDoc.exists ? (biasDoc.data()?.bullScore ?? 0) : 0;
+            const bearScore = biasDoc.exists ? (biasDoc.data()?.bearScore ?? 0) : 0;
+
+            const regimeDoc2 = await db.collection("config").doc("market_regime").get();
+            const regimeData2 = regimeDoc2.exists ? regimeDoc2.data() : {};
+            const regimeKey = `${timeframe}_${signalType}`;
+            const regimeEntry = regimeData2?.[regimeKey];
+            const liveWinRate = regimeEntry?.winRate ?? null;
+            const liveSampleSize = regimeEntry?.sampleSize ?? 0;
+
+            const allSignals2 = activeSnap.docs.map((d) =>
               mapFirestoreSignal({ id: d.id, ...d.data() }),
             );
+            const algoStats = computeAlgoTfStats(allSignals2);
+            const algoKey = `${algo}|${timeframe}`;
+            const algoEntry = algoStats.get(algoKey);
+            const algoWinRate = algoEntry?.winRate ?? null;
+            const algoSampleSize = algoEntry?.sampleSize ?? 0;
 
-            const newIdx = allSignals.findIndex((s) => s.id === docRef.id);
-            if (newIdx >= 0) {
-              allSignals[newIdx] = { ...allSignals[newIdx], aligned };
-            }
+            const openTradesSnap = await db.collection("simulator_trades")
+              .where("status", "==", "OPEN").get();
+            const openTrades = openTradesSnap.docs.map((d) => ({ id: d.id, ...d.data() } as SimTrade));
 
-            let baseThreshold = AUTO_FILTER_THRESHOLD;
-            try {
-              const filterCfg = await db.collection("config").doc("auto_filter").get();
-              if (filterCfg.exists) {
-                const val = filterCfg.data()?.baseThreshold;
-                if (typeof val === "number" && val > 0) baseThreshold = val;
-              }
-            } catch {}
-
-            let threshold = baseThreshold;
-            try {
-              const regimeDoc = await db.collection("config").doc("market_regime").get();
-              if (regimeDoc.exists) {
-                const regimeData = regimeDoc.data() as MarketRegimeData;
-                const key = `${timeframe}_${signalType}`;
-                if (
-                  regimeData?.[key]?.adjustedThreshold &&
-                  !isRegimeStale(regimeData[key].lastUpdated, timeframe)
-                ) {
-                  threshold = regimeData[key].adjustedThreshold;
-                }
-              }
-            } catch {}
-
-            const scores = computeAutoFilter(allSignals);
-            const thisScore = scores.get(docRef.id);
-
-            if (thisScore) {
-              const passed = thisScore.score >= threshold;
-              scoreUpdate = {
-                ...scoreUpdate,
-                autoFilterPassed: passed,
-                confidenceScore: thisScore.score,
-                confidenceLabel: thisScore.label,
-                scoreBreakdown: thisScore.breakdown,
-                lastScoredAt: new Date().toISOString(),
-                scoredAtThreshold: threshold,
-                initialConfidenceScore: thisScore.score,
-                maxConfidenceScore: thisScore.score,
-                minConfidenceScore: thisScore.score,
-              };
-            }
-          } catch (scoreErr) {
-            console.error("[Webhook after()] AI scoring failed, cron will retry:", scoreErr);
-          }
-
-          await db.collection("signals").doc(docRef.id).update(scoreUpdate);
-
-          if (scoreUpdate.autoFilterPassed === true) {
-            await db.collection("signal_events").add({
-              type: "NEW_SIGNAL",
-              signalId: docRef.id,
-              symbol,
-              side: signalType as "BUY" | "SELL",
-              timeframe,
-              assetType,
-              entryPrice: price,
-              price,
-              stopLoss,
-              tp1: finalTp1, tp2: finalTp2, tp3: finalTp3,
-              guidance: "New signal received.",
-              createdAt: timestamp,
-              notified: false,
-              notifiedAt: null,
+            const evaluation = evaluateTrade({
+              state: simState,
+              signal: {
+                id: docRef.id,
+                symbol,
+                type: signalType as "BUY" | "SELL",
+                timeframe,
+                algo,
+                price,
+                stopLoss,
+                tp1: finalTp1,
+                tp2: finalTp2,
+                tp3: finalTp3,
+                confidenceScore: scoreUpdate.confidenceScore ?? 0,
+              },
+              bullScore,
+              bearScore,
+              liveWinRate,
+              liveSampleSize,
+              algoWinRate,
+              algoSampleSize,
+              openTrades,
             });
 
-            // ── Simulator: evaluate and possibly open trade ──
-            try {
-              const simStateDoc = await db.collection("config").doc("simulator_state").get();
-              let simState: SimulatorState = simStateDoc.exists
-                ? simStateDoc.data() as SimulatorState
-                : createInitialState();
-              simState = checkDailyReset(simState);
+            if (!simStateDoc.exists) {
+              await db.collection("config").doc("simulator_state").set(simState);
+            }
 
-              const biasDoc = await db.collection("config").doc("market_bias").get();
-              const bullScore = biasDoc.exists ? (biasDoc.data()?.bullScore ?? 0) : 0;
-              const bearScore = biasDoc.exists ? (biasDoc.data()?.bearScore ?? 0) : 0;
-
-              const regimeDoc2 = await db.collection("config").doc("market_regime").get();
-              const regimeData2 = regimeDoc2.exists ? regimeDoc2.data() : {};
-              const regimeKey = `${timeframe}_${signalType}`;
-              const regimeEntry = regimeData2?.[regimeKey];
-              const liveWinRate = regimeEntry?.winRate ?? null;
-              const liveSampleSize = regimeEntry?.sampleSize ?? 0;
-
-              const allSignals2 = activeSnap.docs.map((d) =>
-                mapFirestoreSignal({ id: d.id, ...d.data() }),
-              );
-              const algoStats = computeAlgoTfStats(allSignals2);
-              const algoKey = `${algo}|${timeframe}`;
-              const algoEntry = algoStats.get(algoKey);
-              const algoWinRate = algoEntry?.winRate ?? null;
-              const algoSampleSize = algoEntry?.sampleSize ?? 0;
-
-              const openTradesSnap = await db.collection("simulator_trades")
-                .where("status", "==", "OPEN").get();
-              const openTrades = openTradesSnap.docs.map((d) => ({ id: d.id, ...d.data() } as SimTrade));
-
-              const evaluation = evaluateTrade({
-                state: simState,
+            if (evaluation.canTrade && evaluation.positionSize) {
+              const result = openTrade({
                 signal: {
                   id: docRef.id,
                   symbol,
@@ -387,94 +417,85 @@ export async function POST(request: NextRequest) {
                   algo,
                   price,
                   stopLoss,
-                  tp1: finalTp1,
-                  tp2: finalTp2,
-                  tp3: finalTp3,
+                  tp1: finalTp1!,
+                  tp2: finalTp2!,
+                  tp3: finalTp3!,
                   confidenceScore: scoreUpdate.confidenceScore ?? 0,
                 },
+                positionSize: evaluation.positionSize,
+                state: simState,
                 bullScore,
                 bearScore,
-                liveWinRate,
-                liveSampleSize,
-                algoWinRate,
-                algoSampleSize,
-                openTrades,
+                liveWinRate: liveWinRate ?? 0,
+                algoWinRate: algoWinRate ?? 0,
               });
 
-              if (!simStateDoc.exists) {
-                await db.collection("config").doc("simulator_state").set(simState);
-              }
+              const simTradeRef = await db.collection("simulator_trades").add(result.trade);
+              await db.collection("config").doc("simulator_state").set(result.updatedState);
+              await db.collection("simulator_logs").add(result.log);
 
-              if (evaluation.canTrade && evaluation.positionSize) {
-                const result = openTrade({
-                  signal: {
-                    id: docRef.id,
-                    symbol,
-                    type: signalType as "BUY" | "SELL",
-                    timeframe,
-                    algo,
-                    price,
-                    stopLoss,
-                    tp1: finalTp1!,
-                    tp2: finalTp2!,
-                    tp3: finalTp3!,
-                    confidenceScore: scoreUpdate.confidenceScore ?? 0,
-                  },
-                  positionSize: evaluation.positionSize,
-                  state: simState,
-                  bullScore,
-                  bearScore,
-                  liveWinRate: liveWinRate ?? 0,
-                  algoWinRate: algoWinRate ?? 0,
-                });
-
-                const simTradeRef = await db.collection("simulator_trades").add(result.trade);
-                await db.collection("config").doc("simulator_state").set(result.updatedState);
-                await db.collection("simulator_logs").add(result.log);
-
-                // ── Multi-user auto-trade: execute for ALL qualifying users ──
+              // ── Multi-user auto-trade: execute for ALL qualifying users ──
+              try {
                 await executeForAllUsers(
                   db, result.trade, simTradeRef.id, simState.capital,
                   docRef.id, symbol, signalType, exchange
                 );
-              } else {
-                await db.collection("simulator_logs").add({
+                processingResult = `Signal processed: sim trade opened + live execution attempted for ${symbol}`;
+              } catch (liveErr) {
+                const errMsg = liveErr instanceof Error ? liveErr.message : String(liveErr);
+                console.error("[Webhook] executeForAllUsers failed:", liveErr);
+                await db.collection("live_trade_logs").add({
                   timestamp: new Date().toISOString(),
-                  action: "SIGNAL_SKIPPED",
-                  details: evaluation.reason,
+                  action: "ERROR",
+                  details: `Live execution crashed for ${symbol} ${signalType}: ${errMsg}`,
                   signalId: docRef.id,
                   symbol,
-                  capital: simState.capital,
-                });
+                }).catch(() => {});
+                processingResult = `Signal processed: sim trade opened, live execution error: ${errMsg}`;
               }
-            } catch (simErr) {
-              console.error("[Webhook] Simulator evaluation failed:", simErr);
-              await db.collection("simulator_logs").add({
-                timestamp: new Date().toISOString(),
-                action: "ERROR",
-                details: `Simulator evaluation error: ${simErr instanceof Error ? simErr.message : String(simErr)}`,
-                signalId: docRef.id,
-                symbol,
-              }).catch(() => {});
-            }
-          } else {
-            try {
+            } else {
               await db.collection("simulator_logs").add({
                 timestamp: new Date().toISOString(),
                 action: "SIGNAL_SKIPPED",
-                details: `AI filter not passed (score=${scoreUpdate.confidenceScore ?? "?"} threshold=${scoreUpdate.scoredAtThreshold ?? "?"})`,
+                details: evaluation.reason,
                 signalId: docRef.id,
                 symbol,
+                capital: simState.capital,
               });
-            } catch {}
+              processingResult = `Signal processed: simulator skipped — ${evaluation.reason}`;
+            }
+          } catch (simErr) {
+            const errMsg = simErr instanceof Error ? simErr.message : String(simErr);
+            console.error("[Webhook] Simulator evaluation failed:", simErr);
+            await db.collection("simulator_logs").add({
+              timestamp: new Date().toISOString(),
+              action: "ERROR",
+              details: `Simulator evaluation error: ${errMsg}`,
+              signalId: docRef.id,
+              symbol,
+            }).catch(() => {});
+            processingResult = `Signal ingested, simulator error: ${errMsg}`;
           }
-        } catch (err) {
-          console.error("[Webhook after()] Background processing failed:", err);
+        } else {
+          try {
+            await db.collection("simulator_logs").add({
+              timestamp: new Date().toISOString(),
+              action: "SIGNAL_SKIPPED",
+              details: `AI filter not passed (score=${scoreUpdate.confidenceScore ?? "?"} threshold=${scoreUpdate.scoredAtThreshold ?? "?"})`,
+              signalId: docRef.id,
+              symbol,
+            });
+          } catch {}
+          processingResult = `Signal ingested: AI filter not passed (score=${scoreUpdate.confidenceScore ?? "?"})`;
         }
-      });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error("[Webhook] Processing pipeline failed:", errMsg);
+        processingResult = `Signal ingested, processing error: ${errMsg}`;
+      }
     }
 
-    return NextResponse.json({ success: true, message: "Signal ingested as ACTIVE" });
+    return NextResponse.json({ success: true, message: processingResult });
   } catch (error: any) {
     console.error("[Webhook Bridge Error]", error.message);
     try {
@@ -514,7 +535,6 @@ async function executeForAllUsers(
 
   const tasks: UserExecutionTask[] = [];
 
-  // Find all users with auto-trade enabled on any exchange
   for (const userDoc of usersSnap.docs) {
     const userId = userDoc.id;
 
@@ -553,12 +573,20 @@ async function executeForAllUsers(
     await db.collection("live_trade_logs").add({
       timestamp: new Date().toISOString(),
       action: "SKIPPED",
-      details: `${symbol} ${signalType} — no users with auto-trade enabled on any exchange.`,
+      details: `${symbol} ${signalType} — no users with auto-trade enabled on any exchange. (${usersSnap.size} users scanned)`,
       signalId,
       symbol,
     });
     return;
   }
+
+  await db.collection("live_trade_logs").add({
+    timestamp: new Date().toISOString(),
+    action: "EVALUATING",
+    details: `${symbol} ${signalType} — found ${tasks.length} qualifying user(s) across exchanges: ${[...new Set(tasks.map(t => t.exchange))].join(", ")}`,
+    signalId,
+    symbol,
+  });
 
   // Execute all users in parallel
   const results = await Promise.allSettled(

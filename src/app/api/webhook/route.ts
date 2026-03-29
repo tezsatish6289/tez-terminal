@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { computeSentiment, type SignalForSentiment } from "@/lib/sentiment";
-import { deriveTp3, areTpsValid, areTpDistancesSane, deriveTpsFromRisk, isSlDistanceSane } from "@/lib/pnl";
+import { deriveTp3, areTpsValid, areTpDistancesSane, deriveTpsFromRisk } from "@/lib/pnl";
 
 import {
   computeAutoFilter,
@@ -110,17 +110,19 @@ export async function POST(request: NextRequest) {
 
     const algo = String(body.algo || "V8 Reversal").trim();
 
+    // Directional sanity: SL must be on the correct side of entry
     if (signalType !== "NEUTRAL" && price > 0 && stopLoss > 0) {
-      if (!isSlDistanceSane(price, stopLoss, timeframe)) {
-        const slPct = (Math.abs(price - stopLoss) / price * 100).toFixed(2);
+      const slWrong = (signalType === "BUY" && stopLoss >= price) ||
+                      (signalType === "SELL" && stopLoss <= price);
+      if (slWrong) {
         await db.collection("logs").add({
           timestamp, level: "ERROR",
-          message: "SL distance too wide for timeframe — signal rejected",
-          details: `symbol=${symbol} type=${signalType} price=${price} sl=${stopLoss} slDist=${slPct}% tf=${timeframe}`,
+          message: "SL on wrong side of entry — signal rejected",
+          details: `symbol=${symbol} type=${signalType} price=${price} sl=${stopLoss} tf=${timeframe}`,
           webhookId,
         });
         return NextResponse.json(
-          { success: false, message: `SL distance ${slPct}% too wide for ${timeframe} timeframe.` },
+          { success: false, message: `SL ($${stopLoss}) is on the wrong side of entry ($${price}) for ${signalType}.` },
           { status: 400 }
         );
       }

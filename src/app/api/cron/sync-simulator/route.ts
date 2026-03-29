@@ -497,7 +497,7 @@ export async function GET(request: NextRequest) {
           const signalExchange = signalData?.exchange ?? "BINANCE";
           await executeForAllUsers(
             db, result.trade, simTradeRef.id, simState3.capital,
-            c.id, c.symbol, c.type, signalExchange,
+            c.id, c.symbol, c.type, signalExchange, simConfig,
           );
         } catch (liveErr) {
           const errMsg = liveErr instanceof Error ? liveErr.message : String(liveErr);

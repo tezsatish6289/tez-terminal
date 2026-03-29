@@ -13,7 +13,7 @@ import {
   getConnector,
 } from "./exchanges";
 import { decrypt } from "./crypto";
-import { SIM_CONFIG } from "./simulator";
+import { SIM_CONFIG, type SimConfigType } from "./simulator";
 import type { SimTrade } from "./simulator";
 
 // ── Types ────────────────────────────────────────────────────
@@ -114,7 +114,8 @@ export async function executeTrade(
   simTradeId: string,
   _simulatorCapital: number,
   creds: Credentials,
-  exchange: ExchangeName = "BYBIT"
+  exchange: ExchangeName = "BYBIT",
+  simConfig?: SimConfigType,
 ): Promise<TradeExecutionResult> {
   const warnings: string[] = [];
   const connector = getConnector(exchange);
@@ -139,7 +140,8 @@ export async function executeTrade(
     await connector.setLeverage(exchangeSymbol, leverage, creds);
 
     // 4. Calculate position size from real exchange balance
-    const riskPct = SIM_CONFIG.RISK_PER_TRADE_BASE;
+    const cfg = simConfig ?? SIM_CONFIG;
+    const riskPct = cfg.RISK_PER_TRADE_BASE;
     const riskAmount = exchangeCapital * riskPct;
     const slDistance = Math.abs(simTrade.entryPrice - simTrade.stopLoss) / simTrade.entryPrice;
     const notionalSize = slDistance > 0 ? (riskAmount / slDistance) : riskAmount * leverage;

@@ -6,7 +6,7 @@ import {
   getSecretDocIds,
   docMatchesExchange,
 } from "./exchanges";
-import type { SimTrade } from "./simulator";
+import type { SimTrade, SimConfigType } from "./simulator";
 
 /**
  * Execute a trade for ALL users who have autoTradeEnabled on any supported exchange.
@@ -25,6 +25,7 @@ export async function executeForAllUsers(
   symbol: string,
   signalType: string,
   signalExchange: string,
+  simConfig?: SimConfigType,
 ) {
   const usersSnap = await db.collection("users").get();
 
@@ -108,6 +109,7 @@ export async function executeForAllUsers(
         simulatorCapital,
         task.creds,
         task.exchange,
+        simConfig,
       );
 
       if (liveResult.success && liveResult.trade) {

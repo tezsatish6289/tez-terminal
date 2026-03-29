@@ -443,10 +443,24 @@ export async function GET(request: NextRequest) {
         tp3HitAt: d.tp3HitAt ?? null,
       }));
       const chopData = computeChopFilter(chopSignals);
+      const chopTimestamp = new Date().toISOString();
       await db.collection("config").doc("chop_filter").set({
         ...chopData,
-        lastUpdated: new Date().toISOString(),
+        lastUpdated: chopTimestamp,
       });
+
+      // Persist history for the oscillator chart
+      const historyEntry: Record<string, any> = { timestamp: chopTimestamp };
+      for (const [tf, entry] of Object.entries(chopData)) {
+        historyEntry[tf] = {
+          ratio: entry.ratio,
+          bullishKills: entry.bullishKills,
+          bearishKills: entry.bearishKills,
+          totalEvents: entry.totalEvents,
+          isChoppy: entry.isChoppy,
+        };
+      }
+      await db.collection("chop_filter_history").add(historyEntry);
     } catch (chopErr: any) {
       console.error("[Sync] Chop filter computation failed:", chopErr.message);
     }

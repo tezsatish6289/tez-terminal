@@ -34,6 +34,23 @@ export const SIM_CONFIG = {
   CHOP_THRESHOLD: 0.4,                   // ratio > this → choppy → block trade
 } as const;
 
+export type SimConfigType = typeof SIM_CONFIG;
+
+/**
+ * Merge hardcoded defaults with Firestore overrides.
+ * Callers read `config/simulator_params` once and pass overrides here.
+ */
+export function getEffectiveSimConfig(
+  overrides?: Partial<Record<keyof SimConfigType, number>>,
+): SimConfigType {
+  if (!overrides || Object.keys(overrides).length === 0) return SIM_CONFIG;
+  const merged = { ...SIM_CONFIG } as Record<string, number>;
+  for (const [k, v] of Object.entries(overrides)) {
+    if (k in SIM_CONFIG && typeof v === "number") merged[k] = v;
+  }
+  return merged as unknown as SimConfigType;
+}
+
 // ── Types ────────────────────────────────────────────────────
 
 export interface SimulatorState {
@@ -161,8 +178,10 @@ export function selectIncubatedSignals(params: {
   liveWinRates: Map<string, { winRate: number | null; sampleSize: number }>;
   algoStats: Map<string, { winRate: number | null; sampleSize: number }>;
   chopData?: Record<string, { ratio: number | null; isChoppy: boolean }>;
+  simConfig?: SimConfigType;
 }): IncubatedResult {
   const { candidates, state, bullScore, bearScore, openTrades, liveWinRates, algoStats, chopData } = params;
+  const cfg = params.simConfig ?? SIM_CONFIG;
   const selected: IncubatedCandidate[] = [];
   const skipped: { symbol: string; reason: string }[] = [];
 
@@ -172,12 +191,12 @@ export function selectIncubatedSignals(params: {
 
   // Bias gate
   const biasGap = bullScore - bearScore;
-  const isBullBias = biasGap > SIM_CONFIG.BIAS_GAP_MIN;
-  const isBearBias = biasGap < -SIM_CONFIG.BIAS_GAP_MIN;
+  const isBullBias = biasGap > cfg.BIAS_GAP_MIN;
+  const isBearBias = biasGap < -cfg.BIAS_GAP_MIN;
   if (!isBullBias && !isBearBias) return { selected, skipped };
   const biasedSide = isBullBias ? "BUY" : "SELL";
 
-  const maxTrades = currentState.currentMaxTrades ?? SIM_CONFIG.MAX_OPEN_TRADES_BASE;
+  const maxTrades = currentState.currentMaxTrades ?? cfg.MAX_OPEN_TRADES_BASE;
   const currentOpen = openTrades.filter((t) => t.status === "OPEN");
   const openSymbols = new Set(currentOpen.map((t) => t.symbol));
   const openSignalIds = new Set(currentOpen.map((t) => t.signalId));
@@ -229,8 +248,8 @@ export function selectIncubatedSignals(params: {
       ? c.entryPrice - c.currentPrice
       : c.currentPrice - c.entryPrice;
 
-    if (priceMovedAgainst > 0 && priceMovedAgainst / slDistance > SIM_CONFIG.INCUBATED_SL_CONSUMED_MAX) {
-      skipped.push({ symbol: c.symbol, reason: `${(priceMovedAgainst / slDistance * 100).toFixed(0)}% of SL consumed (>${SIM_CONFIG.INCUBATED_SL_CONSUMED_MAX * 100}%)` });
+    if (priceMovedAgainst > 0 && priceMovedAgainst / slDistance > cfg.INCUBATED_SL_CONSUMED_MAX) {
+      skipped.push({ symbol: c.symbol, reason: `${(priceMovedAgainst / slDistance * 100).toFixed(0)}% of SL consumed (>${cfg.INCUBATED_SL_CONSUMED_MAX * 100}%)` });
       continue;
     }
 
@@ -238,8 +257,8 @@ export function selectIncubatedSignals(params: {
       ? c.currentPrice - c.entryPrice
       : c.entryPrice - c.currentPrice;
 
-    if (priceMovedInFavor > 0 && priceMovedInFavor / tp1Distance > SIM_CONFIG.INCUBATED_TP1_CONSUMED_MAX) {
-      skipped.push({ symbol: c.symbol, reason: `${(priceMovedInFavor / tp1Distance * 100).toFixed(0)}% of TP1 consumed (>${SIM_CONFIG.INCUBATED_TP1_CONSUMED_MAX * 100}%)` });
+    if (priceMovedInFavor > 0 && priceMovedInFavor / tp1Distance > cfg.INCUBATED_TP1_CONSUMED_MAX) {
+      skipped.push({ symbol: c.symbol, reason: `${(priceMovedInFavor / tp1Distance * 100).toFixed(0)}% of TP1 consumed (>${cfg.INCUBATED_TP1_CONSUMED_MAX * 100}%)` });
       continue;
     }
 
@@ -249,9 +268,9 @@ export function selectIncubatedSignals(params: {
     const liveSampleSize = liveEntry?.sampleSize ?? 0;
     const liveWinRate = liveEntry?.winRate ?? null;
 
-    const minConfidence = liveSampleSize < SIM_CONFIG.LIVE_WIN_RATE_SAMPLE_MIN
-      ? SIM_CONFIG.CONFIDENCE_MIN_LOW_SAMPLE
-      : SIM_CONFIG.CONFIDENCE_MIN;
+    const minConfidence = liveSampleSize < cfg.LIVE_WIN_RATE_SAMPLE_MIN
+      ? cfg.CONFIDENCE_MIN_LOW_SAMPLE
+      : cfg.CONFIDENCE_MIN;
 
     if (c.confidenceScore < minConfidence) {
       skipped.push({ symbol: c.symbol, reason: `Score ${c.confidenceScore} < ${minConfidence}` });
@@ -259,9 +278,9 @@ export function selectIncubatedSignals(params: {
     }
 
     // Live win rate check
-    if (liveSampleSize >= SIM_CONFIG.LIVE_WIN_RATE_SAMPLE_MIN) {
-      if (liveWinRate != null && liveWinRate < SIM_CONFIG.LIVE_WIN_RATE_MIN) {
-        skipped.push({ symbol: c.symbol, reason: `Live WR ${(liveWinRate * 100).toFixed(0)}% < 65% for ${c.type}|${c.timeframe}` });
+    if (liveSampleSize >= cfg.LIVE_WIN_RATE_SAMPLE_MIN) {
+      if (liveWinRate != null && liveWinRate < cfg.LIVE_WIN_RATE_MIN) {
+        skipped.push({ symbol: c.symbol, reason: `Live WR ${(liveWinRate * 100).toFixed(0)}% < ${(cfg.LIVE_WIN_RATE_MIN * 100).toFixed(0)}% for ${c.type}|${c.timeframe}` });
         continue;
       }
     }
@@ -272,9 +291,9 @@ export function selectIncubatedSignals(params: {
     const algoSampleSize = algoEntry?.sampleSize ?? 0;
     const algoWinRate = algoEntry?.winRate ?? null;
 
-    if (algoSampleSize >= SIM_CONFIG.ALGO_HIST_SAMPLE_MIN) {
-      if (algoWinRate != null && algoWinRate < SIM_CONFIG.ALGO_HIST_WIN_RATE_MIN) {
-        skipped.push({ symbol: c.symbol, reason: `Algo WR ${(algoWinRate * 100).toFixed(0)}% < 60% for ${c.algo}|${c.timeframe}` });
+    if (algoSampleSize >= cfg.ALGO_HIST_SAMPLE_MIN) {
+      if (algoWinRate != null && algoWinRate < cfg.ALGO_HIST_WIN_RATE_MIN) {
+        skipped.push({ symbol: c.symbol, reason: `Algo WR ${(algoWinRate * 100).toFixed(0)}% < ${(cfg.ALGO_HIST_WIN_RATE_MIN * 100).toFixed(0)}% for ${c.algo}|${c.timeframe}` });
         continue;
       }
     }
@@ -287,8 +306,8 @@ export function selectIncubatedSignals(params: {
 
     // Chop filter — last gate
     const chopEntry = chopData?.[c.timeframe];
-    if (chopEntry?.ratio != null && chopEntry.ratio > SIM_CONFIG.CHOP_THRESHOLD) {
-      skipped.push({ symbol: c.symbol, reason: `Choppy market (ratio=${chopEntry.ratio.toFixed(2)} > ${SIM_CONFIG.CHOP_THRESHOLD}) on ${c.timeframe}` });
+    if (chopEntry?.ratio != null && chopEntry.ratio > cfg.CHOP_THRESHOLD) {
+      skipped.push({ symbol: c.symbol, reason: `Choppy market (ratio=${chopEntry.ratio.toFixed(2)} > ${cfg.CHOP_THRESHOLD}) on ${c.timeframe}` });
       continue;
     }
 
@@ -496,8 +515,10 @@ export function evaluateTrade(params: {
   algoSampleSize: number;
   openTrades: SimTrade[];
   chopRatio?: number | null;
+  simConfig?: SimConfigType;
 }): TradeEvaluation {
   const { state, signal, bullScore, bearScore, liveWinRate, liveSampleSize, algoWinRate, algoSampleSize, openTrades, chopRatio } = params;
+  const cfg = params.simConfig ?? SIM_CONFIG;
 
   if (!state.isActive) {
     return { canTrade: false, reason: "Simulator is paused" };
@@ -508,8 +529,8 @@ export function evaluateTrade(params: {
 
   // Bias gate: must have clear directional bias
   const biasGap = bullScore - bearScore;
-  const isBullBias = biasGap > SIM_CONFIG.BIAS_GAP_MIN;
-  const isBearBias = biasGap < -SIM_CONFIG.BIAS_GAP_MIN;
+  const isBullBias = biasGap > cfg.BIAS_GAP_MIN;
+  const isBearBias = biasGap < -cfg.BIAS_GAP_MIN;
 
   if (!isBullBias && !isBearBias) {
     return { canTrade: false, reason: `No clear bias (bull=${bullScore} bear=${bearScore} gap=${Math.abs(biasGap)})` };
@@ -522,30 +543,30 @@ export function evaluateTrade(params: {
   }
 
   // Confidence check
-  const minConfidence = liveSampleSize < SIM_CONFIG.LIVE_WIN_RATE_SAMPLE_MIN
-    ? SIM_CONFIG.CONFIDENCE_MIN_LOW_SAMPLE
-    : SIM_CONFIG.CONFIDENCE_MIN;
+  const minConfidence = liveSampleSize < cfg.LIVE_WIN_RATE_SAMPLE_MIN
+    ? cfg.CONFIDENCE_MIN_LOW_SAMPLE
+    : cfg.CONFIDENCE_MIN;
 
   if (signal.confidenceScore < minConfidence) {
     return { canTrade: false, reason: `Score ${signal.confidenceScore} < ${minConfidence} threshold` };
   }
 
   // Live win rate check (if enough samples)
-  if (liveSampleSize >= SIM_CONFIG.LIVE_WIN_RATE_SAMPLE_MIN) {
-    if (liveWinRate != null && liveWinRate < SIM_CONFIG.LIVE_WIN_RATE_MIN) {
-      return { canTrade: false, reason: `Live win rate ${(liveWinRate * 100).toFixed(0)}% < 65% for ${signal.type} on ${signal.timeframe}` };
+  if (liveSampleSize >= cfg.LIVE_WIN_RATE_SAMPLE_MIN) {
+    if (liveWinRate != null && liveWinRate < cfg.LIVE_WIN_RATE_MIN) {
+      return { canTrade: false, reason: `Live win rate ${(liveWinRate * 100).toFixed(0)}% < ${(cfg.LIVE_WIN_RATE_MIN * 100).toFixed(0)}% for ${signal.type} on ${signal.timeframe}` };
     }
   }
 
   // Algo historical win rate check (if enough samples)
-  if (algoSampleSize >= SIM_CONFIG.ALGO_HIST_SAMPLE_MIN) {
-    if (algoWinRate != null && algoWinRate < SIM_CONFIG.ALGO_HIST_WIN_RATE_MIN) {
-      return { canTrade: false, reason: `Algo historical win rate ${(algoWinRate * 100).toFixed(0)}% < 60% for ${signal.algo}|${signal.timeframe}` };
+  if (algoSampleSize >= cfg.ALGO_HIST_SAMPLE_MIN) {
+    if (algoWinRate != null && algoWinRate < cfg.ALGO_HIST_WIN_RATE_MIN) {
+      return { canTrade: false, reason: `Algo historical win rate ${(algoWinRate * 100).toFixed(0)}% < ${(cfg.ALGO_HIST_WIN_RATE_MIN * 100).toFixed(0)}% for ${signal.algo}|${signal.timeframe}` };
     }
   }
 
   // Adaptive max open trades: based on streak
-  const maxTrades = currentState.currentMaxTrades ?? SIM_CONFIG.MAX_OPEN_TRADES_BASE;
+  const maxTrades = currentState.currentMaxTrades ?? cfg.MAX_OPEN_TRADES_BASE;
   const currentOpen = openTrades.filter((t) => t.status === "OPEN");
   if (currentOpen.length >= maxTrades) {
     return { canTrade: false, reason: `Max open trades reached (${currentOpen.length}/${maxTrades}, streak: ${currentState.consecutiveWins ?? 0})` };
@@ -566,13 +587,13 @@ export function evaluateTrade(params: {
   }
 
   // Chop filter — last gate: block if market is choppy for this timeframe
-  if (chopRatio != null && chopRatio > SIM_CONFIG.CHOP_THRESHOLD) {
-    return { canTrade: false, reason: `Choppy market (ratio=${chopRatio.toFixed(2)} > ${SIM_CONFIG.CHOP_THRESHOLD}) on ${signal.timeframe}` };
+  if (chopRatio != null && chopRatio > cfg.CHOP_THRESHOLD) {
+    return { canTrade: false, reason: `Choppy market (ratio=${chopRatio.toFixed(2)} > ${cfg.CHOP_THRESHOLD}) on ${signal.timeframe}` };
   }
 
   // Adaptive risk: 0.5% base, 1% when streak is active
-  const hasStreak = (currentState.consecutiveWins ?? 0) >= SIM_CONFIG.STREAK_WINS_TO_SCALE;
-  const riskPct = hasStreak ? SIM_CONFIG.RISK_PER_TRADE_STREAK : SIM_CONFIG.RISK_PER_TRADE_BASE;
+  const hasStreak = (currentState.consecutiveWins ?? 0) >= cfg.STREAK_WINS_TO_SCALE;
+  const riskPct = hasStreak ? cfg.RISK_PER_TRADE_STREAK : cfg.RISK_PER_TRADE_BASE;
 
   const isBuy = signal.type === "BUY";
   const slDistancePct = isBuy

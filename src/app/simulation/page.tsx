@@ -37,6 +37,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import type { SimulatorState, SimTrade, SimLog, SimTradeEvent } from "@/lib/simulator";
 import type { LiveTrade } from "@/lib/trade-engine";
 import { ExchangeSettingsDialog, MultiExchangeStatusBadges, useExchangeConfig } from "@/components/exchange/ExchangeSettings";
+import { SimulatorParamsDialog } from "@/components/simulator/SimulatorParamsDialog";
 import { format, startOfDay, startOfWeek, startOfMonth, isAfter } from "date-fns";
 
 function formatUsd(val: number): string {
@@ -152,6 +153,7 @@ export default function SimulationPage() {
                 </div>
                 <h1 className="text-xl font-black tracking-tight">Trade Simulator</h1>
               </div>
+              <SimulatorParamsDialog />
             </div>
 
             {/* Mode Selector: Internal vs Bybit */}

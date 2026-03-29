@@ -10,6 +10,7 @@ import {
   createInitialState,
   detectMarketTurn,
   SIM_CONFIG,
+  getEffectiveSimConfig,
   type SimulatorState,
   type SimTrade,
   type IncubatedCandidate,
@@ -47,6 +48,15 @@ export async function GET(request: NextRequest) {
   }
 
   const db = getAdminFirestore();
+
+  // Load simulator param overrides (user-tunable via UI)
+  let simConfig = SIM_CONFIG;
+  try {
+    const paramsDoc = await db.doc("config/simulator_params").get();
+    if (paramsDoc.exists) {
+      simConfig = getEffectiveSimConfig(paramsDoc.data() as any);
+    }
+  } catch {}
 
   try {
     // ── Read cached prices from Cron 1 ──────────────────────
@@ -429,6 +439,7 @@ export async function GET(request: NextRequest) {
         liveWinRates,
         algoStats: algoStatsMap,
         chopData,
+        simConfig,
       });
 
       for (const c of selected) {

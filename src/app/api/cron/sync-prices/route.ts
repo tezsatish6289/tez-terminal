@@ -65,9 +65,9 @@ export async function GET(request: NextRequest) {
       if (signal.status !== "ACTIVE") continue;
       if (signal.autoFilterPassed === false) continue;
 
-      // Use Binance as reference price for signal tracking (consistent baseline)
       const rawSymbol = (signal.symbol || "").split(':').pop() || "";
-      const currentPrice = getReferencePrice(allPrices, rawSymbol);
+      const signalExchange = signal.exchange ?? "BINANCE";
+      const currentPrice = getReferencePrice(allPrices, rawSymbol, signalExchange);
 
       if (!currentPrice) {
         skipCount++;

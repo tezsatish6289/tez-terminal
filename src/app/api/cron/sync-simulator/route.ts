@@ -21,7 +21,7 @@ import {
   mapFirestoreSignal,
   computeAlgoTfStats,
 } from "@/lib/auto-filter";
-import { deserializePrices, getReferencePrice, type AllExchangePrices } from "@/lib/exchanges";
+import { deserializePrices, getReferencePrice, getPrice, type AllExchangePrices } from "@/lib/exchanges";
 import { executeForAllUsers } from "@/lib/live-execution";
 
 export const dynamic = 'force-dynamic';
@@ -69,9 +69,9 @@ export async function GET(request: NextRequest) {
     const binancePriceCount = allPrices.BINANCE.size;
     const bybitPriceCount = allPrices.BYBIT.size;
 
-    // Helper: get Binance reference price for a sim trade symbol
-    const getSimPrice = (symbol: string): number | null =>
-      getReferencePrice(allPrices, symbol);
+    // Helper: get price for a sim trade using its originating exchange
+    const getSimPrice = (symbol: string, exchange?: string): number | null =>
+      getReferencePrice(allPrices, symbol, exchange);
 
     // ── Load signals for scoring context ────────────────────
     const signalsSnap = await db.collection("signals").get();
@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
 
         for (const simDoc of openSimSnap.docs) {
           const t = simDoc.data() as SimTrade;
-          const livePrice = getSimPrice(t.symbol);
+          const livePrice = getSimPrice(t.symbol, t.exchange);
 
           // Check if underlying signal already closed
           const signalDoc = await db.collection("signals").doc(t.signalId).get();
@@ -382,6 +382,7 @@ export async function GET(request: NextRequest) {
         .map((d) => ({
           id: d.id,
           symbol: d.symbol || "",
+          exchange: d.exchange ?? "BINANCE",
           type: (d.type || "BUY") as "BUY" | "SELL",
           timeframe: String(d.timeframe || "15"),
           algo: d.algo || "",
@@ -467,6 +468,7 @@ export async function GET(request: NextRequest) {
           signal: {
             id: c.id,
             symbol: c.symbol,
+            exchange: c.exchange,
             type: c.type,
             timeframe: c.timeframe,
             algo: c.algo,

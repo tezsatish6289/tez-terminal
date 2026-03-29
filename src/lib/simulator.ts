@@ -16,7 +16,7 @@ export const SIM_CONFIG = {
   ALGO_HIST_WIN_RATE_MIN: 0.60,
   ALGO_HIST_SAMPLE_MIN: 5,
   BIAS_GAP_MIN: 10,
-  EXCHANGE_FEE: 0.0005,
+  EXCHANGE_FEE: 0.00055,         // Bybit standard taker fee (0.055%)
   TP1_CLOSE_PCT: 0.50,
   TP2_CLOSE_PCT: 0.25,
   TP3_CLOSE_PCT: 0.25,
@@ -77,6 +77,7 @@ export interface SimTrade {
   id?: string;
   signalId: string;
   symbol: string;
+  exchange: string;
   side: "BUY" | "SELL";
   timeframe: string;
   algo: string;
@@ -150,6 +151,7 @@ export function computeUnrealizedPnl(trade: SimTrade, currentPrice: number): num
 export interface IncubatedCandidate {
   id: string;
   symbol: string;
+  exchange: string;
   type: "BUY" | "SELL";
   timeframe: string;
   algo: string;
@@ -629,6 +631,7 @@ export function openTrade(params: {
   signal: {
     id: string;
     symbol: string;
+    exchange: string;
     type: "BUY" | "SELL";
     timeframe: string;
     algo: string;
@@ -654,6 +657,7 @@ export function openTrade(params: {
   const trade: SimTrade = {
     signalId: signal.id,
     symbol: signal.symbol,
+    exchange: signal.exchange ?? "BINANCE",
     side: signal.type,
     timeframe: signal.timeframe,
     algo: signal.algo,

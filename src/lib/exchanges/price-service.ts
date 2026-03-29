@@ -110,15 +110,17 @@ export function getPrice(
 }
 
 /**
- * Get the "reference" price for signal tracking (display/scoring).
- * Uses Binance as the canonical price source for consistency with
- * the simulator and signal lifecycle.
+ * Get the price for signal tracking / simulator / scoring.
+ * Uses the signal's originating exchange when provided,
+ * falling back to Binance if the exchange has no price.
  */
 export function getReferencePrice(
   prices: AllExchangePrices,
-  signalSymbol: string
+  signalSymbol: string,
+  exchange?: string,
 ): number | null {
-  return getPrice(prices, signalSymbol, "BINANCE");
+  const ex = (exchange?.toUpperCase() ?? "BINANCE") as ExchangeName;
+  return getPrice(prices, signalSymbol, ex);
 }
 
 /**

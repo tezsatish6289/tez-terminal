@@ -557,8 +557,13 @@ function getCloseDisplay(reason: string | null) {
 }
 
 function getSlDisplay(trade: SimTrade) {
-  if (trade.trailingSl != null) return { price: trade.trailingSl, label: "Moved to Entry" };
-  if (trade.tp1Hit) return { price: trade.entryPrice, label: "Moved to Entry" };
+  if (trade.trailingSl != null) {
+    if (trade.tp2Hit) return { price: trade.trailingSl, label: "Moved to TP1" };
+    if (trade.tp1Hit) return { price: trade.trailingSl, label: "Moved to Entry" };
+    return { price: trade.trailingSl, label: "Trailing" };
+  }
+  if (trade.tp2Hit) return { price: trade.stopLoss, label: "Moved to TP1" };
+  if (trade.tp1Hit) return { price: trade.stopLoss, label: "Moved to Entry" };
   return { price: trade.stopLoss, label: "Original" };
 }
 

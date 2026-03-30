@@ -332,7 +332,8 @@ export async function GET(request: NextRequest) {
                 await db.collection("simulator_logs").add({
                   ...exitResult.log,
                   action: "MARKET_TURN",
-                  details: `${turn.reason} → closed ${trade.symbol} ${trade.side} at $${livePrice}`,
+                  details: `${turn.reason} → closed ${trade.symbol} ${trade.side} at ${tradeAsset === "INDIAN_STOCKS" ? "₹" : "$"}${livePrice}`,
+                  assetType: tradeAsset,
                 });
                 trade.status = "CLOSED";
                 marketTurnCloses++;
@@ -366,7 +367,8 @@ export async function GET(request: NextRequest) {
               await db.collection("simulator_logs").add({
                 ...exitResult.log,
                 action: "SCORE_DEGRADED",
-                details: `${trade.symbol} score dropped to ${liveScore} (floor: ${SIM_CONFIG.SCORE_FLOOR}) → closed at $${livePrice}`,
+                details: `${trade.symbol} score dropped to ${liveScore} (floor: ${SIM_CONFIG.SCORE_FLOOR}) → closed at ${tradeAsset === "INDIAN_STOCKS" ? "₹" : "$"}${livePrice}`,
+                assetType: tradeAsset,
               });
               trade.status = "CLOSED";
               scoreDegradedCloses++;
@@ -553,6 +555,7 @@ export async function GET(request: NextRequest) {
             action: "INCUBATED_SKIPPED",
             details: `${skip.symbol}: ${skip.reason}`,
             capital: simState3.capital,
+            assetType,
           });
         }
       }

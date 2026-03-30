@@ -129,6 +129,7 @@ export interface SimLog {
   symbol?: string;
   capital?: number;
   pnl?: number;
+  assetType?: string;
 }
 
 export interface TradeEvaluation {
@@ -676,13 +677,15 @@ export function openTrade(params: {
     lastUpdated: new Date().toISOString(),
   };
 
+  const cs = (signal.assetType ?? "CRYPTO") === "INDIAN_STOCKS" ? "₹" : "$";
   const log: SimLog = {
     timestamp: new Date().toISOString(),
     action: "TRADE_OPENED",
-    details: `${signal.type} ${signal.symbol} on ${signal.timeframe} | size=$${positionSize.toFixed(2)} lev=${leverage}x score=${signal.confidenceScore} bias=${biasLabel} fee=$${entryFee.toFixed(4)} | streak: ${state.consecutiveWins ?? 0} max: ${state.currentMaxTrades ?? 1}`,
+    details: `${signal.type} ${signal.symbol} on ${signal.timeframe} | size=${cs}${positionSize.toFixed(2)} lev=${leverage}x score=${signal.confidenceScore} bias=${biasLabel} fee=${cs}${entryFee.toFixed(4)} | streak: ${state.consecutiveWins ?? 0} max: ${state.currentMaxTrades ?? 1}`,
     signalId: signal.id,
     symbol: signal.symbol,
     capital: updatedState.capital,
+    assetType: signal.assetType ?? "CRYPTO",
   };
 
   return { trade, updatedState, log };
@@ -835,14 +838,16 @@ export function processTradeExit(params: {
     ? ` | ${streakOutcome} streak: ${consecutiveWins}${streakSide ? ` ${streakSide}` : ""} → max ${currentMaxTrades}`
     : "";
 
+  const cs = (trade.assetType ?? "CRYPTO") === "INDIAN_STOCKS" ? "₹" : "$";
   const log: SimLog = {
     timestamp: new Date().toISOString(),
     action: exitType === "SL" ? "SL_HIT" : "TP_HIT",
-    details: `${exitType} on ${trade.symbol} | closed ${(closePct * 100).toFixed(0)}% @ $${exitPrice.toFixed(4)} pnl=$${netPnl.toFixed(4)} fee=$${exitFee.toFixed(4)}${streakInfo}`,
+    details: `${exitType} on ${trade.symbol} | closed ${(closePct * 100).toFixed(0)}% @ ${cs}${exitPrice.toFixed(4)} pnl=${cs}${netPnl.toFixed(4)} fee=${cs}${exitFee.toFixed(4)}${streakInfo}`,
     signalId: trade.signalId,
     symbol: trade.symbol,
     capital: updatedState.capital,
     pnl: netPnl,
+    assetType: trade.assetType ?? "CRYPTO",
   };
 
   return { updatedTrade, updatedState, log };

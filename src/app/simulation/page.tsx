@@ -8,18 +8,18 @@ import {
   useDoc,
   useMemoFirebase,
 } from "@/firebase";
-import { collection, query, orderBy, limit, doc, where } from "firebase/firestore";
+import { collection, query, orderBy, limit, doc } from "firebase/firestore";
 import {
   Loader2,
   TrendingUp,
   TrendingDown,
   DollarSign,
+  IndianRupee,
   Activity,
   Shield,
   AlertTriangle,
   CheckCircle2,
   BarChart3,
-  Zap,
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -36,19 +36,13 @@ import {
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import type { SimulatorState, SimTrade, SimLog, SimTradeEvent } from "@/lib/simulator";
 import { getSimStateDocId } from "@/lib/simulator";
-import type { LiveTrade } from "@/lib/trade-engine";
-import { ExchangeSettingsDialog, MultiExchangeStatusBadges, useExchangeConfig } from "@/components/exchange/ExchangeSettings";
 import { SimulatorParamsDialog } from "@/components/simulator/SimulatorParamsDialog";
 import { format, startOfDay, startOfWeek, startOfMonth, isAfter } from "date-fns";
 
-function formatMoney(val: number, sym = "$"): string {
-  if (sym === "₹") {
+function formatMoney(val: number, cs = "$"): string {
+  if (cs === "₹") {
     return `₹${val.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
-  return `$${val.toFixed(2)}`;
-}
-
-function formatUsd(val: number): string {
   return `$${val.toFixed(2)}`;
 }
 
@@ -80,7 +74,6 @@ export default function SimulationPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
-  const [mode, setMode] = useState<"internal" | "bybit">("internal");
   const [assetType, setAssetType] = useState<"CRYPTO" | "INDIAN_STOCKS">("CRYPTO");
   const [tab, setTab] = useState<"overview" | "trades" | "logs">("overview");
   const [selectedTrade, setSelectedTrade] = useState<SimTrade | null>(null);
@@ -122,8 +115,10 @@ export default function SimulationPage() {
 
   const logs = useMemo(() => {
     if (!rawLogs) return [];
-    return rawLogs.map((d: any) => d as SimLog);
-  }, [rawLogs]);
+    return rawLogs
+      .map((d: any) => d as SimLog)
+      .filter((l) => (l.assetType || "CRYPTO") === assetType);
+  }, [rawLogs, assetType]);
 
   const openTrades = useMemo(() => trades.filter((t) => t.status === "OPEN"), [trades]);
   const closedTrades = useMemo(() => trades.filter((t) => t.status === "CLOSED"), [trades]);
@@ -156,7 +151,7 @@ export default function SimulationPage() {
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           <div className="max-w-[1400px] mx-auto space-y-4">
-            {/* Header + Global Asset Filter */}
+            {/* Header */}
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-1">
@@ -200,39 +195,6 @@ export default function SimulationPage() {
               </p>
             </div>
 
-            {/* Mode Selector: Internal vs Bybit */}
-            <div className="flex items-center gap-1 p-1 rounded-lg bg-white/[0.03] border border-white/[0.06] w-fit">
-              <button
-                onClick={() => setMode("internal")}
-                className={cn(
-                  "px-4 py-2 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all",
-                  mode === "internal"
-                    ? "bg-accent/15 text-accent shadow-sm"
-                    : "text-muted-foreground/50 hover:text-muted-foreground"
-                )}
-              >
-                <Activity className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />
-                Internal Simulation
-              </button>
-              <button
-                onClick={() => setMode("bybit")}
-                className={cn(
-                  "px-4 py-2 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all",
-                  mode === "bybit"
-                    ? "bg-blue-400/15 text-blue-400 shadow-sm"
-                    : "text-muted-foreground/50 hover:text-muted-foreground"
-                )}
-              >
-                <Zap className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />
-                Bybit Testnet
-              </button>
-            </div>
-
-            {mode === "bybit" ? (
-              <BybitSimulationTab uid={user?.uid} assetType={assetType} />
-            ) : (
-            <>
-
             {isLoading ? (
               <div className="flex items-center justify-center h-40">
                 <Loader2 className="h-6 w-6 animate-spin text-accent/50" />
@@ -253,7 +215,7 @@ export default function SimulationPage() {
                     </div>
                     <div className="space-y-1">
                       {logs.map((log, i) => (
-                        <LogRow key={i} log={log} />
+                        <LogRow key={i} log={log} cs={cs} />
                       ))}
                     </div>
                   </>
@@ -266,7 +228,7 @@ export default function SimulationPage() {
                   <StatCard
                     label="Capital"
                     value={formatMoney(simState.capital, cs)}
-                    icon={<DollarSign className="w-3.5 h-3.5" />}
+                    icon={assetType === "INDIAN_STOCKS" ? <IndianRupee className="w-3.5 h-3.5" /> : <DollarSign className="w-3.5 h-3.5" />}
                     color={simState.capital >= simState.startingCapital ? "text-positive" : "text-negative"}
                   />
                   <StatCard
@@ -356,8 +318,6 @@ export default function SimulationPage() {
                   </div>
                 )}
               </>
-            )}
-            </>
             )}
           </div>
         </div>
@@ -528,8 +488,8 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
                 tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }}
                 tickLine={false}
                 axisLine={{ stroke: "rgba(255,255,255,0.06)" }}
-                tickFormatter={(v: number) => `$${v.toFixed(0)}`}
-                width={55}
+                tickFormatter={(v: number) => `${cs}${cs === "₹" ? Math.round(v).toLocaleString("en-IN") : v.toFixed(0)}`}
+                width={cs === "₹" ? 75 : 55}
               />
               <Tooltip
                 contentStyle={{
@@ -540,7 +500,7 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
                 }}
                 labelFormatter={(v: number) => `Trade #${v}`}
                 formatter={(value: number, _name: string, props: any) => [
-                  `$${value.toFixed(2)}`,
+                  formatMoney(value, cs),
                   `${props.payload.label}${props.payload.date ? ` · ${props.payload.date}` : ""}`,
                 ]}
               />
@@ -548,7 +508,7 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
                 y={startingCapital}
                 stroke="rgba(255,255,255,0.1)"
                 strokeDasharray="4 4"
-                label={{ value: `$${startingCapital}`, position: "right", fontSize: 9, fill: "rgba(255,255,255,0.2)" }}
+                label={{ value: formatMoney(startingCapital, cs), position: "right", fontSize: 9, fill: "rgba(255,255,255,0.2)" }}
               />
               <Area
                 type="monotone"
@@ -567,246 +527,7 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
   );
 }
 
-// ── Bybit Testnet Simulation Tab ──────────────────────────
-
-function BybitSimulationTab({ uid, assetType }: { uid: string | undefined; assetType: "CRYPTO" | "INDIAN_STOCKS" }) {
-  const firestore = useFirestore();
-  const bybit = useExchangeConfig(uid, "BYBIT");
-  const binance = useExchangeConfig(uid, "BINANCE");
-  const allConfigs = [bybit, binance];
-  const anyConfiguredForTestnet = allConfigs.some((c) => c.config?.configured && c.config.useTestnet);
-  const anyAutoTradeOn = allConfigs.some((c) => c.config?.configured && c.config.useTestnet && c.config.autoTradeEnabled);
-  const configLoading = allConfigs.some((c) => c.isLoading);
-
-  const [bybitTab, setBybitTab] = useState<"overview" | "trades">("overview");
-
-  const liveTradesQuery = useMemoFirebase(() => {
-    if (!firestore || !uid) return null;
-    return query(
-      collection(firestore, "live_trades"),
-      where("userId", "==", uid),
-    );
-  }, [firestore, uid]);
-  const { data: rawLiveTrades, isLoading: tradesLoading } = useCollection(liveTradesQuery);
-
-  const liveTrades = useMemo(() => {
-    if (!rawLiveTrades) return [];
-    return rawLiveTrades
-      .map((d: any) => ({ id: d.id, ...d } as LiveTrade))
-      .filter((t) => t.testnet === true)
-      .filter((t) => (t.assetType || "CRYPTO") === assetType)
-      .sort((a, b) => (b.openedAt || "").localeCompare(a.openedAt || ""))
-      .slice(0, 100);
-  }, [rawLiveTrades, assetType]);
-
-  const openTrades = useMemo(() => liveTrades.filter((t) => t.status === "OPEN"), [liveTrades]);
-  const closedTrades = useMemo(() => liveTrades.filter((t) => t.status === "CLOSED"), [liveTrades]);
-
-  const totalPnl = closedTrades.reduce((sum, t) => sum + (t.realizedPnl || 0), 0);
-  const wins = closedTrades.filter((t) => t.realizedPnl > 0).length;
-  const losses = closedTrades.filter((t) => t.realizedPnl < 0).length;
-  const winRate = (wins + losses) > 0 ? (wins / (wins + losses)) * 100 : 0;
-
-  if (!uid) return null;
-
-  return (
-    <div className="space-y-4">
-      {/* Testnet banner + settings */}
-      <div className="flex items-center justify-between p-3 rounded-lg bg-blue-400/[0.06] border border-blue-400/20">
-        <div className="flex items-center gap-3">
-          <Shield className="w-5 h-5 text-blue-400 shrink-0" />
-          <div>
-            <p className="text-sm font-bold text-blue-400">EXCHANGE TESTNET</p>
-            <p className="text-[10px] text-blue-400/60">
-              {anyAutoTradeOn
-                ? "Auto-trade active on testnet. Fake money."
-                : anyConfiguredForTestnet
-                  ? "Connected but auto-trade is off."
-                  : "Not connected. Configure testnet API keys to start."}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <MultiExchangeStatusBadges uid={uid} />
-          <ExchangeSettingsDialog uid={uid} mode="testnet" />
-        </div>
-      </div>
-
-      {configLoading ? (
-        <div className="flex items-center justify-center h-40">
-          <Loader2 className="h-6 w-6 animate-spin text-blue-400/50" />
-        </div>
-      ) : !anyConfiguredForTestnet ? (
-        <div className="rounded-xl border border-blue-400/10 bg-white/[0.02] p-8 text-center">
-          <Zap className="w-8 h-8 text-blue-400/30 mx-auto mb-3" />
-          <p className="text-sm font-bold text-muted-foreground/50">Exchange testnet not configured</p>
-          <p className="text-[11px] text-muted-foreground/30 mt-1">Click Settings above to connect your exchange testnet API keys.</p>
-        </div>
-      ) : (
-        <>
-          {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard
-              label="Open Positions"
-              value={`${openTrades.length}`}
-              icon={<Activity className="w-3.5 h-3.5" />}
-              color="text-blue-400"
-            />
-            <StatCard
-              label="Total P&L"
-              value={formatUsd(totalPnl)}
-              icon={totalPnl >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-              color={totalPnl >= 0 ? "text-positive" : "text-negative"}
-            />
-            <StatCard
-              label="Win Rate"
-              value={`${winRate.toFixed(0)}%`}
-              icon={<BarChart3 className="w-3.5 h-3.5" />}
-              color={winRate >= 60 ? "text-positive" : winRate >= 45 ? "text-amber-400" : "text-negative"}
-            />
-            <StatCard
-              label="Trades"
-              value={`${wins}W / ${losses}L`}
-              icon={<Activity className="w-3.5 h-3.5" />}
-              color="text-foreground/70"
-            />
-          </div>
-
-          {/* Tabs */}
-          <div className="flex items-center gap-1 border-b border-white/[0.06] pb-0">
-            {(["overview", "trades"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setBybitTab(t)}
-                className={cn(
-                  "px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer border-b-2",
-                  bybitTab === t
-                    ? "border-blue-400 text-blue-400"
-                    : "border-transparent text-muted-foreground/40 hover:text-muted-foreground"
-                )}
-              >
-                {t === "overview" ? `Open (${openTrades.length})` : `History (${closedTrades.length})`}
-              </button>
-            ))}
-          </div>
-
-          {tradesLoading ? (
-            <div className="flex items-center justify-center h-20">
-              <Loader2 className="h-5 w-5 animate-spin text-blue-400/50" />
-            </div>
-          ) : bybitTab === "overview" ? (
-            liveTrades.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground/30">
-                <Activity className="w-6 h-6 mx-auto mb-2" />
-                <p className="text-xs font-bold">No testnet trades yet</p>
-                <p className="text-[10px] text-muted-foreground/20 mt-1">Enable auto-trade and wait for signals.</p>
-              </div>
-            ) : (
-              <LiveTradeList trades={openTrades} emptyLabel="No open trades" />
-            )
-          ) : (
-            <LiveTradeList trades={closedTrades} emptyLabel="No closed trades yet" />
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-function LiveTradeList({ trades, emptyLabel }: { trades: LiveTrade[]; emptyLabel: string }) {
-  if (trades.length === 0) {
-    return (
-      <div className="text-center py-8 text-muted-foreground/30">
-        <Activity className="w-6 h-6 mx-auto mb-2" />
-        <p className="text-xs font-bold">{emptyLabel}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      {trades.map((trade) => (
-        <LiveTradeCard key={trade.id} trade={trade} />
-      ))}
-    </div>
-  );
-}
-
-function LiveTradeCard({ trade }: { trade: LiveTrade }) {
-  const isBuy = trade.side === "BUY";
-  const isOpen = trade.status === "OPEN";
-  const lastEvent = trade.events?.[trade.events.length - 1];
-
-  return (
-    <div className={cn(
-      "rounded-lg border p-3 space-y-2",
-      isOpen ? "border-blue-400/15 bg-white/[0.02]" : "border-white/[0.06] bg-white/[0.01]"
-    )}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-black text-foreground uppercase tracking-tight">{trade.signalSymbol}</span>
-          <Badge className={cn("text-[9px] font-black h-5 px-2", isBuy ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400")}>
-            {trade.side}
-          </Badge>
-          <span className="text-[9px] font-bold text-muted-foreground/40">{trade.leverage}x</span>
-        </div>
-        <div className="flex items-center gap-2">
-          {isOpen ? (
-            <Badge className="text-[9px] font-black h-5 px-2 bg-blue-400/15 text-blue-400">Open</Badge>
-          ) : (
-            <Badge className={cn("text-[9px] font-black h-5 px-2",
-              trade.realizedPnl >= 0 ? "bg-emerald-500/15 text-emerald-400" : "bg-rose-500/15 text-rose-400"
-            )}>
-              {trade.closeReason || "Closed"}
-            </Badge>
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-center gap-4 text-[11px]">
-        <div>
-          <span className="text-muted-foreground/40 mr-1">Entry</span>
-          <span className="font-mono font-bold text-white/60">${formatPrice(trade.entryPrice)}</span>
-        </div>
-        <div>
-          <span className="text-muted-foreground/40 mr-1">Size</span>
-          <span className="font-mono font-bold text-white/60">${trade.positionSize.toFixed(2)}</span>
-        </div>
-        <div>
-          <span className="text-muted-foreground/40 mr-1">P&L</span>
-          <span className={cn("font-mono font-bold", trade.realizedPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
-            {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
-          </span>
-        </div>
-      </div>
-
-      {/* TP progress */}
-      <div className="flex items-center gap-1.5 text-[9px] font-bold">
-        {[
-          { num: 1, hit: trade.tp1Hit },
-          { num: 2, hit: trade.tp2Hit },
-          { num: 3, hit: trade.tp3Hit },
-        ].map((tp) => (
-          <span
-            key={tp.num}
-            className={cn(
-              "px-1.5 py-0.5 rounded",
-              tp.hit ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-muted-foreground/40"
-            )}
-          >
-            TP{tp.num}{tp.hit ? "✓" : ""}
-          </span>
-        ))}
-        {trade.slHit && (
-          <span className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400">SL✓</span>
-        )}
-        <span className="text-muted-foreground/30 ml-auto">
-          {format(new Date(trade.openedAt), "MMM dd, HH:mm")}
-        </span>
-      </div>
-    </div>
-  );
-}
+// ── Shared Components ──────────────────────────
 
 function StatCard({ label, value, icon, color }: { label: string; value: string; icon: React.ReactNode; color: string }) {
   return (
@@ -841,7 +562,7 @@ function getSlDisplay(trade: SimTrade) {
   return { price: trade.stopLoss, label: "Original" };
 }
 
-function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string; onSelectTrade: (t: SimTrade) => void }) {
+function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, cs }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string; onSelectTrade: (t: SimTrade) => void; cs: string }) {
   if (trades.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground/30">
@@ -856,7 +577,7 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade }: { trades: S
       {/* Mobile: Card layout */}
       <div className="lg:hidden space-y-3">
         {trades.map((trade) => (
-          <MobileTradeCard key={trade.id ?? trade.signalId} trade={trade} onSelect={onSelectTrade} />
+          <MobileTradeCard key={trade.id ?? trade.signalId} trade={trade} onSelect={onSelectTrade} cs={cs} />
         ))}
       </div>
 
@@ -884,7 +605,7 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade }: { trades: S
             </TableHeader>
             <TableBody>
               {trades.map((trade) => (
-                <DesktopTradeRow key={trade.id ?? trade.signalId} trade={trade} onSelect={onSelectTrade} />
+                <DesktopTradeRow key={trade.id ?? trade.signalId} trade={trade} onSelect={onSelectTrade} cs={cs} />
               ))}
             </TableBody>
           </Table>
@@ -894,7 +615,7 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade }: { trades: S
   );
 }
 
-function DesktopTradeRow({ trade, onSelect }: { trade: SimTrade; onSelect: (t: SimTrade) => void }) {
+function DesktopTradeRow({ trade, onSelect, cs }: { trade: SimTrade; onSelect: (t: SimTrade) => void; cs: string }) {
   const isBuy = trade.side === "BUY";
   const isOpen = trade.status === "OPEN";
   const chartLabel = tfLabelMap[String(trade.timeframe).toUpperCase()] ?? `${trade.timeframe}m`;
@@ -918,13 +639,13 @@ function DesktopTradeRow({ trade, onSelect }: { trade: SimTrade; onSelect: (t: S
       <TableCell>
         <Badge variant="outline" className="text-[9px] font-black h-5 px-1.5 border-accent/20 text-accent">{trade.leverage}x</Badge>
       </TableCell>
-      <TableCell className="font-mono text-xs font-bold text-white/60">${formatPrice(trade.entryPrice)}</TableCell>
+      <TableCell className="font-mono text-xs font-bold text-white/60">{cs}{formatPrice(trade.entryPrice)}</TableCell>
       <TableCell className="font-mono text-xs font-bold text-white">
-        {isOpen && trade.currentPrice != null ? `$${formatPrice(trade.currentPrice)}` : "—"}
+        {isOpen && trade.currentPrice != null ? `${cs}${formatPrice(trade.currentPrice)}` : "—"}
       </TableCell>
       <TableCell>
         <div className="flex flex-col">
-          <span className="font-mono text-xs font-bold text-white">${formatPrice(sl.price)}</span>
+          <span className="font-mono text-xs font-bold text-white">{cs}{formatPrice(sl.price)}</span>
           <span className="text-[9px] text-muted-foreground/60">{sl.label}</span>
         </div>
       </TableCell>
@@ -960,12 +681,12 @@ function DesktopTradeRow({ trade, onSelect }: { trade: SimTrade; onSelect: (t: S
             <>
               <div className={cn("flex items-center gap-1 font-mono text-xs font-black", (trade.unrealizedPnl ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400")}>
                 {(trade.unrealizedPnl ?? 0) >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                {(trade.unrealizedPnl ?? 0) >= 0 ? "+" : ""}{formatUsd(trade.unrealizedPnl ?? 0)}
+                {(trade.unrealizedPnl ?? 0) >= 0 ? "+" : ""}{formatMoney(trade.unrealizedPnl ?? 0, cs)}
               </div>
               <span className="text-[9px] text-muted-foreground/30 font-mono">unreal.</span>
               {trade.realizedPnl !== 0 && (
                 <span className={cn("text-[9px] font-mono font-bold", trade.realizedPnl >= 0 ? "text-emerald-400/60" : "text-rose-400/60")}>
-                  {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)} real.
+                  {trade.realizedPnl >= 0 ? "+" : ""}{formatMoney(trade.realizedPnl, cs)} real.
                 </span>
               )}
             </>
@@ -973,14 +694,14 @@ function DesktopTradeRow({ trade, onSelect }: { trade: SimTrade; onSelect: (t: S
             <>
               <div className={cn("flex items-center gap-1 font-mono text-xs font-black", trade.realizedPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
                 {trade.realizedPnl >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
+                {trade.realizedPnl >= 0 ? "+" : ""}{formatMoney(trade.realizedPnl, cs)}
               </div>
-              <span className="text-[9px] text-muted-foreground/30 font-mono">fees: {formatUsd(trade.fees)}</span>
+              <span className="text-[9px] text-muted-foreground/30 font-mono">fees: {formatMoney(trade.fees, cs)}</span>
             </>
           )}
         </div>
       </TableCell>
-      <TableCell className="font-mono text-xs font-bold text-white/60">{formatUsd(trade.positionSize)}</TableCell>
+      <TableCell className="font-mono text-xs font-bold text-white/60">{formatMoney(trade.positionSize, cs)}</TableCell>
       <TableCell>
         <span className="font-mono text-xs font-bold text-accent">{trade.confidenceScore}</span>
       </TableCell>
@@ -1003,7 +724,7 @@ function DesktopTradeRow({ trade, onSelect }: { trade: SimTrade; onSelect: (t: S
   );
 }
 
-function MobileTradeCard({ trade, onSelect }: { trade: SimTrade; onSelect: (t: SimTrade) => void }) {
+function MobileTradeCard({ trade, onSelect, cs }: { trade: SimTrade; onSelect: (t: SimTrade) => void; cs: string }) {
   const isBuy = trade.side === "BUY";
   const isOpen = trade.status === "OPEN";
   const isWin = trade.realizedPnl > 0;
@@ -1055,20 +776,20 @@ function MobileTradeCard({ trade, onSelect }: { trade: SimTrade; onSelect: (t: S
                 <div className="flex flex-col">
                   <div className={cn("flex items-center gap-1.5 font-mono text-lg font-black", (trade.unrealizedPnl ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400")}>
                     {(trade.unrealizedPnl ?? 0) >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                    {(trade.unrealizedPnl ?? 0) >= 0 ? "+" : ""}{formatUsd(trade.unrealizedPnl ?? 0)}
+                    {(trade.unrealizedPnl ?? 0) >= 0 ? "+" : ""}{formatMoney(trade.unrealizedPnl ?? 0, cs)}
                     <span className="text-[9px] font-bold text-muted-foreground/30 ml-1">unreal.</span>
                   </div>
                   {trade.realizedPnl !== 0 && (
                     <span className={cn("text-[10px] font-mono font-bold", trade.realizedPnl >= 0 ? "text-emerald-400/60" : "text-rose-400/60")}>
-                      {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)} realized
+                      {trade.realizedPnl >= 0 ? "+" : ""}{formatMoney(trade.realizedPnl, cs)} realized
                     </span>
                   )}
                 </div>
               ) : (
                 <div className={cn("flex items-center gap-1.5 font-mono text-lg font-black", trade.realizedPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
                   {trade.realizedPnl >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                  {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
-                  <span className="text-[9px] font-bold text-muted-foreground/30 ml-1">fees: {formatUsd(trade.fees)}</span>
+                  {trade.realizedPnl >= 0 ? "+" : ""}{formatMoney(trade.realizedPnl, cs)}
+                  <span className="text-[9px] font-bold text-muted-foreground/30 ml-1">fees: {formatMoney(trade.fees, cs)}</span>
                 </div>
               )}
             </div>
@@ -1079,21 +800,21 @@ function MobileTradeCard({ trade, onSelect }: { trade: SimTrade; onSelect: (t: S
           <div className="flex items-center gap-3 text-[11px] flex-wrap">
             <div>
               <span className="text-muted-foreground/40 mr-1.5">Entry</span>
-              <span className="font-mono font-bold text-white/50">${formatPrice(trade.entryPrice)}</span>
+              <span className="font-mono font-bold text-white/50">{cs}{formatPrice(trade.entryPrice)}</span>
             </div>
             {isOpen && trade.currentPrice != null && (
               <>
                 <span className="text-white/10">→</span>
                 <div>
                   <span className="text-muted-foreground/40 mr-1.5">Current</span>
-                  <span className="font-mono font-bold text-white">${formatPrice(trade.currentPrice)}</span>
+                  <span className="font-mono font-bold text-white">{cs}{formatPrice(trade.currentPrice)}</span>
                 </div>
               </>
             )}
             <span className="text-white/10">|</span>
             <div>
               <span className="text-muted-foreground/40 mr-1.5">SL</span>
-              <span className="font-mono font-bold text-white/50">${formatPrice(sl.price)}</span>
+              <span className="font-mono font-bold text-white/50">{cs}{formatPrice(sl.price)}</span>
               <span className="text-[9px] text-muted-foreground/40 ml-1">({sl.label})</span>
             </div>
           </div>
@@ -1101,7 +822,7 @@ function MobileTradeCard({ trade, onSelect }: { trade: SimTrade; onSelect: (t: S
           {/* Size */}
           <div className="text-[11px]">
             <span className="text-muted-foreground/40 mr-1.5">Size</span>
-            <span className="font-mono font-bold text-white/50">{formatUsd(trade.positionSize)}</span>
+            <span className="font-mono font-bold text-white/50">{formatMoney(trade.positionSize, cs)}</span>
             <span className="text-muted-foreground/40 ml-3 mr-1.5">Remaining</span>
             <span className="font-mono font-bold text-white/50">{(trade.remainingPct * 100).toFixed(0)}%</span>
           </div>
@@ -1142,7 +863,7 @@ function MobileTradeCard({ trade, onSelect }: { trade: SimTrade; onSelect: (t: S
   );
 }
 
-function LogRow({ log }: { log: SimLog }) {
+function LogRow({ log, cs = "$" }: { log: SimLog; cs?: string }) {
   const actionColor: Record<string, string> = {
     TRADE_OPENED: "text-accent",
     TP_HIT: "text-positive",
@@ -1167,7 +888,7 @@ function LogRow({ log }: { log: SimLog }) {
       </span>
       {log.capital != null && (
         <span className="text-[9px] text-muted-foreground/30 tabular-nums shrink-0">
-          {formatUsd(log.capital)}
+          {formatMoney(log.capital, cs)}
         </span>
       )}
     </div>
@@ -1183,7 +904,7 @@ const EVENT_DISPLAY: Record<string, { label: string; icon: string; color: string
   SL: { label: "Stop Loss Hit", icon: "🔴", color: "text-rose-400" },
 };
 
-function TradeNarrationDialog({ trade, onClose }: { trade: SimTrade | null; onClose: () => void }) {
+function TradeNarrationDialog({ trade, onClose, cs }: { trade: SimTrade | null; onClose: () => void; cs: string }) {
   if (!trade) return null;
 
   const isBuy = trade.side === "BUY";
@@ -1224,23 +945,23 @@ function TradeNarrationDialog({ trade, onClose }: { trade: SimTrade | null; onCl
         <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[11px] border-b border-white/[0.06] pb-3">
           <div className="flex justify-between">
             <span className="text-muted-foreground/40">Entry</span>
-            <span className="font-mono font-bold text-white/70">${formatPrice(trade.entryPrice)}</span>
+            <span className="font-mono font-bold text-white/70">{cs}{formatPrice(trade.entryPrice)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground/40">Size</span>
-            <span className="font-mono font-bold text-white/70">{formatUsd(trade.positionSize)}</span>
+            <span className="font-mono font-bold text-white/70">{formatMoney(trade.positionSize, cs)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground/40">SL</span>
-            <span className="font-mono font-bold text-rose-400/70">${formatPrice(trade.stopLoss)}</span>
+            <span className="font-mono font-bold text-rose-400/70">{cs}{formatPrice(trade.stopLoss)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground/40">Capital</span>
-            <span className="font-mono font-bold text-white/70">{formatUsd(trade.capitalAtEntry)}</span>
+            <span className="font-mono font-bold text-white/70">{formatMoney(trade.capitalAtEntry, cs)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground/40">TP1</span>
-            <span className="font-mono font-bold text-emerald-400/70">${formatPrice(trade.tp1)}</span>
+            <span className="font-mono font-bold text-emerald-400/70">{cs}{formatPrice(trade.tp1)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground/40">Score</span>
@@ -1248,7 +969,7 @@ function TradeNarrationDialog({ trade, onClose }: { trade: SimTrade | null; onCl
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground/40">TP2</span>
-            <span className="font-mono font-bold text-emerald-400/70">${formatPrice(trade.tp2)}</span>
+            <span className="font-mono font-bold text-emerald-400/70">{cs}{formatPrice(trade.tp2)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground/40">Bias</span>
@@ -1256,7 +977,7 @@ function TradeNarrationDialog({ trade, onClose }: { trade: SimTrade | null; onCl
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground/40">TP3</span>
-            <span className="font-mono font-bold text-emerald-400/70">${formatPrice(trade.tp3)}</span>
+            <span className="font-mono font-bold text-emerald-400/70">{cs}{formatPrice(trade.tp3)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground/40">Duration</span>
@@ -1304,28 +1025,28 @@ function TradeNarrationDialog({ trade, onClose }: { trade: SimTrade | null; onCl
 
                   {evt.type === "OPEN" && (
                     <div className="text-[10px] text-muted-foreground/50 mt-0.5">
-                      Entry @ <span className="font-mono text-white/60">${formatPrice(evt.price)}</span>
-                      {" · "}Size: <span className="font-mono text-white/60">{formatUsd(trade.positionSize)}</span>
-                      {" · "}Fee: <span className="font-mono text-rose-400/50">{formatUsd(evt.fee)}</span>
+                      Entry @ <span className="font-mono text-white/60">{cs}{formatPrice(evt.price)}</span>
+                      {" · "}Size: <span className="font-mono text-white/60">{formatMoney(trade.positionSize, cs)}</span>
+                      {" · "}Fee: <span className="font-mono text-rose-400/50">{formatMoney(evt.fee, cs)}</span>
                     </div>
                   )}
 
                   {evt.type === "SL_TO_BE" && (
                     <div className="text-[10px] text-muted-foreground/50 mt-0.5">
-                      Price crossed 50% of TP1 @ <span className="font-mono text-white/60">${formatPrice(evt.price)}</span>
-                      {" · "}SL moved to entry <span className="font-mono text-white/60">${formatPrice(trade.entryPrice)}</span>
+                      Price crossed 50% of TP1 @ <span className="font-mono text-white/60">{cs}{formatPrice(evt.price)}</span>
+                      {" · "}SL moved to entry <span className="font-mono text-white/60">{cs}{formatPrice(trade.entryPrice)}</span>
                     </div>
                   )}
 
                   {(evt.type === "TP1" || evt.type === "TP2" || evt.type === "TP3") && (
                     <div className="text-[10px] text-muted-foreground/50 mt-0.5 space-y-0.5">
                       <div>
-                        @ <span className="font-mono text-white/60">${formatPrice(evt.price)}</span>
-                        {" · "}Closed <span className="font-mono text-white/60">{(evt.closePct * 100).toFixed(0)}%</span> ({formatUsd(trade.positionSize * evt.closePct)})
+                        @ <span className="font-mono text-white/60">{cs}{formatPrice(evt.price)}</span>
+                        {" · "}Closed <span className="font-mono text-white/60">{(evt.closePct * 100).toFixed(0)}%</span> ({formatMoney(trade.positionSize * evt.closePct, cs)})
                       </div>
                       <div>
-                        PnL: <span className={cn("font-mono font-bold", evt.pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>{evt.pnl >= 0 ? "+" : ""}{formatUsd(evt.pnl)}</span>
-                        {" · "}Fee: <span className="font-mono text-rose-400/50">{formatUsd(evt.fee)}</span>
+                        PnL: <span className={cn("font-mono font-bold", evt.pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>{evt.pnl >= 0 ? "+" : ""}{formatMoney(evt.pnl, cs)}</span>
+                        {" · "}Fee: <span className="font-mono text-rose-400/50">{formatMoney(evt.fee, cs)}</span>
                         {" · "}Remaining: <span className="font-mono text-white/60">{Math.max(0, runningRemaining * 100).toFixed(0)}%</span>
                       </div>
                     </div>
@@ -1334,12 +1055,12 @@ function TradeNarrationDialog({ trade, onClose }: { trade: SimTrade | null; onCl
                   {evt.type === "SL" && (
                     <div className="text-[10px] text-muted-foreground/50 mt-0.5 space-y-0.5">
                       <div>
-                        @ <span className="font-mono text-white/60">${formatPrice(evt.price)}</span>
+                        @ <span className="font-mono text-white/60">{cs}{formatPrice(evt.price)}</span>
                         {" · "}Closed <span className="font-mono text-white/60">{(evt.closePct * 100).toFixed(0)}%</span> remaining
                       </div>
                       <div>
-                        PnL: <span className={cn("font-mono font-bold", evt.pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>{evt.pnl >= 0 ? "+" : ""}{formatUsd(evt.pnl)}</span>
-                        {" · "}Fee: <span className="font-mono text-rose-400/50">{formatUsd(evt.fee)}</span>
+                        PnL: <span className={cn("font-mono font-bold", evt.pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>{evt.pnl >= 0 ? "+" : ""}{formatMoney(evt.pnl, cs)}</span>
+                        {" · "}Fee: <span className="font-mono text-rose-400/50">{formatMoney(evt.fee, cs)}</span>
                       </div>
                     </div>
                   )}
@@ -1355,12 +1076,12 @@ function TradeNarrationDialog({ trade, onClose }: { trade: SimTrade | null; onCl
             <div>
               <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/40 mb-0.5">Realized PnL</div>
               <div className={cn("text-sm font-black font-mono", trade.realizedPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
+                {trade.realizedPnl >= 0 ? "+" : ""}{formatMoney(trade.realizedPnl, cs)}
               </div>
             </div>
             <div>
               <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/40 mb-0.5">Total Fees</div>
-              <div className="text-sm font-black font-mono text-rose-400/60">{formatUsd(trade.fees)}</div>
+              <div className="text-sm font-black font-mono text-rose-400/60">{formatMoney(trade.fees, cs)}</div>
             </div>
             <div>
               <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/40 mb-0.5">
@@ -1368,11 +1089,11 @@ function TradeNarrationDialog({ trade, onClose }: { trade: SimTrade | null; onCl
               </div>
               {isOpen ? (
                 <div className={cn("text-sm font-black font-mono", (trade.unrealizedPnl ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                  {(trade.unrealizedPnl ?? 0) >= 0 ? "+" : ""}{formatUsd(trade.unrealizedPnl ?? 0)}
+                  {(trade.unrealizedPnl ?? 0) >= 0 ? "+" : ""}{formatMoney(trade.unrealizedPnl ?? 0, cs)}
                 </div>
               ) : (
                 <div className={cn("text-sm font-black font-mono", (trade.realizedPnl - trade.fees) >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                  {(trade.realizedPnl - trade.fees) >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
+                  {(trade.realizedPnl - trade.fees) >= 0 ? "+" : ""}{formatMoney(trade.realizedPnl, cs)}
                 </div>
               )}
             </div>

@@ -439,22 +439,6 @@ export async function GET(request: NextRequest) {
         algoStatsMap.set(key, { winRate: val.winRate, sampleSize: val.sampleSize });
       }
 
-      let chopData: Record<string, { ratio: number | null; isChoppy: boolean }> | undefined;
-      try {
-        const chopDoc = await db.collection("config").doc("chop_filter").get();
-        if (chopDoc.exists) {
-          const raw = chopDoc.data() ?? {};
-          chopData = {};
-          for (const [key, val] of Object.entries(raw)) {
-            if (key === "lastUpdated") continue;
-            const v = val as any;
-            if (v && typeof v.ratio !== "undefined") {
-              chopData[key] = { ratio: v.ratio, isChoppy: v.isChoppy === true };
-            }
-          }
-        }
-      } catch {}
-
       // Group candidates by asset type for separate simulator pools
       const assetTypes = [...new Set(candidates.map((c) => c.assetType))];
       if (assetTypes.length === 0) assetTypes.push("CRYPTO");
@@ -473,7 +457,6 @@ export async function GET(request: NextRequest) {
           openTrades: assetOpenTrades,
           liveWinRates,
           algoStats: algoStatsMap,
-          chopData,
           simConfig,
         });
 
@@ -490,7 +473,7 @@ export async function GET(request: NextRequest) {
           const riskPct = hasStreak ? SIM_CONFIG.RISK_PER_TRADE_STREAK : SIM_CONFIG.RISK_PER_TRADE_BASE;
           const riskAmount = simState3.capital * riskPct;
           let positionSize = riskAmount / (slDistancePct * leverage);
-          if (positionSize > simState3.capital * 0.5 || positionSize < 1) continue;
+          if (positionSize > simState3.capital * 0.05 || positionSize < 1) continue;
           positionSize = Math.round(positionSize * 100) / 100;
 
           const regimeKey = `${c.timeframe}_${c.type}`;

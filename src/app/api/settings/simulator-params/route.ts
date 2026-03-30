@@ -22,7 +22,6 @@ const ALLOWED_KEYS = new Set<string>([
   "INCUBATED_SL_CONSUMED_MAX",
   "INCUBATED_TP1_CONSUMED_MAX",
   "SCORE_FLOOR",
-  "CHOP_THRESHOLD",
 ]);
 
 export async function GET() {

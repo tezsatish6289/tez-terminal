@@ -42,10 +42,9 @@ const PARAM_GROUPS: { title: string; params: ParamDef[] }[] = [
     ],
   },
   {
-    title: "Market Bias & Chop Filter",
+    title: "Market Bias",
     params: [
       { key: "BIAS_GAP_MIN", label: "Min Bias Gap", description: "Minimum bull-bear score difference to confirm market direction", min: 2, max: 30, step: 1, format: "number" },
-      { key: "CHOP_THRESHOLD", label: "Chop Threshold", description: "Block trades if chop ratio exceeds this (0 = trending, 1 = pure chop)", min: 0.1, max: 0.9, step: 0.05, format: "ratio" },
     ],
   },
   {

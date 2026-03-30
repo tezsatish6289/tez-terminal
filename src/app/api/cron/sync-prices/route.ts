@@ -9,7 +9,6 @@ import {
   AUTO_FILTER_THRESHOLD,
   isRegimeStale,
   computeMarketRegime,
-  computeChopFilter,
   computeAlgoTfStats,
   type MarketRegimeData,
 } from "@/lib/auto-filter";
@@ -480,40 +479,6 @@ export async function GET(request: NextRequest) {
       });
     } catch (regimeErr: any) {
       console.error("[Sync] Regime computation failed:", regimeErr.message);
-    }
-
-    // ── 6. Chop Filter ────────────────────────────────────────
-    try {
-      const chopSignals = postUpdateDocs.map((d) => ({
-        timeframe: String(d.timeframe || "15"),
-        type: d.type || "BUY",
-        slHitAt: d.slHitAt ?? null,
-        tp1Hit: d.tp1Hit === true,
-        tp1HitAt: d.tp1HitAt ?? null,
-        tp2HitAt: d.tp2HitAt ?? null,
-        tp3HitAt: d.tp3HitAt ?? null,
-      }));
-      const chopData = computeChopFilter(chopSignals);
-      const chopTimestamp = new Date().toISOString();
-      await db.collection("config").doc("chop_filter").set({
-        ...chopData,
-        lastUpdated: chopTimestamp,
-      });
-
-      // Persist history for the oscillator chart
-      const historyEntry: Record<string, any> = { timestamp: chopTimestamp };
-      for (const [tf, entry] of Object.entries(chopData)) {
-        historyEntry[tf] = {
-          ratio: entry.ratio,
-          bullishKills: entry.bullishKills,
-          bearishKills: entry.bearishKills,
-          totalEvents: entry.totalEvents,
-          isChoppy: entry.isChoppy,
-        };
-      }
-      await db.collection("chop_filter_history").add(historyEntry);
-    } catch (chopErr: any) {
-      console.error("[Sync] Chop filter computation failed:", chopErr.message);
     }
 
     await db.collection("logs").add({

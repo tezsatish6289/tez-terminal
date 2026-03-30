@@ -30,8 +30,6 @@ export const SIM_CONFIG = {
   TURN_SINGLE_CONDITION_TRIGGER: 0.50,   // 50% alone triggers exit
   // Individual score degradation
   SCORE_FLOOR: 38,                       // exit if live score drops below this
-  // Chop filter
-  CHOP_THRESHOLD: 0.4,                   // ratio > this → choppy → block trade
 } as const;
 
 export type SimConfigType = typeof SIM_CONFIG;
@@ -183,10 +181,9 @@ export function selectIncubatedSignals(params: {
   openTrades: SimTrade[];
   liveWinRates: Map<string, { winRate: number | null; sampleSize: number }>;
   algoStats: Map<string, { winRate: number | null; sampleSize: number }>;
-  chopData?: Record<string, { ratio: number | null; isChoppy: boolean }>;
   simConfig?: SimConfigType;
 }): IncubatedResult {
-  const { candidates, state, bullScore, bearScore, openTrades, liveWinRates, algoStats, chopData } = params;
+  const { candidates, state, bullScore, bearScore, openTrades, liveWinRates, algoStats } = params;
   const cfg = params.simConfig ?? SIM_CONFIG;
   const selected: IncubatedCandidate[] = [];
   const skipped: { symbol: string; reason: string }[] = [];
@@ -273,13 +270,6 @@ export function selectIncubatedSignals(params: {
     // SL / TP validation
     if (c.stopLoss <= 0 || !c.tp1 || !c.tp2 || !c.tp3) {
       skipped.push({ symbol: c.symbol, reason: "Missing SL/TP levels" });
-      continue;
-    }
-
-    // Chop filter — last gate
-    const chopEntry = chopData?.[c.timeframe];
-    if (chopEntry?.ratio != null && chopEntry.ratio > cfg.CHOP_THRESHOLD) {
-      skipped.push({ symbol: c.symbol, reason: `Choppy market (ratio=${chopEntry.ratio.toFixed(2)} > ${cfg.CHOP_THRESHOLD}) on ${c.timeframe}` });
       continue;
     }
 
@@ -513,10 +503,9 @@ export function evaluateTrade(params: {
   algoWinRate: number | null;
   algoSampleSize: number;
   openTrades: SimTrade[];
-  chopRatio?: number | null;
   simConfig?: SimConfigType;
 }): TradeEvaluation {
-  const { state, signal, bullScore, bearScore, liveWinRate, liveSampleSize, algoWinRate, algoSampleSize, openTrades, chopRatio } = params;
+  const { state, signal, bullScore, bearScore, liveWinRate, liveSampleSize, algoWinRate, algoSampleSize, openTrades } = params;
   const cfg = params.simConfig ?? SIM_CONFIG;
 
   if (!state.isActive) {
@@ -556,11 +545,6 @@ export function evaluateTrade(params: {
     return { canTrade: false, reason: "Missing TP levels" };
   }
 
-  // Chop filter — last gate: block if market is choppy for this timeframe
-  if (chopRatio != null && chopRatio > cfg.CHOP_THRESHOLD) {
-    return { canTrade: false, reason: `Choppy market (ratio=${chopRatio.toFixed(2)} > ${cfg.CHOP_THRESHOLD}) on ${signal.timeframe}` };
-  }
-
   // Adaptive risk: 1% base, 1.5% when streak is active
   const hasStreak = (currentState.consecutiveWins ?? 0) >= cfg.STREAK_WINS_TO_SCALE;
   const riskPct = hasStreak ? cfg.RISK_PER_TRADE_STREAK : cfg.RISK_PER_TRADE_BASE;
@@ -578,8 +562,8 @@ export function evaluateTrade(params: {
   const riskAmount = currentState.capital * riskPct;
   const positionSize = riskAmount / (slDistancePct * leverage);
 
-  if (positionSize > currentState.capital * 0.5) {
-    return { canTrade: false, reason: `Position size $${positionSize.toFixed(2)} exceeds 50% of capital` };
+  if (positionSize > currentState.capital * 0.05) {
+    return { canTrade: false, reason: `Position size $${positionSize.toFixed(2)} exceeds 5% of capital` };
   }
 
   if (positionSize < 1) {

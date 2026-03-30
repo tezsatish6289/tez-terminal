@@ -48,6 +48,10 @@ function formatMoney(val: number, sym = "$"): string {
   return `$${val.toFixed(2)}`;
 }
 
+function formatUsd(val: number): string {
+  return `$${val.toFixed(2)}`;
+}
+
 function formatPct(val: number): string {
   const sign = val >= 0 ? "+" : "";
   return `${sign}${val.toFixed(2)}%`;

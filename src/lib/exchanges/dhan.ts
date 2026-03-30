@@ -31,10 +31,19 @@ function authHeaders(creds: ExchangeCredentials): Record<string, string> {
   };
 }
 
+const DHAN_TIMEOUT_MS = 8000;
+
+function withTimeout(ms: number): AbortSignal {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
 async function dhanGet<T>(path: string, creds: ExchangeCredentials): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method: "GET",
     headers: authHeaders(creds),
+    signal: withTimeout(DHAN_TIMEOUT_MS),
   });
   if (!res.ok) {
     const text = await res.text();
@@ -52,6 +61,7 @@ async function dhanPost<T>(
     method: "POST",
     headers: authHeaders(creds),
     body: JSON.stringify(body),
+    signal: withTimeout(DHAN_TIMEOUT_MS),
   });
   if (!res.ok) {
     const text = await res.text();
@@ -64,6 +74,7 @@ async function dhanDelete<T>(path: string, creds: ExchangeCredentials): Promise<
   const res = await fetch(`${BASE_URL}${path}`, {
     method: "DELETE",
     headers: authHeaders(creds),
+    signal: withTimeout(DHAN_TIMEOUT_MS),
   });
   if (!res.ok) {
     const text = await res.text();

@@ -94,13 +94,17 @@ export async function ensureValidToken(): Promise<ExchangeCredentials | null> {
   console.log(`[DhanToken] Token is ${(age / 3600000).toFixed(1)}h old, renewing...`);
 
   try {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 8000);
+
     const res = await fetch("https://api.dhan.co/v2/RenewToken", {
       method: "POST",
       headers: {
         "access-token": data.accessToken,
-        "dhanClientId": data.clientId,
+        "client-id": data.clientId,
         "Content-Type": "application/json",
       },
+      signal: controller.signal,
     });
 
     if (!res.ok) {

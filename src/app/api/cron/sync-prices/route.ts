@@ -50,36 +50,41 @@ export async function GET(request: NextRequest) {
     // ── 1. Fetch prices from ALL exchanges in parallel ──────
     const allPrices: AllExchangePrices = await fetchAllExchangePrices();
 
-    // ── 1b. Fetch Indian stock prices via Dhan ──────────────
+    // ── 1b. Fetch Indian stock prices via Dhan (with 10s hard cap) ─
     let dhanPriceCount = 0;
     try {
-      const dhanCreds = await ensureValidToken();
-      if (dhanCreds) {
-        const activeSnap = await db.collection("signals")
-          .where("status", "==", "ACTIVE")
-          .get();
+      await Promise.race([
+        (async () => {
+          const dhanCreds = await ensureValidToken();
+          if (!dhanCreds) return;
 
-        const stockSymbols = new Set<string>();
-        for (const d of activeSnap.docs) {
-          const s = d.data();
-          const exchange = String(s.exchange ?? "").toUpperCase();
-          if (isStockExchange(exchange) || String(s.assetType ?? "").toUpperCase().includes("INDIAN")) {
-            const raw = String(s.symbol ?? "").replace(/\.(NS|NSE)$/i, "").toUpperCase();
-            if (raw) stockSymbols.add(raw);
+          const activeSnap = await db.collection("signals")
+            .where("status", "==", "ACTIVE")
+            .get();
+
+          const stockSymbols = new Set<string>();
+          for (const d of activeSnap.docs) {
+            const s = d.data();
+            const exchange = String(s.exchange ?? "").toUpperCase();
+            if (isStockExchange(exchange) || String(s.assetType ?? "").toUpperCase().includes("INDIAN")) {
+              const raw = String(s.symbol ?? "").replace(/\.(NS|NSE)$/i, "").toUpperCase();
+              if (raw) stockSymbols.add(raw);
+            }
           }
-        }
 
-        if (stockSymbols.size > 0) {
-          const dhan = getConnector("DHAN") as import("@/lib/exchanges/dhan").DhanConnector;
-          await dhan.loadInstruments();
+          if (stockSymbols.size > 0) {
+            const dhan = getConnector("DHAN") as import("@/lib/exchanges/dhan").DhanConnector;
+            await dhan.loadInstruments();
 
-          const priceMap = await dhan.fetchPricesBySymbol([...stockSymbols], dhanCreds);
-          for (const [sym, price] of priceMap) {
-            allPrices.DHAN.set(sym, price);
-            dhanPriceCount++;
+            const priceMap = await dhan.fetchPricesBySymbol([...stockSymbols], dhanCreds);
+            for (const [sym, price] of priceMap) {
+              allPrices.DHAN.set(sym, price);
+              dhanPriceCount++;
+            }
           }
-        }
-      }
+        })(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Dhan fetch timeout (10s)")), 10000)),
+      ]);
     } catch (dhanErr: any) {
       console.error("[Sync] Dhan price fetch failed:", dhanErr.message);
     }

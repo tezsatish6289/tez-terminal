@@ -709,22 +709,23 @@ function TradeAuditContent() {
           </p>
         </header>
 
-        {/* Asset type toggle */}
-        <div className="flex items-center gap-2">
+        {/* Global asset type tabs */}
+        <div className="flex items-center gap-0 rounded-xl border border-white/[0.08] bg-white/[0.02] p-1 w-fit">
           {([
-            { key: "CRYPTO" as const, label: "Crypto" },
-            { key: "INDIAN_STOCKS" as const, label: "Indian Stocks" },
-          ]).map(({ key, label }) => (
+            { key: "CRYPTO" as const, label: "Crypto", icon: "₿" },
+            { key: "INDIAN_STOCKS" as const, label: "Indian Stocks", icon: "₹" },
+          ]).map(({ key, label, icon }) => (
             <button
               key={key}
               onClick={() => { setAssetType(key); setPage(0); }}
               className={cn(
-                "px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all",
+                "relative flex items-center gap-2 px-5 lg:px-6 py-2 lg:py-2.5 rounded-lg text-xs lg:text-sm font-black uppercase tracking-wider transition-all",
                 assetType === key
-                  ? "bg-accent text-black shadow-lg shadow-accent/20"
-                  : "bg-white/[0.04] text-muted-foreground border border-white/10 hover:text-foreground hover:bg-white/[0.06]",
+                  ? "bg-accent text-black shadow-lg shadow-accent/25"
+                  : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
               )}
             >
+              <span className="text-sm lg:text-base">{icon}</span>
               {label}
             </button>
           ))}

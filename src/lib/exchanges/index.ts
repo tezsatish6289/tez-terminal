@@ -24,6 +24,7 @@ export {
   getExchangeSegment,
   getBrokersForAssetType,
   isStockExchange,
+  signalExchangeToPriceBucket,
   normalizeSignalExchange,
   normalizeAssetType,
   floorToStep,

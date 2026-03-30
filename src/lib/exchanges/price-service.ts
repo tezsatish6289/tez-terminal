@@ -5,7 +5,7 @@
  * caches them in Firestore for workers to read, and provides
  * lookup functions that select the right exchange's price.
  */
-import { type ExchangeName, SUPPORTED_EXCHANGES, ALL_EXCHANGES } from "./types";
+import { type ExchangeName, SUPPORTED_EXCHANGES, ALL_EXCHANGES, signalExchangeToPriceBucket } from "./types";
 import { getAllConnectors } from "./registry";
 
 export type ExchangePriceMap = Map<string, number>;
@@ -124,7 +124,7 @@ export function getReferencePrice(
   signalSymbol: string,
   exchange?: string,
 ): number | null {
-  const ex = (exchange?.toUpperCase() ?? "BINANCE") as ExchangeName;
+  const ex = exchange ? signalExchangeToPriceBucket(exchange) : "BINANCE";
   return getPrice(prices, signalSymbol, ex);
 }
 

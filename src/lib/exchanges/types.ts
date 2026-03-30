@@ -59,6 +59,16 @@ export function isStockExchange(exchange: string): boolean {
 }
 
 /**
+ * Map a signal exchange to the broker that holds its prices.
+ * Crypto: BYBIT → BYBIT, BINANCE → BINANCE, MEXC → MEXC
+ * Stocks: NSE/BSE/MCX → DHAN (the only stock broker)
+ */
+export function signalExchangeToPriceBucket(exchange: string): ExchangeName {
+  if (isStockExchange(exchange)) return "DHAN";
+  return exchange.toUpperCase() as ExchangeName;
+}
+
+/**
  * Normalize TradingView exchange names to our canonical form.
  * TradingView sends "NSE_DLY", "NSE_EQ", "BSE_DLY", etc.
  * We strip suffixes and keep just the core exchange: NSE, BSE, MCX.

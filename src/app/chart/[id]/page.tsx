@@ -144,7 +144,9 @@ export default function DeepDiveChartPage() {
   }
 
   const isBullish = signal?.type === "BUY";
-  const leverage = getLeverage(signal?.timeframe);
+  const isStock = signal?.assetType === "INDIAN_STOCKS";
+  const curr = isStock ? "₹" : "$";
+  const leverage = getLeverage(signal?.timeframe, signal?.assetType);
   const effectivePnlVal = signal ? getEffectivePnl(signal) : 0;
   const leveragedPnl = (effectivePnlVal * leverage).toFixed(2);
   const maxUpPnl = (Number(calculatePercent(signal?.maxUpsidePrice, signal?.price, signal?.type || "BUY")) * leverage).toFixed(2);
@@ -288,12 +290,12 @@ export default function DeepDiveChartPage() {
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40 block">Entry</span>
-                <span className="text-sm font-mono font-bold text-foreground/70">${formatPrice(signal?.price)}</span>
+                <span className="text-sm font-mono font-bold text-foreground/70">{curr}{formatPrice(signal?.price)}</span>
               </div>
               <div className={cn("text-lg font-black", isBullish ? "text-positive/20" : "text-negative/20")}>→</div>
               <div className="text-right">
                 <span className="text-[9px] font-bold uppercase tracking-widest text-accent/60 block">Current</span>
-                <span className={cn("text-sm font-mono font-black", effectivePnlVal >= 0 ? "text-positive" : "text-negative")}>${formatPrice(signal?.currentPrice)}</span>
+                <span className={cn("text-sm font-mono font-black", effectivePnlVal >= 0 ? "text-positive" : "text-negative")}>{curr}{formatPrice(signal?.currentPrice)}</span>
               </div>
             </div>
 
@@ -315,7 +317,7 @@ export default function DeepDiveChartPage() {
                         <span className="text-[10px] text-muted-foreground/30">{tp.frac}</span>
                       </div>
                       <div className="flex items-baseline gap-2">
-                        <span className="text-[12px] font-mono text-foreground/60">${formatPrice(tp.price)}</span>
+                        <span className="text-[12px] font-mono text-foreground/60">{curr}{formatPrice(tp.price)}</span>
                         <span className="text-[10px] font-bold text-positive">(+{tpPct}%)</span>
                       </div>
                     </div>
@@ -363,7 +365,7 @@ export default function DeepDiveChartPage() {
                       <span className="text-[12px] font-bold text-muted-foreground/50">Stop Loss</span>
                     </div>
                     <div className="flex items-baseline gap-2">
-                      <span className="text-[12px] font-mono font-bold text-foreground/70">${formatPrice(signal?.stopLoss)}</span>
+                      <span className="text-[12px] font-mono font-bold text-foreground/70">{curr}{formatPrice(signal?.stopLoss)}</span>
                       <span className="text-[10px] font-bold text-negative">({slPct}%)</span>
                     </div>
                   </div>
@@ -379,25 +381,27 @@ export default function DeepDiveChartPage() {
             </div>
           </div>
 
-          {/* Exchange links */}
-          <div className="px-5 py-4 border-t border-white/[0.06] mt-auto">
-            <span className="text-[9px] font-black text-muted-foreground/30 uppercase tracking-widest block text-center mb-2.5">Trade on</span>
-            <div className="flex gap-2">
-              {tradeLinks.map((exchange) => (
-                <Button
-                  key={exchange.name}
-                  asChild
-                  size="sm"
-                  className={cn("flex-1 font-bold text-xs uppercase tracking-wide border rounded-lg h-9 gap-2", exchange.color)}
-                >
-                  <a href={exchange.url} target="_blank" rel="noopener noreferrer">
-                    <exchange.icon className="h-3.5 w-3.5" />
-                    {exchange.name}
-                  </a>
-                </Button>
-              ))}
+          {/* Exchange links (crypto only) */}
+          {!isStock && (
+            <div className="px-5 py-4 border-t border-white/[0.06] mt-auto">
+              <span className="text-[9px] font-black text-muted-foreground/30 uppercase tracking-widest block text-center mb-2.5">Trade on</span>
+              <div className="flex gap-2">
+                {tradeLinks.map((exchange) => (
+                  <Button
+                    key={exchange.name}
+                    asChild
+                    size="sm"
+                    className={cn("flex-1 font-bold text-xs uppercase tracking-wide border rounded-lg h-9 gap-2", exchange.color)}
+                  >
+                    <a href={exchange.url} target="_blank" rel="noopener noreferrer">
+                      <exchange.icon className="h-3.5 w-3.5" />
+                      {exchange.name}
+                    </a>
+                  </Button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Right: Chart(s) + controls */}
@@ -413,19 +417,21 @@ export default function DeepDiveChartPage() {
             )}
           </div>
           <div className="px-3 lg:px-4 py-2 lg:py-2.5 border-t border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent flex items-center justify-between gap-2 lg:gap-3">
-            <button
-              onClick={() => setShowBtc(!showBtc)}
-              className={cn(
-                "flex items-center gap-2 px-2.5 lg:px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all shrink-0",
-                showBtc
-                  ? "border-accent/30 bg-accent/10 text-accent"
-                  : "border-white/10 bg-white/[0.03] text-muted-foreground/50 hover:bg-white/[0.06] hover:text-muted-foreground"
-              )}
-            >
-              <Switch checked={showBtc} onCheckedChange={setShowBtc} className="data-[state=checked]:bg-accent scale-75" />
-              <span className="hidden sm:inline">Compare with BTC</span>
-              <ArrowLeftRight className="w-3.5 h-3.5 sm:hidden" />
-            </button>
+            {!isStock && (
+              <button
+                onClick={() => setShowBtc(!showBtc)}
+                className={cn(
+                  "flex items-center gap-2 px-2.5 lg:px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all shrink-0",
+                  showBtc
+                    ? "border-accent/30 bg-accent/10 text-accent"
+                    : "border-white/10 bg-white/[0.03] text-muted-foreground/50 hover:bg-white/[0.06] hover:text-muted-foreground"
+                )}
+              >
+                <Switch checked={showBtc} onCheckedChange={setShowBtc} className="data-[state=checked]:bg-accent scale-75" />
+                <span className="hidden sm:inline">Compare with BTC</span>
+                <ArrowLeftRight className="w-3.5 h-3.5 sm:hidden" />
+              </button>
+            )}
             <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 hidden lg:inline">Chart shown in UTC time</span>
             <Button asChild size="sm" className="font-bold text-[10px] uppercase tracking-wider border rounded-lg h-8 gap-2 px-3 lg:px-4 border-white/10 bg-white/[0.03] text-muted-foreground/50 hover:bg-white/[0.06] hover:text-muted-foreground shrink-0">
               <a href={tradingViewUrl} target="_blank" rel="noopener noreferrer">

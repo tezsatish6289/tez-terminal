@@ -247,10 +247,12 @@ export async function GET(request: NextRequest) {
               }
             } else {
               const unrealizedPnl = computeUnrealizedPnl(t, livePrice);
+              const liveScore = scores.get(t.signalId)?.score ?? null;
               const updatePayload: Record<string, unknown> = {
                 currentPrice: livePrice,
                 unrealizedPnl: Math.round(unrealizedPnl * 100) / 100,
                 highWatermark: updatedHwm,
+                currentScore: liveScore,
               };
               if (newTrailingSl !== t.trailingSl && newTrailingSl != null && t.trailingSl == null) {
                 updatePayload.trailingSl = newTrailingSl;

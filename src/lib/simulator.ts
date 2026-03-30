@@ -96,6 +96,7 @@ export interface SimTrade {
   unrealizedPnl: number;
   fees: number;
   confidenceScore: number;
+  currentScore: number | null;
   biasAtEntry: string;
   liveWinRateAtEntry: number;
   algoWinRateAtEntry: number;

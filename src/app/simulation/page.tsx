@@ -704,10 +704,13 @@ function DesktopTradeRow({ trade, onSelect, cs }: { trade: SimTrade; onSelect: (
       <TableCell className="font-mono text-xs font-bold text-white/60">{formatMoney(trade.positionSize, cs)}</TableCell>
       <TableCell>
         <div className="flex flex-col gap-0.5">
-          <span className="font-mono text-xs font-bold text-accent">
+          <span className={cn(
+            "font-mono text-xs font-bold",
+            trade.currentScore != null && trade.currentScore < trade.confidenceScore ? "text-amber-400" : "text-accent",
+          )}>
             {trade.currentScore ?? trade.confidenceScore}
           </span>
-          {trade.currentScore != null && trade.currentScore !== trade.confidenceScore && (
+          {trade.currentScore != null && (
             <span className="font-mono text-[9px] text-muted-foreground/40">
               {trade.confidenceScore} entry
             </span>
@@ -773,7 +776,7 @@ function MobileTradeCard({ trade, onSelect, cs }: { trade: SimTrade; onSelect: (
           </div>
           <div className="text-[10px] font-bold text-muted-foreground/30 uppercase mt-1">
             {trade.algo || "—"} · Score: {trade.currentScore ?? trade.confidenceScore}
-            {trade.currentScore != null && trade.currentScore !== trade.confidenceScore && (
+            {trade.currentScore != null && (
               <span className="text-muted-foreground/20"> (entry: {trade.confidenceScore})</span>
             )}
             {" · "}{trade.biasAtEntry}
@@ -979,8 +982,13 @@ function TradeNarrationDialog({ trade, onClose, cs }: { trade: SimTrade | null; 
           <div className="flex justify-between">
             <span className="text-muted-foreground/40">Score</span>
             <div className="flex items-baseline gap-2">
-              <span className="font-mono font-bold text-accent">{trade.currentScore ?? trade.confidenceScore}</span>
-              {trade.currentScore != null && trade.currentScore !== trade.confidenceScore && (
+              <span className={cn(
+                "font-mono font-bold",
+                trade.currentScore != null && trade.currentScore < trade.confidenceScore ? "text-amber-400" : "text-accent",
+              )}>
+                {trade.currentScore ?? trade.confidenceScore}
+              </span>
+              {trade.currentScore != null && (
                 <span className="font-mono text-[9px] text-muted-foreground/40">{trade.confidenceScore} entry</span>
               )}
             </div>

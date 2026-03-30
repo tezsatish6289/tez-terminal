@@ -685,7 +685,7 @@ export function computeAutoFilter(
   // Pass includeResolved:true to also score partially/fully resolved signals
   // (used for open trade management where we need scores even after TP hits).
   const candidates = options?.includeResolved
-    ? allSignals.filter((s) => s.status !== "INACTIVE")
+    ? allSignals  // no filter — score everything for open trade management
     : allSignals.filter(
         (s) =>
           s.status !== "INACTIVE" &&

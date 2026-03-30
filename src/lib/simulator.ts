@@ -719,7 +719,31 @@ export function processTradeExit(params: {
       return null;
   }
 
-  if (closePct <= 0) return null;
+  if (closePct <= 0) {
+    // Nothing to close (e.g. TP2_CLOSE_PCT = 0), but still mark the hit
+    // so future cycles don't re-detect this as a missed exit.
+    const updatedTrade: SimTrade = {
+      ...trade,
+      tp1Hit: newTp1Hit,
+      tp2Hit: newTp2Hit,
+      tp3Hit: newTp3Hit,
+      slHit: newSlHit,
+    };
+    const isClosed = updatedTrade.remainingPct <= 0.001;
+    if (isClosed) updatedTrade.status = "CLOSED";
+    return {
+      updatedTrade,
+      updatedState: state,
+      log: {
+        timestamp: new Date().toISOString(),
+        action: exitType,
+        details: `${trade.symbol} ${exitType} hit at ${exitPrice} (0% close, SL trails)`,
+        signalId: trade.signalId,
+        symbol: trade.symbol,
+        capital: state.capital,
+      },
+    };
+  }
 
   const closingSize = trade.positionSize * closePct;
   const pnl = closingSize * pricePnlPct * trade.leverage;

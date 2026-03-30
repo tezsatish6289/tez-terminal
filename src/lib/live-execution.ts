@@ -3,6 +3,7 @@ import { decrypt } from "./crypto";
 import {
   type ExchangeName,
   SUPPORTED_EXCHANGES,
+  STOCK_EXCHANGES,
   getSecretDocIds,
   docMatchesExchange,
 } from "./exchanges";
@@ -40,7 +41,9 @@ export async function executeForAllUsers(
   for (const userDoc of usersSnap.docs) {
     const userId = userDoc.id;
 
-    for (const exchangeName of SUPPORTED_EXCHANGES) {
+    const isStock = signalExchange === "DHAN";
+    const exchangeList = isStock ? STOCK_EXCHANGES : SUPPORTED_EXCHANGES;
+    for (const exchangeName of exchangeList) {
       const docIds = getSecretDocIds(exchangeName);
 
       for (const id of docIds) {

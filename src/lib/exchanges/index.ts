@@ -12,6 +12,8 @@ export {
   type BatchOrderResult,
   ExchangeApiError,
   SUPPORTED_EXCHANGES,
+  STOCK_EXCHANGES,
+  ALL_EXCHANGES,
   floorToStep,
   roundToTick,
   adjustQuantity,
@@ -23,6 +25,7 @@ export {
 export { BybitConnector } from "./bybit";
 export { BinanceConnector } from "./binance";
 export { MexcConnector } from "./mexc";
+export { DhanConnector } from "./dhan";
 
 export {
   getConnector,

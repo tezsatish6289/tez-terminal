@@ -8,11 +8,13 @@ import { type ExchangeName, type ExchangeConnector } from "./types";
 import { BybitConnector } from "./bybit";
 import { BinanceConnector } from "./binance";
 import { MexcConnector } from "./mexc";
+import { DhanConnector } from "./dhan";
 
 const connectors: Record<ExchangeName, ExchangeConnector> = {
   BYBIT: new BybitConnector(),
   BINANCE: new BinanceConnector(),
   MEXC: new MexcConnector(),
+  DHAN: new DhanConnector(),
 };
 
 /**
@@ -55,6 +57,7 @@ const SECRET_DOC_IDS: Record<ExchangeName, string> = {
   BYBIT: "bybit",
   BINANCE: "binance_futures",
   MEXC: "mexc",
+  DHAN: "dhan",
 };
 
 export function getSecretDocId(exchange: ExchangeName): string {

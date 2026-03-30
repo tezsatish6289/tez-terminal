@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     }
 
     const symbol = String(body.ticker ?? "UNKNOWN").toUpperCase();
-    const exchange = String(body.exchange ?? "BINANCE").toUpperCase();
+    let exchange = String(body.exchange ?? "BINANCE").toUpperCase();
     const rawAt = String(body.asset_type ?? "CRYPTO").toUpperCase().trim();
     let assetType = "CRYPTO";
     if (rawAt.includes("INDIAN")) assetType = "INDIAN STOCKS";
@@ -82,6 +82,11 @@ export async function POST(request: NextRequest) {
         { success: false, message: `Symbol '${symbol}' rejected. Only USDT perpetual symbols (ending with USDT.P) are accepted.` },
         { status: 400 }
       );
+    }
+
+    // Default exchange based on asset type
+    if (assetType === "INDIAN STOCKS" && exchange === "BINANCE") {
+      exchange = "DHAN";
     }
 
     const rawSide = String(body.side ?? "").toLowerCase();
@@ -214,7 +219,7 @@ export async function POST(request: NextRequest) {
 
     let processingResult = "Signal ingested as ACTIVE";
 
-    if (signalType !== "NEUTRAL" && assetType === "CRYPTO") {
+    if (signalType !== "NEUTRAL" && (assetType === "CRYPTO" || assetType === "INDIAN STOCKS")) {
       try {
         const activeSnap = await db.collection("signals")
           .where("status", "==", "ACTIVE")
@@ -236,7 +241,7 @@ export async function POST(request: NextRequest) {
           const sTf = String(s.timeframe || "").toUpperCase();
           if (sTf !== timeframe.toUpperCase()) continue;
           const sAt = String(s.assetType || "CRYPTO").toUpperCase();
-          if (!sAt.includes("CRYPTO") && sAt !== "CRYPTO") continue;
+          if (sAt !== assetType.toUpperCase()) continue;
           tfSignals.push({
             type: s.type === "BUY" ? "BUY" : "SELL",
             receivedAt: s.receivedAt,

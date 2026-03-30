@@ -5,7 +5,7 @@
  * caches them in Firestore for workers to read, and provides
  * lookup functions that select the right exchange's price.
  */
-import { type ExchangeName, SUPPORTED_EXCHANGES } from "./types";
+import { type ExchangeName, SUPPORTED_EXCHANGES, ALL_EXCHANGES } from "./types";
 import { getAllConnectors } from "./registry";
 
 export type ExchangePriceMap = Map<string, number>;
@@ -29,6 +29,7 @@ export async function fetchAllExchangePrices(): Promise<AllExchangePrices> {
     BYBIT: new Map(),
     BINANCE: new Map(),
     MEXC: new Map(),
+    DHAN: new Map(),
   };
 
   for (const result of results) {
@@ -48,8 +49,8 @@ export async function fetchAllExchangePrices(): Promise<AllExchangePrices> {
  */
 export function serializePrices(prices: AllExchangePrices): Record<string, Record<string, number>> {
   const result: Record<string, Record<string, number>> = {};
-  for (const exchange of SUPPORTED_EXCHANGES) {
-    result[exchange] = Object.fromEntries(prices[exchange]);
+  for (const exchange of ALL_EXCHANGES) {
+    if (prices[exchange]) result[exchange] = Object.fromEntries(prices[exchange]);
   }
   return result;
 }
@@ -62,8 +63,9 @@ export function deserializePrices(data: Record<string, Record<string, number>>):
     BYBIT: new Map(),
     BINANCE: new Map(),
     MEXC: new Map(),
+    DHAN: new Map(),
   };
-  for (const exchange of SUPPORTED_EXCHANGES) {
+  for (const exchange of ALL_EXCHANGES) {
     if (data[exchange]) {
       result[exchange] = new Map(Object.entries(data[exchange]));
     }
@@ -83,7 +85,7 @@ export function getPrice(
   signalSymbol: string,
   exchange: ExchangeName
 ): number | null {
-  const raw = signalSymbol.replace(/\.P$|\.PERP$/i, "").toUpperCase();
+  const raw = signalSymbol.replace(/\.P$|\.PERP$|\.NS$|\.NSE$/i, "").toUpperCase();
 
   // Try the target exchange first
   const exchangeMap = prices[exchange];
@@ -92,14 +94,17 @@ export function getPrice(
     if (price != null) return price;
   }
 
-  // MEXC uses underscored symbols — also try that
+  // MEXC uses underscored symbols
   if (exchange === "MEXC") {
     const mexcSym = raw.endsWith("USDT") ? raw.slice(0, -4) + "_USDT" : raw + "_USDT";
     const mexcPrice = exchangeMap?.get(mexcSym);
     if (mexcPrice != null) return mexcPrice;
   }
 
-  // Fallback to Binance
+  // Dhan has no fallback — stock prices are exchange-specific
+  if (exchange === "DHAN") return null;
+
+  // Fallback to Binance for crypto
   if (exchange !== "BINANCE") {
     const binanceMap = prices.BINANCE;
     const fallback = binanceMap.get(raw) ?? binanceMap.get(raw + "USDT");

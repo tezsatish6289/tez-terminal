@@ -128,7 +128,8 @@ export async function executeTrade(
     const balance = await connector.getUsdtBalance(creds);
     const exchangeCapital = balance.total;
     if (exchangeCapital <= 0) {
-      return { success: false, error: `No USDT balance on ${exchange} (${creds.testnet ? "testnet" : "production"})`, warnings };
+      const currency = exchange === "DHAN" ? "INR" : "USDT";
+      return { success: false, error: `No ${currency} balance on ${exchange} (${creds.testnet ? "testnet" : "production"})`, warnings };
     }
 
     // 2. Set isolated margin

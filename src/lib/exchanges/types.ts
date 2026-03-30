@@ -8,9 +8,13 @@
 
 // ── Exchange Names ──────────────────────────────────────────────
 
-export type ExchangeName = "BYBIT" | "BINANCE" | "MEXC";
+export type ExchangeName = "BYBIT" | "BINANCE" | "MEXC" | "DHAN";
 
 export const SUPPORTED_EXCHANGES: ExchangeName[] = ["BYBIT", "BINANCE", "MEXC"];
+
+export const STOCK_EXCHANGES: ExchangeName[] = ["DHAN"];
+
+export const ALL_EXCHANGES: ExchangeName[] = [...SUPPORTED_EXCHANGES, ...STOCK_EXCHANGES];
 
 // ── Credentials ─────────────────────────────────────────────────
 

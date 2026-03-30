@@ -342,7 +342,7 @@ export async function GET(request: NextRequest) {
   try {
     // ── 1. Read cached prices ───────────────────────────────
     const priceDoc = await db.collection("config").doc("exchange_prices").get();
-    let allPrices: AllExchangePrices = { BINANCE: new Map(), BYBIT: new Map(), MEXC: new Map() };
+    let allPrices: AllExchangePrices = { BINANCE: new Map(), BYBIT: new Map(), MEXC: new Map(), DHAN: new Map() };
     if (priceDoc.exists) {
       allPrices = deserializePrices(priceDoc.data() as Record<string, Record<string, number>>);
     }

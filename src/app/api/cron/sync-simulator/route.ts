@@ -210,9 +210,17 @@ export async function GET(request: NextRequest) {
           }
 
           if (livePrice != null) {
-            const newTrailingSl = computeTrailingSl(t, livePrice);
-            const effectiveSl = newTrailingSl ?? t.stopLoss;
             const isBuy = t.side === "BUY";
+            const currentHwm = (t as any).highWatermark as number | null;
+            const updatedHwm = currentHwm == null
+              ? livePrice
+              : isBuy
+                ? Math.max(currentHwm, livePrice)
+                : Math.min(currentHwm, livePrice);
+
+            const tradeWithHwm = { ...t, highWatermark: updatedHwm };
+            const newTrailingSl = computeTrailingSl(tradeWithHwm, livePrice);
+            const effectiveSl = newTrailingSl ?? t.stopLoss;
 
             const trailingSlHit = isBuy
               ? livePrice <= effectiveSl && newTrailingSl != null
@@ -231,6 +239,7 @@ export async function GET(request: NextRequest) {
                 await db.collection("simulator_trades").doc(simDoc.id).update({
                   ...tslUpdate,
                   trailingSl: newTrailingSl,
+                  highWatermark: updatedHwm,
                   closeReason: "TRAILING_SL",
                 });
                 await db.collection("simulator_logs").add(exitResult.log);
@@ -241,6 +250,7 @@ export async function GET(request: NextRequest) {
               const updatePayload: Record<string, unknown> = {
                 currentPrice: livePrice,
                 unrealizedPnl: Math.round(unrealizedPnl * 100) / 100,
+                highWatermark: updatedHwm,
               };
               if (newTrailingSl !== t.trailingSl && newTrailingSl != null && t.trailingSl == null) {
                 updatePayload.trailingSl = newTrailingSl;

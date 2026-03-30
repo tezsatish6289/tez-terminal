@@ -17,9 +17,9 @@ export const SIM_CONFIG = {
   ALGO_HIST_SAMPLE_MIN: 5,
   BIAS_GAP_MIN: 10,
   EXCHANGE_FEE: 0.00055,         // Bybit standard taker fee (0.055%)
-  TP1_CLOSE_PCT: 0.50,
-  TP2_CLOSE_PCT: 0.25,
-  TP3_CLOSE_PCT: 0.25,
+  TP1_CLOSE_PCT: 0.20,
+  TP2_CLOSE_PCT: 0.0,
+  TP3_CLOSE_PCT: 0.0,
   // Incubated signal selection
   INCUBATED_SL_CONSUMED_MAX: 0.50,
   INCUBATED_TP1_CONSUMED_MAX: 0.65,
@@ -98,6 +98,7 @@ export interface SimTrade {
   slHit: boolean;
   realizedPnl: number;
   currentPrice: number | null;
+  highWatermark: number | null;
   unrealizedPnl: number;
   fees: number;
   confidenceScore: number;
@@ -302,22 +303,33 @@ export function computeTrailingSl(trade: SimTrade, currentPrice: number): number
 
   const tp1Progress = priceMovedInFavor / tp1Distance;
 
-  // Once price crosses 50% of entry→TP1, move SL to breakeven
-  if (tp1Progress >= 0.50) {
-    const currentTrailing = trade.trailingSl;
-    // Only move SL in the favorable direction, never back
-    if (currentTrailing == null) {
-      return trade.entryPrice;
-    }
-    // Keep the better of existing trailing SL and breakeven
-    if (isBuy) {
-      return Math.max(currentTrailing, trade.entryPrice);
-    } else {
-      return Math.min(currentTrailing, trade.entryPrice);
-    }
-  }
+  if (tp1Progress < 0.50) return trade.trailingSl;
 
-  return trade.trailingSl;
+  let idealSl: number;
+
+  if (isBuy) {
+    if (currentPrice >= trade.tp3 && trade.highWatermark != null && trade.highWatermark > trade.tp3) {
+      idealSl = trade.highWatermark - (trade.tp3 - trade.tp2);
+    } else if (currentPrice >= trade.tp3) {
+      idealSl = trade.tp2;
+    } else if (currentPrice >= trade.tp2) {
+      idealSl = trade.tp1;
+    } else {
+      idealSl = trade.entryPrice;
+    }
+    return trade.trailingSl != null ? Math.max(trade.trailingSl, idealSl) : idealSl;
+  } else {
+    if (currentPrice <= trade.tp3 && trade.highWatermark != null && trade.highWatermark < trade.tp3) {
+      idealSl = trade.highWatermark + (trade.tp2 - trade.tp3);
+    } else if (currentPrice <= trade.tp3) {
+      idealSl = trade.tp2;
+    } else if (currentPrice <= trade.tp2) {
+      idealSl = trade.tp1;
+    } else {
+      idealSl = trade.entryPrice;
+    }
+    return trade.trailingSl != null ? Math.min(trade.trailingSl, idealSl) : idealSl;
+  }
 }
 
 // ── Market Turn Detection ────────────────────────────────────
@@ -634,6 +646,7 @@ export function openTrade(params: {
     slHit: false,
     realizedPnl: 0,
     currentPrice: signal.price,
+    highWatermark: signal.price,
     unrealizedPnl: 0,
     fees: entryFee,
     confidenceScore: signal.confidenceScore,
@@ -711,7 +724,7 @@ export function processTradeExit(params: {
       break;
     case "TP3":
       if (trade.tp3Hit) return null;
-      closePct = trade.remainingPct; // close everything remaining
+      closePct = SIM_CONFIG.TP3_CLOSE_PCT;
       newTp3Hit = true;
       break;
     case "SL":
@@ -722,12 +735,14 @@ export function processTradeExit(params: {
       return null;
   }
 
+  if (closePct <= 0) return null;
+
   const closingSize = trade.positionSize * closePct;
   const pnl = closingSize * pricePnlPct * trade.leverage;
   const exitFee = closingSize * SIM_CONFIG.EXCHANGE_FEE;
   const netPnl = pnl - exitFee;
 
-  const newRemainingPct = exitType === "SL" || exitType === "TP3"
+  const newRemainingPct = exitType === "SL"
     ? 0
     : trade.remainingPct - closePct;
 
@@ -771,7 +786,7 @@ export function processTradeExit(params: {
   let streakOutcome: "WIN" | "BREAKEVEN" | "LOSS" | null = null;
 
   if (isClosed) {
-    const isWin = newTp2Hit || newTp3Hit;
+    const isWin = totalRealizedPnl > 0;
     const isLoss = totalRealizedPnl < 0;
 
     if (isWin) {

@@ -35,12 +35,16 @@ import {
 } from "@/components/ui/dialog";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import type { SimulatorState, SimTrade, SimLog, SimTradeEvent } from "@/lib/simulator";
+import { getSimStateDocId } from "@/lib/simulator";
 import type { LiveTrade } from "@/lib/trade-engine";
 import { ExchangeSettingsDialog, MultiExchangeStatusBadges, useExchangeConfig } from "@/components/exchange/ExchangeSettings";
 import { SimulatorParamsDialog } from "@/components/simulator/SimulatorParamsDialog";
 import { format, startOfDay, startOfWeek, startOfMonth, isAfter } from "date-fns";
 
-function formatUsd(val: number): string {
+function formatMoney(val: number, sym = "$"): string {
+  if (sym === "₹") {
+    return `₹${val.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
   return `$${val.toFixed(2)}`;
 }
 
@@ -73,13 +77,15 @@ export default function SimulationPage() {
   const firestore = useFirestore();
   const router = useRouter();
   const [mode, setMode] = useState<"internal" | "bybit">("internal");
+  const [assetType, setAssetType] = useState<"CRYPTO" | "INDIAN_STOCKS">("CRYPTO");
   const [tab, setTab] = useState<"overview" | "trades" | "logs">("overview");
   const [selectedTrade, setSelectedTrade] = useState<SimTrade | null>(null);
+  const cs = assetType === "INDIAN_STOCKS" ? "₹" : "$";
 
   const stateRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return doc(firestore, "config", "simulator_state");
-  }, [firestore, user]);
+    return doc(firestore, "config", getSimStateDocId(assetType));
+  }, [firestore, user, assetType]);
   const { data: stateData, isLoading: stateLoading } = useDoc(stateRef);
   const simState = stateData as SimulatorState | null;
 
@@ -105,8 +111,10 @@ export default function SimulationPage() {
 
   const trades = useMemo(() => {
     if (!rawTrades) return [];
-    return rawTrades.map((d: any) => ({ id: d.id, ...d } as SimTrade));
-  }, [rawTrades]);
+    return rawTrades
+      .map((d: any) => ({ id: d.id, ...d } as SimTrade))
+      .filter((t) => (t.assetType || "CRYPTO") === assetType);
+  }, [rawTrades, assetType]);
 
   const logs = useMemo(() => {
     if (!rawLogs) return [];
@@ -144,7 +152,7 @@ export default function SimulationPage() {
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           <div className="max-w-[1400px] mx-auto space-y-4">
-            {/* Header */}
+            {/* Header + Global Asset Filter */}
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-1">
@@ -154,6 +162,38 @@ export default function SimulationPage() {
                 <h1 className="text-xl font-black tracking-tight">Trade Simulator</h1>
               </div>
               <SimulatorParamsDialog />
+            </div>
+
+            {/* Global asset type filter */}
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-0 rounded-xl border border-white/[0.08] bg-white/[0.02] p-1 w-fit">
+                {([
+                  { key: "CRYPTO" as const, label: "Crypto", icon: "₿", fund: "$1,000 USDT" },
+                  { key: "INDIAN_STOCKS" as const, label: "Indian Stocks", icon: "₹", fund: "₹1,00,000 INR" },
+                ]).map(({ key, label, icon, fund }) => (
+                  <button
+                    key={key}
+                    onClick={() => { setAssetType(key); setTab("overview"); }}
+                    className={cn(
+                      "relative flex items-center gap-2 px-5 lg:px-6 py-2 lg:py-2.5 rounded-lg text-xs lg:text-sm font-black uppercase tracking-wider transition-all",
+                      assetType === key
+                        ? "bg-accent text-black shadow-lg shadow-accent/25"
+                        : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
+                    )}
+                  >
+                    <span className="text-sm lg:text-base">{icon}</span>
+                    <span className="flex flex-col items-start leading-tight">
+                      <span>{label}</span>
+                      <span className={cn("text-[9px] font-bold tracking-normal normal-case", assetType === key ? "text-black/60" : "text-muted-foreground/40")}>{fund}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground/50 max-w-xs">
+                {assetType === "INDIAN_STOCKS"
+                  ? "Virtual ₹1,00,000 INR — trades Indian stocks based on AI signals. No real money."
+                  : "Virtual $1,000 USDT — trades automatically based on AI signals. No real money."}
+              </p>
             </div>
 
             {/* Mode Selector: Internal vs Bybit */}
@@ -185,12 +225,9 @@ export default function SimulationPage() {
             </div>
 
             {mode === "bybit" ? (
-              <BybitSimulationTab uid={user?.uid} />
+              <BybitSimulationTab uid={user?.uid} assetType={assetType} />
             ) : (
             <>
-            <p className="text-[11px] text-muted-foreground/50">
-              Virtual $1,000 USDT — trades automatically based on AI signals and market bias. No real money.
-            </p>
 
             {isLoading ? (
               <div className="flex items-center justify-center h-40">
@@ -224,7 +261,7 @@ export default function SimulationPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                   <StatCard
                     label="Capital"
-                    value={formatUsd(simState.capital)}
+                    value={formatMoney(simState.capital, cs)}
                     icon={<DollarSign className="w-3.5 h-3.5" />}
                     color={simState.capital >= simState.startingCapital ? "text-positive" : "text-negative"}
                   />
@@ -248,7 +285,7 @@ export default function SimulationPage() {
                   />
                   <StatCard
                     label="Daily P&L"
-                    value={formatUsd(simState.dailyPnl)}
+                    value={formatMoney(simState.dailyPnl, cs)}
                     icon={simState.dailyPnl >= 0 ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
                     color={simState.dailyPnl >= 0 ? "text-positive" : "text-negative"}
                   />
@@ -261,7 +298,7 @@ export default function SimulationPage() {
                 </div>
 
                 {/* Equity Curve */}
-                <EquityCurve trades={closedTrades} startingCapital={simState.startingCapital} />
+                <EquityCurve trades={closedTrades} startingCapital={simState.startingCapital} cs={cs} />
 
                 {/* Streak scaling indicator */}
                 {(simState.consecutiveWins ?? 0) >= 2 && (
@@ -293,11 +330,11 @@ export default function SimulationPage() {
 
                 {/* Tab Content */}
                 {tab === "overview" && (
-                  <TradeList trades={openTrades} emptyIcon={<Activity className="w-6 h-6" />} emptyLabel="No open trades" onSelectTrade={setSelectedTrade} />
+                  <TradeList trades={openTrades} emptyIcon={<Activity className="w-6 h-6" />} emptyLabel="No open trades" onSelectTrade={setSelectedTrade} cs={cs} />
                 )}
 
                 {tab === "trades" && (
-                  <TradeList trades={closedTrades} emptyIcon={<BarChart3 className="w-6 h-6" />} emptyLabel="No closed trades yet" onSelectTrade={setSelectedTrade} />
+                  <TradeList trades={closedTrades} emptyIcon={<BarChart3 className="w-6 h-6" />} emptyLabel="No closed trades yet" onSelectTrade={setSelectedTrade} cs={cs} />
                 )}
 
                 {tab === "logs" && (
@@ -309,7 +346,7 @@ export default function SimulationPage() {
                       </div>
                     ) : (
                       logs.map((log, i) => (
-                        <LogRow key={i} log={log} />
+                        <LogRow key={i} log={log} cs={cs} />
                       ))
                     )}
                   </div>
@@ -323,7 +360,7 @@ export default function SimulationPage() {
       </main>
 
       {/* Trade Narration Dialog */}
-      <TradeNarrationDialog trade={selectedTrade} onClose={() => setSelectedTrade(null)} />
+      <TradeNarrationDialog trade={selectedTrade} onClose={() => setSelectedTrade(null)} cs={cs} />
     </div>
   );
 }
@@ -332,7 +369,7 @@ export default function SimulationPage() {
 
 type Period = "all" | "today" | "week" | "month" | "custom";
 
-function EquityCurve({ trades, startingCapital }: { trades: SimTrade[]; startingCapital: number }) {
+function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; startingCapital: number; cs: string }) {
   const [period, setPeriod] = useState<Period>("all");
 
   const filteredTrades = useMemo(() => {
@@ -453,9 +490,9 @@ function EquityCurve({ trades, startingCapital }: { trades: SimTrade[]; starting
           </span>
         </div>
         <div className="ml-auto">
-          <span className="font-mono font-bold text-foreground/70">{formatUsd(stats.startVal)}</span>
+          <span className="font-mono font-bold text-foreground/70">{formatMoney(stats.startVal, cs)}</span>
           <span className="text-muted-foreground/30 mx-1.5">→</span>
-          <span className={cn("font-mono font-bold", isPositive ? "text-emerald-400" : "text-rose-400")}>{formatUsd(stats.endVal)}</span>
+          <span className={cn("font-mono font-bold", isPositive ? "text-emerald-400" : "text-rose-400")}>{formatMoney(stats.endVal, cs)}</span>
         </div>
       </div>
 
@@ -528,7 +565,7 @@ function EquityCurve({ trades, startingCapital }: { trades: SimTrade[]; starting
 
 // ── Bybit Testnet Simulation Tab ──────────────────────────
 
-function BybitSimulationTab({ uid }: { uid: string | undefined }) {
+function BybitSimulationTab({ uid, assetType }: { uid: string | undefined; assetType: "CRYPTO" | "INDIAN_STOCKS" }) {
   const firestore = useFirestore();
   const bybit = useExchangeConfig(uid, "BYBIT");
   const binance = useExchangeConfig(uid, "BINANCE");
@@ -553,9 +590,10 @@ function BybitSimulationTab({ uid }: { uid: string | undefined }) {
     return rawLiveTrades
       .map((d: any) => ({ id: d.id, ...d } as LiveTrade))
       .filter((t) => t.testnet === true)
+      .filter((t) => (t.assetType || "CRYPTO") === assetType)
       .sort((a, b) => (b.openedAt || "").localeCompare(a.openedAt || ""))
       .slice(0, 100);
-  }, [rawLiveTrades]);
+  }, [rawLiveTrades, assetType]);
 
   const openTrades = useMemo(() => liveTrades.filter((t) => t.status === "OPEN"), [liveTrades]);
   const closedTrades = useMemo(() => liveTrades.filter((t) => t.status === "CLOSED"), [liveTrades]);

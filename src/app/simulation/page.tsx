@@ -558,6 +558,9 @@ function getCloseDisplay(reason: string | null) {
 
 function getSlDisplay(trade: SimTrade) {
   if (trade.trailingSl != null) {
+    const isBuy = trade.side === "BUY";
+    const pastTp3 = trade.tp3 != null && (isBuy ? trade.trailingSl > trade.tp3 : trade.trailingSl < trade.tp3);
+    if (pastTp3) return { price: trade.trailingSl, label: "Trailing" };
     if (trade.tp3Hit) return { price: trade.trailingSl, label: "Moved to TP2" };
     if (trade.tp2Hit) return { price: trade.trailingSl, label: "Moved to TP1" };
     if (trade.tp1Hit) return { price: trade.trailingSl, label: "Moved to Entry" };

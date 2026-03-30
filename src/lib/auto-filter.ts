@@ -214,9 +214,10 @@ export function computeMarketRegime(
 const CHOP_LOOKBACK_CANDLES = 9;
 const CHOP_THRESHOLD = 0.4;
 const CHOP_MIN_EVENTS = 3;
-const CHOP_SL_POINTS = 3;
-const CHOP_TRAILING_SL_POINTS = 4;
+const CHOP_SL_POINTS = 2;
+const CHOP_TRAILING_SL_POINTS = 1;
 const CHOP_TP_POINTS = 1;
+const CHOP_TP3_POINTS = 2;
 
 export interface ChopFilterEntry {
   bullishKills: number;
@@ -243,10 +244,10 @@ interface ChopSignal {
  * Compute choppiness per timeframe using opposite-side "kill points".
  *
  * Scoring:
- *   Bear SL hit (original)  → +3 bullish kills
- *   Bear trailing SL hit    → +4 bullish kills
- *   Bull TP1/TP2/TP3 hit    → +1 bullish kills each
- *   (vice versa for bearish kills)
+ *   Original SL hit   → +2 opposite-side kills
+ *   Trailing SL hit   → +1 opposite-side kills
+ *   TP1/TP2 hit       → +1 same-side kills each
+ *   TP3 hit           → +2 same-side kills (full runner)
  *
  * Ratio = min(bull, bear) / max(bull, bear)
  *   near 0 → one-sided → trending → safe
@@ -306,8 +307,8 @@ export function computeChopFilter(
       if (s.tp3HitAt) {
         const t = new Date(s.tp3HitAt).getTime();
         if (t >= cutoff) {
-          if (isBuy) bullishKills += CHOP_TP_POINTS;
-          else bearishKills += CHOP_TP_POINTS;
+          if (isBuy) bullishKills += CHOP_TP3_POINTS;
+          else bearishKills += CHOP_TP3_POINTS;
           totalEvents++;
         }
       }

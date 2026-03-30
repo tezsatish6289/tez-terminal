@@ -85,6 +85,9 @@ export async function GET(request: NextRequest) {
     // Compute scores for market turn / score degradation checks
     const allSignalsForScoring = postUpdateDocs.map(mapFirestoreSignal);
     const scores = computeAutoFilter(allSignalsForScoring);
+    // Separate scoring pass that includes TP-hit signals — used for managing
+    // open simulator trades whose underlying signals have already partially resolved.
+    const scoresForOpenTrades = computeAutoFilter(allSignalsForScoring, { includeResolved: true });
 
     // ── Helper: load/save sim state per asset type ─────────
     const simStates = new Map<string, SimulatorState>();
@@ -247,7 +250,7 @@ export async function GET(request: NextRequest) {
               }
             } else {
               const unrealizedPnl = computeUnrealizedPnl(t, livePrice);
-              const liveScore = scores.get(t.signalId)?.score ?? null;
+              const liveScore = scoresForOpenTrades.get(t.signalId)?.score ?? null;
               const updatePayload: Record<string, unknown> = {
                 currentPrice: livePrice,
                 unrealizedPnl: Math.round(unrealizedPnl * 100) / 100,
@@ -346,7 +349,7 @@ export async function GET(request: NextRequest) {
 
         for (const trade of openSimTradesMT) {
           if (trade.status === "CLOSED") continue;
-          const signalScore = scores.get(trade.signalId);
+          const signalScore = scoresForOpenTrades.get(trade.signalId);
           const liveScore = signalScore?.score;
 
           if (liveScore != null && liveScore < SIM_CONFIG.SCORE_FLOOR) {

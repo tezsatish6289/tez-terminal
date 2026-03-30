@@ -676,19 +676,24 @@ function getConfidenceLabel(score: number): { label: string; color: string } {
 
 export function computeAutoFilter(
   allSignals: SignalForScoring[],
+  options?: { includeResolved?: boolean },
 ): Map<string, ScoredSignal> {
   const algoStats = computeAlgoTfStats(allSignals);
   const scores = new Map<string, ScoredSignal>();
 
-  // Score only active, unresolved signals
-  const candidates = allSignals.filter(
-    (s) =>
-      s.status !== "INACTIVE" &&
-      !s.tp1Hit &&
-      !s.tp2Hit &&
-      !s.tp3Hit &&
-      !s.slHitAt,
-  );
+  // By default score only unresolved signals (no TP/SL hit).
+  // Pass includeResolved:true to also score partially/fully resolved signals
+  // (used for open trade management where we need scores even after TP hits).
+  const candidates = options?.includeResolved
+    ? allSignals.filter((s) => s.status !== "INACTIVE")
+    : allSignals.filter(
+        (s) =>
+          s.status !== "INACTIVE" &&
+          !s.tp1Hit &&
+          !s.tp2Hit &&
+          !s.tp3Hit &&
+          !s.slHitAt,
+      );
 
   for (const signal of candidates) {
     const breakdown: ScoreBreakdown = {

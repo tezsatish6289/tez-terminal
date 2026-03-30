@@ -108,8 +108,6 @@ export async function GET(request: NextRequest) {
     for (const signalDoc of signalsSnap.docs) {
       const signal = signalDoc.data();
       if (signal.status !== "ACTIVE") continue;
-      if (signal.autoFilterPassed === false) continue;
-
       const rawSymbol = (signal.symbol || "").split(':').pop() || "";
       const signalExchange = signal.exchange ?? "BINANCE";
       const currentPrice = getReferencePrice(allPrices, rawSymbol, signalExchange);
@@ -140,8 +138,6 @@ export async function GET(request: NextRequest) {
         lastSyncAt: new Date().toISOString()
       };
 
-      const aiApproved = signal.autoFilterPassed === true;
-
       const tp1 = signal.tp1 != null ? Number(signal.tp1) : null;
       const tp2 = signal.tp2 != null ? Number(signal.tp2) : null;
       const tp3 = signal.tp3 != null ? Number(signal.tp3) : (tp1 != null && tp2 != null ? deriveTp3(tp1, tp2) : null);
@@ -161,7 +157,7 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      if (aiApproved && tpsValid && tpDistanceSane && tp1 != null && tp2 != null && tp3 != null) {
+      if (tpsValid && tpDistanceSane && tp1 != null && tp2 != null && tp3 != null) {
         const tp1AlreadyHit = signal.tp1Hit === true;
         const tp2AlreadyHit = signal.tp2Hit === true;
         const tp3AlreadyHit = signal.tp3Hit === true;
@@ -268,7 +264,7 @@ export async function GET(request: NextRequest) {
             }
           }
         }
-      } else if (aiApproved) {
+      } else {
         if (stopLoss > 0) {
           const hitSL = isBuy ? currentPrice <= stopLoss : currentPrice >= stopLoss;
           if (hitSL) {
@@ -376,31 +372,22 @@ export async function GET(request: NextRequest) {
           ? regimeEntry.adjustedThreshold
           : baseThreshold;
 
-        if (signal.autoFilterPassed === null || signal.autoFilterPassed === undefined) {
-          if (isSignalStale(signal.receivedAt, signal.timeframe || "15")) {
-            scoreData.autoFilterPassed = false;
-            scoreData.confidenceScore = 0;
-            scoreData.confidenceLabel = "Stale";
-            scoreData.scoredAtThreshold = threshold;
-          } else if (scoreResult) {
-            scoreData.autoFilterPassed = scoreResult.score >= threshold;
-            scoreData.confidenceScore = scoreResult.score;
-            scoreData.confidenceLabel = scoreResult.label;
-            scoreData.scoreBreakdown = scoreResult.breakdown;
-            scoreData.scoredAtThreshold = threshold;
-            scoreData.initialConfidenceScore = scoreResult.score;
-            scoreData.maxConfidenceScore = scoreResult.score;
-            scoreData.minConfidenceScore = scoreResult.score;
-          }
-        } else if (signal.autoFilterPassed === true && scoreResult) {
+        if (scoreResult) {
           scoreData.confidenceScore = scoreResult.score;
           scoreData.confidenceLabel = scoreResult.label;
           scoreData.scoreBreakdown = scoreResult.breakdown;
           scoreData.scoredAtThreshold = threshold;
+          if (signal.initialConfidenceScore == null) {
+            scoreData.initialConfidenceScore = scoreResult.score;
+          }
           const existingMax = signal.maxConfidenceScore ?? scoreResult.score;
           const existingMin = signal.minConfidenceScore ?? scoreResult.score;
           scoreData.maxConfidenceScore = Math.max(existingMax, scoreResult.score);
           scoreData.minConfidenceScore = Math.min(existingMin, scoreResult.score);
+        } else if (isSignalStale(signal.receivedAt, signal.timeframe || "15")) {
+          scoreData.confidenceScore = 0;
+          scoreData.confidenceLabel = "Stale";
+          scoreData.scoredAtThreshold = threshold;
         }
 
         if (Object.keys(scoreData).length > 1) {
@@ -434,7 +421,6 @@ export async function GET(request: NextRequest) {
         for (const [tf, weight] of Object.entries(TF_WEIGHTS)) {
           const tfSignals = postUpdateDocs.filter(
             (d) =>
-              d.autoFilterPassed === true &&
               d.status === "ACTIVE" &&
               !d.tp1Hit && !d.tp2Hit && !d.tp3Hit && !d.slHitAt &&
               String(d.timeframe) === tf &&
@@ -458,7 +444,7 @@ export async function GET(request: NextRequest) {
           totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0;
         biasData[side === "BUY" ? "bullCount" : "bearCount"] =
           postUpdateDocs.filter(
-            (d) => d.autoFilterPassed === true && d.status === "ACTIVE" &&
+            (d) => d.status === "ACTIVE" &&
               !d.tp1Hit && !d.tp2Hit && !d.tp3Hit && !d.slHitAt && d.type === side,
           ).length;
       }

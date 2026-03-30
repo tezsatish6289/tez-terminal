@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
       tp3BookedPnl: null,
       slBookedPnl: null,
       totalBookedPnl: null,
-      autoFilterPassed: null,
+      autoFilterPassed: true,
       confidenceScore: null,
       confidenceLabel: null,
       scoreBreakdown: null,
@@ -300,10 +300,9 @@ export async function POST(request: NextRequest) {
           const thisScore = scores.get(docRef.id);
 
           if (thisScore) {
-            const passed = thisScore.score >= threshold;
             scoreUpdate = {
               ...scoreUpdate,
-              autoFilterPassed: passed,
+              autoFilterPassed: true,
               confidenceScore: thisScore.score,
               confidenceLabel: thisScore.label,
               scoreBreakdown: thisScore.breakdown,
@@ -320,27 +319,23 @@ export async function POST(request: NextRequest) {
 
         await db.collection("signals").doc(docRef.id).update(scoreUpdate);
 
-        if (scoreUpdate.autoFilterPassed === true) {
-          await db.collection("signal_events").add({
-            type: "NEW_SIGNAL",
-            signalId: docRef.id,
-            symbol,
-            side: signalType as "BUY" | "SELL",
-            timeframe,
-            assetType,
-            entryPrice: price,
-            price,
-            stopLoss,
-            tp1: finalTp1, tp2: finalTp2, tp3: finalTp3,
-            guidance: "New signal received.",
-            createdAt: timestamp,
-            notified: false,
-            notifiedAt: null,
-          });
-          processingResult = `Signal scored & passed AI filter (score=${scoreUpdate.confidenceScore}) — trade evaluation deferred to simulator cron`;
-        } else {
-          processingResult = `Signal scored: AI filter not passed (score=${scoreUpdate.confidenceScore ?? "?"} threshold=${scoreUpdate.scoredAtThreshold ?? "?"})`;
-        }
+        await db.collection("signal_events").add({
+          type: "NEW_SIGNAL",
+          signalId: docRef.id,
+          symbol,
+          side: signalType as "BUY" | "SELL",
+          timeframe,
+          assetType,
+          entryPrice: price,
+          price,
+          stopLoss,
+          tp1: finalTp1, tp2: finalTp2, tp3: finalTp3,
+          guidance: "New signal received.",
+          createdAt: timestamp,
+          notified: false,
+          notifiedAt: null,
+        });
+        processingResult = `Signal scored (score=${scoreUpdate.confidenceScore}) — trade evaluation deferred to simulator cron`;
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         console.error("[Webhook] Processing pipeline failed:", errMsg);

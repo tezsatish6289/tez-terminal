@@ -758,10 +758,10 @@ export default function SignalsPage() {
   const aiPassedIds = useMemo(() => {
     const ids = new Set<string>();
     processedSignals.forEach((s) => {
-      if (assetType !== "CRYPTO" || s.autoFilterPassed === true) ids.add(s.id);
+      ids.add(s.id);
     });
     return ids;
-  }, [processedSignals, assetType]);
+  }, [processedSignals]);
 
   const allEvents: StatusEvent[] = useMemo(() => {
     if (!rawEvents) return [];
@@ -794,11 +794,10 @@ export default function SignalsPage() {
           !s.tp1Hit &&
           !s.tp2Hit &&
           !s.tp3Hit &&
-          !s.slHitAt &&
-          (assetType !== "CRYPTO" || s.autoFilterPassed === true),
+          !s.slHitAt,
       )
       .sort((a, b) => (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0));
-  }, [filteredSignals, assetType]);
+  }, [filteredSignals]);
 
   const bullSignals = useMemo(() => aiPassedActive.filter((s) => s.type === "BUY"), [aiPassedActive]);
   const bearSignals = useMemo(() => aiPassedActive.filter((s) => s.type === "SELL"), [aiPassedActive]);
@@ -811,10 +810,10 @@ export default function SignalsPage() {
 
   const topWinners = useMemo(() => {
     return processedSignals
-      .filter((s) => (assetType !== "CRYPTO" || s.autoFilterPassed === true) && s.pnl > 0.05)
+      .filter((s) => s.pnl > 0.05)
       .sort((a, b) => b.leveragedPnl - a.leveragedPnl)
       .slice(0, 20);
-  }, [processedSignals, assetType]);
+  }, [processedSignals]);
 
 
   if (isUserLoading) {

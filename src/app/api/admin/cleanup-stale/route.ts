@@ -22,35 +22,24 @@ export async function GET(request: NextRequest) {
       .where("status", "==", "ACTIVE")
       .get();
 
-    const breakdown = { passed: 0, failed: 0, unscored: 0, total: 0 };
     const signals = allActive.docs.map((d) => {
       const s = d.data();
-      const state =
-        s.autoFilterPassed === true
-          ? "passed"
-          : s.autoFilterPassed === false
-            ? "failed"
-            : "unscored";
-      breakdown[state]++;
-      breakdown.total++;
       return {
         id: d.id,
         symbol: s.symbol,
         type: s.type,
         timeframe: s.timeframe,
         receivedAt: s.receivedAt,
-        autoFilterPassed: s.autoFilterPassed ?? null,
         confidenceScore: s.confidenceScore ?? null,
         confidenceLabel: s.confidenceLabel ?? null,
         tp1Hit: s.tp1Hit ?? false,
         tp2Hit: s.tp2Hit ?? false,
         tp3Hit: s.tp3Hit ?? false,
         slHitAt: s.slHitAt ?? null,
-        state,
       };
     });
 
-    return NextResponse.json({ breakdown, signals });
+    return NextResponse.json({ total: signals.length, signals });
   }
 
   // Cleanup mode: delete non-AI-passed signals (failed + unscored)

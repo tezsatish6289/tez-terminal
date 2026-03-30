@@ -116,7 +116,6 @@ export function computeMarketRegime(
       // ── Active win rate (real-time market state) ──
       const active = signals.filter(
         (s) =>
-          s.autoFilterPassed === true &&
           s.status === "ACTIVE" &&
           !s.tp1Hit &&
           !s.slHitAt &&
@@ -144,7 +143,6 @@ export function computeMarketRegime(
 
       const recentSlCount = signals.filter(
         (s) =>
-          s.autoFilterPassed === true &&
           s.status === "INACTIVE" &&
           s.slHitAt != null &&
           !s.tp1Hit &&
@@ -158,7 +156,6 @@ export function computeMarketRegime(
 
       const oppOriginalSlCount = signals.filter(
         (s) =>
-          s.autoFilterPassed === true &&
           s.status === "INACTIVE" &&
           s.slHitAt != null &&
           !s.tp1Hit &&
@@ -169,7 +166,6 @@ export function computeMarketRegime(
 
       const oppTrailingSlCount = signals.filter(
         (s) =>
-          s.autoFilterPassed === true &&
           s.status === "INACTIVE" &&
           s.slHitAt != null &&
           s.tp1Hit === true &&

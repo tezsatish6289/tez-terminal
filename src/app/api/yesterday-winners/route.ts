@@ -32,7 +32,6 @@ export async function GET() {
 
     const yesterdayRetired = allDocs.filter((s: any) => {
       if (s.status !== "INACTIVE") return false;
-      if (s.autoFilterPassed !== true) return false;
       if (!s.receivedAt) return false;
       const t = new Date(s.receivedAt).getTime();
       return t >= yesterdayUTC.getTime() && t < todayUTC.getTime();

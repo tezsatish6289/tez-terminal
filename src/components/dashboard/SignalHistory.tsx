@@ -140,7 +140,6 @@ export function SignalHistory({ initialTimeframeTab, initialPerformanceFilter, i
   const filteredSignals = useMemo(() => {
     if (!rawSignals) return [];
     return rawSignals.filter(signal => {
-      if (signal.autoFilterPassed !== true) return false;
       if (signal.status === "INACTIVE") return false;
       if (getDisplayAssetType(signal) !== "CRYPTO") return false;
 

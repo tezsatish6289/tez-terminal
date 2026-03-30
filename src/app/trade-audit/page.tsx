@@ -47,6 +47,16 @@ import {
 
 const PAGE_SIZE = 25;
 
+function getDisplayAssetType(signal: { assetType?: string }) {
+  if (signal.assetType && signal.assetType !== "UNCLASSIFIED")
+    return signal.assetType;
+  return "CRYPTO";
+}
+
+function getCurrencySymbol(assetType: string) {
+  return assetType === "INDIAN_STOCKS" ? "₹" : "$";
+}
+
 const tfLabelMap: Record<string, string> = { "5": "5m", "15": "15m", "60": "1h", "240": "4h", "D": "1D" };
 const TIMEFRAMES = [
   { id: "5", name: "Scalping" },
@@ -551,6 +561,7 @@ function TradeAuditContent() {
   const searchParams = useSearchParams();
   const initialTf = searchParams.get("timeframe") || "all";
 
+  const [assetType, setAssetType] = useState<"CRYPTO" | "INDIAN_STOCKS">("CRYPTO");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "retired">("all");
   const [sideFilter, setSideFilter] = useState<"all" | "BUY" | "SELL">("all");
   const [tfFilter, setTfFilter] = useState(initialTf);
@@ -614,7 +625,7 @@ function TradeAuditContent() {
   const filtered = useMemo(() => {
     if (!allSignals) return [];
     return allSignals.filter((s: any) => {
-      if (s.autoFilterPassed !== true) return false;
+      if (getDisplayAssetType(s) !== assetType) return false;
       if (statusFilter === "active" && s.status === "INACTIVE") return false;
       if (statusFilter === "retired" && s.status !== "INACTIVE") return false;
       if (sideFilter !== "all" && s.type !== sideFilter) return false;
@@ -630,14 +641,14 @@ function TradeAuditContent() {
       }
       return true;
     });
-  }, [allSignals, statusFilter, sideFilter, tfFilter, algoFilter, outcomeFilter, dateCutoff, dateEnd]);
+  }, [allSignals, assetType, statusFilter, sideFilter, tfFilter, algoFilter, outcomeFilter, dateCutoff, dateEnd]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageSignals = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const summaryStats = useMemo(() => {
     const total = filtered.length;
-    const pnls = filtered.map((s: any) => effectivePnl(s) * getLeverage(s.timeframe));
+    const pnls = filtered.map((s: any) => effectivePnl(s) * getLeverage(s.timeframe, getDisplayAssetType(s)));
     const wins = pnls.filter(p => p >= 0).length;
     const netPnl = pnls.reduce((a, b) => a + b, 0);
     const profitPnls = pnls.filter(p => p > 0);
@@ -647,10 +658,10 @@ function TradeAuditContent() {
 
     const upsideValues = filtered
       .filter((s: any) => s.maxUpsidePrice != null)
-      .map((s: any) => calculatePercent(s.maxUpsidePrice, s.price, s.type) * getLeverage(s.timeframe));
+      .map((s: any) => calculatePercent(s.maxUpsidePrice, s.price, s.type) * getLeverage(s.timeframe, getDisplayAssetType(s)));
     const downsideValues = filtered
       .filter((s: any) => s.maxDrawdownPrice != null)
-      .map((s: any) => calculatePercent(s.maxDrawdownPrice, s.price, s.type) * getLeverage(s.timeframe));
+      .map((s: any) => calculatePercent(s.maxDrawdownPrice, s.price, s.type) * getLeverage(s.timeframe, getDisplayAssetType(s)));
 
     const maxProfit = upsideValues.length > 0 ? Math.max(...upsideValues) : 0;
     const maxLoss = downsideValues.length > 0 ? Math.min(...downsideValues) : 0;
@@ -697,6 +708,27 @@ function TradeAuditContent() {
             Individual signal details with full execution history.
           </p>
         </header>
+
+        {/* Asset type toggle */}
+        <div className="flex items-center gap-2">
+          {([
+            { key: "CRYPTO" as const, label: "Crypto" },
+            { key: "INDIAN_STOCKS" as const, label: "Indian Stocks" },
+          ]).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => { setAssetType(key); setPage(0); }}
+              className={cn(
+                "px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all",
+                assetType === key
+                  ? "bg-accent text-black shadow-lg shadow-accent/20"
+                  : "bg-white/[0.04] text-muted-foreground border border-white/10 hover:text-foreground hover:bg-white/[0.06]",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-2 lg:gap-3 overflow-x-auto pb-1">
@@ -972,7 +1004,9 @@ function TradeAuditContent() {
             </div>
           ) : (
             pageSignals.map((signal: any) => {
-              const leverage = getLeverage(signal.timeframe);
+              const sigAt = getDisplayAssetType(signal);
+              const curr = getCurrencySymbol(sigAt);
+              const leverage = getLeverage(signal.timeframe, sigAt);
               const pnl = effectivePnl(signal) * leverage;
               const chartLabel = tfLabelMap[String(signal.timeframe).toUpperCase()] ?? `${signal.timeframe}m`;
               const isRetired = signal.status === "INACTIVE";
@@ -1019,12 +1053,12 @@ function TradeAuditContent() {
                       <div className="flex items-center gap-3 text-[11px]">
                         <div>
                           <span className="text-muted-foreground/40 mr-1.5">Entry</span>
-                          <span className="font-mono font-bold text-white/50">${formatPrice(signal.price)}</span>
+                          <span className="font-mono font-bold text-white/50">{curr}{formatPrice(signal.price)}</span>
                         </div>
                         <span className="text-white/10">→</span>
                         <div>
                           <span className="text-muted-foreground/40 mr-1.5">Current</span>
-                          <span className="font-mono font-bold text-white">${formatPrice(signal.currentPrice)}</span>
+                          <span className="font-mono font-bold text-white">{curr}{formatPrice(signal.currentPrice)}</span>
                         </div>
                       </div>
 
@@ -1108,7 +1142,9 @@ function TradeAuditContent() {
                       </TableRow>
                     ) : (
                       pageSignals.map((signal: any) => {
-                        const leverage = getLeverage(signal.timeframe);
+                        const sigAt = getDisplayAssetType(signal);
+                        const curr = getCurrencySymbol(sigAt);
+                        const leverage = getLeverage(signal.timeframe, sigAt);
                         const pnl = effectivePnl(signal) * leverage;
                         const maxUp = calculatePercent(signal.maxUpsidePrice, signal.price, signal.type) * leverage;
                         const maxDown = calculatePercent(signal.maxDrawdownPrice, signal.price, signal.type) * leverage;
@@ -1134,13 +1170,13 @@ function TradeAuditContent() {
                             <TableCell>
                               <Badge variant="outline" className="text-[9px] font-black h-5 px-1.5 border-accent/20 text-accent">{leverage}x</Badge>
                             </TableCell>
-                            <TableCell className="font-mono text-xs font-bold text-white/60">${formatPrice(signal.price)}</TableCell>
-                            <TableCell className="font-mono text-xs font-bold text-white">${formatPrice(signal.currentPrice)}</TableCell>
+                            <TableCell className="font-mono text-xs font-bold text-white/60">{curr}{formatPrice(signal.price)}</TableCell>
+                            <TableCell className="font-mono text-xs font-bold text-white">{curr}{formatPrice(signal.currentPrice)}</TableCell>
                             <TableCell>
                               {signal.stopLoss != null && signal.stopLoss > 0 ? (
                                 <div className="flex flex-col">
                                   <span className="font-mono text-xs font-bold text-white">
-                                    ${formatPrice(effectiveSLPhase === "tp1" ? signal.tp1 : effectiveSLPhase === "cost" ? signal.price : signal.stopLoss)}
+                                    {curr}{formatPrice(effectiveSLPhase === "tp1" ? signal.tp1 : effectiveSLPhase === "cost" ? signal.price : signal.stopLoss)}
                                   </span>
                                   <span className="text-[9px] text-muted-foreground/60">
                                     {effectiveSLPhase === "tp1" ? "Moved to TP1" : effectiveSLPhase === "cost" ? "Moved to Entry" : "Original"}

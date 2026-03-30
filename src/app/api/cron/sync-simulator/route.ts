@@ -385,7 +385,6 @@ export async function GET(request: NextRequest) {
 
       const candidates: IncubatedCandidate[] = postUpdateDocs
         .filter((d) =>
-          d.autoFilterPassed === true &&
           d.status === "ACTIVE" &&
           d.currentPrice != null &&
           d.price != null &&

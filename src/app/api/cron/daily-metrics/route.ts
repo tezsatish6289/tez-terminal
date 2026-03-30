@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
     const retired = signalsSnap.docs
       .filter((d) => {
         const s = d.data();
-        return s.status === "INACTIVE" && s.autoFilterPassed === true;
+        return s.status === "INACTIVE";
       })
       .map((d) => d.data());
 

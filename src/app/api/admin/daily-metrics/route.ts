@@ -18,7 +18,7 @@ export async function GET() {
     const algoSet = new Set<string>();
     signalsSnap.docs.forEach((d) => {
       const s = d.data();
-      if (s.status === "INACTIVE" && s.autoFilterPassed === true) {
+      if (s.status === "INACTIVE") {
         algoSet.add(s.algo || "V8 Reversal");
       }
     });

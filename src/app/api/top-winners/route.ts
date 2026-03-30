@@ -71,8 +71,7 @@ export async function GET() {
 
     const cryptoSignals = allDocs.filter(
       (s: any) =>
-        (s.assetType === "CRYPTO" || s.asset_type === "CRYPTO") &&
-        s.autoFilterPassed === true
+        (s.assetType === "CRYPTO" || s.asset_type === "CRYPTO")
     );
 
     // Stats: total crypto signals + days since platform start

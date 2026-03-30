@@ -84,7 +84,6 @@ export async function GET(request: NextRequest) {
 
     // --- Part 1: Send individual Top Pick details to matching users ---
     const topPickSnap = await db.collection("signals")
-      .where("autoFilterPassed", "==", true)
       .where("telegramNotified", "==", false)
       .get();
 

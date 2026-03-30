@@ -3,7 +3,7 @@
 import { TopBar } from "@/components/dashboard/TopBar";
 import { SignalHistory } from "@/components/dashboard/SignalHistory";
 import { useUser, useAuth, useCollection, useDoc, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, limit, where, getDocs, doc, setDoc } from "firebase/firestore";
+import { collection, query, orderBy, limit, getDocs, doc, setDoc } from "firebase/firestore";
 import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -120,7 +120,6 @@ export default function HistoryPage() {
     if (!firestore || !isAdmin) return null;
     return query(
       collection(firestore, "signals"),
-      where("autoFilterPassed", "==", false),
     );
   }, [firestore, isAdmin]);
 
@@ -128,7 +127,6 @@ export default function HistoryPage() {
     if (!firestore || !isAdmin) return null;
     return query(
       collection(firestore, "signals"),
-      where("autoFilterPassed", "==", true),
     );
   }, [firestore, isAdmin]);
 
@@ -250,7 +248,6 @@ export default function HistoryPage() {
       for (const signalDoc of snap.docs) {
         const signal = signalDoc.data();
         if (signal.status !== "ACTIVE") continue;
-        if (signal.autoFilterPassed === false) continue;
         const base = (signal.symbol || "").split(':').pop() || "";
         const sym = base.replace(/\.P$|\.PERP$/i, '').toUpperCase();
         if (priceMap[sym]) {

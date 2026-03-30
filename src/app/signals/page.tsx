@@ -758,10 +758,10 @@ export default function SignalsPage() {
   const aiPassedIds = useMemo(() => {
     const ids = new Set<string>();
     processedSignals.forEach((s) => {
-      if (s.autoFilterPassed === true) ids.add(s.id);
+      if (assetType !== "CRYPTO" || s.autoFilterPassed === true) ids.add(s.id);
     });
     return ids;
-  }, [processedSignals]);
+  }, [processedSignals, assetType]);
 
   const allEvents: StatusEvent[] = useMemo(() => {
     if (!rawEvents) return [];
@@ -795,10 +795,10 @@ export default function SignalsPage() {
           !s.tp2Hit &&
           !s.tp3Hit &&
           !s.slHitAt &&
-          s.autoFilterPassed === true,
+          (assetType !== "CRYPTO" || s.autoFilterPassed === true),
       )
       .sort((a, b) => (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0));
-  }, [filteredSignals]);
+  }, [filteredSignals, assetType]);
 
   const bullSignals = useMemo(() => aiPassedActive.filter((s) => s.type === "BUY"), [aiPassedActive]);
   const bearSignals = useMemo(() => aiPassedActive.filter((s) => s.type === "SELL"), [aiPassedActive]);
@@ -811,10 +811,10 @@ export default function SignalsPage() {
 
   const topWinners = useMemo(() => {
     return processedSignals
-      .filter((s) => s.autoFilterPassed === true && s.pnl > 0.05)
+      .filter((s) => (assetType !== "CRYPTO" || s.autoFilterPassed === true) && s.pnl > 0.05)
       .sort((a, b) => b.leveragedPnl - a.leveragedPnl)
       .slice(0, 20);
-  }, [processedSignals]);
+  }, [processedSignals, assetType]);
 
 
   if (isUserLoading) {
@@ -1110,8 +1110,8 @@ export default function SignalsPage() {
               </div>
             </div>
 
-            {/* Market Bias — compact bar */}
-            {(bullAggScore > 0 || bearAggScore > 0) && (
+            {/* Market Bias — compact bar (crypto only) */}
+            {assetType === "CRYPTO" && (bullAggScore > 0 || bearAggScore > 0) && (
               <div className="px-4 py-2 border-b border-white/[0.06] bg-white/[0.02]">
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1 shrink-0">

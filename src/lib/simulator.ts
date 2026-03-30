@@ -11,11 +11,7 @@ export const SIM_CONFIG = {
   STREAK_WINS_TO_SCALE: 2,      // 2 consecutive wins → +1 max trade
   CONFIDENCE_MIN: 45,
   CONFIDENCE_MIN_LOW_SAMPLE: 50,
-  LIVE_WIN_RATE_MIN: 0.65,
   LIVE_WIN_RATE_SAMPLE_MIN: 3,
-  ALGO_HIST_WIN_RATE_MIN: 0.60,
-  ALGO_HIST_SAMPLE_MIN: 5,
-  BIAS_GAP_MIN: 10,
   EXCHANGE_FEE: 0.00055,         // Bybit standard taker fee (0.055%)
   TP1_CLOSE_PCT: 0.20,
   TP2_CLOSE_PCT: 0.0,

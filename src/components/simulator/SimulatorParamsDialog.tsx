@@ -35,16 +35,7 @@ const PARAM_GROUPS: { title: string; params: ParamDef[] }[] = [
   {
     title: "Win Rate Gates",
     params: [
-      { key: "LIVE_WIN_RATE_MIN", label: "Min Live Win Rate", description: "Block trades if live win rate drops below this", min: 0.3, max: 0.9, step: 0.05, format: "pctDecimal" },
-      { key: "LIVE_WIN_RATE_SAMPLE_MIN", label: "Min Live Samples", description: "Win rate gate activates after this many closed trades", min: 1, max: 10, step: 1, format: "number" },
-      { key: "ALGO_HIST_WIN_RATE_MIN", label: "Min Algo Win Rate", description: "Block algo+timeframe if historical win rate is below this", min: 0.3, max: 0.9, step: 0.05, format: "pctDecimal" },
-      { key: "ALGO_HIST_SAMPLE_MIN", label: "Min Algo Samples", description: "Algo gate activates after this many closed trades", min: 1, max: 20, step: 1, format: "number" },
-    ],
-  },
-  {
-    title: "Market Bias",
-    params: [
-      { key: "BIAS_GAP_MIN", label: "Min Bias Gap", description: "Minimum bull-bear score difference to confirm market direction", min: 2, max: 30, step: 1, format: "number" },
+      { key: "LIVE_WIN_RATE_SAMPLE_MIN", label: "Min Live Samples", description: "High-confidence threshold applies until this many closed trades are recorded", min: 1, max: 10, step: 1, format: "number" },
     ],
   },
   {

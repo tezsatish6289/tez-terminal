@@ -44,3 +44,11 @@ env:
     secret: ENCRYPTION_KEY
     availability:
       - RUNTIME
+  - variable: DHAN_ACCESS_TOKEN
+    secret: DHAN_ACCESS_TOKEN
+    availability:
+      - RUNTIME
+  - variable: DHAN_CLIENT_ID
+    secret: DHAN_CLIENT_ID
+    availability:
+      - RUNTIME

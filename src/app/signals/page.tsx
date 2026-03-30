@@ -116,6 +116,7 @@ interface ProcessedSignal {
   receivedAt: string;
   status: string;
   algo: string;
+  assetType: string;
   tp1Hit: boolean;
   tp2Hit: boolean;
   tp3Hit: boolean;
@@ -176,6 +177,10 @@ function FilterChip({
   );
 }
 
+function getCurrencySymbol(assetType: string) {
+  return assetType === "INDIAN_STOCKS" ? "₹" : "$";
+}
+
 function OpportunityCard({
   signal,
   score,
@@ -186,6 +191,7 @@ function OpportunityCard({
   const isBuy = signal.type === "BUY";
   const isWinning = signal.pnl > 0.05;
   const isLosing = signal.pnl < -0.05;
+  const curr = getCurrencySymbol(signal.assetType);
 
   const tp3Pnl = useMemo(() => {
     if (signal.tp3 == null || !signal.price) return null;
@@ -299,7 +305,7 @@ function OpportunityCard({
       <div className="px-4 pb-2.5">
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] text-muted-foreground/50 font-mono">
-            ${formatPrice(signal.price)}
+            {curr}{formatPrice(signal.price)}
           </span>
           <span className="text-white/15">→</span>
           <span
@@ -312,7 +318,7 @@ function OpportunityCard({
                   : "text-muted-foreground/50"
             )}
           >
-            ${formatPrice(signal.currentPrice)}
+            {curr}{formatPrice(signal.currentPrice)}
           </span>
         </div>
       </div>
@@ -363,7 +369,7 @@ const EVENT_CONFIG: Record<
   },
 };
 
-function EventRow({ event }: { event: StatusEvent }) {
+function EventRow({ event, assetType }: { event: StatusEvent; assetType: string }) {
   const pnlValue = event.totalBookedPnl ?? event.bookedPnl;
   const isTrailingSL =
     event.type === "SL_HIT" && pnlValue != null && pnlValue > 0;
@@ -384,7 +390,7 @@ function EventRow({ event }: { event: StatusEvent }) {
   const Icon = config.icon;
   const isBuy = event.side === "BUY";
   const tfName = TIMEFRAME_NAMES[event.timeframe] ?? event.timeframe;
-  const leverage = getLeverage(event.timeframe);
+  const leverage = getLeverage(event.timeframe, assetType);
 
   return (
     <Link
@@ -566,6 +572,7 @@ export default function SignalsPage() {
 
   const FILTER_STORAGE_KEY = "tez-opp-filters";
 
+  const [assetType, setAssetType] = useState<"CRYPTO" | "INDIAN_STOCKS">("CRYPTO");
   const [filterTimeframe, setFilterTimeframe] = useState("all");
   const [filterSide, setFilterSide] = useState("all");
   const [filterPerf, setFilterPerf] = useState("all");
@@ -680,11 +687,12 @@ export default function SignalsPage() {
   const processedSignals: ProcessedSignal[] = useMemo(() => {
     if (!rawSignals) return [];
     return rawSignals
-      .filter((s: any) => getDisplayAssetType(s) === "CRYPTO")
+      .filter((s: any) => getDisplayAssetType(s) === assetType)
       .map((signal: any) => {
+        const displayAt = getDisplayAssetType(signal);
         const pnl = getEffectivePnl(signal);
         const tf = String(signal.timeframe || "15");
-        const leverage = getLeverage(tf);
+        const leverage = getLeverage(tf, displayAt);
         return {
           id: signal.id,
           symbol: signal.symbol || "???",
@@ -700,6 +708,7 @@ export default function SignalsPage() {
           receivedAt: signal.receivedAt,
           status: signal.status || "ACTIVE",
           algo: signal.algo || "V8 Reversal",
+          assetType: displayAt,
           tp1Hit: signal.tp1Hit ?? false,
           tp2Hit: signal.tp2Hit ?? false,
           tp3Hit: signal.tp3Hit ?? false,
@@ -720,7 +729,7 @@ export default function SignalsPage() {
           confidenceLabel: signal.confidenceLabel ?? null,
         };
       });
-  }, [rawSignals]);
+  }, [rawSignals, assetType]);
 
   const uniqueAlgos = useMemo(() => {
     const set = new Set<string>();
@@ -832,6 +841,32 @@ export default function SignalsPage() {
         <div className="lg:hidden flex items-center justify-center gap-2 px-4 py-2 bg-accent/10 border-b border-accent/20">
           <Sparkles className="w-3.5 h-3.5 text-accent" />
           <span className="text-[11px] font-bold text-accent/80">For the best experience, switch to desktop</span>
+        </div>
+
+        {/* Global asset type toggle */}
+        <div className="flex items-center gap-1 px-4 pt-4 pb-0">
+          <button
+            onClick={() => setAssetType("CRYPTO")}
+            className={cn(
+              "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer",
+              assetType === "CRYPTO"
+                ? "bg-accent/15 text-accent border border-accent/30"
+                : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/[0.04] border border-transparent"
+            )}
+          >
+            Crypto
+          </button>
+          <button
+            onClick={() => setAssetType("INDIAN_STOCKS")}
+            className={cn(
+              "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer",
+              assetType === "INDIAN_STOCKS"
+                ? "bg-accent/15 text-accent border border-accent/30"
+                : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/[0.04] border border-transparent"
+            )}
+          >
+            Indian Stocks
+          </button>
         </div>
 
         {/* Three-pane layout */}
@@ -1293,7 +1328,7 @@ export default function SignalsPage() {
                 </div>
               ) : (
                 allEvents.map((event) => (
-                  <EventRow key={event.id} event={event} />
+                  <EventRow key={event.id} event={event} assetType={assetType} />
                 ))
               )}
             </div>

@@ -4,13 +4,13 @@ import { getLeverage } from "./leverage";
 
 export const SIM_CONFIG = {
   STARTING_CAPITAL: 1000,
-  RISK_PER_TRADE_BASE: 0.005,   // 0.5% base risk (chop mode)
-  RISK_PER_TRADE_STREAK: 0.01,  // 1% risk when streak is active
-  MAX_OPEN_TRADES_BASE: 1,      // start with 1, scales with streak
-  MAX_OPEN_TRADES_CAP: 5,       // hard cap
+  RISK_PER_TRADE_BASE: 0.01,    // 1% base risk
+  RISK_PER_TRADE_STREAK: 0.015, // 1.5% risk when streak is active
+  MAX_OPEN_TRADES_BASE: 3,      // start with 3, scales with streak
+  MAX_OPEN_TRADES_CAP: 6,       // hard cap
   STREAK_WINS_TO_SCALE: 2,      // 2 consecutive wins → +1 max trade
-  CONFIDENCE_MIN: 55,
-  CONFIDENCE_MIN_LOW_SAMPLE: 60,
+  CONFIDENCE_MIN: 45,
+  CONFIDENCE_MIN_LOW_SAMPLE: 50,
   LIVE_WIN_RATE_MIN: 0.65,
   LIVE_WIN_RATE_SAMPLE_MIN: 3,
   ALGO_HIST_WIN_RATE_MIN: 0.60,
@@ -21,8 +21,8 @@ export const SIM_CONFIG = {
   TP2_CLOSE_PCT: 0.25,
   TP3_CLOSE_PCT: 0.25,
   // Incubated signal selection
-  INCUBATED_SL_CONSUMED_MAX: 0.40,
-  INCUBATED_TP1_CONSUMED_MAX: 0.50,
+  INCUBATED_SL_CONSUMED_MAX: 0.50,
+  INCUBATED_TP1_CONSUMED_MAX: 0.65,
   // Market turn detection (batch layer)
   TURN_LOOKBACK_TF_MULTIPLIER: 3,       // lookback window = timeframe × 3
   TURN_SAME_SIDE_SL_WARN: 0.30,         // 30% same-side SL → warning
@@ -193,13 +193,6 @@ export function selectIncubatedSignals(params: {
 
   if (!currentState.isActive) return { selected, skipped };
 
-  // Bias gate
-  const biasGap = bullScore - bearScore;
-  const isBullBias = biasGap > cfg.BIAS_GAP_MIN;
-  const isBearBias = biasGap < -cfg.BIAS_GAP_MIN;
-  if (!isBullBias && !isBearBias) return { selected, skipped };
-  const biasedSide = isBullBias ? "BUY" : "SELL";
-
   const maxTrades = currentState.currentMaxTrades ?? cfg.MAX_OPEN_TRADES_BASE;
   const currentOpen = openTrades.filter((t) => t.status === "OPEN");
   const openSymbols = new Set(currentOpen.map((t) => t.symbol));
@@ -219,12 +212,6 @@ export function selectIncubatedSignals(params: {
 
     // Already selected in this batch
     if (selected.some((s) => s.id === c.id)) continue;
-
-    // Side must match bias
-    if (c.type !== biasedSide) {
-      skipped.push({ symbol: c.symbol, reason: `Side ${c.type} != bias ${biasedSide}` });
-      continue;
-    }
 
     // No duplicate symbols
     if (openSymbols.has(c.symbol) || selected.some((s) => s.symbol === c.symbol)) {
@@ -279,27 +266,6 @@ export function selectIncubatedSignals(params: {
     if (c.confidenceScore < minConfidence) {
       skipped.push({ symbol: c.symbol, reason: `Score ${c.confidenceScore} < ${minConfidence}` });
       continue;
-    }
-
-    // Live win rate check
-    if (liveSampleSize >= cfg.LIVE_WIN_RATE_SAMPLE_MIN) {
-      if (liveWinRate != null && liveWinRate < cfg.LIVE_WIN_RATE_MIN) {
-        skipped.push({ symbol: c.symbol, reason: `Live WR ${(liveWinRate * 100).toFixed(0)}% < ${(cfg.LIVE_WIN_RATE_MIN * 100).toFixed(0)}% for ${c.type}|${c.timeframe}` });
-        continue;
-      }
-    }
-
-    // Algo historical win rate check
-    const algoKey = `${c.algo}|${c.timeframe}`;
-    const algoEntry = algoStats.get(algoKey);
-    const algoSampleSize = algoEntry?.sampleSize ?? 0;
-    const algoWinRate = algoEntry?.winRate ?? null;
-
-    if (algoSampleSize >= cfg.ALGO_HIST_SAMPLE_MIN) {
-      if (algoWinRate != null && algoWinRate < cfg.ALGO_HIST_WIN_RATE_MIN) {
-        skipped.push({ symbol: c.symbol, reason: `Algo WR ${(algoWinRate * 100).toFixed(0)}% < ${(cfg.ALGO_HIST_WIN_RATE_MIN * 100).toFixed(0)}% for ${c.algo}|${c.timeframe}` });
-        continue;
-      }
     }
 
     // SL / TP validation
@@ -547,21 +513,6 @@ export function evaluateTrade(params: {
   // Daily reset
   const currentState = checkDailyReset(state);
 
-  // Bias gate: must have clear directional bias
-  const biasGap = bullScore - bearScore;
-  const isBullBias = biasGap > cfg.BIAS_GAP_MIN;
-  const isBearBias = biasGap < -cfg.BIAS_GAP_MIN;
-
-  if (!isBullBias && !isBearBias) {
-    return { canTrade: false, reason: `No clear bias (bull=${bullScore} bear=${bearScore} gap=${Math.abs(biasGap)})` };
-  }
-
-  // Signal must match bias side
-  const biasedSide = isBullBias ? "BUY" : "SELL";
-  if (signal.type !== biasedSide) {
-    return { canTrade: false, reason: `Signal is ${signal.type} but bias favors ${biasedSide}` };
-  }
-
   // Confidence check
   const minConfidence = liveSampleSize < cfg.LIVE_WIN_RATE_SAMPLE_MIN
     ? cfg.CONFIDENCE_MIN_LOW_SAMPLE
@@ -569,20 +520,6 @@ export function evaluateTrade(params: {
 
   if (signal.confidenceScore < minConfidence) {
     return { canTrade: false, reason: `Score ${signal.confidenceScore} < ${minConfidence} threshold` };
-  }
-
-  // Live win rate check (if enough samples)
-  if (liveSampleSize >= cfg.LIVE_WIN_RATE_SAMPLE_MIN) {
-    if (liveWinRate != null && liveWinRate < cfg.LIVE_WIN_RATE_MIN) {
-      return { canTrade: false, reason: `Live win rate ${(liveWinRate * 100).toFixed(0)}% < ${(cfg.LIVE_WIN_RATE_MIN * 100).toFixed(0)}% for ${signal.type} on ${signal.timeframe}` };
-    }
-  }
-
-  // Algo historical win rate check (if enough samples)
-  if (algoSampleSize >= cfg.ALGO_HIST_SAMPLE_MIN) {
-    if (algoWinRate != null && algoWinRate < cfg.ALGO_HIST_WIN_RATE_MIN) {
-      return { canTrade: false, reason: `Algo historical win rate ${(algoWinRate * 100).toFixed(0)}% < ${(cfg.ALGO_HIST_WIN_RATE_MIN * 100).toFixed(0)}% for ${signal.algo}|${signal.timeframe}` };
-    }
   }
 
   // Adaptive max open trades: based on streak
@@ -611,7 +548,7 @@ export function evaluateTrade(params: {
     return { canTrade: false, reason: `Choppy market (ratio=${chopRatio.toFixed(2)} > ${cfg.CHOP_THRESHOLD}) on ${signal.timeframe}` };
   }
 
-  // Adaptive risk: 0.5% base, 1% when streak is active
+  // Adaptive risk: 1% base, 1.5% when streak is active
   const hasStreak = (currentState.consecutiveWins ?? 0) >= cfg.STREAK_WINS_TO_SCALE;
   const riskPct = hasStreak ? cfg.RISK_PER_TRADE_STREAK : cfg.RISK_PER_TRADE_BASE;
 

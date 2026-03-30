@@ -102,6 +102,9 @@ export async function GET(request: NextRequest) {
     const signalEvents: SignalEvent[] = [];
     const postUpdateDocs: { id: string; [key: string]: any }[] = [];
 
+    const priceBatch = db.batch();
+    let priceBatchCount = 0;
+
     for (const signalDoc of signalsSnap.docs) {
       const signal = signalDoc.data();
       if (signal.status !== "ACTIVE") continue;
@@ -113,13 +116,6 @@ export async function GET(request: NextRequest) {
 
       if (!currentPrice) {
         skipCount++;
-        await db.collection("logs").add({
-          timestamp: new Date().toISOString(),
-          level: "WARN",
-          message: "Symbol not in any exchange feed",
-          details: `signalId=${signalDoc.id} symbol=${rawSymbol}`,
-          webhookId: "SYSTEM_CRON",
-        });
         continue;
       }
 
@@ -299,9 +295,19 @@ export async function GET(request: NextRequest) {
 
       updateData.status = newStatus;
 
-      await db.collection("signals").doc(signalDoc.id).update(updateData);
+      priceBatch.update(db.collection("signals").doc(signalDoc.id), updateData);
+      priceBatchCount++;
       postUpdateDocs.push({ id: signalDoc.id, ...signal, ...updateData });
       updateCount++;
+
+      if (priceBatchCount >= 490) {
+        await priceBatch.commit();
+        priceBatchCount = 0;
+      }
+    }
+
+    if (priceBatchCount > 0) {
+      await priceBatch.commit();
     }
 
     // Include non-active signals for historical stats
@@ -311,13 +317,17 @@ export async function GET(request: NextRequest) {
       postUpdateDocs.push({ id: signalDoc.id, ...signal });
     }
 
-    for (const evt of signalEvents) {
-      await db.collection("signal_events").add({
-        ...evt,
-        createdAt: new Date().toISOString(),
-        notified: false,
-        notifiedAt: null,
-      });
+    if (signalEvents.length > 0) {
+      const evtBatch = db.batch();
+      for (const evt of signalEvents) {
+        evtBatch.set(db.collection("signal_events").doc(), {
+          ...evt,
+          createdAt: new Date().toISOString(),
+          notified: false,
+          notifiedAt: null,
+        });
+      }
+      await evtBatch.commit();
     }
 
     // ── 3. AI Filter Rescoring ──────────────────────────────
@@ -346,6 +356,9 @@ export async function GET(request: NextRequest) {
 
       const allSignalsForScoring = postUpdateDocs.map(mapFirestoreSignal);
       scores = computeAutoFilter(allSignalsForScoring);
+
+      const scoreBatch = db.batch();
+      let scoreBatchCount = 0;
 
       for (const signalDoc of signalsSnap.docs) {
         const signal = signalDoc.data();
@@ -391,9 +404,19 @@ export async function GET(request: NextRequest) {
         }
 
         if (Object.keys(scoreData).length > 1) {
-          await db.collection("signals").doc(signalDoc.id).update(scoreData);
+          scoreBatch.update(db.collection("signals").doc(signalDoc.id), scoreData);
+          scoreBatchCount++;
           scoreCount++;
+
+          if (scoreBatchCount >= 490) {
+            await scoreBatch.commit();
+            scoreBatchCount = 0;
+          }
         }
+      }
+
+      if (scoreBatchCount > 0) {
+        await scoreBatch.commit();
       }
     } catch (scoreErr: any) {
       console.error("[Sync] AI rescoring failed:", scoreErr.message);

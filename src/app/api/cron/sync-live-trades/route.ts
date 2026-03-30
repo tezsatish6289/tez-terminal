@@ -16,12 +16,15 @@ import { sendMessage } from "@/lib/telegram";
 import {
   type ExchangeName,
   SUPPORTED_EXCHANGES,
+  STOCK_EXCHANGES,
+  ALL_EXCHANGES,
   deserializePrices,
   getPrice,
   getSecretDocIds,
   docMatchesExchange,
   type AllExchangePrices,
 } from "@/lib/exchanges";
+import { isIndianMarketOpen } from "@/lib/market-hours";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -385,7 +388,8 @@ export async function GET(request: NextRequest) {
     const userChecks = usersSnap.docs.map(async (userDoc) => {
       const userId = userDoc.id;
 
-      const exchangeChecks = SUPPORTED_EXCHANGES.map(async (exchangeName) => {
+      const exchangeChecks = ALL_EXCHANGES.map(async (exchangeName) => {
+        if (STOCK_EXCHANGES.includes(exchangeName) && !isIndianMarketOpen()) return;
         const docIds = getSecretDocIds(exchangeName);
 
         for (const id of docIds) {

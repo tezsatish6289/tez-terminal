@@ -2,6 +2,7 @@ import {
   type ExchangeConnector,
   type ExchangeCredentials,
   type ExchangeName,
+  type IndianExchangeSegment,
   type Order,
   type SymbolInfo,
   ExchangeApiError,
@@ -85,6 +86,7 @@ export interface Credentials {
   apiKey: string;
   apiSecret: string;
   testnet?: boolean;
+  exchangeSegment?: IndianExchangeSegment;
 }
 
 // ── Credential Helpers ────────────────────────────────────────

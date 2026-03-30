@@ -5,9 +5,14 @@ import {
   type Order,
   type FuturesBalance,
   type FuturesPosition,
+  type IndianExchangeSegment,
   ExchangeApiError,
   roundToTick,
 } from "./types";
+
+function seg(creds: ExchangeCredentials): IndianExchangeSegment {
+  return creds.exchangeSegment ?? "NSE_EQ";
+}
 
 const BASE_URL = "https://api.dhan.co/v2";
 
@@ -220,24 +225,58 @@ export class DhanConnector implements ExchangeConnector {
     return new Map();
   }
 
+  /**
+   * Fetch LTP for a list of stock symbols (e.g., ["RELIANCE", "TCS"]).
+   * Resolves symbols → security IDs internally. Call loadInstruments() first.
+   * Returns Map<symbol, price>.
+   */
+  async fetchPricesBySymbol(
+    symbols: string[],
+    creds: ExchangeCredentials
+  ): Promise<Map<string, number>> {
+    if (symbols.length === 0) return new Map();
+
+    const ids: number[] = [];
+    const idToSym = new Map<number, string>();
+    for (const sym of symbols) {
+      const upper = sym.toUpperCase();
+      const secId = symbolToSecurityId.get(upper);
+      if (secId != null) {
+        ids.push(secId);
+        idToSym.set(secId, upper);
+      }
+    }
+
+    if (ids.length === 0) return new Map();
+
+    const idPrices = await this.getPricesForSymbols(ids, creds);
+    const result = new Map<string, number>();
+    for (const [id, price] of idPrices) {
+      const sym = idToSym.get(id);
+      if (sym) result.set(sym, price);
+    }
+    return result;
+  }
+
   async getPricesForSymbols(
     securityIds: number[],
     creds: ExchangeCredentials
   ): Promise<Map<number, number>> {
     if (securityIds.length === 0) return new Map();
 
+    const segment = seg(creds);
     const data = await dhanPost<{
-      data: { NSE_EQ: Record<string, { last_price: number }> };
+      data: Record<string, Record<string, { last_price: number }>>;
     }>(
       "/marketfeed/ltp",
-      { NSE_EQ: securityIds },
+      { [segment]: securityIds },
       creds
     );
 
     const prices = new Map<number, number>();
-    const nseData = data.data?.NSE_EQ;
-    if (nseData) {
-      for (const [idStr, info] of Object.entries(nseData)) {
+    const segData = data.data?.[segment];
+    if (segData) {
+      for (const [idStr, info] of Object.entries(segData)) {
         prices.set(Number(idStr), info.last_price);
       }
     }
@@ -339,7 +378,7 @@ export class DhanConnector implements ExchangeConnector {
       {
         dhanClientId: creds.apiSecret,
         transactionType: side,
-        exchangeSegment: "NSE_EQ",
+        exchangeSegment: seg(creds),
         productType: "INTRADAY",
         orderType: "MARKET",
         securityId,
@@ -371,7 +410,7 @@ export class DhanConnector implements ExchangeConnector {
       {
         dhanClientId: creds.apiSecret,
         transactionType: side,
-        exchangeSegment: "NSE_EQ",
+        exchangeSegment: seg(creds),
         productType: "INTRADAY",
         orderType: "STOP_LOSS_MARKET",
         securityId,
@@ -403,7 +442,7 @@ export class DhanConnector implements ExchangeConnector {
       {
         dhanClientId: creds.apiSecret,
         transactionType: side,
-        exchangeSegment: "NSE_EQ",
+        exchangeSegment: seg(creds),
         productType: "INTRADAY",
         orderType: "LIMIT",
         securityId,

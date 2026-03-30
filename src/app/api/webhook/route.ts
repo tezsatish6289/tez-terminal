@@ -12,6 +12,7 @@ import {
   isRegimeStale,
   type MarketRegimeData,
 } from "@/lib/auto-filter";
+import { normalizeSignalExchange } from "@/lib/exchanges";
 
 /**
  * Webhook ingestion for TradingView alerts.
@@ -65,11 +66,16 @@ export async function POST(request: NextRequest) {
     }
 
     const symbol = String(body.ticker ?? "UNKNOWN").toUpperCase();
-    let exchange = String(body.exchange ?? "BINANCE").toUpperCase();
-    const rawAt = String(body.asset_type ?? "CRYPTO").toUpperCase().trim();
+    const rawExchange = String(body.exchange ?? "BINANCE").toUpperCase();
+    const exchange = normalizeSignalExchange(rawExchange); // NSE_DLY → NSE
+    const rawAt = String(body.asset_type ?? "CRYPTO").trim();
+
+    // Normalize: "IndianStocks", "INDIAN STOCKS", "indian_stocks" → "INDIAN_STOCKS"
     let assetType = "CRYPTO";
-    if (rawAt.includes("INDIAN")) assetType = "INDIAN STOCKS";
-    else if (rawAt.includes("US") || rawAt.includes("NASDAQ")) assetType = "US STOCKS";
+    const upperAt = rawAt.toUpperCase().replace(/\s+/g, "_");
+    if (upperAt.includes("INDIAN") || upperAt === "INDIANSTOCKS") assetType = "INDIAN_STOCKS";
+    else if (upperAt.includes("COMMOD")) assetType = "COMMODITIES";
+    else if (upperAt.includes("US") || upperAt.includes("NASDAQ")) assetType = "US_STOCKS";
 
     if (assetType === "CRYPTO" && !symbol.endsWith("USDT.P")) {
       await db.collection("logs").add({
@@ -82,11 +88,6 @@ export async function POST(request: NextRequest) {
         { success: false, message: `Symbol '${symbol}' rejected. Only USDT perpetual symbols (ending with USDT.P) are accepted.` },
         { status: 400 }
       );
-    }
-
-    // Default exchange based on asset type
-    if (assetType === "INDIAN STOCKS" && exchange === "BINANCE") {
-      exchange = "DHAN";
     }
 
     const rawSide = String(body.side ?? "").toLowerCase();
@@ -219,7 +220,7 @@ export async function POST(request: NextRequest) {
 
     let processingResult = "Signal ingested as ACTIVE";
 
-    if (signalType !== "NEUTRAL" && (assetType === "CRYPTO" || assetType === "INDIAN STOCKS")) {
+    if (signalType !== "NEUTRAL" && (assetType === "CRYPTO" || assetType === "INDIAN_STOCKS")) {
       try {
         const activeSnap = await db.collection("signals")
           .where("status", "==", "ACTIVE")

@@ -3,7 +3,10 @@ import { decrypt } from "./crypto";
 import {
   type ExchangeName,
   SUPPORTED_EXCHANGES,
-  STOCK_EXCHANGES,
+  STOCK_BROKERS,
+  CRYPTO_BROKERS,
+  isStockExchange,
+  getExchangeSegment,
   getSecretDocIds,
   docMatchesExchange,
 } from "./exchanges";
@@ -41,10 +44,10 @@ export async function executeForAllUsers(
   for (const userDoc of usersSnap.docs) {
     const userId = userDoc.id;
 
-    const isStock = signalExchange === "DHAN";
-    const exchangeList = isStock ? STOCK_EXCHANGES : SUPPORTED_EXCHANGES;
-    for (const exchangeName of exchangeList) {
-      const docIds = getSecretDocIds(exchangeName);
+    const isStock = isStockExchange(signalExchange);
+    const brokerList = isStock ? STOCK_BROKERS : CRYPTO_BROKERS;
+    for (const brokerName of brokerList) {
+      const docIds = getSecretDocIds(brokerName);
 
       for (const id of docIds) {
         try {
@@ -53,15 +56,16 @@ export async function executeForAllUsers(
 
           if (secretDoc.exists) {
             const data = secretDoc.data()!;
-            if (!docMatchesExchange(data, exchangeName)) continue;
+            if (!docMatchesExchange(data, brokerName)) continue;
             if (data.autoTradeEnabled === true) {
               tasks.push({
                 userId,
-                exchange: exchangeName,
+                exchange: brokerName,
                 creds: {
                   apiKey: decrypt(data.encryptedKey),
                   apiSecret: decrypt(data.encryptedSecret),
                   testnet: data.useTestnet === true,
+                  exchangeSegment: isStock ? getExchangeSegment(signalExchange) : undefined,
                 },
               });
               break;

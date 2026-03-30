@@ -78,6 +78,7 @@ export interface SimTrade {
   signalId: string;
   symbol: string;
   exchange: string;
+  assetType: string;
   side: "BUY" | "SELL";
   timeframe: string;
   algo: string;
@@ -152,6 +153,7 @@ export interface IncubatedCandidate {
   id: string;
   symbol: string;
   exchange: string;
+  assetType: string;
   type: "BUY" | "SELL";
   timeframe: string;
   algo: string;
@@ -453,12 +455,28 @@ function utcDateString(): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
+// ── Asset-type-specific starting capital ─────────────────────
+
+const STARTING_CAPITAL: Record<string, number> = {
+  CRYPTO: 1000,         // USDT
+  INDIAN_STOCKS: 100000, // INR
+  COMMODITIES: 100000,   // INR
+};
+
+// ── Simulator state Firestore doc path ───────────────────────
+
+export function getSimStateDocId(assetType?: string): string {
+  if (!assetType || assetType === "CRYPTO") return "simulator_state";
+  return `simulator_state_${assetType}`;
+}
+
 // ── Initialize simulator state ───────────────────────────────
 
-export function createInitialState(): SimulatorState {
+export function createInitialState(assetType?: string): SimulatorState {
+  const capital = STARTING_CAPITAL[assetType ?? "CRYPTO"] ?? SIM_CONFIG.STARTING_CAPITAL;
   return {
-    capital: SIM_CONFIG.STARTING_CAPITAL,
-    startingCapital: SIM_CONFIG.STARTING_CAPITAL,
+    capital,
+    startingCapital: capital,
     dailyPnl: 0,
     dailyFees: 0,
     dailyPnlResetDate: utcDateString(),
@@ -632,6 +650,7 @@ export function openTrade(params: {
     id: string;
     symbol: string;
     exchange: string;
+    assetType?: string;
     type: "BUY" | "SELL";
     timeframe: string;
     algo: string;
@@ -650,7 +669,7 @@ export function openTrade(params: {
   algoWinRate: number;
 }): { trade: SimTrade; updatedState: SimulatorState; log: SimLog } {
   const { signal, positionSize, state, bullScore, bearScore, liveWinRate, algoWinRate } = params;
-  const leverage = getLeverage(signal.timeframe);
+  const leverage = getLeverage(signal.timeframe, signal.assetType);
   const entryFee = positionSize * SIM_CONFIG.EXCHANGE_FEE;
   const biasLabel = bullScore > bearScore ? "Go Bull" : "Go Bear";
 
@@ -658,6 +677,7 @@ export function openTrade(params: {
     signalId: signal.id,
     symbol: signal.symbol,
     exchange: signal.exchange ?? "BINANCE",
+    assetType: signal.assetType ?? "CRYPTO",
     side: signal.type,
     timeframe: signal.timeframe,
     algo: signal.algo,

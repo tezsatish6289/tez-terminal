@@ -6,15 +6,77 @@
  * since they're exchange-agnostic.
  */
 
-// ── Exchange Names ──────────────────────────────────────────────
+// ── Asset Types ─────────────────────────────────────────────────
 
-export type ExchangeName = "BYBIT" | "BINANCE" | "MEXC" | "DHAN";
+export type AssetType = "CRYPTO" | "INDIAN_STOCKS" | "COMMODITIES";
+
+// ── Broker Names (entities that execute orders) ─────────────────
+// For crypto: broker = exchange. For stocks: broker ≠ exchange.
+
+export type BrokerName = "BYBIT" | "BINANCE" | "MEXC" | "DHAN";
+
+export const CRYPTO_BROKERS: BrokerName[] = ["BYBIT", "BINANCE", "MEXC"];
+export const STOCK_BROKERS: BrokerName[] = ["DHAN"];
+export const ALL_BROKERS: BrokerName[] = [...CRYPTO_BROKERS, ...STOCK_BROKERS];
+
+// ── Signal Exchanges (where signals originate) ──────────────────
+
+export type SignalExchange = "BYBIT" | "BINANCE" | "MEXC" | "NSE" | "BSE" | "MCX";
+
+// ── Exchange Names (backward compat — union of all broker names) ─
+
+export type ExchangeName = BrokerName;
 
 export const SUPPORTED_EXCHANGES: ExchangeName[] = ["BYBIT", "BINANCE", "MEXC"];
-
 export const STOCK_EXCHANGES: ExchangeName[] = ["DHAN"];
-
 export const ALL_EXCHANGES: ExchangeName[] = [...SUPPORTED_EXCHANGES, ...STOCK_EXCHANGES];
+
+// ── Indian Exchange Segments (Dhan API segments) ────────────────
+
+export type IndianExchangeSegment = "NSE_EQ" | "BSE_EQ" | "NSE_FNO" | "BSE_FNO" | "MCX_FO";
+
+const SIGNAL_EXCHANGE_TO_SEGMENT: Record<string, IndianExchangeSegment> = {
+  NSE: "NSE_EQ",
+  BSE: "BSE_EQ",
+  MCX: "MCX_FO",
+};
+
+export function getExchangeSegment(signalExchange: string): IndianExchangeSegment {
+  return SIGNAL_EXCHANGE_TO_SEGMENT[signalExchange.toUpperCase()] ?? "NSE_EQ";
+}
+
+// ── Signal Exchange → Broker routing ────────────────────────────
+
+export function getBrokersForAssetType(assetType: string): BrokerName[] {
+  const upper = assetType.toUpperCase();
+  if (upper.includes("INDIAN") || upper.includes("STOCK")) return STOCK_BROKERS;
+  if (upper.includes("COMMOD")) return STOCK_BROKERS;
+  return CRYPTO_BROKERS;
+}
+
+export function isStockExchange(exchange: string): boolean {
+  return ["NSE", "BSE", "MCX"].includes(normalizeSignalExchange(exchange));
+}
+
+/**
+ * Normalize TradingView exchange names to our canonical form.
+ * TradingView sends "NSE_DLY", "NSE_EQ", "BSE_DLY", etc.
+ * We strip suffixes and keep just the core exchange: NSE, BSE, MCX.
+ */
+export function normalizeSignalExchange(raw: string): string {
+  const upper = raw.toUpperCase();
+  if (upper.startsWith("NSE")) return "NSE";
+  if (upper.startsWith("BSE")) return "BSE";
+  if (upper.startsWith("MCX")) return "MCX";
+  return upper;
+}
+
+export function normalizeAssetType(raw: string): AssetType {
+  const upper = raw.toUpperCase().replace(/\s+/g, "_");
+  if (upper.includes("INDIAN") || upper === "INDIANSTOCKS") return "INDIAN_STOCKS";
+  if (upper.includes("COMMOD")) return "COMMODITIES";
+  return "CRYPTO";
+}
 
 // ── Credentials ─────────────────────────────────────────────────
 
@@ -22,6 +84,8 @@ export interface ExchangeCredentials {
   apiKey: string;
   apiSecret: string;
   testnet?: boolean;
+  /** For Indian brokers: the Dhan exchange segment (NSE_EQ, BSE_EQ, MCX_FO) */
+  exchangeSegment?: IndianExchangeSegment;
 }
 
 // ── Instrument / Symbol Info ────────────────────────────────────

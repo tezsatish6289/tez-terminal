@@ -256,6 +256,7 @@ export interface ScoreBreakdown {
   priceStructure: number;   // 0-80 — Pattern A or B detection
   freshness: number;        // 0-20 — age in candles
   pattern: "A" | "B" | "none" | "early";
+  rrGateFailed: boolean;    // true if dynamic RR gate capped the score at 20
 }
 
 export interface ScoredSignal {
@@ -536,17 +537,19 @@ export function computeAutoFilter(
     const { score: structureScore, pattern } = scorePriceStructure(signal);
     const freshnessScore = scoreFreshnessCandles(signal);
 
-    const breakdown: ScoreBreakdown = {
-      priceStructure: structureScore,
-      freshness: freshnessScore,
-      pattern,
-    };
-
     const rawScore = structureScore + freshnessScore;
+    const rrGateFailed = !rrPassed;
 
     // Hard gate: if dynamic RR fails, cap score below entry threshold
     // so it never enters the simulator regardless of pattern quality.
     const finalScore = rrPassed ? Math.min(100, rawScore) : Math.min(20, rawScore);
+
+    const breakdown: ScoreBreakdown = {
+      priceStructure: structureScore,
+      freshness: freshnessScore,
+      pattern,
+      rrGateFailed,
+    };
     const { label, color } = getConfidenceLabel(finalScore);
 
     scores.set(signal.id, {

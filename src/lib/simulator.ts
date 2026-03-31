@@ -152,6 +152,7 @@ export interface IncubatedCandidate {
   type: "BUY" | "SELL";
   timeframe: string;
   algo: string;
+  receivedAt: string;        // signal creation time, used for age-based log dedup
   entryPrice: number;        // original signal entry
   currentPrice: number;      // live market price
   stopLoss: number;
@@ -160,7 +161,10 @@ export interface IncubatedCandidate {
   tp3: number;
   confidenceScore: number;
   tp1Hit: boolean;
+  tp2Hit: boolean;           // permanently ineligible if true
   slHitAt: string | null;
+  scorePattern?: "A" | "B" | "none" | "early"; // from scoring engine breakdown
+  rrGateFailed?: boolean;    // true if dynamic RR gate capped the score
 }
 
 export interface IncubatedResult {
@@ -213,11 +217,8 @@ export function selectIncubatedSignals(params: {
       continue;
     }
 
-    // TP1 already hit or SL already hit — skip
-    if (c.tp1Hit || c.slHitAt) {
-      skipped.push({ symbol: c.symbol, reason: c.slHitAt ? "SL already hit" : "TP1 already hit" });
-      continue;
-    }
+    // TP1, TP2, or SL already hit — permanently ineligible, no log
+    if (c.tp1Hit || c.tp2Hit || c.slHitAt) continue;
 
     // Price drift check — dynamic based on SL and TP1 distance
     const isBuy = c.type === "BUY";
@@ -258,7 +259,17 @@ export function selectIncubatedSignals(params: {
       : cfg.CONFIDENCE_MIN;
 
     if (c.confidenceScore < minConfidence) {
-      skipped.push({ symbol: c.symbol, reason: `Score ${c.confidenceScore} < ${minConfidence}` });
+      let scoreNote = "";
+      if (c.rrGateFailed) {
+        scoreNote = " — RR gate: not enough upside to TP2";
+      } else if (c.scorePattern === "early") {
+        scoreNote = " — too early, snapshots accumulating";
+      } else if (c.scorePattern === "none") {
+        scoreNote = " — no price structure pattern yet";
+      } else if (c.scorePattern === "A" || c.scorePattern === "B") {
+        scoreNote = ` — pattern ${c.scorePattern} but RR insufficient`;
+      }
+      skipped.push({ symbol: c.symbol, reason: `Score ${c.confidenceScore} < ${minConfidence}${scoreNote}` });
       continue;
     }
 

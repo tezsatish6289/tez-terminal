@@ -372,24 +372,31 @@ export async function GET(request: NextRequest) {
           d.price != null &&
           d.stopLoss != null,
         )
-        .map((d) => ({
-          id: d.id,
-          symbol: d.symbol || "",
-          exchange: d.exchange ?? "BINANCE",
-          assetType: d.assetType ?? "CRYPTO",
-          type: (d.type || "BUY") as "BUY" | "SELL",
-          timeframe: String(d.timeframe || "15"),
-          algo: d.algo || "",
-          entryPrice: Number(d.price),
-          currentPrice: Number(d.currentPrice),
-          stopLoss: Number(d.stopLoss),
-          tp1: Number(d.tp1 || 0),
-          tp2: Number(d.tp2 || 0),
-          tp3: Number(d.tp3 || 0),
-          confidenceScore: d.confidenceScore ?? (scores.get(d.id)?.score ?? 0),
-          tp1Hit: d.tp1Hit === true,
-          slHitAt: d.slHitAt ?? null,
-        }));
+        .map((d) => {
+          const scored = scores.get(d.id);
+          return {
+            id: d.id,
+            symbol: d.symbol || "",
+            exchange: d.exchange ?? "BINANCE",
+            assetType: d.assetType ?? "CRYPTO",
+            type: (d.type || "BUY") as "BUY" | "SELL",
+            timeframe: String(d.timeframe || "15"),
+            algo: d.algo || "",
+            receivedAt: d.receivedAt || new Date().toISOString(),
+            entryPrice: Number(d.price),
+            currentPrice: Number(d.currentPrice),
+            stopLoss: Number(d.stopLoss),
+            tp1: Number(d.tp1 || 0),
+            tp2: Number(d.tp2 || 0),
+            tp3: Number(d.tp3 || 0),
+            confidenceScore: scored?.score ?? (d.confidenceScore ?? 0),
+            tp1Hit: d.tp1Hit === true,
+            tp2Hit: d.tp2Hit === true,
+            slHitAt: d.slHitAt ?? null,
+            scorePattern: scored?.breakdown?.pattern,
+            rrGateFailed: scored?.breakdown?.rrGateFailed ?? false,
+          };
+        });
 
       const regimeDoc = await db.collection("config").doc("market_regime").get();
       const regimeData = regimeDoc.exists ? regimeDoc.data() : {};
@@ -530,7 +537,19 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        for (const skip of incubSkipped.slice(0, 5)) {
+        // Only log skips for signals that are still "fresh" (within first 3 candles
+        // of their own TF). Older signals that keep failing are noise, not signal.
+        const CANDLE_MINS: Record<string, number> = {
+          "1": 1, "5": 5, "15": 15, "60": 60, "240": 240, "D": 1440, "W": 10080,
+        };
+        const freshSkips = incubSkipped.filter((skip) => {
+          const cand = assetCandidates.find((c) => c.symbol === skip.symbol);
+          if (!cand) return false;
+          const candleMs = (CANDLE_MINS[cand.timeframe] ?? 15) * 60_000;
+          const ageMs = Date.now() - new Date(cand.receivedAt).getTime();
+          return ageMs <= candleMs * 3;
+        });
+        for (const skip of freshSkips.slice(0, 5)) {
           await db.collection("simulator_logs").add({
             timestamp: new Date().toISOString(),
             action: "INCUBATED_SKIPPED",

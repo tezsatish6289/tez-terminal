@@ -9,7 +9,7 @@ import {
   type LiveTrade,
   type Credentials,
 } from "@/lib/trade-engine";
-import { detectMarketTurn, SIM_CONFIG, type MarketTurnInput } from "@/lib/simulator";
+import { detectMarketTurn, SIM_CONFIG, type MarketTurnInput, type SimTrade } from "@/lib/simulator";
 import { computeAutoFilter, mapFirestoreSignal } from "@/lib/auto-filter";
 import { decrypt } from "@/lib/crypto";
 import { sendMessage } from "@/lib/telegram";
@@ -22,6 +22,8 @@ import {
   getPrice,
   getSecretDocIds,
   docMatchesExchange,
+  getConnector,
+  replaceSl,
   type AllExchangePrices,
 } from "@/lib/exchanges";
 import { isIndianMarketOpen } from "@/lib/market-hours";
@@ -45,9 +47,11 @@ async function syncUserTrades(
   fills: number;
   updates: number;
   protectiveCloses: number;
+  simSlSynced: number;
+  simCloseSynced: number;
   errors: string[];
 }> {
-  const result = { fills: 0, updates: 0, protectiveCloses: 0, errors: [] as string[] };
+  const result = { fills: 0, updates: 0, protectiveCloses: 0, simSlSynced: 0, simCloseSynced: 0, errors: [] as string[] };
 
   try {
     const liveTradesSnap = await db.collection("live_trades")
@@ -132,8 +136,8 @@ async function syncUserTrades(
           lt.unrealizedPnl = Math.round(unrealizedPnl * 100) / 100;
         }
 
-        // ── 3. Trailing SL → breakeven ──────────────────────
-        if (livePrice != null && lt.trailingSl == null) {
+        // ── 3. Trailing SL → breakeven (safety net for non-sim-driven trades) ──
+        if (livePrice != null && lt.trailingSl == null && !lt.simTradeId) {
           const slBeResult = await moveSlToBreakeven(lt, livePrice, creds);
           if (slBeResult.moved && slBeResult.updatedFields && slBeResult.newEvent) {
             await db.collection("live_trades").doc(lt.id!).update({
@@ -164,6 +168,81 @@ async function syncUserTrades(
             });
           }
         }
+
+        // ── 4. Sim-driven trailing SL sync ──────────────────────
+        // The simulator is the source of truth for trailing SL levels.
+        // Every cycle we compare the live SL against the sim's and update
+        // the exchange order if they have drifted. Idempotent by design:
+        // if the API call fails we log and retry on the next cycle.
+        if (lt.simTradeId) {
+          try {
+            const simDoc = await db.collection("simulator_trades").doc(lt.simTradeId).get();
+            if (simDoc.exists) {
+              const sim = simDoc.data() as SimTrade;
+              const simTsl = sim.trailingSl ?? null;
+
+              if (simTsl != null && simTsl !== lt.trailingSl) {
+                const connector = getConnector(exchange);
+                const info = await connector.getSymbolInfo(lt.symbol, creds.testnet);
+
+                if (lt.slOrderId) {
+                  // Replace the existing SL order at the new price
+                  const slResult = await replaceSl(
+                    connector, lt.symbol, lt.side, lt.slOrderId,
+                    simTsl, lt.remainingQty, info, creds
+                  );
+                  if (slResult.newOrder.success) {
+                    const newSlOrderId = slResult.newOrder.order!.orderId;
+                    await db.collection("live_trades").doc(lt.id!).update({
+                      trailingSl: simTsl,
+                      slOrderId: newSlOrderId,
+                    });
+                    Object.assign(lt, { trailingSl: simTsl, slOrderId: newSlOrderId });
+                    await db.collection("live_trade_logs").add({
+                      timestamp: new Date().toISOString(),
+                      action: "TRAILING_SL_SYNCED",
+                      details: `${lt.signalSymbol} ${lt.side} SL updated ${lt.trailingSl ?? lt.stopLoss} → ${simTsl} (sim-driven)`,
+                      symbol: lt.signalSymbol,
+                      userId,
+                      exchange,
+                    });
+                    result.simSlSynced++;
+                  } else {
+                    // Cancel may have fired but new SL failed — null out slOrderId so
+                    // the next cycle places a fresh stop rather than trying to cancel a
+                    // ghost order.
+                    await db.collection("live_trades").doc(lt.id!).update({ slOrderId: null });
+                    lt.slOrderId = null;
+                    result.errors.push(
+                      `${lt.signalSymbol}: trailing SL move to ${simTsl} failed — ${slResult.newOrder.error} (will retry)`
+                    );
+                  }
+                } else {
+                  // No SL order on file (previous replace half-failed) — place a fresh stop
+                  const exitSide = lt.side === "BUY" ? "SELL" : "BUY";
+                  try {
+                    const newOrder = await connector.placeStopMarket(
+                      lt.symbol, exitSide, simTsl, lt.remainingQty, creds, info.tickSize
+                    );
+                    await db.collection("live_trades").doc(lt.id!).update({
+                      trailingSl: simTsl,
+                      slOrderId: newOrder.orderId,
+                    });
+                    Object.assign(lt, { trailingSl: simTsl, slOrderId: newOrder.orderId });
+                    result.simSlSynced++;
+                  } catch (freshSlErr) {
+                    result.errors.push(
+                      `${lt.signalSymbol}: fresh SL at ${simTsl} failed — ${freshSlErr instanceof Error ? freshSlErr.message : String(freshSlErr)} (will retry)`
+                    );
+                  }
+                }
+              }
+            }
+          } catch (slSyncErr) {
+            const errMsg = slSyncErr instanceof Error ? slSyncErr.message : String(slSyncErr);
+            result.errors.push(`${lt.signalSymbol} SL-sync: ${errMsg}`);
+          }
+        }
       } catch (ltErr) {
         const errMsg = ltErr instanceof Error ? ltErr.message : String(ltErr);
         console.error(`[LiveSync] Trade update failed for ${lt.signalSymbol} (${userId}/${exchange}):`, errMsg);
@@ -171,7 +250,57 @@ async function syncUserTrades(
       }
     }
 
-    // ── 3. Protective closes: market turn ───────────────────
+    // ── 3. Sim-driven close sync ─────────────────────────────
+    // If the simulator has closed a trade for risk reasons (trailing SL crossed,
+    // market turned, score degraded), close the matching live trade immediately.
+    // This is the primary close-sync path — the market-turn and score-degradation
+    // blocks below act as independent safety nets.
+    //
+    // Retry guarantee: if protectiveClose fails the Firestore doc is NOT updated,
+    // so live_trade.status stays OPEN and we retry on the next cron cycle
+    // (the sim doc still shows CLOSED).
+    const openForSimSync = liveTrades.filter((t) => t.status === "OPEN" && !!t.simTradeId);
+    for (const lt of openForSimSync) {
+      try {
+        const simDoc = await db.collection("simulator_trades").doc(lt.simTradeId!).get();
+        if (!simDoc.exists) continue;
+        const sim = simDoc.data() as SimTrade;
+
+        const riskCloseReasons = ["TRAILING_SL", "MARKET_TURN", "SCORE_DEGRADED"];
+        if (sim.status !== "CLOSED" || !riskCloseReasons.includes(sim.closeReason ?? "")) continue;
+
+        const closeReason = (sim.closeReason as "TRAILING_SL" | "MARKET_TURN" | "SCORE_DEGRADED");
+        const curPrice = getPrice(allPrices, lt.signalSymbol, exchange) ?? lt.entryPrice;
+        const closeResult = await protectiveClose(lt, closeReason, curPrice, creds);
+
+        if (closeResult.updatedFields.status === "CLOSED") {
+          await db.collection("live_trades").doc(lt.id!).update({
+            ...closeResult.updatedFields,
+            events: [...(lt.events || []), closeResult.newEvent],
+          });
+          await db.collection("live_trade_logs").add({
+            timestamp: new Date().toISOString(),
+            action: `SIM_${closeReason}_CLOSE`,
+            details: `${lt.signalSymbol} ${lt.side} closed (sim-driven: ${closeReason})${closeResult.warning ? ` — ${closeResult.warning}` : ""}`,
+            symbol: lt.signalSymbol,
+            userId,
+            exchange,
+          });
+          lt.status = "CLOSED";
+          result.simCloseSynced++;
+        } else {
+          // Market close failed — Firestore not updated → will retry next cycle
+          result.errors.push(
+            `${lt.signalSymbol}: sim-driven close (${closeReason}) failed${closeResult.warning ? ` — ${closeResult.warning}` : ""} (will retry)`
+          );
+        }
+      } catch (closeSyncErr) {
+        const errMsg = closeSyncErr instanceof Error ? closeSyncErr.message : String(closeSyncErr);
+        result.errors.push(`${lt.signalSymbol} close-sync: ${errMsg}`);
+      }
+    }
+
+    // ── 5. Protective closes: market turn (safety net) ──────
     const sidesTfsLive = new Set(
       liveTrades.filter((t) => t.status === "OPEN").map((t) => `${t.side}|${t.timeframe}`)
     );
@@ -205,7 +334,7 @@ async function syncUserTrades(
       }
     }
 
-    // ── 4. Protective closes: score degradation ─────────────
+    // ── 6. Protective closes: score degradation (safety net) ─
     for (const trade of liveTrades) {
       if (trade.status === "CLOSED") continue;
       const signalScore = signalContext.scores.get(trade.signalId);
@@ -450,6 +579,8 @@ export async function GET(request: NextRequest) {
     let totalFills = 0;
     let totalUpdates = 0;
     let totalProtective = 0;
+    let totalSimSlSynced = 0;
+    let totalSimCloseSynced = 0;
     let totalErrors = 0;
 
     for (const r of results) {
@@ -457,6 +588,8 @@ export async function GET(request: NextRequest) {
         totalFills += r.value.fills;
         totalUpdates += r.value.updates;
         totalProtective += r.value.protectiveCloses;
+        totalSimSlSynced += r.value.simSlSynced;
+        totalSimCloseSynced += r.value.simCloseSynced;
         totalErrors += r.value.errors.length;
 
         if (r.value.errors.length > 0) {
@@ -471,7 +604,7 @@ export async function GET(request: NextRequest) {
     await db.collection("logs").add({
       timestamp: new Date().toISOString(),
       level: "INFO",
-      message: `LIVE SYNC: pairs=${pairs.length} fills=${totalFills} updates=${totalUpdates} protective=${totalProtective} errors=${totalErrors}`,
+      message: `LIVE SYNC: pairs=${pairs.length} fills=${totalFills} updates=${totalUpdates} protective=${totalProtective} simSlSynced=${totalSimSlSynced} simCloseSynced=${totalSimCloseSynced} errors=${totalErrors}`,
       webhookId: "SYSTEM_CRON",
     });
 
@@ -481,6 +614,8 @@ export async function GET(request: NextRequest) {
       fills: totalFills,
       updates: totalUpdates,
       protectiveCloses: totalProtective,
+      simSlSynced: totalSimSlSynced,
+      simCloseSynced: totalSimCloseSynced,
       errors: totalErrors,
     });
   } catch (error: any) {

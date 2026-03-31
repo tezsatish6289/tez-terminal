@@ -906,8 +906,11 @@ function LogRow({ log, cs = "$" }: { log: SimLog; cs?: string }) {
     MARKET_TURN: "text-amber-400",
     SCORE_DEGRADED: "text-amber-400",
     SIGNAL_SKIPPED: "text-muted-foreground/40",
+    INCUBATED_SKIPPED: "text-muted-foreground/40",
     COOLOFF_ACTIVATED: "text-amber-400",
     DAILY_RESET: "text-accent",
+    ASSESSMENT_SUMMARY: "text-sky-400",
+    PATTERN_BREAK: "text-rose-400",
   };
 
   return (

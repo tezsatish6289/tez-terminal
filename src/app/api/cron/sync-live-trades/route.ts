@@ -263,7 +263,36 @@ async function syncUserTrades(
     for (const lt of openForSimSync) {
       try {
         const simDoc = await db.collection("simulator_trades").doc(lt.simTradeId!).get();
-        if (!simDoc.exists) continue;
+
+        // If the sim trade no longer exists, the live trade is orphaned — close it.
+        // This guards against sim trade deletion or a write failure at entry time.
+        const simGone = !simDoc.exists;
+        if (simGone) {
+          const curPrice = getPrice(allPrices, lt.signalSymbol, exchange) ?? lt.entryPrice;
+          const closeResult = await protectiveClose(lt, "MARKET_TURN", curPrice, creds);
+          if (closeResult.updatedFields.status === "CLOSED") {
+            await db.collection("live_trades").doc(lt.id!).update({
+              ...closeResult.updatedFields,
+              events: [...(lt.events || []), closeResult.newEvent],
+            });
+            await db.collection("live_trade_logs").add({
+              timestamp: new Date().toISOString(),
+              action: "ORPHANED_LIVE_CLOSE",
+              details: `${lt.signalSymbol} ${lt.side} closed — no linked simulator trade found (simTradeId=${lt.simTradeId})${closeResult.warning ? ` — ${closeResult.warning}` : ""}`,
+              symbol: lt.signalSymbol,
+              userId,
+              exchange,
+            });
+            lt.status = "CLOSED";
+            result.simCloseSynced++;
+          } else {
+            result.errors.push(
+              `${lt.signalSymbol}: orphaned close failed${closeResult.warning ? ` — ${closeResult.warning}` : ""} (will retry)`
+            );
+          }
+          continue;
+        }
+
         const sim = simDoc.data() as SimTrade;
 
         const riskCloseReasons = ["TRAILING_SL", "MARKET_TURN", "SCORE_DEGRADED"];

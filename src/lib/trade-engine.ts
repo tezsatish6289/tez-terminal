@@ -465,7 +465,7 @@ export async function moveSlToBreakeven(
 
 export async function protectiveClose(
   trade: LiveTrade,
-  reason: "MARKET_TURN" | "SCORE_DEGRADED" | "KILL_SWITCH" | "TRAILING_SL",
+  reason: "MARKET_TURN" | "KILL_SWITCH" | "TRAILING_SL",
   currentPrice: number,
   creds: Credentials
 ): Promise<{

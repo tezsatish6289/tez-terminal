@@ -29,7 +29,6 @@ const PARAM_GROUPS: { title: string; params: ParamDef[] }[] = [
     params: [
       { key: "CONFIDENCE_MIN", label: "Min Confidence", description: "Minimum AI confidence score to enter a trade", min: 30, max: 90, step: 1, format: "number" },
       { key: "CONFIDENCE_MIN_LOW_SAMPLE", label: "Min Confidence (Low Sample)", description: "Higher threshold when win rate data is limited", min: 30, max: 90, step: 1, format: "number" },
-      { key: "SCORE_FLOOR", label: "Score Floor (Exit)", description: "Exit trade if live score drops below this", min: 20, max: 60, step: 1, format: "number" },
     ],
   },
   {

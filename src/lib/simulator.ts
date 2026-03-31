@@ -24,8 +24,6 @@ export const SIM_CONFIG = {
   TURN_SAME_SIDE_SL_WARN: 0.30,         // 30% same-side SL → warning
   TURN_OPP_SIDE_TP_CONFIRM: 0.25,       // 25% opposite-side TP → confirms turn
   TURN_SINGLE_CONDITION_TRIGGER: 0.50,   // 50% alone triggers exit
-  // Individual score degradation
-  SCORE_FLOOR: 38,                       // exit if live score drops below this
 } as const;
 
 export type SimConfigType = typeof SIM_CONFIG;

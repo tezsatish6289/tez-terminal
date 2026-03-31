@@ -82,11 +82,11 @@ export async function GET(request: NextRequest) {
       postUpdateDocs.push({ id: signalDoc.id, ...signalDoc.data() });
     }
 
-    // Compute scores for market turn / score degradation checks
+    // Compute scores for new-entry selection and market turn checks.
+    // A second pass with includeResolved:true keeps currentScore fresh on
+    // open trades whose signals have already hit TPs — display only.
     const allSignalsForScoring = postUpdateDocs.map(mapFirestoreSignal);
     const scores = computeAutoFilter(allSignalsForScoring);
-    // Separate scoring pass that includes TP-hit signals — used for managing
-    // open simulator trades whose underlying signals have already partially resolved.
     const scoresForOpenTrades = computeAutoFilter(allSignalsForScoring, { includeResolved: true });
 
     // ── Helper: load/save sim state per asset type ─────────
@@ -283,9 +283,8 @@ export async function GET(request: NextRequest) {
       console.error("[SimSync] Price update failed:", priceErr.message);
     }
 
-    // ── Market turn + score degradation ─────────────────────
+    // ── Market turn ──────────────────────────────────────────
     let marketTurnCloses = 0;
-    let scoreDegradedCloses = 0;
     try {
       const openSimSnapMT = await db.collection("simulator_trades")
         .where("status", "==", "OPEN").get();
@@ -347,41 +346,7 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        for (const trade of openSimTradesMT) {
-          if (trade.status === "CLOSED") continue;
-          const signalScore = scoresForOpenTrades.get(trade.signalId);
-          const liveScore = signalScore?.score;
-
-          if (liveScore != null && liveScore < SIM_CONFIG.SCORE_FLOOR) {
-            const tradeAsset = trade.assetType ?? "CRYPTO";
-            let simStateMT = await loadSimState(tradeAsset);
-            const livePrice = trade.currentPrice ?? trade.entryPrice;
-            const exitResult = processTradeExit({
-              trade,
-              exitType: "SL",
-              exitPrice: livePrice,
-              state: simStateMT,
-            });
-            if (exitResult) {
-              updateSimState(tradeAsset, exitResult.updatedState);
-              const { id: _sdId, ...sdUpdate } = exitResult.updatedTrade;
-              await db.collection("simulator_trades").doc(trade.id!).update({
-                ...sdUpdate,
-                closeReason: "SCORE_DEGRADED",
-              });
-              await db.collection("simulator_logs").add({
-                ...exitResult.log,
-                action: "SCORE_DEGRADED",
-                details: `${trade.symbol} score dropped to ${liveScore} (floor: ${SIM_CONFIG.SCORE_FLOOR}) → closed at ${tradeAsset === "INDIAN_STOCKS" ? "₹" : "$"}${livePrice}`,
-                assetType: tradeAsset,
-              });
-              trade.status = "CLOSED";
-              scoreDegradedCloses++;
-            }
-          }
-        }
-
-        if (marketTurnCloses > 0 || scoreDegradedCloses > 0) {
+        if (marketTurnCloses > 0) {
           await flushSimStates();
         }
       }
@@ -584,7 +549,7 @@ export async function GET(request: NextRequest) {
     await db.collection("logs").add({
       timestamp: new Date().toISOString(),
       level: "INFO",
-      message: `SIM SYNC: eventCloses=${eventCloses} priceUpdates=${priceUpdates} trailingSl=${trailingSlCloses} mktTurn=${marketTurnCloses} scoreDeg=${scoreDegradedCloses} incubated=${incubatedCount}`,
+      message: `SIM SYNC: eventCloses=${eventCloses} priceUpdates=${priceUpdates} trailingSl=${trailingSlCloses} mktTurn=${marketTurnCloses} incubated=${incubatedCount}`,
       webhookId: "SYSTEM_CRON",
     });
 
@@ -595,7 +560,6 @@ export async function GET(request: NextRequest) {
       priceUpdates,
       trailingSlCloses,
       marketTurnCloses,
-      scoreDegradedCloses,
       incubatedCount,
     });
   } catch (error: any) {

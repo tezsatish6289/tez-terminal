@@ -9,8 +9,7 @@ import {
   type LiveTrade,
   type Credentials,
 } from "@/lib/trade-engine";
-import { detectMarketTurn, SIM_CONFIG, type MarketTurnInput, type SimTrade } from "@/lib/simulator";
-import { computeAutoFilter, mapFirestoreSignal } from "@/lib/auto-filter";
+import { detectMarketTurn, type MarketTurnInput, type SimTrade } from "@/lib/simulator";
 import { decrypt } from "@/lib/crypto";
 import { sendMessage } from "@/lib/telegram";
 import {
@@ -41,7 +40,7 @@ async function syncUserTrades(
   creds: Credentials,
   userSettings: { dailyLossLimit: number },
   allPrices: AllExchangePrices,
-  signalContext: { turnInputs: MarketTurnInput[]; scores: Map<string, any> },
+  signalContext: { turnInputs: MarketTurnInput[] },
   db: FirebaseFirestore.Firestore
 ): Promise<{
   fills: number;
@@ -295,10 +294,10 @@ async function syncUserTrades(
 
         const sim = simDoc.data() as SimTrade;
 
-        const riskCloseReasons = ["TRAILING_SL", "MARKET_TURN", "SCORE_DEGRADED"];
+        const riskCloseReasons = ["TRAILING_SL", "MARKET_TURN"];
         if (sim.status !== "CLOSED" || !riskCloseReasons.includes(sim.closeReason ?? "")) continue;
 
-        const closeReason = (sim.closeReason as "TRAILING_SL" | "MARKET_TURN" | "SCORE_DEGRADED");
+        const closeReason = (sim.closeReason as "TRAILING_SL" | "MARKET_TURN");
         const curPrice = getPrice(allPrices, lt.signalSymbol, exchange) ?? lt.entryPrice;
         const closeResult = await protectiveClose(lt, closeReason, curPrice, creds);
 
@@ -363,31 +362,6 @@ async function syncUserTrades(
       }
     }
 
-    // ── 6. Protective closes: score degradation (safety net) ─
-    for (const trade of liveTrades) {
-      if (trade.status === "CLOSED") continue;
-      const signalScore = signalContext.scores.get(trade.signalId);
-      const liveScore = signalScore?.score;
-
-      if (liveScore != null && liveScore < SIM_CONFIG.SCORE_FLOOR) {
-        const curPrice = getPrice(allPrices, trade.signalSymbol, exchange) ?? trade.entryPrice;
-        const closeResult = await protectiveClose(trade, "SCORE_DEGRADED", curPrice, creds);
-        await db.collection("live_trades").doc(trade.id!).update({
-          ...closeResult.updatedFields,
-          events: [...(trade.events || []), closeResult.newEvent],
-        });
-        await db.collection("live_trade_logs").add({
-          timestamp: new Date().toISOString(),
-          action: "SCORE_DEGRADED_CLOSE",
-          details: `${trade.signalSymbol} score=${liveScore} < ${SIM_CONFIG.SCORE_FLOOR} → closed${closeResult.warning ? ` (${closeResult.warning})` : ""}`,
-          symbol: trade.signalSymbol,
-          userId,
-          exchange,
-        });
-        trade.status = "CLOSED";
-        result.protectiveCloses++;
-      }
-    }
 
     // ── 5. Daily loss limit / auto kill switch ──────────────
     try {
@@ -508,11 +482,9 @@ export async function GET(request: NextRequest) {
       allPrices = deserializePrices(priceDoc.data() as Record<string, Record<string, number>>);
     }
 
-    // ── 2. Build signal context for market turn/scoring ─────
+    // ── 2. Build signal context for market turn detection ────
     const signalsSnap = await db.collection("signals").get();
     const postUpdateDocs = signalsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    const allSignalsForScoring = postUpdateDocs.map(mapFirestoreSignal);
-    const scores = computeAutoFilter(allSignalsForScoring);
 
     const turnInputs: MarketTurnInput[] = postUpdateDocs.map((d: any) => ({
       symbol: d.symbol || "",
@@ -527,7 +499,7 @@ export async function GET(request: NextRequest) {
       confidenceScore: d.confidenceScore ?? 0,
     }));
 
-    const signalContext = { turnInputs, scores };
+    const signalContext = { turnInputs };
 
     // ── 3. Find all users with auto-trade enabled ───────────
     // Check each supported exchange's secrets collection

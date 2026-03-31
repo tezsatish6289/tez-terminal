@@ -17,7 +17,6 @@ const ALLOWED_KEYS = new Set<string>([
   "LIVE_WIN_RATE_SAMPLE_MIN",
   "INCUBATED_SL_CONSUMED_MAX",
   "INCUBATED_TP1_CONSUMED_MAX",
-  "SCORE_FLOOR",
 ]);
 
 export async function GET() {

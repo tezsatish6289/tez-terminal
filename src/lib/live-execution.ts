@@ -9,6 +9,8 @@ import {
   getExchangeSegment,
   getSecretDocIds,
   docMatchesExchange,
+  getConnector,
+  type ExchangeCredentials,
 } from "./exchanges";
 import type { SimTrade, SimConfigType } from "./simulator";
 
@@ -109,7 +111,10 @@ export async function executeForAllUsers(
         exchange: task.exchange,
       });
 
-      const liveResult = await executeExchangeTrade(
+      // Attempt exchange execution. On failure, retry once — but first check
+      // whether the exchange already has a position open for this symbol to
+      // avoid doubling up if the first attempt partially succeeded.
+      let liveResult = await executeExchangeTrade(
         simTrade,
         task.userId,
         simTradeId,
@@ -119,8 +124,86 @@ export async function executeForAllUsers(
         simConfig,
       );
 
+      if (!liveResult.success) {
+        const connector = getConnector(task.exchange);
+        const exchangeSymbol = connector.normalizeSymbol(simTrade.symbol);
+        const existingPos = await connector.getPosition(exchangeSymbol, task.creds as ExchangeCredentials).catch(() => null);
+        const alreadyOpen = existingPos && Math.abs(parseFloat(String(existingPos.positionAmt ?? 0))) > 0;
+
+        if (alreadyOpen) {
+          // First attempt placed the order but we lost the response — record
+          // and stop. The position is tracked by the exchange; the Firestore
+          // write below will still be skipped (liveResult.success is false).
+          await db.collection("live_trade_logs").add({
+            timestamp: new Date().toISOString(),
+            action: "TRADE_ALREADY_OPEN",
+            details: `${symbol} ${signalType} — execution reported failure but position exists on ${task.exchange}; skipping retry to avoid double-open. Manual review needed.`,
+            signalId,
+            symbol,
+            userId: task.userId,
+            exchange: task.exchange,
+          }).catch(() => {});
+        } else {
+          // No position on exchange — safe to retry once
+          await new Promise((r) => setTimeout(r, 1000));
+          liveResult = await executeExchangeTrade(
+            simTrade,
+            task.userId,
+            simTradeId,
+            simulatorCapital,
+            task.creds,
+            task.exchange,
+            simConfig,
+          );
+          if (!liveResult.success) {
+            await db.collection("live_trade_logs").add({
+              timestamp: new Date().toISOString(),
+              action: "TRADE_FAILED_PERMANENT",
+              details: `${symbol} ${signalType} — failed after 2 attempts on ${task.exchange} for user ${task.userId}: ${liveResult.error}. No further retries.`,
+              signalId,
+              symbol,
+              userId: task.userId,
+              exchange: task.exchange,
+            }).catch(() => {});
+          }
+        }
+      }
+
       if (liveResult.success && liveResult.trade) {
-        await db.collection("live_trades").add(liveResult.trade);
+        // Use a pre-generated doc ID so retrying set() is idempotent —
+        // if the first write succeeded but the network dropped before we got
+        // the ack, retrying with the same ID just overwrites with the same data.
+        const liveTradeRef = db.collection("live_trades").doc();
+        let writeOk = false;
+        for (let w = 1; w <= 3; w++) {
+          try {
+            await liveTradeRef.set(liveResult.trade);
+            writeOk = true;
+            break;
+          } catch {
+            if (w < 3) await new Promise((r) => setTimeout(r, 400 * w));
+          }
+        }
+
+        if (!writeOk) {
+          // All 3 write attempts failed. The exchange position is open but
+          // untracked. Emergency-close it — principle: no Firestore record
+          // = no live trade.
+          const connector = getConnector(task.exchange);
+          try { await connector.cancelAllOrders(liveResult.trade.symbol, task.creds as ExchangeCredentials); } catch {}
+          try { await connector.placeMarketClose(liveResult.trade.symbol, liveResult.trade.side, liveResult.trade.quantity, task.creds as ExchangeCredentials); } catch {}
+          await db.collection("live_trade_logs").add({
+            timestamp: new Date().toISOString(),
+            action: "LIVE_WRITE_FAILED_CLOSED",
+            details: `${symbol} ${signalType} — live_trades write failed after 3 attempts on ${task.exchange}; emergency-closed to prevent ghost position`,
+            signalId,
+            symbol,
+            userId: task.userId,
+            exchange: task.exchange,
+          }).catch(() => {});
+          return { ...liveResult, success: false, error: "live_trades write failed after retries — exchange position closed" };
+        }
+
         await db.collection("live_trade_logs").add({
           timestamp: new Date().toISOString(),
           action: "TRADE_OPENED",

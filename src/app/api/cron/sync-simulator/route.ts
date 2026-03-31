@@ -510,7 +510,35 @@ export async function GET(request: NextRequest) {
             algoWinRate: algoEntry?.winRate ?? 0,
           });
 
-          const simTradeRef = await db.collection("simulator_trades").add(result.trade);
+          // Gate 1: write sim trade to Firestore with retries.
+          // Pre-generate the doc ID so retrying set() is idempotent —
+          // if the write succeeded but the ack was lost, retrying with the
+          // same ID simply overwrites with identical data, no duplicates.
+          const simTradeRef = db.collection("simulator_trades").doc();
+          let simWriteOk = false;
+          for (let w = 1; w <= 3; w++) {
+            try {
+              await simTradeRef.set(result.trade);
+              simWriteOk = true;
+              break;
+            } catch (writeErr) {
+              if (w < 3) {
+                await new Promise((r) => setTimeout(r, 500 * w));
+              } else {
+                console.error(`[SimSync] Sim trade write failed after 3 attempts for ${c.symbol}:`, writeErr);
+                await db.collection("simulator_logs").add({
+                  timestamp: new Date().toISOString(),
+                  action: "SIM_WRITE_FAILED",
+                  details: `${c.symbol} ${c.type} — sim trade write failed after 3 attempts; live execution skipped. Error: ${writeErr instanceof Error ? writeErr.message : String(writeErr)}`,
+                  assetType,
+                }).catch(() => {});
+              }
+            }
+          }
+
+          // Gate: only proceed to live execution if sim trade is persisted.
+          if (!simWriteOk) continue;
+
           simState3 = result.updatedState;
           updateSimState(assetType, simState3);
           result.log.details = `[INCUBATED] ${result.log.details}`;

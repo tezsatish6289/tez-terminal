@@ -249,12 +249,15 @@ export async function GET(request: NextRequest) {
               }
             } else {
               const unrealizedPnl = computeUnrealizedPnl(t, livePrice);
-              const liveScore = scoresForOpenTrades.get(t.signalId)?.score ?? null;
+              const liveScored = scoresForOpenTrades.get(t.signalId);
+              const liveScore = liveScored?.score ?? null;
+              const livePattern = liveScored?.breakdown?.pattern ?? null;
               const updatePayload: Record<string, unknown> = {
                 currentPrice: livePrice,
                 unrealizedPnl: Math.round(unrealizedPnl * 100) / 100,
                 highWatermark: updatedHwm,
                 currentScore: liveScore,
+                currentScorePattern: livePattern,
               };
               if (newTrailingSl !== t.trailingSl && newTrailingSl != null && t.trailingSl == null) {
                 updatePayload.trailingSl = newTrailingSl;
@@ -350,7 +353,65 @@ export async function GET(request: NextRequest) {
         }
       }
     } catch (mtErr: any) {
-      console.error("[SimSync] Market turn / score degradation failed:", mtErr.message);
+      console.error("[SimSync] Market turn failed:", mtErr.message);
+    }
+
+    // ── Pattern-break exit ────────────────────────────────────
+    // Close a trade if: score = 0 (price actively drifting toward SL)
+    // AND SL has not yet reached entry price (trade still at full risk).
+    // Once SL is at or above entry, trailing SL manages the exit.
+    let patternBreakCloses = 0;
+    try {
+      const openSimSnapPB = await db.collection("simulator_trades")
+        .where("status", "==", "OPEN").get();
+
+      if (!openSimSnapPB.empty) {
+        const openSimTradesPB = openSimSnapPB.docs.map((d) => ({ id: d.id, ...d.data() } as SimTrade));
+
+        for (const trade of openSimTradesPB) {
+          const scored = scoresForOpenTrades.get(trade.signalId);
+          if (!scored || scored.score !== 0 || scored.breakdown?.pattern !== "none") continue;
+
+          // Check SL not yet at entry — still carrying full risk
+          const isBuy = trade.side === "BUY";
+          const slAtEntry = isBuy
+            ? (trade.trailingSl ?? 0) >= trade.entryPrice
+            : (trade.trailingSl ?? Infinity) <= trade.entryPrice;
+          if (slAtEntry) continue; // already protected, trailing SL handles it
+
+          const tradeAsset = trade.assetType ?? "CRYPTO";
+          let simStatePB = await loadSimState(tradeAsset);
+          const livePrice = trade.currentPrice ?? trade.entryPrice;
+          const exitResult = processTradeExit({
+            trade,
+            exitType: "SL",
+            exitPrice: livePrice,
+            state: simStatePB,
+          });
+          if (exitResult) {
+            updateSimState(tradeAsset, exitResult.updatedState);
+            const { id: _pbId, ...pbUpdate } = exitResult.updatedTrade;
+            await db.collection("simulator_trades").doc(trade.id!).update({
+              ...pbUpdate,
+              closeReason: "PATTERN_BREAK",
+            });
+            await db.collection("simulator_logs").add({
+              ...exitResult.log,
+              action: "PATTERN_BREAK",
+              details: `${trade.symbol} ${trade.side} — pattern dissolved, price drifting toward SL before breakeven. Closed at $${livePrice}`,
+              assetType: tradeAsset,
+            });
+            trade.status = "CLOSED";
+            patternBreakCloses++;
+          }
+        }
+
+        if (patternBreakCloses > 0) {
+          await flushSimStates();
+        }
+      }
+    } catch (pbErr: any) {
+      console.error("[SimSync] Pattern-break exit failed:", pbErr.message);
     }
 
     // ── Incubated signal selection (per asset type) ────────
@@ -542,7 +603,7 @@ export async function GET(request: NextRequest) {
     await db.collection("logs").add({
       timestamp: new Date().toISOString(),
       level: "INFO",
-      message: `SIM SYNC: eventCloses=${eventCloses} priceUpdates=${priceUpdates} trailingSl=${trailingSlCloses} mktTurn=${marketTurnCloses} incubated=${incubatedCount}`,
+      message: `SIM SYNC: eventCloses=${eventCloses} priceUpdates=${priceUpdates} trailingSl=${trailingSlCloses} mktTurn=${marketTurnCloses} patternBreak=${patternBreakCloses} incubated=${incubatedCount}`,
       webhookId: "SYSTEM_CRON",
     });
 
@@ -553,6 +614,7 @@ export async function GET(request: NextRequest) {
       priceUpdates,
       trailingSlCloses,
       marketTurnCloses,
+      patternBreakCloses,
       incubatedCount,
     });
   } catch (error: any) {

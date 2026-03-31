@@ -65,7 +65,7 @@ export interface LiveTrade {
 }
 
 export interface LiveTradeEvent {
-  type: "OPEN" | "TP1" | "TP2" | "TP3" | "SL" | "SL_TO_BE" | "MARKET_TURN" | "SCORE_DEGRADED" | "KILL_SWITCH" | "TRAILING_SL";
+  type: "OPEN" | "TP1" | "TP2" | "TP3" | "SL" | "SL_TO_BE" | "MARKET_TURN" | "SCORE_DEGRADED" | "KILL_SWITCH" | "TRAILING_SL" | "PATTERN_BREAK";
   price: number;
   pnl: number;
   fee: number;
@@ -465,7 +465,7 @@ export async function moveSlToBreakeven(
 
 export async function protectiveClose(
   trade: LiveTrade,
-  reason: "MARKET_TURN" | "KILL_SWITCH" | "TRAILING_SL",
+  reason: "MARKET_TURN" | "KILL_SWITCH" | "TRAILING_SL" | "PATTERN_BREAK",
   currentPrice: number,
   creds: Credentials
 ): Promise<{

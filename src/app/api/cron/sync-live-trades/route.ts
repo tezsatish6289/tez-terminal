@@ -294,10 +294,10 @@ async function syncUserTrades(
 
         const sim = simDoc.data() as SimTrade;
 
-        const riskCloseReasons = ["TRAILING_SL", "MARKET_TURN"];
+        const riskCloseReasons = ["TRAILING_SL", "MARKET_TURN", "PATTERN_BREAK"];
         if (sim.status !== "CLOSED" || !riskCloseReasons.includes(sim.closeReason ?? "")) continue;
 
-        const closeReason = (sim.closeReason as "TRAILING_SL" | "MARKET_TURN");
+        const closeReason = (sim.closeReason as "TRAILING_SL" | "MARKET_TURN" | "PATTERN_BREAK");
         const curPrice = getPrice(allPrices, lt.signalSymbol, exchange) ?? lt.entryPrice;
         const closeResult = await protectiveClose(lt, closeReason, curPrice, creds);
 

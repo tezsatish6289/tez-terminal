@@ -23,6 +23,7 @@ import {
   LogIn,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PatternBadge, type PatternType } from "@/components/ui/pattern-badge";
 import { BinanceIcon, MexcIcon, PionexIcon, TradingViewIcon } from "@/components/icons/exchange-icons";
 import { useEffect, useRef, useState } from "react";
 import { format, differenceInMinutes } from "date-fns";
@@ -213,23 +214,27 @@ export default function DeepDiveChartPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2.5">
                   <h3 className="text-2xl font-black text-foreground leading-none tracking-tighter uppercase truncate">{signal?.symbol}</h3>
-                  {signal?.confidenceScore != null && (
-                    <div
-                      className={cn(
-                        "flex items-center gap-1 px-2 py-1 rounded-lg border shrink-0",
-                        signal.confidenceScore >= 80
-                          ? "bg-positive/10 border-positive/25 text-positive"
-                          : signal.confidenceScore >= 65
-                            ? "bg-accent/10 border-accent/25 text-accent"
-                            : signal.confidenceScore >= 50
-                              ? "bg-amber-400/10 border-amber-400/25 text-amber-400"
-                              : "bg-orange-400/10 border-orange-400/25 text-orange-400"
-                      )}
-                    >
-                      <Sparkles className="w-3 h-3" />
-                      <span className="text-[11px] font-black tabular-nums">{signal.confidenceScore}</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <PatternBadge
+                      pattern={signal?.scoreBreakdown?.pattern as PatternType}
+                      score={signal?.confidenceScore}
+                    />
+                    {signal?.confidenceScore != null && (
+                      <div
+                        className={cn(
+                          "flex items-center gap-1 px-2 py-1 rounded-lg border",
+                          signal.confidenceScore >= 65
+                            ? "bg-positive/10 border-positive/25 text-positive"
+                            : signal.confidenceScore >= 45
+                              ? "bg-accent/10 border-accent/25 text-accent"
+                              : "bg-amber-400/10 border-amber-400/25 text-amber-400"
+                        )}
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        <span className="text-[11px] font-black tabular-nums">{signal.confidenceScore}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5 mt-1.5">
                   <span className={cn("text-[11px] font-black uppercase", isBullish ? "text-positive" : "text-negative")}>{isBullish ? "▲ Long" : "▼ Short"}</span>

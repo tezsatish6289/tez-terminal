@@ -127,9 +127,11 @@ async function syncUserTrades(
           const priceDiff = isBuy ? livePrice - lt.entryPrice : lt.entryPrice - livePrice;
           const unrealizedPnl = (priceDiff / lt.entryPrice) * lt.positionSize * lt.leverage;
 
+          const livePattern = lt.signalId ? (signalPatterns.get(lt.signalId) ?? null) : null;
           await db.collection("live_trades").doc(lt.id!).update({
             currentPrice: livePrice,
             unrealizedPnl: Math.round(unrealizedPnl * 100) / 100,
+            ...(livePattern != null ? { currentScorePattern: livePattern } : {}),
           });
           lt.currentPrice = livePrice;
           lt.unrealizedPnl = Math.round(unrealizedPnl * 100) / 100;
@@ -498,6 +500,13 @@ export async function GET(request: NextRequest) {
       tp3Hit: d.tp3Hit === true,
       confidenceScore: d.confidenceScore ?? 0,
     }));
+
+    // Build signalId → current pattern map for live trade display
+    const signalPatterns = new Map<string, string>();
+    for (const d of postUpdateDocs) {
+      const pattern = (d as any).scoreBreakdown?.pattern;
+      if (pattern) signalPatterns.set(d.id, pattern);
+    }
 
     const signalContext = { turnInputs };
 

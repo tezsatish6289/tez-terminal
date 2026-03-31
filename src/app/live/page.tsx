@@ -23,6 +23,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { PatternBadge, type PatternType } from "@/components/ui/pattern-badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Dialog,
@@ -456,7 +457,10 @@ function DesktopTradeRow({ trade, onSelect }: { trade: LiveTrade; onSelect: (t: 
       </TableCell>
       <TableCell className="font-mono text-xs font-bold text-white/60">{formatUsd(trade.positionSize)}</TableCell>
       <TableCell>
-        <span className="font-mono text-xs font-bold text-accent">{trade.confidenceScore}</span>
+        <div className="flex flex-col gap-0.5">
+          <span className="font-mono text-xs font-bold text-accent">{trade.confidenceScore}</span>
+          {isOpen && <PatternBadge pattern={(trade as any).currentScorePattern as PatternType} score={null} />}
+        </div>
       </TableCell>
       <TableCell>
         {isOpen ? (
@@ -654,9 +658,14 @@ function LiveTradeNarrationDialog({ trade, onClose }: { trade: LiveTrade | null;
             <span className="text-muted-foreground/40">TP1</span>
             <span className="font-mono font-bold text-emerald-400/70">${formatPrice(trade.tp1)}</span>
           </div>
-          <div className="flex justify-between">
+          <div className="flex justify-between items-center">
             <span className="text-muted-foreground/40">Score</span>
-            <span className="font-mono font-bold text-accent">{trade.confidenceScore}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono font-bold text-accent">{trade.confidenceScore}</span>
+              {(trade as any).currentScorePattern && (
+                <PatternBadge pattern={(trade as any).currentScorePattern as PatternType} score={null} />
+              )}
+            </div>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground/40">TP2</span>

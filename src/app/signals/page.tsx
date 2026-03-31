@@ -46,6 +46,7 @@ import {
 import { getLeverage } from "@/lib/leverage";
 import { getEffectivePnl } from "@/lib/pnl";
 import { AUTO_FILTER_THRESHOLD, type ScoredSignal } from "@/lib/auto-filter";
+import { PatternBadge, type PatternType } from "@/components/ui/pattern-badge";
 import { useSubscription } from "@/hooks/use-subscription";
 import { DEFAULT_PLANS, FREE_TRIAL_DAYS } from "@/lib/subscription";
 
@@ -135,6 +136,7 @@ interface ProcessedSignal {
   autoFilterPassed: boolean | null;
   confidenceScore: number | null;
   confidenceLabel: string | null;
+  scorePattern: string | null;
 }
 
 interface StatusEvent {
@@ -221,25 +223,24 @@ function OpportunityCard({
           <span className="text-[15px] font-black uppercase tracking-tight text-foreground truncate min-w-0">
             {signal.symbol}
           </span>
-          {score && (
-            <div
-              className={cn(
-                "flex items-center gap-1 px-2 py-1 rounded-lg border shrink-0",
-                score.score >= 80
-                  ? "bg-positive/10 border-positive/25 text-positive"
-                  : score.score >= 65
-                    ? "bg-accent/10 border-accent/25 text-accent"
-                    : score.score >= 50
-                      ? "bg-amber-400/10 border-amber-400/25 text-amber-400"
-                      : "bg-orange-400/10 border-orange-400/25 text-orange-400"
-              )}
-            >
-              <Sparkles className="w-3 h-3" />
-              <span className="text-[11px] font-black tabular-nums">
-                {score.score}
-              </span>
-            </div>
-          )}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <PatternBadge pattern={signal.scorePattern as PatternType} score={signal.confidenceScore} />
+            {score && (
+              <div
+                className={cn(
+                  "flex items-center gap-1 px-2 py-1 rounded-lg border",
+                  score.score >= 65
+                    ? "bg-positive/10 border-positive/25 text-positive"
+                    : score.score >= 45
+                      ? "bg-accent/10 border-accent/25 text-accent"
+                      : "bg-amber-400/10 border-amber-400/25 text-amber-400"
+                )}
+              >
+                <Sparkles className="w-3 h-3" />
+                <span className="text-[11px] font-black tabular-nums">{score.score}</span>
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 mt-1">
           <div className="flex items-center gap-1">
@@ -727,6 +728,7 @@ export default function SignalsPage() {
           autoFilterPassed: signal.autoFilterPassed ?? null,
           confidenceScore: signal.confidenceScore ?? null,
           confidenceLabel: signal.confidenceLabel ?? null,
+          scorePattern: signal.scoreBreakdown?.pattern ?? null,
         };
       });
   }, [rawSignals, assetType]);

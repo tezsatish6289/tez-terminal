@@ -296,7 +296,7 @@ function checkDynamicRR(signal: SignalForScoring): boolean {
 
 function scorePatternA(signal: SignalForScoring): number {
   const snaps = signal.priceSnapshots;
-  if (snaps.length < 4) return 0;
+  if (snaps.length < 3) return 0;
 
   const isBuy = signal.type === "BUY";
   const entry = signal.price;
@@ -347,7 +347,7 @@ function scorePatternA(signal: SignalForScoring): number {
 
 function scorePatternB(signal: SignalForScoring): number {
   const snaps = signal.priceSnapshots;
-  if (snaps.length < 4) return 0;
+  if (snaps.length < 3) return 0;
 
   const isBuy = signal.type === "BUY";
   const entry = signal.price;

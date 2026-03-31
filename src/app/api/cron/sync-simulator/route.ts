@@ -416,6 +416,23 @@ export async function GET(request: NextRequest) {
 
     // ── Incubated signal selection (per asset type) ────────
     let incubatedCount = 0;
+    // Assessment counters — aggregated across all asset types for the summary log
+    const assess = {
+      total: postUpdateDocs.length,
+      active: 0,
+      resolvedExcluded: 0,  // tp1/tp2/sl already hit
+      noPriceExcluded: 0,   // currentPrice missing → excluded from candidates
+      evaluated: 0,         // passed into selectIncubatedSignals
+      alreadyOpen: 0,
+      duplicate: 0,
+      slConsumed: 0,
+      tp1Consumed: 0,
+      noPattern: 0,
+      earlySnapshots: 0,
+      rrGateFailed: 0,
+      missingLevels: 0,
+      selected: 0,
+    };
     try {
       const biasDoc = await db.collection("config").doc("market_bias").get();
       const bullScore = biasDoc.exists ? (biasDoc.data()?.bullScore ?? 0) : 0;
@@ -424,6 +441,14 @@ export async function GET(request: NextRequest) {
       const openSimSnap2 = await db.collection("simulator_trades")
         .where("status", "==", "OPEN").get();
       const openSimTrades = openSimSnap2.docs.map((d) => ({ id: d.id, ...d.data() } as SimTrade));
+
+      // Pre-compute exclusion stats from the full signal set
+      for (const d of postUpdateDocs) {
+        if (d.status !== "ACTIVE") continue;
+        assess.active++;
+        if (d.tp1Hit || d.tp2Hit || d.slHitAt) { assess.resolvedExcluded++; continue; }
+        if (d.currentPrice == null || d.price == null || d.stopLoss == null) { assess.noPriceExcluded++; }
+      }
 
       const candidates: IncubatedCandidate[] = postUpdateDocs
         .filter((d) =>
@@ -468,6 +493,8 @@ export async function GET(request: NextRequest) {
         const assetOpenTrades = openSimTrades.filter((t) => (t.assetType ?? "CRYPTO") === assetType);
         let simState3 = await loadSimState(assetType);
 
+        assess.evaluated += assetCandidates.length;
+
         const { selected, skipped: incubSkipped } = selectIncubatedSignals({
           candidates: assetCandidates,
           state: simState3,
@@ -476,6 +503,20 @@ export async function GET(request: NextRequest) {
           openTrades: assetOpenTrades,
           simConfig,
         });
+
+        // Categorise skip reasons for the summary log
+        for (const skip of incubSkipped) {
+          const r = skip.reason.toLowerCase();
+          if (r.includes("already in simulator")) assess.alreadyOpen++;
+          else if (r.includes("duplicate")) assess.duplicate++;
+          else if (r.includes("sl consumed")) assess.slConsumed++;
+          else if (r.includes("tp1 consumed")) assess.tp1Consumed++;
+          else if (r.includes("too early")) assess.earlySnapshots++;
+          else if (r.includes("no price structure")) assess.noPattern++;
+          else if (r.includes("rr gate")) assess.rrGateFailed++;
+          else if (r.includes("missing")) assess.missingLevels++;
+        }
+        assess.selected += selected.length;
 
         for (const c of selected) {
           const isBuy = c.type === "BUY";
@@ -572,8 +613,7 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Only log skips for signals that are still "fresh" (within first 3 candles
-        // of their own TF). Older signals that keep failing are noise, not signal.
+        // Log fresh skips (< 3 candles old) for new signals — kept brief to avoid spam
         const CANDLE_MINS: Record<string, number> = {
           "1": 1, "5": 5, "15": 15, "60": 60, "240": 240, "D": 1440, "W": 10080,
         };
@@ -596,6 +636,28 @@ export async function GET(request: NextRequest) {
       }
 
       await flushSimStates();
+
+      // One summary log per cycle — full funnel breakdown, zero per-signal noise
+      await db.collection("simulator_logs").add({
+        timestamp: new Date().toISOString(),
+        action: "ASSESSMENT_SUMMARY",
+        details: [
+          `total=${assess.total}`,
+          `active=${assess.active}`,
+          `resolved_excluded=${assess.resolvedExcluded}`,
+          `no_price=${assess.noPriceExcluded}`,
+          `evaluated=${assess.evaluated}`,
+          `already_open=${assess.alreadyOpen}`,
+          `duplicate=${assess.duplicate}`,
+          `sl_consumed=${assess.slConsumed}`,
+          `tp1_consumed=${assess.tp1Consumed}`,
+          `early_snapshots=${assess.earlySnapshots}`,
+          `no_pattern=${assess.noPattern}`,
+          `rr_gate=${assess.rrGateFailed}`,
+          `selected=${assess.selected}`,
+        ].join(" | "),
+        assetType: "ALL",
+      });
     } catch (incErr: any) {
       console.error("[SimSync] Incubated signal selection failed:", incErr.message);
     }

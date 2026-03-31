@@ -1270,7 +1270,7 @@ export default function SignalsPage() {
                           : signal.confidenceScore >= 65 ? "text-accent"
                           : signal.confidenceScore >= 50 ? "text-amber-400"
                           : "text-orange-400",
-                        breakdown: { mtfConfluence: 0, momentum: 0, riskReward: 0, algoPerformance: 0, tradeHealth: 0, freshness: 0 },
+                        breakdown: { priceStructure: 0, freshness: 0, pattern: "none" as const },
                       } : undefined}
                     />
                   ))}

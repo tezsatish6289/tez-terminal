@@ -10,6 +10,7 @@ import {
   isRegimeStale,
   computeMarketRegime,
   computeAlgoTfStats,
+  CANDLE_MINUTES as SNAPSHOT_CANDLE_MINUTES,
   type MarketRegimeData,
 } from "@/lib/auto-filter";
 import {
@@ -288,6 +289,21 @@ export async function GET(request: NextRequest) {
       }
 
       updateData.status = newStatus;
+
+      // ── Price snapshot: one entry per completed candle of the signal's TF ──
+      // Snapshots are used by the pattern-detection scoring engine.
+      // We write at most once per candle interval to keep the array meaningful.
+      const candleMinutes = SNAPSHOT_CANDLE_MINUTES[String(signal.timeframe)] ?? 15;
+      const lastSnapshotAt: string | null = signal.lastSnapshotAt ?? null;
+      const minutesSinceLast = lastSnapshotAt
+        ? (Date.now() - new Date(lastSnapshotAt).getTime()) / 60_000
+        : Infinity;
+
+      if (minutesSinceLast >= candleMinutes) {
+        const existing: number[] = Array.isArray(signal.priceSnapshots) ? signal.priceSnapshots : [];
+        updateData.priceSnapshots = [...existing.slice(-11), currentPrice]; // max 12
+        updateData.lastSnapshotAt = nowISO;
+      }
 
       priceBatch.update(db.collection("signals").doc(signalDoc.id), updateData);
       priceBatchCount++;

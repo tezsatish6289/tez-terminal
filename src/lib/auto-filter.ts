@@ -1,20 +1,23 @@
 /**
  * Auto-Filter Scoring Engine
  *
- * Predicts signal profitability using a 6-factor weighted scoring system.
- * Each active signal gets a confidence score (0-100):
+ * Scores each signal on two factors (0-100):
  *
- *   1. Multi-Timeframe Confluence  (0-25)  — Direction alignment across TFs
- *   2. Momentum & Market Regime    (0-25)  — Price action + environment
- *   3. Risk-Reward Quality         (0-15)  — TP distance vs SL distance
- *   4. Historical Algo Performance (0-15)  — Win rate of algo+TF combo
- *   5. Trade Health / Drawdown     (0-12)  — Adverse excursion analysis
- *   6. Signal Freshness            (0-8)   — Time decay relative to TF
+ *   1. Price Structure  (0-80) — Pattern A (holding/loading) or
+ *                                Pattern B (tested SL zone, rejected, recovering)
+ *                                detected from up to 12 candle-frequency snapshots
+ *   2. Signal Freshness (0-20) — Age in candles relative to the signal's TF
  *
- * Signals scoring >= AUTO_FILTER_THRESHOLD pass the auto-filter.
+ * Hard gates (applied before scoring; fail = score capped at 20):
+ *   - Dynamic RR: (TP2 − currentPrice) / (currentPrice − SL) ≥ 1.5
+ *   - SL consumed: price must not have moved > 30% into SL distance
  *
- * Runs server-side (webhook after() + sync-prices cron) and stores
- * scores on each signal document. Client reads pre-computed scores.
+ * Signals scoring ≥ AUTO_FILTER_THRESHOLD (45) are eligible for simulator entry.
+ *
+ * Price snapshots (priceSnapshots[], lastSnapshotAt) are written to each
+ * signal doc by sync-prices once per completed candle of the signal's TF.
+ *
+ * Runs server-side (sync-prices cron). Client reads pre-computed scores.
  */
 
 import { getEffectivePnl } from "./pnl";
@@ -211,13 +214,10 @@ const TF_RANK: Record<string, number> = {
   "1": 0, "5": 1, "15": 2, "60": 3, "240": 4, "D": 5, "W": 6,
 };
 
-const CANDLE_MINUTES: Record<string, number> = {
+export const CANDLE_MINUTES: Record<string, number> = {
   "1": 1, "5": 5, "15": 15, "60": 60, "240": 240, "D": 1440, "W": 10080,
 };
 
-const PNL_THRESHOLDS: Record<string, number> = {
-  "5": 0.3, "15": 0.5, "60": 1.0, "240": 2.0, "D": 3.0,
-};
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -247,15 +247,15 @@ export interface SignalForScoring {
   totalBookedPnl: number | null;
   confidenceScore?: number | null;
   maxConfidenceScore?: number | null;
+  // Price structure detection
+  priceSnapshots: number[];       // up to 12 prices, one per completed candle
+  lastSnapshotAt: string | null;  // ISO timestamp of last snapshot write
 }
 
 export interface ScoreBreakdown {
-  mtfConfluence: number;
-  momentum: number;
-  riskReward: number;
-  algoPerformance: number;
-  tradeHealth: number;
-  freshness: number;
+  priceStructure: number;   // 0-80 — Pattern A or B detection
+  freshness: number;        // 0-20 — age in candles
+  pattern: "A" | "B" | "none" | "early";
 }
 
 export interface ScoredSignal {
@@ -272,221 +272,176 @@ export interface AlgoTfStats {
   sampleSize: number;
 }
 
-// ── Factor 1: Cross-TF Signal Confluence (0-4) ──────────────
+// ── Hard gate: Dynamic RR to TP2 from current price ─────────
+// Recomputed every scoring cycle. Fails if remaining TP2 upside
+// is less than 1.5× the remaining SL risk from current price.
 
-function scoreMtfConfluence(
-  signal: SignalForScoring,
-  allSignals: SignalForScoring[],
-): number {
-  const MAX = 4;
-  const signalRank = TF_RANK[signal.timeframe];
-  if (signalRank == null) return Math.round(MAX * 0.4);
+function checkDynamicRR(signal: SignalForScoring): boolean {
+  const cur = signal.currentPrice;
+  const tp2 = signal.tp2;
+  const sl = signal.stopLoss;
+  if (cur == null || tp2 == null || sl == null) return true; // can't check → pass
 
-  const activeSignals = allSignals.filter(
-    (s) =>
-      s.id !== signal.id &&
-      s.status !== "INACTIVE" &&
-      !s.slHitAt &&
-      TF_RANK[s.timeframe] != null,
-  );
+  const isBuy = signal.type === "BUY";
+  const remaining = isBuy ? tp2 - cur : cur - tp2;
+  const risk = isBuy ? cur - sl : sl - cur;
 
-  let score = 0;
-
-  // Same-symbol cross-TF signals: higher TF aligned = strong confirmation
-  const sameSymbol = activeSignals.filter((s) => s.symbol === signal.symbol);
-  if (sameSymbol.length > 0) {
-    let symScore = 0;
-    for (const other of sameSymbol) {
-      const isHigher = TF_RANK[other.timeframe]! > signalRank;
-      const aligned = other.type === signal.type;
-      if (isHigher) {
-        symScore += aligned ? 3 : -2;
-      } else {
-        symScore += aligned ? 1 : -1;
-      }
-    }
-    score += Math.max(-2, Math.min(MAX, symScore));
-  }
-
-  return Math.max(0, Math.min(MAX, score));
+  if (risk <= 0 || remaining <= 0) return false;
+  return remaining / risk >= 1.5;
 }
 
-// ── Factor 2: Entry Quality & Market Regime (0-28) ──────────
+// ── Pattern A — Holding and loading (0-80) ──────────────────
+// Price moved in favour, consolidated in a tight range at that level,
+// has not given back the move. Next leg is likely.
 
-function scoreMomentum(
-  signal: SignalForScoring,
-  allSignals: SignalForScoring[],
-): number {
-  const MAX = 28;
-  const threshold = PNL_THRESHOLDS[signal.timeframe] ?? 0.5;
-  let score = 0;
+function scorePatternA(signal: SignalForScoring): number {
+  const snaps = signal.priceSnapshots;
+  if (snaps.length < 4) return 0;
 
-  // ─── A. 3D Entry Quality (0-12) ───
-  // Three dimensions: current PnL, positive excursion, negative excursion
   const isBuy = signal.type === "BUY";
   const entry = signal.price;
-  const pnl = signal.pnl;
+  const tp1 = signal.tp1;
+  if (!tp1) return 0;
 
-  // Positive excursion: how far did price go in the right direction?
-  let positiveExcursion = 0;
-  if (signal.maxUpsidePrice != null) {
-    positiveExcursion = isBuy
-      ? ((signal.maxUpsidePrice - entry) / entry) * 100
-      : ((entry - signal.maxUpsidePrice) / entry) * 100;
-  }
+  const tp1Distance = Math.abs(tp1 - entry);
+  if (tp1Distance <= 0) return 0;
 
-  // Negative excursion: did price ever go against us?
-  let negativeExcursion = 0;
-  if (signal.maxDrawdownPrice != null) {
-    negativeExcursion = isBuy
-      ? ((entry - signal.maxDrawdownPrice) / entry) * 100
-      : ((signal.maxDrawdownPrice - entry) / entry) * 100;
-  }
+  // Max price reached in favour across all snapshots
+  const maxFav = isBuy ? Math.max(...snaps) : Math.min(...snaps);
+  const maxExcursion = isBuy ? maxFav - entry : entry - maxFav;
 
-  const hadPositiveExcursion = positiveExcursion > threshold * 0.3;
-  const neverWentNegative = negativeExcursion < threshold * 0.15;
-  const isPulledBack = hadPositiveExcursion && pnl < positiveExcursion * 0.5;
+  // Must have moved ≥ 30% toward TP1
+  if (maxExcursion < tp1Distance * 0.30) return 0;
 
-  if (hadPositiveExcursion && neverWentNegative && isPulledBack && pnl >= 0) {
-    score += 12;
-  } else if (hadPositiveExcursion && neverWentNegative && pnl > 0) {
-    score += 11;
-  } else if (pnl > 0 && pnl <= threshold) {
-    score += 10;
-  } else if (hadPositiveExcursion && neverWentNegative && pnl <= 0 && pnl > -threshold * 0.3) {
-    score += 8;
-  } else if (hadPositiveExcursion && !neverWentNegative && pnl > 0) {
-    score += 6;
-  } else if (!hadPositiveExcursion && neverWentNegative) {
-    score += 6;
-  } else if (pnl > threshold * 2) {
-    score += 5;
-  } else if (hadPositiveExcursion && !neverWentNegative && pnl <= 0) {
-    score += 2;
-  } else if (pnl > -threshold) {
-    score += 2;
-  } else {
-    score += 0;
-  }
+  const cur = signal.currentPrice ?? snaps[snaps.length - 1];
+  const curExcursion = isBuy ? cur - entry : entry - cur;
 
-  // ─── B. Side-Aware Market Regime (0-16) ───
-  // "Are signals on MY side winning?" + "Are signals on the OTHER side losing?"
-  const sameTfActive = allSignals.filter(
-    (s) =>
-      s.timeframe === signal.timeframe &&
-      s.id !== signal.id &&
-      s.status !== "INACTIVE" &&
-      !s.slHitAt,
-  );
+  // Must still be holding ≥ 70% of that move (hasn't given it back)
+  if (maxExcursion <= 0 || curExcursion < maxExcursion * 0.70) return 0;
 
-  const sameSide = sameTfActive.filter((s) => s.type === signal.type);
-  const oppSide = sameTfActive.filter((s) => s.type !== signal.type);
+  let score = 40; // base: pattern detected
 
-  let regimeScore = 0;
+  // Tightness of last 4 snapshots relative to the total move
+  const last4 = snaps.slice(-4);
+  const totalMove = Math.abs(maxFav - entry);
+  const rangeSize = Math.max(...last4) - Math.min(...last4);
+  const rangePctActual = totalMove > 0 ? rangeSize / totalMove : 1;
 
-  // Same-side performance (0-10)
-  if (sameSide.length >= 2) {
-    const sameWinning = sameSide.filter((s) => s.pnl > threshold).length;
-    const sameLosing = sameSide.filter((s) => s.pnl < -threshold).length;
-    const sameWinRate = sameWinning / sameSide.length;
-    const sameLossRate = sameLosing / sameSide.length;
+  if (rangePctActual < 0.15) score += 20;
+  else if (rangePctActual < 0.25) score += 15;
+  else if (rangePctActual < 0.35) score += 8;
+  else if (rangePctActual < 0.50) score += 3;
 
-    if (sameWinRate > 0.65) regimeScore += 10;
-    else if (sameWinRate > 0.5) regimeScore += 8;
-    else if (sameWinRate > sameLossRate) regimeScore += 5;
-    else if (sameLossRate > 0.65) regimeScore += 0;
-    else regimeScore += 3;
-  } else {
-    regimeScore += 5;
-  }
+  // How well price held the high (closer to max = stronger)
+  const holdPct = curExcursion / maxExcursion;
+  if (holdPct >= 0.90) score += 20;
+  else if (holdPct >= 0.80) score += 15;
+  else score += 8; // ≥ 0.70 already guaranteed above
 
-  // Opposite-side performance as contrarian confirmation (0-6)
-  if (oppSide.length >= 2) {
-    const oppLosing = oppSide.filter((s) => s.pnl < -threshold).length;
-    const oppWinning = oppSide.filter((s) => s.pnl > threshold).length;
-    const oppLossRate = oppLosing / oppSide.length;
-    const oppWinRate = oppWinning / oppSide.length;
-
-    if (oppLossRate > 0.65) regimeScore += 6;
-    else if (oppLossRate > 0.5) regimeScore += 4;
-    else if (oppWinRate > 0.65) regimeScore -= 2;
-    else regimeScore += 2;
-  } else {
-    regimeScore += 2;
-  }
-
-  // ─── C. Recent SL Damage — same side, same TF (penalty: 0 to -5) ───
-  const now = Date.now();
-  const candleMs = (CANDLE_MINUTES[signal.timeframe] ?? 15) * 60 * 1000;
-  const slWindowMs = candleMs * 6;
-
-  const recentSlSameSideTf = allSignals.filter(
-    (s) =>
-      s.slHitAt != null &&
-      s.type === signal.type &&
-      s.timeframe === signal.timeframe &&
-      now - new Date(s.slHitAt).getTime() < slWindowMs,
-  ).length;
-
-  if (recentSlSameSideTf >= 3) regimeScore -= 5;
-  else if (recentSlSameSideTf >= 2) regimeScore -= 3;
-  else if (recentSlSameSideTf >= 1) regimeScore -= 1;
-
-  // ─── D. Cross-TF Side Destruction (penalty: 0 to -3) ───
-  const crossTfWindowMs = 6 * 60 * 60 * 1000;
-  const recentSlAll = allSignals.filter(
-    (s) =>
-      s.slHitAt != null &&
-      now - new Date(s.slHitAt).getTime() < crossTfWindowMs,
-  );
-
-  if (recentSlAll.length >= 4) {
-    const sameSideSlCount = recentSlAll.filter(
-      (s) => s.type === signal.type,
-    ).length;
-    const sideRatio = sameSideSlCount / recentSlAll.length;
-
-    if (sideRatio >= 0.8) regimeScore -= 3;
-    else if (sideRatio >= 0.65) regimeScore -= 2;
-  }
-
-  score += Math.max(0, Math.min(16, regimeScore));
-
-  return Math.max(0, Math.min(MAX, score));
+  return Math.min(80, score);
 }
 
-// ── Factor 3: Risk-Reward Quality (0-18) ────────────────────
+// ── Pattern B — Tested and rejected (0-80) ──────────────────
+// Price moved into the SL zone, held in a tight range there,
+// then reversed and is now moving in the trade direction.
 
-function scoreRiskReward(signal: SignalForScoring): number {
-  const MAX = 18;
-
-  if (
-    signal.tp1 == null ||
-    signal.stopLoss == null ||
-    signal.stopLoss === 0
-  ) {
-    return MAX * 0.4;
-  }
+function scorePatternB(signal: SignalForScoring): number {
+  const snaps = signal.priceSnapshots;
+  if (snaps.length < 4) return 0;
 
   const isBuy = signal.type === "BUY";
-  const tpDistance = isBuy
-    ? signal.tp1 - signal.price
-    : signal.price - signal.tp1;
-  const slDistance = isBuy
-    ? signal.price - signal.stopLoss
-    : signal.stopLoss - signal.price;
+  const entry = signal.price;
+  const sl = signal.stopLoss;
+  const tp1 = signal.tp1;
+  if (!sl || !tp1) return 0;
 
-  if (slDistance <= 0 || tpDistance <= 0) return MAX * 0.3;
+  const slDistance = Math.abs(entry - sl);
+  const tp1Distance = Math.abs(tp1 - entry);
+  if (slDistance <= 0 || tp1Distance <= 0) return 0;
 
-  const rr = tpDistance / slDistance;
+  // Max adverse excursion across all snapshots
+  const maxAdv = isBuy ? Math.min(...snaps) : Math.max(...snaps);
+  const adverseExcursion = isBuy ? entry - maxAdv : maxAdv - entry;
 
-  if (rr >= 3.0) return MAX;
-  if (rr >= 2.5) return Math.round(MAX * 0.9);
-  if (rr >= 2.0) return Math.round(MAX * 0.8);
-  if (rr >= 1.5) return Math.round(MAX * 0.65);
-  if (rr >= 1.0) return Math.round(MAX * 0.5);
-  if (rr >= 0.75) return Math.round(MAX * 0.35);
-  return Math.round(MAX * 0.2);
+  // Must have tested 35–90% of SL distance (deep test but didn't hit SL)
+  const testRatio = adverseExcursion / slDistance;
+  if (testRatio < 0.35 || testRatio > 0.90) return 0;
+
+  // Must have recovered: current price above/below entry
+  const cur = signal.currentPrice ?? snaps[snaps.length - 1];
+  const curExcursion = isBuy ? cur - entry : entry - cur;
+  if (curExcursion <= 0) return 0;
+
+  let score = 35; // base: pattern detected
+
+  // Recovery strength — how far above entry toward TP1
+  const recoveryRatio = curExcursion / tp1Distance;
+  if (recoveryRatio >= 0.30) score += 20;
+  else if (recoveryRatio >= 0.20) score += 15;
+  else if (recoveryRatio >= 0.10) score += 10;
+  else score += 5;
+
+  // Tightness of the test zone (snapshots inside the adverse area)
+  const adverseThresh = isBuy
+    ? entry - slDistance * 0.35
+    : entry + slDistance * 0.35;
+  const advSnaps = snaps.filter((p) => isBuy ? p < adverseThresh : p > adverseThresh);
+
+  if (advSnaps.length >= 2) {
+    const testRange = Math.max(...advSnaps) - Math.min(...advSnaps);
+    const testRangePct = testRange / slDistance;
+    if (testRangePct < 0.10) score += 15;
+    else if (testRangePct < 0.20) score += 10;
+    else if (testRangePct < 0.30) score += 5;
+  } else {
+    score += 8; // single-snapshot sharp rejection — strong
+  }
+
+  // Momentum confirmation: last 3 snapshots trending in trade direction
+  const last3 = snaps.slice(-3);
+  if (last3.length === 3) {
+    const trending = isBuy
+      ? last3[0] < last3[1] && last3[1] < last3[2]
+      : last3[0] > last3[1] && last3[1] > last3[2];
+    if (trending) score += 10;
+  }
+
+  return Math.min(80, score);
+}
+
+// ── Price structure: pick best pattern ──────────────────────
+
+function scorePriceStructure(signal: SignalForScoring): {
+  score: number;
+  pattern: "A" | "B" | "none" | "early";
+} {
+  const snaps = signal.priceSnapshots ?? [];
+
+  if (snaps.length < 3) {
+    // Too early — not enough candles to judge
+    return { score: 15, pattern: "early" };
+  }
+
+  const scoreA = scorePatternA(signal);
+  const scoreB = scorePatternB(signal);
+
+  if (scoreA > 0 && scoreA >= scoreB) return { score: scoreA, pattern: "A" };
+  if (scoreB > 0) return { score: scoreB, pattern: "B" };
+
+  // No pattern — check if price is drifting toward SL (bearish for the trade)
+  const isBuy = signal.type === "BUY";
+  const sl = signal.stopLoss;
+  const entry = signal.price;
+  const cur = signal.currentPrice ?? snaps[snaps.length - 1];
+  if (sl) {
+    const slDistance = Math.abs(entry - sl);
+    const adverse = isBuy ? entry - cur : cur - entry;
+    if (slDistance > 0 && adverse / slDistance > 0.30) {
+      return { score: 0, pattern: "none" }; // drifting toward SL
+    }
+  }
+
+  return { score: 10, pattern: "none" }; // choppy / no information yet
 }
 
 // ── Factor 4: Historical Algo Performance (0-22) ────────────
@@ -525,141 +480,23 @@ export function computeAlgoTfStats(
   return statsMap;
 }
 
-function scoreFromStats(stats: AlgoTfStats, max: number): number {
-  let score = 0;
+// ── Factor 2: Signal Freshness in candles (0-20) ────────────
+// Age is measured relative to the signal's own timeframe so a
+// 4H signal gets 240× more runway than a 1M signal.
 
-  // Win rate component (up to 70% of max)
-  if (stats.winRate >= 0.75) score += max * 0.7;
-  else if (stats.winRate >= 0.65) score += max * 0.6;
-  else if (stats.winRate >= 0.55) score += max * 0.5;
-  else if (stats.winRate >= 0.45) score += max * 0.35;
-  else score += max * 0.2;
-
-  // Profit factor bonus (up to 30% of max)
-  if (stats.profitFactor >= 2.5) score += max * 0.3;
-  else if (stats.profitFactor >= 2.0) score += max * 0.25;
-  else if (stats.profitFactor >= 1.5) score += max * 0.2;
-  else if (stats.profitFactor >= 1.0) score += max * 0.1;
-
-  return Math.min(max, Math.round(score));
-}
-
-function scoreAlgoPerformance(
-  signal: SignalForScoring,
-  statsMap: Map<string, AlgoTfStats>,
-  allSignals: SignalForScoring[],
-): number {
-  const MAX = 22;
-  const key = `${signal.algo}|${signal.timeframe}`;
-  const stats = statsMap.get(key);
-
-  let baseScore: number;
-
-  if (stats && stats.sampleSize >= 3) {
-    baseScore = scoreFromStats(stats, MAX);
-  } else {
-    // Fall back to algo-only stats (aggregate across all TFs)
-    let bestAlgoStats: AlgoTfStats | null = null;
-    for (const [k, v] of statsMap) {
-      if (k.startsWith(signal.algo + "|") && v.sampleSize >= 3) {
-        if (!bestAlgoStats || v.sampleSize > bestAlgoStats.sampleSize) {
-          bestAlgoStats = v;
-        }
-      }
-    }
-    baseScore = bestAlgoStats
-      ? scoreFromStats(bestAlgoStats, MAX)
-      : Math.round(MAX * 0.5);
-  }
-
-  // Recent algo SL penalty: if this algo is failing RIGHT NOW on this TF
-  const now = Date.now();
-  const candleMs = (CANDLE_MINUTES[signal.timeframe] ?? 15) * 60 * 1000;
-  const recentWindow = candleMs * 6;
-
-  const recentAlgoSl = allSignals.filter(
-    (s) =>
-      s.algo === signal.algo &&
-      s.timeframe === signal.timeframe &&
-      s.slHitAt != null &&
-      now - new Date(s.slHitAt).getTime() < recentWindow,
-  ).length;
-
-  if (recentAlgoSl >= 3) baseScore -= 4;
-  else if (recentAlgoSl >= 2) baseScore -= 2;
-  else if (recentAlgoSl >= 1) baseScore -= 1;
-
-  return Math.max(0, Math.min(MAX, baseScore));
-}
-
-// ── Factor 5: Trade Health / Drawdown (0-20) ────────────────
-
-function scoreTradeHealth(signal: SignalForScoring): number {
+function scoreFreshnessCandles(signal: SignalForScoring): number {
   const MAX = 20;
-
-  if (signal.maxDrawdownPrice == null || signal.currentPrice == null) {
-    return Math.round(MAX * 0.5);
-  }
-
-  const isBuy = signal.type === "BUY";
-  const entry = signal.price;
-
-  // Max adverse excursion (positive = went against us)
-  const maxAdverse = isBuy
-    ? ((entry - signal.maxDrawdownPrice) / entry) * 100
-    : ((signal.maxDrawdownPrice - entry) / entry) * 100;
-
-  const effectiveSL = signal.originalStopLoss ?? signal.stopLoss;
-  const slDistance =
-    effectiveSL && effectiveSL > 0
-      ? isBuy
-        ? ((entry - effectiveSL) / entry) * 100
-        : ((effectiveSL - entry) / entry) * 100
-      : null;
-
-  let score = 0;
-
-  if (maxAdverse <= 0) {
-    // Never went into drawdown — pristine trade
-    score = MAX;
-  } else if (slDistance && slDistance > 0) {
-    const drawdownRatio = maxAdverse / slDistance;
-
-    if (drawdownRatio < 0.2) score = Math.round(MAX * 0.9);
-    else if (drawdownRatio < 0.4) score = Math.round(MAX * 0.7);
-    else if (drawdownRatio < 0.6) score = Math.round(MAX * 0.5);
-    else if (drawdownRatio < 0.8) score = Math.round(MAX * 0.3);
-    else score = Math.round(MAX * 0.15);
-
-    // Recovery bonus: bounced from drawdown back to profit
-    if (maxAdverse > 0 && signal.pnl > 0) {
-      score = Math.min(MAX, score + Math.round(MAX * 0.15));
-    }
-  } else {
-    const threshold = PNL_THRESHOLDS[signal.timeframe] ?? 0.5;
-    if (maxAdverse < threshold * 0.5) score = Math.round(MAX * 0.7);
-    else if (maxAdverse < threshold) score = Math.round(MAX * 0.5);
-    else if (maxAdverse < threshold * 2) score = Math.round(MAX * 0.3);
-    else score = Math.round(MAX * 0.15);
-  }
-
-  return Math.max(0, Math.min(MAX, score));
-}
-
-// ── Factor 6: Signal Freshness (0-8) ────────────────────────
-
-function scoreFreshness(signal: SignalForScoring): number {
-  const MAX = 8;
   const candleMinutes = CANDLE_MINUTES[signal.timeframe] ?? 15;
   const ageMs = Date.now() - new Date(signal.receivedAt).getTime();
   const ageInCandles = ageMs / (candleMinutes * 60 * 1000);
 
-  if (ageInCandles <= 2) return MAX;
-  if (ageInCandles <= 5) return Math.round(MAX * 0.85);
-  if (ageInCandles <= 10) return Math.round(MAX * 0.7);
-  if (ageInCandles <= 20) return Math.round(MAX * 0.55);
-  if (ageInCandles <= 40) return Math.round(MAX * 0.4);
-  return Math.round(MAX * 0.25);
+  if (ageInCandles <= 1) return MAX;
+  if (ageInCandles <= 2) return Math.round(MAX * 0.9);  // 18
+  if (ageInCandles <= 4) return Math.round(MAX * 0.75); // 15
+  if (ageInCandles <= 6) return Math.round(MAX * 0.6);  // 12
+  if (ageInCandles <= 9) return Math.round(MAX * 0.45); // 9
+  if (ageInCandles <= 12) return Math.round(MAX * 0.3); // 6
+  return 0; // > 12 candles — aged out
 }
 
 // ── Confidence labels ───────────────────────────────────────
@@ -678,14 +515,13 @@ export function computeAutoFilter(
   allSignals: SignalForScoring[],
   options?: { includeResolved?: boolean },
 ): Map<string, ScoredSignal> {
-  const algoStats = computeAlgoTfStats(allSignals);
   const scores = new Map<string, ScoredSignal>();
 
   // By default score only unresolved signals (no TP/SL hit).
   // Pass includeResolved:true to also score partially/fully resolved signals
   // (used for open trade management where we need scores even after TP hits).
   const candidates = options?.includeResolved
-    ? allSignals  // no filter — score everything for open trade management
+    ? allSignals
     : allSignals.filter(
         (s) =>
           s.status !== "INACTIVE" &&
@@ -696,26 +532,21 @@ export function computeAutoFilter(
       );
 
   for (const signal of candidates) {
+    const rrPassed = checkDynamicRR(signal);
+    const { score: structureScore, pattern } = scorePriceStructure(signal);
+    const freshnessScore = scoreFreshnessCandles(signal);
+
     const breakdown: ScoreBreakdown = {
-      mtfConfluence: Math.round(scoreMtfConfluence(signal, allSignals)),
-      momentum: Math.round(scoreMomentum(signal, allSignals)),
-      riskReward: Math.round(scoreRiskReward(signal)),
-      algoPerformance: Math.round(scoreAlgoPerformance(signal, algoStats, allSignals)),
-      tradeHealth: Math.round(scoreTradeHealth(signal)),
-      freshness: Math.round(scoreFreshness(signal)),
+      priceStructure: structureScore,
+      freshness: freshnessScore,
+      pattern,
     };
 
-    const rawScore = Object.values(breakdown).reduce((a, b) => a + b, 0);
+    const rawScore = structureScore + freshnessScore;
 
-    // Synergy bonus: multiple strong factors compound confidence
-    const factorMaxes = [4, 28, 18, 22, 20, 8];
-    const factorValues = Object.values(breakdown);
-    const strongCount = factorValues.filter(
-      (v, i) => v / factorMaxes[i] >= 0.7,
-    ).length;
-    const synergyBonus = strongCount >= 5 ? 5 : strongCount >= 4 ? 3 : 0;
-
-    const finalScore = Math.min(100, rawScore + synergyBonus);
+    // Hard gate: if dynamic RR fails, cap score below entry threshold
+    // so it never enters the simulator regardless of pattern quality.
+    const finalScore = rrPassed ? Math.min(100, rawScore) : Math.min(20, rawScore);
     const { label, color } = getConfidenceLabel(finalScore);
 
     scores.set(signal.id, {
@@ -783,6 +614,8 @@ export function mapFirestoreSignal(doc: { id: string; [key: string]: any }): Sig
     totalBookedPnl: doc.totalBookedPnl ?? null,
     confidenceScore: doc.confidenceScore ?? null,
     maxConfidenceScore: doc.maxConfidenceScore ?? null,
+    priceSnapshots: Array.isArray(doc.priceSnapshots) ? doc.priceSnapshots : [],
+    lastSnapshotAt: doc.lastSnapshotAt ?? null,
   };
 }
 

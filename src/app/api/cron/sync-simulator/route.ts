@@ -20,7 +20,6 @@ import {
 import {
   computeAutoFilter,
   mapFirestoreSignal,
-  computeAlgoTfStats,
 } from "@/lib/auto-filter";
 import { deserializePrices, getReferencePrice, getPrice, type AllExchangePrices } from "@/lib/exchanges";
 import { executeForAllUsers } from "@/lib/live-execution";
@@ -398,24 +397,6 @@ export async function GET(request: NextRequest) {
           };
         });
 
-      const regimeDoc = await db.collection("config").doc("market_regime").get();
-      const regimeData = regimeDoc.exists ? regimeDoc.data() : {};
-      const liveWinRates = new Map<string, { winRate: number | null; sampleSize: number }>();
-      if (regimeData) {
-        for (const [key, val] of Object.entries(regimeData)) {
-          if (key === "lastUpdated") continue;
-          const v = val as any;
-          liveWinRates.set(key, { winRate: v.winRate ?? null, sampleSize: v.sampleSize ?? 0 });
-        }
-      }
-
-      const allSignalsForAlgo = postUpdateDocs.map(mapFirestoreSignal);
-      const algoTfStats = computeAlgoTfStats(allSignalsForAlgo);
-      const algoStatsMap = new Map<string, { winRate: number | null; sampleSize: number }>();
-      for (const [key, val] of algoTfStats.entries()) {
-        algoStatsMap.set(key, { winRate: val.winRate, sampleSize: val.sampleSize });
-      }
-
       // Group candidates by asset type for separate simulator pools
       const assetTypes = [...new Set(candidates.map((c) => c.assetType))];
       if (assetTypes.length === 0) assetTypes.push("CRYPTO");
@@ -432,8 +413,6 @@ export async function GET(request: NextRequest) {
           bullScore,
           bearScore,
           openTrades: assetOpenTrades,
-          liveWinRates,
-          algoStats: algoStatsMap,
           simConfig,
         });
 
@@ -452,11 +431,6 @@ export async function GET(request: NextRequest) {
           let positionSize = riskAmount / (slDistancePct * leverage);
           if (positionSize > simState3.capital * 0.05 || positionSize < 1) continue;
           positionSize = Math.round(positionSize * 100) / 100;
-
-          const regimeKey = `${c.timeframe}_${c.type}`;
-          const liveEntry = liveWinRates.get(regimeKey);
-          const algoKey = `${c.algo}|${c.timeframe}`;
-          const algoEntry = algoStatsMap.get(algoKey);
 
           const result = openTrade({
             signal: {
@@ -478,8 +452,8 @@ export async function GET(request: NextRequest) {
             state: simState3,
             bullScore,
             bearScore,
-            liveWinRate: liveEntry?.winRate ?? 0,
-            algoWinRate: algoEntry?.winRate ?? 0,
+            liveWinRate: 0,
+            algoWinRate: 0,
           });
 
           // Gate 1: write sim trade to Firestore with retries.

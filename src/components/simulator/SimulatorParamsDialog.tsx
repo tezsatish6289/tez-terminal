@@ -25,19 +25,6 @@ interface ParamDef {
 
 const PARAM_GROUPS: { title: string; params: ParamDef[] }[] = [
   {
-    title: "Confidence & Scoring",
-    params: [
-      { key: "CONFIDENCE_MIN", label: "Min Confidence", description: "Minimum AI confidence score to enter a trade", min: 30, max: 90, step: 1, format: "number" },
-      { key: "CONFIDENCE_MIN_LOW_SAMPLE", label: "Min Confidence (Low Sample)", description: "Higher threshold when win rate data is limited", min: 30, max: 90, step: 1, format: "number" },
-    ],
-  },
-  {
-    title: "Win Rate Gates",
-    params: [
-      { key: "LIVE_WIN_RATE_SAMPLE_MIN", label: "Min Live Samples", description: "High-confidence threshold applies until this many closed trades are recorded", min: 1, max: 10, step: 1, format: "number" },
-    ],
-  },
-  {
     title: "Position Sizing & Risk",
     params: [
       { key: "RISK_PER_TRADE_BASE", label: "Base Risk per Trade", description: "Capital risked per trade in normal mode", min: 0.001, max: 0.03, step: 0.001, format: "pctDecimal" },

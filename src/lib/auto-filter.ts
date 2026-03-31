@@ -254,9 +254,8 @@ export interface SignalForScoring {
 
 export interface ScoreBreakdown {
   priceStructure: number;   // 0-80 — Pattern A or B detection
-  freshness: number;        // 0-20 — age in candles
   pattern: "A" | "B" | "none" | "early";
-  rrGateFailed: boolean;    // true if dynamic RR gate capped the score at 20
+  rrGateFailed: boolean;    // true if dynamic RR gate failed (remaining upside to TP2 < 1.5× risk)
 }
 
 export interface ScoredSignal {
@@ -481,24 +480,6 @@ export function computeAlgoTfStats(
   return statsMap;
 }
 
-// ── Factor 2: Signal Freshness in candles (0-20) ────────────
-// Age is measured relative to the signal's own timeframe so a
-// 4H signal gets 240× more runway than a 1M signal.
-
-function scoreFreshnessCandles(signal: SignalForScoring): number {
-  const MAX = 20;
-  const candleMinutes = CANDLE_MINUTES[signal.timeframe] ?? 15;
-  const ageMs = Date.now() - new Date(signal.receivedAt).getTime();
-  const ageInCandles = ageMs / (candleMinutes * 60 * 1000);
-
-  if (ageInCandles <= 1) return MAX;
-  if (ageInCandles <= 2) return Math.round(MAX * 0.9);  // 18
-  if (ageInCandles <= 4) return Math.round(MAX * 0.75); // 15
-  if (ageInCandles <= 6) return Math.round(MAX * 0.6);  // 12
-  if (ageInCandles <= 9) return Math.round(MAX * 0.45); // 9
-  if (ageInCandles <= 12) return Math.round(MAX * 0.3); // 6
-  return 0; // > 12 candles — aged out
-}
 
 // ── Confidence labels ───────────────────────────────────────
 
@@ -535,18 +516,16 @@ export function computeAutoFilter(
   for (const signal of candidates) {
     const rrPassed = checkDynamicRR(signal);
     const { score: structureScore, pattern } = scorePriceStructure(signal);
-    const freshnessScore = scoreFreshnessCandles(signal);
 
-    const rawScore = structureScore + freshnessScore;
     const rrGateFailed = !rrPassed;
 
-    // Hard gate: if dynamic RR fails, cap score below entry threshold
-    // so it never enters the simulator regardless of pattern quality.
-    const finalScore = rrPassed ? Math.min(100, rawScore) : Math.min(20, rawScore);
+    // Score is purely pattern quality (0-80).
+    // RR gate failure doesn't cap the score — it's flagged separately
+    // and the entry gate in selectIncubatedSignals reads rrGateFailed directly.
+    const finalScore = Math.min(80, structureScore);
 
     const breakdown: ScoreBreakdown = {
       priceStructure: structureScore,
-      freshness: freshnessScore,
       pattern,
       rrGateFailed,
     };

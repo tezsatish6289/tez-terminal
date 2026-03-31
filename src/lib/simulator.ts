@@ -9,9 +9,6 @@ export const SIM_CONFIG = {
   MAX_OPEN_TRADES_BASE: 3,      // start with 3, scales with streak
   MAX_OPEN_TRADES_CAP: 6,       // hard cap
   STREAK_WINS_TO_SCALE: 2,      // 2 consecutive wins → +1 max trade
-  CONFIDENCE_MIN: 45,
-  CONFIDENCE_MIN_LOW_SAMPLE: 50,
-  LIVE_WIN_RATE_SAMPLE_MIN: 3,
   EXCHANGE_FEE: 0.00055,         // Bybit standard taker fee (0.055%)
   TP1_CLOSE_PCT: 0.20,
   TP2_CLOSE_PCT: 0.0,
@@ -178,11 +175,9 @@ export function selectIncubatedSignals(params: {
   bullScore: number;
   bearScore: number;
   openTrades: SimTrade[];
-  liveWinRates: Map<string, { winRate: number | null; sampleSize: number }>;
-  algoStats: Map<string, { winRate: number | null; sampleSize: number }>;
   simConfig?: SimConfigType;
 }): IncubatedResult {
-  const { candidates, state, bullScore, bearScore, openTrades, liveWinRates, algoStats } = params;
+  const { candidates, state, bullScore, bearScore, openTrades } = params;
   const cfg = params.simConfig ?? SIM_CONFIG;
   const selected: IncubatedCandidate[] = [];
   const skipped: { symbol: string; reason: string }[] = [];
@@ -196,7 +191,7 @@ export function selectIncubatedSignals(params: {
   const openSymbols = new Set(currentOpen.map((t) => t.symbol));
   const openSignalIds = new Set(currentOpen.map((t) => t.signalId));
 
-  // Sort by confidence score descending — pick the best first
+  // Rank by pattern strength (priceStructure score, 0-80) — strongest pattern first
   const sorted = [...candidates].sort((a, b) => b.confidenceScore - a.confidenceScore);
 
   for (const c of sorted) {
@@ -248,28 +243,18 @@ export function selectIncubatedSignals(params: {
       continue;
     }
 
-    // Confidence threshold
-    const regimeKey = `${c.timeframe}_${c.type}`;
-    const liveEntry = liveWinRates.get(regimeKey);
-    const liveSampleSize = liveEntry?.sampleSize ?? 0;
-    const liveWinRate = liveEntry?.winRate ?? null;
-
-    const minConfidence = liveSampleSize < cfg.LIVE_WIN_RATE_SAMPLE_MIN
-      ? cfg.CONFIDENCE_MIN_LOW_SAMPLE
-      : cfg.CONFIDENCE_MIN;
-
-    if (c.confidenceScore < minConfidence) {
-      let scoreNote = "";
-      if (c.rrGateFailed) {
-        scoreNote = " — RR gate: not enough upside to TP2";
-      } else if (c.scorePattern === "early") {
-        scoreNote = " — too early, snapshots accumulating";
-      } else if (c.scorePattern === "none") {
-        scoreNote = " — no price structure pattern yet";
-      } else if (c.scorePattern === "A" || c.scorePattern === "B") {
-        scoreNote = ` — pattern ${c.scorePattern} but RR insufficient`;
-      }
-      skipped.push({ symbol: c.symbol, reason: `Score ${c.confidenceScore} < ${minConfidence}${scoreNote}` });
+    // Pattern gate — must have a confirmed price structure pattern.
+    // "early" (< 3 snapshots) and "none" (no detectable pattern) are rejected.
+    // RR gate failure is a hard block regardless of pattern quality.
+    if (c.rrGateFailed) {
+      skipped.push({ symbol: c.symbol, reason: "RR gate: not enough remaining upside to TP2 (< 1.5:1)" });
+      continue;
+    }
+    if (c.scorePattern !== "A" && c.scorePattern !== "B") {
+      const note = c.scorePattern === "early"
+        ? "too early — snapshots still accumulating"
+        : "no price structure pattern detected";
+      skipped.push({ symbol: c.symbol, reason: note });
       continue;
     }
 

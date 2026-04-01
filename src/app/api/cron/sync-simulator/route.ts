@@ -396,14 +396,18 @@ export async function GET(request: NextRequest) {
           const riskPct = hasStreak ? SIM_CONFIG.RISK_PER_TRADE_STREAK : SIM_CONFIG.RISK_PER_TRADE_BASE;
           const riskAmount = simState3.capital * riskPct;
           let positionSize = riskAmount / (slDistancePct * leverage);
-          if (positionSize > simState3.capital * 0.05 || positionSize < 1) {
+          const maxPosition = simState3.capital * 0.05;
+          if (positionSize < 1) {
             await db.collection("simulator_logs").add({
               timestamp: new Date().toISOString(),
               action: "INCUBATED_REJECTED",
-              details: `${c.symbol} ${c.type}: position sizing failed (size=$${positionSize.toFixed(2)} cap=${(simState3.capital * 0.05).toFixed(2)} slDist%=${(slDistancePct * 100).toFixed(4)}% lev=${leverage}x risk=$${riskAmount.toFixed(2)})`,
+              details: `${c.symbol} ${c.type}: position too small ($${positionSize.toFixed(2)})`,
               assetType,
             });
             continue;
+          }
+          if (positionSize > maxPosition) {
+            positionSize = maxPosition;
           }
           positionSize = Math.round(positionSize * 100) / 100;
 

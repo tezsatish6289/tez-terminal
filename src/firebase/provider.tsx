@@ -69,48 +69,45 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     userError: null,
   });
 
-  // Effect: complete redirect sign-in first, then subscribe to auth state (avoids "bounce" to login)
+  // Effect: subscribe to auth state immediately, then handle persistence + redirect in background.
+  // NOTE: ensureAuthPersistence (setPersistence) must NOT be awaited before subscribing because
+  // writing to localStorage fires a storage event in every other open tab, causing Firebase to
+  // briefly emit user=null cross-tab, triggering auth guards and redirecting all tabs to /signals.
+  // browserLocalPersistence is the Firebase default anyway — the call is a no-op defensive check
+  // and does not need to block the auth subscription.
   useEffect(() => {
     if (!auth) {
       setUserAuthState({ user: null, isUserLoading: false, userError: new Error("Auth service not provided.") });
       return;
     }
 
-    setUserAuthState({ user: null, isUserLoading: true, userError: null });
-
-    let cancelled = false;
-    let unsubscribe: (() => void) | null = null;
-
-    (async () => {
-      await ensureAuthPersistence(auth);
-      if (cancelled) return;
-      await handleRedirectResult(auth);
-      if (cancelled) return;
-
-      unsubscribe = onAuthStateChanged(
-        auth,
-        (firebaseUser) => {
-          if (!cancelled) {
-            setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
-            if (firebaseUser) {
-              identifyUser(firebaseUser.uid, {
-                sign_in_method: firebaseUser.providerData[0]?.providerId ?? 'unknown',
-              });
-            } else {
-              clearUserIdentity();
-            }
-          }
-        },
-        (error) => {
-          console.error("FirebaseProvider: onAuthStateChanged error:", error);
-          if (!cancelled) setUserAuthState({ user: null, isUserLoading: false, userError: error });
+    // Subscribe to auth state immediately — no awaiting before this.
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      (firebaseUser) => {
+        setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
+        if (firebaseUser) {
+          identifyUser(firebaseUser.uid, {
+            sign_in_method: firebaseUser.providerData[0]?.providerId ?? 'unknown',
+          });
+        } else {
+          clearUserIdentity();
         }
-      );
-    })();
+      },
+      (error) => {
+        console.error("FirebaseProvider: onAuthStateChanged error:", error);
+        setUserAuthState({ user: null, isUserLoading: false, userError: error });
+      }
+    );
+
+    // Run these in the background — they must not block or precede the auth subscription.
+    // ensureAuthPersistence writes to localStorage which triggers cross-tab storage events.
+    // Doing it after subscribing means this tab already has auth state before the event fires.
+    ensureAuthPersistence(auth).catch((e) => console.warn("Auth persistence:", e));
+    handleRedirectResult(auth).catch((e) => console.warn("Redirect result:", e));
 
     return () => {
-      cancelled = true;
-      unsubscribe?.();
+      unsubscribe();
     };
   }, [auth]);
 

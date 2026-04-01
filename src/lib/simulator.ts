@@ -91,7 +91,9 @@ export interface SimTrade {
   unrealizedPnl: number;
   fees: number;
   confidenceScore: number;
+  scorePattern?: "A" | "B" | "none" | "early"; // pattern that triggered this trade
   currentScore: number | null;
+  currentScorePattern?: "A" | "B" | "none" | "early"; // live pattern, updated each cycle
   biasAtEntry: string;
   liveWinRateAtEntry: number;
   algoWinRateAtEntry: number;
@@ -585,6 +587,7 @@ export function openTrade(params: {
     tp2: number;
     tp3: number;
     confidenceScore: number;
+    scorePattern?: "A" | "B" | "none" | "early";
   };
   positionSize: number;
   state: SimulatorState;
@@ -626,6 +629,7 @@ export function openTrade(params: {
     unrealizedPnl: 0,
     fees: entryFee,
     confidenceScore: signal.confidenceScore,
+    scorePattern: signal.scorePattern,
     biasAtEntry: biasLabel,
     liveWinRateAtEntry: liveWinRate,
     algoWinRateAtEntry: algoWinRate,

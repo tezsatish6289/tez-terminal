@@ -459,7 +459,7 @@ function DesktopTradeRow({ trade, onSelect }: { trade: LiveTrade; onSelect: (t: 
       <TableCell>
         <div className="flex flex-col gap-0.5">
           <span className="font-mono text-xs font-bold text-accent">{trade.confidenceScore}</span>
-          {isOpen && <PatternBadge pattern={(trade as any).currentScorePattern as PatternType} score={null} />}
+          <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
         </div>
       </TableCell>
       <TableCell>
@@ -519,8 +519,11 @@ function MobileTradeCard({ trade, onSelect }: { trade: LiveTrade; onSelect: (t: 
               </Badge>
             )}
           </div>
-          <div className="text-[10px] font-bold text-muted-foreground/30 uppercase mt-1">
-            {trade.algo || "—"} · Score: {trade.confidenceScore} · {trade.biasAtEntry}
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            <span className="text-[10px] font-bold text-muted-foreground/30 uppercase">
+              {trade.algo || "—"} · {trade.confidenceScore}
+            </span>
+            <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
           </div>
         </div>
 
@@ -662,9 +665,7 @@ function LiveTradeNarrationDialog({ trade, onClose }: { trade: LiveTrade | null;
             <span className="text-muted-foreground/40">Score</span>
             <div className="flex items-center gap-1.5">
               <span className="font-mono font-bold text-accent">{trade.confidenceScore}</span>
-              {(trade as any).currentScorePattern && (
-                <PatternBadge pattern={(trade as any).currentScorePattern as PatternType} score={null} />
-              )}
+              <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
             </div>
           </div>
           <div className="flex justify-between">

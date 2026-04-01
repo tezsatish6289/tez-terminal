@@ -531,6 +531,7 @@ export async function GET(request: NextRequest) {
               tp2: c.tp2,
               tp3: c.tp3,
               confidenceScore: c.confidenceScore,
+              scorePattern: c.scorePattern,
             },
             positionSize,
             state: simState3,

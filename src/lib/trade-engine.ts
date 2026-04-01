@@ -57,6 +57,7 @@ export interface LiveTrade {
   openedAt: string;
   closedAt: string | null;
   confidenceScore: number;
+  scorePattern?: "A" | "B" | "none" | "early"; // pattern that triggered this trade
   biasAtEntry: string;
   capitalAtEntry: number;
   timeframe: string;
@@ -256,6 +257,7 @@ export async function executeTrade(
       openedAt: new Date().toISOString(),
       closedAt: null,
       confidenceScore: simTrade.confidenceScore,
+      scorePattern: simTrade.scorePattern,
       biasAtEntry: simTrade.biasAtEntry,
       capitalAtEntry: exchangeCapital,
       timeframe: simTrade.timeframe,

@@ -9,7 +9,7 @@ import {
   type LiveTrade,
   type Credentials,
 } from "@/lib/trade-engine";
-import { detectMarketTurn, type MarketTurnInput, type SimTrade } from "@/lib/simulator";
+import { type SimTrade } from "@/lib/simulator";
 import { decrypt } from "@/lib/crypto";
 import { sendMessage } from "@/lib/telegram";
 import {
@@ -40,7 +40,6 @@ async function syncUserTrades(
   creds: Credentials,
   userSettings: { dailyLossLimit: number },
   allPrices: AllExchangePrices,
-  signalContext: { turnInputs: MarketTurnInput[] },
   db: FirebaseFirestore.Firestore
 ): Promise<{
   fills: number;
@@ -451,31 +450,7 @@ export async function GET(request: NextRequest) {
       allPrices = deserializePrices(priceDoc.data() as Record<string, Record<string, number>>);
     }
 
-    // ── 2. Build signal context for market turn detection ────
-    const signalsSnap = await db.collection("signals").get();
-    const postUpdateDocs = signalsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-    const turnInputs: MarketTurnInput[] = postUpdateDocs.map((d: any) => ({
-      symbol: d.symbol || "",
-      type: (d.type || "BUY") as "BUY" | "SELL",
-      timeframe: String(d.timeframe || "15"),
-      status: d.status || "",
-      receivedAt: d.receivedAt || "",
-      slHitAt: d.slHitAt ?? null,
-      tp1Hit: d.tp1Hit === true,
-      tp2Hit: d.tp2Hit === true,
-      tp3Hit: d.tp3Hit === true,
-      confidenceScore: d.confidenceScore ?? 0,
-    }));
-
-    // Build signalId → current pattern map for live trade display
-    const signalPatterns = new Map<string, string>();
-    for (const d of postUpdateDocs) {
-      const pattern = (d as any).scoreBreakdown?.pattern;
-      if (pattern) signalPatterns.set(d.id, pattern);
-    }
-
-    const signalContext = { turnInputs };
+    // ── 2. (signals no longer needed for market-turn — removed) ─
 
     // ── 3. Find all users with auto-trade enabled ───────────
     // Check each supported exchange's secrets collection
@@ -546,7 +521,6 @@ export async function GET(request: NextRequest) {
           pair.creds,
           pair.settings,
           allPrices,
-          signalContext,
           db
         ).then((r) => ({ ...r, userId: pair.userId, exchange: pair.exchange }))
       )

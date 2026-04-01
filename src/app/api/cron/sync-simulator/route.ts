@@ -9,13 +9,11 @@ import {
   openTrade,
   createInitialState,
   getSimStateDocId,
-  detectMarketTurn,
   SIM_CONFIG,
   getEffectiveSimConfig,
   type SimulatorState,
   type SimTrade,
   type IncubatedCandidate,
-  type MarketTurnInput,
 } from "@/lib/simulator";
 import {
   computeAutoFilter,
@@ -519,7 +517,7 @@ export async function GET(request: NextRequest) {
     await db.collection("logs").add({
       timestamp: new Date().toISOString(),
       level: "INFO",
-      message: `SIM SYNC: eventCloses=${eventCloses} priceUpdates=${priceUpdates} trailingSl=${trailingSlCloses} mktTurn=${marketTurnCloses} patternBreak=${patternBreakCloses} incubated=${incubatedCount}`,
+      message: `SIM SYNC: eventCloses=${eventCloses} priceUpdates=${priceUpdates} trailingSl=${trailingSlCloses} incubated=${incubatedCount}`,
       webhookId: "SYSTEM_CRON",
     });
 
@@ -529,8 +527,6 @@ export async function GET(request: NextRequest) {
       eventCloses,
       priceUpdates,
       trailingSlCloses,
-      marketTurnCloses,
-      patternBreakCloses,
       incubatedCount,
     });
   } catch (error: any) {

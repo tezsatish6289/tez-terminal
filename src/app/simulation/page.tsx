@@ -734,19 +734,73 @@ function ScoreRangeFilter({ min, max, onMin, onMax }: { min: string; max: string
   );
 }
 
-// ── TradeList with column filters ─────────────────────────────
+const PAGE_SIZE = 50;
+
+function Paginator({ page, total, pageSize, onChange, activeClass = "bg-accent/20 text-accent" }: {
+  page: number; total: number; pageSize: number; onChange: (p: number) => void; activeClass?: string;
+}) {
+  const totalPages = Math.ceil(total / pageSize);
+  if (totalPages <= 1) return null;
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, total);
+
+  const pages: (number | "...")[] = [];
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i);
+  } else {
+    pages.push(1);
+    if (page > 3) pages.push("...");
+    for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) pages.push(i);
+    if (page < totalPages - 2) pages.push("...");
+    pages.push(totalPages);
+  }
+
+  return (
+    <div className="flex items-center justify-between px-3 py-2.5">
+      <span className="text-[10px] text-muted-foreground/40">{from}–{to} of {total}</span>
+      <div className="flex items-center gap-0.5">
+        <button disabled={page === 1} onClick={() => onChange(page - 1)}
+          className="h-7 w-7 flex items-center justify-center rounded text-sm font-bold text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.05] disabled:opacity-20 disabled:cursor-not-allowed transition-colors">
+          ‹
+        </button>
+        {pages.map((p, i) =>
+          p === "..." ? (
+            <span key={`e${i}`} className="h-7 w-6 flex items-center justify-center text-[10px] text-muted-foreground/30">…</span>
+          ) : (
+            <button key={p} onClick={() => onChange(p as number)}
+              className={cn("h-7 min-w-[28px] px-1.5 flex items-center justify-center rounded text-[11px] font-bold transition-colors",
+                page === p ? activeClass : "text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.05]")}>
+              {p}
+            </button>
+          )
+        )}
+        <button disabled={page === totalPages} onClick={() => onChange(page + 1)}
+          className="h-7 w-7 flex items-center justify-center rounded text-sm font-bold text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.05] disabled:opacity-20 disabled:cursor-not-allowed transition-colors">
+          ›
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── TradeList with column filters + pagination ────────────────
 
 function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, cs }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string; onSelectTrade: (t: SimTrade) => void; cs: string }) {
   const [filters, setFilters] = useState<SimFilters>(DEFAULT_SIM_FILTERS);
-  const setF = <K extends keyof SimFilters>(k: K, v: SimFilters[K]) => setFilters((prev) => ({ ...prev, [k]: v }));
+  const [page, setPage] = useState(1);
+  const setF = <K extends keyof SimFilters>(k: K, v: SimFilters[K]) => {
+    setFilters((prev) => ({ ...prev, [k]: v }));
+    setPage(1);
+  };
 
   const uSides  = useMemo(() => [...new Set(trades.map((t) => t.side))].sort(), [trades]);
   const uTfs    = useMemo(() => [...new Set(trades.map((t) => String(t.timeframe)))].sort(), [trades]);
   const uAlgos  = useMemo(() => [...new Set(trades.map((t) => t.algo || "—"))].sort(), [trades]);
   const uLevs   = useMemo(() => [...new Set(trades.map((t) => String(t.leverage)))].sort((a, b) => Number(a) - Number(b)), [trades]);
   const uStats  = useMemo(() => [...new Set(trades.map((t) => t.closeReason).filter(Boolean))].sort() as string[], [trades]);
-  const filtered = useMemo(() => applySimFilters(trades, filters), [trades, filters]);
-  const active   = simActiveCount(filters);
+  const filtered  = useMemo(() => applySimFilters(trades, filters), [trades, filters]);
+  const paginated = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
+  const active    = simActiveCount(filters);
 
   const statusLabelMap = useMemo(() =>
     Object.fromEntries(Object.entries(CLOSE_REASON_MAP).map(([k, v]) => [k, v.label])), []);
@@ -770,7 +824,7 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, cs }: { trade
       {active > 0 && (
         <div className="flex items-center gap-3 px-1">
           <span className="text-[10px] text-muted-foreground/50">{filtered.length} of {trades.length} shown</span>
-          <button onClick={() => setFilters(DEFAULT_SIM_FILTERS)}
+          <button onClick={() => { setFilters(DEFAULT_SIM_FILTERS); setPage(1); }}
             className="flex items-center gap-1 text-[10px] text-accent/80 hover:text-accent border border-accent/20 rounded px-2 py-0.5">
             <X className="h-2.5 w-2.5" /> Clear {active} filter{active > 1 ? "s" : ""}
           </button>
@@ -779,7 +833,7 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, cs }: { trade
 
       {/* Mobile */}
       <div className="lg:hidden space-y-3">
-        {filtered.map((trade) => (
+        {paginated.map((trade) => (
           <MobileTradeCard key={trade.id ?? trade.signalId} trade={trade} onSelect={onSelectTrade} cs={cs} />
         ))}
         {filtered.length === 0 && (
@@ -787,83 +841,93 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, cs }: { trade
             <p className="text-xs font-bold">No trades match filters</p>
           </div>
         )}
+        {filtered.length > PAGE_SIZE && (
+          <div className="bg-card border border-white/5 rounded-lg">
+            <Paginator page={page} total={filtered.length} pageSize={PAGE_SIZE} onChange={setPage} />
+          </div>
+        )}
       </div>
 
       {/* Desktop */}
-      <div className="hidden lg:block bg-card border border-white/5 rounded-lg overflow-x-auto">
-        <div className="min-w-[1200px]">
-          <Table>
-            <TableHeader className="bg-card sticky top-0 z-10 shadow-[0_1px_0_rgba(255,255,255,0.05)]">
-              <TableRow className="hover:bg-transparent border-white/5">
-                <TableHead className="h-12 w-[130px]">
-                  <ColFilter label="Symbol" isActive={!!filters.symbol}>
-                    <TextSearchFilter value={filters.symbol} onChange={(v) => setF("symbol", v)} />
-                  </ColFilter>
-                </TableHead>
-                <TableHead className="h-12 w-[56px]">
-                  <ColFilter label="Side" isActive={filters.sides.length > 0}>
-                    <CheckFilter values={uSides} selected={filters.sides} onChange={(v) => setF("sides", v)} />
-                  </ColFilter>
-                </TableHead>
-                <TableHead className="h-12 w-[48px]">
-                  <ColFilter label="TF" isActive={filters.timeframes.length > 0}>
-                    <CheckFilter values={uTfs} selected={filters.timeframes} onChange={(v) => setF("timeframes", v)} labelMap={tfLabelMapFiltered} />
-                  </ColFilter>
-                </TableHead>
-                <TableHead className="h-12 w-[80px]">
-                  <ColFilter label="Algo" isActive={filters.algos.length > 0}>
-                    <CheckFilter values={uAlgos} selected={filters.algos} onChange={(v) => setF("algos", v)} />
-                  </ColFilter>
-                </TableHead>
-                <TableHead className="h-12 w-[44px]">
-                  <ColFilter label="Lev." isActive={filters.leverages.length > 0}>
-                    <CheckFilter values={uLevs} selected={filters.leverages} onChange={(v) => setF("leverages", v)} labelMap={levLabelMap} />
-                  </ColFilter>
-                </TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">Entry</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">Current</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">SL</TableHead>
-                <TableHead className="h-12 w-[80px]">
-                  <ColFilter label="Targets" isActive={filters.tpLevel !== "any"} width="w-40">
-                    <TpFilterUI value={filters.tpLevel} onChange={(v) => setF("tpLevel", v)} />
-                  </ColFilter>
-                </TableHead>
-                <TableHead className="h-12">
-                  <ColFilter label="Net PNL" isActive={filters.pnl !== "all"} width="w-44">
-                    <PnlFilterUI value={filters.pnl} onChange={(v) => setF("pnl", v)} />
-                  </ColFilter>
-                </TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">Size</TableHead>
-                <TableHead className="h-12 w-[130px]">
-                  <ColFilter label="Score" isActive={!!(filters.scoreMin || filters.scoreMax)} width="w-44">
-                    <ScoreRangeFilter min={filters.scoreMin} max={filters.scoreMax} onMin={(v) => setF("scoreMin", v)} onMax={(v) => setF("scoreMax", v)} />
-                  </ColFilter>
-                </TableHead>
-                <TableHead className="h-12 w-[80px]">
-                  <ColFilter label="Status" isActive={filters.statuses.length > 0}>
-                    <CheckFilter values={uStats} selected={filters.statuses} onChange={(v) => setF("statuses", v)} labelMap={statusLabelMap} />
-                  </ColFilter>
-                </TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12 w-[90px] text-right">Date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length > 0 ? (
-                filtered.map((trade) => (
-                  <DesktopTradeRow key={trade.id ?? trade.signalId} trade={trade} onSelect={onSelectTrade} cs={cs} />
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={14} className="text-center py-10 text-muted-foreground/30">
-                    <p className="text-xs font-bold">No trades match the current filters</p>
-                    <button onClick={() => setFilters(DEFAULT_SIM_FILTERS)} className="mt-2 text-[11px] text-accent/70 hover:text-accent">
-                      Clear all filters
-                    </button>
-                  </TableCell>
+      <div className="hidden lg:block">
+        <div className="bg-card border border-white/5 rounded-t-lg overflow-x-auto">
+          <div className="min-w-[1200px]">
+            <Table>
+              <TableHeader className="bg-card sticky top-0 z-10 shadow-[0_1px_0_rgba(255,255,255,0.05)]">
+                <TableRow className="hover:bg-transparent border-white/5">
+                  <TableHead className="h-12 w-[130px]">
+                    <ColFilter label="Symbol" isActive={!!filters.symbol}>
+                      <TextSearchFilter value={filters.symbol} onChange={(v) => setF("symbol", v)} />
+                    </ColFilter>
+                  </TableHead>
+                  <TableHead className="h-12 w-[56px]">
+                    <ColFilter label="Side" isActive={filters.sides.length > 0}>
+                      <CheckFilter values={uSides} selected={filters.sides} onChange={(v) => setF("sides", v)} />
+                    </ColFilter>
+                  </TableHead>
+                  <TableHead className="h-12 w-[48px]">
+                    <ColFilter label="TF" isActive={filters.timeframes.length > 0}>
+                      <CheckFilter values={uTfs} selected={filters.timeframes} onChange={(v) => setF("timeframes", v)} labelMap={tfLabelMapFiltered} />
+                    </ColFilter>
+                  </TableHead>
+                  <TableHead className="h-12 w-[80px]">
+                    <ColFilter label="Algo" isActive={filters.algos.length > 0}>
+                      <CheckFilter values={uAlgos} selected={filters.algos} onChange={(v) => setF("algos", v)} />
+                    </ColFilter>
+                  </TableHead>
+                  <TableHead className="h-12 w-[44px]">
+                    <ColFilter label="Lev." isActive={filters.leverages.length > 0}>
+                      <CheckFilter values={uLevs} selected={filters.leverages} onChange={(v) => setF("leverages", v)} labelMap={levLabelMap} />
+                    </ColFilter>
+                  </TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">Entry</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">Current</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">SL</TableHead>
+                  <TableHead className="h-12 w-[80px]">
+                    <ColFilter label="Targets" isActive={filters.tpLevel !== "any"} width="w-40">
+                      <TpFilterUI value={filters.tpLevel} onChange={(v) => setF("tpLevel", v)} />
+                    </ColFilter>
+                  </TableHead>
+                  <TableHead className="h-12">
+                    <ColFilter label="Net PNL" isActive={filters.pnl !== "all"} width="w-44">
+                      <PnlFilterUI value={filters.pnl} onChange={(v) => setF("pnl", v)} />
+                    </ColFilter>
+                  </TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">Size</TableHead>
+                  <TableHead className="h-12 w-[130px]">
+                    <ColFilter label="Score" isActive={!!(filters.scoreMin || filters.scoreMax)} width="w-44">
+                      <ScoreRangeFilter min={filters.scoreMin} max={filters.scoreMax} onMin={(v) => setF("scoreMin", v)} onMax={(v) => setF("scoreMax", v)} />
+                    </ColFilter>
+                  </TableHead>
+                  <TableHead className="h-12 w-[80px]">
+                    <ColFilter label="Status" isActive={filters.statuses.length > 0}>
+                      <CheckFilter values={uStats} selected={filters.statuses} onChange={(v) => setF("statuses", v)} labelMap={statusLabelMap} />
+                    </ColFilter>
+                  </TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12 w-[90px] text-right">Date</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {paginated.length > 0 ? (
+                  paginated.map((trade) => (
+                    <DesktopTradeRow key={trade.id ?? trade.signalId} trade={trade} onSelect={onSelectTrade} cs={cs} />
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={14} className="text-center py-10 text-muted-foreground/30">
+                      <p className="text-xs font-bold">No trades match the current filters</p>
+                      <button onClick={() => { setFilters(DEFAULT_SIM_FILTERS); setPage(1); }} className="mt-2 text-[11px] text-accent/70 hover:text-accent">
+                        Clear all filters
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+        <div className="bg-card border-x border-b border-white/5 rounded-b-lg">
+          <Paginator page={page} total={filtered.length} pageSize={PAGE_SIZE} onChange={setPage} />
         </div>
       </div>
     </div>

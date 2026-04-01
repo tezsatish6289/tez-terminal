@@ -57,7 +57,8 @@ export interface LiveTrade {
   openedAt: string;
   closedAt: string | null;
   confidenceScore: number;
-  scorePattern?: "A" | "B" | "none" | "early"; // pattern that triggered this trade
+  scorePattern?: "A" | "B" | "none" | "early";        // pattern that triggered this trade
+  currentScorePattern?: "A" | "B" | "none" | "early"; // live pattern, updated each cycle
   biasAtEntry: string;
   capitalAtEntry: number;
   timeframe: string;

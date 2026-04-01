@@ -457,9 +457,20 @@ function DesktopTradeRow({ trade, onSelect }: { trade: LiveTrade; onSelect: (t: 
       </TableCell>
       <TableCell className="font-mono text-xs font-bold text-white/60">{formatUsd(trade.positionSize)}</TableCell>
       <TableCell>
-        <div className="flex flex-col gap-0.5">
-          <span className="font-mono text-xs font-bold text-accent">{trade.confidenceScore}</span>
-          <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
+        <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-0.5">
+            <span className="font-mono text-[10px] text-muted-foreground/40 uppercase tracking-wider">Entry</span>
+            <span className="font-mono text-xs font-bold text-accent">{trade.confidenceScore}</span>
+            {trade.scorePattern && (
+              <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
+            )}
+          </div>
+          {trade.currentScorePattern && (
+            <div className="flex flex-col gap-0.5 pt-0.5 border-t border-white/[0.04]">
+              <span className="font-mono text-[10px] text-muted-foreground/40 uppercase tracking-wider">{isOpen ? "Now" : "Last"}</span>
+              <PatternBadge pattern={trade.currentScorePattern as PatternType} score={null} />
+            </div>
+          )}
         </div>
       </TableCell>
       <TableCell>
@@ -520,10 +531,17 @@ function MobileTradeCard({ trade, onSelect }: { trade: LiveTrade; onSelect: (t: 
             )}
           </div>
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            <span className="text-[10px] font-bold text-muted-foreground/30 uppercase">
-              {trade.algo || "—"} · {trade.confidenceScore}
-            </span>
-            <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
+            <span className="text-[10px] font-bold text-muted-foreground/30 uppercase">{trade.algo || "—"}</span>
+            <span className="text-white/15">·</span>
+            <span className="text-[10px] font-bold text-amber-400">Entry {trade.confidenceScore}</span>
+            {trade.scorePattern && <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />}
+            {trade.currentScorePattern && (
+              <>
+                <span className="text-white/15">→</span>
+                <span className="text-[10px] font-bold text-muted-foreground/50">{isOpen ? "Now" : "Last"}</span>
+                <PatternBadge pattern={trade.currentScorePattern as PatternType} score={null} />
+              </>
+            )}
           </div>
         </div>
 
@@ -661,11 +679,20 @@ function LiveTradeNarrationDialog({ trade, onClose }: { trade: LiveTrade | null;
             <span className="text-muted-foreground/40">TP1</span>
             <span className="font-mono font-bold text-emerald-400/70">${formatPrice(trade.tp1)}</span>
           </div>
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between">
             <span className="text-muted-foreground/40">Score</span>
-            <div className="flex items-center gap-1.5">
-              <span className="font-mono font-bold text-accent">{trade.confidenceScore}</span>
-              <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
+            <div className="flex flex-col items-end gap-1.5">
+              <div className="flex flex-col items-end gap-0.5">
+                <span className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Entry</span>
+                <span className="font-mono font-bold text-accent">{trade.confidenceScore}</span>
+                {trade.scorePattern && <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />}
+              </div>
+              {trade.currentScorePattern && (
+                <div className="flex flex-col items-end gap-0.5 border-t border-white/[0.06] pt-1.5">
+                  <span className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">{isOpen ? "Now" : "Last"}</span>
+                  <PatternBadge pattern={trade.currentScorePattern as PatternType} score={null} />
+                </div>
+              )}
             </div>
           </div>
           <div className="flex justify-between">

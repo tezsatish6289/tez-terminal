@@ -715,19 +715,30 @@ function DesktopTradeRow({ trade, onSelect, cs }: { trade: SimTrade; onSelect: (
       </TableCell>
       <TableCell className="font-mono text-xs font-bold text-white/60">{formatMoney(trade.positionSize, cs)}</TableCell>
       <TableCell>
-        <div className="flex flex-col gap-0.5">
-          <span className="font-mono text-xs font-bold text-accent">
-            {trade.confidenceScore}
-          </span>
-          <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
-          {isOpen && trade.currentScore != null && trade.currentScore !== trade.confidenceScore && (
-            <span className={cn(
-              "font-mono text-[9px]",
-              trade.currentScore === 0 ? "text-rose-400" :
-              trade.currentScore < trade.confidenceScore ? "text-amber-400" : "text-positive",
-            )}>
-              now {trade.currentScore}
-            </span>
+        <div className="flex flex-col gap-1">
+          {/* Entry score + pattern */}
+          <div className="flex flex-col gap-0.5">
+            <span className="font-mono text-[10px] text-muted-foreground/40 uppercase tracking-wider">Entry</span>
+            <span className="font-mono text-xs font-bold text-accent">{trade.confidenceScore}</span>
+            {trade.scorePattern && (
+              <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
+            )}
+          </div>
+          {/* Current / last score + pattern */}
+          {trade.currentScore != null && (
+            <div className="flex flex-col gap-0.5 pt-0.5 border-t border-white/[0.04]">
+              <span className="font-mono text-[10px] text-muted-foreground/40 uppercase tracking-wider">{isOpen ? "Now" : "Last"}</span>
+              <span className={cn(
+                "font-mono text-xs font-bold",
+                trade.currentScore === 0 ? "text-rose-400" :
+                trade.currentScore < trade.confidenceScore ? "text-amber-400" : "text-positive",
+              )}>
+                {trade.currentScore}
+              </span>
+              {trade.currentScorePattern && (
+                <PatternBadge pattern={trade.currentScorePattern as PatternType} score={null} />
+              )}
+            </div>
           )}
         </div>
       </TableCell>
@@ -789,18 +800,22 @@ function MobileTradeCard({ trade, onSelect, cs }: { trade: SimTrade; onSelect: (
             )}
           </div>
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            <span className="text-[10px] font-bold text-muted-foreground/30 uppercase">
-              {trade.algo || "—"} · {trade.confidenceScore}
-            </span>
-            <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
-            {isOpen && trade.currentScore != null && trade.currentScore !== trade.confidenceScore && (
-              <span className={cn(
-                "text-[9px] font-bold",
-                trade.currentScore === 0 ? "text-rose-400" :
-                trade.currentScore < trade.confidenceScore ? "text-amber-400" : "text-positive",
-              )}>
-                now {trade.currentScore}
-              </span>
+            <span className="text-[10px] font-bold text-muted-foreground/30 uppercase">{trade.algo || "—"}</span>
+            <span className="text-white/15">·</span>
+            <span className="text-[10px] font-bold text-accent">Entry {trade.confidenceScore}</span>
+            {trade.scorePattern && <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />}
+            {trade.currentScore != null && (
+              <>
+                <span className="text-white/15">→</span>
+                <span className={cn(
+                  "text-[10px] font-bold",
+                  trade.currentScore === 0 ? "text-rose-400" :
+                  trade.currentScore < trade.confidenceScore ? "text-amber-400" : "text-positive",
+                )}>
+                  {isOpen ? "Now" : "Last"} {trade.currentScore}
+                </span>
+                {trade.currentScorePattern && <PatternBadge pattern={trade.currentScorePattern as PatternType} score={null} />}
+              </>
             )}
           </div>
         </div>
@@ -1006,17 +1021,24 @@ function TradeNarrationDialog({ trade, onClose, cs }: { trade: SimTrade | null; 
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground/40">Score</span>
-            <div className="flex flex-col items-end gap-1">
-              <span className="font-mono font-bold text-accent">{trade.confidenceScore}</span>
-              <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
-              {isOpen && trade.currentScore != null && trade.currentScore !== trade.confidenceScore && (
-                <span className={cn(
-                  "font-mono text-[9px]",
-                  trade.currentScore === 0 ? "text-rose-400" :
-                  trade.currentScore < trade.confidenceScore ? "text-amber-400" : "text-positive",
-                )}>
-                  now {trade.currentScore}
-                </span>
+            <div className="flex flex-col items-end gap-1.5">
+              <div className="flex flex-col items-end gap-0.5">
+                <span className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Entry</span>
+                <span className="font-mono font-bold text-accent">{trade.confidenceScore}</span>
+                {trade.scorePattern && <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />}
+              </div>
+              {trade.currentScore != null && (
+                <div className="flex flex-col items-end gap-0.5 border-t border-white/[0.06] pt-1.5">
+                  <span className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">{isOpen ? "Now" : "Last"}</span>
+                  <span className={cn(
+                    "font-mono font-bold",
+                    trade.currentScore === 0 ? "text-rose-400" :
+                    trade.currentScore < trade.confidenceScore ? "text-amber-400" : "text-positive",
+                  )}>
+                    {trade.currentScore}
+                  </span>
+                  {trade.currentScorePattern && <PatternBadge pattern={trade.currentScorePattern as PatternType} score={null} />}
+                </div>
               )}
             </div>
           </div>

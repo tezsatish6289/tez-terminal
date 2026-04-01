@@ -349,17 +349,20 @@ function scorePatternA(signal: SignalForScoring): number {
 //
 // Hard gates (all must pass):
 //   1. snaps >= 3
-//   2. testRatio >= 0.35  (meaningful test — price went deep enough)
+//   2. testRatio >= 0.75  (deep test — price must have genuinely threatened
+//                          the SL; shallow pullbacks < 75% are just noise)
 //   3. No upper cap       (any depth below SL is valid)
-//   4. Last 3 snaps trending in trade direction (momentum confirmed)
+//   4. Last 2 snaps trending in trade direction (momentum confirmed)
+//      — 2 candles is enough given the 75% gate already ensures signal
+//        quality; 3 candles would push entry too far from the zone low
 //
 // Scoring:
 //   Base          35   (all gates passed)
-//   Depth          0–25 (how deep the test went)
-//   Consolidation  0–20 (candles spent inside the SL zone, last-12 window)
+//   Depth          0–25 (how deep the test went, within 75–100% range)
+//   Consolidation  0–20 (candles spent below 50% of SL distance, last-12 window)
 //   ─────────────────
 //   Maximum        80   (cap applied)
-//   Minimum        40   (35% depth, 1 candle at the low)
+//   Minimum        40   (exactly 75% depth, 0 zone snaps)
 
 function scorePatternB(signal: SignalForScoring): number {
   const snaps = signal.priceSnapshots;
@@ -379,35 +382,40 @@ function scorePatternB(signal: SignalForScoring): number {
   const maxAdv = isBuy ? Math.min(...snaps) : Math.max(...snaps);
   const adverseExcursion = isBuy ? entry - maxAdv : maxAdv - entry;
 
-  // Gate 2 — meaningful test (≥ 35% of SL distance; no upper cap)
+  // Gate 2 — deep test required (≥ 75% of SL distance; no upper cap)
+  // A 35% pullback is normal intraday noise; 75%+ means the SL was
+  // genuinely under threat before price reversed — that is the signal.
   const testRatio = adverseExcursion / slDistance;
-  if (testRatio < 0.35) return 0;
+  if (testRatio < 0.75) return 0;
 
-  // Gate 3 — momentum confirmed: last 3 snapshots trending in trade direction
-  const last3 = snaps.slice(-3);
-  if (last3.length < 3) return 0;
+  // Gate 3 — momentum confirmed: last 2 snapshots trending in trade direction.
+  // 2 candles is intentional — the 75% depth gate already ensures high signal
+  // quality, so we enter closer to the zone low for better risk/reward rather
+  // than waiting for a third candle and giving up more of the bounce.
+  const last2 = snaps.slice(-2);
+  if (last2.length < 2) return 0;
   const trending = isBuy
-    ? last3[0] < last3[1] && last3[1] < last3[2]
-    : last3[0] > last3[1] && last3[1] > last3[2];
+    ? last2[0] < last2[1]
+    : last2[0] > last2[1];
   if (!trending) return 0;
 
   // ── Base ────────────────────────────────────────────────────
   let score = 35;
 
   // ── Component 1: Test Depth (0–25 pts) ──────────────────────
-  // Fixed the moment the low is set; does not change as price recovers.
-  if (testRatio >= 0.90)      score += 25;
-  else if (testRatio >= 0.70) score += 20;
-  else if (testRatio >= 0.50) score += 12;
-  else                        score +=  5; // 0.35–0.50
+  // Bands are calibrated to the 75–100% reachable range.
+  if (testRatio >= 0.95)      score += 25; // SL nearly hit — maximum conviction
+  else if (testRatio >= 0.90) score += 20;
+  else if (testRatio >= 0.82) score += 12;
+  else                        score +=  5; // 0.75–0.82 — just passed gate
 
   // ── Component 2: Consolidation Duration (0–20 pts) ──────────
-  // Count snapshots inside the SL zone (below 35% threshold from entry)
+  // Count snapshots below the 50% mark (genuine danger territory)
   // within the last 12-snapshot window.
   const window12 = snaps.slice(-12);
   const zoneThresh = isBuy
-    ? entry - slDistance * 0.35
-    : entry + slDistance * 0.35;
+    ? entry - slDistance * 0.50
+    : entry + slDistance * 0.50;
   const zoneSnaps = window12.filter((p) =>
     isBuy ? p < zoneThresh : p > zoneThresh
   ).length;
@@ -419,7 +427,6 @@ function scorePatternB(signal: SignalForScoring): number {
   else if (zoneSnaps >= 3)  score +=  9;
   else if (zoneSnaps >= 2)  score +=  6;
   else if (zoneSnaps >= 1)  score +=  3;
-  // 0 snaps in zone → +0 (shallow pass-through, still valid via testRatio)
 
   return Math.min(80, score);
 }

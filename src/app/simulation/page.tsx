@@ -20,7 +20,12 @@ import {
   AlertTriangle,
   CheckCircle2,
   BarChart3,
+  Filter,
+  X,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -574,7 +579,182 @@ function getSlDisplay(trade: SimTrade) {
   return { price: trade.stopLoss, label: "Original" };
 }
 
+// ── Column filter types & helpers ──────────────────────────────
+
+type SimFilters = {
+  symbol: string;
+  sides: string[];
+  timeframes: string[];
+  algos: string[];
+  leverages: string[];
+  tpLevel: "any" | "none" | "tp1" | "tp2" | "tp3";
+  pnl: "all" | "win" | "loss";
+  scoreMin: string;
+  scoreMax: string;
+  statuses: string[];
+};
+const DEFAULT_SIM_FILTERS: SimFilters = {
+  symbol: "", sides: [], timeframes: [], algos: [], leverages: [],
+  tpLevel: "any", pnl: "all", scoreMin: "", scoreMax: "", statuses: [],
+};
+function simActiveCount(f: SimFilters): number {
+  return (f.symbol ? 1 : 0) + f.sides.length + f.timeframes.length +
+    f.algos.length + f.leverages.length + (f.tpLevel !== "any" ? 1 : 0) +
+    (f.pnl !== "all" ? 1 : 0) + ((f.scoreMin || f.scoreMax) ? 1 : 0) + f.statuses.length;
+}
+function applySimFilters(trades: SimTrade[], f: SimFilters): SimTrade[] {
+  return trades.filter((t) => {
+    if (f.symbol && !t.symbol.toLowerCase().includes(f.symbol.toLowerCase())) return false;
+    if (f.sides.length && !f.sides.includes(t.side)) return false;
+    if (f.timeframes.length && !f.timeframes.includes(String(t.timeframe))) return false;
+    if (f.algos.length && !f.algos.includes(t.algo || "—")) return false;
+    if (f.leverages.length && !f.leverages.includes(String(t.leverage))) return false;
+    if (f.tpLevel === "none" && (t.tp1Hit || t.tp2Hit || t.tp3Hit)) return false;
+    if (f.tpLevel === "tp1" && !t.tp1Hit) return false;
+    if (f.tpLevel === "tp2" && !t.tp2Hit) return false;
+    if (f.tpLevel === "tp3" && !t.tp3Hit) return false;
+    if (f.pnl === "win" && t.realizedPnl <= 0) return false;
+    if (f.pnl === "loss" && t.realizedPnl > 0) return false;
+    if (f.scoreMin && t.confidenceScore < Number(f.scoreMin)) return false;
+    if (f.scoreMax && t.confidenceScore > Number(f.scoreMax)) return false;
+    if (f.statuses.length && !f.statuses.includes(t.closeReason ?? "")) return false;
+    return true;
+  });
+}
+
+// ── Filter UI primitives ──────────────────────────────────────
+
+function ColFilter({ label, isActive, children, width = "w-52" }: {
+  label: string; isActive: boolean; children: React.ReactNode; width?: string;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className={cn(
+          "flex items-center gap-1.5 cursor-pointer group font-black uppercase tracking-wider rounded px-1 -ml-1 py-0.5 transition-colors",
+          isActive
+            ? "text-accent bg-accent/10"
+            : "text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.05]"
+        )}>
+          <span className="text-[10px]">{label}</span>
+          <Filter className={cn("h-3 w-3 shrink-0", isActive ? "fill-accent/40" : "opacity-50 group-hover:opacity-100")} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className={cn(width, "p-0 bg-[#18181b] border-white/[0.08] shadow-2xl")} align="start">
+        {children}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function CheckFilter({ values, selected, onChange, labelMap }: {
+  values: string[]; selected: string[];
+  onChange: (v: string[]) => void; labelMap?: Record<string, string>;
+}) {
+  if (!values.length) return <p className="p-3 text-[10px] text-muted-foreground/40 italic">No values</p>;
+  return (
+    <div className="py-1">
+      <div className="max-h-52 overflow-y-auto">
+        {values.map((v) => (
+          <label key={v} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-white/[0.04] cursor-pointer">
+            <Checkbox checked={selected.includes(v)}
+              onCheckedChange={(chk) => onChange(chk ? [...selected, v] : selected.filter((s) => s !== v))}
+              className="h-3.5 w-3.5 border-white/20" />
+            <span className="text-[11px] font-medium text-foreground/80">{labelMap?.[v] ?? v}</span>
+          </label>
+        ))}
+      </div>
+      {selected.length > 0 && (
+        <div className="border-t border-white/[0.06] px-3 pt-1.5 pb-1.5">
+          <button onClick={() => onChange([])} className="text-[10px] text-muted-foreground/50 hover:text-accent">Clear</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TextSearchFilter({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="p-2.5">
+      <Input placeholder="Search…" value={value} onChange={(e) => onChange(e.target.value)}
+        className="h-7 text-xs bg-white/[0.04] border-white/[0.08] placeholder:text-muted-foreground/30" />
+      {value && (
+        <button onClick={() => onChange("")} className="mt-1.5 w-full text-[10px] text-muted-foreground/50 hover:text-accent">Clear</button>
+      )}
+    </div>
+  );
+}
+
+function PnlFilterUI({ value, onChange }: { value: "all" | "win" | "loss"; onChange: (v: "all" | "win" | "loss") => void }) {
+  return (
+    <div className="py-1">
+      {([["all", "All trades"], ["win", "Profitable"], ["loss", "Loss"]] as const).map(([v, label]) => (
+        <button key={v} onClick={() => onChange(v)}
+          className={cn("w-full text-left px-3 py-1.5 text-[11px] font-medium",
+            value === v ? "text-accent bg-accent/10" : "text-foreground/60 hover:bg-white/[0.04]")}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function TpFilterUI({ value, onChange }: { value: SimFilters["tpLevel"]; onChange: (v: SimFilters["tpLevel"]) => void }) {
+  return (
+    <div className="py-1">
+      {([["any", "Any"], ["none", "No TP hit"], ["tp1", "TP1+"], ["tp2", "TP2+"], ["tp3", "TP3"]] as const).map(([v, label]) => (
+        <button key={v} onClick={() => onChange(v)}
+          className={cn("w-full text-left px-3 py-1.5 text-[11px] font-medium",
+            value === v ? "text-accent bg-accent/10" : "text-foreground/60 hover:bg-white/[0.04]")}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ScoreRangeFilter({ min, max, onMin, onMax }: { min: string; max: string; onMin: (v: string) => void; onMax: (v: string) => void }) {
+  return (
+    <div className="p-2.5 space-y-2">
+      <div>
+        <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider mb-1">Min</p>
+        <Input value={min} onChange={(e) => onMin(e.target.value)} placeholder="0" type="number"
+          className="h-7 text-xs bg-white/[0.04] border-white/[0.08]" />
+      </div>
+      <div>
+        <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider mb-1">Max</p>
+        <Input value={max} onChange={(e) => onMax(e.target.value)} placeholder="80" type="number"
+          className="h-7 text-xs bg-white/[0.04] border-white/[0.08]" />
+      </div>
+      {(min || max) && (
+        <button onClick={() => { onMin(""); onMax(""); }}
+          className="w-full text-[10px] text-muted-foreground/50 hover:text-accent border-t border-white/[0.06] pt-1.5">Clear</button>
+      )}
+    </div>
+  );
+}
+
+// ── TradeList with column filters ─────────────────────────────
+
 function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, cs }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string; onSelectTrade: (t: SimTrade) => void; cs: string }) {
+  const [filters, setFilters] = useState<SimFilters>(DEFAULT_SIM_FILTERS);
+  const setF = <K extends keyof SimFilters>(k: K, v: SimFilters[K]) => setFilters((prev) => ({ ...prev, [k]: v }));
+
+  const uSides  = useMemo(() => [...new Set(trades.map((t) => t.side))].sort(), [trades]);
+  const uTfs    = useMemo(() => [...new Set(trades.map((t) => String(t.timeframe)))].sort(), [trades]);
+  const uAlgos  = useMemo(() => [...new Set(trades.map((t) => t.algo || "—"))].sort(), [trades]);
+  const uLevs   = useMemo(() => [...new Set(trades.map((t) => String(t.leverage)))].sort((a, b) => Number(a) - Number(b)), [trades]);
+  const uStats  = useMemo(() => [...new Set(trades.map((t) => t.closeReason).filter(Boolean))].sort() as string[], [trades]);
+  const filtered = useMemo(() => applySimFilters(trades, filters), [trades, filters]);
+  const active   = simActiveCount(filters);
+
+  const statusLabelMap = useMemo(() =>
+    Object.fromEntries(Object.entries(CLOSE_REASON_MAP).map(([k, v]) => [k, v.label])), []);
+  const levLabelMap = useMemo(() =>
+    Object.fromEntries(uLevs.map((l) => [l, `${l}×`])), [uLevs]);
+  const tfLabelMapFiltered = useMemo(() =>
+    Object.fromEntries(uTfs.map((tf) => [tf, tfLabelMap[tf.toUpperCase()] ?? `${tf}m`])), [uTfs]);
+
   if (trades.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground/30">
@@ -585,45 +765,108 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, cs }: { trade
   }
 
   return (
-    <>
-      {/* Mobile: Card layout */}
+    <div className="space-y-2">
+      {/* Active filter bar */}
+      {active > 0 && (
+        <div className="flex items-center gap-3 px-1">
+          <span className="text-[10px] text-muted-foreground/50">{filtered.length} of {trades.length} shown</span>
+          <button onClick={() => setFilters(DEFAULT_SIM_FILTERS)}
+            className="flex items-center gap-1 text-[10px] text-accent/80 hover:text-accent border border-accent/20 rounded px-2 py-0.5">
+            <X className="h-2.5 w-2.5" /> Clear {active} filter{active > 1 ? "s" : ""}
+          </button>
+        </div>
+      )}
+
+      {/* Mobile */}
       <div className="lg:hidden space-y-3">
-        {trades.map((trade) => (
+        {filtered.map((trade) => (
           <MobileTradeCard key={trade.id ?? trade.signalId} trade={trade} onSelect={onSelectTrade} cs={cs} />
         ))}
+        {filtered.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground/30">
+            <p className="text-xs font-bold">No trades match filters</p>
+          </div>
+        )}
       </div>
 
-      {/* Desktop: Table layout */}
+      {/* Desktop */}
       <div className="hidden lg:block bg-card border border-white/5 rounded-lg overflow-x-auto">
-        <div className="min-w-[1100px]">
+        <div className="min-w-[1200px]">
           <Table>
             <TableHeader className="bg-card sticky top-0 z-10 shadow-[0_1px_0_rgba(255,255,255,0.05)]">
               <TableRow className="hover:bg-transparent border-white/5">
-                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[120px]">Symbol</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[48px]">Side</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[36px]">Chart</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[70px]">Algo</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[36px]">Lev.</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Entry</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Current</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">SL</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[72px]">Targets</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Net PNL</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12">Size</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[50px]">Score</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[64px]">Status</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-wider h-12 w-[90px] text-right">Date</TableHead>
+                <TableHead className="h-12 w-[130px]">
+                  <ColFilter label="Symbol" isActive={!!filters.symbol}>
+                    <TextSearchFilter value={filters.symbol} onChange={(v) => setF("symbol", v)} />
+                  </ColFilter>
+                </TableHead>
+                <TableHead className="h-12 w-[56px]">
+                  <ColFilter label="Side" isActive={filters.sides.length > 0}>
+                    <CheckFilter values={uSides} selected={filters.sides} onChange={(v) => setF("sides", v)} />
+                  </ColFilter>
+                </TableHead>
+                <TableHead className="h-12 w-[48px]">
+                  <ColFilter label="TF" isActive={filters.timeframes.length > 0}>
+                    <CheckFilter values={uTfs} selected={filters.timeframes} onChange={(v) => setF("timeframes", v)} labelMap={tfLabelMapFiltered} />
+                  </ColFilter>
+                </TableHead>
+                <TableHead className="h-12 w-[80px]">
+                  <ColFilter label="Algo" isActive={filters.algos.length > 0}>
+                    <CheckFilter values={uAlgos} selected={filters.algos} onChange={(v) => setF("algos", v)} />
+                  </ColFilter>
+                </TableHead>
+                <TableHead className="h-12 w-[44px]">
+                  <ColFilter label="Lev." isActive={filters.leverages.length > 0}>
+                    <CheckFilter values={uLevs} selected={filters.leverages} onChange={(v) => setF("leverages", v)} labelMap={levLabelMap} />
+                  </ColFilter>
+                </TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">Entry</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">Current</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">SL</TableHead>
+                <TableHead className="h-12 w-[80px]">
+                  <ColFilter label="Targets" isActive={filters.tpLevel !== "any"} width="w-40">
+                    <TpFilterUI value={filters.tpLevel} onChange={(v) => setF("tpLevel", v)} />
+                  </ColFilter>
+                </TableHead>
+                <TableHead className="h-12">
+                  <ColFilter label="Net PNL" isActive={filters.pnl !== "all"} width="w-44">
+                    <PnlFilterUI value={filters.pnl} onChange={(v) => setF("pnl", v)} />
+                  </ColFilter>
+                </TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">Size</TableHead>
+                <TableHead className="h-12 w-[130px]">
+                  <ColFilter label="Score" isActive={!!(filters.scoreMin || filters.scoreMax)} width="w-44">
+                    <ScoreRangeFilter min={filters.scoreMin} max={filters.scoreMax} onMin={(v) => setF("scoreMin", v)} onMax={(v) => setF("scoreMax", v)} />
+                  </ColFilter>
+                </TableHead>
+                <TableHead className="h-12 w-[80px]">
+                  <ColFilter label="Status" isActive={filters.statuses.length > 0}>
+                    <CheckFilter values={uStats} selected={filters.statuses} onChange={(v) => setF("statuses", v)} labelMap={statusLabelMap} />
+                  </ColFilter>
+                </TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12 w-[90px] text-right">Date</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {trades.map((trade) => (
-                <DesktopTradeRow key={trade.id ?? trade.signalId} trade={trade} onSelect={onSelectTrade} cs={cs} />
-              ))}
+              {filtered.length > 0 ? (
+                filtered.map((trade) => (
+                  <DesktopTradeRow key={trade.id ?? trade.signalId} trade={trade} onSelect={onSelectTrade} cs={cs} />
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={14} className="text-center py-10 text-muted-foreground/30">
+                    <p className="text-xs font-bold">No trades match the current filters</p>
+                    <button onClick={() => setFilters(DEFAULT_SIM_FILTERS)} className="mt-2 text-[11px] text-accent/70 hover:text-accent">
+                      Clear all filters
+                    </button>
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 

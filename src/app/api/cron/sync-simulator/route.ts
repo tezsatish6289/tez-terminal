@@ -381,14 +381,30 @@ export async function GET(request: NextRequest) {
             ? (c.currentPrice - c.stopLoss) / c.currentPrice
             : (c.stopLoss - c.currentPrice) / c.currentPrice;
 
-          if (slDistancePct <= 0) continue;
+          if (slDistancePct <= 0) {
+            await db.collection("simulator_logs").add({
+              timestamp: new Date().toISOString(),
+              action: "INCUBATED_REJECTED",
+              details: `${c.symbol} ${c.type}: SL distance ≤ 0 (currentPrice=${c.currentPrice} sl=${c.stopLoss} slDist%=${(slDistancePct * 100).toFixed(2)}%)`,
+              assetType,
+            });
+            continue;
+          }
 
           const leverage = (await import("@/lib/leverage")).getLeverage(c.timeframe, assetType);
           const hasStreak = (simState3.consecutiveWins ?? 0) >= SIM_CONFIG.STREAK_WINS_TO_SCALE;
           const riskPct = hasStreak ? SIM_CONFIG.RISK_PER_TRADE_STREAK : SIM_CONFIG.RISK_PER_TRADE_BASE;
           const riskAmount = simState3.capital * riskPct;
           let positionSize = riskAmount / (slDistancePct * leverage);
-          if (positionSize > simState3.capital * 0.05 || positionSize < 1) continue;
+          if (positionSize > simState3.capital * 0.05 || positionSize < 1) {
+            await db.collection("simulator_logs").add({
+              timestamp: new Date().toISOString(),
+              action: "INCUBATED_REJECTED",
+              details: `${c.symbol} ${c.type}: position sizing failed (size=$${positionSize.toFixed(2)} cap=${(simState3.capital * 0.05).toFixed(2)} slDist%=${(slDistancePct * 100).toFixed(4)}% lev=${leverage}x risk=$${riskAmount.toFixed(2)})`,
+              assetType,
+            });
+            continue;
+          }
           positionSize = Math.round(positionSize * 100) / 100;
 
           const result = openTrade({

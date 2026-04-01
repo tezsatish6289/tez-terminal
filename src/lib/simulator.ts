@@ -16,6 +16,10 @@ export const SIM_CONFIG = {
   // Incubated signal selection
   INCUBATED_SL_CONSUMED_MAX: 0.50,
   INCUBATED_TP1_CONSUMED_MAX: 0.65,
+  // Confidence thresholds for evaluateTrade (legacy, not used by sim sync)
+  LIVE_WIN_RATE_SAMPLE_MIN: 20,
+  CONFIDENCE_MIN_LOW_SAMPLE: 55,
+  CONFIDENCE_MIN: 50,
   // Market turn detection (batch layer)
   TURN_LOOKBACK_TF_MULTIPLIER: 3,       // lookback window = timeframe × 3
   TURN_SAME_SIDE_SL_WARN: 0.30,         // 30% same-side SL → warning
@@ -627,6 +631,7 @@ export function openTrade(params: {
     currentPrice: signal.price,
     highWatermark: signal.price,
     unrealizedPnl: 0,
+    currentScore: null,
     fees: entryFee,
     confidenceScore: signal.confidenceScore,
     scorePattern: signal.scorePattern,

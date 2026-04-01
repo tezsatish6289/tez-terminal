@@ -10,6 +10,7 @@ import {
   type Credentials,
 } from "@/lib/trade-engine";
 import { type SimTrade } from "@/lib/simulator";
+import { computeAutoFilter, mapFirestoreSignal } from "@/lib/auto-filter";
 import { decrypt } from "@/lib/crypto";
 import { sendMessage } from "@/lib/telegram";
 import {
@@ -40,7 +41,7 @@ async function syncUserTrades(
   creds: Credentials,
   userSettings: { dailyLossLimit: number },
   allPrices: AllExchangePrices,
-  signalPatterns: Map<string, string>,
+  liveScores: Map<string, { score: number; pattern: string | null }>,
   db: FirebaseFirestore.Firestore
 ): Promise<{
   fills: number;
@@ -66,56 +67,65 @@ async function syncUserTrades(
     // ── 1. Check order fills for each trade ─────────────────
     for (const lt of liveTrades) {
       try {
-        const fills = await checkOrderFills(lt, creds);
+        // Order fill check is best-effort: if the exchange API fails, we still
+        // update the price below. Wrapping in its own try-catch prevents a single
+        // API error from blocking price updates for all open trades.
+        try {
+          const fills = await checkOrderFills(lt, creds);
 
-        for (const fill of fills.fills) {
-          if (fill.type === "SL") {
-            const slResult = await handleSlFill(lt, fill.price, fill.qty);
-            const { id: _slId, ...slFields } = { id: lt.id, ...slResult.updatedFields };
-            await db.collection("live_trades").doc(lt.id!).update({
-              ...slFields,
-              events: [...(lt.events || []), slResult.newEvent],
-            });
-            await db.collection("live_trade_logs").add({
-              timestamp: new Date().toISOString(),
-              action: "SL_HIT",
-              details: `${lt.signalSymbol} ${lt.side} SL hit @ $${fill.price} PnL: $${slResult.newEvent.pnl.toFixed(2)}`,
-              symbol: lt.signalSymbol,
-              userId,
-              exchange,
-            });
-            lt.status = "CLOSED";
-            result.fills++;
-          } else {
-            const tpLevel = fill.type === "TP1" ? 1 : fill.type === "TP2" ? 2 : 3;
-            const tpResult = await handleTpFill(lt, tpLevel as 1 | 2 | 3, fill.price, fill.qty, creds);
-            const updatedEvents = [...(lt.events || []), tpResult.newEvent];
-            await db.collection("live_trades").doc(lt.id!).update({
-              ...tpResult.updatedFields,
-              events: updatedEvents,
-            });
-            if (tpResult.warnings.length) {
+          for (const fill of fills.fills) {
+            if (fill.type === "SL") {
+              const slResult = await handleSlFill(lt, fill.price, fill.qty);
+              const { id: _slId, ...slFields } = { id: lt.id, ...slResult.updatedFields };
+              await db.collection("live_trades").doc(lt.id!).update({
+                ...slFields,
+                events: [...(lt.events || []), slResult.newEvent],
+              });
               await db.collection("live_trade_logs").add({
                 timestamp: new Date().toISOString(),
-                action: "WARNING",
-                details: `${lt.signalSymbol} TP${tpLevel} warnings: ${tpResult.warnings.join("; ")}`,
+                action: "SL_HIT",
+                details: `${lt.signalSymbol} ${lt.side} SL hit @ $${fill.price} PnL: $${slResult.newEvent.pnl.toFixed(2)}`,
                 symbol: lt.signalSymbol,
                 userId,
                 exchange,
               });
+              lt.status = "CLOSED";
+              result.fills++;
+            } else {
+              const tpLevel = fill.type === "TP1" ? 1 : fill.type === "TP2" ? 2 : 3;
+              const tpResult = await handleTpFill(lt, tpLevel as 1 | 2 | 3, fill.price, fill.qty, creds);
+              const updatedEvents = [...(lt.events || []), tpResult.newEvent];
+              await db.collection("live_trades").doc(lt.id!).update({
+                ...tpResult.updatedFields,
+                events: updatedEvents,
+              });
+              if (tpResult.warnings.length) {
+                await db.collection("live_trade_logs").add({
+                  timestamp: new Date().toISOString(),
+                  action: "WARNING",
+                  details: `${lt.signalSymbol} TP${tpLevel} warnings: ${tpResult.warnings.join("; ")}`,
+                  symbol: lt.signalSymbol,
+                  userId,
+                  exchange,
+                });
+              }
+              await db.collection("live_trade_logs").add({
+                timestamp: new Date().toISOString(),
+                action: `TP${tpLevel}_HIT`,
+                details: `${lt.signalSymbol} ${lt.side} TP${tpLevel} hit @ $${fill.price} PnL: $${tpResult.newEvent.pnl.toFixed(2)}`,
+                symbol: lt.signalSymbol,
+                userId,
+                exchange,
+              });
+              Object.assign(lt, tpResult.updatedFields);
+              lt.events = updatedEvents;
+              result.fills++;
             }
-            await db.collection("live_trade_logs").add({
-              timestamp: new Date().toISOString(),
-              action: `TP${tpLevel}_HIT`,
-              details: `${lt.signalSymbol} ${lt.side} TP${tpLevel} hit @ $${fill.price} PnL: $${tpResult.newEvent.pnl.toFixed(2)}`,
-              symbol: lt.signalSymbol,
-              userId,
-              exchange,
-            });
-            Object.assign(lt, tpResult.updatedFields);
-            lt.events = updatedEvents;
-            result.fills++;
           }
+        } catch (fillErr: any) {
+          // Log the fill check failure but continue with price update
+          result.errors.push(`${lt.signalSymbol} fill-check: ${fillErr.message}`);
+          console.warn(`[LiveSync] Fill check failed for ${lt.signalSymbol}: ${fillErr.message}`);
         }
 
         if (lt.status === "CLOSED") continue;
@@ -127,11 +137,14 @@ async function syncUserTrades(
           const priceDiff = isBuy ? livePrice - lt.entryPrice : lt.entryPrice - livePrice;
           const unrealizedPnl = (priceDiff / lt.entryPrice) * lt.positionSize * lt.leverage;
 
-          const livePattern = lt.signalId ? (signalPatterns.get(lt.signalId) ?? null) : null;
+          const liveScored = lt.signalId ? (liveScores.get(lt.signalId) ?? null) : null;
           await db.collection("live_trades").doc(lt.id!).update({
             currentPrice: livePrice,
             unrealizedPnl: Math.round(unrealizedPnl * 100) / 100,
-            ...(livePattern != null ? { currentScorePattern: livePattern } : {}),
+            ...(liveScored != null ? {
+              currentScore: liveScored.score,
+              currentScorePattern: liveScored.pattern,
+            } : {}),
           });
           lt.currentPrice = livePrice;
           lt.unrealizedPnl = Math.round(unrealizedPnl * 100) / 100;
@@ -451,15 +464,23 @@ export async function GET(request: NextRequest) {
       allPrices = deserializePrices(priceDoc.data() as Record<string, Record<string, number>>);
     }
 
-    // ── 2. Fetch signals for live trade pattern display ──────
+    // ── 2. Fetch signals and compute live scores ─────────────
+    // We compute scores the same way the sim sync does so that
+    // currentScore + currentScorePattern on live trades always
+    // reflect the latest pattern evaluation, not stale Firestore fields.
     const signalsSnap = await db.collection("signals").get();
     const postUpdateDocs = signalsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-    // signalId → current pattern label (used to keep currentScorePattern fresh)
-    const signalPatterns = new Map<string, string>();
-    for (const d of postUpdateDocs) {
-      const pattern = (d as any).scoreBreakdown?.pattern;
-      if (pattern) signalPatterns.set(d.id, pattern);
+    const allSignalsForScoring = postUpdateDocs.map(mapFirestoreSignal);
+    const rawLiveScores = computeAutoFilter(allSignalsForScoring, { includeResolved: true });
+
+    // Convert to a simpler map: signalId → { score, pattern }
+    const liveScores = new Map<string, { score: number; pattern: string | null }>();
+    for (const [id, entry] of rawLiveScores.entries()) {
+      liveScores.set(id, {
+        score: entry.score,
+        pattern: entry.breakdown?.pattern ?? null,
+      });
     }
 
     // ── 3. Find all users with auto-trade enabled ───────────
@@ -531,7 +552,7 @@ export async function GET(request: NextRequest) {
           pair.creds,
           pair.settings,
           allPrices,
-          signalPatterns,
+          liveScores,
           db
         ).then((r) => ({ ...r, userId: pair.userId, exchange: pair.exchange }))
       )

@@ -169,6 +169,8 @@ export async function GET(request: NextRequest) {
 
       if (!openSimSnap.empty) {
         for (const simDoc of openSimSnap.docs) {
+          // Per-trade try-catch: one bad trade must not abort price updates for all others
+          try {
           const t = simDoc.data() as SimTrade;
           const tradeAsset = t.assetType ?? "CRYPTO";
           if (!isMarketOpen(tradeAsset)) continue;
@@ -275,12 +277,16 @@ export async function GET(request: NextRequest) {
               priceUpdates++;
             }
           }
+          } catch (tradeErr: any) {
+            // One bad trade must not block price updates for all others
+            console.error(`[SimSync] Price update failed for ${simDoc.id}:`, tradeErr.message);
+          }
         }
 
         await flushSimStates();
       }
     } catch (priceErr: any) {
-      console.error("[SimSync] Price update failed:", priceErr.message);
+      console.error("[SimSync] Price update loop failed:", priceErr.message);
     }
 
     // ── Incubated signal selection (per asset type) ────────

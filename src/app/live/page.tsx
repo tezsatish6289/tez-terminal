@@ -457,7 +457,8 @@ function DesktopTradeRow({ trade, onSelect }: { trade: LiveTrade; onSelect: (t: 
       </TableCell>
       <TableCell className="font-mono text-xs font-bold text-white/60">{formatUsd(trade.positionSize)}</TableCell>
       <TableCell>
-        <div className="flex flex-col gap-1">
+        <div className="flex gap-3">
+          {/* Entry */}
           <div className="flex flex-col gap-0.5">
             <span className="font-mono text-[10px] text-muted-foreground/40 uppercase tracking-wider">Entry</span>
             <span className="font-mono text-xs font-bold text-accent">{trade.confidenceScore}</span>
@@ -465,8 +466,9 @@ function DesktopTradeRow({ trade, onSelect }: { trade: LiveTrade; onSelect: (t: 
               <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
             )}
           </div>
+          {/* Now / last */}
           {trade.currentScorePattern && (
-            <div className="flex flex-col gap-0.5 pt-0.5 border-t border-white/[0.04]">
+            <div className="flex flex-col gap-0.5 pl-3 border-l border-white/[0.06]">
               <span className="font-mono text-[10px] text-muted-foreground/40 uppercase tracking-wider">{isOpen ? "Now" : "Last"}</span>
               <PatternBadge pattern={trade.currentScorePattern as PatternType} score={null} />
             </div>

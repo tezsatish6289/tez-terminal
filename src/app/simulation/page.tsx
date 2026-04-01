@@ -715,8 +715,8 @@ function DesktopTradeRow({ trade, onSelect, cs }: { trade: SimTrade; onSelect: (
       </TableCell>
       <TableCell className="font-mono text-xs font-bold text-white/60">{formatMoney(trade.positionSize, cs)}</TableCell>
       <TableCell>
-        <div className="flex flex-col gap-1">
-          {/* Entry score + pattern */}
+        <div className="flex gap-3">
+          {/* Entry */}
           <div className="flex flex-col gap-0.5">
             <span className="font-mono text-[10px] text-muted-foreground/40 uppercase tracking-wider">Entry</span>
             <span className="font-mono text-xs font-bold text-accent">{trade.confidenceScore}</span>
@@ -724,9 +724,9 @@ function DesktopTradeRow({ trade, onSelect, cs }: { trade: SimTrade; onSelect: (
               <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
             )}
           </div>
-          {/* Current / last score + pattern */}
+          {/* Current / last */}
           {trade.currentScore != null && (
-            <div className="flex flex-col gap-0.5 pt-0.5 border-t border-white/[0.04]">
+            <div className="flex flex-col gap-0.5 pl-3 border-l border-white/[0.06]">
               <span className="font-mono text-[10px] text-muted-foreground/40 uppercase tracking-wider">{isOpen ? "Now" : "Last"}</span>
               <span className={cn(
                 "font-mono text-xs font-bold",

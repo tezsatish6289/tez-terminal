@@ -296,10 +296,12 @@ async function syncUserTrades(
 
         const sim = simDoc.data() as SimTrade;
 
-        const riskCloseReasons = ["TRAILING_SL", "MARKET_TURN", "PATTERN_BREAK"];
-        if (sim.status !== "CLOSED" || !riskCloseReasons.includes(sim.closeReason ?? "")) continue;
+        // Only mirror trailing-SL closes from the simulator.
+        // Market-turn and pattern-break exits have been removed — let the
+        // actual SL do its job rather than booking premature small losses.
+        if (sim.status !== "CLOSED" || sim.closeReason !== "TRAILING_SL") continue;
 
-        const closeReason = (sim.closeReason as "TRAILING_SL" | "MARKET_TURN" | "PATTERN_BREAK");
+        const closeReason = "TRAILING_SL" as const;
         const curPrice = getPrice(allPrices, lt.signalSymbol, exchange) ?? lt.entryPrice;
         const closeResult = await protectiveClose(lt, closeReason, curPrice, creds);
 
@@ -329,41 +331,6 @@ async function syncUserTrades(
         result.errors.push(`${lt.signalSymbol} close-sync: ${errMsg}`);
       }
     }
-
-    // ── 5. Protective closes: market turn (safety net) ──────
-    const sidesTfsLive = new Set(
-      liveTrades.filter((t) => t.status === "OPEN").map((t) => `${t.side}|${t.timeframe}`)
-    );
-
-    for (const key of sidesTfsLive) {
-      const [side, tf] = key.split("|");
-      const turn = detectMarketTurn(signalContext.turnInputs, side as "BUY" | "SELL", tf);
-
-      if (turn.triggered) {
-        const tradesToClose = liveTrades.filter(
-          (t) => t.side === side && t.timeframe === tf && t.status === "OPEN",
-        );
-        for (const trade of tradesToClose) {
-          const curPrice = getPrice(allPrices, trade.signalSymbol, exchange) ?? trade.entryPrice;
-          const closeResult = await protectiveClose(trade, "MARKET_TURN", curPrice, creds);
-          await db.collection("live_trades").doc(trade.id!).update({
-            ...closeResult.updatedFields,
-            events: [...(trade.events || []), closeResult.newEvent],
-          });
-          await db.collection("live_trade_logs").add({
-            timestamp: new Date().toISOString(),
-            action: "MARKET_TURN_CLOSE",
-            details: `${trade.signalSymbol} ${trade.side} closed: ${turn.reason}${closeResult.warning ? ` (${closeResult.warning})` : ""}`,
-            symbol: trade.signalSymbol,
-            userId,
-            exchange,
-          });
-          trade.status = "CLOSED";
-          result.protectiveCloses++;
-        }
-      }
-    }
-
 
     // ── 5. Daily loss limit / auto kill switch ──────────────
     try {

@@ -40,6 +40,7 @@ async function syncUserTrades(
   creds: Credentials,
   userSettings: { dailyLossLimit: number },
   allPrices: AllExchangePrices,
+  signalPatterns: Map<string, string>,
   db: FirebaseFirestore.Firestore
 ): Promise<{
   fills: number;
@@ -450,7 +451,16 @@ export async function GET(request: NextRequest) {
       allPrices = deserializePrices(priceDoc.data() as Record<string, Record<string, number>>);
     }
 
-    // ── 2. (signals no longer needed for market-turn — removed) ─
+    // ── 2. Fetch signals for live trade pattern display ──────
+    const signalsSnap = await db.collection("signals").get();
+    const postUpdateDocs = signalsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    // signalId → current pattern label (used to keep currentScorePattern fresh)
+    const signalPatterns = new Map<string, string>();
+    for (const d of postUpdateDocs) {
+      const pattern = (d as any).scoreBreakdown?.pattern;
+      if (pattern) signalPatterns.set(d.id, pattern);
+    }
 
     // ── 3. Find all users with auto-trade enabled ───────────
     // Check each supported exchange's secrets collection
@@ -521,6 +531,7 @@ export async function GET(request: NextRequest) {
           pair.creds,
           pair.settings,
           allPrices,
+          signalPatterns,
           db
         ).then((r) => ({ ...r, userId: pair.userId, exchange: pair.exchange }))
       )

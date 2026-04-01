@@ -341,76 +341,85 @@ function scorePatternA(signal: SignalForScoring): number {
   return Math.min(80, score);
 }
 
-// ── Pattern B — Tested and rejected (0-80) ──────────────────
-// Price moved into the SL zone, held there (SL not hit), then
-// bounced. Entry is valid as soon as the bounce is real — we do NOT
-// require price to reclaim the entry level. The SL held = the thesis
-// is still intact; the bounce from the low IS the strength signal.
+// ── Pattern B — SL zone tested, held, momentum confirmed (0-80) ──
+// Price dipped into the SL zone, SL was not hit (slHitAt upstream
+// already excludes real hits), and the last 3 candles are now trending
+// back in the trade direction. We enter at the first confirmed bounce —
+// no recovery scoring; recovery is the momentum gate itself.
+//
+// Hard gates (all must pass):
+//   1. snaps >= 3
+//   2. testRatio >= 0.35  (meaningful test — price went deep enough)
+//   3. No upper cap       (any depth below SL is valid)
+//   4. Last 3 snaps trending in trade direction (momentum confirmed)
+//
+// Scoring:
+//   Base          35   (all gates passed)
+//   Depth          0–25 (how deep the test went)
+//   Consolidation  0–20 (candles spent inside the SL zone, last-12 window)
+//   ─────────────────
+//   Maximum        80   (cap applied)
+//   Minimum        40   (35% depth, 1 candle at the low)
 
 function scorePatternB(signal: SignalForScoring): number {
   const snaps = signal.priceSnapshots;
+
+  // Gate 1 — minimum data
   if (snaps.length < 3) return 0;
 
   const isBuy = signal.type === "BUY";
   const entry = signal.price;
   const sl = signal.stopLoss;
-  const tp1 = signal.tp1;
-  if (!sl || !tp1) return 0;
+  if (!sl) return 0;
 
   const slDistance = Math.abs(entry - sl);
-  const tp1Distance = Math.abs(tp1 - entry);
-  if (slDistance <= 0 || tp1Distance <= 0) return 0;
+  if (slDistance <= 0) return 0;
 
   // Worst price reached across all snapshots
   const maxAdv = isBuy ? Math.min(...snaps) : Math.max(...snaps);
   const adverseExcursion = isBuy ? entry - maxAdv : maxAdv - entry;
 
-  // Must have tested 35–90% of SL distance (meaningful test, SL still held)
+  // Gate 2 — meaningful test (≥ 35% of SL distance; no upper cap)
   const testRatio = adverseExcursion / slDistance;
-  if (testRatio < 0.35 || testRatio > 0.90) return 0;
+  if (testRatio < 0.35) return 0;
 
-  const cur = signal.currentPrice ?? snaps[snaps.length - 1];
+  // Gate 3 — momentum confirmed: last 3 snapshots trending in trade direction
+  const last3 = snaps.slice(-3);
+  if (last3.length < 3) return 0;
+  const trending = isBuy
+    ? last3[0] < last3[1] && last3[1] < last3[2]
+    : last3[0] > last3[1] && last3[1] > last3[2];
+  if (!trending) return 0;
 
-  // Bounce check — price must have recovered ≥ 30% from the adverse low.
-  // We do NOT require the price to be back above entry. The SL not being
-  // hit is the validity gate; any genuine bounce from the low is the entry.
-  const recoveryFromLow = isBuy ? cur - maxAdv : maxAdv - cur;
-  const bounceRatio = adverseExcursion > 0 ? recoveryFromLow / adverseExcursion : 0;
-  if (bounceRatio < 0.30) return 0; // still falling or barely lifted — not yet
+  // ── Base ────────────────────────────────────────────────────
+  let score = 35;
 
-  let score = 35; // base: SL tested and held, bounce confirmed
+  // ── Component 1: Test Depth (0–25 pts) ──────────────────────
+  // Fixed the moment the low is set; does not change as price recovers.
+  if (testRatio >= 0.90)      score += 25;
+  else if (testRatio >= 0.70) score += 20;
+  else if (testRatio >= 0.50) score += 12;
+  else                        score +=  5; // 0.35–0.50
 
-  // Reward recovery quality: bonus if above entry (full reclaim), smaller bonus for partial
-  const curExcursion = isBuy ? cur - entry : entry - cur;
-  if (curExcursion > 0 && curExcursion / tp1Distance >= 0.20) score += 20; // above entry, heading toward TP1
-  else if (curExcursion > 0) score += 12;                                    // above entry but modest
-  else if (bounceRatio >= 0.70) score += 8;                                  // ≥70% recovered, still below entry
-  else if (bounceRatio >= 0.50) score += 5;                                  // ≥50% recovered
-
-  // Tightness of the test zone — tight consolidation at the low = strong rejection
-  const adverseThresh = isBuy
+  // ── Component 2: Consolidation Duration (0–20 pts) ──────────
+  // Count snapshots inside the SL zone (below 35% threshold from entry)
+  // within the last 12-snapshot window.
+  const window12 = snaps.slice(-12);
+  const zoneThresh = isBuy
     ? entry - slDistance * 0.35
     : entry + slDistance * 0.35;
-  const advSnaps = snaps.filter((p) => isBuy ? p < adverseThresh : p > adverseThresh);
+  const zoneSnaps = window12.filter((p) =>
+    isBuy ? p < zoneThresh : p > zoneThresh
+  ).length;
 
-  if (advSnaps.length >= 2) {
-    const testRange = Math.max(...advSnaps) - Math.min(...advSnaps);
-    const testRangePct = testRange / slDistance;
-    if (testRangePct < 0.10) score += 15;
-    else if (testRangePct < 0.20) score += 10;
-    else if (testRangePct < 0.30) score += 5;
-  } else {
-    score += 8; // single-candle sharp rejection — strong signal
-  }
-
-  // Momentum confirmation: last 3 snapshots trending in trade direction
-  const last3 = snaps.slice(-3);
-  if (last3.length === 3) {
-    const trending = isBuy
-      ? last3[0] < last3[1] && last3[1] < last3[2]
-      : last3[0] > last3[1] && last3[1] > last3[2];
-    if (trending) score += 10;
-  }
+  if      (zoneSnaps >= 10) score += 20;
+  else if (zoneSnaps >= 7)  score += 18;
+  else if (zoneSnaps >= 5)  score += 15;
+  else if (zoneSnaps >= 4)  score += 12;
+  else if (zoneSnaps >= 3)  score +=  9;
+  else if (zoneSnaps >= 2)  score +=  6;
+  else if (zoneSnaps >= 1)  score +=  3;
+  // 0 snaps in zone → +0 (shallow pass-through, still valid via testRatio)
 
   return Math.min(80, score);
 }

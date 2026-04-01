@@ -342,8 +342,10 @@ function scorePatternA(signal: SignalForScoring): number {
 }
 
 // ── Pattern B — Tested and rejected (0-80) ──────────────────
-// Price moved into the SL zone, held in a tight range there,
-// then reversed and is now moving in the trade direction.
+// Price moved into the SL zone, held there (SL not hit), then
+// bounced. Entry is valid as soon as the bounce is real — we do NOT
+// require price to reclaim the entry level. The SL held = the thesis
+// is still intact; the bounce from the low IS the strength signal.
 
 function scorePatternB(signal: SignalForScoring): number {
   const snaps = signal.priceSnapshots;
@@ -359,29 +361,33 @@ function scorePatternB(signal: SignalForScoring): number {
   const tp1Distance = Math.abs(tp1 - entry);
   if (slDistance <= 0 || tp1Distance <= 0) return 0;
 
-  // Max adverse excursion across all snapshots
+  // Worst price reached across all snapshots
   const maxAdv = isBuy ? Math.min(...snaps) : Math.max(...snaps);
   const adverseExcursion = isBuy ? entry - maxAdv : maxAdv - entry;
 
-  // Must have tested 35–90% of SL distance (deep test but didn't hit SL)
+  // Must have tested 35–90% of SL distance (meaningful test, SL still held)
   const testRatio = adverseExcursion / slDistance;
   if (testRatio < 0.35 || testRatio > 0.90) return 0;
 
-  // Must have recovered: current price above/below entry
   const cur = signal.currentPrice ?? snaps[snaps.length - 1];
+
+  // Bounce check — price must have recovered ≥ 30% from the adverse low.
+  // We do NOT require the price to be back above entry. The SL not being
+  // hit is the validity gate; any genuine bounce from the low is the entry.
+  const recoveryFromLow = isBuy ? cur - maxAdv : maxAdv - cur;
+  const bounceRatio = adverseExcursion > 0 ? recoveryFromLow / adverseExcursion : 0;
+  if (bounceRatio < 0.30) return 0; // still falling or barely lifted — not yet
+
+  let score = 35; // base: SL tested and held, bounce confirmed
+
+  // Reward recovery quality: bonus if above entry (full reclaim), smaller bonus for partial
   const curExcursion = isBuy ? cur - entry : entry - cur;
-  if (curExcursion <= 0) return 0;
+  if (curExcursion > 0 && curExcursion / tp1Distance >= 0.20) score += 20; // above entry, heading toward TP1
+  else if (curExcursion > 0) score += 12;                                    // above entry but modest
+  else if (bounceRatio >= 0.70) score += 8;                                  // ≥70% recovered, still below entry
+  else if (bounceRatio >= 0.50) score += 5;                                  // ≥50% recovered
 
-  let score = 35; // base: pattern detected
-
-  // Recovery strength — how far above entry toward TP1
-  const recoveryRatio = curExcursion / tp1Distance;
-  if (recoveryRatio >= 0.30) score += 20;
-  else if (recoveryRatio >= 0.20) score += 15;
-  else if (recoveryRatio >= 0.10) score += 10;
-  else score += 5;
-
-  // Tightness of the test zone (snapshots inside the adverse area)
+  // Tightness of the test zone — tight consolidation at the low = strong rejection
   const adverseThresh = isBuy
     ? entry - slDistance * 0.35
     : entry + slDistance * 0.35;
@@ -394,7 +400,7 @@ function scorePatternB(signal: SignalForScoring): number {
     else if (testRangePct < 0.20) score += 10;
     else if (testRangePct < 0.30) score += 5;
   } else {
-    score += 8; // single-snapshot sharp rejection — strong
+    score += 8; // single-candle sharp rejection — strong signal
   }
 
   // Momentum confirmation: last 3 snapshots trending in trade direction

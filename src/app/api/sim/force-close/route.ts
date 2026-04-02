@@ -106,13 +106,20 @@ export async function POST(request: NextRequest) {
     events: [...(simTrade.events || []), closeEvent],
   });
 
-  // Update sim state capital
-  const newCapital = simState.capital + netPnl - exitFee;
-  await db.collection("config").doc(stateDocId).update({
+  // Update sim state capital (netPnl already includes fee deduction)
+  const newCapital = simState.capital + netPnl;
+  const stateUpdate: Record<string, unknown> = {
     capital: newCapital,
     dailyPnl: (simState.dailyPnl ?? 0) + netPnl,
+    totalFeesPaid: (simState.totalFeesPaid ?? 0) + exitFee,
     lastUpdated: new Date().toISOString(),
-  });
+  };
+  if (totalRealizedPnl >= 0) {
+    stateUpdate.totalWins = (simState.totalWins ?? 0) + 1;
+  } else {
+    stateUpdate.totalLosses = (simState.totalLosses ?? 0) + 1;
+  }
+  await db.collection("config").doc(stateDocId).update(stateUpdate);
 
   await db.collection("simulator_logs").add({
     timestamp: new Date().toISOString(),

@@ -592,6 +592,7 @@ const CLOSE_REASON_MAP: Record<string, { label: string; color: string }> = {
   TP1: { label: "TP1", color: "bg-emerald-500/15 text-emerald-400" },
   TP2: { label: "TP2", color: "bg-emerald-500/15 text-emerald-400" },
   TP3: { label: "TP3", color: "bg-emerald-500/15 text-emerald-400" },
+  KILL_SWITCH: { label: "Closed", color: "bg-violet-500/15 text-violet-400" },
 };
 
 function getCloseDisplay(reason: string | null) {

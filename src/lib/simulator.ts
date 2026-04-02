@@ -181,9 +181,11 @@ export function selectIncubatedSignals(params: {
   bullScore: number;
   bearScore: number;
   openTrades: SimTrade[];
+  killedSignalIds?: Set<string>;
   simConfig?: SimConfigType;
 }): IncubatedResult {
   const { candidates, state, bullScore, bearScore, openTrades } = params;
+  const killed = params.killedSignalIds ?? new Set<string>();
   const cfg = params.simConfig ?? SIM_CONFIG;
   const selected: IncubatedCandidate[] = [];
   const skipped: { symbol: string; reason: string }[] = [];
@@ -206,6 +208,12 @@ export function selectIncubatedSignals(params: {
     // Already in simulator
     if (openSignalIds.has(c.id)) {
       skipped.push({ symbol: c.symbol, reason: "Already in simulator" });
+      continue;
+    }
+
+    // Force-closed — user explicitly killed this trade, do not re-enter
+    if (killed.has(c.id)) {
+      skipped.push({ symbol: c.symbol, reason: "Force-closed (KILL_SWITCH)" });
       continue;
     }
 

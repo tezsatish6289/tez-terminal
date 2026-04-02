@@ -300,6 +300,25 @@ export async function GET(request: NextRequest) {
         .where("status", "==", "OPEN").get();
       const openSimTrades = openSimSnap2.docs.map((d) => ({ id: d.id, ...d.data() } as SimTrade));
 
+      // Collect signal IDs from recently force-closed trades.
+      // Cooldown = 6 × chart timeframe so the signal can re-qualify later.
+      const TF_MINS: Record<string, number> = {
+        "1": 1, "5": 5, "15": 15, "30": 30, "60": 60, "240": 240, "D": 1440, "W": 10080,
+      };
+      const killedSnap = await db.collection("simulator_trades")
+        .where("closeReason", "==", "KILL_SWITCH").get();
+      const killedSignalIds = new Set<string>();
+      for (const kDoc of killedSnap.docs) {
+        const kd = kDoc.data();
+        if (!kd.signalId || !kd.closedAt) continue;
+        const tfMins = TF_MINS[String(kd.timeframe)] ?? 15;
+        const cooldownMs = tfMins * 6 * 60_000;
+        const closedAge = Date.now() - new Date(kd.closedAt).getTime();
+        if (closedAge < cooldownMs) {
+          killedSignalIds.add(kd.signalId);
+        }
+      }
+
       const candidates: IncubatedCandidate[] = postUpdateDocs
         .filter((d) =>
           d.status === "ACTIVE" &&
@@ -359,6 +378,7 @@ export async function GET(request: NextRequest) {
           bullScore,
           bearScore,
           openTrades: assetOpenTrades,
+          killedSignalIds,
           simConfig,
         });
 

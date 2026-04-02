@@ -125,10 +125,10 @@ export async function getAllOrders(symbol: string, creds: BinanceCredentials, li
 
 export async function placeExitOrders(
   symbol: string, side: "BUY" | "SELL", quantity: number,
-  sl: number, tp1: number, tp2: number, tp3: number,
+  sl: number, tp1: number, tp1ClosePct: number,
   info: SymbolInfo, creds: BinanceCredentials
 ) {
-  return _placeExitOrders(bybit, symbol, side, quantity, sl, tp1, tp2, tp3, info, creds);
+  return _placeExitOrders(bybit, symbol, side, quantity, sl, tp1, tp1ClosePct, info, creds);
 }
 
 export async function replaceSl(

@@ -52,6 +52,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import type { SimulatorState, SimTrade, SimLog, SimTradeEvent } from "@/lib/simulator";
 import { getSimStateDocId } from "@/lib/simulator";
@@ -97,6 +98,44 @@ export default function SimulationPage() {
   const [tab, setTab] = useState<"overview" | "trades" | "logs">("overview");
   const [selectedTrade, setSelectedTrade] = useState<SimTrade | null>(null);
   const cs = assetType === "INDIAN_STOCKS" ? "₹" : "$";
+
+  // Simulator controls
+  const [simEnabled, setSimEnabled] = useState(true);
+  const [directionBias, setDirectionBias] = useState<"BULL" | "BEAR" | "BOTH">("BOTH");
+  const [controlsLoaded, setControlsLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/settings/simulator-controls")
+      .then((r) => r.json())
+      .then((data) => {
+        setSimEnabled(data.simEnabled ?? true);
+        setDirectionBias(data.directionBias ?? "BOTH");
+        setControlsLoaded(true);
+      })
+      .catch(() => setControlsLoaded(true));
+  }, []);
+
+  const updateControl = useCallback(async (field: string, value: unknown) => {
+    try {
+      await fetch("/api/settings/simulator-controls", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: value }),
+      });
+    } catch (err) {
+      console.error("Failed to update simulator control:", err);
+    }
+  }, []);
+
+  const handleToggleEnabled = useCallback((checked: boolean) => {
+    setSimEnabled(checked);
+    updateControl("simEnabled", checked);
+  }, [updateControl]);
+
+  const handleDirectionBias = useCallback((bias: "BULL" | "BEAR" | "BOTH") => {
+    setDirectionBias(bias);
+    updateControl("directionBias", bias);
+  }, [updateControl]);
 
   const stateRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -194,7 +233,7 @@ export default function SimulationPage() {
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           <div className="max-w-[1400px] mx-auto space-y-4">
             {/* Header */}
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <Activity className="w-4 h-4 text-accent" />
@@ -202,7 +241,56 @@ export default function SimulationPage() {
                 </div>
                 <h1 className="text-xl font-black tracking-tight">Trade Simulator</h1>
               </div>
-              <SimulatorParamsDialog />
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* On/Off toggle */}
+                {controlsLoaded && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/[0.08] bg-white/[0.02]">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Sim</span>
+                    <Switch
+                      checked={simEnabled}
+                      onCheckedChange={handleToggleEnabled}
+                      className={cn(
+                        simEnabled ? "data-[state=checked]:bg-positive" : "",
+                      )}
+                    />
+                    <span className={cn(
+                      "text-[10px] font-bold uppercase tracking-widest",
+                      simEnabled ? "text-positive" : "text-negative",
+                    )}>
+                      {simEnabled ? "ON" : "OFF"}
+                    </span>
+                  </div>
+                )}
+                {/* Direction bias selector */}
+                {controlsLoaded && (
+                  <div className="flex items-center gap-0 rounded-xl border border-white/[0.08] bg-white/[0.02] p-1">
+                    {([
+                      { key: "BULL" as const, label: "Bull", icon: <TrendingUp className="w-3.5 h-3.5" /> },
+                      { key: "BOTH" as const, label: "Both", icon: <Activity className="w-3.5 h-3.5" /> },
+                      { key: "BEAR" as const, label: "Bear", icon: <TrendingDown className="w-3.5 h-3.5" /> },
+                    ]).map(({ key, label, icon }) => (
+                      <button
+                        key={key}
+                        onClick={() => handleDirectionBias(key)}
+                        className={cn(
+                          "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                          directionBias === key
+                            ? key === "BULL"
+                              ? "bg-positive text-black shadow-sm"
+                              : key === "BEAR"
+                                ? "bg-negative text-white shadow-sm"
+                                : "bg-accent text-black shadow-sm"
+                            : "text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.04]",
+                        )}
+                      >
+                        {icon}
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <SimulatorParamsDialog />
+              </div>
             </div>
 
             {/* Global asset type filter */}

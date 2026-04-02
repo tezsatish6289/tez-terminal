@@ -175,6 +175,8 @@ export interface IncubatedResult {
   skipped: { symbol: string; reason: string }[];
 }
 
+export type DirectionBias = "BULL" | "BEAR" | "BOTH";
+
 export function selectIncubatedSignals(params: {
   candidates: IncubatedCandidate[];
   state: SimulatorState;
@@ -183,10 +185,12 @@ export function selectIncubatedSignals(params: {
   openTrades: SimTrade[];
   killedSignalIds?: Set<string>;
   simConfig?: SimConfigType;
+  directionBias?: DirectionBias;
 }): IncubatedResult {
   const { candidates, state, bullScore, bearScore, openTrades } = params;
   const killed = params.killedSignalIds ?? new Set<string>();
   const cfg = params.simConfig ?? SIM_CONFIG;
+  const bias = params.directionBias ?? "BOTH";
   const selected: IncubatedCandidate[] = [];
   const skipped: { symbol: string; reason: string }[] = [];
 
@@ -228,6 +232,16 @@ export function selectIncubatedSignals(params: {
 
     // TP1, TP2, or SL already hit — permanently ineligible, no log
     if (c.tp1Hit || c.tp2Hit || c.slHitAt) continue;
+
+    // Direction bias filter
+    if (bias === "BULL" && c.type !== "BUY") {
+      skipped.push({ symbol: c.symbol, reason: "Direction bias: BULL only (skipping SELL)" });
+      continue;
+    }
+    if (bias === "BEAR" && c.type !== "SELL") {
+      skipped.push({ symbol: c.symbol, reason: "Direction bias: BEAR only (skipping BUY)" });
+      continue;
+    }
 
     // Price drift check — dynamic based on SL and TP1 distance
     const isBuy = c.type === "BUY";

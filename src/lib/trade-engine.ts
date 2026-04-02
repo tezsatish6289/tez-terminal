@@ -107,7 +107,7 @@ export function decryptCredentials(encryptedKey: string, encryptedSecret: string
  * 1. Set isolated margin
  * 2. Set leverage
  * 3. Place market entry
- * 4. Place SL + TP1/TP2/TP3 orders
+ * 4. Place SL + TP1 orders (remaining qty managed by trailing SL)
  * 5. Return LiveTrade with all order IDs
  *
  * @param exchange - Exchange to execute on (defaults to BYBIT for backward compat)
@@ -179,7 +179,7 @@ export async function executeTrade(
       warnings.push(`Entry slippage: ${(slippage * 100).toFixed(2)}% (expected ${simTrade.entryPrice}, got ${fillPrice})`);
     }
 
-    // 7. Place exit orders (SL + TP1/TP2/TP3)
+    // 7. Place exit orders (SL + TP1 only; remaining qty managed by trailing SL)
     const exitResults = await placeExitOrders(
       connector,
       exchangeSymbol,
@@ -187,8 +187,7 @@ export async function executeTrade(
       fillQty,
       simTrade.stopLoss,
       simTrade.tp1,
-      simTrade.tp2,
-      simTrade.tp3,
+      cfg.TP1_CLOSE_PCT,
       info,
       creds
     );
@@ -205,8 +204,6 @@ export async function executeTrade(
     }
 
     if (!exitResults.tp1Order.success) warnings.push(`TP1 order failed: ${exitResults.tp1Order.error}`);
-    if (!exitResults.tp2Order.success) warnings.push(`TP2 order failed: ${exitResults.tp2Order.error}`);
-    if (!exitResults.tp3Order.success) warnings.push(`TP3 order failed: ${exitResults.tp3Order.error}`);
 
     const entryFee = fillPrice * fillQty * SIM_CONFIG.EXCHANGE_FEE;
 
@@ -231,8 +228,8 @@ export async function executeTrade(
       tp3: simTrade.tp3,
       slOrderId: exitResults.slOrder.order?.orderId ?? null,
       tp1OrderId: exitResults.tp1Order.order?.orderId ?? null,
-      tp2OrderId: exitResults.tp2Order.order?.orderId ?? null,
-      tp3OrderId: exitResults.tp3Order.order?.orderId ?? null,
+      tp2OrderId: null,
+      tp3OrderId: null,
       tp1Hit: false,
       tp2Hit: false,
       tp3Hit: false,
@@ -343,7 +340,7 @@ export async function handleTpFill(
     }
   }
 
-  if (newRemainingQty <= 0 || tpLevel === 3) {
+  if (newRemainingQty <= 0) {
     updatedFields.status = "CLOSED";
     updatedFields.closedAt = new Date().toISOString();
     updatedFields.closeReason = `TP${tpLevel}`;

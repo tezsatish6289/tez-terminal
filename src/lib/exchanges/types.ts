@@ -247,8 +247,9 @@ export function checkNotional(price: number, qty: number, info: SymbolInfo): boo
 // ── Shared Composite Operations ─────────────────────────────────
 
 /**
- * Place SL + TP1/TP2/TP3 exit orders through any exchange connector.
- * Split: 50% at TP1, 25% at TP2, 25% at TP3. SL covers full quantity.
+ * Place SL + TP1 exit orders through any exchange connector.
+ * SL covers full quantity. TP1 closes tp1ClosePct of the position.
+ * No TP2/TP3 orders — remaining quantity is managed by trailing SL.
  */
 export async function placeExitOrders(
   connector: ExchangeConnector,
@@ -257,20 +258,15 @@ export async function placeExitOrders(
   quantity: number,
   sl: number,
   tp1: number,
-  tp2: number,
-  tp3: number,
+  tp1ClosePct: number,
   info: SymbolInfo,
   creds: ExchangeCredentials
 ): Promise<{
   slOrder: BatchOrderResult;
   tp1Order: BatchOrderResult;
-  tp2Order: BatchOrderResult;
-  tp3Order: BatchOrderResult;
 }> {
   const exitSide = side === "BUY" ? "SELL" : "BUY";
-  const tp1Qty = floorToStep(quantity * 0.50, info.stepSize);
-  const tp2Qty = floorToStep(quantity * 0.25, info.stepSize);
-  const tp3Qty = floorToStep(quantity - tp1Qty - tp2Qty, info.stepSize);
+  const tp1Qty = floorToStep(quantity * tp1ClosePct, info.stepSize);
 
   const exec = async (
     fn: () => Promise<Order>
@@ -284,11 +280,11 @@ export async function placeExitOrders(
   };
 
   const slOrder = await exec(() => connector.placeStopMarket(symbol, exitSide, sl, quantity, creds, info.tickSize));
-  const tp1Order = await exec(() => connector.placeTakeProfitMarket(symbol, exitSide, tp1, tp1Qty, creds, info.tickSize));
-  const tp2Order = await exec(() => connector.placeTakeProfitMarket(symbol, exitSide, tp2, tp2Qty, creds, info.tickSize));
-  const tp3Order = await exec(() => connector.placeTakeProfitMarket(symbol, exitSide, tp3, tp3Qty, creds, info.tickSize));
+  const tp1Order = tp1Qty > 0
+    ? await exec(() => connector.placeTakeProfitMarket(symbol, exitSide, tp1, tp1Qty, creds, info.tickSize))
+    : { success: true } as BatchOrderResult;
 
-  return { slOrder, tp1Order, tp2Order, tp3Order };
+  return { slOrder, tp1Order };
 }
 
 /**

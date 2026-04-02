@@ -11,6 +11,7 @@ import {
   getSimStateDocId,
   SIM_CONFIG,
   getEffectiveSimConfig,
+  type DirectionBias,
   type SimulatorState,
   type SimTrade,
   type IncubatedCandidate,
@@ -48,12 +49,17 @@ export async function GET(request: NextRequest) {
 
   const db = getAdminFirestore();
 
-  // Load simulator param overrides (user-tunable via UI)
+  // Load simulator param overrides + controls (user-tunable via UI)
   let simConfig = SIM_CONFIG;
+  let simEnabled = true;
+  let directionBias: DirectionBias = "BOTH";
   try {
     const paramsDoc = await db.doc("config/simulator_params").get();
     if (paramsDoc.exists) {
-      simConfig = getEffectiveSimConfig(paramsDoc.data() as any);
+      const data = paramsDoc.data() as Record<string, unknown>;
+      simConfig = getEffectiveSimConfig(data as any);
+      if (typeof data.simEnabled === "boolean") simEnabled = data.simEnabled;
+      if (["BULL", "BEAR", "BOTH"].includes(data.directionBias as string)) directionBias = data.directionBias as DirectionBias;
     }
   } catch {}
 
@@ -372,15 +378,18 @@ export async function GET(request: NextRequest) {
           earlySnapshots: 0, noPattern: 0, rrGateFailed: 0, selected: 0,
         };
 
-        const { selected, skipped: incubSkipped } = selectIncubatedSignals({
-          candidates: assetCandidates,
-          state: simState3,
-          bullScore,
-          bearScore,
-          openTrades: assetOpenTrades,
-          killedSignalIds,
-          simConfig,
-        });
+        const { selected, skipped: incubSkipped } = simEnabled
+          ? selectIncubatedSignals({
+              candidates: assetCandidates,
+              state: simState3,
+              bullScore,
+              bearScore,
+              openTrades: assetOpenTrades,
+              killedSignalIds,
+              simConfig,
+              directionBias,
+            })
+          : { selected: [], skipped: [] };
 
         // Categorise skip reasons for the summary log
         for (const skip of incubSkipped) {

@@ -22,11 +22,12 @@ import {
   BarChart3,
   Filter,
   X,
+  XCircle,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import type { SimulatorState, SimTrade, SimLog, SimTradeEvent } from "@/lib/simulator";
 import { getSimStateDocId } from "@/lib/simulator";
@@ -135,6 +148,29 @@ export default function SimulationPage() {
   const winRate = simState && (simState.totalWins + simState.totalLosses) > 0
     ? (simState.totalWins / (simState.totalWins + simState.totalLosses)) * 100
     : 0;
+
+  const [forceClosing, setForceClosing] = useState<string | null>(null);
+
+  const handleForceClose = useCallback(async (trade: SimTrade) => {
+    if (!user || !trade.id || forceClosing) return;
+    setForceClosing(trade.id);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/sim/force-close", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ simTradeId: trade.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(`Force close failed: ${data.error || "Unknown error"}`);
+      }
+    } catch (err) {
+      alert(`Force close failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setForceClosing(null);
+    }
+  }, [user, forceClosing]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -302,7 +338,7 @@ export default function SimulationPage() {
 
                 {/* Tab Content */}
                 {tab === "overview" && (
-                  <TradeList trades={openTrades} emptyIcon={<Activity className="w-6 h-6" />} emptyLabel="No open trades" onSelectTrade={setSelectedTrade} cs={cs} />
+                  <TradeList trades={openTrades} emptyIcon={<Activity className="w-6 h-6" />} emptyLabel="No open trades" onSelectTrade={setSelectedTrade} onForceClose={handleForceClose} cs={cs} />
                 )}
 
                 {tab === "trades" && (
@@ -785,7 +821,7 @@ function Paginator({ page, total, pageSize, onChange, activeClass = "bg-accent/2
 
 // ── TradeList with column filters + pagination ────────────────
 
-function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, cs }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string; onSelectTrade: (t: SimTrade) => void; cs: string }) {
+function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose, cs }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string; onSelectTrade: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string }) {
   const [filters, setFilters] = useState<SimFilters>(DEFAULT_SIM_FILTERS);
   const [page, setPage] = useState(1);
   const setF = <K extends keyof SimFilters>(k: K, v: SimFilters[K]) => {
@@ -834,7 +870,7 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, cs }: { trade
       {/* Mobile */}
       <div className="lg:hidden space-y-3">
         {paginated.map((trade) => (
-          <MobileTradeCard key={trade.id ?? trade.signalId} trade={trade} onSelect={onSelectTrade} cs={cs} />
+          <MobileTradeCard key={trade.id ?? trade.signalId} trade={trade} onSelect={onSelectTrade} onForceClose={onForceClose} cs={cs} />
         ))}
         {filtered.length === 0 && (
           <div className="text-center py-8 text-muted-foreground/30">
@@ -910,7 +946,7 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, cs }: { trade
               <TableBody>
                 {paginated.length > 0 ? (
                   paginated.map((trade) => (
-                    <DesktopTradeRow key={trade.id ?? trade.signalId} trade={trade} onSelect={onSelectTrade} cs={cs} />
+                    <DesktopTradeRow key={trade.id ?? trade.signalId} trade={trade} onSelect={onSelectTrade} onForceClose={onForceClose} cs={cs} />
                   ))
                 ) : (
                   <TableRow>
@@ -934,7 +970,7 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, cs }: { trade
   );
 }
 
-function DesktopTradeRow({ trade, onSelect, cs }: { trade: SimTrade; onSelect: (t: SimTrade) => void; cs: string }) {
+function DesktopTradeRow({ trade, onSelect, onForceClose, cs }: { trade: SimTrade; onSelect: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string }) {
   const isBuy = trade.side === "BUY";
   const isOpen = trade.status === "OPEN";
   const chartLabel = tfLabelMap[String(trade.timeframe).toUpperCase()] ?? `${trade.timeframe}m`;
@@ -1051,7 +1087,40 @@ function DesktopTradeRow({ trade, onSelect, cs }: { trade: SimTrade; onSelect: (
       </TableCell>
       <TableCell>
         {isOpen ? (
-          <Badge className="text-[9px] font-black h-5 uppercase px-2 bg-accent/15 text-accent">Open</Badge>
+          <div className="flex items-center gap-1.5">
+            <Badge className="text-[9px] font-black h-5 uppercase px-2 bg-accent/15 text-accent">Open</Badge>
+            {onForceClose && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <button
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-5 w-5 flex items-center justify-center rounded hover:bg-rose-500/20 text-muted-foreground/30 hover:text-rose-400 transition-colors"
+                    title="Force close"
+                  >
+                    <XCircle className="h-3.5 w-3.5" />
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="bg-[#1a1a1e] border-white/10" onClick={(e) => e.stopPropagation()}>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-white">Force Close Trade</AlertDialogTitle>
+                    <AlertDialogDescription className="text-muted-foreground">
+                      Close <span className="text-white font-bold">{trade.symbol}</span> ({trade.side}) at current market price.
+                      This will also close any linked live trade on the exchange.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="border-white/10 text-muted-foreground hover:bg-white/5">Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-rose-600 hover:bg-rose-700 text-white"
+                      onClick={() => onForceClose(trade)}
+                    >
+                      Force Close
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
         ) : (
           <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", closeDisplay.color)}>
             {closeDisplay.label}
@@ -1068,7 +1137,7 @@ function DesktopTradeRow({ trade, onSelect, cs }: { trade: SimTrade; onSelect: (
   );
 }
 
-function MobileTradeCard({ trade, onSelect, cs }: { trade: SimTrade; onSelect: (t: SimTrade) => void; cs: string }) {
+function MobileTradeCard({ trade, onSelect, onForceClose, cs }: { trade: SimTrade; onSelect: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string }) {
   const isBuy = trade.side === "BUY";
   const isOpen = trade.status === "OPEN";
   const isWin = trade.realizedPnl > 0;
@@ -1098,13 +1167,47 @@ function MobileTradeCard({ trade, onSelect, cs }: { trade: SimTrade; onSelect: (
               <span className="text-[11px] text-muted-foreground/60 uppercase">{chartLabel}</span>
               <span className="text-[9px] font-bold text-muted-foreground/40">{trade.leverage}x</span>
             </div>
-            {isOpen ? (
-              <Badge className="text-[9px] font-black h-5 uppercase px-2 bg-accent/15 text-accent">Open</Badge>
-            ) : (
-              <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", closeDisplay.color)}>
-                {closeDisplay.label}
-              </Badge>
-            )}
+            <div className="flex items-center gap-1.5">
+              {isOpen ? (
+                <>
+                  <Badge className="text-[9px] font-black h-5 uppercase px-2 bg-accent/15 text-accent">Open</Badge>
+                  {onForceClose && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <button
+                          onClick={(e) => e.stopPropagation()}
+                          className="h-5 px-1.5 flex items-center gap-1 rounded text-[9px] font-bold text-rose-400/50 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                        >
+                          <XCircle className="h-3 w-3" /> Close
+                        </button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="bg-[#1a1a1e] border-white/10" onClick={(e) => e.stopPropagation()}>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="text-white">Force Close Trade</AlertDialogTitle>
+                          <AlertDialogDescription className="text-muted-foreground">
+                            Close <span className="text-white font-bold">{trade.symbol}</span> ({trade.side}) at current market price.
+                            This will also close any linked live trade on the exchange.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel className="border-white/10 text-muted-foreground hover:bg-white/5">Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-rose-600 hover:bg-rose-700 text-white"
+                            onClick={() => onForceClose(trade)}
+                          >
+                            Force Close
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </>
+              ) : (
+                <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", closeDisplay.color)}>
+                  {closeDisplay.label}
+                </Badge>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             <span className="text-[10px] font-bold text-muted-foreground/30 uppercase">{trade.algo || "—"}</span>

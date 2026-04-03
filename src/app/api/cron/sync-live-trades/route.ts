@@ -75,7 +75,7 @@ async function syncUserTrades(
 
           for (const fill of fills.fills) {
             if (fill.type === "SL") {
-              const slResult = await handleSlFill(lt, fill.price, fill.qty);
+              const slResult = await handleSlFill(lt, fill.price, fill.qty, creds);
               const { id: _slId, ...slFields } = { id: lt.id, ...slResult.updatedFields };
               await db.collection("live_trades").doc(lt.id!).update({
                 ...slFields,

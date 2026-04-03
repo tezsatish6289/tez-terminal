@@ -359,7 +359,8 @@ export async function handleTpFill(
 export async function handleSlFill(
   trade: LiveTrade,
   fillPrice: number,
-  fillQty: number
+  fillQty: number,
+  creds: Credentials
 ): Promise<{
   updatedFields: Partial<LiveTrade>;
   newEvent: LiveTradeEvent;
@@ -382,6 +383,14 @@ export async function handleSlFill(
     timestamp: new Date().toISOString(),
   };
 
+  // Cancel leftover orders (e.g. TP1) on the exchange
+  const connector = getConnector(trade.exchange);
+  try {
+    await connector.cancelAllOrders(trade.symbol, creds);
+  } catch {
+    // best effort
+  }
+
   const updatedFields: Partial<LiveTrade> = {
     slHit: true,
     remainingQty: 0,
@@ -390,6 +399,10 @@ export async function handleSlFill(
     status: "CLOSED",
     closedAt: new Date().toISOString(),
     closeReason: trade.trailingSl != null ? "TRAILING_SL" : "SL",
+    tp1OrderId: null,
+    tp2OrderId: null,
+    tp3OrderId: null,
+    slOrderId: null,
   };
 
   return { updatedFields, newEvent: event };

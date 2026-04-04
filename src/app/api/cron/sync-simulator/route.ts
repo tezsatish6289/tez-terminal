@@ -115,6 +115,10 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Signal-event-driven exits ───────────────────────────
+    // Track trade IDs processed here so the catch-up loop below won't
+    // re-process the same exit from a stale Firestore snapshot, which
+    // would double-increment simState.capital.
+    const processedTradeIds = new Set<string>();
     let eventCloses = 0;
     try {
       const recentEventsSnap = await db.collection("signal_events")
@@ -156,6 +160,7 @@ export async function GET(request: NextRequest) {
             await db.collection("simulator_trades").doc(simTradeDoc.id).update(tradeUpdate);
             updateSimState(tradeAsset, result.updatedState);
             await db.collection("simulator_logs").add(result.log);
+            processedTradeIds.add(simTradeDoc.id);
             eventCloses++;
           }
         }
@@ -177,6 +182,12 @@ export async function GET(request: NextRequest) {
         for (const simDoc of openSimSnap.docs) {
           // Per-trade try-catch: one bad trade must not abort price updates for all others
           try {
+          // Skip trades already processed by the signal-event loop above.
+          // Firestore snapshots can be stale within the same request, so the
+          // catch-up logic below could otherwise double-apply the same exit
+          // and double-increment simState.capital.
+          if (processedTradeIds.has(simDoc.id)) continue;
+
           const t = simDoc.data() as SimTrade;
           const tradeAsset = t.assetType ?? "CRYPTO";
           if (!isMarketOpen(tradeAsset)) continue;

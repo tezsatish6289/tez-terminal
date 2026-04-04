@@ -394,7 +394,7 @@ export default function SimulationPage() {
                 </div>
 
                 {/* Equity Curve */}
-                <EquityCurve trades={closedTrades} startingCapital={simState.startingCapital} cs={cs} currentCapital={simState.capital} />
+                <EquityCurve trades={closedTrades} startingCapital={simState.startingCapital} cs={cs} />
 
                 {/* Streak scaling indicator */}
                 {(simState.consecutiveWins ?? 0) >= 2 && (
@@ -463,7 +463,7 @@ export default function SimulationPage() {
 
 type Period = "all" | "today" | "week" | "month" | "custom";
 
-function EquityCurve({ trades, startingCapital, cs, currentCapital }: { trades: SimTrade[]; startingCapital: number; cs: string; currentCapital?: number }) {
+function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; startingCapital: number; cs: string }) {
   const [period, setPeriod] = useState<Period>("all");
 
   const filteredTrades = useMemo(() => {
@@ -510,7 +510,7 @@ function EquityCurve({ trades, startingCapital, cs, currentCapital }: { trades: 
       startCapital = capitalMap.get(prev.closedAt!) ?? startingCapital;
     }
 
-    const points: { trade: number; value: number; label: string; date: string; isNow?: boolean }[] = [
+    const points: { trade: number; value: number; label: string; date: string }[] = [
       { trade: 0, value: startCapital, label: "Start", date: "" },
     ];
     let running = startCapital;
@@ -525,20 +525,8 @@ function EquityCurve({ trades, startingCapital, cs, currentCapital }: { trades: 
       });
     });
 
-    // Append a "Now" point for the "all" view anchored to the true capital
-    // (includes entry fees paid and partial TP PnL from open trades).
-    if (period === "all" && currentCapital !== undefined) {
-      points.push({
-        trade: points.length,
-        value: parseFloat(currentCapital.toFixed(2)),
-        label: "Now",
-        date: "",
-        isNow: true,
-      });
-    }
-
     return points;
-  }, [filteredTrades, trades, startingCapital, currentCapital, period]);
+  }, [filteredTrades, trades, startingCapital, period]);
 
   const stats = useMemo(() => {
     const totalTrades = filteredTrades.length;
@@ -647,15 +635,10 @@ function EquityCurve({ trades, startingCapital, cs, currentCapital }: { trades: 
                   borderRadius: "8px",
                   fontSize: "11px",
                 }}
-                labelFormatter={(v: number, payload: any[]) => {
-                  if (payload?.[0]?.payload?.isNow) return "Now";
-                  return `Trade #${v}`;
-                }}
+                labelFormatter={(v: number) => `Trade #${v}`}
                 formatter={(value: number, _name: string, props: any) => [
                   formatMoney(value, cs),
-                  props.payload.isNow
-                    ? "Current Capital (incl. open trades)"
-                    : `${props.payload.label}${props.payload.date ? ` · ${props.payload.date}` : ""}`,
+                  `${props.payload.label}${props.payload.date ? ` · ${props.payload.date}` : ""}`,
                 ]}
               />
               <ReferenceLine

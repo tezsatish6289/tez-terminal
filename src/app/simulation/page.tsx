@@ -394,7 +394,7 @@ export default function SimulationPage() {
                 </div>
 
                 {/* Equity Curve */}
-                <EquityCurve trades={closedTrades} startingCapital={simState.startingCapital} cs={cs} />
+                <EquityCurve trades={closedTrades} startingCapital={simState.startingCapital} cs={cs} currentCapital={simState.capital} />
 
                 {/* Streak scaling indicator */}
                 {(simState.consecutiveWins ?? 0) >= 2 && (
@@ -463,7 +463,7 @@ export default function SimulationPage() {
 
 type Period = "all" | "today" | "week" | "month" | "custom";
 
-function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; startingCapital: number; cs: string }) {
+function EquityCurve({ trades, startingCapital, cs, currentCapital }: { trades: SimTrade[]; startingCapital: number; cs: string; currentCapital?: number }) {
   const [period, setPeriod] = useState<Period>("all");
 
   const filteredTrades = useMemo(() => {
@@ -492,11 +492,14 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
       .filter((t) => t.closedAt)
       .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
 
+    // Build a capital map using net effect per trade:
+    // realizedPnl already deducts exit fees, but NOT entry fee.
+    // Entry fee is always the first event (type "OPEN").
     let capital = startingCapital;
     const capitalMap = new Map<string, number>();
-
     for (const t of allSorted) {
-      capital += t.realizedPnl;
+      const entryFee = t.events?.[0]?.fee ?? 0;
+      capital += t.realizedPnl - entryFee;
       capitalMap.set(t.closedAt!, capital);
     }
 
@@ -507,10 +510,13 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
       startCapital = capitalMap.get(prev.closedAt!) ?? startingCapital;
     }
 
-    const points = [{ trade: 0, value: startCapital, label: "Start", date: "" }];
+    const points: { trade: number; value: number; label: string; date: string; isNow?: boolean }[] = [
+      { trade: 0, value: startCapital, label: "Start", date: "" },
+    ];
     let running = startCapital;
     filteredTrades.forEach((t, i) => {
-      running += t.realizedPnl;
+      const entryFee = t.events?.[0]?.fee ?? 0;
+      running += t.realizedPnl - entryFee;
       points.push({
         trade: i + 1,
         value: parseFloat(running.toFixed(2)),
@@ -518,8 +524,21 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
         date: format(new Date(t.closedAt!), "MMM dd HH:mm"),
       });
     });
+
+    // Append a "Now" point for the "all" view anchored to the true capital
+    // (includes entry fees paid and partial TP PnL from open trades).
+    if (period === "all" && currentCapital !== undefined) {
+      points.push({
+        trade: points.length,
+        value: parseFloat(currentCapital.toFixed(2)),
+        label: "Now",
+        date: "",
+        isNow: true,
+      });
+    }
+
     return points;
-  }, [filteredTrades, trades, startingCapital]);
+  }, [filteredTrades, trades, startingCapital, currentCapital, period]);
 
   const stats = useMemo(() => {
     const totalTrades = filteredTrades.length;
@@ -628,10 +647,15 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
                   borderRadius: "8px",
                   fontSize: "11px",
                 }}
-                labelFormatter={(v: number) => `Trade #${v}`}
+                labelFormatter={(v: number, payload: any[]) => {
+                  if (payload?.[0]?.payload?.isNow) return "Now";
+                  return `Trade #${v}`;
+                }}
                 formatter={(value: number, _name: string, props: any) => [
                   formatMoney(value, cs),
-                  `${props.payload.label}${props.payload.date ? ` · ${props.payload.date}` : ""}`,
+                  props.payload.isNow
+                    ? "Current Capital (incl. open trades)"
+                    : `${props.payload.label}${props.payload.date ? ` · ${props.payload.date}` : ""}`,
                 ]}
               />
               <ReferenceLine

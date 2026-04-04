@@ -8,7 +8,7 @@ import {
   useDoc,
   useMemoFirebase,
 } from "@/firebase";
-import { collection, query, orderBy, doc } from "firebase/firestore";
+import { collection, query, orderBy, limit, doc } from "firebase/firestore";
 import {
   Loader2,
   TrendingUp,

@@ -32,11 +32,28 @@ export async function GET(request: NextRequest) {
   const dryRun = searchParams.get("dry") === "true";
   const db = getAdminFirestore();
 
-  // Support both asset types
-  const assetTypes = ["CRYPTO", "INDIAN_STOCKS"];
+  // Load ALL simulator trades in one query, then group by effective asset type.
+  // Older trades may not have the assetType field (they default to "CRYPTO" in
+  // the cron via `?? "CRYPTO"`). A filtered query would miss them, causing the
+  // reconciliation to undercount and produce wrong results.
+  const allTradesSnap = await db.collection("simulator_trades").get();
+  const allTrades = allTradesSnap.docs.map((d) => ({ id: d.id, ...d.data() } as SimTrade));
+
+  const tradesByAsset = new Map<string, SimTrade[]>();
+  for (const t of allTrades) {
+    const key = (t as any).assetType ?? "CRYPTO";
+    if (!tradesByAsset.has(key)) tradesByAsset.set(key, []);
+    tradesByAsset.get(key)!.push(t);
+  }
+
+  // Always process at least CRYPTO and INDIAN_STOCKS even if no trades
+  for (const at of ["CRYPTO", "INDIAN_STOCKS"]) {
+    if (!tradesByAsset.has(at)) tradesByAsset.set(at, []);
+  }
+
   const results: Record<string, object> = {};
 
-  for (const assetType of assetTypes) {
+  for (const [assetType, trades] of tradesByAsset.entries()) {
     const stateDocId = getSimStateDocId(assetType);
 
     // Load current simState
@@ -48,17 +65,10 @@ export async function GET(request: NextRequest) {
     const currentState = checkDailyReset(stateDoc.data() as SimulatorState);
     const startingCapital = currentState.startingCapital;
 
-    // Load ALL trades for this asset type (open + closed)
-    const tradesSnap = await db.collection("simulator_trades")
-      .where("assetType", "==", assetType)
-      .get();
-
-    if (tradesSnap.empty) {
+    if (trades.length === 0) {
       results[assetType] = { skipped: "No trades found" };
       continue;
     }
-
-    const trades = tradesSnap.docs.map((d) => ({ id: d.id, ...d.data() } as SimTrade));
 
     // Recalculate from trade documents (source of truth):
     //

@@ -8,7 +8,7 @@ import {
   useDoc,
   useMemoFirebase,
 } from "@/firebase";
-import { collection, query, orderBy, limit, doc } from "firebase/firestore";
+import { collection, query, orderBy, doc } from "firebase/firestore";
 import {
   Loader2,
   TrendingUp,
@@ -149,7 +149,6 @@ export default function SimulationPage() {
     return query(
       collection(firestore, "simulator_trades"),
       orderBy("openedAt", "desc"),
-      limit(100),
     );
   }, [firestore, user]);
   const { data: rawTrades, isLoading: tradesLoading } = useCollection(tradesQuery);

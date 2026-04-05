@@ -54,6 +54,42 @@ async function syncUserTrades(
   const result = { fills: 0, updates: 0, protectiveCloses: 0, simSlSynced: 0, simCloseSynced: 0, errors: [] as string[] };
 
   try {
+    // ── 0. Fetch actual exchange PnL for recently-closed trades ──
+    // Runs before the main loop so it doesn't block new trade processing.
+    // Best-effort: errors are logged but never block open-trade sync.
+    if (getConnector(exchange).getClosedPnl) {
+      try {
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+        const recentlyClosedSnap = await db.collection("live_trades")
+          .where("status", "==", "CLOSED")
+          .where("userId", "==", userId)
+          .where("exchange", "==", exchange)
+          .where("closedAt", ">=", fiveMinutesAgo)
+          .get();
+
+        for (const doc of recentlyClosedSnap.docs) {
+          const lt = { id: doc.id, ...doc.data() } as LiveTrade;
+          if (lt.exchangeRealizedPnl != null) continue; // already fetched
+
+          try {
+            const connector = getConnector(exchange);
+            const startTime = new Date(lt.openedAt).getTime();
+            const records = await connector.getClosedPnl!(lt.symbol, creds, startTime);
+            const actualPnl = records.reduce((sum, r) => sum + r.closedPnl, 0);
+            if (records.length > 0) {
+              await db.collection("live_trades").doc(doc.id).update({
+                exchangeRealizedPnl: parseFloat(actualPnl.toFixed(4)),
+              });
+            }
+          } catch {
+            // best effort per trade
+          }
+        }
+      } catch {
+        // best effort — never block main sync
+      }
+    }
+
     const liveTradesSnap = await db.collection("live_trades")
       .where("status", "==", "OPEN")
       .where("userId", "==", userId)

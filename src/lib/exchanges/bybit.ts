@@ -11,6 +11,7 @@ import {
   type Order,
   type FuturesBalance,
   type FuturesPosition,
+  type ClosedPnlRecord,
   ExchangeApiError,
   roundToTick,
 } from "./types";
@@ -645,5 +646,31 @@ export class BybitConnector implements ExchangeConnector {
       creds
     );
     return data.list.map(mapBybitOrder);
+  }
+
+  // Returns actual realized PnL records from Bybit for a symbol.
+  // Pass startTime (ms) to filter to records after the trade opened.
+  async getClosedPnl(symbol: string, creds: ExchangeCredentials, startTime?: number): Promise<ClosedPnlRecord[]> {
+    const params: Record<string, string | number> = {
+      category: "linear",
+      symbol,
+      limit: 50,
+    };
+    if (startTime) params.startTime = startTime;
+
+    const data = await signedGet<{ list: Array<Record<string, string>> }>(
+      "/v5/position/closed-pnl",
+      params,
+      creds
+    );
+
+    return data.list.map((r) => ({
+      symbol: r.symbol,
+      closedPnl: parseFloat(r.closedPnl ?? "0"),
+      qty: parseFloat(r.qty ?? "0"),
+      avgEntryPrice: parseFloat(r.avgEntryPrice ?? "0"),
+      avgExitPrice: parseFloat(r.avgExitPrice ?? "0"),
+      createdTime: parseInt(r.createdTime ?? "0"),
+    }));
   }
 }

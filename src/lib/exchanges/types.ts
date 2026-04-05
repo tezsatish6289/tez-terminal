@@ -161,6 +161,17 @@ export interface BatchOrderResult {
   error?: string;
 }
 
+// ── Closed PnL Record (actual exchange-reported PnL) ────────────
+
+export interface ClosedPnlRecord {
+  symbol: string;
+  closedPnl: number;      // actual realized PnL reported by the exchange
+  qty: number;
+  avgEntryPrice: number;
+  avgExitPrice: number;
+  createdTime: number;    // ms timestamp
+}
+
 // ── Error ───────────────────────────────────────────────────────
 
 export class ExchangeApiError extends Error {
@@ -214,6 +225,9 @@ export interface ExchangeConnector {
   getOrder(symbol: string, orderId: string, creds: ExchangeCredentials): Promise<Order>;
   getOpenOrders(symbol: string, creds: ExchangeCredentials): Promise<Order[]>;
   getAllOrders(symbol: string, creds: ExchangeCredentials, limit?: number): Promise<Order[]>;
+
+  // Closed PnL — optional, only implemented by exchanges that support it
+  getClosedPnl?(symbol: string, creds: ExchangeCredentials, startTime?: number): Promise<ClosedPnlRecord[]>;
 }
 
 // ── Shared Math Utilities (exchange-agnostic) ───────────────────

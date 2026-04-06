@@ -68,8 +68,8 @@ export async function POST() {
       );
     }
 
-    const instruments: Record<string, number> = {};
-    const targetSegments = new Set(["NSE", "BSE"]);
+    const nseInstruments: Record<string, number> = {};
+    const bseInstruments: Record<string, number> = {};
     const equitySeries = new Set(["EQ", "BE", "BZ", "SM", "ST"]);
 
     for (let i = 1; i < lines.length; i++) {
@@ -77,7 +77,7 @@ export async function POST() {
       if (cols.length <= Math.max(secIdIdx, symbolIdx, segmentIdx)) continue;
 
       const segment = cols[segmentIdx]?.toUpperCase();
-      if (!targetSegments.has(segment)) continue;
+      if (segment !== "NSE" && segment !== "BSE") continue;
 
       const series = cols[seriesIdx]?.toUpperCase() ?? "";
       const instrName = cols[instrIdx]?.toUpperCase() ?? "";
@@ -88,11 +88,17 @@ export async function POST() {
       const secId = parseInt(cols[secIdIdx], 10);
 
       if (symbol && !isNaN(secId) && secId > 0) {
-        if (!instruments[symbol]) {
-          instruments[symbol] = secId;
+        if (segment === "NSE") {
+          nseInstruments[symbol] = secId;
+        } else if (segment === "BSE" && !nseInstruments[symbol]) {
+          bseInstruments[symbol] = secId;
         }
       }
     }
+
+    // NSE takes priority — the LTP call uses NSE_EQ segment.
+    // BSE IDs are included only for symbols not listed on NSE.
+    const instruments: Record<string, number> = { ...bseInstruments, ...nseInstruments };
 
     const count = Object.keys(instruments).length;
 

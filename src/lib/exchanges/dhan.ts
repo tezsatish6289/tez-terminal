@@ -219,10 +219,13 @@ export class DhanConnector implements ExchangeConnector {
       console.warn("[DHAN] config/dhan_instruments doc not found in Firestore");
       return;
     }
-    const data = snap.data() as Record<string, number>;
+    const data = snap.data() as Record<string, unknown>;
     symbolToSecurityId.clear();
     securityIdToSymbol.clear();
-    for (const [sym, id] of Object.entries(data)) {
+    for (const [sym, val] of Object.entries(data)) {
+      // Skip metadata fields like `lastUpdated`
+      const id = typeof val === "number" ? val : Number(val);
+      if (!Number.isFinite(id) || id <= 0) continue;
       const upperSym = sym.toUpperCase();
       symbolToSecurityId.set(upperSym, id);
       securityIdToSymbol.set(id, upperSym);
@@ -276,16 +279,16 @@ export class DhanConnector implements ExchangeConnector {
     if (securityIds.length === 0) return new Map();
 
     const segment = seg(creds);
-    const data = await dhanPost<{
-      data: Record<string, Record<string, { last_price: number }>>;
-    }>(
+    // Dhan /marketfeed/ltp returns { "NSE_EQ": { "1333": { last_price: ... } } }
+    // directly — no outer "data" wrapper.
+    const data = await dhanPost<Record<string, Record<string, { last_price: number }>>>(
       "/marketfeed/ltp",
       { [segment]: securityIds },
       creds
     );
 
     const prices = new Map<number, number>();
-    const segData = data.data?.[segment];
+    const segData = data?.[segment];
     if (segData) {
       for (const [idStr, info] of Object.entries(segData)) {
         prices.set(Number(idStr), info.last_price);

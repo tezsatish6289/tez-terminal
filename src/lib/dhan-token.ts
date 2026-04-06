@@ -2,21 +2,30 @@
  * Dhan system-level token manager.
  *
  * Dhan access tokens expire every 24 hours (SEBI regulation).
- * This module stores the token in Firestore and auto-renews it
- * via Dhan's /v2/RenewToken endpoint before it lapses.
+ * This module stores the token in Firestore and auto-renews it before expiry.
+ *
+ * Auto-renewal strategy (in priority order):
+ *   1. POST /v2/RenewToken  — fast, works while token is still active
+ *   2. TOTP generation       — fully automatic if DHAN_TOTP_SECRET + DHAN_PIN env vars are set
+ *
+ * Manual fallback (when both fail / token already expired):
+ *   - Generate a new token from web.dhan.co → Profile → Access DhanHQ APIs
+ *   - POST /api/admin/dhan-token  { accessToken, clientId }  to reseed Firestore
  *
  * Flow:
- *   1. User seeds the first token via the admin UI or env var
- *   2. sync-prices cron calls ensureValidToken() every run
- *   3. If token is >20h old → call /v2/RenewToken → save new token
- *   4. All Dhan price/data operations use getSystemDhanCreds()
+ *   1. sync-prices cron calls ensureValidToken() every run
+ *   2. If token age < 8h AND not expired → return as-is
+ *   3. If token age ≥ 8h and token is still active → RenewToken
+ *   4. If token expired or RenewToken failed → try TOTP generation
+ *   5. If everything fails → return null (caller logs the error)
  */
 
+import { createHmac } from "crypto";
 import { getAdminFirestore } from "@/firebase/admin";
 import type { ExchangeCredentials } from "./exchanges/types";
 
 const FIRESTORE_DOC = "config/dhan_system_token";
-const RENEW_AFTER_MS = 8 * 60 * 60 * 1000; // 8 hours — gives 3 renewal attempts per 24h window
+const RENEW_AFTER_MS = 8 * 60 * 60 * 1000; // 8 hours — 3 renewal windows per 24h
 
 interface DhanTokenDoc {
   accessToken: string;
@@ -26,16 +35,182 @@ interface DhanTokenDoc {
   renewCount: number;
 }
 
+// ── JWT expiry helpers ────────────────────────────────────────────
+
+function getJwtExpiry(token: string): number | null {
+  try {
+    const part = token.split(".")[1];
+    if (!part) return null;
+    const payload = JSON.parse(Buffer.from(part, "base64url").toString("utf8"));
+    return typeof payload.exp === "number" ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+function isJwtExpired(token: string): boolean {
+  const exp = getJwtExpiry(token);
+  return exp != null && Date.now() >= exp;
+}
+
+// ── TOTP generation (RFC 6238, SHA-1) ─────────────────────────────
+// No external dependencies — uses Node's built-in crypto module.
+// Requires DHAN_TOTP_SECRET (base32) + DHAN_PIN env vars.
+
+function base32Decode(encoded: string): Buffer {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = 0;
+  let value = 0;
+  const output: number[] = [];
+  for (const char of encoded.toUpperCase().replace(/=+$/g, "").replace(/\s/g, "")) {
+    const idx = alphabet.indexOf(char);
+    if (idx === -1) continue;
+    value = (value << 5) | idx;
+    bits += 5;
+    if (bits >= 8) {
+      bits -= 8;
+      output.push((value >>> bits) & 0xff);
+    }
+  }
+  return Buffer.from(output);
+}
+
+function generateTOTP(secret: string, step = 30): string {
+  const time = Math.floor(Date.now() / 1000 / step);
+  const timeBuf = Buffer.alloc(8);
+  timeBuf.writeUInt32BE(0, 0);
+  timeBuf.writeUInt32BE(time, 4);
+  const key = base32Decode(secret);
+  const hmac = createHmac("sha1", key).update(timeBuf).digest();
+  const offset = hmac[hmac.length - 1] & 0x0f;
+  const code =
+    ((hmac[offset] & 0x7f) << 24) |
+    ((hmac[offset + 1] & 0xff) << 16) |
+    ((hmac[offset + 2] & 0xff) << 8) |
+    (hmac[offset + 3] & 0xff);
+  return String(code % 1_000_000).padStart(6, "0");
+}
+
+// ── Internal helpers ──────────────────────────────────────────────
+
+async function persistToken(
+  db: FirebaseFirestore.Firestore,
+  existing: DhanTokenDoc | null,
+  newToken: string,
+  source: string
+) {
+  const now = new Date().toISOString();
+  const clientId = existing?.clientId ?? process.env.DHAN_CLIENT_ID ?? "";
+  await db.doc(FIRESTORE_DOC).set({
+    accessToken: newToken,
+    clientId,
+    issuedAt: existing?.issuedAt ?? now,
+    renewedAt: now,
+    renewCount: (existing?.renewCount ?? 0) + 1,
+  });
+  console.log(
+    `[DhanToken] Token saved via ${source} (total renewals: ${(existing?.renewCount ?? 0) + 1})`
+  );
+}
+
 /**
- * Get the current system-level Dhan credentials.
- * Returns null if no token is configured.
+ * Strategy 1: POST /v2/RenewToken
+ * Works only while the token is still active (not yet expired).
+ * Dhan expires the old token and issues a new 24h token.
+ *
+ * Note: the correct header is "dhanClientId", NOT "client-id".
+ */
+async function tryRenewToken(currentToken: string, clientId: string): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 8_000);
+    const res = await fetch("https://api.dhan.co/v2/RenewToken", {
+      method: "POST",
+      headers: {
+        "access-token": currentToken,
+        "dhanClientId": clientId, // ← must be "dhanClientId", not "client-id"
+      },
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`[DhanToken] RenewToken failed (${res.status}): ${text}`);
+      return null;
+    }
+    const result = await res.json();
+    const token = result.accessToken ?? result.access_token ?? result.token;
+    if (!token) {
+      console.error("[DhanToken] RenewToken response missing token:", JSON.stringify(result));
+    }
+    return token ?? null;
+  } catch (err) {
+    console.error("[DhanToken] RenewToken error:", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+/**
+ * Strategy 2: Generate a fresh 24h token using TOTP + PIN.
+ * Fully automated — no user interaction needed.
+ *
+ * Setup (one-time):
+ *   1. Go to web.dhan.co → Profile → Access DhanHQ APIs → Setup TOTP
+ *   2. Copy the TOTP secret (base32 string shown during TOTP setup)
+ *   3. Add to env:  DHAN_TOTP_SECRET=<base32 secret>   DHAN_PIN=<6-digit pin>
+ */
+async function tryTOTPGeneration(clientId: string): Promise<string | null> {
+  const totpSecret = process.env.DHAN_TOTP_SECRET;
+  const pin = process.env.DHAN_PIN;
+
+  if (!totpSecret || !pin) {
+    console.warn(
+      "[DhanToken] TOTP fallback not configured. " +
+        "Set DHAN_TOTP_SECRET + DHAN_PIN env vars for fully-automatic daily renewal."
+    );
+    return null;
+  }
+
+  try {
+    const totp = generateTOTP(totpSecret);
+    const url =
+      `https://auth.dhan.co/app/generateAccessToken` +
+      `?dhanClientId=${encodeURIComponent(clientId)}` +
+      `&pin=${encodeURIComponent(pin)}` +
+      `&totp=${totp}`;
+
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 10_000);
+    const res = await fetch(url, { method: "POST", signal: controller.signal });
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`[DhanToken] TOTP generation failed (${res.status}): ${text}`);
+      return null;
+    }
+    const result = await res.json();
+    const token = result.accessToken ?? result.access_token;
+    if (token) {
+      console.log("[DhanToken] Fresh token generated via TOTP");
+    } else {
+      console.error("[DhanToken] TOTP response missing accessToken:", JSON.stringify(result));
+    }
+    return token ?? null;
+  } catch (err) {
+    console.error("[DhanToken] TOTP generation error:", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+// ── Public API ────────────────────────────────────────────────────
+
+/**
+ * Returns the current Dhan credentials from Firestore (no renewal attempt).
  */
 export async function getSystemDhanCreds(): Promise<ExchangeCredentials | null> {
   const db = getAdminFirestore();
   const doc = await db.doc(FIRESTORE_DOC).get();
 
   if (!doc.exists) {
-    // Fallback: bootstrap from env vars on first run
     const envToken = process.env.DHAN_ACCESS_TOKEN;
     const envClientId = process.env.DHAN_CLIENT_ID;
     if (envToken && envClientId) {
@@ -57,15 +232,16 @@ export async function getSystemDhanCreds(): Promise<ExchangeCredentials | null> 
 }
 
 /**
- * Check token age and renew if older than 20 hours.
- * Returns the (possibly renewed) credentials, or null if unavailable.
+ * Ensures a valid, non-expired Dhan token is available.
+ * Tries renewal → TOTP generation before giving up.
+ * Returns null if no valid token can be obtained.
  */
 export async function ensureValidToken(): Promise<ExchangeCredentials | null> {
   const db = getAdminFirestore();
   const doc = await db.doc(FIRESTORE_DOC).get();
 
+  // ── Bootstrap from env if Firestore doc doesn't exist ──────────
   if (!doc.exists) {
-    // Try bootstrap from env
     const envToken = process.env.DHAN_ACCESS_TOKEN;
     const envClientId = process.env.DHAN_CLIENT_ID;
     if (envToken && envClientId) {
@@ -77,64 +253,70 @@ export async function ensureValidToken(): Promise<ExchangeCredentials | null> {
         renewedAt: now,
         renewCount: 0,
       });
+      console.log("[DhanToken] Bootstrapped token from env vars");
       return { apiKey: envToken, apiSecret: envClientId };
     }
+    console.error(
+      "[DhanToken] No token configured. Seed one via POST /api/admin/dhan-token " +
+        "or set DHAN_ACCESS_TOKEN + DHAN_CLIENT_ID env vars."
+    );
     return null;
   }
 
   const data = doc.data() as DhanTokenDoc;
-  const renewedAt = new Date(data.renewedAt).getTime();
-  const age = Date.now() - renewedAt;
+  const ageMs = Date.now() - new Date(data.renewedAt).getTime();
+  const tokenExpired = isJwtExpired(data.accessToken);
+  const needsRenewal = tokenExpired || ageMs >= RENEW_AFTER_MS;
 
-  if (age < RENEW_AFTER_MS) {
+  // Token is fresh and valid — return immediately
+  if (!needsRenewal) {
     return { apiKey: data.accessToken, apiSecret: data.clientId };
   }
 
-  // Token is stale — renew it
-  console.log(`[DhanToken] Token is ${(age / 3600000).toFixed(1)}h old, renewing...`);
+  const ageH = (ageMs / 3_600_000).toFixed(1);
+  console.log(
+    `[DhanToken] Token needs renewal (age=${ageH}h, expired=${tokenExpired}). Trying strategies...`
+  );
 
-  try {
-    const controller = new AbortController();
-    setTimeout(() => controller.abort(), 8000);
-
-    const res = await fetch("https://api.dhan.co/v2/RenewToken", {
-      method: "POST",
-      headers: {
-        "access-token": data.accessToken,
-        "client-id": data.clientId,
-        "Content-Type": "application/json",
-      },
-      signal: controller.signal,
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      console.error(`[DhanToken] Renewal failed (${res.status}): ${text}`);
-      // Return current token — it might still work within the 24h window
-      return { apiKey: data.accessToken, apiSecret: data.clientId };
+  // ── Strategy 1: RenewToken (only if token is still active) ─────
+  if (!tokenExpired) {
+    const renewed = await tryRenewToken(data.accessToken, data.clientId);
+    if (renewed) {
+      await persistToken(db, data, renewed, "RenewToken");
+      return { apiKey: renewed, apiSecret: data.clientId };
     }
-
-    const result = await res.json();
-    const newToken = result.accessToken ?? result.access_token ?? result.token;
-
-    if (!newToken) {
-      console.error("[DhanToken] Renewal response missing token:", JSON.stringify(result));
-      return { apiKey: data.accessToken, apiSecret: data.clientId };
-    }
-
-    const now = new Date().toISOString();
-    await db.doc(FIRESTORE_DOC).set({
-      accessToken: newToken,
-      clientId: data.clientId,
-      issuedAt: data.issuedAt,
-      renewedAt: now,
-      renewCount: (data.renewCount ?? 0) + 1,
-    });
-
-    console.log(`[DhanToken] Renewed successfully (count: ${(data.renewCount ?? 0) + 1})`);
-    return { apiKey: newToken, apiSecret: data.clientId };
-  } catch (err) {
-    console.error("[DhanToken] Renewal error:", err instanceof Error ? err.message : err);
-    return { apiKey: data.accessToken, apiSecret: data.clientId };
   }
+
+  // ── Strategy 2: TOTP-based fresh generation ─────────────────────
+  const fresh = await tryTOTPGeneration(data.clientId);
+  if (fresh) {
+    await persistToken(db, data, fresh, "TOTP");
+    return { apiKey: fresh, apiSecret: data.clientId };
+  }
+
+  // ── All strategies exhausted ─────────────────────────────────────
+  if (tokenExpired) {
+    // Last resort: reseed from env var if it holds a newer valid token
+    const envToken = process.env.DHAN_ACCESS_TOKEN;
+    const envClientId = process.env.DHAN_CLIENT_ID;
+    if (envToken && envToken !== data.accessToken && !isJwtExpired(envToken)) {
+      console.log("[DhanToken] Reseeding from DHAN_ACCESS_TOKEN env var (newer valid token found)");
+      await persistToken(db, data, envToken, "env-reseed");
+      return { apiKey: envToken, apiSecret: envClientId ?? data.clientId };
+    }
+
+    console.error(
+      "[DhanToken] ❌ Token expired and all auto-renewal strategies failed.\n" +
+        "Fix options:\n" +
+        "  A) Go to web.dhan.co → Profile → Access DhanHQ APIs → Generate Access Token (24h)\n" +
+        "     Then POST /api/admin/dhan-token with { accessToken, clientId } to reseed.\n" +
+        "  B) Set DHAN_TOTP_SECRET + DHAN_PIN env vars for fully-automatic renewal.\n" +
+        "     (Setup TOTP at web.dhan.co → Profile → Access DhanHQ APIs → Setup TOTP)"
+    );
+    return null;
+  }
+
+  // Token is still technically valid — use it even though renewal failed
+  console.warn("[DhanToken] Renewal failed but token not yet expired — using current token.");
+  return { apiKey: data.accessToken, apiSecret: data.clientId };
 }

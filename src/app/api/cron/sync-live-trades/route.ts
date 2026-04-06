@@ -27,7 +27,7 @@ import {
   replaceSl,
   type AllExchangePrices,
 } from "@/lib/exchanges";
-import { isIndianMarketOpen } from "@/lib/market-hours";
+import { isIndianMarketOpen, isIndianSquareOffTime } from "@/lib/market-hours";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -527,6 +527,92 @@ export async function GET(request: NextRequest) {
         score: entry.score,
         pattern: entry.breakdown?.pattern ?? null,
       });
+    }
+
+    // ── 3a. 3:15 PM IST square-off: force-close all open Dhan intraday positions ──
+    if (isIndianSquareOffTime()) {
+      console.log("[LiveSync] 3:15 PM IST square-off window — closing all open Dhan intraday positions.");
+
+      const openDhanTrades = await db.collection("live_trades")
+        .where("status", "==", "OPEN")
+        .where("exchange", "==", "DHAN")
+        .get();
+
+      if (!openDhanTrades.empty) {
+        const squareOffResults = await Promise.allSettled(
+          openDhanTrades.docs.map(async (tradeDoc) => {
+            const lt = { id: tradeDoc.id, ...tradeDoc.data() } as LiveTrade;
+
+            // Get user's Dhan credentials
+            const userId = lt.userId as string;
+            let creds: { apiKey: string; apiSecret: string; testnet: boolean } | null = null;
+
+            const dhanSecretDoc = await db.collection("users").doc(userId)
+              .collection("secrets").doc("dhan").get().catch(() => null);
+
+            if (dhanSecretDoc?.exists) {
+              const d = dhanSecretDoc.data()!;
+              const clientId = decrypt(d.encryptedKey);
+
+              if (d.encryptedPin) {
+                let accessToken: string | null = null;
+                if (d.encryptedCachedToken && d.cachedTokenExpiresAt) {
+                  const expiresAt = new Date(d.cachedTokenExpiresAt as string).getTime();
+                  if (Date.now() < expiresAt - 5 * 60 * 1000) {
+                    try { accessToken = decrypt(d.encryptedCachedToken); } catch { /* stale */ }
+                  }
+                }
+                if (!accessToken) {
+                  const { token } = await generateTokenForUser(clientId, decrypt(d.encryptedSecret), decrypt(d.encryptedPin));
+                  accessToken = token;
+                }
+                if (accessToken) creds = { apiKey: accessToken, apiSecret: clientId, testnet: false };
+              } else {
+                creds = { apiKey: decrypt(d.encryptedKey), apiSecret: decrypt(d.encryptedSecret), testnet: false };
+              }
+            }
+
+            if (!creds) {
+              console.warn(`[LiveSync] Square-off: no valid Dhan creds for user ${userId}, trade ${lt.id}`);
+              return;
+            }
+
+            try {
+              const connector = getConnector("DHAN");
+              await connector.cancelAllOrders(lt.signalSymbol, creds);
+              await connector.placeMarketClose(lt.signalSymbol, lt.side, lt.quantity, creds);
+
+              const closePrice = getPrice(allPrices, lt.signalSymbol, "DHAN") ?? lt.entryPrice;
+              const isBuy = lt.side === "BUY";
+              const priceDiff = isBuy ? closePrice - lt.entryPrice : lt.entryPrice - closePrice;
+              const realizedPnl = (priceDiff / lt.entryPrice) * lt.positionSize * lt.leverage;
+              const now = new Date().toISOString();
+
+              await db.collection("live_trades").doc(lt.id!).update({
+                status: "CLOSED",
+                closeReason: "EOD_SQUARE_OFF",
+                closedAt: now,
+                exitPrice: closePrice,
+                realizedPnl: Math.round(realizedPnl * 100) / 100,
+              });
+
+              await db.collection("live_trade_logs").add({
+                timestamp: now,
+                action: "EOD_SQUARE_OFF",
+                details: `${lt.signalSymbol} ${lt.side} force-closed @ ₹${closePrice} for EOD square-off. PnL: ₹${realizedPnl.toFixed(2)}`,
+                symbol: lt.signalSymbol,
+                userId,
+                exchange: "DHAN",
+              });
+            } catch (err) {
+              console.error(`[LiveSync] Square-off failed for ${lt.signalSymbol} (${lt.id}):`, err);
+            }
+          })
+        );
+
+        const soOk = squareOffResults.filter((r) => r.status === "fulfilled").length;
+        console.log(`[LiveSync] Square-off complete: ${soOk}/${openDhanTrades.size} positions closed.`);
+      }
     }
 
     // ── 3. Find all users with auto-trade enabled ───────────

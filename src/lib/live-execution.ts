@@ -1,5 +1,5 @@
 import { executeTrade as executeExchangeTrade, type Credentials } from "./trade-engine";
-import { decrypt } from "./crypto";
+import { decrypt, encrypt } from "./crypto";
 import {
   type ExchangeName,
   SUPPORTED_EXCHANGES,
@@ -13,6 +13,9 @@ import {
   type ExchangeCredentials,
 } from "./exchanges";
 import type { SimTrade, SimConfigType } from "./simulator";
+import { isIndianMarketEntryAllowed } from "./market-hours";
+import { getDhanLeverage } from "./exchanges/dhan";
+import { generateTokenForUser } from "./dhan-token";
 
 /**
  * Execute a trade for ALL users who have autoTradeEnabled on any supported exchange.
@@ -35,10 +38,25 @@ export async function executeForAllUsers(
 ) {
   const usersSnap = await db.collection("users").get();
 
+  const isStock = isStockExchange(signalExchange);
+
+  // Block new Indian stock entries after 2:30 PM IST
+  if (isStock && !isIndianMarketEntryAllowed()) {
+    await db.collection("live_trade_logs").add({
+      timestamp: new Date().toISOString(),
+      action: "SKIPPED",
+      details: `${symbol} ${signalType} — past 2:30 PM IST entry cutoff. No new intraday positions opened.`,
+      signalId,
+      symbol,
+    });
+    return;
+  }
+
   interface UserExecutionTask {
     userId: string;
     exchange: ExchangeName;
     creds: Credentials;
+    effectiveSimTrade: SimTrade;
   }
 
   const tasks: UserExecutionTask[] = [];
@@ -46,7 +64,6 @@ export async function executeForAllUsers(
   for (const userDoc of usersSnap.docs) {
     const userId = userDoc.id;
 
-    const isStock = isStockExchange(signalExchange);
     const brokerList = isStock ? STOCK_BROKERS : CRYPTO_BROKERS;
     for (const brokerName of brokerList) {
       const docIds = getSecretDocIds(brokerName);
@@ -60,12 +77,66 @@ export async function executeForAllUsers(
             const data = secretDoc.data()!;
             if (!docMatchesExchange(data, brokerName)) continue;
             if (data.autoTradeEnabled === true) {
+              let apiKey: string;
+              let apiSecret: string;
+
+              if (brokerName === "DHAN") {
+                // TOTP-based: encryptedKey = clientId, encryptedSecret = TOTP secret
+                const clientId = decrypt(data.encryptedKey);
+
+                if (data.encryptedPin) {
+                  // New TOTP setup — get or generate access token
+                  const totpSecret = decrypt(data.encryptedSecret);
+                  const pin = decrypt(data.encryptedPin);
+                  let accessToken: string | null = null;
+
+                  if (data.encryptedCachedToken && data.cachedTokenExpiresAt) {
+                    const expiresAt = new Date(data.cachedTokenExpiresAt as string).getTime();
+                    if (Date.now() < expiresAt - 5 * 60 * 1000) {
+                      try { accessToken = decrypt(data.encryptedCachedToken); } catch { /* stale */ }
+                    }
+                  }
+
+                  if (!accessToken) {
+                    const { token } = await generateTokenForUser(clientId, totpSecret, pin);
+                    accessToken = token;
+                    if (accessToken) {
+                      const secretRef = db.collection("users").doc(userId).collection("secrets").doc(id);
+                      await secretRef.update({
+                        encryptedCachedToken: encrypt(accessToken),
+                        cachedTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                      });
+                    }
+                  }
+
+                  if (!accessToken) {
+                    console.error(`[LiveExec] Could not obtain Dhan token for user ${userId} — skipping.`);
+                    break;
+                  }
+                  apiKey = accessToken;
+                  apiSecret = clientId;
+                } else {
+                  // Legacy: direct access token stored
+                  apiKey = decrypt(data.encryptedKey);
+                  apiSecret = decrypt(data.encryptedSecret);
+                }
+              } else {
+                apiKey = decrypt(data.encryptedKey);
+                apiSecret = decrypt(data.encryptedSecret);
+              }
+
+              // For Dhan: override leverage based on signal timeframe
+              const effectiveSimTrade = brokerName === "DHAN"
+                ? { ...simTrade, leverage: getDhanLeverage(simTrade.timeframe) }
+                : simTrade;
+
               tasks.push({
                 userId,
                 exchange: brokerName,
+                effectiveSimTrade,
                 creds: {
-                  apiKey: decrypt(data.encryptedKey),
-                  apiSecret: decrypt(data.encryptedSecret),
+                  apiKey,
+                  apiSecret,
                   testnet: data.useTestnet === true,
                   exchangeSegment: isStock ? getExchangeSegment(signalExchange) : undefined,
                 },
@@ -115,7 +186,7 @@ export async function executeForAllUsers(
       // whether the exchange already has a position open for this symbol to
       // avoid doubling up if the first attempt partially succeeded.
       let liveResult = await executeExchangeTrade(
-        simTrade,
+        task.effectiveSimTrade,
         task.userId,
         simTradeId,
         simulatorCapital,
@@ -126,7 +197,7 @@ export async function executeForAllUsers(
 
       if (!liveResult.success) {
         const connector = getConnector(task.exchange);
-        const exchangeSymbol = connector.normalizeSymbol(simTrade.symbol);
+        const exchangeSymbol = connector.normalizeSymbol(task.effectiveSimTrade.symbol);
         const existingPos = await connector.getPosition(exchangeSymbol, task.creds as ExchangeCredentials).catch(() => null);
         const alreadyOpen = existingPos && Math.abs(parseFloat(String(existingPos.positionAmt ?? 0))) > 0;
 
@@ -147,7 +218,7 @@ export async function executeForAllUsers(
           // No position on exchange — safe to retry once
           await new Promise((r) => setTimeout(r, 1000));
           liveResult = await executeExchangeTrade(
-            simTrade,
+            task.effectiveSimTrade,
             task.userId,
             simTradeId,
             simulatorCapital,

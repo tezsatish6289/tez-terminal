@@ -179,6 +179,28 @@ function resolveSecurityId(symbol: string): number {
   return id;
 }
 
+// ── Leverage by Timeframe ───────────────────────────────────────
+
+/**
+ * Intraday MIS leverage for Indian stocks by signal timeframe.
+ *   5m  → 5x  (fast scalp, max margin)
+ *   15m → 3x
+ *   60m → 2x
+ *   240m/4h → 1x
+ *   D   → 1x  (daily — still closed intraday)
+ */
+export function getDhanLeverage(timeframe: string | number): number {
+  const tf = String(timeframe).toUpperCase();
+  const map: Record<string, number> = {
+    "5":   5,
+    "15":  3,
+    "60":  2,
+    "240": 1,
+    "D":   1,
+  };
+  return map[tf] ?? 3;
+}
+
 // ── Exchange Info Cache ─────────────────────────────────────────
 
 let symbolInfoCache: Map<string, SymbolInfo> | null = null;
@@ -193,7 +215,7 @@ function buildSymbolInfo(symbol: string): SymbolInfo {
     stepSize: 1,
     tickSize: 0.05,
     minNotional: 0,
-    maxLeverage: 1,
+    maxLeverage: 5, // Dhan MIS provides up to 5x intraday margin
   };
 }
 

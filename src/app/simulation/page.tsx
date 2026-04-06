@@ -195,12 +195,31 @@ export default function SimulationPage() {
     return Math.max(1, Math.ceil((Date.now() - new Date(earliest.openedAt).getTime()) / 86_400_000));
   }, [openTrades, closedTrades]);
 
-  // Yearly P&L — projected if running < 365 days, actual if >= 365
-  const yearlyPnl = useMemo(() => {
-    if (!simState || runningDays === 0) return { value: 0, isProjected: true };
+  // Monthly P&L % — actual this-calendar-month if running >= 30 days, else projected
+  const monthlyPnl = useMemo(() => {
+    if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
     const netPnl = simState.capital - simState.startingCapital;
-    if (runningDays >= 365) return { value: netPnl, isProjected: false };
-    return { value: (netPnl / runningDays) * 365, isProjected: true };
+    if (runningDays >= 30) {
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0, 0, 0, 0);
+      const monthNet = closedTrades.reduce((sum, t) => {
+        if (!t.closedAt || new Date(t.closedAt) < monthStart) return sum;
+        const evts = t.events ?? [];
+        return sum + evts.reduce((s, e) => s + e.pnl, 0) - (evts[0]?.fee ?? 0);
+      }, 0);
+      return { pct: (monthNet / simState.startingCapital) * 100, isProjected: false };
+    }
+    // Project from actual daily rate to 30 days
+    return { pct: ((netPnl / runningDays) * 30 / simState.startingCapital) * 100, isProjected: true };
+  }, [simState, runningDays, closedTrades]);
+
+  // Yearly P&L % — projected if running < 365 days, actual if >= 365
+  const yearlyPnl = useMemo(() => {
+    if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
+    const netPnl = simState.capital - simState.startingCapital;
+    const annualPnl = runningDays >= 365 ? netPnl : (netPnl / runningDays) * 365;
+    return { pct: (annualPnl / simState.startingCapital) * 100, isProjected: runningDays < 365 };
   }, [simState, runningDays]);
 
   const [forceClosing, setForceClosing] = useState<string | null>(null);
@@ -369,11 +388,11 @@ export default function SimulationPage() {
             ) : (
               <>
                 {/* Stats Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                   <SummaryCard
                     label="Running"
-                    value={`${runningDays}d`}
-                    sub={runningDays === 1 ? "day 1" : `${runningDays} days active`}
+                    value={`${runningDays} Day${runningDays !== 1 ? "s" : ""}`}
+                    sub="simulator active"
                     icon={<Activity className="w-3.5 h-3.5" />}
                     color="text-muted-foreground/70"
                     badge={{ text: "Live", variant: "live" }}
@@ -400,11 +419,19 @@ export default function SimulationPage() {
                     color={totalReturn >= 0 ? "text-positive" : "text-negative"}
                   />
                   <SummaryCard
-                    label="Yearly P&L"
-                    value={formatMoney(yearlyPnl.value, cs)}
+                    label="Monthly Return"
+                    value={formatPct(monthlyPnl.pct)}
+                    sub={monthlyPnl.isProjected ? `at current ${runningDays}d rate` : "this calendar month"}
+                    icon={monthlyPnl.pct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                    color={monthlyPnl.pct >= 0 ? "text-positive" : "text-negative"}
+                    badge={monthlyPnl.isProjected ? { text: "Projected", variant: "projected" } : undefined}
+                  />
+                  <SummaryCard
+                    label="Annual Return"
+                    value={formatPct(yearlyPnl.pct)}
                     sub={yearlyPnl.isProjected ? `at current ${runningDays}d rate` : "actual 12-month"}
-                    icon={<TrendingUp className="w-3.5 h-3.5" />}
-                    color={yearlyPnl.value >= 0 ? "text-positive" : "text-negative"}
+                    icon={yearlyPnl.pct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                    color={yearlyPnl.pct >= 0 ? "text-positive" : "text-negative"}
                     badge={yearlyPnl.isProjected ? { text: "Projected", variant: "projected" } : { text: "Actual", variant: "actual" }}
                   />
                 </div>

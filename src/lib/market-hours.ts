@@ -32,12 +32,13 @@ export function isIndianMarketOpen(now: Date = new Date()): boolean {
 
 /**
  * True only when new intraday entries are allowed.
- * No new trades after 2:30 PM IST — gives enough time to manage open positions.
+ * No new trades after 2:00 PM IST — leaves 1h15m for trades to play out
+ * before the 3:15 PM mandatory square-off.
  */
 export function isIndianMarketEntryAllowed(now: Date = new Date()): boolean {
   const { day, mins } = istTimeInMins(now);
   if (day === 0 || day === 6) return false;
-  return mins >= 9 * 60 + 15 && mins < 14 * 60 + 30;
+  return mins >= 9 * 60 + 15 && mins < 14 * 60;
 }
 
 /**

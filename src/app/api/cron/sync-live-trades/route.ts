@@ -529,18 +529,25 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // ── 3a. 3:15 PM IST square-off: force-close all open Dhan intraday positions ──
+    // ── 3a. 3:15 PM IST square-off: force-close open Dhan 5-min intraday positions ──
+    // Only 5-min chart trades are squared off — longer timeframes managed separately.
     if (isIndianSquareOffTime()) {
-      console.log("[LiveSync] 3:15 PM IST square-off window — closing all open Dhan intraday positions.");
+      console.log("[LiveSync] 3:15 PM IST square-off window — closing open Dhan 5m intraday positions.");
 
       const openDhanTrades = await db.collection("live_trades")
         .where("status", "==", "OPEN")
         .where("exchange", "==", "DHAN")
         .get();
 
-      if (!openDhanTrades.empty) {
+      // Filter to only 5-min chart trades
+      const fiveMinTrades = openDhanTrades.docs.filter((d) => {
+        const tf = d.data().timeframe;
+        return String(tf) === "5";
+      });
+
+      if (fiveMinTrades.length > 0) {
         const squareOffResults = await Promise.allSettled(
-          openDhanTrades.docs.map(async (tradeDoc) => {
+          fiveMinTrades.map(async (tradeDoc) => {
             const lt = { id: tradeDoc.id, ...tradeDoc.data() } as LiveTrade;
 
             // Get user's Dhan credentials
@@ -611,7 +618,7 @@ export async function GET(request: NextRequest) {
         );
 
         const soOk = squareOffResults.filter((r) => r.status === "fulfilled").length;
-        console.log(`[LiveSync] Square-off complete: ${soOk}/${openDhanTrades.size} positions closed.`);
+        console.log(`[LiveSync] Square-off complete: ${soOk}/${fiveMinTrades.length} 5m positions closed.`);
       }
     }
 

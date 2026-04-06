@@ -22,7 +22,7 @@ import {
 } from "@/lib/auto-filter";
 import { deserializePrices, getReferencePrice, getPrice, type AllExchangePrices } from "@/lib/exchanges";
 import { executeForAllUsers } from "@/lib/live-execution";
-import { isMarketOpen } from "@/lib/market-hours";
+import { isMarketOpen, isIndianSquareOffTime } from "@/lib/market-hours";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -112,6 +112,46 @@ export async function GET(request: NextRequest) {
       for (const [assetType, state] of simStates.entries()) {
         await db.collection("config").doc(getSimStateDocId(assetType)).set(state);
       }
+    }
+
+    // ── 3:15 PM IST: force-close all open Indian stocks simulator trades ──
+    // Mirrors the live-trade square-off. This ensures yesterday's sim positions
+    // don't block fresh signal selection the next trading day.
+    if (isIndianSquareOffTime()) {
+      const openIndianSimSnap = await db.collection("simulator_trades")
+        .where("status", "==", "OPEN")
+        .where("assetType", "==", "INDIAN_STOCKS")
+        .get();
+
+      for (const simDoc of openIndianSimSnap.docs) {
+        const t = simDoc.data() as SimTrade;
+        const tradeAsset = t.assetType ?? "INDIAN_STOCKS";
+        const closePrice = getSimPrice(t.symbol, t.exchange) ?? t.entryPrice;
+        let simState = await loadSimState(tradeAsset);
+
+        const result = processTradeExit({
+          trade: { ...t, id: simDoc.id },
+          state: simState,
+          exitType: "SL", // treat as a forced exit for capital accounting
+          exitPrice: closePrice,
+        });
+
+        if (result) {
+          const { id: _id, ...fields } = result.updatedTrade;
+          await db.collection("simulator_trades").doc(simDoc.id).update({
+            ...fields,
+            closeReason: "EOD_SQUARE_OFF",
+          });
+          updateSimState(tradeAsset, result.updatedState);
+          await db.collection("simulator_logs").add({
+            ...result.log,
+            action: "EOD_SQUARE_OFF",
+            details: `[SIM] ${t.symbol} ${t.side} force-closed @ ₹${closePrice} for 3:15 PM square-off`,
+          });
+        }
+      }
+
+      await flushSimStates();
     }
 
     // ── Signal-event-driven exits ───────────────────────────

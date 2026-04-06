@@ -527,10 +527,10 @@ function MetricTile({
   color: string;
 }) {
   return (
-    <div className="flex flex-col gap-0.5 px-3 py-2.5 rounded-lg bg-white/[0.02] border border-white/[0.05]">
-      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/55">{label}</span>
-      <span className={cn("text-sm font-mono font-bold", color)}>{value}</span>
-      {sub && <span className="text-[9px] text-muted-foreground/45">{sub}</span>}
+    <div className="flex flex-col gap-1 px-4 py-3 rounded-lg bg-white/[0.02] border border-white/[0.05]">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/55">{label}</span>
+      <span className={cn("text-xl font-mono font-bold", color)}>{value}</span>
+      {sub && <span className="text-[10px] text-muted-foreground/50">{sub}</span>}
     </div>
   );
 }
@@ -582,7 +582,7 @@ function PerformanceMetricsPanel({
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 flex-1">
+      <div className="flex flex-col gap-2 flex-1">
         <MetricTile
           label="Sharpe Ratio"
           value={fmt(metrics.sharpeRatio)}
@@ -615,9 +615,9 @@ function PerformanceMetricsPanel({
         />
       </div>
 
-      <p className="text-[9px] text-muted-foreground/45 leading-relaxed">
-        All ratios are based on <span className="text-muted-foreground/65 font-semibold">closed trades only</span>. Open positions and their unrealised PnL are excluded — actual drawdown may be higher while trades are live. Ratios are annualised.
-        {assetType === "INDIAN_STOCKS" ? " Risk-free rate: 6.5% (RBI)." : " Risk-free rate: 0% (crypto)."}
+      <p className="text-[10px] text-muted-foreground/45 leading-relaxed">
+        Based on <span className="text-muted-foreground/65 font-semibold">closed trades only</span>. Ratios are annualised.
+        {assetType === "INDIAN_STOCKS" ? " Risk-free: 6.5% RBI." : " Risk-free: 0% (crypto)."}
       </p>
     </div>
   );
@@ -725,7 +725,7 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
           <p className="text-[10px] font-bold">Not enough data</p>
         </div>
       ) : (
-        <div className="h-[200px] sm:h-[260px]">
+        <div className="h-[260px] sm:h-[340px]">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
               <defs>

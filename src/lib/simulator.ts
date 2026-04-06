@@ -1,5 +1,5 @@
 import { getLeverage } from "./leverage";
-import { calcDhanFees } from "./exchanges/dhan";
+import { calcDhanFees } from "./dhan-fees";
 
 // ── Configuration ────────────────────────────────────────────
 

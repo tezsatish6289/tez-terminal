@@ -1,4 +1,5 @@
 import { getLeverage } from "./leverage";
+import { calcDhanFees } from "./exchanges/dhan";
 
 // ── Configuration ────────────────────────────────────────────
 
@@ -624,7 +625,11 @@ export function openTrade(params: {
 }): { trade: SimTrade; updatedState: SimulatorState; log: SimLog } {
   const { signal, positionSize, state, bullScore, bearScore, liveWinRate, algoWinRate } = params;
   const leverage = getLeverage(signal.timeframe, signal.assetType);
-  const entryFee = positionSize * SIM_CONFIG.EXCHANGE_FEE;
+  const isIndianStock = signal.assetType === "INDIAN_STOCKS";
+  // For Indian stocks: entry is the buy leg for LONG, sell leg for SHORT
+  const entryFee = isIndianStock
+    ? calcDhanFees(positionSize, signal.type === "BUY" ? "buy" : "sell")
+    : positionSize * SIM_CONFIG.EXCHANGE_FEE;
   const biasLabel = bullScore > bearScore ? "Go Bull" : "Go Bear";
 
   const trade: SimTrade = {
@@ -772,7 +777,10 @@ export function processTradeExit(params: {
 
   const closingSize = trade.positionSize * closePct;
   const pnl = closingSize * pricePnlPct * trade.leverage;
-  const exitFee = closingSize * SIM_CONFIG.EXCHANGE_FEE;
+  // For Indian stocks: exit is the sell leg for LONG, buy leg for SHORT
+  const exitFee = trade.assetType === "INDIAN_STOCKS"
+    ? calcDhanFees(closingSize, trade.side === "BUY" ? "sell" : "buy")
+    : closingSize * SIM_CONFIG.EXCHANGE_FEE;
   const netPnl = pnl - exitFee;
 
   const newRemainingPct = exitType === "SL"

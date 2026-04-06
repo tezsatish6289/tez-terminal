@@ -96,13 +96,20 @@ export default function LiveTradingPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
+
+  const [assetType, setAssetType] = useState<"CRYPTO" | "INDIAN_STOCKS">("CRYPTO");
+
   const bybit = useExchangeConfig(user?.uid, "BYBIT");
   const binance = useExchangeConfig(user?.uid, "BINANCE");
   const mexc = useExchangeConfig(user?.uid, "MEXC");
-  const allConfigs = [bybit, binance, mexc];
-  const anyConfigured = allConfigs.some((c) => c.config?.configured && !c.config.useTestnet);
-  const anyAutoTradeOn = allConfigs.some((c) => c.config?.configured && !c.config.useTestnet && c.config.autoTradeEnabled);
-  const configLoading = allConfigs.some((c) => c.isLoading);
+  const dhan = useExchangeConfig(user?.uid, "DHAN");
+
+  const activeConfigs = assetType === "INDIAN_STOCKS" ? [dhan] : [bybit, binance, mexc];
+  const anyConfigured = activeConfigs.some((c) => c.config?.configured && !c.config.useTestnet);
+  const anyAutoTradeOn = activeConfigs.some((c) => c.config?.configured && !c.config.useTestnet && c.config.autoTradeEnabled);
+  const configLoading = activeConfigs.some((c) => c.isLoading);
+
+  const cs = assetType === "INDIAN_STOCKS" ? "₹" : "$";
 
   const [tab, setTab] = useState<"overview" | "trades" | "logs">("overview");
   const [selectedTrade, setSelectedTrade] = useState<LiveTrade | null>(null);
@@ -145,9 +152,13 @@ export default function LiveTradingPage() {
     return rawLiveTrades
       .map((d: any) => ({ id: d.id, ...d } as LiveTrade))
       .filter((t) => t.testnet === false)
+      .filter((t) => {
+        const isDhan = t.exchange === "DHAN" || (t.assetType ?? "CRYPTO") === "INDIAN_STOCKS";
+        return assetType === "INDIAN_STOCKS" ? isDhan : !isDhan;
+      })
       .sort((a, b) => (b.openedAt || "").localeCompare(a.openedAt || ""))
       .slice(0, 100);
-  }, [rawLiveTrades]);
+  }, [rawLiveTrades, assetType]);
 
   const openTrades = useMemo(() => liveTrades.filter((t) => t.status === "OPEN"), [liveTrades]);
   const closedTrades = useMemo(() => liveTrades.filter((t) => t.status === "CLOSED"), [liveTrades]);
@@ -181,12 +192,36 @@ export default function LiveTradingPage() {
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           <div className="max-w-[1400px] mx-auto space-y-4">
             {/* Header */}
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Zap className="w-4 h-4 text-amber-400" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400">Production</span>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Zap className="w-4 h-4 text-amber-400" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400">Production</span>
+                </div>
+                <h1 className="text-xl font-black tracking-tight">Live Trading</h1>
               </div>
-              <h1 className="text-xl font-black tracking-tight">Live Trading</h1>
+
+              {/* Asset type toggle */}
+              <div className="flex items-center gap-0 rounded-xl border border-white/[0.08] bg-white/[0.02] p-1">
+                {([
+                  { key: "CRYPTO" as const, label: "Crypto", icon: "₿" },
+                  { key: "INDIAN_STOCKS" as const, label: "Indian Stocks", icon: "₹" },
+                ]).map(({ key, label, icon }) => (
+                  <button
+                    key={key}
+                    onClick={() => { setAssetType(key); setTab("overview"); }}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                      assetType === key
+                        ? "bg-amber-400/15 text-amber-400 border border-amber-400/20"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <span>{icon}</span>
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Production banner + settings */}
@@ -197,15 +232,15 @@ export default function LiveTradingPage() {
                   <p className="text-sm font-bold text-amber-400">PRODUCTION — REAL MONEY</p>
                   <p className="text-[10px] text-amber-400/60">
                     {anyAutoTradeOn
-                      ? "Auto-trade is LIVE. Real trades executing on your exchanges."
+                      ? `Auto-trade is LIVE. Real ${assetType === "INDIAN_STOCKS" ? "stock" : ""} trades executing.`
                       : anyConfigured
-                        ? "Exchanges connected but auto-trade is off. No trades will execute."
-                        : "No exchanges connected. Configure API keys in Settings to start."}
+                        ? "Exchange connected but auto-trade is off. No trades will execute."
+                        : `No ${assetType === "INDIAN_STOCKS" ? "Dhan" : "exchange"} credentials. Configure in Settings to start.`}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <MultiExchangeStatusBadges uid={user.uid} />
+                <MultiExchangeStatusBadges uid={user.uid} assetType={assetType} />
                 <ExchangeSettingsDialog uid={user.uid} mode="production" />
               </div>
             </div>
@@ -238,7 +273,7 @@ export default function LiveTradingPage() {
                   />
                   <StatCard
                     label="Realized P&L"
-                    value={formatUsd(totalPnl)}
+                    value={`${cs}${Math.abs(totalPnl).toFixed(2)}`}
                     icon={totalPnl >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
                     color={totalPnl >= 0 ? "text-positive" : "text-negative"}
                   />

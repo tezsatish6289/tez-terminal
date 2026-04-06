@@ -15,11 +15,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { BinanceIcon, MexcIcon, BybitIcon } from "@/components/icons/exchange-icons";
+import { BinanceIcon, MexcIcon, BybitIcon, DhanIcon } from "@/components/icons/exchange-icons";
 
 // ── Exchange Definitions ────────────────────────────────────────
 
-type ExchangeId = "BYBIT" | "BINANCE" | "MEXC";
+export type ExchangeId = "BYBIT" | "BINANCE" | "MEXC" | "DHAN";
 
 interface ExchangeMeta {
   id: ExchangeId;
@@ -31,6 +31,9 @@ interface ExchangeMeta {
   testnetUrl: string;
   prodUrl: string;
   permissionNote: string;
+  keyLabel?: string;
+  secretLabel?: string;
+  noTestnet?: boolean;
 }
 
 const EXCHANGES: ExchangeMeta[] = [
@@ -66,6 +69,21 @@ const EXCHANGES: ExchangeMeta[] = [
     testnetUrl: "",
     prodUrl: "mexc.com",
     permissionNote: "Enable Contract trading permission only. Never enable withdrawals.",
+    noTestnet: true,
+  },
+  {
+    id: "DHAN",
+    name: "Dhan",
+    icon: DhanIcon,
+    color: "text-orange-400",
+    bgColor: "bg-orange-400/10",
+    borderColor: "border-orange-400/20",
+    testnetUrl: "",
+    prodUrl: "web.dhan.co",
+    permissionNote: "Enable order placement only. Access token auto-renews every 24h via your TOTP setup.",
+    keyLabel: "Client ID",
+    secretLabel: "Access Token (24h)",
+    noTestnet: true,
   },
 ];
 
@@ -172,29 +190,61 @@ export function ExchangeSettingsDialog({ uid, mode }: ExchangeSettingsProps) {
 function MultiExchangePanel({ uid, mode, onSaved }: ExchangeSettingsProps & { onSaved?: () => void }) {
   const [activeExchange, setActiveExchange] = useState<ExchangeId>("BYBIT");
 
+  const cryptoExchanges = EXCHANGES.filter((e) => e.id !== "DHAN");
+  const indianExchanges = EXCHANGES.filter((e) => e.id === "DHAN");
+
   return (
     <div className="space-y-4">
-      {/* Exchange Tabs */}
-      <div className="flex gap-1 p-1 rounded-lg bg-background/50 border border-white/5">
-        {EXCHANGES.map((ex) => {
-          const isActive = activeExchange === ex.id;
-          const Icon = ex.icon;
-          return (
-            <button
-              key={ex.id}
-              onClick={() => setActiveExchange(ex.id)}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all",
-                isActive
-                  ? `${ex.bgColor} ${ex.color} ${ex.borderColor} border`
-                  : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-              )}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {ex.name}
-            </button>
-          );
-        })}
+      {/* Crypto exchange tabs */}
+      <div>
+        <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/40 mb-1.5 px-1">Crypto Futures</p>
+        <div className="flex gap-1 p-1 rounded-lg bg-background/50 border border-white/5">
+          {cryptoExchanges.map((ex) => {
+            const isActive = activeExchange === ex.id;
+            const Icon = ex.icon;
+            return (
+              <button
+                key={ex.id}
+                onClick={() => setActiveExchange(ex.id)}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all",
+                  isActive
+                    ? `${ex.bgColor} ${ex.color} ${ex.borderColor} border`
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                )}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {ex.name}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Indian stocks tabs */}
+      <div>
+        <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/40 mb-1.5 px-1">Indian Stocks</p>
+        <div className="flex gap-1 p-1 rounded-lg bg-background/50 border border-white/5">
+          {indianExchanges.map((ex) => {
+            const isActive = activeExchange === ex.id;
+            const Icon = ex.icon;
+            return (
+              <button
+                key={ex.id}
+                onClick={() => setActiveExchange(ex.id)}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all",
+                  isActive
+                    ? `${ex.bgColor} ${ex.color} ${ex.borderColor} border`
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                )}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {ex.name}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Active Exchange Settings */}
@@ -242,10 +292,9 @@ function ExchangeSettingsPanel({
     }
   };
   const isTestnet = mode === "testnet";
-  const configMatchesMode = config?.configured && config.useTestnet === isTestnet;
+  const configMatchesMode = config?.configured && (meta.noTestnet ? !config.useTestnet : config.useTestnet === isTestnet);
 
-  // MEXC doesn't have a testnet
-  const noTestnet = exchange === "MEXC" && isTestnet;
+  const noTestnet = meta.noTestnet === true && isTestnet;
 
   const saveKeys = async () => {
     if (!apiKeyInput || !apiSecretInput) return;
@@ -295,7 +344,7 @@ function ExchangeSettingsPanel({
       <div className="flex flex-col items-center justify-center py-8 gap-3 text-center">
         <X className="h-8 w-8 text-muted-foreground/30" />
         <p className="text-sm text-muted-foreground">
-          {meta.name} does not offer a testnet for futures trading.
+          {meta.name} does not support testnet mode.
         </p>
         <p className="text-[10px] text-muted-foreground/60">
           Switch to production mode to connect your {meta.name} account.
@@ -326,24 +375,24 @@ function ExchangeSettingsPanel({
         </div>
 
         <div>
-          <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold block mb-1.5">API Key</label>
+          <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold block mb-1.5">{meta.keyLabel ?? "API Key"}</label>
           <input
             type="text"
             value={apiKeyInput}
             onChange={(e) => setApiKeyInput(e.target.value)}
-            placeholder={`${meta.name} ${isTestnet ? "testnet" : "production"} API key`}
+            placeholder={`${meta.name} ${meta.keyLabel ?? "API key"}`}
             className="w-full h-10 px-3 rounded-md border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent font-mono"
           />
         </div>
 
         <div>
-          <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold block mb-1.5">API Secret</label>
+          <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold block mb-1.5">{meta.secretLabel ?? "API Secret"}</label>
           <div className="relative">
             <input
               type={showSecret ? "text" : "password"}
               value={apiSecretInput}
               onChange={(e) => setApiSecretInput(e.target.value)}
-              placeholder={`${meta.name} ${isTestnet ? "testnet" : "production"} API secret`}
+              placeholder={`${meta.name} ${meta.secretLabel ?? "API secret"}`}
               className="w-full h-10 px-3 pr-10 rounded-md border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent font-mono"
             />
             <button
@@ -374,7 +423,7 @@ function ExchangeSettingsPanel({
           className="w-full gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
         >
           {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
-          Validate & Save ({meta.name} {isTestnet ? "Testnet" : "Production"})
+          {meta.noTestnet ? `Save ${meta.name} Credentials` : `Validate & Save (${meta.name} ${isTestnet ? "Testnet" : "Production"})`}
         </Button>
       </div>
     );
@@ -515,16 +564,24 @@ export function ExchangeStatusBadge({ config }: { config: ExchangeConfig | null 
 
 // ── Multi-Exchange Status Summary ───────────────────────────────
 
-export function MultiExchangeStatusBadges({ uid }: { uid: string | undefined }) {
+export function MultiExchangeStatusBadges({ uid, assetType }: { uid: string | undefined; assetType?: "CRYPTO" | "INDIAN_STOCKS" }) {
   const bybit = useExchangeConfig(uid, "BYBIT");
   const binance = useExchangeConfig(uid, "BINANCE");
   const mexc = useExchangeConfig(uid, "MEXC");
+  const dhan = useExchangeConfig(uid, "DHAN");
 
-  const configs = [
+  const allConfigs = [
     { exchange: "BYBIT" as ExchangeId, config: bybit.config, loading: bybit.isLoading },
     { exchange: "BINANCE" as ExchangeId, config: binance.config, loading: binance.isLoading },
     { exchange: "MEXC" as ExchangeId, config: mexc.config, loading: mexc.isLoading },
+    { exchange: "DHAN" as ExchangeId, config: dhan.config, loading: dhan.isLoading },
   ];
+
+  const configs = assetType === "INDIAN_STOCKS"
+    ? allConfigs.filter((c) => c.exchange === "DHAN")
+    : assetType === "CRYPTO"
+      ? allConfigs.filter((c) => c.exchange !== "DHAN")
+      : allConfigs;
 
   const activeConfigs = configs.filter((c) => c.config?.configured);
   if (activeConfigs.length === 0) return <ExchangeStatusBadge config={null} />;

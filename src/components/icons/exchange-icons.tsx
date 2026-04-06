@@ -40,6 +40,22 @@ export function MexcIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function DhanIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <rect width="40" height="40" rx="8" fill="currentColor" fillOpacity="0.18" />
+      {/* Rupee ₹ — horizontal bars + diagonal leg */}
+      <path
+        d="M12 11h16M12 17h16M18.5 17L26 29M12 23h8a6 6 0 0 0 0-12"
+        stroke="currentColor"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function PionexIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 30 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>

@@ -279,16 +279,18 @@ export class DhanConnector implements ExchangeConnector {
     if (securityIds.length === 0) return new Map();
 
     const segment = seg(creds);
-    // Dhan /marketfeed/ltp returns { "NSE_EQ": { "1333": { last_price: ... } } }
-    // directly — no outer "data" wrapper.
-    const data = await dhanPost<Record<string, Record<string, { last_price: number }>>>(
+    // Dhan /marketfeed/ltp response: { "data": { "NSE_EQ": { "1333": { "last_price": ... } } }, "status": "success" }
+    const data = await dhanPost<{
+      data: Record<string, Record<string, { last_price: number }>>;
+      status: string;
+    }>(
       "/marketfeed/ltp",
       { [segment]: securityIds },
       creds
     );
 
     const prices = new Map<number, number>();
-    const segData = data?.[segment];
+    const segData = data.data?.[segment];
     if (segData) {
       for (const [idStr, info] of Object.entries(segData)) {
         prices.set(Number(idStr), info.last_price);

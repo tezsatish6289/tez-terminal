@@ -528,9 +528,9 @@ function MetricTile({
 }) {
   return (
     <div className="flex flex-col gap-0.5 px-3 py-2.5 rounded-lg bg-white/[0.02] border border-white/[0.05]">
-      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">{label}</span>
+      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/55">{label}</span>
       <span className={cn("text-sm font-mono font-bold", color)}>{value}</span>
-      {sub && <span className="text-[9px] text-muted-foreground/30">{sub}</span>}
+      {sub && <span className="text-[9px] text-muted-foreground/45">{sub}</span>}
     </div>
   );
 }
@@ -573,11 +573,11 @@ function PerformanceMetricsPanel({
       <div className="flex items-center justify-between flex-wrap gap-1">
         <div className="flex items-center gap-2">
           <Shield className="w-4 h-4 text-accent" />
-          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/60">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/75">
             Performance
           </span>
         </div>
-        <span className="text-[9px] text-muted-foreground/30">
+        <span className="text-[9px] text-muted-foreground/50">
           {metrics.tradingDays}d · annualised
         </span>
       </div>
@@ -615,8 +615,8 @@ function PerformanceMetricsPanel({
         />
       </div>
 
-      <p className="text-[9px] text-muted-foreground/25 leading-relaxed">
-        All ratios are based on <span className="text-muted-foreground/40 font-semibold">closed trades only</span>. Open positions and their unrealised PnL are excluded — actual drawdown may be higher while trades are live. Ratios are annualised.
+      <p className="text-[9px] text-muted-foreground/45 leading-relaxed">
+        All ratios are based on <span className="text-muted-foreground/65 font-semibold">closed trades only</span>. Open positions and their unrealised PnL are excluded — actual drawdown may be higher while trades are live. Ratios are annualised.
         {assetType === "INDIAN_STOCKS" ? " Risk-free rate: 6.5% (RBI)." : " Risk-free rate: 0% (crypto)."}
       </p>
     </div>
@@ -698,7 +698,7 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <BarChart3 className="w-4 h-4 text-accent" />
-          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/60">Fund Value</span>
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/75">Fund Value</span>
         </div>
         {/* View toggle */}
         <div className="flex items-center gap-0.5 rounded-md bg-white/[0.04] p-0.5">
@@ -710,7 +710,7 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
                 "px-2.5 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all",
                 view === v
                   ? "bg-accent/20 text-accent"
-                  : "text-muted-foreground/40 hover:text-muted-foreground/70"
+                  : "text-muted-foreground/55 hover:text-muted-foreground/80"
               )}
             >
               {v === "trade" ? "Tradewise" : "Daywise"}
@@ -734,18 +734,18 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
                   <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
               <XAxis
                 dataKey="x"
-                tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }}
+                tick={{ fontSize: 9, fill: "rgba(255,255,255,0.45)" }}
                 tickLine={false}
-                axisLine={{ stroke: "rgba(255,255,255,0.06)" }}
+                axisLine={{ stroke: "rgba(255,255,255,0.08)" }}
               />
               <YAxis
                 domain={[yMin, yMax]}
-                tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }}
+                tick={{ fontSize: 9, fill: "rgba(255,255,255,0.45)" }}
                 tickLine={false}
-                axisLine={{ stroke: "rgba(255,255,255,0.06)" }}
+                axisLine={{ stroke: "rgba(255,255,255,0.08)" }}
                 tickFormatter={(v: number) => `${cs}${cs === "₹" ? Math.round(v).toLocaleString("en-IN") : v.toFixed(0)}`}
                 width={cs === "₹" ? 75 : 55}
               />
@@ -766,7 +766,7 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
                 y={startingCapital}
                 stroke="rgba(255,255,255,0.1)"
                 strokeDasharray="4 4"
-                label={{ value: formatMoney(startingCapital, cs), position: "right", fontSize: 9, fill: "rgba(255,255,255,0.2)" }}
+                label={{ value: formatMoney(startingCapital, cs), position: "right", fontSize: 9, fill: "rgba(255,255,255,0.35)" }}
               />
               <Area
                 type="monotone"
@@ -805,18 +805,18 @@ function SummaryCard({
   return (
     <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 flex flex-col gap-2 hover:bg-white/[0.04] transition-colors">
       <div className="flex items-center gap-1.5">
-        <span className={cn("opacity-40", color)}>{icon}</span>
-        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">{label}</span>
+        <span className={cn("opacity-60", color)}>{icon}</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">{label}</span>
       </div>
       <div className={cn("text-2xl font-black tabular-nums leading-none", color)}>{value}</div>
       <div className="flex items-center gap-1.5 flex-wrap">
-        {sub && <span className="text-[9px] text-muted-foreground/30">{sub}</span>}
+        {sub && <span className="text-[10px] text-muted-foreground/50">{sub}</span>}
         {badge && (
           <span className={cn(
             "text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full",
             badge.variant === "projected" ? "bg-amber-500/15 text-amber-400" :
             badge.variant === "live"      ? "bg-emerald-500/15 text-emerald-400" :
-                                            "bg-white/[0.05] text-muted-foreground/40"
+                                            "bg-white/[0.05] text-muted-foreground/60"
           )}>
             {badge.text}
           </span>

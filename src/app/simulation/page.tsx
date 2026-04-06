@@ -625,67 +625,22 @@ function PerformanceMetricsPanel({
 
 // ── Equity Curve ──────────────────────────
 
-type Period = "all" | "today" | "week" | "month" | "custom";
-
 function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; startingCapital: number; cs: string }) {
-  const [period, setPeriod] = useState<Period>("all");
-
-  const filteredTrades = useMemo(() => {
-    if (!trades.length) return [];
+  const chartData = useMemo(() => {
     const sorted = [...trades]
       .filter((t) => t.closedAt)
       .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
 
-    if (period === "all") return sorted;
+    if (!sorted.length) return [];
 
-    const now = new Date();
-    let cutoff: Date;
-    switch (period) {
-      case "today": cutoff = startOfDay(now); break;
-      case "week": cutoff = startOfWeek(now, { weekStartsOn: 1 }); break;
-      case "month": cutoff = startOfMonth(now); break;
-      default: cutoff = new Date(0);
-    }
-    return sorted.filter((t) => isAfter(new Date(t.closedAt!), cutoff));
-  }, [trades, period]);
-
-  const chartData = useMemo(() => {
-    if (!filteredTrades.length) return [];
-
-    const allSorted = [...trades]
-      .filter((t) => t.closedAt)
-      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
-
-    // Reconstruct true net PnL from raw events so this works for both
-    // old trades (realizedPnl excludes entry fee) and new trades (includes it).
-    // Formula: sum(event.pnl) - events[0].fee
-    //   events[0] is the OPEN event: pnl=0, fee=entryFee
-    //   events[1..n] are exits: pnl = pricePnl - exitFee each
-    //   → total = pricePnl - exitFees - entryFee = true net after all charges
-    let capital = startingCapital;
-    const capitalMap = new Map<string, number>();
-    for (const t of allSorted) {
-      const evts = t.events ?? [];
-      const trueNet = evts.reduce((s, e) => s + e.pnl, 0) - (evts[0]?.fee ?? 0);
-      capital += trueNet;
-      capitalMap.set(t.closedAt!, capital);
-    }
-
-    const firstFilteredIdx = allSorted.findIndex((t) => filteredTrades.includes(t));
-    let startCapital = startingCapital;
-    if (firstFilteredIdx > 0) {
-      const prev = allSorted[firstFilteredIdx - 1];
-      startCapital = capitalMap.get(prev.closedAt!) ?? startingCapital;
-    }
-
+    // Reconstruct true net PnL from raw events — works for both old and new trades.
     const points: { trade: number; value: number; label: string; date: string }[] = [
-      { trade: 0, value: startCapital, label: "Start", date: "" },
+      { trade: 0, value: startingCapital, label: "Start", date: "" },
     ];
-    let running = startCapital;
-    filteredTrades.forEach((t, i) => {
+    let running = startingCapital;
+    sorted.forEach((t, i) => {
       const evts = t.events ?? [];
-      const trueNet = evts.reduce((s, e) => s + e.pnl, 0) - (evts[0]?.fee ?? 0);
-      running += trueNet;
+      running += evts.reduce((s, e) => s + e.pnl, 0) - (evts[0]?.fee ?? 0);
       points.push({
         trade: i + 1,
         value: parseFloat(running.toFixed(2)),
@@ -693,77 +648,23 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
         date: format(new Date(t.closedAt!), "MMM dd HH:mm"),
       });
     });
-
     return points;
-  }, [filteredTrades, trades, startingCapital, period]);
-
-  const stats = useMemo(() => {
-    const totalTrades = filteredTrades.length;
-    const grossProfit = filteredTrades.reduce((s, t) => s + (t.realizedPnl > 0 ? t.realizedPnl : 0), 0);
-    const grossLoss = Math.abs(filteredTrades.reduce((s, t) => s + (t.realizedPnl < 0 ? t.realizedPnl : 0), 0));
-    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
-    const startVal = chartData.length > 0 ? chartData[0].value : startingCapital;
-    const endVal = chartData.length > 0 ? chartData[chartData.length - 1].value : startingCapital;
-    const growthPct = startVal > 0 ? ((endVal - startVal) / startVal) * 100 : 0;
-    return { totalTrades, profitFactor, growthPct, startVal, endVal };
-  }, [filteredTrades, chartData, startingCapital]);
+  }, [trades, startingCapital]);
 
   if (trades.filter((t) => t.closedAt).length < 2) return null;
 
-  const isPositive = stats.growthPct >= 0;
+  const lastVal  = chartData[chartData.length - 1]?.value ?? startingCapital;
+  const isPositive = lastVal >= startingCapital;
   const chartColor = isPositive ? "#34d399" : "#f87171";
   const yMin = Math.floor(Math.min(...chartData.map((d) => d.value)) * 0.995);
   const yMax = Math.ceil(Math.max(...chartData.map((d) => d.value)) * 1.005);
 
   return (
     <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
-      {/* Header: Title + Period Selector */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="w-4 h-4 text-accent" />
-          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/60">Fund Value</span>
-        </div>
-        <div className="flex items-center gap-1">
-          {(["all", "today", "week", "month"] as Period[]).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={cn(
-                "px-2.5 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all",
-                period === p
-                  ? "bg-accent/15 text-accent"
-                  : "text-muted-foreground/40 hover:text-muted-foreground"
-              )}
-            >
-              {p === "all" ? "All" : p === "today" ? "Today" : p === "week" ? "Week" : "Month"}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Stats Row */}
-      <div className="flex items-center gap-4 text-[11px]">
-        <div>
-          <span className="text-muted-foreground/40 mr-1">Trades</span>
-          <span className="font-mono font-bold text-foreground/70">{stats.totalTrades}</span>
-        </div>
-        <div>
-          <span className="text-muted-foreground/40 mr-1">Profit Factor</span>
-          <span className={cn("font-mono font-bold", stats.profitFactor >= 1 ? "text-emerald-400" : "text-rose-400")}>
-            {stats.profitFactor === Infinity ? "∞" : stats.profitFactor.toFixed(2)}
-          </span>
-        </div>
-        <div>
-          <span className="text-muted-foreground/40 mr-1">Growth</span>
-          <span className={cn("font-mono font-bold", isPositive ? "text-emerald-400" : "text-rose-400")}>
-            {isPositive ? "+" : ""}{stats.growthPct.toFixed(2)}%
-          </span>
-        </div>
-        <div className="ml-auto">
-          <span className="font-mono font-bold text-foreground/70">{formatMoney(stats.startVal, cs)}</span>
-          <span className="text-muted-foreground/30 mx-1.5">→</span>
-          <span className={cn("font-mono font-bold", isPositive ? "text-emerald-400" : "text-rose-400")}>{formatMoney(stats.endVal, cs)}</span>
-        </div>
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <BarChart3 className="w-4 h-4 text-accent" />
+        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/60">Fund Value</span>
       </div>
 
       {/* Chart */}

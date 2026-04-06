@@ -83,15 +83,18 @@ export async function POST(request: NextRequest) {
     const useTestnet = body.useTestnet === true;
     const docId = getSecretDocId(exchangeName);
 
-    // Validate credentials by attempting a balance check
-    try {
-      const connector = getConnector(exchangeName);
-      const balance = await connector.getUsdtBalance({ apiKey, apiSecret, testnet: useTestnet });
-      if (balance.total < 0) throw new Error("Unexpected negative balance");
-    } catch (e) {
-      return NextResponse.json({
-        error: `Invalid ${exchangeName} credentials for ${useTestnet ? "testnet" : "production"}: ${e instanceof Error ? e.message : String(e)}`,
-      }, { status: 400 });
+    // Dhan tokens expire every 24h and are auto-renewed server-side via TOTP,
+    // so skip live validation — just save the client ID + token as provided.
+    if (exchangeName !== "DHAN") {
+      try {
+        const connector = getConnector(exchangeName);
+        const balance = await connector.getUsdtBalance({ apiKey, apiSecret, testnet: useTestnet });
+        if (balance.total < 0) throw new Error("Unexpected negative balance");
+      } catch (e) {
+        return NextResponse.json({
+          error: `Invalid ${exchangeName} credentials for ${useTestnet ? "testnet" : "production"}: ${e instanceof Error ? e.message : String(e)}`,
+        }, { status: 400 });
+      }
     }
 
     const db = getAdminFirestore();
@@ -104,11 +107,11 @@ export async function POST(request: NextRequest) {
       riskPerTrade: 0.5,
       maxConcurrentTrades: 1,
       dailyLossLimit: 5,
-      useTestnet,
+      useTestnet: exchangeName === "DHAN" ? false : useTestnet,
       savedAt: new Date().toISOString(),
     });
 
-    return NextResponse.json({ success: true, message: `${exchangeName} credentials saved and validated.` });
+    return NextResponse.json({ success: true, message: `${exchangeName} credentials saved.` });
   } catch (e) {
     console.error("[settings/exchange POST]", e);
     return NextResponse.json({

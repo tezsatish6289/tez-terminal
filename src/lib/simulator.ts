@@ -654,7 +654,7 @@ export function openTrade(params: {
     tp2Hit: false,
     tp3Hit: false,
     slHit: false,
-    realizedPnl: 0,
+    realizedPnl: -entryFee, // entry charge already incurred; exits accumulate on top
     currentPrice: signal.price,
     highWatermark: signal.price,
     unrealizedPnl: 0,
@@ -682,7 +682,9 @@ export function openTrade(params: {
   const updatedState: SimulatorState = {
     ...state,
     capital: state.capital - entryFee,
+    dailyPnl: state.dailyPnl - entryFee,
     dailyFees: state.dailyFees + entryFee,
+    totalRealizedPnl: state.totalRealizedPnl - entryFee,
     totalFeesPaid: state.totalFeesPaid + entryFee,
     totalTradesTaken: state.totalTradesTaken + 1,
     lastUpdated: new Date().toISOString(),

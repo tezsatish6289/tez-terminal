@@ -436,15 +436,19 @@ export default function SimulationPage() {
                   />
                 </div>
 
-                {/* Equity Curve */}
-                <EquityCurve trades={closedTrades} startingCapital={simState.startingCapital} cs={cs} />
-
-                {/* Performance Metrics */}
-                <PerformanceMetricsPanel
-                  trades={closedTrades}
-                  startingCapital={simState.startingCapital}
-                  assetType={assetType}
-                />
+                {/* Chart + Performance Metrics side by side */}
+                <div className="flex flex-col lg:flex-row gap-3 items-stretch">
+                  <div className="flex-1 min-w-0">
+                    <EquityCurve trades={closedTrades} startingCapital={simState.startingCapital} cs={cs} />
+                  </div>
+                  <div className="lg:w-72 xl:w-80 shrink-0 flex flex-col">
+                    <PerformanceMetricsPanel
+                      trades={closedTrades}
+                      startingCapital={simState.startingCapital}
+                      assetType={assetType}
+                    />
+                  </div>
+                </div>
 
                 {/* Streak scaling indicator */}
                 {(simState.consecutiveWins ?? 0) >= 2 && (
@@ -565,20 +569,20 @@ function PerformanceMetricsPanel({
       : "text-rose-400";
 
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
-      <div className="flex items-center justify-between">
+    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4 flex flex-col gap-3 h-full">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <div className="flex items-center gap-2">
           <Shield className="w-4 h-4 text-accent" />
           <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/60">
-            Performance Metrics
+            Performance
           </span>
         </div>
         <span className="text-[9px] text-muted-foreground/30">
-          {metrics.tradingDays} active trading day{metrics.tradingDays !== 1 ? "s" : ""} · annualised
+          {metrics.tradingDays}d · annualised
         </span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-2 flex-1">
         <MetricTile
           label="Sharpe Ratio"
           value={fmt(metrics.sharpeRatio)}

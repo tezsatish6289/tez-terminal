@@ -95,10 +95,10 @@ export async function POST(request: NextRequest) {
       }
 
       // Validate by generating a real token — confirms all 3 credentials are correct
-      const testToken = await generateTokenForUser(apiKey, apiSecret, pin);
+      const { token: testToken, error: tokenError } = await generateTokenForUser(apiKey, apiSecret, pin);
       if (!testToken) {
         return NextResponse.json({
-          error: "Invalid Dhan credentials. Check your Client ID, TOTP Secret, and PIN.",
+          error: `Dhan credential check failed: ${tokenError ?? "Could not generate token. Verify Client ID, TOTP Secret, and PIN."}`,
         }, { status: 400 });
       }
 

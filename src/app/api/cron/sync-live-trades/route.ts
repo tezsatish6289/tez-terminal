@@ -582,7 +582,8 @@ export async function GET(request: NextRequest) {
 
                   // Regenerate token if cache is stale / expired
                   if (!accessToken && totpSecret && pin) {
-                    accessToken = await generateTokenForUser(clientId, totpSecret, pin);
+                    const { token } = await generateTokenForUser(clientId, totpSecret, pin);
+                    accessToken = token;
                     if (accessToken) {
                       const secretRef = db.collection("users").doc(userId).collection("secrets").doc(id);
                       await secretRef.update({

@@ -151,44 +151,77 @@ async function tryRenewToken(currentToken: string, clientId: string): Promise<st
 
 /**
  * Generates a fresh 24h Dhan access token using TOTP + PIN for ANY user.
- * Called by the live-trades cron per-user with their own stored credentials.
- *
- * Also used internally as Strategy 2 for the system token (from env vars).
+ * Tries the current TOTP window and ±1 adjacent windows to handle clock skew
+ * and edge cases where the code expires mid-request.
  */
 export async function generateTokenForUser(
   clientId: string,
   totpSecret: string,
   pin: string
-): Promise<string | null> {
-  try {
-    const totp = generateTOTP(totpSecret);
-    const url =
-      `https://auth.dhan.co/app/generateAccessToken` +
-      `?dhanClientId=${encodeURIComponent(clientId)}` +
-      `&pin=${encodeURIComponent(pin)}` +
-      `&totp=${totp}`;
+): Promise<{ token: string | null; error?: string }> {
+  const step = 30;
+  // Try current window, then previous, then next (handles edge-of-window timing)
+  const timeOffsets = [0, -step, step];
 
-    const controller = new AbortController();
-    setTimeout(() => controller.abort(), 10_000);
-    const res = await fetch(url, { method: "POST", signal: controller.signal });
+  for (const offset of timeOffsets) {
+    try {
+      const time = Math.floor((Date.now() / 1000 + offset) / step);
+      const timeBuf = Buffer.alloc(8);
+      timeBuf.writeUInt32BE(0, 0);
+      timeBuf.writeUInt32BE(time, 4);
+      const key = base32Decode(totpSecret);
+      const hmac = createHmac("sha1", key).update(timeBuf).digest();
+      const o = hmac[hmac.length - 1] & 0x0f;
+      const code =
+        ((hmac[o] & 0x7f) << 24) |
+        ((hmac[o + 1] & 0xff) << 16) |
+        ((hmac[o + 2] & 0xff) << 8) |
+        (hmac[o + 3] & 0xff);
+      const totp = String(code % 1_000_000).padStart(6, "0");
 
-    if (!res.ok) {
-      const text = await res.text();
-      console.error(`[DhanToken] TOTP generation failed for ${clientId} (${res.status}): ${text}`);
-      return null;
+      const url =
+        `https://auth.dhan.co/app/generateAccessToken` +
+        `?dhanClientId=${encodeURIComponent(clientId)}` +
+        `&pin=${encodeURIComponent(pin)}` +
+        `&totp=${totp}`;
+
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 10_000);
+      const res = await fetch(url, { method: "POST", signal: controller.signal });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error(`[DhanToken] TOTP attempt (offset=${offset}s) failed for ${clientId} (${res.status}): ${text}`);
+        if (offset === timeOffsets[timeOffsets.length - 1]) {
+          // Last attempt — surface the actual error
+          let msg = `Dhan auth failed (${res.status})`;
+          try {
+            const errJson = JSON.parse(text);
+            msg = errJson.errorMessage ?? errJson.message ?? msg;
+          } catch { /* raw text */ }
+          return { token: null, error: msg };
+        }
+        continue; // try next window
+      }
+
+      const result = await res.json();
+      const token = result.accessToken ?? result.access_token;
+      if (token) {
+        console.log(`[DhanToken] Fresh token generated via TOTP for client ${clientId} (offset=${offset}s)`);
+        return { token };
+      }
+      const errMsg = `Dhan auth response missing accessToken: ${JSON.stringify(result)}`;
+      console.error(`[DhanToken] ${errMsg}`);
+      return { token: null, error: errMsg };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[DhanToken] TOTP generation error (offset=${offset}s):`, msg);
+      if (offset === timeOffsets[timeOffsets.length - 1]) {
+        return { token: null, error: msg };
+      }
     }
-    const result = await res.json();
-    const token = result.accessToken ?? result.access_token;
-    if (token) {
-      console.log(`[DhanToken] Fresh token generated via TOTP for client ${clientId}`);
-    } else {
-      console.error("[DhanToken] TOTP response missing accessToken:", JSON.stringify(result));
-    }
-    return token ?? null;
-  } catch (err) {
-    console.error("[DhanToken] TOTP generation error:", err instanceof Error ? err.message : err);
-    return null;
   }
+  return { token: null, error: "All TOTP window attempts failed" };
 }
 
 /** @internal system-token strategy 2 wrapper (reads from env vars) */
@@ -204,7 +237,8 @@ async function tryTOTPGeneration(clientId: string): Promise<string | null> {
     return null;
   }
 
-  return generateTokenForUser(clientId, totpSecret, pin);
+  const { token } = await generateTokenForUser(clientId, totpSecret, pin);
+  return token;
 }
 
 // ── Public API ────────────────────────────────────────────────────

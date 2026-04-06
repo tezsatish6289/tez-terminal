@@ -58,6 +58,7 @@ import type { SimulatorState, SimTrade, SimLog, SimTradeEvent } from "@/lib/simu
 import { getSimStateDocId } from "@/lib/simulator";
 import { SimulatorParamsDialog } from "@/components/simulator/SimulatorParamsDialog";
 import { format, startOfDay, startOfWeek, startOfMonth, isAfter } from "date-fns";
+import { calcPerformanceMetrics } from "@/lib/performance-metrics";
 
 function formatMoney(val: number, cs = "$"): string {
   if (cs === "₹") {
@@ -395,6 +396,13 @@ export default function SimulationPage() {
                 {/* Equity Curve */}
                 <EquityCurve trades={closedTrades} startingCapital={simState.startingCapital} cs={cs} />
 
+                {/* Performance Metrics */}
+                <PerformanceMetricsPanel
+                  trades={closedTrades}
+                  startingCapital={simState.startingCapital}
+                  assetType={assetType}
+                />
+
                 {/* Streak scaling indicator */}
                 {(simState.consecutiveWins ?? 0) >= 2 && (
                   <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-400/10 border border-emerald-400/20">
@@ -458,6 +466,116 @@ export default function SimulationPage() {
   );
 }
 
+// ── Performance Metrics Panel ─────────────
+
+function MetricTile({
+  label,
+  value,
+  sub,
+  color,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  color: string;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5 px-3 py-2.5 rounded-lg bg-white/[0.02] border border-white/[0.05]">
+      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">{label}</span>
+      <span className={cn("text-sm font-mono font-bold", color)}>{value}</span>
+      {sub && <span className="text-[9px] text-muted-foreground/30">{sub}</span>}
+    </div>
+  );
+}
+
+function PerformanceMetricsPanel({
+  trades,
+  startingCapital,
+  assetType,
+}: {
+  trades: SimTrade[];
+  startingCapital: number;
+  assetType: string;
+}) {
+  const metrics = useMemo(
+    () => calcPerformanceMetrics(
+      trades,
+      startingCapital,
+      assetType === "INDIAN_STOCKS" ? 0.065 : 0,
+    ),
+    [trades, startingCapital, assetType],
+  );
+
+  if (!metrics) return null;
+
+  const fmt = (n: number, dp = 2) => {
+    if (!isFinite(n)) return "∞";
+    const sign = n >= 0 ? "+" : "";
+    return `${sign}${n.toFixed(dp)}`;
+  };
+
+  const ratioColor = (n: number) =>
+    !isFinite(n) || n >= 1.5
+      ? "text-emerald-400"
+      : n >= 0.5
+      ? "text-amber-400"
+      : "text-rose-400";
+
+  return (
+    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Shield className="w-4 h-4 text-accent" />
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/60">
+            Performance Metrics
+          </span>
+        </div>
+        <span className="text-[9px] text-muted-foreground/30">
+          {metrics.tradingDays} active trading day{metrics.tradingDays !== 1 ? "s" : ""} · annualised
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <MetricTile
+          label="Sharpe Ratio"
+          value={fmt(metrics.sharpeRatio)}
+          sub="Higher › 1 is good"
+          color={ratioColor(metrics.sharpeRatio)}
+        />
+        <MetricTile
+          label="Sortino Ratio"
+          value={fmt(metrics.sortinoRatio)}
+          sub="Downside-adjusted"
+          color={ratioColor(metrics.sortinoRatio)}
+        />
+        <MetricTile
+          label="Calmar Ratio"
+          value={fmt(metrics.calmarRatio)}
+          sub="Return / Max DD"
+          color={ratioColor(metrics.calmarRatio)}
+        />
+        <MetricTile
+          label="Max Drawdown"
+          value={`-${metrics.maxDrawdownPct.toFixed(2)}%`}
+          sub="Peak-to-trough (closed)"
+          color={
+            metrics.maxDrawdownPct < 15
+              ? "text-emerald-400"
+              : metrics.maxDrawdownPct < 30
+              ? "text-amber-400"
+              : "text-rose-400"
+          }
+        />
+      </div>
+
+      <p className="text-[9px] text-muted-foreground/25 leading-relaxed">
+        All ratios are based on <span className="text-muted-foreground/40 font-semibold">closed trades only</span>. Open positions and their unrealised PnL are excluded — actual drawdown may be higher while trades are live. Ratios are annualised.
+        {assetType === "INDIAN_STOCKS" ? " Risk-free rate: 6.5% (RBI)." : " Risk-free rate: 0% (crypto)."}
+      </p>
+    </div>
+  );
+}
+
 // ── Equity Curve ──────────────────────────
 
 type Period = "all" | "today" | "week" | "month" | "custom";
@@ -491,14 +609,18 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
       .filter((t) => t.closedAt)
       .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
 
-    // Build a capital map using net effect per trade:
-    // realizedPnl already deducts exit fees, but NOT entry fee.
-    // Entry fee is always the first event (type "OPEN").
+    // Reconstruct true net PnL from raw events so this works for both
+    // old trades (realizedPnl excludes entry fee) and new trades (includes it).
+    // Formula: sum(event.pnl) - events[0].fee
+    //   events[0] is the OPEN event: pnl=0, fee=entryFee
+    //   events[1..n] are exits: pnl = pricePnl - exitFee each
+    //   → total = pricePnl - exitFees - entryFee = true net after all charges
     let capital = startingCapital;
     const capitalMap = new Map<string, number>();
     for (const t of allSorted) {
-      const entryFee = t.events?.[0]?.fee ?? 0;
-      capital += t.realizedPnl - entryFee;
+      const evts = t.events ?? [];
+      const trueNet = evts.reduce((s, e) => s + e.pnl, 0) - (evts[0]?.fee ?? 0);
+      capital += trueNet;
       capitalMap.set(t.closedAt!, capital);
     }
 
@@ -514,8 +636,9 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
     ];
     let running = startCapital;
     filteredTrades.forEach((t, i) => {
-      const entryFee = t.events?.[0]?.fee ?? 0;
-      running += t.realizedPnl - entryFee;
+      const evts = t.events ?? [];
+      const trueNet = evts.reduce((s, e) => s + e.pnl, 0) - (evts[0]?.fee ?? 0);
+      running += trueNet;
       points.push({
         trade: i + 1,
         value: parseFloat(running.toFixed(2)),

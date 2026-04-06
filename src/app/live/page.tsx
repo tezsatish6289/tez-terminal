@@ -152,9 +152,11 @@ export default function LiveTradingPage() {
   const openTrades = useMemo(() => liveTrades.filter((t) => t.status === "OPEN"), [liveTrades]);
   const closedTrades = useMemo(() => liveTrades.filter((t) => t.status === "CLOSED"), [liveTrades]);
 
-  const totalPnl = closedTrades.reduce((sum, t) => sum + (t.realizedPnl || 0), 0);
-  const wins = closedTrades.filter((t) => t.realizedPnl > 0).length;
-  const losses = closedTrades.filter((t) => t.realizedPnl < 0).length;
+  // Prefer exchange-reported PnL when available (more accurate — includes funding fees, actual slippage)
+  const effectivePnl = (t: LiveTrade) => t.exchangeRealizedPnl ?? t.realizedPnl ?? 0;
+  const totalPnl = closedTrades.reduce((sum, t) => sum + effectivePnl(t), 0);
+  const wins = closedTrades.filter((t) => effectivePnl(t) > 0).length;
+  const losses = closedTrades.filter((t) => effectivePnl(t) < 0).length;
   const winRate = (wins + losses) > 0 ? (wins / (wins + losses)) * 100 : 0;
 
   useEffect(() => {
@@ -365,8 +367,9 @@ function applyLiveFilters(trades: LiveTrade[], f: LiveFilters): LiveTrade[] {
     if (f.tpLevel === "tp1" && !t.tp1Hit) return false;
     if (f.tpLevel === "tp2" && !t.tp2Hit) return false;
     if (f.tpLevel === "tp3" && !t.tp3Hit) return false;
-    if (f.pnl === "win" && t.realizedPnl <= 0) return false;
-    if (f.pnl === "loss" && t.realizedPnl > 0) return false;
+    const pnl = t.exchangeRealizedPnl ?? t.realizedPnl ?? 0;
+    if (f.pnl === "win" && pnl <= 0) return false;
+    if (f.pnl === "loss" && pnl > 0) return false;
     if (f.scoreMin && t.confidenceScore < Number(f.scoreMin)) return false;
     if (f.scoreMax && t.confidenceScore > Number(f.scoreMax)) return false;
     if (f.statuses.length && !f.statuses.includes(t.closeReason ?? "")) return false;
@@ -751,11 +754,23 @@ function DesktopTradeRow({ trade, onSelect }: { trade: LiveTrade; onSelect: (t: 
         </div>
       </TableCell>
       <TableCell>
-        <div className={cn("flex items-center gap-1 font-mono text-xs font-black", trade.realizedPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
-          {trade.realizedPnl >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-          {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
-        </div>
-        <span className="text-[9px] text-muted-foreground/30 font-mono">fees: {formatUsd(trade.fees)}</span>
+        {trade.exchangeRealizedPnl != null ? (
+          <>
+            <div className={cn("flex items-center gap-1 font-mono text-xs font-black", trade.exchangeRealizedPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+              {trade.exchangeRealizedPnl >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+              {trade.exchangeRealizedPnl >= 0 ? "+" : ""}{formatUsd(trade.exchangeRealizedPnl)}
+            </div>
+            <span className="text-[9px] text-amber-400/50 font-mono">exchange</span>
+          </>
+        ) : (
+          <>
+            <div className={cn("flex items-center gap-1 font-mono text-xs font-black", trade.realizedPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+              {trade.realizedPnl >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+              {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
+            </div>
+            <span className="text-[9px] text-muted-foreground/30 font-mono">fees: {formatUsd(trade.fees)}</span>
+          </>
+        )}
       </TableCell>
       <TableCell className="font-mono text-xs font-bold text-white/60">{formatUsd(trade.positionSize)}</TableCell>
       <TableCell>
@@ -853,11 +868,19 @@ function MobileTradeCard({ trade, onSelect }: { trade: LiveTrade; onSelect: (t: 
         <div className="px-4 py-3 space-y-3">
           {/* PNL + Date */}
           <div className="flex items-center justify-between">
-            <div className={cn("flex items-center gap-1.5 font-mono text-lg font-black", trade.realizedPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
-              {trade.realizedPnl >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-              {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
-              <span className="text-[9px] font-bold text-muted-foreground/30 ml-1">fees: {formatUsd(trade.fees)}</span>
-            </div>
+            {trade.exchangeRealizedPnl != null ? (
+              <div className={cn("flex items-center gap-1.5 font-mono text-lg font-black", trade.exchangeRealizedPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                {trade.exchangeRealizedPnl >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                {trade.exchangeRealizedPnl >= 0 ? "+" : ""}{formatUsd(trade.exchangeRealizedPnl)}
+                <span className="text-[9px] font-bold text-amber-400/50 ml-1">exchange</span>
+              </div>
+            ) : (
+              <div className={cn("flex items-center gap-1.5 font-mono text-lg font-black", trade.realizedPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                {trade.realizedPnl >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
+                <span className="text-[9px] font-bold text-muted-foreground/30 ml-1">fees: {formatUsd(trade.fees)}</span>
+              </div>
+            )}
             <span className="text-[10px] font-mono text-muted-foreground/40">{format(new Date(trade.openedAt), "MMM dd, HH:mm")}</span>
           </div>
 
@@ -1117,10 +1140,11 @@ function LiveTradeNarrationDialog({ trade, onClose }: { trade: LiveTrade | null;
         </div>
 
         {/* Summary Footer */}
-        <div className="border-t border-white/[0.06] pt-3 mt-1">
+        <div className="border-t border-white/[0.06] pt-3 mt-1 space-y-3">
+          {/* Calculated PnL row */}
           <div className="grid grid-cols-3 gap-3 text-center">
             <div>
-              <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/40 mb-0.5">Realized PnL</div>
+              <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/40 mb-0.5">Gross PnL</div>
               <div className={cn("text-sm font-black font-mono", trade.realizedPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
                 {trade.realizedPnl >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
               </div>
@@ -1132,10 +1156,41 @@ function LiveTradeNarrationDialog({ trade, onClose }: { trade: LiveTrade | null;
             <div>
               <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/40 mb-0.5">Net Result</div>
               <div className={cn("text-sm font-black font-mono", (trade.realizedPnl - trade.fees) >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                {(trade.realizedPnl - trade.fees) >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl)}
+                {(trade.realizedPnl - trade.fees) >= 0 ? "+" : ""}{formatUsd(trade.realizedPnl - trade.fees)}
               </div>
             </div>
           </div>
+
+          {/* Exchange-verified data (shown only when available) */}
+          {trade.exchangeRealizedPnl != null && (
+            <div className="rounded-lg bg-amber-400/[0.05] border border-amber-400/[0.12] p-3 space-y-2">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-amber-400/60">Exchange-Verified Data</div>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[11px]">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground/40">Exchange PnL</span>
+                  <span className={cn("font-mono font-bold", trade.exchangeRealizedPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                    {trade.exchangeRealizedPnl >= 0 ? "+" : ""}{formatUsd(trade.exchangeRealizedPnl)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground/40">Filled Qty</span>
+                  <span className="font-mono font-bold text-white/70">{trade.exchangeQty ?? "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground/40">Avg Entry</span>
+                  <span className="font-mono font-bold text-white/70">
+                    {trade.exchangeAvgEntryPrice != null ? `$${formatPrice(trade.exchangeAvgEntryPrice)}` : "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground/40">Avg Exit</span>
+                  <span className="font-mono font-bold text-white/70">
+                    {trade.exchangeAvgExitPrice != null ? `$${formatPrice(trade.exchangeAvgExitPrice)}` : "—"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Deep dive link */}

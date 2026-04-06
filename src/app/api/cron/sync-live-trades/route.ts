@@ -54,33 +54,42 @@ async function syncUserTrades(
   const result = { fills: 0, updates: 0, protectiveCloses: 0, simSlSynced: 0, simCloseSynced: 0, errors: [] as string[] };
 
   try {
-    // ── 0. Fetch actual exchange PnL for recently-closed trades ──
-    // Runs before the main loop so it doesn't block new trade processing.
-    // Best-effort: errors are logged but never block open-trade sync.
+    // ── 0. Backfill actual exchange data for closed trades ───────
+    // Fetches real PnL, entry/exit prices, and qty from the exchange for
+    // any closed trade missing exchangeRealizedPnl. Runs on ALL closed
+    // trades (not just recent) so older trades are backfilled gradually.
+    // Capped at 20 per cycle to avoid rate-limiting.
+    // Best-effort: never blocks open-trade sync.
     if (getConnector(exchange).getClosedPnl) {
       try {
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-        const recentlyClosedSnap = await db.collection("live_trades")
+        const missingSnap = await db.collection("live_trades")
           .where("status", "==", "CLOSED")
           .where("userId", "==", userId)
           .where("exchange", "==", exchange)
-          .where("closedAt", ">=", fiveMinutesAgo)
+          .where("exchangeRealizedPnl", "==", null)
+          .limit(20)
           .get();
 
-        for (const doc of recentlyClosedSnap.docs) {
+        const connector = getConnector(exchange);
+        for (const doc of missingSnap.docs) {
           const lt = { id: doc.id, ...doc.data() } as LiveTrade;
-          if (lt.exchangeRealizedPnl != null) continue; // already fetched
-
           try {
-            const connector = getConnector(exchange);
             const startTime = new Date(lt.openedAt).getTime();
             const records = await connector.getClosedPnl!(lt.symbol, creds, startTime);
-            const actualPnl = records.reduce((sum, r) => sum + r.closedPnl, 0);
-            if (records.length > 0) {
-              await db.collection("live_trades").doc(doc.id).update({
-                exchangeRealizedPnl: parseFloat(actualPnl.toFixed(4)),
-              });
-            }
+            if (records.length === 0) continue;
+
+            const totalPnl = records.reduce((sum, r) => sum + r.closedPnl, 0);
+            const totalQty = records.reduce((sum, r) => sum + r.qty, 0);
+            // Weighted average entry/exit prices across all fill records
+            const avgEntry = records.reduce((sum, r) => sum + r.avgEntryPrice * r.qty, 0) / totalQty;
+            const avgExit  = records.reduce((sum, r) => sum + r.avgExitPrice  * r.qty, 0) / totalQty;
+
+            await db.collection("live_trades").doc(doc.id).update({
+              exchangeRealizedPnl:   parseFloat(totalPnl.toFixed(4)),
+              exchangeAvgEntryPrice: parseFloat(avgEntry.toFixed(8)),
+              exchangeAvgExitPrice:  parseFloat(avgExit.toFixed(8)),
+              exchangeQty:           parseFloat(totalQty.toFixed(6)),
+            });
           } catch {
             // best effort per trade
           }

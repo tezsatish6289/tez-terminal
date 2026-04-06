@@ -53,7 +53,10 @@ export interface LiveTrade {
   realizedPnl: number;
   fees: number;
   closeReason: string | null;
-  exchangeRealizedPnl: number | null;  // actual PnL reported by the exchange after close
+  exchangeRealizedPnl: number | null;    // actual PnL reported by the exchange after close
+  exchangeAvgEntryPrice: number | null;  // actual average entry fill price from exchange
+  exchangeAvgExitPrice: number | null;   // actual average exit fill price from exchange
+  exchangeQty: number | null;            // actual filled quantity from exchange
   events: LiveTradeEvent[];
   openedAt: string;
   closedAt: string | null;
@@ -242,6 +245,9 @@ export async function executeTrade(
       fees: entryFee,
       closeReason: null,
       exchangeRealizedPnl: null,
+      exchangeAvgEntryPrice: null,
+      exchangeAvgExitPrice: null,
+      exchangeQty: null,
       events: [
         {
           type: "OPEN",

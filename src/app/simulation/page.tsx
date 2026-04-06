@@ -625,35 +625,68 @@ function PerformanceMetricsPanel({
 
 // ── Equity Curve ──────────────────────────
 
+type ChartView = "trade" | "day";
+
 function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; startingCapital: number; cs: string }) {
-  const chartData = useMemo(() => {
+  const [view, setView] = useState<ChartView>("trade");
+
+  // Trade-by-trade: one point per closed trade
+  const tradeData = useMemo(() => {
     const sorted = [...trades]
       .filter((t) => t.closedAt)
       .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
-
     if (!sorted.length) return [];
 
-    // Reconstruct true net PnL from raw events — works for both old and new trades.
-    const points: { trade: number; value: number; label: string; date: string }[] = [
-      { trade: 0, value: startingCapital, label: "Start", date: "" },
+    const points: { x: string | number; value: number; tooltip: string }[] = [
+      { x: 0, value: startingCapital, tooltip: "Start" },
     ];
     let running = startingCapital;
     sorted.forEach((t, i) => {
       const evts = t.events ?? [];
       running += evts.reduce((s, e) => s + e.pnl, 0) - (evts[0]?.fee ?? 0);
       points.push({
-        trade: i + 1,
+        x: i + 1,
         value: parseFloat(running.toFixed(2)),
-        label: t.symbol,
-        date: format(new Date(t.closedAt!), "MMM dd HH:mm"),
+        tooltip: `${t.symbol} · ${format(new Date(t.closedAt!), "MMM dd HH:mm")}`,
       });
     });
     return points;
   }, [trades, startingCapital]);
 
+  // Day-by-day: one point per calendar day with trade activity
+  const dayData = useMemo(() => {
+    const sorted = [...trades]
+      .filter((t) => t.closedAt)
+      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
+    if (!sorted.length) return [];
+
+    // Build end-of-day capital map
+    const dayCapital = new Map<string, number>();
+    let running = startingCapital;
+    for (const t of sorted) {
+      const day = t.closedAt!.slice(0, 10);
+      const evts = t.events ?? [];
+      running += evts.reduce((s, e) => s + e.pnl, 0) - (evts[0]?.fee ?? 0);
+      dayCapital.set(day, parseFloat(running.toFixed(2)));
+    }
+
+    const points: { x: string; value: number; tooltip: string }[] = [
+      { x: "Start", value: startingCapital, tooltip: "Starting capital" },
+    ];
+    for (const [day, capital] of dayCapital) {
+      points.push({
+        x: format(new Date(day), "MMM dd"),
+        value: capital,
+        tooltip: day,
+      });
+    }
+    return points;
+  }, [trades, startingCapital]);
+
   if (trades.filter((t) => t.closedAt).length < 2) return null;
 
-  const lastVal  = chartData[chartData.length - 1]?.value ?? startingCapital;
+  const chartData = view === "trade" ? tradeData : dayData;
+  const lastVal   = chartData[chartData.length - 1]?.value ?? startingCapital;
   const isPositive = lastVal >= startingCapital;
   const chartColor = isPositive ? "#34d399" : "#f87171";
   const yMin = Math.floor(Math.min(...chartData.map((d) => d.value)) * 0.995);
@@ -662,15 +695,34 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
   return (
     <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
       {/* Header */}
-      <div className="flex items-center gap-2">
-        <BarChart3 className="w-4 h-4 text-accent" />
-        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/60">Fund Value</span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="w-4 h-4 text-accent" />
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/60">Fund Value</span>
+        </div>
+        {/* View toggle */}
+        <div className="flex items-center gap-0.5 rounded-md bg-white/[0.04] p-0.5">
+          {(["trade", "day"] as ChartView[]).map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={cn(
+                "px-2.5 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all",
+                view === v
+                  ? "bg-accent/20 text-accent"
+                  : "text-muted-foreground/40 hover:text-muted-foreground/70"
+              )}
+            >
+              {v === "trade" ? "Tradewise" : "Daywise"}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Chart */}
       {chartData.length < 2 ? (
         <div className="text-center py-6 text-muted-foreground/30">
-          <p className="text-[10px] font-bold">Not enough trades in this period</p>
+          <p className="text-[10px] font-bold">Not enough data</p>
         </div>
       ) : (
         <div className="h-[200px] sm:h-[260px]">
@@ -684,11 +736,10 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
               <XAxis
-                dataKey="trade"
+                dataKey="x"
                 tick={{ fontSize: 9, fill: "rgba(255,255,255,0.3)" }}
                 tickLine={false}
                 axisLine={{ stroke: "rgba(255,255,255,0.06)" }}
-                label={{ value: "Trade #", position: "insideBottomRight", offset: -5, fontSize: 9, fill: "rgba(255,255,255,0.2)" }}
               />
               <YAxis
                 domain={[yMin, yMax]}
@@ -705,10 +756,10 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
                   borderRadius: "8px",
                   fontSize: "11px",
                 }}
-                labelFormatter={(v: number) => `Trade #${v}`}
+                labelFormatter={(v) => view === "trade" ? (v === 0 ? "Start" : `Trade #${v}`) : String(v)}
                 formatter={(value: number, _name: string, props: any) => [
                   formatMoney(value, cs),
-                  `${props.payload.label}${props.payload.date ? ` · ${props.payload.date}` : ""}`,
+                  props.payload.tooltip,
                 ]}
               />
               <ReferenceLine

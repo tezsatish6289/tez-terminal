@@ -184,9 +184,24 @@ export default function SimulationPage() {
   const isLoading = stateLoading || tradesLoading || logsLoading;
 
   const totalReturn = simState ? ((simState.capital - simState.startingCapital) / simState.startingCapital) * 100 : 0;
-  const winRate = simState && (simState.totalWins + simState.totalLosses) > 0
-    ? (simState.totalWins / (simState.totalWins + simState.totalLosses)) * 100
-    : 0;
+
+  // Running days — from first trade's openedAt to today
+  const runningDays = useMemo(() => {
+    const all = [...openTrades, ...closedTrades];
+    if (!all.length) return 0;
+    const earliest = all.reduce((a, b) =>
+      new Date(a.openedAt).getTime() < new Date(b.openedAt).getTime() ? a : b
+    );
+    return Math.max(1, Math.ceil((Date.now() - new Date(earliest.openedAt).getTime()) / 86_400_000));
+  }, [openTrades, closedTrades]);
+
+  // Yearly P&L — projected if running < 365 days, actual if >= 365
+  const yearlyPnl = useMemo(() => {
+    if (!simState || runningDays === 0) return { value: 0, isProjected: true };
+    const netPnl = simState.capital - simState.startingCapital;
+    if (runningDays >= 365) return { value: netPnl, isProjected: false };
+    return { value: (netPnl / runningDays) * 365, isProjected: true };
+  }, [simState, runningDays]);
 
   const [forceClosing, setForceClosing] = useState<string | null>(null);
 
@@ -354,42 +369,43 @@ export default function SimulationPage() {
             ) : (
               <>
                 {/* Stats Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                  <StatCard
-                    label="Capital"
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  <SummaryCard
+                    label="Running"
+                    value={`${runningDays}d`}
+                    sub={runningDays === 1 ? "day 1" : `${runningDays} days active`}
+                    icon={<Activity className="w-3.5 h-3.5" />}
+                    color="text-muted-foreground/70"
+                    badge={{ text: "Live", variant: "live" }}
+                  />
+                  <SummaryCard
+                    label="Starting Capital"
+                    value={formatMoney(simState.startingCapital, cs)}
+                    sub="initial investment"
+                    icon={assetType === "INDIAN_STOCKS" ? <IndianRupee className="w-3.5 h-3.5" /> : <DollarSign className="w-3.5 h-3.5" />}
+                    color="text-muted-foreground/70"
+                  />
+                  <SummaryCard
+                    label="Current Capital"
                     value={formatMoney(simState.capital, cs)}
+                    sub={`${totalReturn >= 0 ? "+" : ""}${formatMoney(simState.capital - simState.startingCapital, cs)} overall`}
                     icon={assetType === "INDIAN_STOCKS" ? <IndianRupee className="w-3.5 h-3.5" /> : <DollarSign className="w-3.5 h-3.5" />}
                     color={simState.capital >= simState.startingCapital ? "text-positive" : "text-negative"}
                   />
-                  <StatCard
+                  <SummaryCard
                     label="Total Return"
                     value={formatPct(totalReturn)}
+                    sub={`across ${runningDays} day${runningDays !== 1 ? "s" : ""}`}
                     icon={totalReturn >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
                     color={totalReturn >= 0 ? "text-positive" : "text-negative"}
                   />
-                  <StatCard
-                    label="Win Rate"
-                    value={`${winRate.toFixed(0)}%`}
-                    icon={<BarChart3 className="w-3.5 h-3.5" />}
-                    color={winRate >= 60 ? "text-positive" : winRate >= 45 ? "text-amber-400" : "text-negative"}
-                  />
-                  <StatCard
-                    label="Trades"
-                    value={`${simState.totalWins}W / ${simState.totalLosses}L`}
-                    icon={<Activity className="w-3.5 h-3.5" />}
-                    color="text-foreground/70"
-                  />
-                  <StatCard
-                    label="Daily P&L"
-                    value={formatMoney(simState.dailyPnl, cs)}
-                    icon={simState.dailyPnl >= 0 ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
-                    color={simState.dailyPnl >= 0 ? "text-positive" : "text-negative"}
-                  />
-                  <StatCard
-                    label="Streak / Max Trades"
-                    value={`${simState.consecutiveWins ?? 0}W → ${simState.currentMaxTrades ?? 1}`}
-                    icon={<Shield className="w-3.5 h-3.5" />}
-                    color={(simState.consecutiveWins ?? 0) >= 2 ? "text-positive" : "text-muted-foreground/50"}
+                  <SummaryCard
+                    label="Yearly P&L"
+                    value={formatMoney(yearlyPnl.value, cs)}
+                    sub={yearlyPnl.isProjected ? `at current ${runningDays}d rate` : "actual 12-month"}
+                    icon={<TrendingUp className="w-3.5 h-3.5" />}
+                    color={yearlyPnl.value >= 0 ? "text-positive" : "text-negative"}
+                    badge={yearlyPnl.isProjected ? { text: "Projected", variant: "projected" } : { text: "Actual", variant: "actual" }}
                   />
                 </div>
 
@@ -787,6 +803,45 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
 }
 
 // ── Shared Components ──────────────────────────
+
+function SummaryCard({
+  label,
+  value,
+  sub,
+  badge,
+  color,
+  icon,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  badge?: { text: string; variant: "projected" | "actual" | "live" };
+  color: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 flex flex-col gap-2 hover:bg-white/[0.04] transition-colors">
+      <div className="flex items-center gap-1.5">
+        <span className={cn("opacity-40", color)}>{icon}</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">{label}</span>
+      </div>
+      <div className={cn("text-2xl font-black tabular-nums leading-none", color)}>{value}</div>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {sub && <span className="text-[9px] text-muted-foreground/30">{sub}</span>}
+        {badge && (
+          <span className={cn(
+            "text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full",
+            badge.variant === "projected" ? "bg-amber-500/15 text-amber-400" :
+            badge.variant === "live"      ? "bg-emerald-500/15 text-emerald-400" :
+                                            "bg-white/[0.05] text-muted-foreground/40"
+          )}>
+            {badge.text}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function StatCard({ label, value, icon, color }: { label: string; value: string; icon: React.ReactNode; color: string }) {
   return (

@@ -150,26 +150,16 @@ async function tryRenewToken(currentToken: string, clientId: string): Promise<st
 }
 
 /**
- * Strategy 2: Generate a fresh 24h token using TOTP + PIN.
- * Fully automated — no user interaction needed.
+ * Generates a fresh 24h Dhan access token using TOTP + PIN for ANY user.
+ * Called by the live-trades cron per-user with their own stored credentials.
  *
- * Setup (one-time):
- *   1. Go to web.dhan.co → Profile → Access DhanHQ APIs → Setup TOTP
- *   2. Copy the TOTP secret (base32 string shown during TOTP setup)
- *   3. Add to env:  DHAN_TOTP_SECRET=<base32 secret>   DHAN_PIN=<6-digit pin>
+ * Also used internally as Strategy 2 for the system token (from env vars).
  */
-async function tryTOTPGeneration(clientId: string): Promise<string | null> {
-  const totpSecret = process.env.DHAN_TOTP_SECRET;
-  const pin = process.env.DHAN_PIN;
-
-  if (!totpSecret || !pin) {
-    console.warn(
-      "[DhanToken] TOTP fallback not configured. " +
-        "Set DHAN_TOTP_SECRET + DHAN_PIN env vars for fully-automatic daily renewal."
-    );
-    return null;
-  }
-
+export async function generateTokenForUser(
+  clientId: string,
+  totpSecret: string,
+  pin: string
+): Promise<string | null> {
   try {
     const totp = generateTOTP(totpSecret);
     const url =
@@ -184,13 +174,13 @@ async function tryTOTPGeneration(clientId: string): Promise<string | null> {
 
     if (!res.ok) {
       const text = await res.text();
-      console.error(`[DhanToken] TOTP generation failed (${res.status}): ${text}`);
+      console.error(`[DhanToken] TOTP generation failed for ${clientId} (${res.status}): ${text}`);
       return null;
     }
     const result = await res.json();
     const token = result.accessToken ?? result.access_token;
     if (token) {
-      console.log("[DhanToken] Fresh token generated via TOTP");
+      console.log(`[DhanToken] Fresh token generated via TOTP for client ${clientId}`);
     } else {
       console.error("[DhanToken] TOTP response missing accessToken:", JSON.stringify(result));
     }
@@ -199,6 +189,22 @@ async function tryTOTPGeneration(clientId: string): Promise<string | null> {
     console.error("[DhanToken] TOTP generation error:", err instanceof Error ? err.message : err);
     return null;
   }
+}
+
+/** @internal system-token strategy 2 wrapper (reads from env vars) */
+async function tryTOTPGeneration(clientId: string): Promise<string | null> {
+  const totpSecret = process.env.DHAN_TOTP_SECRET;
+  const pin = process.env.DHAN_PIN;
+
+  if (!totpSecret || !pin) {
+    console.warn(
+      "[DhanToken] TOTP fallback not configured. " +
+        "Set DHAN_TOTP_SECRET + DHAN_PIN env vars for fully-automatic daily renewal."
+    );
+    return null;
+  }
+
+  return generateTokenForUser(clientId, totpSecret, pin);
 }
 
 // ── Public API ────────────────────────────────────────────────────

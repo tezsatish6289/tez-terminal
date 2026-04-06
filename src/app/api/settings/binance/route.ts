@@ -9,6 +9,7 @@ import {
   docMatchesExchange,
   type ExchangeName,
 } from "@/lib/exchanges";
+import { generateTokenForUser } from "@/lib/dhan-token";
 
 /**
  * Exchange credentials management.
@@ -67,6 +68,8 @@ export async function GET(request: NextRequest) {
     dailyLossLimit: data.dailyLossLimit ?? 3,
     useTestnet: data.useTestnet ?? true,
     savedAt: data.savedAt ?? null,
+    // Dhan-specific: indicate TOTP is configured (without exposing secrets)
+    totpConfigured: exchangeName === "DHAN" ? !!(data.encryptedSecret && data.encryptedPin) : undefined,
   });
 }
 
@@ -82,22 +85,53 @@ export async function POST(request: NextRequest) {
     const exchangeName = resolveExchangeName(body.exchange);
     const useTestnet = body.useTestnet === true;
     const docId = getSecretDocId(exchangeName);
+    const db = getAdminFirestore();
 
-    // Dhan tokens expire every 24h and are auto-renewed server-side via TOTP,
-    // so skip live validation — just save the client ID + token as provided.
-    if (exchangeName !== "DHAN") {
-      try {
-        const connector = getConnector(exchangeName);
-        const balance = await connector.getUsdtBalance({ apiKey, apiSecret, testnet: useTestnet });
-        if (balance.total < 0) throw new Error("Unexpected negative balance");
-      } catch (e) {
+    if (exchangeName === "DHAN") {
+      // Dhan: apiKey = Client ID, apiSecret = TOTP secret, body.pin = login PIN
+      const pin = body.pin as string | undefined;
+      if (!pin) {
+        return NextResponse.json({ error: "Missing Dhan login PIN" }, { status: 400 });
+      }
+
+      // Validate by generating a real token — confirms all 3 credentials are correct
+      const testToken = await generateTokenForUser(apiKey, apiSecret, pin);
+      if (!testToken) {
         return NextResponse.json({
-          error: `Invalid ${exchangeName} credentials for ${useTestnet ? "testnet" : "production"}: ${e instanceof Error ? e.message : String(e)}`,
+          error: "Invalid Dhan credentials. Check your Client ID, TOTP Secret, and PIN.",
         }, { status: 400 });
       }
+
+      await db.collection("users").doc(uid).collection("secrets").doc(docId).set({
+        exchange: "DHAN",
+        encryptedKey: encrypt(apiKey),       // Client ID
+        encryptedSecret: encrypt(apiSecret), // TOTP secret
+        encryptedPin: encrypt(pin),          // Login PIN
+        encryptedCachedToken: encrypt(testToken),
+        cachedTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        keyLastFour: apiKey.slice(-4),
+        autoTradeEnabled: false,
+        riskPerTrade: 0.5,
+        maxConcurrentTrades: 1,
+        dailyLossLimit: 5,
+        useTestnet: false,
+        savedAt: new Date().toISOString(),
+      });
+
+      return NextResponse.json({ success: true, message: "Dhan credentials verified and saved. Token auto-renews daily." });
     }
 
-    const db = getAdminFirestore();
+    // ── Crypto exchanges: validate via balance check ──────────────
+    try {
+      const connector = getConnector(exchangeName);
+      const balance = await connector.getUsdtBalance({ apiKey, apiSecret, testnet: useTestnet });
+      if (balance.total < 0) throw new Error("Unexpected negative balance");
+    } catch (e) {
+      return NextResponse.json({
+        error: `Invalid ${exchangeName} credentials for ${useTestnet ? "testnet" : "production"}: ${e instanceof Error ? e.message : String(e)}`,
+      }, { status: 400 });
+    }
+
     await db.collection("users").doc(uid).collection("secrets").doc(docId).set({
       exchange: exchangeName,
       encryptedKey: encrypt(apiKey),
@@ -107,11 +141,11 @@ export async function POST(request: NextRequest) {
       riskPerTrade: 0.5,
       maxConcurrentTrades: 1,
       dailyLossLimit: 5,
-      useTestnet: exchangeName === "DHAN" ? false : useTestnet,
+      useTestnet,
       savedAt: new Date().toISOString(),
     });
 
-    return NextResponse.json({ success: true, message: `${exchangeName} credentials saved.` });
+    return NextResponse.json({ success: true, message: `${exchangeName} credentials saved and validated.` });
   } catch (e) {
     console.error("[settings/exchange POST]", e);
     return NextResponse.json({

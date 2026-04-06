@@ -11,7 +11,8 @@ import {
 } from "@/lib/trade-engine";
 import { type SimTrade } from "@/lib/simulator";
 import { computeAutoFilter, mapFirestoreSignal } from "@/lib/auto-filter";
-import { decrypt } from "@/lib/crypto";
+import { decrypt, encrypt } from "@/lib/crypto";
+import { generateTokenForUser } from "@/lib/dhan-token";
 import { sendMessage } from "@/lib/telegram";
 import {
   type ExchangeName,
@@ -558,12 +559,58 @@ export async function GET(request: NextRequest) {
               const data = secretDoc.data()!;
               if (!docMatchesExchange(data, exchangeName)) continue;
               if (data.autoTradeEnabled === true) {
+                let apiKey: string;
+                let apiSecret: string;
+
+                if (exchangeName === "DHAN") {
+                  // Dhan: stored as clientId (key) + totpSecret (secret) + pin.
+                  // Auto-generate a fresh JWT token; cache it for 24h so we
+                  // don't hit Dhan's auth API on every cron tick.
+                  const clientId = decrypt(data.encryptedKey);
+                  const totpSecret = data.encryptedSecret ? decrypt(data.encryptedSecret) : null;
+                  const pin = data.encryptedPin ? decrypt(data.encryptedPin) : null;
+
+                  let accessToken: string | null = null;
+
+                  // Use cached token if still valid (5-min buffer)
+                  if (data.encryptedCachedToken && data.cachedTokenExpiresAt) {
+                    const expiresAt = new Date(data.cachedTokenExpiresAt as string).getTime();
+                    if (Date.now() < expiresAt - 5 * 60 * 1000) {
+                      try { accessToken = decrypt(data.encryptedCachedToken); } catch { /* stale */ }
+                    }
+                  }
+
+                  // Regenerate token if cache is stale / expired
+                  if (!accessToken && totpSecret && pin) {
+                    accessToken = await generateTokenForUser(clientId, totpSecret, pin);
+                    if (accessToken) {
+                      const secretRef = db.collection("users").doc(userId).collection("secrets").doc(id);
+                      await secretRef.update({
+                        encryptedCachedToken: encrypt(accessToken),
+                        cachedTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                      });
+                    }
+                  }
+
+                  if (!accessToken) {
+                    console.error(`[LiveSync] Could not obtain Dhan token for user ${userId} — skipping.`);
+                    break;
+                  }
+
+                  // DhanConnector expects: apiKey = access token, apiSecret = clientId
+                  apiKey = accessToken;
+                  apiSecret = clientId;
+                } else {
+                  apiKey = decrypt(data.encryptedKey);
+                  apiSecret = decrypt(data.encryptedSecret);
+                }
+
                 pairs.push({
                   userId,
                   exchange: exchangeName,
                   creds: {
-                    apiKey: decrypt(data.encryptedKey),
-                    apiSecret: decrypt(data.encryptedSecret),
+                    apiKey,
+                    apiSecret,
                     testnet: data.useTestnet === true,
                   },
                   settings: {

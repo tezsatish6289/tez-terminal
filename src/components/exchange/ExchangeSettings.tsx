@@ -103,6 +103,7 @@ export interface ExchangeConfig {
   useTestnet: boolean;
   savedAt: string | null;
   exchange?: ExchangeId;
+  totpConfigured?: boolean;
 }
 
 interface ExchangeSettingsProps {
@@ -267,9 +268,13 @@ function ExchangeSettingsPanel({
   const { config, isLoading, setConfig, fetchConfig, updateSetting } = useExchangeConfig(uid, exchange);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [apiSecretInput, setApiSecretInput] = useState("");
+  const [pinInput, setPinInput] = useState("");
   const [showSecret, setShowSecret] = useState(false);
+  const [showPin, setShowPin] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const isDhan = exchange === "DHAN";
 
   const meta = getExchangeMeta(exchange);
 
@@ -298,6 +303,7 @@ function ExchangeSettingsPanel({
 
   const saveKeys = async () => {
     if (!apiKeyInput || !apiSecretInput) return;
+    if (isDhan && !pinInput) return;
     setIsSaving(true);
     try {
       const res = await fetch("/api/settings/binance", {
@@ -307,7 +313,7 @@ function ExchangeSettingsPanel({
           uid,
           apiKey: apiKeyInput,
           apiSecret: apiSecretInput,
-          useTestnet: isTestnet,
+          ...(isDhan ? { pin: pinInput } : { useTestnet: isTestnet }),
           exchange,
         }),
       });
@@ -315,10 +321,13 @@ function ExchangeSettingsPanel({
       if (data.success) {
         toast({
           title: "Saved",
-          description: `${meta.name} ${isTestnet ? "testnet" : "production"} credentials validated and saved.`,
+          description: isDhan
+            ? "Dhan credentials verified. Token auto-renews daily — set up once, works forever."
+            : `${meta.name} ${isTestnet ? "testnet" : "production"} credentials validated and saved.`,
         });
         setApiKeyInput("");
         setApiSecretInput("");
+        setPinInput("");
         fetchConfig();
         onSaved?.();
       } else {
@@ -405,6 +414,29 @@ function ExchangeSettingsPanel({
           </div>
         </div>
 
+        {isDhan && (
+          <div>
+            <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold block mb-1.5">Login PIN (6-digit)</label>
+            <div className="relative">
+              <input
+                type={showPin ? "text" : "password"}
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value)}
+                placeholder="Your Dhan login PIN"
+                maxLength={6}
+                className="w-full h-10 px-3 pr-10 rounded-md border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPin(!showPin)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+        )}
+
         {!isTestnet && (
           <div className={cn(
             "flex items-start gap-2 p-2.5 rounded-lg border",
@@ -419,11 +451,11 @@ function ExchangeSettingsPanel({
 
         <Button
           onClick={saveKeys}
-          disabled={!apiKeyInput || !apiSecretInput || isSaving}
+          disabled={!apiKeyInput || !apiSecretInput || (isDhan && !pinInput) || isSaving}
           className="w-full gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
         >
           {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
-          {meta.noTestnet ? `Save ${meta.name} Credentials` : `Validate & Save (${meta.name} ${isTestnet ? "Testnet" : "Production"})`}
+          {isDhan ? "Verify & Save (set up once)" : meta.noTestnet ? `Save ${meta.name} Credentials` : `Validate & Save (${meta.name} ${isTestnet ? "Testnet" : "Production"})`}
         </Button>
       </div>
     );
@@ -455,15 +487,29 @@ function ExchangeSettingsPanel({
         />
       </div>
 
-      {/* API Key */}
+      {/* Credentials summary */}
       <div className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-white/5">
         <div className="flex items-center gap-3">
           <Shield className="h-4 w-4 text-accent" />
           <div>
-            <p className="text-sm font-medium">{meta.name} API Key</p>
-            <p className="text-[10px] text-muted-foreground">
-              ****{config.keyLastFour} · {config.savedAt ? new Date(config.savedAt).toLocaleDateString() : ""}
-            </p>
+            {isDhan ? (
+              <>
+                <p className="text-sm font-medium">Dhan — Client ****{config.keyLastFour}</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {config.totpConfigured
+                    ? "TOTP configured · Token auto-renews daily"
+                    : "⚠ TOTP not set — token will expire in 24h"}
+                  {config.savedAt ? ` · set up ${new Date(config.savedAt).toLocaleDateString()}` : ""}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium">{meta.name} API Key</p>
+                <p className="text-[10px] text-muted-foreground">
+                  ****{config.keyLastFour} · {config.savedAt ? new Date(config.savedAt).toLocaleDateString() : ""}
+                </p>
+              </>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-1">

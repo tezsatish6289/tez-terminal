@@ -640,7 +640,7 @@ function TradeListView({ trades, emptyIcon, emptyLabel, emptyHint, onSelectTrade
                     </LiveColFilter>
                   </TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">Entry</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">Current</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">Current / Exit</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">SL</TableHead>
                   <TableHead className="h-12 w-[80px]">
                     <LiveColFilter label="Targets" isActive={filters.tpLevel !== "any"} width="w-40">
@@ -718,8 +718,19 @@ function DesktopTradeRow({ trade, onSelect }: { trade: LiveTrade; onSelect: (t: 
         <Badge variant="outline" className="text-[9px] font-black h-5 px-1.5 border-accent/20 text-accent">{trade.leverage}x</Badge>
       </TableCell>
       <TableCell className="font-mono text-xs font-bold text-white/60">${formatPrice(trade.entryPrice)}</TableCell>
-      <TableCell className="font-mono text-xs font-bold text-white">
-        {isOpen && trade.currentPrice != null ? `$${formatPrice(trade.currentPrice)}` : "—"}
+      <TableCell className="font-mono text-xs font-bold">
+        {isOpen ? (
+          trade.currentPrice != null
+            ? <span className="text-white">${formatPrice(trade.currentPrice)}</span>
+            : <span className="text-white/30">—</span>
+        ) : (() => {
+          const exitPrice = trade.exchangeAvgExitPrice
+            ?? trade.events?.filter((e) => e.type !== "OPEN" && e.type !== "SL_TO_BE").slice(-1)[0]?.price
+            ?? null;
+          return exitPrice != null
+            ? <div><span className="text-white/60">${formatPrice(exitPrice)}</span>{trade.exchangeAvgExitPrice != null && <div className="text-[9px] text-amber-400/50 font-mono">exchange</div>}</div>
+            : <span className="text-white/30">—</span>;
+        })()}
       </TableCell>
       <TableCell>
         <div className="flex flex-col">
@@ -884,18 +895,36 @@ function MobileTradeCard({ trade, onSelect }: { trade: LiveTrade; onSelect: (t: 
             <span className="text-[10px] font-mono text-muted-foreground/40">{format(new Date(trade.openedAt), "MMM dd, HH:mm")}</span>
           </div>
 
-          {/* Entry / SL */}
+          {/* Entry / Exit or SL */}
           <div className="flex items-center gap-3 text-[11px] flex-wrap">
             <div>
               <span className="text-muted-foreground/40 mr-1.5">Entry</span>
               <span className="font-mono font-bold text-white/50">${formatPrice(trade.entryPrice)}</span>
             </div>
             <span className="text-white/10">|</span>
-            <div>
-              <span className="text-muted-foreground/40 mr-1.5">SL</span>
-              <span className="font-mono font-bold text-white/50">${formatPrice(sl.price)}</span>
-              <span className="text-[9px] text-muted-foreground/40 ml-1">({sl.label})</span>
-            </div>
+            {isOpen ? (
+              <div>
+                <span className="text-muted-foreground/40 mr-1.5">SL</span>
+                <span className="font-mono font-bold text-white/50">${formatPrice(sl.price)}</span>
+                <span className="text-[9px] text-muted-foreground/40 ml-1">({sl.label})</span>
+              </div>
+            ) : (() => {
+              const exitPrice = trade.exchangeAvgExitPrice
+                ?? trade.events?.filter((e) => e.type !== "OPEN" && e.type !== "SL_TO_BE").slice(-1)[0]?.price
+                ?? null;
+              return exitPrice != null ? (
+                <div>
+                  <span className="text-muted-foreground/40 mr-1.5">Exit</span>
+                  <span className="font-mono font-bold text-white/50">${formatPrice(exitPrice)}</span>
+                  {trade.exchangeAvgExitPrice != null && <span className="text-[9px] text-amber-400/50 ml-1">exchange</span>}
+                </div>
+              ) : (
+                <div>
+                  <span className="text-muted-foreground/40 mr-1.5">Exit</span>
+                  <span className="font-mono font-bold text-white/30">—</span>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Size + Qty */}

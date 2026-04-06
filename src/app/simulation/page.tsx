@@ -725,7 +725,7 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
           <p className="text-[10px] font-bold">Not enough data</p>
         </div>
       ) : (
-        <div className="h-[260px] sm:h-[340px]">
+        <div className="h-[340px] sm:h-[440px]">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
               <defs>

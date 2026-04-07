@@ -1371,15 +1371,15 @@ function DesktopTradeRow({ trade, onSelect, onForceClose, cs }: { trade: SimTrad
       </TableCell>
       <TableCell className="text-right">
         <div className="flex flex-col items-end gap-0.5">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 whitespace-nowrap">
             <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30">In</span>
-            <span className="text-[10px] font-mono font-bold text-white/40">{format(new Date(trade.openedAt), "MM-dd")}</span>
+            <span className="text-[10px] font-mono font-bold text-white/40">{format(new Date(trade.openedAt), "MMM dd")}</span>
             <span className="text-[10px] font-mono font-bold text-accent/40">{format(new Date(trade.openedAt), "HH:mm")}</span>
           </div>
           {trade.closedAt && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 whitespace-nowrap">
               <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30">Out</span>
-              <span className="text-[10px] font-mono font-bold text-white/25">{format(new Date(trade.closedAt), "MM-dd")}</span>
+              <span className="text-[10px] font-mono font-bold text-white/25">{format(new Date(trade.closedAt), "MMM dd")}</span>
               <span className="text-[10px] font-mono font-bold text-muted-foreground/30">{format(new Date(trade.closedAt), "HH:mm")}</span>
             </div>
           )}

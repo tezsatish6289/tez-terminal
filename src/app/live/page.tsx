@@ -851,9 +851,19 @@ function DesktopTradeRow({ trade, onSelect }: { trade: LiveTrade; onSelect: (t: 
         )}
       </TableCell>
       <TableCell className="text-right">
-        <div className="flex flex-col items-end">
-          <span className="text-[10px] font-mono font-bold text-white/40">{format(new Date(trade.openedAt), "yyyy-MM-dd")}</span>
-          <span className="text-[10px] font-mono font-bold text-accent/40">{format(new Date(trade.openedAt), "HH:mm")}</span>
+        <div className="flex flex-col items-end gap-0.5">
+          <div className="flex items-center gap-1 whitespace-nowrap">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30">In</span>
+            <span className="text-[10px] font-mono font-bold text-white/40">{format(new Date(trade.openedAt), "MMM dd")}</span>
+            <span className="text-[10px] font-mono font-bold text-accent/40">{format(new Date(trade.openedAt), "HH:mm")}</span>
+          </div>
+          {trade.closedAt && (
+            <div className="flex items-center gap-1 whitespace-nowrap">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30">Out</span>
+              <span className="text-[10px] font-mono font-bold text-white/25">{format(new Date(trade.closedAt), "MMM dd")}</span>
+              <span className="text-[10px] font-mono font-bold text-muted-foreground/30">{format(new Date(trade.closedAt), "HH:mm")}</span>
+            </div>
+          )}
         </div>
       </TableCell>
     </TableRow>
@@ -930,7 +940,18 @@ function MobileTradeCard({ trade, onSelect }: { trade: LiveTrade; onSelect: (t: 
                 <span className="text-[9px] font-bold text-muted-foreground/30 ml-1">fees: {formatUsd(trade.fees)}</span>
               </div>
             )}
-            <span className="text-[10px] font-mono text-muted-foreground/40">{format(new Date(trade.openedAt), "MMM dd, HH:mm")}</span>
+            <div className="flex flex-col items-end gap-0.5">
+              <div className="flex items-center gap-1 whitespace-nowrap">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30">In</span>
+                <span className="text-[10px] font-mono text-muted-foreground/40">{format(new Date(trade.openedAt), "MMM dd, HH:mm")}</span>
+              </div>
+              {trade.closedAt && (
+                <div className="flex items-center gap-1 whitespace-nowrap">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30">Out</span>
+                  <span className="text-[10px] font-mono text-muted-foreground/30">{format(new Date(trade.closedAt), "MMM dd, HH:mm")}</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Entry / Exit or SL */}
@@ -1002,9 +1023,16 @@ function MobileTradeCard({ trade, onSelect }: { trade: LiveTrade; onSelect: (t: 
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400">SL✓</span>
               )}
             </div>
-            <span className="text-[9px] font-bold text-muted-foreground/40">
-              {trade.events?.length || 0} events
-            </span>
+            <div className="flex flex-col items-end gap-0.5">
+              <span className="text-[9px] font-mono text-muted-foreground/30 whitespace-nowrap">
+                <span className="uppercase tracking-widest mr-1">In</span>{format(new Date(trade.openedAt), "HH:mm")}
+              </span>
+              {trade.closedAt && (
+                <span className="text-[9px] font-mono text-muted-foreground/25 whitespace-nowrap">
+                  <span className="uppercase tracking-widest mr-1">Out</span>{format(new Date(trade.closedAt), "HH:mm")}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>

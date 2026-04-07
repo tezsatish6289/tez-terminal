@@ -22,6 +22,7 @@ import {
   getSecretDocIds,
   type AllExchangePrices,
 } from "@/lib/exchanges";
+import { markTradeForBlockchain } from "@/lib/blockchain-logger";
 
 export const dynamic = "force-dynamic";
 
@@ -105,6 +106,9 @@ export async function POST(request: NextRequest) {
     fees: simTrade.fees + exitFee,
     events: [...(simTrade.events || []), closeEvent],
   });
+
+  // Queue this closed trade for blockchain publication (fire-and-forget)
+  await markTradeForBlockchain(db, simTradeId);
 
   // Update sim state capital (netPnl already includes fee deduction)
   const newCapital = simState.capital + netPnl;

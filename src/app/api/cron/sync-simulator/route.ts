@@ -23,6 +23,7 @@ import {
 import { deserializePrices, getReferencePrice, getPrice, type AllExchangePrices } from "@/lib/exchanges";
 import { executeForAllUsers } from "@/lib/live-execution";
 import { isMarketOpen, isIndianSquareOffTime } from "@/lib/market-hours";
+import { markTradeForBlockchain } from "@/lib/blockchain-logger";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -171,6 +172,9 @@ export async function GET(request: NextRequest) {
             action: "EOD_SQUARE_OFF",
             details: `[SIM] ${t.symbol} ${t.side} force-closed @ ₹${closePrice} for 3:15 PM square-off`,
           });
+          if (result.updatedTrade.status === "CLOSED") {
+            await markTradeForBlockchain(db, simDoc.id);
+          }
         }
       }
 
@@ -225,6 +229,9 @@ export async function GET(request: NextRequest) {
             await db.collection("simulator_logs").add(result.log);
             processedTradeIds.add(simTradeDoc.id);
             eventCloses++;
+            if (result.updatedTrade.status === "CLOSED") {
+              await markTradeForBlockchain(db, simTradeDoc.id);
+            }
           }
         }
 
@@ -285,9 +292,12 @@ export async function GET(request: NextRequest) {
                   await db.collection("simulator_logs").add(result.log);
                 }
               }
-              const { id: _cid, ...catchUpUpdate } = currentTrade;
-              await db.collection("simulator_trades").doc(simDoc.id).update(catchUpUpdate);
-              continue;
+            const { id: _cid, ...catchUpUpdate } = currentTrade;
+            await db.collection("simulator_trades").doc(simDoc.id).update(catchUpUpdate);
+            if (currentTrade.status === "CLOSED") {
+              await markTradeForBlockchain(db, simDoc.id);
+            }
+            continue;
             }
           }
 
@@ -326,6 +336,9 @@ export async function GET(request: NextRequest) {
                 });
                 await db.collection("simulator_logs").add(exitResult.log);
                 trailingSlCloses++;
+                if (exitResult.updatedTrade.status === "CLOSED") {
+                  await markTradeForBlockchain(db, simDoc.id);
+                }
               }
             } else {
               const unrealizedPnl = computeUnrealizedPnl(t, livePrice);

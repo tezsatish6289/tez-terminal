@@ -2,39 +2,41 @@ import type { Firestore, QueryDocumentSnapshot } from "firebase-admin/firestore"
 import type { SimTrade } from "./simulator";
 import { sendMemoTransaction } from "./solana-wallet";
 
-// ── Compact on-chain payload ──────────────────────────────────
+// ── Human-readable on-chain payload ──────────────────────────
 //
-// Each field is abbreviated to keep the JSON string as small as possible.
-// Full payload example (≈ 170 bytes):
-//   {"at":"CRYPTO","et":1712345678000,"xt":1712346000000,"s":"BTCUSDT","sd":"B","e":69420.5,"x":70100.0,"p":45.3200,"ex":"BINANCE","l":10,"ps":100.00}
+// Full field names for public verifiability on Solana Explorer / Solscan.
+// Example payload (≈ 220 bytes):
+//   {"asset":"CRYPTO","entryTime":"2026-04-07T15:30:00.000Z","exitTime":"2026-04-07T16:45:00.000Z",
+//    "symbol":"BTCUSDT","side":"BUY","entryPrice":69420.5,"exitPrice":70100.0,
+//    "pnl":45.32,"exchange":"BINANCE","leverage":10,"positionSize":100.00}
 
 interface TradePayload {
-  at: string;    // assetType  (e.g. "CRYPTO", "FOREX", "INDIAN_STOCKS")
-  et: number;    // entry time (Unix ms)
-  xt: number;    // exit time  (Unix ms)
-  s: string;     // symbol     (e.g. "BTCUSDT")
-  sd: "B" | "S"; // side       (B = Buy, S = Sell)
-  e: number;     // entry price
-  x: number;     // exit price
-  p: number;     // realizedPnl (4 decimal places)
-  ex: string;    // exchange   (e.g. "BINANCE")
-  l: number;     // leverage
-  ps: number;    // position size
+  asset: string;
+  entryTime: string;
+  exitTime: string;
+  symbol: string;
+  side: "BUY" | "SELL";
+  entryPrice: number;
+  exitPrice: number;
+  pnl: number;
+  exchange: string;
+  leverage: number;
+  positionSize: number;
 }
 
 function buildPayload(trade: SimTrade): string {
   const payload: TradePayload = {
-    at: trade.assetType ?? "CRYPTO",
-    et: trade.openedAt ? new Date(trade.openedAt).getTime() : Date.now(),
-    xt: trade.closedAt ? new Date(trade.closedAt).getTime() : Date.now(),
-    s: trade.symbol,
-    sd: trade.side === "BUY" ? "B" : "S",
-    e: trade.entryPrice,
-    x: trade.currentPrice ?? trade.entryPrice,
-    p: Math.round(trade.realizedPnl * 10000) / 10000,
-    ex: trade.exchange,
-    l: trade.leverage,
-    ps: trade.positionSize,
+    asset: trade.assetType ?? "CRYPTO",
+    entryTime: trade.openedAt ?? new Date().toISOString(),
+    exitTime: trade.closedAt ?? new Date().toISOString(),
+    symbol: trade.symbol,
+    side: trade.side === "BUY" ? "BUY" : "SELL",
+    entryPrice: trade.entryPrice,
+    exitPrice: trade.currentPrice ?? trade.entryPrice,
+    pnl: Math.round(trade.realizedPnl * 10000) / 10000,
+    exchange: trade.exchange,
+    leverage: trade.leverage,
+    positionSize: trade.positionSize,
   };
   return JSON.stringify(payload);
 }

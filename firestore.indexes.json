@@ -4,14 +4,6 @@
       "collectionGroup": "simulator_trades",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "blockchainStatus", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "simulator_trades",
-      "queryScope": "COLLECTION",
-      "fields": [
         { "fieldPath": "blockchainStatus", "order": "ASCENDING" },
         { "fieldPath": "blockchainConfirmedAt", "order": "DESCENDING" }
       ]
@@ -20,8 +12,16 @@
       "collectionGroup": "simulator_trades",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "blockchainStatus", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "simulator_trades",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "blockchainStatus", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "blockchainNextRetryAt", "order": "ASCENDING" }
       ]
     },
@@ -29,8 +29,8 @@
       "collectionGroup": "simulator_trades",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "blockchainStatus", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "blockchainLastAttemptAt", "order": "ASCENDING" }
       ]
     },

@@ -114,16 +114,20 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ── 3:15 PM IST: force-close all open Indian stocks simulator trades ──
-    // Mirrors the live-trade square-off. This ensures yesterday's sim positions
-    // don't block fresh signal selection the next trading day.
+    // ── 3:15 PM IST: force-close open Indian stocks simulator trades ──
+    // Mirrors the live-trade square-off (5-minute scalping only).
+    // BTST (1h), Swing (4h), and Positional (D) trades are NOT closed at EOD
+    // because they intentionally hold overnight — same behaviour as live trading.
     if (isIndianSquareOffTime()) {
       const openIndianSimSnap = await db.collection("simulator_trades")
         .where("status", "==", "OPEN")
         .where("assetType", "==", "INDIAN_STOCKS")
         .get();
 
-      for (const simDoc of openIndianSimSnap.docs) {
+      // Only close intraday (5-minute) positions — matches live-trade square-off
+      const intradaySimDocs = openIndianSimSnap.docs.filter((d) => String(d.data().timeframe ?? "5") === "5");
+
+      for (const simDoc of intradaySimDocs) {
         const t = simDoc.data() as SimTrade;
         const tradeAsset = t.assetType ?? "INDIAN_STOCKS";
         const closePrice = getSimPrice(t.symbol, t.exchange) ?? t.entryPrice;

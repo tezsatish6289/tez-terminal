@@ -66,13 +66,16 @@ export async function GET(request: NextRequest) {
   const stuckCutoff = new Date(Date.now() - 5 * 60_000).toISOString();
 
   // ── Fetch queue in three passes ───────────────────────────
+  // Limits are conservative: finalized commitment takes ~13s per trade.
+  // At 3 trades max per pass, worst-case runtime is ~45s — safely within
+  // the 120s Cloud Run timeout. Remaining trades are picked up next run.
   const [pendingSnap, failedSnap, stuckSnap] = await Promise.all([
     // 1. Fresh pending trades (queued by sync-simulator)
     db
       .collection("simulator_trades")
       .where("status", "==", "CLOSED")
       .where("blockchainStatus", "==", "pending")
-      .limit(10)
+      .limit(3)
       .get(),
 
     // 2. Failed trades that are ready for their next retry attempt
@@ -81,7 +84,7 @@ export async function GET(request: NextRequest) {
       .where("status", "==", "CLOSED")
       .where("blockchainStatus", "==", "failed")
       .where("blockchainNextRetryAt", "<=", now)
-      .limit(10)
+      .limit(3)
       .get(),
 
     // 3. Recover trades stuck in "processing" (cron crashed mid-flight)
@@ -90,7 +93,7 @@ export async function GET(request: NextRequest) {
       .where("status", "==", "CLOSED")
       .where("blockchainStatus", "==", "processing")
       .where("blockchainLastAttemptAt", "<=", stuckCutoff)
-      .limit(5)
+      .limit(2)
       .get(),
   ]);
 

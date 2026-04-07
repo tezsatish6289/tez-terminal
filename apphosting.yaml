@@ -3,7 +3,7 @@ runConfig:
   maxInstances: 3
   minInstances: 1
   memoryMiB: 1024
-  timeoutSeconds: 60
+  timeoutSeconds: 120
 
 env:
   - variable: NODE_ENV
@@ -50,5 +50,13 @@ env:
       - RUNTIME
   - variable: DHAN_CLIENT_ID
     secret: DHAN_CLIENT_ID
+    availability:
+      - RUNTIME
+  - variable: SOLANA_RPC_URL
+    secret: SOLANA_RPC_URL
+    availability:
+      - RUNTIME
+  - variable: SOLANA_PRIVATE_KEY
+    secret: SOLANA_PRIVATE_KEY
     availability:
       - RUNTIME

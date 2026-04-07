@@ -23,6 +23,7 @@ import {
   Filter,
   X,
   XCircle,
+  Link2,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1364,9 +1365,29 @@ function DesktopTradeRow({ trade, onSelect, onForceClose, cs }: { trade: SimTrad
             )}
           </div>
         ) : (
-          <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", closeDisplay.color)}>
-            {closeDisplay.label}
-          </Badge>
+          <div className="flex flex-col gap-1">
+            <Badge className={cn("text-[9px] font-black h-5 uppercase px-2 w-fit", closeDisplay.color)}>
+              {closeDisplay.label}
+            </Badge>
+            {(trade as any).txHash ? (
+              <a
+                href={`https://solscan.io/tx/${(trade as any).txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-1 text-[8px] font-bold text-purple-400/70 hover:text-purple-400 transition-colors"
+                title="View on Solscan"
+              >
+                <Link2 className="h-2.5 w-2.5" />
+                On-chain ↗
+              </a>
+            ) : (trade as any).blockchainStatus === "pending" || (trade as any).blockchainStatus === "processing" ? (
+              <span className="flex items-center gap-1 text-[8px] font-bold text-muted-foreground/30">
+                <Link2 className="h-2.5 w-2.5" />
+                Publishing…
+              </span>
+            ) : null}
+          </div>
         )}
       </TableCell>
       <TableCell className="text-right">
@@ -1590,6 +1611,30 @@ function MobileTradeCard({ trade, onSelect, onForceClose, cs }: { trade: SimTrad
               )}
             </div>
           </div>
+
+          {/* Blockchain verification link (closed trades only) */}
+          {!isOpen && (trade as any).txHash && (
+            <div className="pt-2 border-t border-white/[0.04]">
+              <a
+                href={`https://solscan.io/tx/${(trade as any).txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-1.5 text-[10px] font-bold text-purple-400/70 hover:text-purple-400 transition-colors"
+              >
+                <Link2 className="h-3 w-3" />
+                Verify on-chain ↗
+              </a>
+            </div>
+          )}
+          {!isOpen && ((trade as any).blockchainStatus === "pending" || (trade as any).blockchainStatus === "processing") && (
+            <div className="pt-2 border-t border-white/[0.04]">
+              <span className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground/30">
+                <Link2 className="h-3 w-3" />
+                Publishing to blockchain…
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -18,40 +18,39 @@ export async function GET() {
       getWalletBalance(),
     ]);
 
-    // Query blockchain stats from simulator_trades
-    const [confirmedSnap, pendingSnap, failedSnap, recentSnap] = await Promise.all([
-      db.collection("simulator_trades")
-        .where("blockchainStatus", "==", "confirmed")
-        .count()
-        .get(),
-      db.collection("simulator_trades")
-        .where("blockchainStatus", "==", "pending")
-        .count()
-        .get(),
-      db.collection("simulator_trades")
-        .where("blockchainStatus", "==", "failed")
-        .count()
-        .get(),
-      db.collection("simulator_trades")
+    // Query blockchain stats — counts use single-field queries (no index needed)
+    // Recent trades query uses composite index (blockchainStatus + blockchainConfirmedAt)
+    const [confirmedSnap, pendingSnap, failedSnap] = await Promise.all([
+      db.collection("simulator_trades").where("blockchainStatus", "==", "confirmed").count().get(),
+      db.collection("simulator_trades").where("blockchainStatus", "==", "pending").count().get(),
+      db.collection("simulator_trades").where("blockchainStatus", "==", "failed").count().get(),
+    ]);
+
+    // Recent trades query may fail if the composite index is still building
+    let recentTrades: object[] = [];
+    try {
+      const recentSnap = await db.collection("simulator_trades")
         .where("blockchainStatus", "==", "confirmed")
         .orderBy("blockchainConfirmedAt", "desc")
         .limit(10)
-        .get(),
-    ]);
+        .get();
 
-    const recentTrades = recentSnap.docs.map((doc) => {
-      const d = doc.data();
-      return {
-        id: doc.id,
-        symbol: d.symbol,
-        side: d.side,
-        assetType: d.assetType,
-        realizedPnl: d.realizedPnl,
-        txHash: d.txHash,
-        blockchainConfirmedAt: d.blockchainConfirmedAt,
-        closedAt: d.closedAt,
-      };
-    });
+      recentTrades = recentSnap.docs.map((doc) => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          symbol: d.symbol,
+          side: d.side,
+          assetType: d.assetType,
+          realizedPnl: d.realizedPnl,
+          txHash: d.txHash,
+          blockchainConfirmedAt: d.blockchainConfirmedAt,
+          closedAt: d.closedAt,
+        };
+      });
+    } catch {
+      // Index still building — stats still show, recent trades will populate once ready
+    }
 
     return NextResponse.json({
       success: true,

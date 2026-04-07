@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
+import type { QuerySnapshot } from "firebase-admin/firestore";
 import { publishTrade } from "@/lib/blockchain-logger";
 import { getWalletAddress, getWalletBalance, MIN_BALANCE_SOL } from "@/lib/solana-wallet";
 
@@ -69,33 +70,46 @@ export async function GET(request: NextRequest) {
   // Limits are conservative: finalized commitment takes ~13s per trade.
   // At 3 trades max per pass, worst-case runtime is ~45s — safely within
   // the 120s Cloud Run timeout. Remaining trades are picked up next run.
-  const [pendingSnap, failedSnap, stuckSnap] = await Promise.all([
-    // 1. Fresh pending trades (queued by sync-simulator)
-    db
-      .collection("simulator_trades")
-      .where("status", "==", "CLOSED")
-      .where("blockchainStatus", "==", "pending")
-      .limit(3)
-      .get(),
+  let pendingSnap: QuerySnapshot;
+  let failedSnap: QuerySnapshot;
+  let stuckSnap: QuerySnapshot;
 
-    // 2. Failed trades that are ready for their next retry attempt
-    db
-      .collection("simulator_trades")
-      .where("status", "==", "CLOSED")
-      .where("blockchainStatus", "==", "failed")
-      .where("blockchainNextRetryAt", "<=", now)
-      .limit(3)
-      .get(),
+  try {
+    [pendingSnap, failedSnap, stuckSnap] = await Promise.all([
+      // 1. Fresh pending trades (queued by sync-simulator)
+      db
+        .collection("simulator_trades")
+        .where("status", "==", "CLOSED")
+        .where("blockchainStatus", "==", "pending")
+        .limit(3)
+        .get(),
 
-    // 3. Recover trades stuck in "processing" (cron crashed mid-flight)
-    db
-      .collection("simulator_trades")
-      .where("status", "==", "CLOSED")
-      .where("blockchainStatus", "==", "processing")
-      .where("blockchainLastAttemptAt", "<=", stuckCutoff)
-      .limit(2)
-      .get(),
-  ]);
+      // 2. Failed trades that are ready for their next retry attempt
+      db
+        .collection("simulator_trades")
+        .where("status", "==", "CLOSED")
+        .where("blockchainStatus", "==", "failed")
+        .where("blockchainNextRetryAt", "<=", now)
+        .limit(3)
+        .get(),
+
+      // 3. Recover trades stuck in "processing" (cron crashed mid-flight)
+      db
+        .collection("simulator_trades")
+        .where("status", "==", "CLOSED")
+        .where("blockchainStatus", "==", "processing")
+        .where("blockchainLastAttemptAt", "<=", stuckCutoff)
+        .limit(2)
+        .get(),
+    ]);
+  } catch (queryErr) {
+    const msg = queryErr instanceof Error ? queryErr.message : String(queryErr);
+    console.error("[BlockchainPublish] Firestore query failed:", msg);
+    return NextResponse.json(
+      { success: false, error: `Firestore query failed (index may still be building): ${msg}` },
+      { status: 500 }
+    );
+  }
 
   // Merge and deduplicate by document ID
   const seen = new Set<string>();

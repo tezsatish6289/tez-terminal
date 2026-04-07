@@ -186,6 +186,7 @@ export async function POST(request: NextRequest) {
           symbol: lt.signalSymbol,
           userId,
           exchange: ltExchange,
+          assetType: ltExchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
         });
         liveClosed++;
       } else if (closeResult.warning) {

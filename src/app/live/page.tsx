@@ -138,14 +138,17 @@ export default function LiveTradingPage() {
     details: string;
     symbol?: string;
     signalId?: string;
+    exchange?: string;
+    assetType?: string;
   }
 
   const logs = useMemo(() => {
     if (!rawLogs) return [];
     return (rawLogs.map((d: any) => d as LiveLog))
+      .filter((log) => log.assetType === assetType)
       .sort((a, b) => (b.timestamp || "").localeCompare(a.timestamp || ""))
       .slice(0, 200);
-  }, [rawLogs]);
+  }, [rawLogs, assetType]);
 
   const liveTrades = useMemo(() => {
     if (!rawLiveTrades) return [];

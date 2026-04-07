@@ -48,6 +48,7 @@ export async function executeForAllUsers(
       details: `${symbol} ${signalType} — past 2:30 PM IST entry cutoff. No new intraday positions opened.`,
       signalId,
       symbol,
+      assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
     });
     return;
   }
@@ -158,6 +159,7 @@ export async function executeForAllUsers(
       details: `${symbol} ${signalType} — no users with auto-trade enabled on any exchange. (${usersSnap.size} users scanned)`,
       signalId,
       symbol,
+      assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
     });
     return;
   }
@@ -168,6 +170,7 @@ export async function executeForAllUsers(
     details: `${symbol} ${signalType} — found ${tasks.length} qualifying user(s) across exchanges: ${[...new Set(tasks.map(t => t.exchange))].join(", ")}`,
     signalId,
     symbol,
+    assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
   });
 
   const results = await Promise.allSettled(
@@ -180,6 +183,7 @@ export async function executeForAllUsers(
         symbol,
         userId: task.userId,
         exchange: task.exchange,
+        assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
       });
 
       // Attempt exchange execution. On failure, retry once — but first check
@@ -213,6 +217,7 @@ export async function executeForAllUsers(
             symbol,
             userId: task.userId,
             exchange: task.exchange,
+            assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
           }).catch(() => {});
         } else {
           // No position on exchange — safe to retry once
@@ -235,6 +240,7 @@ export async function executeForAllUsers(
               symbol,
               userId: task.userId,
               exchange: task.exchange,
+              assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
             }).catch(() => {});
           }
         }
@@ -271,6 +277,7 @@ export async function executeForAllUsers(
             symbol,
             userId: task.userId,
             exchange: task.exchange,
+            assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
           }).catch(() => {});
           return { ...liveResult, success: false, error: "live_trades write failed after retries — exchange position closed" };
         }
@@ -283,6 +290,7 @@ export async function executeForAllUsers(
           symbol,
           userId: task.userId,
           exchange: task.exchange,
+          assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
         });
       } else {
         await db.collection("live_trade_logs").add({
@@ -293,6 +301,7 @@ export async function executeForAllUsers(
           symbol,
           userId: task.userId,
           exchange: task.exchange,
+          assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
         });
       }
 
@@ -309,6 +318,7 @@ export async function executeForAllUsers(
       details: `${symbol} ${signalType} — ${succeeded}/${tasks.length} users executed successfully, ${failed} failures`,
       signalId,
       symbol,
+      assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
     });
   }
 }

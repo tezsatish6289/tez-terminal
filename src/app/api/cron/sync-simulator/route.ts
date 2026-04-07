@@ -567,6 +567,7 @@ export async function GET(request: NextRequest) {
               details: `[INCUBATED] Live execution crashed for ${c.symbol} ${c.type}: ${errMsg}`,
               signalId: c.id,
               symbol: c.symbol,
+              assetType,
             }).catch(() => {});
           }
         }

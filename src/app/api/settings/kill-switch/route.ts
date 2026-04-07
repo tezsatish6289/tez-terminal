@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
           symbol: trade.signalSymbol,
           userId: uid,
           exchange: exchangeName,
+          assetType: exchangeName === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
         });
       } catch (e) {
         results.push({

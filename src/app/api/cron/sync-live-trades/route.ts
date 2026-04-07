@@ -134,6 +134,7 @@ async function syncUserTrades(
                 symbol: lt.signalSymbol,
                 userId,
                 exchange,
+                assetType: exchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
               });
               lt.status = "CLOSED";
               result.fills++;
@@ -153,6 +154,7 @@ async function syncUserTrades(
                   symbol: lt.signalSymbol,
                   userId,
                   exchange,
+                  assetType: exchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
                 });
               }
               await db.collection("live_trade_logs").add({
@@ -162,6 +164,7 @@ async function syncUserTrades(
                 symbol: lt.signalSymbol,
                 userId,
                 exchange,
+                assetType: exchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
               });
               Object.assign(lt, tpResult.updatedFields);
               lt.events = updatedEvents;
@@ -215,6 +218,7 @@ async function syncUserTrades(
               symbol: lt.signalSymbol,
               userId,
               exchange,
+              assetType: exchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
             });
           }
           if (slBeResult.warning) {
@@ -225,6 +229,7 @@ async function syncUserTrades(
               symbol: lt.signalSymbol,
               userId,
               exchange,
+              assetType: exchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
             });
           }
         }
@@ -265,6 +270,7 @@ async function syncUserTrades(
                       symbol: lt.signalSymbol,
                       userId,
                       exchange,
+                      assetType: exchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
                     });
                     result.simSlSynced++;
                   } else {
@@ -342,6 +348,7 @@ async function syncUserTrades(
               symbol: lt.signalSymbol,
               userId,
               exchange,
+              assetType: exchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
             });
             lt.status = "CLOSED";
             result.simCloseSynced++;
@@ -376,6 +383,7 @@ async function syncUserTrades(
             symbol: lt.signalSymbol,
             userId,
             exchange,
+            assetType: exchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
           });
           lt.status = "CLOSED";
           result.simCloseSynced++;
@@ -471,6 +479,7 @@ async function syncUserTrades(
           details: `Daily loss ${(dailyDrawdown * 100).toFixed(1)}% >= limit ${(dailyLossLimit * 100).toFixed(0)}%. Closed ${stillOpen.length} positions. Auto-trade disabled.`,
           userId,
           exchange,
+          assetType: exchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
         });
       }
     } catch (killErr) {
@@ -610,6 +619,7 @@ export async function GET(request: NextRequest) {
                 symbol: lt.signalSymbol,
                 userId,
                 exchange: "DHAN",
+                assetType: "INDIAN_STOCKS",
               });
             } catch (err) {
               console.error(`[LiveSync] Square-off failed for ${lt.signalSymbol} (${lt.id}):`, err);

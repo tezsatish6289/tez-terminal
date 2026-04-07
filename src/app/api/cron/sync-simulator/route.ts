@@ -51,17 +51,36 @@ export async function GET(request: NextRequest) {
 
   // Load simulator param overrides + controls (user-tunable via UI)
   let simConfig = SIM_CONFIG;
-  let simEnabled = true;
-  let directionBias: DirectionBias = "BOTH";
+  let simParamsData: Record<string, unknown> = {};
   try {
     const paramsDoc = await db.doc("config/simulator_params").get();
     if (paramsDoc.exists) {
-      const data = paramsDoc.data() as Record<string, unknown>;
-      simConfig = getEffectiveSimConfig(data as any);
-      if (typeof data.simEnabled === "boolean") simEnabled = data.simEnabled;
-      if (["BULL", "BEAR", "BOTH"].includes(data.directionBias as string)) directionBias = data.directionBias as DirectionBias;
+      simParamsData = paramsDoc.data() as Record<string, unknown>;
+      simConfig = getEffectiveSimConfig(simParamsData as any);
     }
   } catch {}
+
+  // Resolve simEnabled / directionBias per asset type.
+  // Per-asset-type keys (e.g. simEnabled_CRYPTO) take precedence over the
+  // legacy global keys (simEnabled / directionBias) for backward compat.
+  function getAssetControls(assetType: string): { simEnabled: boolean; directionBias: DirectionBias } {
+    const enabledKey = `simEnabled_${assetType}`;
+    const biasKey = `directionBias_${assetType}`;
+    const simEnabled =
+      typeof simParamsData[enabledKey] === "boolean"
+        ? (simParamsData[enabledKey] as boolean)
+        : typeof simParamsData.simEnabled === "boolean"
+          ? (simParamsData.simEnabled as boolean)
+          : true;
+    const directionBias = (
+      ["BULL", "BEAR", "BOTH"].includes(simParamsData[biasKey] as string)
+        ? (simParamsData[biasKey] as DirectionBias)
+        : ["BULL", "BEAR", "BOTH"].includes(simParamsData.directionBias as string)
+          ? (simParamsData.directionBias as DirectionBias)
+          : "BOTH"
+    ) as DirectionBias;
+    return { simEnabled, directionBias };
+  }
 
   try {
     // ── Read cached prices from Cron 1 ──────────────────────
@@ -433,7 +452,8 @@ export async function GET(request: NextRequest) {
           earlySnapshots: 0, noPattern: 0, rrGateFailed: 0, selected: 0,
         };
 
-        const { selected, skipped: incubSkipped } = simEnabled
+        const { simEnabled: assetSimEnabled, directionBias: assetDirectionBias } = getAssetControls(assetType);
+        const { selected, skipped: incubSkipped } = assetSimEnabled
           ? selectIncubatedSignals({
               candidates: assetCandidates,
               state: simState3,
@@ -442,7 +462,7 @@ export async function GET(request: NextRequest) {
               openTrades: assetOpenTrades,
               killedSignalIds,
               simConfig,
-              directionBias,
+              directionBias: assetDirectionBias,
             })
           : { selected: [], skipped: [] };
 

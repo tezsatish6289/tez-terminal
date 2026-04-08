@@ -74,38 +74,29 @@ function fmtPrice(n: number | null, assetType: string) {
   return `${curr}${n.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
 }
 
-function fmtDate(iso: string | null) {
+function fmtDateTime(iso: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" });
+  const date = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const time = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+  return `${date}, ${time}`;
 }
 
-function tradePnlPct(trade: Trade): number {
-  if (trade.status === "OPEN") {
-    if (!trade.currentPrice) return 0;
-    const delta = trade.side === "BUY"
-      ? trade.currentPrice - trade.entryPrice
-      : trade.entryPrice - trade.currentPrice;
-    return (delta / trade.entryPrice) * 100 * trade.leverage;
-  }
-  // Closed: use realizedPnl / positionSize for a % of capital allocated
-  if (trade.positionSize && trade.positionSize > 0) {
-    return (trade.realizedPnl / trade.positionSize) * 100;
-  }
-  return 0;
+function fmtAbsolutePnl(trade: Trade, assetType: string): { display: string; positive: boolean } {
+  const curr = assetType === "INDIAN_STOCKS" ? "₹" : "$";
+  const val = trade.realizedPnl ?? 0;
+  const positive = val >= 0;
+  const display = `${positive ? "+" : ""}${curr}${Math.abs(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return { display, positive };
 }
 
-function outcomeLabel(trade: Trade): { label: string; color: string; bg: string } {
-  if (trade.status === "OPEN") return { label: "OPEN", color: "#22c55e", bg: "rgba(34,197,94,0.1)" };
-  if (trade.tp3Hit) return { label: "TP3", color: "#34d399", bg: "rgba(52,211,153,0.1)" };
-  if (trade.tp2Hit) return { label: "TP2", color: "#4ade80", bg: "rgba(74,222,128,0.1)" };
-  if (trade.tp1Hit) return { label: "TP1", color: "#86efac", bg: "rgba(134,239,172,0.08)" };
-  if (trade.slHit) return { label: "SL", color: "#f87171", bg: "rgba(248,113,113,0.1)" };
-  if (trade.closeReason === "EOD_SQUARE_OFF") return { label: "EOD", color: "#94a3b8", bg: "rgba(148,163,184,0.06)" };
-  if (trade.closeReason === "TRAILING_SL") return { label: "Trail SL", color: "#f97316", bg: "rgba(249,115,22,0.08)" };
-  if (trade.closeReason === "KILL_SWITCH") return { label: "Killed", color: "#fbbf24", bg: "rgba(251,191,36,0.08)" };
-  return { label: "Closed", color: "#94a3b8", bg: "rgba(148,163,184,0.06)" };
+function fmtBalance(trade: Trade, assetType: string): string {
+  const curr = assetType === "INDIAN_STOCKS" ? "₹" : "$";
+  if (trade.capitalAtEntry == null) return "—";
+  const balance = trade.capitalAtEntry + (trade.realizedPnl ?? 0);
+  return `${curr}${balance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
 
 // ─── Metric Card ──────────────────────────────────────────────────────────────
 
@@ -137,14 +128,20 @@ function MetricCard({ label, value, sub, color }: {
 
 // ─── Trade Table ──────────────────────────────────────────────────────────────
 
+const PAGE_SIZE = 50;
+
 function TradeTable({ trades, assetType }: { trades: Trade[]; assetType: string }) {
-  const filtered = useMemo(() => {
-    return trades.slice().sort((a, b) => {
-      if (a.status === "OPEN" && b.status !== "OPEN") return -1;
-      if (a.status !== "OPEN" && b.status === "OPEN") return 1;
-      return new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime();
-    });
+  const [page, setPage] = useState(0);
+
+  // Only closed trades, sorted latest closure first
+  const closed = useMemo(() => {
+    return trades
+      .filter((t) => t.status === "CLOSED" && t.closedAt)
+      .sort((a, b) => new Date(b.closedAt!).getTime() - new Date(a.closedAt!).getTime());
   }, [trades]);
+
+  const totalPages = Math.max(1, Math.ceil(closed.length / PAGE_SIZE));
+  const pageTrades = closed.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const headers = [
     "Entry / Exit Time",
@@ -155,146 +152,176 @@ function TradeTable({ trades, assetType }: { trades: Trade[]; assetType: string 
     "Entry Price",
     "Exit Price",
     "P&L",
+    "Fund Balance",
     "Proof of Trade",
   ];
 
   return (
-    <div
-      className="rounded-2xl overflow-x-auto"
-      style={{ border: "1px solid rgba(90,140,220,0.1)" }}
-    >
-      <table className="w-full min-w-[900px]">
-        <thead>
-          <tr style={{ borderBottom: "1px solid rgba(90,140,220,0.1)", backgroundColor: "#060d1a" }}>
-            {headers.map((h) => (
-              <th
-                key={h}
-                className="px-4 py-3.5 text-left text-[9px] font-black uppercase tracking-widest"
-                style={{ color: "#1e3a5f" }}
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.length === 0 ? (
-            <tr>
-              <td colSpan={9} className="text-center py-14">
-                <p className="text-sm font-bold" style={{ color: "#1e3a5f" }}>No trades yet</p>
-              </td>
-            </tr>
-          ) : (
-            filtered.map((trade) => {
-              const pct = tradePnlPct(trade);
-              const curr = assetType === "INDIAN_STOCKS" ? "₹" : "$";
-              const posSize = trade.positionSize != null
-                ? `${curr}${trade.positionSize.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                : "—";
-              const exitPrice = trade.status === "OPEN" ? trade.currentPrice : trade.currentPrice;
-
-              return (
-                <tr
-                  key={trade.id}
-                  style={{ borderBottom: "1px solid rgba(90,140,220,0.06)" }}
-                  className="hover:bg-white/[0.01] transition-colors"
+    <div className="space-y-3">
+      <div
+        className="rounded-2xl overflow-x-auto"
+        style={{ border: "1px solid rgba(90,140,220,0.1)" }}
+      >
+        <table className="w-full min-w-[1050px]">
+          <thead>
+            <tr style={{ borderBottom: "1px solid rgba(90,140,220,0.1)", backgroundColor: "#060d1a" }}>
+              {headers.map((h) => (
+                <th
+                  key={h}
+                  className="px-4 py-3.5 text-left text-[9px] font-black uppercase tracking-widest whitespace-nowrap"
+                  style={{ color: "#1e3a5f" }}
                 >
-                  {/* Entry / Exit Time */}
-                  <td className="px-4 py-4">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-[11px] font-mono font-bold" style={{ color: "#60a5fa" }}>
-                        {fmtDate(trade.openedAt)}
-                      </span>
-                      {trade.closedAt ? (
-                        <span className="text-[10px] font-mono" style={{ color: "#334155" }}>
-                          → {fmtDate(trade.closedAt)}
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {pageTrades.length === 0 ? (
+              <tr>
+                <td colSpan={10} className="text-center py-14">
+                  <p className="text-sm font-bold" style={{ color: "#1e3a5f" }}>No closed trades yet</p>
+                </td>
+              </tr>
+            ) : (
+              pageTrades.map((trade) => {
+                const curr = assetType === "INDIAN_STOCKS" ? "₹" : "$";
+                const posSize = trade.positionSize != null
+                  ? `${curr}${trade.positionSize.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : "—";
+                const { display: pnlDisplay, positive: pnlPositive } = fmtAbsolutePnl(trade, assetType);
+
+                return (
+                  <tr
+                    key={trade.id}
+                    style={{ borderBottom: "1px solid rgba(90,140,220,0.05)" }}
+                    className="hover:bg-white/[0.01] transition-colors"
+                  >
+                    {/* Entry / Exit Time */}
+                    <td className="px-4 py-4">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[11px] font-mono" style={{ color: "#60a5fa" }}>
+                          {fmtDateTime(trade.openedAt)}
                         </span>
-                      ) : (
-                        <span
-                          className="text-[9px] font-black uppercase tracking-wider"
-                          style={{ color: "#22c55e" }}
-                        >
-                          Still open
+                        <span className="text-[11px] font-mono" style={{ color: "#334155" }}>
+                          → {fmtDateTime(trade.closedAt)}
                         </span>
-                      )}
-                    </div>
-                  </td>
+                      </div>
+                    </td>
 
-                  {/* Symbol */}
-                  <td className="px-4 py-4">
-                    <span className="text-sm font-black text-white tracking-tight">{trade.symbol}</span>
-                  </td>
+                    {/* Symbol */}
+                    <td className="px-4 py-4">
+                      <span className="text-sm font-black text-white tracking-tight">{trade.symbol}</span>
+                    </td>
 
-                  {/* Side */}
-                  <td className="px-4 py-4">
-                    <span
-                      className="text-[10px] font-black"
-                      style={{ color: trade.side === "BUY" ? "#34d399" : "#f87171" }}
-                    >
-                      {trade.side === "BUY" ? "▲ Long" : "▼ Short"}
-                    </span>
-                  </td>
-
-                  {/* Position Size */}
-                  <td className="px-4 py-4">
-                    <span className="text-xs font-mono text-white/70">{posSize}</span>
-                  </td>
-
-                  {/* Leverage */}
-                  <td className="px-4 py-4">
-                    <span
-                      className="text-xs font-black px-2 py-0.5 rounded"
-                      style={{ backgroundColor: "rgba(96,165,250,0.1)", color: "#60a5fa", border: "1px solid rgba(96,165,250,0.2)" }}
-                    >
-                      {trade.leverage}x
-                    </span>
-                  </td>
-
-                  {/* Entry Price */}
-                  <td className="px-4 py-4">
-                    <span className="text-xs font-mono text-white/60">{fmtPrice(trade.entryPrice, assetType)}</span>
-                  </td>
-
-                  {/* Exit Price */}
-                  <td className="px-4 py-4">
-                    <span className="text-xs font-mono text-white">{fmtPrice(exitPrice, assetType)}</span>
-                  </td>
-
-                  {/* P&L */}
-                  <td className="px-4 py-4">
-                    <div
-                      className="flex items-center gap-1 font-mono text-sm font-black"
-                      style={{ color: pct >= 0 ? "#34d399" : "#f87171" }}
-                    >
-                      {pct >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-                      {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
-                    </div>
-                  </td>
-
-                  {/* Proof of Trade */}
-                  <td className="px-4 py-4">
-                    {trade.blockchainTxHash ? (
-                      <a
-                        href={`https://solscan.io/tx/${trade.blockchainTxHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-[10px] font-bold hover:opacity-80 transition-opacity"
-                        style={{ color: "#34d399" }}
+                    {/* Side */}
+                    <td className="px-4 py-4">
+                      <span
+                        className="text-[10px] font-black"
+                        style={{ color: trade.side === "BUY" ? "#34d399" : "#f87171" }}
                       >
-                        <ShieldCheck className="h-3.5 w-3.5" />
-                        Verified on-chain
-                        <ExternalLink className="h-2.5 w-2.5 opacity-50" />
-                      </a>
-                    ) : (
-                      <span className="text-[10px] font-medium" style={{ color: "#1e3a5f" }}>Pending</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })
-          )}
-        </tbody>
-      </table>
+                        {trade.side === "BUY" ? "▲ Long" : "▼ Short"}
+                      </span>
+                    </td>
+
+                    {/* Position Size */}
+                    <td className="px-4 py-4">
+                      <span className="text-xs font-mono text-white/70">{posSize}</span>
+                    </td>
+
+                    {/* Leverage */}
+                    <td className="px-4 py-4">
+                      <span
+                        className="text-xs font-black px-2 py-0.5 rounded"
+                        style={{ backgroundColor: "rgba(96,165,250,0.1)", color: "#60a5fa", border: "1px solid rgba(96,165,250,0.15)" }}
+                      >
+                        {trade.leverage}x
+                      </span>
+                    </td>
+
+                    {/* Entry Price */}
+                    <td className="px-4 py-4">
+                      <span className="text-xs font-mono text-white/60">{fmtPrice(trade.entryPrice, assetType)}</span>
+                    </td>
+
+                    {/* Exit Price */}
+                    <td className="px-4 py-4">
+                      <span className="text-xs font-mono text-white">{fmtPrice(trade.currentPrice, assetType)}</span>
+                    </td>
+
+                    {/* P&L (absolute) */}
+                    <td className="px-4 py-4">
+                      <div
+                        className="flex items-center gap-1 font-mono text-sm font-black"
+                        style={{ color: pnlPositive ? "#34d399" : "#f87171" }}
+                      >
+                        {pnlPositive ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                        {pnlDisplay}
+                      </div>
+                    </td>
+
+                    {/* Fund Balance after trade */}
+                    <td className="px-4 py-4">
+                      <span className="text-xs font-mono font-bold" style={{ color: "#94a3b8" }}>
+                        {fmtBalance(trade, assetType)}
+                      </span>
+                    </td>
+
+                    {/* Proof of Trade */}
+                    <td className="px-4 py-4">
+                      {trade.blockchainTxHash ? (
+                        <a
+                          href={`https://solscan.io/tx/${trade.blockchainTxHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-[10px] font-bold transition-opacity hover:opacity-80"
+                          style={{ color: "#34d399" }}
+                        >
+                          <ShieldCheck className="h-3.5 w-3.5" />
+                          Verified
+                          <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                        </a>
+                      ) : (
+                        <span className="text-[10px] font-medium" style={{ color: "#334155" }}>—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-1">
+          <span className="text-[11px] font-bold" style={{ color: "#334155" }}>
+            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, closed.length)} of {closed.length} trades
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((p) => p - 1)}
+              disabled={page === 0}
+              className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-30"
+              style={{ backgroundColor: "#0a1628", color: "#60a5fa", border: "1px solid rgba(90,140,220,0.15)" }}
+            >
+              ← Prev
+            </button>
+            <span className="text-xs font-bold" style={{ color: "#475569" }}>
+              {page + 1} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              disabled={page >= totalPages - 1}
+              className="px-4 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-30"
+              style={{ backgroundColor: "#0a1628", color: "#60a5fa", border: "1px solid rgba(90,140,220,0.15)" }}
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

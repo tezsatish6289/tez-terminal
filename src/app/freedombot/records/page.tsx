@@ -138,90 +138,16 @@ function MetricCard({ label, value, sub, color }: {
 // ─── Trade Table ──────────────────────────────────────────────────────────────
 
 function TradeTable({ trades, assetType }: { trades: Trade[]; assetType: string }) {
-  const [sideFilter, setSideFilter] = useState<"all" | "BUY" | "SELL">("all");
-  const [outcomeFilter, setOutcomeFilter] = useState<"all" | "tp" | "sl">("all");
-
   const filtered = useMemo(() => {
-    return trades
-      .filter((t) => sideFilter === "all" || t.side === sideFilter)
-      .filter((t) => {
-        if (outcomeFilter === "tp") return t.tp1Hit || t.tp2Hit || t.tp3Hit;
-        if (outcomeFilter === "sl") return t.slHit && !t.tp1Hit;
-        return true;
-      })
-      .sort((a, b) => {
-        if (a.status === "OPEN" && b.status !== "OPEN") return -1;
-        if (a.status !== "OPEN" && b.status === "OPEN") return 1;
-        return new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime();
-      });
-  }, [trades, sideFilter, outcomeFilter]);
-
-  const closed = trades.filter((t) => t.status === "CLOSED");
-  const wins = closed.filter((t) => t.tp1Hit || t.tp2Hit || t.tp3Hit).length;
-  const openCount = trades.filter((t) => t.status === "OPEN").length;
+    return trades.slice().sort((a, b) => {
+      if (a.status === "OPEN" && b.status !== "OPEN") return -1;
+      if (a.status !== "OPEN" && b.status === "OPEN") return 1;
+      return new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime();
+    });
+  }, [trades]);
 
   return (
     <div>
-      {/* Mini summary + filters row */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-4">
-          <span className="text-xs font-bold" style={{ color: "#475569" }}>
-            {closed.length} closed trades
-            {openCount > 0 && <span style={{ color: "#22c55e" }}> · {openCount} live</span>}
-          </span>
-          {closed.length > 0 && (
-            <span className="text-xs font-bold" style={{ color: wins / closed.length >= 0.5 ? "#34d399" : "#f87171" }}>
-              {((wins / closed.length) * 100).toFixed(1)}% win rate
-            </span>
-          )}
-        </div>
-
-        {/* Filters */}
-        <div className="flex items-center gap-2">
-          <div
-            className="flex items-center rounded-lg p-0.5"
-            style={{ backgroundColor: "#060d1a", border: "1px solid rgba(90,140,220,0.1)" }}
-          >
-            {(["all", "BUY", "SELL"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setSideFilter(s)}
-                className="px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all"
-                style={
-                  sideFilter === s
-                    ? { backgroundColor: "rgba(96,165,250,0.12)", color: "#60a5fa" }
-                    : { color: "#334155" }
-                }
-              >
-                {s === "all" ? "All" : s === "BUY" ? "▲ Long" : "▼ Short"}
-              </button>
-            ))}
-          </div>
-
-          <div
-            className="flex items-center rounded-lg p-0.5"
-            style={{ backgroundColor: "#060d1a", border: "1px solid rgba(90,140,220,0.1)" }}
-          >
-            {(["all", "tp", "sl"] as const).map((o) => (
-              <button
-                key={o}
-                onClick={() => setOutcomeFilter(o)}
-                className="px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all"
-                style={
-                  outcomeFilter === o
-                    ? {
-                        backgroundColor: o === "sl" ? "rgba(248,113,113,0.1)" : o === "tp" ? "rgba(52,211,153,0.1)" : "rgba(96,165,250,0.12)",
-                        color: o === "sl" ? "#f87171" : o === "tp" ? "#34d399" : "#60a5fa",
-                      }
-                    : { color: "#334155" }
-                }
-              >
-                {o === "all" ? "All" : o === "tp" ? "TP Wins" : "SL Losses"}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
 
       {/* Table */}
       <div

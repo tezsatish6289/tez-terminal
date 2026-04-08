@@ -417,15 +417,26 @@ export default function FreedomBotPage() {
           >
             {/* Table header */}
             <div
-              className="hidden sm:grid grid-cols-9 gap-0 px-5 py-3"
+              className="hidden sm:grid grid-cols-9 gap-0 px-5 py-4"
               style={{
                 backgroundColor: "#0a1628",
                 borderBottom: "1px solid rgba(90,140,220,0.12)",
               }}
             >
-              {["Bot", "Status", "Running", "Start Capital", "Current Capital", "Total Return", "Monthly", "Annual", ""].map((h) => (
-                <div key={h} className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#475569" }}>
-                  {h}
+              {[
+                ["Bot", ""],
+                ["Status", ""],
+                ["Running", ""],
+                ["Start", "Capital"],
+                ["Current", "Capital"],
+                ["Total", "Return"],
+                ["Monthly", "Projected"],
+                ["Annual", "Projected"],
+                ["", ""],
+              ].map(([line1, line2], i) => (
+                <div key={i} className="flex flex-col gap-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-widest leading-tight" style={{ color: "#475569" }}>{line1}</span>
+                  {line2 && <span className="text-[10px] font-bold uppercase tracking-widest leading-tight" style={{ color: "#475569" }}>{line2}</span>}
                 </div>
               ))}
             </div>
@@ -475,22 +486,28 @@ export default function FreedomBotPage() {
                 <p className="text-[10px] sm:hidden" style={{ color: "#475569" }}>Total Return</p>
               </div>
               {/* Monthly */}
-              <div>
+              <div className="flex flex-col gap-1">
                 <span className="text-sm font-black" style={{ color: "#60a5fa" }}>
                   {stats ? fmt(stats.profitPerMonth) : "…"}
                 </span>
-                <p className="text-[10px]" style={{ color: "#475569" }}>
-                  <span className="sm:hidden">Monthly / </span>proj.
-                </p>
+                <span
+                  className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded self-start"
+                  style={{ backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}
+                >
+                  Projected
+                </span>
               </div>
               {/* Annual */}
-              <div>
+              <div className="flex flex-col gap-1">
                 <span className="text-sm font-black" style={{ color: "#a78bfa" }}>
                   {stats ? fmt(stats.profitPerYear) : "…"}
                 </span>
-                <p className="text-[10px]" style={{ color: "#475569" }}>
-                  <span className="sm:hidden">Annual / </span>proj.
-                </p>
+                <span
+                  className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded self-start"
+                  style={{ backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}
+                >
+                  Projected
+                </span>
               </div>
               {/* CTA */}
               <div>
@@ -527,10 +544,10 @@ export default function FreedomBotPage() {
                 {/* Status */}
                 <div>
                   <span
-                    className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider"
-                    style={{ backgroundColor: "rgba(251,191,36,0.1)", color: "#fbbf24" }}
+                    className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider"
+                    style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)" }}
                   >
-                    Soon
+                    Coming Soon
                   </span>
                 </div>
                 {/* Dash columns */}
@@ -555,12 +572,6 @@ export default function FreedomBotPage() {
             ))}
           </div>
 
-          {/* Win rate footnote */}
-          {stats?.winRate != null && (
-            <p className="text-center text-[11px] mt-4" style={{ color: "#334155" }}>
-              Crypto Bot win rate: <span className="font-bold" style={{ color: "#60a5fa" }}>{stats.winRate}%</span> across {stats.totalTrades} completed trades · Monthly & Annual figures are projections at current run rate
-            </p>
-          )}
         </div>
       </section>
 

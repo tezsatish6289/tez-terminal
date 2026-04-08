@@ -12,6 +12,8 @@ import {
   Loader2,
   CheckCircle2,
   X,
+  ShieldCheck,
+  ExternalLink,
 } from "lucide-react";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
@@ -579,7 +581,93 @@ export default function FreedomBotPage() {
       </section>
 
       {/* ══════════════════════════════════════════════════════════
-          SECTION 3 — CHATBOT
+          SECTION 3 — TRUST / BLOCKCHAIN
+      ══════════════════════════════════════════════════════════ */}
+      <section
+        className="relative py-20 sm:py-28 overflow-hidden"
+        style={{ borderTop: "1px solid rgba(90,140,220,0.1)" }}
+      >
+        {/* Background glow */}
+        <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+          <div
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] rounded-full blur-[120px]"
+            style={{ backgroundColor: "rgba(16,185,129,0.05)" }}
+          />
+        </div>
+
+        <div className="relative max-w-3xl mx-auto px-4 sm:px-6 text-center">
+          {/* Badge */}
+          <div
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest mb-8"
+            style={{
+              backgroundColor: "rgba(16,185,129,0.08)",
+              border: "1px solid rgba(16,185,129,0.2)",
+              color: "#34d399",
+            }}
+          >
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Fully Transparent
+          </div>
+
+          {/* Headline */}
+          <h2 className="text-4xl sm:text-6xl font-black tracking-tighter leading-[0.95] mb-6">
+            We are built on{" "}
+            <span
+              className="bg-clip-text text-transparent"
+              style={{ backgroundImage: "linear-gradient(135deg, #34d399 0%, #6ee7b7 100%)" }}
+            >
+              trust
+            </span>
+          </h2>
+
+          {/* Subtext */}
+          <p className="text-base sm:text-lg leading-relaxed mb-10 max-w-xl mx-auto" style={{ color: "#94a3b8" }}>
+            All our trades are recorded on blockchain to ensure{" "}
+            <span className="text-white font-semibold">full transparency</span>.
+            Every entry, every exit — verifiable by anyone, anytime.
+          </p>
+
+          {/* Decorative chain nodes */}
+          <div className="flex items-center justify-center gap-3 mb-10">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div
+                  className="h-3 w-3 rounded-full"
+                  style={{
+                    backgroundColor: i % 2 === 0 ? "rgba(52,211,153,0.5)" : "rgba(52,211,153,0.2)",
+                    boxShadow: i % 2 === 0 ? "0 0 10px rgba(52,211,153,0.4)" : "none",
+                  }}
+                />
+                {i < 4 && (
+                  <div
+                    className="h-px w-8"
+                    style={{ backgroundColor: "rgba(52,211,153,0.2)" }}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* CTA */}
+          <a
+            href="#"
+            className="inline-flex items-center gap-2.5 h-14 px-10 rounded-2xl font-bold text-base transition-all hover:scale-105"
+            style={{
+              border: "1px solid rgba(52,211,153,0.35)",
+              color: "#34d399",
+              backgroundColor: "rgba(16,185,129,0.06)",
+              boxShadow: "0 0 30px rgba(16,185,129,0.08)",
+            }}
+          >
+            <ShieldCheck className="h-5 w-5" />
+            Verify Records
+            <ExternalLink className="h-4 w-4 opacity-60" />
+          </a>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════════
+          SECTION 4 — CHATBOT
       ══════════════════════════════════════════════════════════ */}
       <section
         id="chat"

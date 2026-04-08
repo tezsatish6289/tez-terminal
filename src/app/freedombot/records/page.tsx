@@ -360,7 +360,7 @@ function TradeTable({ trades, assetType }: { trades: Trade[]; assetType: string 
         </table>
       </div>
 
-      </div>{/* end desktop table wrapper */}
+      </div>
 
       {/* Pagination */}
       {totalPages > 1 && (

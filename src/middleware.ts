@@ -6,15 +6,23 @@ const FREEDOMBOT_HOSTS = ["freedombot.ai", "www.freedombot.ai"];
 // Pages that belong to the FreedomBot marketing site (rewritten to /freedombot/*)
 const FREEDOMBOT_SITE_PATHS = new Set(["/", "/about", "/privacy", "/terms"]);
 
+function isFreedomBot(request: NextRequest): boolean {
+  // Firebase App Hosting CDN may forward the original hostname in x-forwarded-host
+  const forwarded = request.headers.get("x-forwarded-host") || "";
+  const host = request.headers.get("host") || "";
+
+  // Strip port and lowercase for comparison
+  const candidates = [forwarded, host]
+    .map((h) => h.split(":")[0].trim().toLowerCase())
+    .filter(Boolean);
+
+  return candidates.some((h) => FREEDOMBOT_HOSTS.includes(h));
+}
+
 export function middleware(request: NextRequest) {
-  const hostname = request.headers.get("host") || "";
   const pathname = request.nextUrl.pathname;
 
-  const isFreedomBotDomain = FREEDOMBOT_HOSTS.some(
-    (h) => hostname === h || hostname === `www.${h}`
-  );
-
-  if (isFreedomBotDomain) {
+  if (isFreedomBot(request)) {
     // Always pass through Next.js internals, static files, and API routes
     if (
       pathname.startsWith("/_next") ||
@@ -31,8 +39,7 @@ export function middleware(request: NextRequest) {
       return NextResponse.rewrite(new URL(newPath, request.url));
     }
 
-    // All app pages (/signals, /live, /terminal, /billing, etc.)
-    // pass through unchanged — they work on this domain as-is
+    // All app pages (/live, /purchases, /referrals, etc.) pass through unchanged
     return NextResponse.next();
   }
 

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { LineChart, History, Zap, ShieldCheck, Heart, Webhook, CreditCard, Gift, Users } from "lucide-react";
+import { LineChart, History, Zap, ShieldCheck, Heart, Webhook, CreditCard, Gift, Users, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WATCHLIST } from "@/app/lib/mock-data";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -16,14 +16,15 @@ export function LeftSidebar() {
   const isAdmin = user?.email === "hello@tezterminal.com";
 
   const navItems = [
-    { name: "Signals", icon: Zap, href: "/signals" },
-    { name: "Trade Audit", icon: LineChart, href: "/trade-audit" },
     { name: "Purchases", icon: CreditCard, href: "/purchases" },
     { name: "Referrals", icon: Gift, href: "/referrals" },
     { name: "History", icon: History, href: "/history" },
   ];
 
   const adminItems = [
+    { name: "Signals", icon: Zap, href: "/signals" },
+    { name: "Trade Audit", icon: LineChart, href: "/trade-audit" },
+    { name: "Settings", icon: Bell, href: "/settings" },
     { name: "Users", icon: Users, href: "/admin/users" },
     { name: "Bridge Config", icon: Webhook, href: "/webhooks" },
   ];

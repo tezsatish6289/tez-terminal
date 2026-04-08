@@ -314,17 +314,21 @@ export default function FreedomBotPage() {
             </div>
           </div>
 
-          {/* Greeting */}
-          <div
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest mb-6"
-            style={{
-              backgroundColor: "rgba(37,99,235,0.12)",
-              border: "1px solid rgba(96,165,250,0.2)",
-              color: "#93c5fd",
-            }}
-          >
-            <span>👋</span> Hola
-          </div>
+          <div className="relative inline-block mb-2">
+            {/* Hola — peeking in from the left, just before "I am" */}
+            <div
+              className="absolute -left-2 -top-7 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold tracking-widest"
+              style={{
+                backgroundColor: "rgba(37,99,235,0.12)",
+                border: "1px solid rgba(96,165,250,0.2)",
+                color: "#93c5fd",
+                transform: "rotate(-4deg)",
+                transformOrigin: "left center",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <span>👋</span> Hola
+            </div>
 
           <h1 className="text-5xl sm:text-7xl lg:text-8xl font-black tracking-tighter leading-[0.9] mb-6">
             I am{" "}
@@ -338,6 +342,7 @@ export default function FreedomBotPage() {
               FreedomBot
             </span>
           </h1>
+          </div>
 
           <p
             className="text-lg sm:text-2xl font-medium max-w-2xl mx-auto leading-relaxed"

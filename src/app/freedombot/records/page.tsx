@@ -398,7 +398,7 @@ export default function RecordsPage() {
             <div className="h-5 w-px" style={{ backgroundColor: "rgba(90,140,220,0.2)" }} />
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4" style={{ color: "#34d399" }} />
-              <span className="text-sm font-black" style={{ color: "#34d399" }}>Live Performance</span>
+              <span className="text-sm font-black" style={{ color: "#34d399" }}>On-chain Trade History</span>
             </div>
           </div>
           <Link
@@ -414,29 +414,20 @@ export default function RecordsPage() {
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
         {/* Page header */}
-        <div className="mb-12">
-          <div
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest mb-5"
-            style={{
-              backgroundColor: "rgba(16,185,129,0.08)",
-              border: "1px solid rgba(16,185,129,0.2)",
-              color: "#34d399",
-            }}
-          >
-            <ShieldCheck className="h-3.5 w-3.5" />
-            Transparent · Real Data · No Cherry-picking
-          </div>
-          <h1 className="text-4xl sm:text-5xl font-black tracking-tighter mb-3">
-            Bot{" "}
+        <div className="mb-12 max-w-2xl">
+          <h1 className="text-4xl sm:text-5xl font-black tracking-tighter mb-4 leading-[1.05]">
+            Every trade.{" "}
             <span
               className="bg-clip-text text-transparent"
               style={{ backgroundImage: "linear-gradient(135deg, #34d399, #6ee7b7)" }}
             >
-              Performance
+              On the blockchain.
             </span>
           </h1>
-          <p className="text-base" style={{ color: "#64748b" }}>
-            Live stats and every closed trade — unfiltered.
+          <p className="text-base leading-relaxed" style={{ color: "#64748b" }}>
+            We don&apos;t hide losses. Every trade our bots close is permanently written to the{" "}
+            <span className="text-white font-semibold">Solana blockchain</span> — timestamped,
+            immutable, and publicly verifiable by anyone. No edits. No deletions.
           </p>
         </div>
 
@@ -548,11 +539,6 @@ export default function RecordsPage() {
           </div>
         )}
 
-        {/* Footer note */}
-        <p className="text-center text-[11px] mt-14 font-medium" style={{ color: "#1e3a5f" }}>
-          Trades marked <span style={{ color: "#34d399" }}>Verified</span> are permanently recorded on-chain.
-          All times in your local timezone.
-        </p>
       </main>
 
       {/* Footer */}

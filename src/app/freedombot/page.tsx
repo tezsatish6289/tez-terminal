@@ -397,7 +397,6 @@ export default function FreedomBotPage() {
       <section
         id="bots"
         className="py-20 sm:py-28"
-        style={{ borderTop: "1px solid rgba(90,140,220,0.1)" }}
       >
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
@@ -415,166 +414,140 @@ export default function FreedomBotPage() {
             </p>
           </div>
 
-          {/* ── Table ── */}
-          <div className="overflow-x-auto rounded-2xl" style={{ border: "1px solid rgba(90,140,220,0.15)" }}>
-          <div className="min-w-[780px]">
-            {/* Table header */}
-            <div
-              className="hidden sm:grid grid-cols-9 gap-0 px-5 py-4"
-              style={{
-                backgroundColor: "#0a1628",
-                borderBottom: "1px solid rgba(90,140,220,0.12)",
-              }}
-            >
-              {[
-                ["Bot", ""],
-                ["Status", ""],
-                ["Running", ""],
-                ["Start", "Capital"],
-                ["Current", "Capital"],
-                ["Total", "Return"],
-                ["Monthly", "Return"],
-                ["Annual", "Return"],
-                ["", ""],
-              ].map(([line1, line2], i) => (
-                <div key={i} className="flex flex-col gap-0.5">
-                  <span className="text-[10px] font-bold uppercase tracking-widest leading-tight" style={{ color: "#475569" }}>{line1}</span>
-                  {line2 && <span className="text-[10px] font-bold uppercase tracking-widest leading-tight" style={{ color: "#475569" }}>{line2}</span>}
+          {/* ── Mobile card layout (< sm) ── */}
+          <div className="sm:hidden space-y-3">
+            {/* Crypto Bot card */}
+            <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(90,140,220,0.15)" }}>
+              <div
+                className="flex items-center justify-between px-4 py-3"
+                style={{ background: "linear-gradient(90deg, rgba(37,99,235,0.1), transparent)", borderBottom: "1px solid rgba(90,140,220,0.1)" }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">₿</span>
+                  <div>
+                    <p className="text-sm font-black text-white">Crypto Bot</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <div className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+                      <span className="text-[10px] font-bold" style={{ color: "#22c55e" }}>
+                        Live · {stats ? `${stats.runningDays} days` : "…"}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              ))}
-            </div>
-
-            {/* ── Crypto Bot row ── */}
-            <div
-              className="grid grid-cols-1 sm:grid-cols-9 gap-3 sm:gap-0 p-5 sm:items-center"
-              style={{
-                background: "linear-gradient(90deg, rgba(37,99,235,0.06) 0%, transparent 60%)",
-                borderBottom: "1px solid rgba(90,140,220,0.1)",
-              }}
-            >
-              {/* Bot name */}
-              <div className="flex items-center gap-2.5">
-                <span className="text-2xl">₿</span>
-                <p className="text-sm font-black text-white">Crypto Bot</p>
-              </div>
-              {/* Status */}
-              <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-                <span className="text-xs font-bold" style={{ color: "#22c55e" }}>Live</span>
-              </div>
-              {/* Running */}
-              <div>
-                <span className="text-sm font-bold text-white">{stats ? `${stats.runningDays} Days` : "…"}</span>
-                <p className="text-[10px] sm:hidden" style={{ color: "#475569" }}>Running</p>
-              </div>
-              {/* Start Capital */}
-              <div>
-                <span className="text-sm font-bold text-white">
-                  {stats?.startingCapital ? `$${stats.startingCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…"}
-                </span>
-                <p className="text-[10px] sm:hidden" style={{ color: "#475569" }}>Start Capital</p>
-              </div>
-              {/* Current Capital */}
-              <div>
-                <span className="text-sm font-bold text-white">
-                  {stats?.currentCapital ? `$${stats.currentCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…"}
-                </span>
-                <p className="text-[10px] sm:hidden" style={{ color: "#475569" }}>Current Capital</p>
-              </div>
-              {/* Total Return */}
-              <div>
-                <span className="text-sm font-black" style={{ color: "#34d399" }}>
-                  {stats ? fmt(stats.totalReturnPct) : "…"}
-                </span>
-                <p className="text-[10px] sm:hidden" style={{ color: "#475569" }}>Total Return</p>
-              </div>
-              {/* Monthly */}
-              <div className="flex flex-col gap-1">
-                <span className="text-sm font-black" style={{ color: "#60a5fa" }}>
-                  {stats ? fmt(stats.profitPerMonth) : "…"}
-                </span>
-                {stats && stats.runningDays < 30 && (
-                  <span
-                    className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded self-start"
-                    style={{ backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}
-                  >
-                    Projected
-                  </span>
-                )}
-              </div>
-              {/* Annual */}
-              <div className="flex flex-col gap-1">
-                <span className="text-sm font-black" style={{ color: "#a78bfa" }}>
-                  {stats ? fmt(stats.profitPerYear) : "…"}
-                </span>
-                {stats && stats.runningDays < 365 && (
-                  <span
-                    className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded self-start"
-                    style={{ backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}
-                  >
-                    Projected
-                  </span>
-                )}
-              </div>
-              {/* CTA */}
-              <div>
                 <button
                   onClick={handleSignIn}
                   disabled={isLoggingIn}
-                  className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5 transition-all hover:scale-105 disabled:opacity-70"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all disabled:opacity-70"
                   style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
                 >
                   {isLoggingIn ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Rocket className="h-3.5 w-3.5" /> Deploy</>}
                 </button>
               </div>
+              <div className="grid grid-cols-2" style={{ backgroundColor: "#0a1628" }}>
+                {[
+                  { label: "Start Capital", value: stats?.startingCapital ? `$${stats.startingCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…", color: "#f0f4ff" },
+                  { label: "Current Capital", value: stats?.currentCapital ? `$${stats.currentCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…", color: "#60a5fa" },
+                  { label: "Total Return", value: stats ? fmt(stats.totalReturnPct) : "…", color: "#34d399" },
+                  { label: "Running", value: stats ? `${stats.runningDays} days` : "…", color: "#f0f4ff" },
+                  { label: "Monthly Return", value: stats ? fmt(stats.profitPerMonth) : "…", color: "#60a5fa", projected: stats && stats.runningDays < 30 },
+                  { label: "Annual Return", value: stats ? fmt(stats.profitPerYear) : "…", color: "#a78bfa", projected: stats && stats.runningDays < 365 },
+                ].map(({ label, value, color, projected }, i) => (
+                  <div
+                    key={i}
+                    className="p-3"
+                    style={{
+                      borderRight: i % 2 === 0 ? "1px solid rgba(90,140,220,0.08)" : "none",
+                      borderBottom: i < 4 ? "1px solid rgba(90,140,220,0.08)" : "none",
+                    }}
+                  >
+                    <span className="text-[9px] font-bold uppercase tracking-widest block mb-1" style={{ color: "#475569" }}>{label}</span>
+                    <span className="text-sm font-black" style={{ color }}>{value}</span>
+                    {projected && (
+                      <span className="text-[8px] font-black uppercase tracking-wider px-1 py-0.5 rounded ml-1" style={{ backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24" }}>Proj.</span>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* ── Coming soon rows ── */}
+            {/* Coming soon bots */}
             {[
               { emoji: "🇮🇳", name: "Indian Stock Bot" },
               { emoji: "🥇", name: "Gold Bot" },
               { emoji: "🥈", name: "Silver Bot" },
-            ].map((bot, i) => (
+            ].map((bot) => (
               <div
                 key={bot.name}
-                className="grid grid-cols-1 sm:grid-cols-9 gap-3 sm:gap-0 p-5 sm:items-center"
-                style={{
-                  borderBottom: i < 2 ? "1px solid rgba(90,140,220,0.08)" : "none",
-                  opacity: 0.7,
-                }}
+                className="flex items-center justify-between px-4 py-3.5 rounded-2xl"
+                style={{ border: "1px solid rgba(90,140,220,0.1)", opacity: 0.7 }}
               >
-                {/* Bot name */}
                 <div className="flex items-center gap-2.5">
-                  <span className="text-2xl">{bot.emoji}</span>
-                  <p className="text-sm font-black text-white">{bot.name}</p>
+                  <span className="text-xl">{bot.emoji}</span>
+                  <div>
+                    <p className="text-sm font-black text-white">{bot.name}</p>
+                    <span className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider mt-0.5 inline-block" style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)" }}>Coming Soon</span>
+                  </div>
                 </div>
-                {/* Status */}
-                <div>
-                  <span
-                    className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider"
-                    style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)" }}
-                  >
-                    Coming Soon
-                  </span>
+                <button
+                  onClick={() => setWaitlistBot(bot.name)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold flex-shrink-0"
+                  style={{ border: "1px solid rgba(90,140,220,0.25)", color: "#93c5fd", backgroundColor: "rgba(37,99,235,0.06)" }}
+                >
+                  Join Waitlist
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Desktop table (sm+) ── */}
+          <div className="hidden sm:block overflow-x-auto rounded-2xl" style={{ border: "1px solid rgba(90,140,220,0.15)" }}>
+          <div className="min-w-[780px]">
+            {/* Header row */}
+            <div
+              className="grid grid-cols-9 gap-0 px-5 py-4"
+              style={{ backgroundColor: "#0a1628", borderBottom: "1px solid rgba(90,140,220,0.12)" }}
+            >
+              {[["Bot",""],["Status",""],["Running",""],["Start","Capital"],["Current","Capital"],["Total","Return"],["Monthly","Return"],["Annual","Return"],["",""]].map(([l1,l2],i) => (
+                <div key={i} className="flex flex-col gap-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-widest leading-tight" style={{ color: "#475569" }}>{l1}</span>
+                  {l2 && <span className="text-[10px] font-bold uppercase tracking-widest leading-tight" style={{ color: "#475569" }}>{l2}</span>}
                 </div>
-                {/* Dash columns */}
-                {["—", "—", "—", "—", "—", "—"].map((d, j) => (
-                  <div key={j} className="hidden sm:block text-sm font-medium" style={{ color: "#334155" }}>{d}</div>
-                ))}
-                {/* CTA */}
-                <div>
-                  <button
-                    onClick={() => setWaitlistBot(bot.name)}
-                    className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105"
-                    style={{
-                      border: "1px solid rgba(90,140,220,0.25)",
-                      color: "#93c5fd",
-                      backgroundColor: "rgba(37,99,235,0.06)",
-                    }}
-                  >
-                    Join Waitlist
-                  </button>
-                </div>
+              ))}
+            </div>
+
+            {/* Crypto Bot row */}
+            <div
+              className="grid grid-cols-9 gap-0 px-5 py-4 items-center"
+              style={{ background: "linear-gradient(90deg, rgba(37,99,235,0.06) 0%, transparent 60%)", borderBottom: "1px solid rgba(90,140,220,0.1)" }}
+            >
+              <div className="flex items-center gap-2.5"><span className="text-2xl">₿</span><p className="text-sm font-black text-white">Crypto Bot</p></div>
+              <div className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} /><span className="text-xs font-bold" style={{ color: "#22c55e" }}>Live</span></div>
+              <div><span className="text-sm font-bold text-white">{stats ? `${stats.runningDays} Days` : "…"}</span></div>
+              <div><span className="text-sm font-bold text-white">{stats?.startingCapital ? `$${stats.startingCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…"}</span></div>
+              <div><span className="text-sm font-bold text-white">{stats?.currentCapital ? `$${stats.currentCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…"}</span></div>
+              <div><span className="text-sm font-black" style={{ color: "#34d399" }}>{stats ? fmt(stats.totalReturnPct) : "…"}</span></div>
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-black" style={{ color: "#60a5fa" }}>{stats ? fmt(stats.profitPerMonth) : "…"}</span>
+                {stats && stats.runningDays < 30 && <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded self-start" style={{ backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}>Projected</span>}
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-black" style={{ color: "#a78bfa" }}>{stats ? fmt(stats.profitPerYear) : "…"}</span>
+                {stats && stats.runningDays < 365 && <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded self-start" style={{ backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}>Projected</span>}
+              </div>
+              <div>
+                <button onClick={handleSignIn} disabled={isLoggingIn} className="px-4 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all hover:scale-105 disabled:opacity-70" style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}>
+                  {isLoggingIn ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Rocket className="h-3.5 w-3.5" /> Deploy</>}
+                </button>
+              </div>
+            </div>
+
+            {/* Coming soon rows */}
+            {[{ emoji: "🇮🇳", name: "Indian Stock Bot" }, { emoji: "🥇", name: "Gold Bot" }, { emoji: "🥈", name: "Silver Bot" }].map((bot, i) => (
+              <div key={bot.name} className="grid grid-cols-9 gap-0 px-5 py-4 items-center" style={{ borderBottom: i < 2 ? "1px solid rgba(90,140,220,0.08)" : "none", opacity: 0.7 }}>
+                <div className="flex items-center gap-2.5"><span className="text-2xl">{bot.emoji}</span><p className="text-sm font-black text-white">{bot.name}</p></div>
+                <div><span className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider" style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)" }}>Coming Soon</span></div>
+                {["—","—","—","—","—","—"].map((d,j) => <div key={j} className="text-sm font-medium" style={{ color: "#334155" }}>{d}</div>)}
+                <div><button onClick={() => setWaitlistBot(bot.name)} className="px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105" style={{ border: "1px solid rgba(90,140,220,0.25)", color: "#93c5fd", backgroundColor: "rgba(37,99,235,0.06)" }}>Join Waitlist</button></div>
               </div>
             ))}
           </div>
@@ -588,7 +561,6 @@ export default function FreedomBotPage() {
       ══════════════════════════════════════════════════════════ */}
       <section
         className="relative py-20 sm:py-28 overflow-hidden"
-        style={{ borderTop: "1px solid rgba(90,140,220,0.1)" }}
       >
         {/* Background glow */}
         <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
@@ -675,7 +647,6 @@ export default function FreedomBotPage() {
       <section
         id="chat"
         className="py-20 sm:py-28"
-        style={{ borderTop: "1px solid rgba(90,140,220,0.1)" }}
       >
         <div className="max-w-2xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-10">
@@ -816,10 +787,7 @@ export default function FreedomBotPage() {
       </section>
 
       {/* ── Footer ─────────────────────────────────────────────── */}
-      <footer
-        className="py-12"
-        style={{ borderTop: "1px solid rgba(90,140,220,0.1)" }}
-      >
+      <footer className="py-12">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-8">
             <div>

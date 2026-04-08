@@ -158,8 +158,75 @@ function TradeTable({ trades, assetType }: { trades: Trade[]; assetType: string 
 
   return (
     <div className="space-y-3">
+
+      {/* ── Mobile: trade cards (< sm) ── */}
+      <div className="sm:hidden space-y-2">
+        {pageTrades.length === 0 ? (
+          <p className="text-center py-10 text-sm font-bold" style={{ color: "#1e3a5f" }}>No closed trades yet</p>
+        ) : pageTrades.map((trade) => {
+          const { display: pnlDisplay, positive: pnlPositive } = fmtAbsolutePnl(trade, assetType);
+          return (
+            <div key={trade.id} className="rounded-xl p-4" style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.1)" }}>
+              {/* Top row */}
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <span className="text-base font-black text-white">{trade.symbol}</span>
+                  <span className="text-xs font-bold ml-2" style={{ color: trade.side === "BUY" ? "#34d399" : "#f87171" }}>
+                    {trade.side === "BUY" ? "Long" : "Short"}
+                  </span>
+                  <span className="text-[10px] font-black px-1.5 py-0.5 rounded ml-1.5" style={{ backgroundColor: "rgba(96,165,250,0.1)", color: "#60a5fa", border: "1px solid rgba(96,165,250,0.15)" }}>{trade.leverage}x</span>
+                </div>
+                <div className={`flex items-center gap-1 font-mono text-base font-black ${pnlPositive ? "text-emerald-400" : "text-rose-400"}`}>
+                  {pnlPositive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                  {pnlDisplay}
+                </div>
+              </div>
+              {/* Grid of details */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs mb-3">
+                <div>
+                  <span className="text-[9px] uppercase tracking-wider block mb-0.5" style={{ color: "#334155" }}>Entry Price</span>
+                  <span className="font-mono text-white/60">{fmtPrice(trade.entryPrice, assetType)}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] uppercase tracking-wider block mb-0.5" style={{ color: "#334155" }}>Exit Price</span>
+                  <span className="font-mono text-white">{fmtPrice(trade.currentPrice, assetType)}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] uppercase tracking-wider block mb-0.5" style={{ color: "#334155" }}>Opened</span>
+                  <span className="font-mono" style={{ color: "#60a5fa" }}>{fmtDateTime(trade.openedAt)}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] uppercase tracking-wider block mb-0.5" style={{ color: "#334155" }}>Closed</span>
+                  <span className="font-mono" style={{ color: "#475569" }}>{fmtDateTime(trade.closedAt)}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] uppercase tracking-wider block mb-0.5" style={{ color: "#334155" }}>Position Size</span>
+                  <span className="font-mono text-white/70">
+                    {trade.positionSize != null ? `${assetType === "INDIAN_STOCKS" ? "₹" : "$"}${trade.positionSize.toFixed(2)}` : "—"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[9px] uppercase tracking-wider block mb-0.5" style={{ color: "#334155" }}>Fund Balance</span>
+                  <span className="font-mono" style={{ color: "#94a3b8" }}>{fmtBalance(trade, assetType)}</span>
+                </div>
+              </div>
+              {/* Blockchain */}
+              {trade.blockchainTxHash ? (
+                <a href={`https://solscan.io/tx/${trade.blockchainTxHash}`} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-[10px] font-bold" style={{ color: "#34d399" }}>
+                  <ShieldCheck className="h-3 w-3" /> Verified on-chain <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                </a>
+              ) : (
+                <span className="text-[10px]" style={{ color: "#334155" }}>—</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Desktop: full table (sm+) ── */}
       <div
-        className="rounded-2xl overflow-x-auto"
+        className="hidden sm:block rounded-2xl overflow-x-auto"
         style={{ border: "1px solid rgba(90,140,220,0.1)" }}
       >
         <table className="w-full min-w-[1050px]">
@@ -292,6 +359,8 @@ function TradeTable({ trades, assetType }: { trades: Trade[]; assetType: string 
           </tbody>
         </table>
       </div>
+
+      </div>{/* end desktop table wrapper */}
 
       {/* Pagination */}
       {totalPages > 1 && (

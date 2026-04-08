@@ -256,7 +256,7 @@ export default function FreedomBotPage() {
 
   // Redirect already-logged-in users straight to the app
   useEffect(() => {
-    if (user) router.replace("/signals");
+    if (user) router.replace("/live");
   }, [user, router]);
 
   const handleSignIn = useCallback(async () => {

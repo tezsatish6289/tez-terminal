@@ -25,7 +25,7 @@ export default function Home() {
 
   useEffect(() => {
     if (user) {
-      router.replace("/signals");
+      router.replace("/live");
     }
   }, [user, router]);
 

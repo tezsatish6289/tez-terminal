@@ -328,11 +328,22 @@ function TradeTable({ trades, assetType }: { trades: Trade[]; assetType: string 
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+const BOTS = [
+  { key: "CRYPTO",        emoji: "₿",  label: "Crypto Bot",        live: true  },
+  { key: "INDIAN_STOCKS", emoji: "🇮🇳", label: "Indian Stock Bot",  live: false },
+  { key: "GOLD",          emoji: "🥇", label: "Gold Bot",           live: false },
+  { key: "SILVER",        emoji: "🥈", label: "Silver Bot",         live: false },
+] as const;
+
+const CARD_BG = "#0a1628";
+const CARD_BORDER = "rgba(90,140,220,0.18)";
+
 export default function RecordsPage() {
   const { user } = useUser();
   const auth = useAuth();
   const router = useRouter();
 
+  const [activeBot, setActiveBot] = useState<string>("CRYPTO");
   const [stats, setStats] = useState<BotStats | null>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -369,11 +380,12 @@ export default function RecordsPage() {
     }
   }, [auth, isLoggingIn]);
 
-  const cryptoTrades = useMemo(
-    () => trades.filter((t) => t.assetType === "CRYPTO"),
-    [trades]
+  const activeTrades = useMemo(
+    () => trades.filter((t) => t.assetType === activeBot),
+    [trades, activeBot]
   );
 
+  const activeIsLive = BOTS.find((b) => b.key === activeBot)?.live ?? false;
   const isLoading = statsLoading || tradesLoading;
 
   return (
@@ -390,7 +402,7 @@ export default function RecordsPage() {
           backdropFilter: "blur(16px)",
         }}
       >
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+        <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/" className="transition-opacity hover:opacity-70">
               <Image src="/freedombot/icon.png" alt="FreedomBot.ai" width={32} height={32} className="object-contain" />
@@ -412,9 +424,9 @@ export default function RecordsPage() {
         </div>
       </nav>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
+      <main className="w-full max-w-[1440px] mx-auto px-4 sm:px-8 py-12">
         {/* Page header */}
-        <div className="mb-12 max-w-2xl">
+        <div className="mb-10 max-w-2xl">
           <h1 className="text-4xl sm:text-5xl font-black tracking-tighter mb-4 leading-[1.05]">
             Every trade.{" "}
             <span
@@ -436,114 +448,138 @@ export default function RecordsPage() {
             <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#34d399" }} />
           </div>
         ) : (
-          <div className="space-y-12">
-            {/* ── Crypto Bot ── */}
-            <div>
-              {/* Bot header */}
-              <div
-                className="rounded-2xl mb-6 overflow-hidden"
-                style={{ border: "1px solid rgba(90,140,220,0.18)" }}
-              >
-                <div
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-5"
-                  style={{
-                    background: "linear-gradient(90deg, rgba(37,99,235,0.1) 0%, transparent 70%)",
-                    borderBottom: "1px solid rgba(90,140,220,0.1)",
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-3xl">₿</span>
-                    <div>
-                      <p className="text-lg font-black text-white">Crypto Bot</p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <div className="h-2 w-2 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-                        <span className="text-xs font-bold" style={{ color: "#22c55e" }}>Live</span>
-                        {stats && (
-                          <span className="text-xs font-medium ml-1" style={{ color: "#475569" }}>
-                            · Running {stats.runningDays} {stats.runningDays === 1 ? "day" : "days"}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+          <div>
+            {/* ── Bot tabs ── */}
+            <div className="flex items-end gap-0 overflow-x-auto">
+              {BOTS.map((bot) => {
+                const isActive = activeBot === bot.key;
+                return (
                   <button
-                    onClick={handleSignIn}
-                    disabled={isLoggingIn}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 disabled:opacity-70 self-start sm:self-auto"
-                    style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+                    key={bot.key}
+                    onClick={() => setActiveBot(bot.key)}
+                    className="flex items-center gap-2 px-5 py-3 text-sm font-bold whitespace-nowrap transition-all relative flex-shrink-0"
+                    style={{
+                      backgroundColor: isActive ? CARD_BG : "transparent",
+                      color: isActive ? "#f0f4ff" : "#334155",
+                      borderTop: `2px solid ${isActive ? (bot.live ? "#22c55e" : CARD_BORDER) : "transparent"}`,
+                      borderLeft: `1px solid ${isActive ? CARD_BORDER : "transparent"}`,
+                      borderRight: `1px solid ${isActive ? CARD_BORDER : "transparent"}`,
+                      borderBottom: `1px solid ${isActive ? CARD_BG : "transparent"}`,
+                      borderRadius: "10px 10px 0 0",
+                      marginBottom: isActive ? "-1px" : "0",
+                      zIndex: isActive ? 1 : 0,
+                    }}
                   >
-                    {isLoggingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Rocket className="h-4 w-4" /> Deploy</>}
+                    <span className="text-base">{bot.emoji}</span>
+                    <span>{bot.label}</span>
+                    {bot.live ? (
+                      <span className="flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+                      </span>
+                    ) : (
+                      <span
+                        className="text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider"
+                        style={{ backgroundColor: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}
+                      >
+                        Soon
+                      </span>
+                    )}
                   </button>
-                </div>
-
-                {/* Metrics */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 p-5"
-                  style={{ backgroundColor: "#0a1628" }}>
-                  <MetricCard label="Start Capital" value={fmtCapital(stats?.startingCapital)} />
-                  <MetricCard label="Current Capital" value={fmtCapital(stats?.currentCapital)} color="#60a5fa" />
-                  <MetricCard
-                    label="Total Return"
-                    value={fmt(stats?.totalReturnPct ?? null)}
-                    color={(stats?.totalReturnPct ?? 0) >= 0 ? "#34d399" : "#f87171"}
-                  />
-                  <MetricCard
-                    label="Monthly Return"
-                    value={fmt(stats?.profitPerMonth ?? null)}
-                    color="#60a5fa"
-                    sub={stats && stats.runningDays < 30 ? "Projected" : undefined}
-                  />
-                  <MetricCard
-                    label="Annual Return"
-                    value={fmt(stats?.profitPerYear ?? null)}
-                    color="#a78bfa"
-                    sub={stats && stats.runningDays < 365 ? "Projected" : undefined}
-                  />
-                </div>
-              </div>
-
-              {/* Trade history */}
-              <TradeTable trades={cryptoTrades} assetType="CRYPTO" />
+                );
+              })}
             </div>
 
-            {/* ── Coming soon bots ── */}
-            {[
-              { emoji: "🇮🇳", name: "Indian Stock Bot" },
-              { emoji: "🥇", name: "Gold Bot" },
-              { emoji: "🥈", name: "Silver Bot" },
-            ].map((bot) => (
-              <div key={bot.name} className="opacity-40">
-                <div
-                  className="rounded-2xl px-6 py-5 flex items-center justify-between"
-                  style={{ border: "1px solid rgba(90,140,220,0.1)" }}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{bot.emoji}</span>
-                    <div>
-                      <p className="text-base font-black text-white">{bot.name}</p>
-                      <span
-                        className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider mt-1 inline-block"
-                        style={{
-                          backgroundColor: "rgba(251,191,36,0.12)",
-                          color: "#fbbf24",
-                          border: "1px solid rgba(251,191,36,0.2)",
-                        }}
-                      >
-                        Coming Soon
-                      </span>
+            {/* ── Stats card + table, connected to active tab ── */}
+            <div
+              className="rounded-b-2xl rounded-tr-2xl overflow-hidden"
+              style={{ border: `1px solid ${CARD_BORDER}`, position: "relative", zIndex: 0 }}
+            >
+              {/* Stats panel */}
+              {activeIsLive ? (
+                <>
+                  <div
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-5"
+                    style={{
+                      background: "linear-gradient(90deg, rgba(37,99,235,0.08) 0%, transparent 60%)",
+                      borderBottom: `1px solid ${CARD_BORDER}`,
+                      backgroundColor: CARD_BG,
+                    }}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-2 w-2 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+                      <span className="text-xs font-bold" style={{ color: "#22c55e" }}>Live</span>
+                      {stats && (
+                        <span className="text-xs font-medium ml-1" style={{ color: "#475569" }}>
+                          · Running {stats.runningDays} {stats.runningDays === 1 ? "day" : "days"}
+                        </span>
+                      )}
                     </div>
+                    <button
+                      onClick={handleSignIn}
+                      disabled={isLoggingIn}
+                      className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 disabled:opacity-70 self-start sm:self-auto"
+                      style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+                    >
+                      {isLoggingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Rocket className="h-4 w-4" /> Deploy</>}
+                    </button>
                   </div>
-                  <span className="text-xs font-bold" style={{ color: "#1e3a5f" }}>No trades yet</span>
+                  <div
+                    className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 p-5"
+                    style={{ backgroundColor: CARD_BG }}
+                  >
+                    <MetricCard label="Start Capital" value={fmtCapital(stats?.startingCapital)} />
+                    <MetricCard label="Current Capital" value={fmtCapital(stats?.currentCapital)} color="#60a5fa" />
+                    <MetricCard
+                      label="Total Return"
+                      value={fmt(stats?.totalReturnPct ?? null)}
+                      color={(stats?.totalReturnPct ?? 0) >= 0 ? "#34d399" : "#f87171"}
+                    />
+                    <MetricCard
+                      label="Monthly Return"
+                      value={fmt(stats?.profitPerMonth ?? null)}
+                      color="#60a5fa"
+                      sub={stats && stats.runningDays < 30 ? "Projected" : undefined}
+                    />
+                    <MetricCard
+                      label="Annual Return"
+                      value={fmt(stats?.profitPerYear ?? null)}
+                      color="#a78bfa"
+                      sub={stats && stats.runningDays < 365 ? "Projected" : undefined}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div
+                  className="flex items-center justify-center py-14"
+                  style={{ backgroundColor: CARD_BG }}
+                >
+                  <div className="text-center">
+                    <span className="text-4xl mb-3 block">{BOTS.find((b) => b.key === activeBot)?.emoji}</span>
+                    <p className="text-base font-black text-white mb-2">{BOTS.find((b) => b.key === activeBot)?.label}</p>
+                    <span
+                      className="text-[9px] font-black px-2.5 py-1 rounded uppercase tracking-wider"
+                      style={{ backgroundColor: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}
+                    >
+                      Coming Soon — No trades yet
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )}
+
+              {/* Trade table — sits inside the card panel */}
+              {activeIsLive && (
+                <div style={{ backgroundColor: "#080f1e", borderTop: `1px solid ${CARD_BORDER}` }}>
+                  <TradeTable trades={activeTrades} assetType={activeBot} />
+                </div>
+              )}
+            </div>
           </div>
         )}
-
       </main>
 
       {/* Footer */}
-      <footer className="py-8 mt-6" style={{ borderTop: "1px solid rgba(90,140,220,0.08)" }}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <footer className="py-8 mt-10" style={{ borderTop: "1px solid rgba(90,140,220,0.08)" }}>
+        <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
           <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-70">
             <Image src="/freedombot/icon.png" alt="FreedomBot.ai" width={28} height={28} className="object-contain" />
             <span className="text-xs font-bold" style={{ color: "#334155" }}>freedombot.ai</span>

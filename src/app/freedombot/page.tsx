@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
-  Send,
   Bot,
   TrendingUp,
   Clock,
@@ -352,25 +351,15 @@ export default function FreedomBotPage() {
           backdropFilter: "blur(16px)",
         }}
       >
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center">
           <Image
-            src="/freedombot/logo.png"
+            src="/freedombot/icon.png"
             alt="FreedomBot.ai"
-            width={160}
-            height={48}
-            className="object-contain h-9 w-auto"
+            width={40}
+            height={40}
+            className="object-contain h-10 w-auto"
             priority
           />
-          <a
-            href="https://t.me/FreedomBotAI"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-xs font-bold transition-colors"
-            style={{ color: "#93c5fd" }}
-          >
-            <Send className="h-3.5 w-3.5" />
-            Telegram
-          </a>
         </div>
       </nav>
 

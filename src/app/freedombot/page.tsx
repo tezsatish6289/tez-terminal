@@ -8,15 +8,10 @@ import {
   ArrowRight,
   Send,
   Bot,
-  TrendingUp,
-  Clock,
-  Calendar,
-  CalendarDays,
   Rocket,
   Loader2,
   CheckCircle2,
   X,
-  ChevronRight,
 } from "lucide-react";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
@@ -45,15 +40,6 @@ function fmt(n: number | null, suffix = "%") {
   if (n === null) return "—";
   const sign = n >= 0 ? "+" : "";
   return `${sign}${n.toFixed(2)}${suffix}`;
-}
-
-function formatDate(dateStr: string | null) {
-  if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
 }
 
 // ─── Waitlist Modal ───────────────────────────────────────────────────────────
@@ -163,88 +149,6 @@ function WaitlistModal({
   );
 }
 
-// ─── Stat Card ────────────────────────────────────────────────────────────────
-
-function StatChip({
-  icon: Icon,
-  label,
-  value,
-  positive,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-  positive?: boolean;
-}) {
-  return (
-    <div
-      className="flex flex-col gap-1 rounded-xl p-4"
-      style={{ backgroundColor: "#162444", border: "1px solid rgba(90,140,220,0.18)" }}
-    >
-      <div className="flex items-center gap-1.5">
-        <Icon className="h-3.5 w-3.5" style={{ color: "#93c5fd" }} />
-        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#64748b" }}>
-          {label}
-        </span>
-      </div>
-      <span
-        className="text-xl font-black tracking-tight"
-        style={{ color: positive !== false ? "#60a5fa" : "#f0f4ff" }}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-// ─── Coming Soon Bot Card ─────────────────────────────────────────────────────
-
-function ComingSoonCard({
-  emoji,
-  name,
-  onJoinWaitlist,
-}: {
-  emoji: string;
-  name: string;
-  onJoinWaitlist: (bot: string) => void;
-}) {
-  return (
-    <div
-      className="rounded-2xl p-6 flex flex-col gap-4 h-full"
-      style={{
-        backgroundColor: "#0f2044",
-        border: "1px solid rgba(90,140,220,0.15)",
-      }}
-    >
-      <div className="flex items-center gap-3">
-        <span className="text-3xl">{emoji}</span>
-        <div>
-          <h3 className="text-lg font-black text-white">{name}</h3>
-          <span
-            className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
-            style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24" }}
-          >
-            Coming Soon
-          </span>
-        </div>
-      </div>
-      <p className="text-sm" style={{ color: "#64748b" }}>
-        We&apos;re building something special. Join the waitlist and be the first to deploy when it goes live.
-      </p>
-      <button
-        onClick={() => onJoinWaitlist(name)}
-        className="mt-auto w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
-        style={{
-          border: "1px solid rgba(90,140,220,0.3)",
-          color: "#93c5fd",
-          backgroundColor: "rgba(37,99,235,0.08)",
-        }}
-      >
-        Join the waitlist <ChevronRight className="h-4 w-4" />
-      </button>
-    </div>
-  );
-}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -483,7 +387,7 @@ export default function FreedomBotPage() {
       </section>
 
       {/* ══════════════════════════════════════════════════════════
-          SECTION 2 — BOTS
+          SECTION 2 — BOTS TABLE
       ══════════════════════════════════════════════════════════ */}
       <section
         id="bots"
@@ -506,138 +410,163 @@ export default function FreedomBotPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {/* ── Crypto Bot (LIVE) ── */}
+          {/* ── Table ── */}
+          <div
+            className="rounded-2xl overflow-hidden"
+            style={{ border: "1px solid rgba(90,140,220,0.15)" }}
+          >
+            {/* Table header */}
             <div
-              className="sm:col-span-2 rounded-2xl p-6 flex flex-col gap-6"
+              className="hidden sm:grid grid-cols-9 gap-0 px-5 py-3"
               style={{
-                background:
-                  "linear-gradient(145deg, #0f2044 0%, #0d1c3d 100%)",
-                border: "1px solid rgba(59,130,246,0.3)",
-                boxShadow: "0 0 40px rgba(37,99,235,0.1)",
+                backgroundColor: "#0a1628",
+                borderBottom: "1px solid rgba(90,140,220,0.12)",
               }}
             >
-              {/* Header */}
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-4xl">₿</span>
-                  <div>
-                    <h3 className="text-xl font-black text-white">Crypto Bot</h3>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <div
-                        className="h-2 w-2 rounded-full animate-pulse"
-                        style={{ backgroundColor: "#22c55e" }}
-                      />
-                      <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "#22c55e" }}>
-                        Live
-                      </span>
-                    </div>
-                  </div>
+              {["Bot", "Status", "Running", "Start Capital", "Current Capital", "Total Return", "Monthly", "Annual", ""].map((h) => (
+                <div key={h} className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#475569" }}>
+                  {h}
                 </div>
-                <span
-                  className="text-[10px] font-bold px-2 py-1 rounded-lg uppercase tracking-wider"
-                  style={{
-                    backgroundColor: "rgba(34,197,94,0.1)",
-                    border: "1px solid rgba(34,197,94,0.2)",
-                    color: "#22c55e",
-                  }}
-                >
-                  Active
-                </span>
-              </div>
+              ))}
+            </div>
 
-              {/* Stats grid */}
-              <div className="grid grid-cols-2 gap-3">
-                <StatChip
-                  icon={Calendar}
-                  label="Running since"
-                  value={stats ? formatDate(stats.runningSince) : "…"}
-                  positive={false}
-                />
-                <StatChip
-                  icon={TrendingUp}
-                  label="Profit / day"
-                  value={stats ? fmt(stats.profitPerDay) : "…"}
-                />
-                <StatChip
-                  icon={CalendarDays}
-                  label="Profit / month"
-                  value={stats ? fmt(stats.profitPerMonth) : "…"}
-                />
-                <StatChip
-                  icon={Clock}
-                  label="Profit / year"
-                  value={stats ? fmt(stats.profitPerYear) : "…"}
-                />
-              </div>
-
-              {/* Win rate bar */}
-              {stats?.winRate !== null && stats?.winRate !== undefined && (
+            {/* ── Crypto Bot row ── */}
+            <div
+              className="grid grid-cols-1 sm:grid-cols-9 gap-3 sm:gap-0 p-5 sm:items-center"
+              style={{
+                background: "linear-gradient(90deg, rgba(37,99,235,0.06) 0%, transparent 60%)",
+                borderBottom: "1px solid rgba(90,140,220,0.1)",
+              }}
+            >
+              {/* Bot name */}
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">₿</span>
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "#64748b" }}>
-                      Win Rate
-                    </span>
-                    <span className="text-sm font-black" style={{ color: "#60a5fa" }}>
-                      {stats.winRate}%
-                    </span>
-                  </div>
-                  <div className="h-1.5 rounded-full" style={{ backgroundColor: "rgba(37,99,235,0.15)" }}>
-                    <div
-                      className="h-full rounded-full transition-all duration-1000"
-                      style={{
-                        width: `${stats.winRate}%`,
-                        background: "linear-gradient(90deg, #1d4ed8, #60a5fa)",
-                      }}
-                    />
-                  </div>
-                  <p className="text-[10px] mt-1" style={{ color: "#475569" }}>
-                    Based on {stats.totalTrades} completed trades
-                  </p>
+                  <p className="text-sm font-black text-white">Crypto Bot</p>
+                  <p className="text-[10px]" style={{ color: "#475569" }}>Binance</p>
                 </div>
-              )}
-
+              </div>
+              {/* Status */}
+              <div className="flex items-center gap-1.5">
+                <div className="h-2 w-2 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+                <span className="text-xs font-bold" style={{ color: "#22c55e" }}>Live</span>
+              </div>
+              {/* Running */}
+              <div>
+                <span className="text-sm font-bold text-white">{stats ? `${stats.runningDays}d` : "…"}</span>
+                <p className="text-[10px] sm:hidden" style={{ color: "#475569" }}>Running</p>
+              </div>
+              {/* Start Capital */}
+              <div>
+                <span className="text-sm font-bold text-white">
+                  {stats?.startingCapital ? `$${stats.startingCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…"}
+                </span>
+                <p className="text-[10px] sm:hidden" style={{ color: "#475569" }}>Start Capital</p>
+              </div>
+              {/* Current Capital */}
+              <div>
+                <span className="text-sm font-bold text-white">
+                  {stats?.currentCapital ? `$${stats.currentCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…"}
+                </span>
+                <p className="text-[10px] sm:hidden" style={{ color: "#475569" }}>Current Capital</p>
+              </div>
+              {/* Total Return */}
+              <div>
+                <span className="text-sm font-black" style={{ color: "#34d399" }}>
+                  {stats ? fmt(stats.totalReturnPct) : "…"}
+                </span>
+                <p className="text-[10px] sm:hidden" style={{ color: "#475569" }}>Total Return</p>
+              </div>
+              {/* Monthly */}
+              <div>
+                <span className="text-sm font-black" style={{ color: "#60a5fa" }}>
+                  {stats ? fmt(stats.profitPerMonth) : "…"}
+                </span>
+                <p className="text-[10px]" style={{ color: "#475569" }}>
+                  <span className="sm:hidden">Monthly / </span>proj.
+                </p>
+              </div>
+              {/* Annual */}
+              <div>
+                <span className="text-sm font-black" style={{ color: "#a78bfa" }}>
+                  {stats ? fmt(stats.profitPerYear) : "…"}
+                </span>
+                <p className="text-[10px]" style={{ color: "#475569" }}>
+                  <span className="sm:hidden">Annual / </span>proj.
+                </p>
+              </div>
               {/* CTA */}
-              <button
-                onClick={handleSignIn}
-                disabled={isLoggingIn}
-                className="w-full py-3.5 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02] disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100"
+              <div>
+                <button
+                  onClick={handleSignIn}
+                  disabled={isLoggingIn}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5 transition-all hover:scale-105 disabled:opacity-70"
+                  style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+                >
+                  {isLoggingIn ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Rocket className="h-3.5 w-3.5" /> Deploy</>}
+                </button>
+              </div>
+            </div>
+
+            {/* ── Coming soon rows ── */}
+            {[
+              { emoji: "📈", name: "Indian Stock Bot", market: "NSE / BSE" },
+              { emoji: "🥇", name: "Gold Bot", market: "MCX / COMEX" },
+              { emoji: "🥈", name: "Silver Bot", market: "MCX / COMEX" },
+            ].map((bot, i) => (
+              <div
+                key={bot.name}
+                className="grid grid-cols-1 sm:grid-cols-9 gap-3 sm:gap-0 p-5 sm:items-center"
                 style={{
-                  background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",
-                  boxShadow: "0 4px 20px rgba(59,130,246,0.3)",
+                  borderBottom: i < 2 ? "1px solid rgba(90,140,220,0.08)" : "none",
+                  opacity: 0.7,
                 }}
               >
-                {isLoggingIn ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <><Rocket className="h-4 w-4" /> Deploy Now</>
-                )}
-              </button>
-            </div>
-
-            {/* ── Coming Soon Bots ── */}
-            <ComingSoonCard
-              emoji="📈"
-              name="Indian Stock Bot"
-              onJoinWaitlist={setWaitlistBot}
-            />
-            <ComingSoonCard
-              emoji="🥇"
-              name="Gold Bot"
-              onJoinWaitlist={setWaitlistBot}
-            />
+                {/* Bot name */}
+                <div className="flex items-center gap-2.5">
+                  <span className="text-2xl">{bot.emoji}</span>
+                  <div>
+                    <p className="text-sm font-black text-white">{bot.name}</p>
+                    <p className="text-[10px]" style={{ color: "#475569" }}>{bot.market}</p>
+                  </div>
+                </div>
+                {/* Status */}
+                <div>
+                  <span
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider"
+                    style={{ backgroundColor: "rgba(251,191,36,0.1)", color: "#fbbf24" }}
+                  >
+                    Soon
+                  </span>
+                </div>
+                {/* Dash columns */}
+                {["—", "—", "—", "—", "—", "—"].map((d, j) => (
+                  <div key={j} className="hidden sm:block text-sm font-medium" style={{ color: "#334155" }}>{d}</div>
+                ))}
+                {/* CTA */}
+                <div>
+                  <button
+                    onClick={() => setWaitlistBot(bot.name)}
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105"
+                    style={{
+                      border: "1px solid rgba(90,140,220,0.25)",
+                      color: "#93c5fd",
+                      backgroundColor: "rgba(37,99,235,0.06)",
+                    }}
+                  >
+                    Waitlist
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
 
-          {/* Silver Bot — full width on its own row on mobile, fits grid on lg */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mt-5">
-            <div className="sm:col-start-1 lg:col-start-3">
-              <ComingSoonCard
-                emoji="🥈"
-                name="Silver Bot"
-                onJoinWaitlist={setWaitlistBot}
-              />
-            </div>
-          </div>
+          {/* Win rate footnote */}
+          {stats?.winRate != null && (
+            <p className="text-center text-[11px] mt-4" style={{ color: "#334155" }}>
+              Crypto Bot win rate: <span className="font-bold" style={{ color: "#60a5fa" }}>{stats.winRate}%</span> across {stats.totalTrades} completed trades · Monthly & Annual figures are projections at current run rate
+            </p>
+          )}
         </div>
       </section>
 

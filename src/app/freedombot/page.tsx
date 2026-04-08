@@ -650,7 +650,7 @@ export default function FreedomBotPage() {
 
           {/* CTA */}
           <a
-            href="#"
+            href="/records"
             className="inline-flex items-center gap-2.5 h-14 px-10 rounded-2xl font-bold text-base transition-all hover:scale-105"
             style={{
               border: "1px solid rgba(52,211,153,0.35)",

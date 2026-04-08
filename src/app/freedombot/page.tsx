@@ -428,8 +428,8 @@ export default function FreedomBotPage() {
                 ["Start", "Capital"],
                 ["Current", "Capital"],
                 ["Total", "Return"],
-                ["Monthly", "Projected"],
-                ["Annual", "Projected"],
+                ["Monthly", "Return"],
+                ["Annual", "Return"],
                 ["", ""],
               ].map(([line1, line2], i) => (
                 <div key={i} className="flex flex-col gap-0.5">
@@ -488,24 +488,28 @@ export default function FreedomBotPage() {
                 <span className="text-sm font-black" style={{ color: "#60a5fa" }}>
                   {stats ? fmt(stats.profitPerMonth) : "…"}
                 </span>
-                <span
-                  className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded self-start"
-                  style={{ backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}
-                >
-                  Projected
-                </span>
+                {stats && stats.runningDays < 30 && (
+                  <span
+                    className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded self-start"
+                    style={{ backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}
+                  >
+                    Projected
+                  </span>
+                )}
               </div>
               {/* Annual */}
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-black" style={{ color: "#a78bfa" }}>
                   {stats ? fmt(stats.profitPerYear) : "…"}
                 </span>
-                <span
-                  className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded self-start"
-                  style={{ backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}
-                >
-                  Projected
-                </span>
+                {stats && stats.runningDays < 365 && (
+                  <span
+                    className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded self-start"
+                    style={{ backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}
+                  >
+                    Projected
+                  </span>
+                )}
               </div>
               {/* CTA */}
               <div>

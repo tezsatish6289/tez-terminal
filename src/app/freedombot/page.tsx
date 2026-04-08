@@ -411,10 +411,8 @@ export default function FreedomBotPage() {
           </div>
 
           {/* ── Table ── */}
-          <div
-            className="rounded-2xl overflow-hidden"
-            style={{ border: "1px solid rgba(90,140,220,0.15)" }}
-          >
+          <div className="overflow-x-auto rounded-2xl" style={{ border: "1px solid rgba(90,140,220,0.15)" }}>
+          <div className="min-w-[780px]">
             {/* Table header */}
             <div
               className="hidden sm:grid grid-cols-9 gap-0 px-5 py-4"
@@ -565,11 +563,12 @@ export default function FreedomBotPage() {
                       backgroundColor: "rgba(37,99,235,0.06)",
                     }}
                   >
-                    Waitlist
+                    Join Waitlist
                   </button>
                 </div>
               </div>
             ))}
+          </div>
           </div>
 
         </div>

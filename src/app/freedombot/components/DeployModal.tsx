@@ -13,6 +13,12 @@ import {
   Rocket,
   ChevronRight,
   ShieldCheck,
+  Lock,
+  Ban,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
 } from "lucide-react";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import type { Auth, User } from "firebase/auth";
@@ -51,6 +57,96 @@ interface Exchange {
   icon: string;
   fields: Field[];
 }
+
+// ─── Step-by-step help guides per exchange ───────────────────────────────────
+
+interface HelpGuide {
+  url: string;
+  urlLabel: string;
+  steps: string[];
+  warning: string;
+}
+
+const HELP_GUIDES: Record<string, HelpGuide> = {
+  BINANCE: {
+    url: "https://www.binance.com/en/my/settings/api-management",
+    urlLabel: "Open Binance API Management",
+    steps: [
+      "Log in to Binance.com and click your profile icon (top right).",
+      "Select "API Management" from the dropdown menu.",
+      "Click "Create API" → choose "System generated".",
+      "Give it a name (e.g. "FreedomBot") and click "Next".",
+      "Complete the 2FA verification sent to your email/phone.",
+      "Under "API restrictions": tick "Enable Reading" and "Enable Spot & Margin Trading". Leave everything else off.",
+      "Click "Save" — copy both the API Key and Secret Key immediately.",
+    ],
+    warning: "Never enable "Enable Withdrawals" — FreedomBot does not need it and your funds will be safe.",
+  },
+  BYBIT: {
+    url: "https://www.bybit.com/app/user/api-management",
+    urlLabel: "Open Bybit API Management",
+    steps: [
+      "Log in to Bybit.com and click your profile icon (top right).",
+      "Go to "Account" → "API Management".",
+      "Click "Create New Key".",
+      "Select "API Transaction" as the key type.",
+      "Enter a name (e.g. "FreedomBot") and set permissions: enable "Read-Write" for "Trade" — tick "Spot" and "Derivatives".",
+      "Leave "Withdraw" and "Transfer" permissions OFF.",
+      "Complete 2FA, then copy the API Key and Secret — the secret is shown only once.",
+    ],
+    warning: "Never enable "Asset" or "Withdrawal" permissions. Your funds stay completely safe.",
+  },
+  ZERODHA: {
+    url: "https://kite.trade",
+    urlLabel: "Open Kite.trade",
+    steps: [
+      "Go to kite.trade and log in with your Zerodha credentials.",
+      "Click "Create new app" and fill in a name (e.g. "FreedomBot").",
+      "Set "Type" to "Connect" and fill in any redirect URL (e.g. https://freedombot.ai).",
+      "Click "Create" — your API Key is shown immediately.",
+      "Click "Generate" under API Secret to reveal and copy it.",
+      "Store both values safely — the secret cannot be regenerated without resetting it.",
+    ],
+    warning: "Zerodha's API does not allow fund withdrawals — your capital is always safe.",
+  },
+  UPSTOX: {
+    url: "https://account.upstox.com/developer/apps",
+    urlLabel: "Open Upstox Developer Apps",
+    steps: [
+      "Log in to your Upstox account and go to "My Apps" (under your profile).",
+      "Click "Create New App" and fill in a name (e.g. "FreedomBot").",
+      "Enter any Redirect URL (e.g. https://freedombot.ai) and click "Create".",
+      "Your API Key and API Secret are shown on the app detail page.",
+      "Copy both and paste them here.",
+    ],
+    warning: "Upstox APIs are trade-only — withdrawals are not possible through API keys.",
+  },
+  ANGEL_ONE: {
+    url: "https://smartapi.angelbroking.com/enable-api",
+    urlLabel: "Open Angel One Smart API",
+    steps: [
+      "Log in to angelone.in and go to the "Smart API" section (or visit the link above).",
+      "Enable Smart API on your account if not already done.",
+      "Your Client ID is your Angel One User ID (shown on your profile/dashboard).",
+      "Your Password is the same password you use to log in to Angel One.",
+      "For TOTP Secret: in the Angel One app, go to Profile → Security → Enable TOTP. During setup, you'll see a "secret key" — copy that key (not the 6-digit OTP).",
+      "Paste the Client ID, Password, and TOTP Secret here.",
+    ],
+    warning: "Angel One APIs are trading-only. Withdrawals are never possible via API.",
+  },
+  DHAN: {
+    url: "https://dhanhq.co/developer/api",
+    urlLabel: "Open DhanHQ Developer Portal",
+    steps: [
+      "Log in to dhanhq.co and go to "DhanHQ Developer" → "Apps" from the top menu.",
+      "Click "Create App", give it a name (e.g. "FreedomBot"), and submit.",
+      "Your Client ID is your Dhan User ID — find it in Account → Profile.",
+      "To get your Access Token: go to the app you just created → click "Generate Token".",
+      "Copy the Access Token and paste it here. Tokens expire periodically — you may need to regenerate.",
+    ],
+    warning: "Dhan access tokens are trade-only. Funds cannot be withdrawn via API.",
+  },
+};
 
 const EXCHANGES: Record<string, Exchange[]> = {
   CRYPTO: [
@@ -117,6 +213,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
   const [selectedExchange, setSelectedExchange] = useState<string | null>(null);
   const [credentials, setCredentials]   = useState<Record<string, string>>({});
   const [showPwd, setShowPwd]           = useState<Record<string, boolean>>({});
+  const [showHelp, setShowHelp]         = useState(false);
   const [isSigningIn, setIsSigningIn]   = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError]               = useState("");
@@ -129,6 +226,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
       setSelectedExchange(null);
       setCredentials({});
       setShowPwd({});
+      setShowHelp(false);
       setError("");
     }
   }, [isOpen, user]);
@@ -410,7 +508,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
           {/* ── STEP: Enter Credentials ── */}
           {step === "enter-creds" && currentExchangeDef && (
             <div>
-              <button onClick={() => setStep("choose-exchange")} className="flex items-center gap-1.5 text-xs font-bold mb-5 transition-colors" style={{ color: "#475569" }}>
+              <button onClick={() => { setStep("choose-exchange"); setShowHelp(false); }} className="flex items-center gap-1.5 text-xs font-bold mb-5 transition-colors" style={{ color: "#475569" }}>
                 <ArrowLeft className="h-3.5 w-3.5" /> Back
               </button>
               <h2 className="text-xl font-black text-white mb-1 tracking-tight">API Credentials</h2>
@@ -418,19 +516,33 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                 Connect your <span className="text-white font-semibold">{currentExchangeDef.name}</span> account. We encrypt everything before saving.
               </p>
 
-              {/* Security note */}
+              {/* ── Security trust panel ── */}
               <div
-                className="flex items-start gap-2.5 p-3.5 rounded-xl mb-5"
-                style={{ backgroundColor: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.15)" }}
+                className="rounded-2xl mb-5 overflow-hidden"
+                style={{ border: "1px solid rgba(16,185,129,0.2)", backgroundColor: "rgba(16,185,129,0.04)" }}
               >
-                <ShieldCheck className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: "#34d399" }} />
-                <p className="text-[11px] leading-relaxed" style={{ color: "#64748b" }}>
-                  Your credentials are stored with <span className="text-white font-semibold">AES-256 encryption</span>.
-                  Use <span className="text-white font-semibold">read + trade only</span> API keys — never enable withdrawals.
-                </p>
+                <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: "1px solid rgba(16,185,129,0.12)" }}>
+                  <ShieldCheck className="h-4 w-4 flex-shrink-0" style={{ color: "#34d399" }} />
+                  <span className="text-sm font-black" style={{ color: "#34d399" }}>Your funds are completely safe</span>
+                </div>
+                <div className="divide-y" style={{ borderColor: "rgba(16,185,129,0.08)" }}>
+                  {[
+                    { icon: <Lock className="h-3.5 w-3.5" />, title: "AES-256 Encrypted", body: "Your API keys are encrypted the moment you submit. We never store plain-text credentials — ever." },
+                    { icon: <Ban className="h-3.5 w-3.5" />, title: "No Withdrawal Access", body: "FreedomBot only needs read + trade permissions. It physically cannot move funds out of your account." },
+                    { icon: <RefreshCw className="h-3.5 w-3.5" />, title: "Revoke Anytime", body: "You can delete your API key from your exchange dashboard at any time to immediately cut off all access." },
+                  ].map(({ icon, title, body }) => (
+                    <div key={title} className="flex items-start gap-3 px-4 py-3">
+                      <span className="mt-0.5 flex-shrink-0" style={{ color: "#34d399" }}>{icon}</span>
+                      <div>
+                        <p className="text-[12px] font-black text-white mb-0.5">{title}</p>
+                        <p className="text-[11px] leading-relaxed" style={{ color: "#64748b" }}>{body}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* Fields */}
+              {/* ── Credential fields ── */}
               <div className="space-y-4">
                 {currentExchangeDef.fields.map((field) => (
                   <div key={field.key}>
@@ -474,10 +586,71 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                 ))}
               </div>
 
+              {/* ── Need help guide ── */}
+              {HELP_GUIDES[currentExchangeDef.key] && (
+                <div className="mt-5 rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(90,140,220,0.15)" }}>
+                  <button
+                    onClick={() => setShowHelp((v) => !v)}
+                    className="w-full flex items-center justify-between px-4 py-3.5 text-left transition-colors"
+                    style={{ backgroundColor: showHelp ? "#0a1628" : "rgba(10,22,40,0.4)" }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-black" style={{ color: "#60a5fa" }}>
+                        📖 How to get your {currentExchangeDef.name} API keys
+                      </span>
+                    </div>
+                    {showHelp
+                      ? <ChevronUp className="h-4 w-4 flex-shrink-0" style={{ color: "#475569" }} />
+                      : <ChevronDown className="h-4 w-4 flex-shrink-0" style={{ color: "#475569" }} />
+                    }
+                  </button>
+
+                  {showHelp && (() => {
+                    const guide = HELP_GUIDES[currentExchangeDef.key];
+                    return (
+                      <div style={{ backgroundColor: "#060d1a", borderTop: "1px solid rgba(90,140,220,0.1)" }}>
+                        <ol className="p-4 space-y-3">
+                          {guide.steps.map((step, i) => (
+                            <li key={i} className="flex items-start gap-3">
+                              <span
+                                className="h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0 mt-0.5"
+                                style={{ backgroundColor: "rgba(59,130,246,0.15)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)" }}
+                              >
+                                {i + 1}
+                              </span>
+                              <p className="text-[12px] leading-relaxed" style={{ color: "#94a3b8" }}>{step}</p>
+                            </li>
+                          ))}
+                        </ol>
+
+                        {/* Warning */}
+                        <div className="mx-4 mb-4 flex items-start gap-2 px-3 py-2.5 rounded-xl" style={{ backgroundColor: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.2)" }}>
+                          <span className="text-sm flex-shrink-0">⚠️</span>
+                          <p className="text-[11px] leading-relaxed font-medium" style={{ color: "#fbbf24" }}>{guide.warning}</p>
+                        </div>
+
+                        {/* Direct link */}
+                        <div className="px-4 pb-4">
+                          <a
+                            href={guide.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs font-bold transition-opacity hover:opacity-80"
+                            style={{ color: "#60a5fa" }}
+                          >
+                            {guide.urlLabel} <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting || !credsFilled}
-                className="mt-6 w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
+                className="mt-5 w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
               >
                 {isSubmitting ? (

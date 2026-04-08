@@ -43,7 +43,7 @@ export async function GET() {
         closeReason: d.closeReason ?? null,
         openedAt: d.openedAt,
         closedAt: d.closedAt ?? null,
-        blockchainTxHash: d.blockchainTxHash ?? null,
+        blockchainTxHash: d.txHash ?? null,
       };
     });
 

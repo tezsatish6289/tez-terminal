@@ -146,140 +146,155 @@ function TradeTable({ trades, assetType }: { trades: Trade[]; assetType: string 
     });
   }, [trades]);
 
+  const headers = [
+    "Entry / Exit Time",
+    "Symbol",
+    "Side",
+    "Position Size",
+    "Leverage",
+    "Entry Price",
+    "Exit Price",
+    "P&L",
+    "Proof of Trade",
+  ];
+
   return (
-    <div>
-
-      {/* Table */}
-      <div
-        className="rounded-2xl overflow-x-auto"
-        style={{ border: "1px solid rgba(90,140,220,0.1)" }}
-      >
-        <table className="w-full min-w-[700px]">
-          <thead>
-            <tr style={{ borderBottom: "1px solid rgba(90,140,220,0.1)", backgroundColor: "#060d1a" }}>
-              {[
-                "Symbol", "Side", "TF / Lev", "Entry", "Exit / Current",
-                "P&L", "Outcome", "Opened", "Chain",
-              ].map((h) => (
-                <th
-                  key={h}
-                  className="px-4 py-3 text-left text-[9px] font-black uppercase tracking-widest"
-                  style={{ color: "#1e3a5f" }}
-                >
-                  {h}
-                </th>
-              ))}
+    <div
+      className="rounded-2xl overflow-x-auto"
+      style={{ border: "1px solid rgba(90,140,220,0.1)" }}
+    >
+      <table className="w-full min-w-[900px]">
+        <thead>
+          <tr style={{ borderBottom: "1px solid rgba(90,140,220,0.1)", backgroundColor: "#060d1a" }}>
+            {headers.map((h) => (
+              <th
+                key={h}
+                className="px-4 py-3.5 text-left text-[9px] font-black uppercase tracking-widest"
+                style={{ color: "#1e3a5f" }}
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.length === 0 ? (
+            <tr>
+              <td colSpan={9} className="text-center py-14">
+                <p className="text-sm font-bold" style={{ color: "#1e3a5f" }}>No trades yet</p>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="text-center py-14">
-                  <p className="text-sm font-bold" style={{ color: "#1e3a5f" }}>No trades found</p>
-                </td>
-              </tr>
-            ) : (
-              filtered.map((trade) => {
-                const pct = tradePnlPct(trade);
-                const outcome = outcomeLabel(trade);
-                const tf = tfLabels[trade.timeframe ?? ""] ?? trade.timeframe ?? "—";
-                const exitPrice = trade.status === "OPEN" ? trade.currentPrice : trade.currentPrice;
+          ) : (
+            filtered.map((trade) => {
+              const pct = tradePnlPct(trade);
+              const curr = assetType === "INDIAN_STOCKS" ? "₹" : "$";
+              const posSize = trade.positionSize != null
+                ? `${curr}${trade.positionSize.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : "—";
+              const exitPrice = trade.status === "OPEN" ? trade.currentPrice : trade.currentPrice;
 
-                return (
-                  <tr
-                    key={trade.id}
-                    style={{ borderBottom: "1px solid rgba(90,140,220,0.06)" }}
-                    className="hover:bg-white/[0.01] transition-colors"
-                  >
-                    {/* Symbol */}
-                    <td className="px-4 py-3.5">
-                      <span className="text-sm font-black text-white tracking-tight">{trade.symbol}</span>
-                    </td>
-
-                    {/* Side */}
-                    <td className="px-4 py-3.5">
-                      <span
-                        className="text-[10px] font-black"
-                        style={{ color: trade.side === "BUY" ? "#34d399" : "#f87171" }}
-                      >
-                        {trade.side === "BUY" ? "▲ Long" : "▼ Short"}
+              return (
+                <tr
+                  key={trade.id}
+                  style={{ borderBottom: "1px solid rgba(90,140,220,0.06)" }}
+                  className="hover:bg-white/[0.01] transition-colors"
+                >
+                  {/* Entry / Exit Time */}
+                  <td className="px-4 py-4">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[11px] font-mono font-bold" style={{ color: "#60a5fa" }}>
+                        {fmtDate(trade.openedAt)}
                       </span>
-                    </td>
-
-                    {/* TF / Leverage */}
-                    <td className="px-4 py-3.5">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-xs font-bold text-white/60">{tf}</span>
-                        <span className="text-[10px] font-bold" style={{ color: "#60a5fa" }}>{trade.leverage}x</span>
-                      </div>
-                    </td>
-
-                    {/* Entry */}
-                    <td className="px-4 py-3.5">
-                      <span className="text-xs font-mono text-white/60">{fmtPrice(trade.entryPrice, assetType)}</span>
-                    </td>
-
-                    {/* Exit / Current */}
-                    <td className="px-4 py-3.5">
-                      <span className="text-xs font-mono text-white">{fmtPrice(exitPrice, assetType)}</span>
-                    </td>
-
-                    {/* P&L */}
-                    <td className="px-4 py-3.5">
-                      <div
-                        className="flex items-center gap-1 font-mono text-sm font-black"
-                        style={{ color: pct >= 0 ? "#34d399" : "#f87171" }}
-                      >
-                        {pct >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-                        {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
-                      </div>
-                    </td>
-
-                    {/* Outcome */}
-                    <td className="px-4 py-3.5">
-                      <span
-                        className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider"
-                        style={{ color: outcome.color, backgroundColor: outcome.bg, border: `1px solid ${outcome.color}25` }}
-                      >
-                        {outcome.label}
-                      </span>
-                    </td>
-
-                    {/* Date */}
-                    <td className="px-4 py-3.5">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-[10px] font-mono" style={{ color: "#475569" }}>{fmtDate(trade.openedAt)}</span>
-                        {trade.closedAt && (
-                          <span className="text-[10px] font-mono" style={{ color: "#334155" }}>→ {fmtDate(trade.closedAt)}</span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Blockchain */}
-                    <td className="px-4 py-3.5">
-                      {trade.blockchainTxHash ? (
-                        <a
-                          href={`https://solscan.io/tx/${trade.blockchainTxHash}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[10px] font-bold hover:opacity-80 transition-opacity"
-                          style={{ color: "#34d399" }}
-                        >
-                          <ShieldCheck className="h-3 w-3" />
-                          Verified
-                          <ExternalLink className="h-2.5 w-2.5 opacity-50" />
-                        </a>
+                      {trade.closedAt ? (
+                        <span className="text-[10px] font-mono" style={{ color: "#334155" }}>
+                          → {fmtDate(trade.closedAt)}
+                        </span>
                       ) : (
-                        <span className="text-[10px]" style={{ color: "#1e3a5f" }}>—</span>
+                        <span
+                          className="text-[9px] font-black uppercase tracking-wider"
+                          style={{ color: "#22c55e" }}
+                        >
+                          Still open
+                        </span>
                       )}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                    </div>
+                  </td>
+
+                  {/* Symbol */}
+                  <td className="px-4 py-4">
+                    <span className="text-sm font-black text-white tracking-tight">{trade.symbol}</span>
+                  </td>
+
+                  {/* Side */}
+                  <td className="px-4 py-4">
+                    <span
+                      className="text-[10px] font-black"
+                      style={{ color: trade.side === "BUY" ? "#34d399" : "#f87171" }}
+                    >
+                      {trade.side === "BUY" ? "▲ Long" : "▼ Short"}
+                    </span>
+                  </td>
+
+                  {/* Position Size */}
+                  <td className="px-4 py-4">
+                    <span className="text-xs font-mono text-white/70">{posSize}</span>
+                  </td>
+
+                  {/* Leverage */}
+                  <td className="px-4 py-4">
+                    <span
+                      className="text-xs font-black px-2 py-0.5 rounded"
+                      style={{ backgroundColor: "rgba(96,165,250,0.1)", color: "#60a5fa", border: "1px solid rgba(96,165,250,0.2)" }}
+                    >
+                      {trade.leverage}x
+                    </span>
+                  </td>
+
+                  {/* Entry Price */}
+                  <td className="px-4 py-4">
+                    <span className="text-xs font-mono text-white/60">{fmtPrice(trade.entryPrice, assetType)}</span>
+                  </td>
+
+                  {/* Exit Price */}
+                  <td className="px-4 py-4">
+                    <span className="text-xs font-mono text-white">{fmtPrice(exitPrice, assetType)}</span>
+                  </td>
+
+                  {/* P&L */}
+                  <td className="px-4 py-4">
+                    <div
+                      className="flex items-center gap-1 font-mono text-sm font-black"
+                      style={{ color: pct >= 0 ? "#34d399" : "#f87171" }}
+                    >
+                      {pct >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                      {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
+                    </div>
+                  </td>
+
+                  {/* Proof of Trade */}
+                  <td className="px-4 py-4">
+                    {trade.blockchainTxHash ? (
+                      <a
+                        href={`https://solscan.io/tx/${trade.blockchainTxHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-[10px] font-bold hover:opacity-80 transition-opacity"
+                        style={{ color: "#34d399" }}
+                      >
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                        Verified on-chain
+                        <ExternalLink className="h-2.5 w-2.5 opacity-50" />
+                      </a>
+                    ) : (
+                      <span className="text-[10px] font-medium" style={{ color: "#1e3a5f" }}>Pending</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }

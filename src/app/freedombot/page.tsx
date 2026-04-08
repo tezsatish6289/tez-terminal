@@ -16,7 +16,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useUser, useAuth } from "@/firebase";
-import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
+import { DeployModal } from "./components/DeployModal";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -158,24 +158,14 @@ export default function FreedomBotPage() {
   const { user } = useUser();
   const auth = useAuth();
   const router = useRouter();
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [deployOpen, setDeployOpen] = useState(false);
 
-  // Redirect already-logged-in users straight to the app
+  // Only redirect logged-in users if they're NOT in the deploy flow
   useEffect(() => {
-    if (user) router.replace("/live");
-  }, [user, router]);
+    if (user && !deployOpen) router.replace("/live");
+  }, [user, deployOpen, router]);
 
-  const handleSignIn = useCallback(async () => {
-    if (!auth || isLoggingIn) return;
-    setIsLoggingIn(true);
-    try {
-      await initiateGoogleSignIn(auth);
-    } catch {
-      // silent — user cancelled or error
-    } finally {
-      setIsLoggingIn(false);
-    }
-  }, [auth, isLoggingIn]);
+  const openDeploy = useCallback(() => setDeployOpen(true), []);
 
   const [stats, setStats] = useState<BotStats | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
@@ -358,22 +348,15 @@ export default function FreedomBotPage() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10">
             <button
-              onClick={handleSignIn}
-              disabled={isLoggingIn}
-              className="h-14 px-10 rounded-2xl font-bold text-base text-white flex items-center gap-2 transition-all hover:scale-105 shadow-lg disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100"
+              onClick={openDeploy}
+              className="h-14 px-10 rounded-2xl font-bold text-base text-white flex items-center gap-2 transition-all hover:scale-105 shadow-lg"
               style={{
                 background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",
                 boxShadow: "0 8px 30px rgba(59,130,246,0.35)",
               }}
             >
-              {isLoggingIn ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <>
-                  <Rocket className="h-5 w-5" />
-                  Deploy a Bot
-                </>
-              )}
+              <Rocket className="h-5 w-5" />
+              Deploy a Bot
             </button>
             <a
               href="#chat"
@@ -435,12 +418,11 @@ export default function FreedomBotPage() {
                   </div>
                 </div>
                 <button
-                  onClick={handleSignIn}
-                  disabled={isLoggingIn}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all disabled:opacity-70"
+                  onClick={openDeploy}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all"
                   style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
                 >
-                  {isLoggingIn ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Rocket className="h-3.5 w-3.5" /> Deploy</>}
+                  <Rocket className="h-3.5 w-3.5" /> Deploy
                 </button>
               </div>
               <div className="grid grid-cols-2" style={{ backgroundColor: "#0a1628" }}>
@@ -535,8 +517,8 @@ export default function FreedomBotPage() {
                 {stats && stats.runningDays < 365 && <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded self-start" style={{ backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}>Projected</span>}
               </div>
               <div>
-                <button onClick={handleSignIn} disabled={isLoggingIn} className="px-4 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all hover:scale-105 disabled:opacity-70" style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}>
-                  {isLoggingIn ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Rocket className="h-3.5 w-3.5" /> Deploy</>}
+                <button onClick={openDeploy} className="px-4 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all hover:scale-105" style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}>
+                  <Rocket className="h-3.5 w-3.5" /> Deploy
                 </button>
               </div>
             </div>
@@ -841,6 +823,15 @@ export default function FreedomBotPage() {
           </div>
         </div>
       </footer>
+
+      {/* ── Deploy Bot modal ── */}
+      <DeployModal
+        isOpen={deployOpen}
+        onClose={() => setDeployOpen(false)}
+        user={user ?? null}
+        auth={auth}
+      />
+
     </div>
   );
 }

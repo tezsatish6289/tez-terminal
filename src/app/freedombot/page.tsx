@@ -796,11 +796,11 @@ export default function FreedomBotPage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-8">
             <div>
               <Image
-                src="/freedombot/logo.png"
+                src="/freedombot/icon.png"
                 alt="FreedomBot.ai"
-                width={140}
-                height={42}
-                className="object-contain h-8 w-auto mb-3"
+                width={40}
+                height={40}
+                className="object-contain h-10 w-auto mb-3"
               />
               <p className="text-xs max-w-xs" style={{ color: "#475569" }}>
                 AI-powered trading bots that work 24/7 so you can focus on living freely.

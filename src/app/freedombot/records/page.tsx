@@ -360,8 +360,6 @@ function TradeTable({ trades, assetType }: { trades: Trade[]; assetType: string 
         </table>
       </div>
 
-      </div>
-
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between px-1">

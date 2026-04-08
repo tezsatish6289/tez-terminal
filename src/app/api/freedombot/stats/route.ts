@@ -46,13 +46,13 @@ export async function GET() {
     const {
       capital,
       startingCapital,
-      totalRealizedPnl,
       totalTradesTaken,
       totalWins,
     } = state;
 
+    // Use actual capital growth (includes open + closed positions) not just realized PnL
     const totalReturnPct =
-      startingCapital > 0 ? (totalRealizedPnl / startingCapital) * 100 : 0;
+      startingCapital > 0 ? ((capital - startingCapital) / startingCapital) * 100 : 0;
 
     const avgDailyPct = runningDays > 0 ? totalReturnPct / runningDays : 0;
     const profitPerMonth = avgDailyPct * 30;

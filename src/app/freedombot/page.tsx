@@ -441,10 +441,7 @@ export default function FreedomBotPage() {
               {/* Bot name */}
               <div className="flex items-center gap-2.5">
                 <span className="text-2xl">₿</span>
-                <div>
-                  <p className="text-sm font-black text-white">Crypto Bot</p>
-                  <p className="text-[10px]" style={{ color: "#475569" }}>Binance</p>
-                </div>
+                <p className="text-sm font-black text-white">Crypto Bot</p>
               </div>
               {/* Status */}
               <div className="flex items-center gap-1.5">
@@ -453,7 +450,7 @@ export default function FreedomBotPage() {
               </div>
               {/* Running */}
               <div>
-                <span className="text-sm font-bold text-white">{stats ? `${stats.runningDays}d` : "…"}</span>
+                <span className="text-sm font-bold text-white">{stats ? `${stats.runningDays} Days` : "…"}</span>
                 <p className="text-[10px] sm:hidden" style={{ color: "#475569" }}>Running</p>
               </div>
               {/* Start Capital */}
@@ -510,9 +507,9 @@ export default function FreedomBotPage() {
 
             {/* ── Coming soon rows ── */}
             {[
-              { emoji: "📈", name: "Indian Stock Bot", market: "NSE / BSE" },
-              { emoji: "🥇", name: "Gold Bot", market: "MCX / COMEX" },
-              { emoji: "🥈", name: "Silver Bot", market: "MCX / COMEX" },
+              { emoji: "🇮🇳", name: "Indian Stock Bot" },
+              { emoji: "🥇", name: "Gold Bot" },
+              { emoji: "🥈", name: "Silver Bot" },
             ].map((bot, i) => (
               <div
                 key={bot.name}
@@ -525,10 +522,7 @@ export default function FreedomBotPage() {
                 {/* Bot name */}
                 <div className="flex items-center gap-2.5">
                   <span className="text-2xl">{bot.emoji}</span>
-                  <div>
-                    <p className="text-sm font-black text-white">{bot.name}</p>
-                    <p className="text-[10px]" style={{ color: "#475569" }}>{bot.market}</p>
-                  </div>
+                  <p className="text-sm font-black text-white">{bot.name}</p>
                 </div>
                 {/* Status */}
                 <div>

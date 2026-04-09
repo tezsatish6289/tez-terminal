@@ -401,8 +401,8 @@ class LiquidityWSServer {
         this.db.collection("signals").where("status", "==", "ACTIVE").get(),
         new Promise<never>((_, reject) =>
           setTimeout(
-            () => reject(new Error("Firestore query timed out after 15s")),
-            15_000,
+            () => reject(new Error("Firestore query timed out after 60s")),
+            60_000,
           ),
         ),
       ]);

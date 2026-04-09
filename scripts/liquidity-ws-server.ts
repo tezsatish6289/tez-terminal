@@ -53,7 +53,13 @@ import type {
 // ── Firebase init ─────────────────────────────────────────────
 
 function initFirebase(): Firestore {
-  const app = getApps().length === 0 ? initializeApp() : getApps()[0];
+  const projectId =
+    process.env.GOOGLE_CLOUD_PROJECT ||
+    process.env.GCLOUD_PROJECT ||
+    process.env.FIREBASE_PROJECT_ID;
+  console.log(`[LiqWS] Initializing Firebase. projectId=${projectId ?? "auto"}`);
+  const app =
+    getApps().length === 0 ? initializeApp({ projectId }) : getApps()[0];
   return getFirestore(app);
 }
 
@@ -385,11 +391,18 @@ class LiquidityWSServer {
   // ── Symbol discovery from Firestore ──────────────────────
 
   private async refreshSymbols(): Promise<void> {
+    console.log("[LiqWS] refreshSymbols: querying Firestore...");
     try {
-      const snap = await this.db
-        .collection("signals")
-        .where("status", "==", "ACTIVE")
-        .get();
+      const snap = await Promise.race([
+        this.db.collection("signals").where("status", "==", "ACTIVE").get(),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Firestore query timed out after 15s")),
+            15_000,
+          ),
+        ),
+      ]);
+      console.log(`[LiqWS] refreshSymbols: got ${snap.size} active signals`);
 
       const freshSymbols = new Set<string>();
       for (const doc of snap.docs) {

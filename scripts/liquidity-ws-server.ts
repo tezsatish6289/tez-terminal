@@ -52,19 +52,130 @@ import type {
 
 // ── Firebase init ─────────────────────────────────────────────
 
+const PROJECT_ID =
+  process.env.FIREBASE_PROJECT_ID ||
+  process.env.GOOGLE_CLOUD_PROJECT ||
+  process.env.GCLOUD_PROJECT ||
+  "studio-6235588950-a15f2";
+
 function initFirebase(): Firestore {
-  const projectId =
-    process.env.GOOGLE_CLOUD_PROJECT ||
-    process.env.GCLOUD_PROJECT ||
-    process.env.FIREBASE_PROJECT_ID;
-  console.log(`[LiqWS] Initializing Firebase. projectId=${projectId ?? "auto"}`);
+  console.log(`[LiqWS] Initializing Firebase. projectId=${PROJECT_ID}`);
   const app =
-    getApps().length === 0 ? initializeApp({ projectId }) : getApps()[0];
+    getApps().length === 0 ? initializeApp({ projectId: PROJECT_ID }) : getApps()[0];
   const db = getFirestore(app);
-  // Use REST instead of gRPC — avoids DEADLINE_EXCEEDED issues in Cloud Run
-  // where gRPC load balancer picks are slow (13s+).
   db.settings({ preferRest: true });
   return db;
+}
+
+// ── Direct REST auth + Firestore query (bypasses SDK retry loop) ──
+//
+// The Firebase Admin SDK's google-auth-library has multi-minute retry
+// backoff when the GCE metadata server is slow. Using fetch + AbortController
+// gives us a real network-level timeout that can't be starved.
+
+interface TokenCache {
+  token: string;
+  expiresAt: number;
+}
+let _tokenCache: TokenCache | null = null;
+
+async function fetchAccessToken(timeoutMs = 10_000): Promise<string> {
+  if (_tokenCache && Date.now() < _tokenCache.expiresAt - 60_000) {
+    return _tokenCache.token;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(
+      "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
+      { headers: { "Metadata-Flavor": "Google" }, signal: controller.signal },
+    );
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`Metadata server returned HTTP ${res.status}`);
+    const data = (await res.json()) as { access_token: string; expires_in: number };
+    _tokenCache = { token: data.access_token, expiresAt: Date.now() + data.expires_in * 1_000 };
+    console.log(`[LiqWS] Access token fetched (expires in ${data.expires_in}s)`);
+    return _tokenCache.token;
+  } catch (err) {
+    clearTimeout(timer);
+    throw new Error(`Token fetch failed: ${String(err)}`);
+  }
+}
+
+interface FirestoreDoc {
+  document?: {
+    fields: Record<string, { stringValue?: string; integerValue?: string; booleanValue?: boolean }>;
+  };
+}
+
+async function firestoreQuery(
+  collection: string,
+  filterField: string,
+  filterValue: string,
+  timeoutMs = 10_000,
+): Promise<FirestoreDoc[]> {
+  const token = await fetchAccessToken(timeoutMs);
+  const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents:runQuery`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: collection }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath: filterField },
+              op: "EQUAL",
+              value: { stringValue: filterValue },
+            },
+          },
+        },
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Firestore REST returned HTTP ${res.status}: ${body}`);
+    }
+    return (await res.json()) as FirestoreDoc[];
+  } catch (err) {
+    clearTimeout(timer);
+    throw new Error(`Firestore REST query failed: ${String(err)}`);
+  }
+}
+
+async function testConnectivity(): Promise<void> {
+  console.log("[LiqWS] Testing connectivity to metadata server and Firestore...");
+  try {
+    const token = await fetchAccessToken(10_000);
+    console.log(`[LiqWS] Metadata server OK. Token: ${token.slice(0, 12)}...`);
+  } catch (err) {
+    console.error("[LiqWS] Metadata server UNREACHABLE:", err);
+    return;
+  }
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    const res = await fetch(
+      `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)`,
+      {
+        headers: { Authorization: `Bearer ${(await fetchAccessToken())}` },
+        signal: controller.signal,
+      },
+    );
+    clearTimeout(timer);
+    console.log(`[LiqWS] Firestore REST reachable. HTTP ${res.status}`);
+  } catch (err) {
+    console.error("[LiqWS] Firestore REST UNREACHABLE:", err);
+  }
 }
 
 // ── Constants ─────────────────────────────────────────────────
@@ -395,30 +506,22 @@ class LiquidityWSServer {
   // ── Symbol discovery from Firestore ──────────────────────
 
   private async refreshSymbols(): Promise<void> {
-    console.log("[LiqWS] refreshSymbols: querying Firestore...");
+    console.log("[LiqWS] refreshSymbols: querying Firestore via REST...");
     try {
-      const snap = await Promise.race([
-        this.db.collection("signals").where("status", "==", "ACTIVE").get(),
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error("Firestore query timed out after 60s")),
-            60_000,
-          ),
-        ),
-      ]);
-      console.log(`[LiqWS] refreshSymbols: got ${snap.size} active signals`);
+      // Use direct REST + AbortController so SDK auth retries can't delay us
+      const rows = await firestoreQuery("signals", "status", "ACTIVE");
+      const docs = rows.filter((r) => r.document);
+      console.log(`[LiqWS] refreshSymbols: got ${docs.length} active signals`);
 
       const freshSymbols = new Set<string>();
-      for (const doc of snap.docs) {
-        const data = doc.data();
-        const assetType: string = data.assetType ?? "CRYPTO";
-        const symbol: string = data.symbol ?? "";
-        const exchange: string = (data.exchange ?? "").toUpperCase();
+      for (const { document } of docs) {
+        if (!document) continue;
+        const f = document.fields;
+        const assetType = f.assetType?.stringValue ?? "CRYPTO";
+        const symbol = f.symbol?.stringValue ?? "";
+        const exchange = (f.exchange?.stringValue ?? "").toUpperCase();
 
         // Only subscribe to crypto, non-Indian-stock symbols
-        // Accept any exchange for the liquidation feed — Bybit WS covers
-        // all perp symbols regardless of where the signal originates,
-        // since crypto markets are highly correlated cross-exchange.
         if (
           symbol &&
           assetType !== "INDIAN_STOCKS" &&
@@ -430,19 +533,12 @@ class LiquidityWSServer {
         }
       }
 
-      const toAdd = [...freshSymbols].filter(
-        (s) => !this.subscribedSymbols.has(s),
-      );
-      const toRemove = [...this.subscribedSymbols].filter(
-        (s) => !freshSymbols.has(s),
-      );
+      const toAdd = [...freshSymbols].filter((s) => !this.subscribedSymbols.has(s));
+      const toRemove = [...this.subscribedSymbols].filter((s) => !freshSymbols.has(s));
 
-      // Update internal tracking
       for (const s of toAdd) {
         this.subscribedSymbols.add(s);
-        if (!this.symbolStates.has(s)) {
-          this.symbolStates.set(s, emptyState());
-        }
+        if (!this.symbolStates.has(s)) this.symbolStates.set(s, emptyState());
       }
       for (const s of toRemove) {
         this.subscribedSymbols.delete(s);
@@ -451,14 +547,12 @@ class LiquidityWSServer {
         evictOBCache(s);
       }
 
-      // Push subscription changes to the open WS
       this.subscribeSymbols(toAdd);
       this.unsubscribeSymbols(toRemove);
 
       if (toAdd.length > 0 || toRemove.length > 0) {
         console.log(
-          `[LiqWS] Symbols: +${toAdd.length} -${toRemove.length} ` +
-            `total=${this.subscribedSymbols.size}`,
+          `[LiqWS] Symbols: +${toAdd.length} -${toRemove.length} total=${this.subscribedSymbols.size}`,
         );
       }
     } catch (err) {
@@ -525,6 +619,7 @@ process.on("unhandledRejection", (reason) => {
 (async () => {
   try {
     startHealthServer();
+    await testConnectivity();
     const db = initFirebase();
     const server = new LiquidityWSServer(db);
     await server.start();

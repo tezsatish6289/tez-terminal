@@ -7,16 +7,16 @@
  * Responsibilities:
  *   1. Connects to Bybit public liquidation WS (wss://stream.bybit.com/v5/public/linear)
  *   2. Subscribes to `liquidation.{SYMBOL}` for each active crypto signal
- *   3. Every 5s  → detectSweep() per symbol → writeSweepUpdate() to Firestore
- *   4. Every 30s → fetchOIContext() per symbol → writeOIUpdate() to Firestore
- *   5. Every 60s → fetchOrderBookContext() per symbol → writeOBUpdate() to Firestore
- *   6. Every 60s → re-reads active signal symbols from Firestore → adjust subscriptions
+ *   3. Every 5s  → detectSweep() per symbol → POST /api/internal/liquidity-cache (sweep)
+ *   4. Every 30s → fetchOIContext() per symbol → POST /api/internal/liquidity-cache (oi)
+ *   5. Every 60s → fetchOrderBookContext() per symbol → POST /api/internal/liquidity-cache (ob)
+ *   6. Every 60s → GET /api/internal/active-signals → adjust WS subscriptions
  *   7. Ping/pong every 20s to keep WS alive
  *   8. Exponential backoff reconnect on disconnect/error
  *
- * Auth:
- *   - Local: set GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
- *   - Cloud Run / Firebase App Hosting: uses ADC automatically
+ * Data flow: Cloud Run WS server → Next.js app proxy API → Firestore
+ * (Direct Cloud Run → Firestore fails: GCP restricted VIP routing requires
+ *  Private Google Access which the Cloud Run default network lacks.)
  *
  * Adding a new exchange:
  *   - Implement the LiquiditySourceAdapter interface below
@@ -27,8 +27,6 @@
 import * as dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
-import { initializeApp, getApps } from "firebase-admin/app";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import WebSocket from "ws";
 
 // Use relative paths from scripts/ → src/
@@ -38,11 +36,6 @@ import {
   fetchOrderBookContext,
   evictOBCache,
 } from "../src/lib/liquidity/orderbook-context";
-import {
-  writeSweepUpdate,
-  writeOIUpdate,
-  writeOBUpdate,
-} from "../src/lib/liquidity/firestore-cache";
 import type {
   LiqEvent,
   LiqSource,
@@ -50,131 +43,65 @@ import type {
   SweepResult,
 } from "../src/lib/liquidity/types";
 
-// ── Firebase init ─────────────────────────────────────────────
-
-const PROJECT_ID =
-  process.env.FIREBASE_PROJECT_ID ||
-  process.env.GOOGLE_CLOUD_PROJECT ||
-  process.env.GCLOUD_PROJECT ||
-  "studio-6235588950-a15f2";
-
-function initFirebase(): Firestore {
-  console.log(`[LiqWS] Initializing Firebase. projectId=${PROJECT_ID}`);
-  const app =
-    getApps().length === 0 ? initializeApp({ projectId: PROJECT_ID }) : getApps()[0];
-  const db = getFirestore(app);
-  db.settings({ preferRest: true });
-  return db;
-}
-
-// ── Direct REST auth + Firestore query (bypasses SDK retry loop) ──
+// ── Next.js app proxy config ──────────────────────────────────
 //
-// The Firebase Admin SDK's google-auth-library has multi-minute retry
-// backoff when the GCE metadata server is slow. Using fetch + AbortController
-// gives us a real network-level timeout that can't be starved.
+// Cloud Run cannot reach firestore.googleapis.com directly (restricted VIP
+// routing requires Private Google Access). Instead, the WS server calls the
+// Next.js app (Firebase App Hosting) which has full Firestore access.
 
-interface TokenCache {
-  token: string;
-  expiresAt: number;
-}
-let _tokenCache: TokenCache | null = null;
+const NEXT_APP_URL = (process.env.NEXT_APP_URL ?? "").replace(/\/$/, "");
+const LIQUIDITY_WS_SECRET = process.env.LIQUIDITY_WS_SECRET ?? "";
 
-async function fetchAccessToken(timeoutMs = 10_000): Promise<string> {
-  if (_tokenCache && Date.now() < _tokenCache.expiresAt - 60_000) {
-    return _tokenCache.token;
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const res = await fetch(
-      "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
-      { headers: { "Metadata-Flavor": "Google" }, signal: controller.signal },
-    );
-    clearTimeout(timer);
-    if (!res.ok) throw new Error(`Metadata server returned HTTP ${res.status}`);
-    const data = (await res.json()) as { access_token: string; expires_in: number };
-    _tokenCache = { token: data.access_token, expiresAt: Date.now() + data.expires_in * 1_000 };
-    console.log(`[LiqWS] Access token fetched (expires in ${data.expires_in}s)`);
-    return _tokenCache.token;
-  } catch (err) {
-    clearTimeout(timer);
-    throw new Error(`Token fetch failed: ${String(err)}`);
-  }
-}
-
-interface FirestoreDoc {
-  document?: {
-    fields: Record<string, { stringValue?: string; integerValue?: string; booleanValue?: boolean }>;
-  };
-}
-
-async function firestoreQuery(
-  collection: string,
-  filterField: string,
-  filterValue: string,
-  timeoutMs = 10_000,
-): Promise<FirestoreDoc[]> {
-  const token = await fetchAccessToken(timeoutMs);
-  const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents:runQuery`;
+async function callNextApp<T = unknown>(
+  method: "GET" | "POST",
+  path: string,
+  body?: object,
+  timeoutMs = 15_000,
+): Promise<T> {
+  if (!NEXT_APP_URL) throw new Error("NEXT_APP_URL env var is not set");
+  if (!LIQUIDITY_WS_SECRET) throw new Error("LIQUIDITY_WS_SECRET env var is not set");
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        structuredQuery: {
-          from: [{ collectionId: collection }],
-          where: {
-            fieldFilter: {
-              field: { fieldPath: filterField },
-              op: "EQUAL",
-              value: { stringValue: filterValue },
-            },
-          },
-        },
-      }),
+    const res = await fetch(`${NEXT_APP_URL}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${LIQUIDITY_WS_SECRET}`,
+        "Content-Type": "application/json",
+      },
+      body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
     });
     clearTimeout(timer);
     if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Firestore REST returned HTTP ${res.status}: ${body}`);
+      const text = await res.text();
+      throw new Error(`HTTP ${res.status}: ${text}`);
     }
-    return (await res.json()) as FirestoreDoc[];
+    return (await res.json()) as T;
   } catch (err) {
     clearTimeout(timer);
-    throw new Error(`Firestore REST query failed: ${String(err)}`);
+    throw err;
   }
 }
 
 async function testConnectivity(): Promise<void> {
-  console.log("[LiqWS] Testing connectivity to metadata server and Firestore...");
-  try {
-    const token = await fetchAccessToken(10_000);
-    console.log(`[LiqWS] Metadata server OK. Token: ${token.slice(0, 12)}...`);
-  } catch (err) {
-    console.error("[LiqWS] Metadata server UNREACHABLE:", err);
+  console.log(`[LiqWS] Testing connectivity to Next.js proxy at ${NEXT_APP_URL}...`);
+  if (!NEXT_APP_URL || !LIQUIDITY_WS_SECRET) {
+    console.error("[LiqWS] NEXT_APP_URL or LIQUIDITY_WS_SECRET not set — proxy calls will fail");
     return;
   }
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10_000);
-    const res = await fetch(
-      `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)`,
-      {
-        headers: { Authorization: `Bearer ${(await fetchAccessToken())}` },
-        signal: controller.signal,
-      },
+    const result = await callNextApp<{ symbols: string[] }>(
+      "GET",
+      "/api/internal/active-signals",
     );
-    clearTimeout(timer);
-    console.log(`[LiqWS] Firestore REST reachable. HTTP ${res.status}`);
+    console.log(
+      `[LiqWS] Next.js proxy OK. Active symbols: ${result.symbols.join(", ") || "(none)"}`,
+    );
   } catch (err) {
-    console.error("[LiqWS] Firestore REST UNREACHABLE:", err);
+    console.error("[LiqWS] Next.js proxy UNREACHABLE:", err);
   }
 }
 
@@ -249,7 +176,6 @@ function buildSweepDetection(
 // ── Main server class ─────────────────────────────────────────
 
 class LiquidityWSServer {
-  private db: Firestore;
   private ws: WebSocket | null = null;
   private symbolStates = new Map<string, SymbolState>();
   private subscribedSymbols = new Set<string>();
@@ -262,10 +188,6 @@ class LiquidityWSServer {
   private oiTimer: ReturnType<typeof setInterval> | null = null;
   private obTimer: ReturnType<typeof setInterval> | null = null;
   private symbolRefreshTimer: ReturnType<typeof setInterval> | null = null;
-
-  constructor(db: Firestore) {
-    this.db = db;
-  }
 
   async start(): Promise<void> {
     console.log("[LiqWS] Starting liquidity WebSocket server...");
@@ -459,8 +381,12 @@ class LiquidityWSServer {
       const result = detectSweep(state.events, SWEEP_MIN_SIGMA, SWEEP_MIN_USD, now);
       const detection = buildSweepDetection(result, state);
 
-      writeSweepUpdate(this.db, symbol, detection).catch((err) =>
-        console.error(`[LiqWS][sweep] Firestore write failed for ${symbol}:`, err),
+      callNextApp("POST", "/api/internal/liquidity-cache", {
+        symbol,
+        type: "sweep",
+        data: detection,
+      }).catch((err) =>
+        console.error(`[LiqWS][sweep] Write failed for ${symbol}:`, err),
       );
 
       if (result.detected) {
@@ -478,7 +404,11 @@ class LiquidityWSServer {
       try {
         const oi = await fetchOIContext(symbol);
         if (oi) {
-          await writeOIUpdate(this.db, symbol, oi);
+          await callNextApp("POST", "/api/internal/liquidity-cache", {
+            symbol,
+            type: "oi",
+            data: oi,
+          });
         }
       } catch (err) {
         console.error(`[LiqWS][oi] Failed for ${symbol}:`, err);
@@ -495,7 +425,11 @@ class LiquidityWSServer {
       try {
         const ob = await fetchOrderBookContext(symbol, price);
         if (ob) {
-          await writeOBUpdate(this.db, symbol, ob);
+          await callNextApp("POST", "/api/internal/liquidity-cache", {
+            symbol,
+            type: "ob",
+            data: ob,
+          });
         }
       } catch (err) {
         console.error(`[LiqWS][ob] Failed for ${symbol}:`, err);
@@ -503,35 +437,17 @@ class LiquidityWSServer {
     }
   }
 
-  // ── Symbol discovery from Firestore ──────────────────────
+  // ── Symbol discovery via Next.js proxy ───────────────────
 
   private async refreshSymbols(): Promise<void> {
-    console.log("[LiqWS] refreshSymbols: querying Firestore via REST...");
+    console.log("[LiqWS] refreshSymbols: calling Next.js proxy...");
     try {
-      // Use direct REST + AbortController so SDK auth retries can't delay us
-      const rows = await firestoreQuery("signals", "status", "ACTIVE");
-      const docs = rows.filter((r) => r.document);
-      console.log(`[LiqWS] refreshSymbols: got ${docs.length} active signals`);
-
-      const freshSymbols = new Set<string>();
-      for (const { document } of docs) {
-        if (!document) continue;
-        const f = document.fields;
-        const assetType = f.assetType?.stringValue ?? "CRYPTO";
-        const symbol = f.symbol?.stringValue ?? "";
-        const exchange = (f.exchange?.stringValue ?? "").toUpperCase();
-
-        // Only subscribe to crypto, non-Indian-stock symbols
-        if (
-          symbol &&
-          assetType !== "INDIAN_STOCKS" &&
-          exchange !== "NSE" &&
-          exchange !== "BSE" &&
-          exchange !== "MCX"
-        ) {
-          freshSymbols.add(symbol.toUpperCase());
-        }
-      }
+      const result = await callNextApp<{ symbols: string[] }>(
+        "GET",
+        "/api/internal/active-signals",
+      );
+      const freshSymbols = new Set(result.symbols);
+      console.log(`[LiqWS] refreshSymbols: got ${freshSymbols.size} active symbols`);
 
       const toAdd = [...freshSymbols].filter((s) => !this.subscribedSymbols.has(s));
       const toRemove = [...this.subscribedSymbols].filter((s) => !freshSymbols.has(s));
@@ -620,8 +536,7 @@ process.on("unhandledRejection", (reason) => {
   try {
     startHealthServer();
     await testConnectivity();
-    const db = initFirebase();
-    const server = new LiquidityWSServer(db);
+    const server = new LiquidityWSServer();
     await server.start();
   } catch (err) {
     console.error("[LiqWS] FATAL startup error:", err);

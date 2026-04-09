@@ -60,3 +60,7 @@ env:
     secret: SOLANA_PRIVATE_KEY
     availability:
       - RUNTIME
+  - variable: LIQUIDITY_WS_SECRET
+    secret: LIQUIDITY_WS_SECRET
+    availability:
+      - RUNTIME

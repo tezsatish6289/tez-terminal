@@ -495,9 +495,24 @@ function startHealthServer(): void {
 
 // ── Entry point ───────────────────────────────────────────────
 
+process.on("uncaughtException", (err) => {
+  console.error("[LiqWS] UNCAUGHT EXCEPTION:", err);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[LiqWS] UNHANDLED REJECTION:", reason);
+  process.exit(1);
+});
+
 (async () => {
-  startHealthServer();
-  const db = initFirebase();
-  const server = new LiquidityWSServer(db);
-  await server.start();
+  try {
+    startHealthServer();
+    const db = initFirebase();
+    const server = new LiquidityWSServer(db);
+    await server.start();
+  } catch (err) {
+    console.error("[LiqWS] FATAL startup error:", err);
+    process.exit(1);
+  }
 })();

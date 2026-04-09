@@ -60,7 +60,11 @@ function initFirebase(): Firestore {
   console.log(`[LiqWS] Initializing Firebase. projectId=${projectId ?? "auto"}`);
   const app =
     getApps().length === 0 ? initializeApp({ projectId }) : getApps()[0];
-  return getFirestore(app);
+  const db = getFirestore(app);
+  // Use REST instead of gRPC — avoids DEADLINE_EXCEEDED issues in Cloud Run
+  // where gRPC load balancer picks are slow (13s+).
+  db.settings({ preferRest: true });
+  return db;
 }
 
 // ── Constants ─────────────────────────────────────────────────

@@ -1,0 +1,44 @@
+# ── Liquidity WebSocket Server — Cloud Run container ─────────────────────────
+#
+# Persistent single-instance service that maintains a Bybit WebSocket
+# connection and writes liquidation sweep data to Firestore.
+#
+# Build:  docker build -f Dockerfile.liquidity-ws -t liquidity-ws .
+# Deploy: see scripts/deploy-liquidity-ws.sh
+# ─────────────────────────────────────────────────────────────────────────────
+
+FROM node:20-alpine AS deps
+
+WORKDIR /app
+
+# Install only production + tsx runtime dependencies
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && \
+    # tsx needs to be available at runtime (not just dev)
+    npm install tsx
+
+# ── Runtime stage ─────────────────────────────────────────────────────────────
+
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Copy dependencies
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy only what the WS server needs
+COPY package.json ./
+COPY tsconfig.json ./
+COPY scripts/liquidity-ws-server.ts ./scripts/
+COPY src/lib/liquidity ./src/lib/liquidity/
+
+# Cloud Run provides ADC automatically — no GOOGLE_APPLICATION_CREDENTIALS needed.
+# All other config is via env vars set at deploy time (see deploy script).
+
+# Cloud Run requires a listening port even for non-HTTP workloads.
+# We open a minimal health-check HTTP server on this port.
+ENV PORT=8080
+
+CMD ["node_modules/.bin/tsx", "scripts/liquidity-ws-server.ts"]

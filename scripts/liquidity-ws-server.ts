@@ -470,9 +470,33 @@ class LiquidityWSServer {
   }
 }
 
+// ── Health check HTTP server (required by Cloud Run) ─────────
+// Cloud Run expects the container to listen on PORT even for
+// non-HTTP workloads. This tiny server satisfies that requirement
+// and provides a /health endpoint for uptime monitoring.
+
+import { createServer } from "http";
+
+function startHealthServer(): void {
+  const port = parseInt(process.env.PORT ?? "8080", 10);
+  const srv = createServer((req, res) => {
+    if (req.url === "/health") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "ok", ts: Date.now() }));
+    } else {
+      res.writeHead(404);
+      res.end();
+    }
+  });
+  srv.listen(port, () => {
+    console.log(`[LiqWS] Health server listening on port ${port}`);
+  });
+}
+
 // ── Entry point ───────────────────────────────────────────────
 
 (async () => {
+  startHealthServer();
   const db = initFirebase();
   const server = new LiquidityWSServer(db);
   await server.start();

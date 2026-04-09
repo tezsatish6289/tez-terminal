@@ -13,7 +13,7 @@ WORKDIR /app
 
 # Install only production + tsx runtime dependencies
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && \
+RUN npm install --omit=dev && \
     # tsx needs to be available at runtime (not just dev)
     npm install tsx
 

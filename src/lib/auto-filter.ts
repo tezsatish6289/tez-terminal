@@ -21,6 +21,9 @@
  */
 
 import { getEffectivePnl } from "./pnl";
+import type { LiquidityCache, LiquidityConfig, LiquidityContextScore } from "./liquidity/types";
+import { scoreLiquidityContext } from "./liquidity/liquidity-scorer";
+import { DEFAULT_LIQUIDITY_CONFIG } from "./liquidity/types";
 
 export const AUTO_FILTER_THRESHOLD = 45;
 export const STALE_CANDLE_LIMIT = 6;
@@ -253,9 +256,10 @@ export interface SignalForScoring {
 }
 
 export interface ScoreBreakdown {
-  priceStructure: number;   // 0-80 — Pattern A or B detection
+  priceStructure: number;          // 0-80 — Pattern A or B detection
   pattern: "A" | "B" | "none" | "early";
-  rrGateFailed: boolean;    // true if dynamic RR gate failed (remaining upside to TP2 < 1.5× risk)
+  rrGateFailed: boolean;           // true if dynamic RR gate failed (remaining upside to TP2 < 1.5× risk)
+  liquidityContext?: LiquidityContextScore; // 0-20 — sweep + OI + order book (undefined if WS server offline)
 }
 
 export interface ScoredSignal {
@@ -518,6 +522,8 @@ function getConfidenceLabel(score: number): { label: string; color: string } {
 export function computeAutoFilter(
   allSignals: SignalForScoring[],
   options?: { includeResolved?: boolean },
+  liquidityCaches?: Map<string, LiquidityCache>,
+  liqConfig?: LiquidityConfig,
 ): Map<string, ScoredSignal> {
   const scores = new Map<string, ScoredSignal>();
 
@@ -535,21 +541,33 @@ export function computeAutoFilter(
           !s.slHitAt,
       );
 
+  const cfg = liqConfig ?? DEFAULT_LIQUIDITY_CONFIG;
+
   for (const signal of candidates) {
     const rrPassed = checkDynamicRR(signal);
     const { score: structureScore, pattern } = scorePriceStructure(signal);
 
     const rrGateFailed = !rrPassed;
 
-    // Score is purely pattern quality (0-80).
-    // RR gate failure doesn't cap the score — it's flagged separately
-    // and the entry gate in selectIncubatedSignals reads rrGateFailed directly.
-    const finalScore = Math.min(80, structureScore);
+    // Liquidity context: added on top of price structure (0–20 pts)
+    // Only computed for crypto signals when the cache is available.
+    const liqCache = liquidityCaches?.get(signal.symbol) ?? null;
+    const liquidityContext =
+      liquidityCaches && cfg.enabled
+        ? scoreLiquidityContext(signal, liqCache, cfg)
+        : undefined;
+
+    // Total score: price structure (0-80) + liquidity context (0-20) = 0-100
+    const finalScore = Math.min(
+      100,
+      structureScore + (liquidityContext?.score ?? 0),
+    );
 
     const breakdown: ScoreBreakdown = {
       priceStructure: structureScore,
       pattern,
       rrGateFailed,
+      liquidityContext,
     };
     const { label, color } = getConfidenceLabel(finalScore);
 

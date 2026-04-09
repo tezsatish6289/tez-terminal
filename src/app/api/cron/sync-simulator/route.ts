@@ -20,6 +20,9 @@ import {
   computeAutoFilter,
   mapFirestoreSignal,
 } from "@/lib/auto-filter";
+import { batchReadLiquidityCache } from "@/lib/liquidity/firestore-cache";
+import { scoreLiquidityContext } from "@/lib/liquidity/liquidity-scorer";
+import { parseLiquidityConfig } from "@/lib/liquidity/types";
 import { deserializePrices, getReferencePrice, getPrice, type AllExchangePrices } from "@/lib/exchanges";
 import { executeForAllUsers } from "@/lib/live-execution";
 import { isMarketOpen, isIndianSquareOffTime } from "@/lib/market-hours";
@@ -105,12 +108,34 @@ export async function GET(request: NextRequest) {
       postUpdateDocs.push({ id: signalDoc.id, ...signalDoc.data() });
     }
 
+    // ── Liquidity config from simulator params ───────────────
+    const liqConfig = parseLiquidityConfig(simParamsData as Record<string, unknown>);
+
+    // ── Batch-read liquidity cache for crypto symbols ────────
+    // Single Firestore round-trip — no per-signal reads.
+    const allSignalsForScoring = postUpdateDocs.map(mapFirestoreSignal);
+    const cryptoSymbols = [
+      ...new Set(
+        postUpdateDocs
+          .filter((d) => (d.assetType ?? "CRYPTO") !== "INDIAN_STOCKS")
+          .map((d) => String(d.symbol ?? "").toUpperCase())
+          .filter(Boolean),
+      ),
+    ];
+    let liquidityCaches = new Map<string, import("@/lib/liquidity/types").LiquidityCache>();
+    if (liqConfig.enabled && cryptoSymbols.length > 0) {
+      try {
+        liquidityCaches = await batchReadLiquidityCache(db, cryptoSymbols);
+      } catch (liqErr) {
+        console.error("[SimSync] Liquidity cache read failed (non-fatal):", liqErr);
+      }
+    }
+
     // Compute scores for new-entry selection and market turn checks.
     // A second pass with includeResolved:true keeps currentScore fresh on
     // open trades whose signals have already hit TPs — display only.
-    const allSignalsForScoring = postUpdateDocs.map(mapFirestoreSignal);
-    const scores = computeAutoFilter(allSignalsForScoring);
-    const scoresForOpenTrades = computeAutoFilter(allSignalsForScoring, { includeResolved: true });
+    const scores = computeAutoFilter(allSignalsForScoring, undefined, liquidityCaches, liqConfig);
+    const scoresForOpenTrades = computeAutoFilter(allSignalsForScoring, { includeResolved: true }, liquidityCaches, liqConfig);
 
     // ── Helper: load/save sim state per asset type ─────────
     const simStates = new Map<string, SimulatorState>();
@@ -421,11 +446,21 @@ export async function GET(request: NextRequest) {
         )
         .map((d) => {
           const scored = scores.get(d.id);
+          const assetType = d.assetType ?? "CRYPTO";
+          const symbol = String(d.symbol ?? "").toUpperCase();
+
+          // sweepGatePassed: read from the liquidity context already computed
+          // in computeAutoFilter. undefined = no data (no block).
+          const sweepGatePassed =
+            assetType !== "INDIAN_STOCKS" && liqConfig.enabled && liqConfig.sweepGateEnabled
+              ? scored?.breakdown?.liquidityContext?.sweepGatePassed
+              : undefined;
+
           return {
             id: d.id,
             symbol: d.symbol || "",
             exchange: d.exchange ?? "BINANCE",
-            assetType: d.assetType ?? "CRYPTO",
+            assetType,
             type: (d.type || "BUY") as "BUY" | "SELL",
             timeframe: String(d.timeframe || "15"),
             algo: d.algo || "",
@@ -442,6 +477,7 @@ export async function GET(request: NextRequest) {
             slHitAt: d.slHitAt ?? null,
             scorePattern: scored?.breakdown?.pattern,
             rrGateFailed: scored?.breakdown?.rrGateFailed ?? false,
+            sweepGatePassed,
           };
         });
 
@@ -462,7 +498,7 @@ export async function GET(request: NextRequest) {
           noPriceExcluded: postUpdateDocs.filter((d) => d.status === "ACTIVE" && (d.assetType ?? "CRYPTO") === assetType && !d.tp1Hit && !d.tp2Hit && !d.slHitAt && (d.currentPrice == null || d.price == null || d.stopLoss == null)).length,
           evaluated: assetCandidates.length,
           alreadyOpen: 0, duplicate: 0, slConsumed: 0, tp1Consumed: 0,
-          earlySnapshots: 0, noPattern: 0, rrGateFailed: 0, selected: 0,
+          earlySnapshots: 0, noPattern: 0, rrGateFailed: 0, noSweep: 0, selected: 0,
         };
 
         const { simEnabled: assetSimEnabled, directionBias: assetDirectionBias } = getAssetControls(assetType);
@@ -489,6 +525,7 @@ export async function GET(request: NextRequest) {
           else if (r.includes("too early")) assess.earlySnapshots++;
           else if (r.includes("no price structure")) assess.noPattern++;
           else if (r.includes("rr gate")) assess.rrGateFailed++;
+          else if (r.includes("no liquidation sweep")) assess.noSweep++;
         }
         assess.selected = selected.length;
 
@@ -625,6 +662,7 @@ export async function GET(request: NextRequest) {
             `early=${assess.earlySnapshots}`,
             `no_pattern=${assess.noPattern}`,
             `rr_gate=${assess.rrGateFailed}`,
+            `no_sweep=${assess.noSweep}`,
             `→ selected=${assess.selected}`,
           ].join(" | "),
           capital: simState3.capital,

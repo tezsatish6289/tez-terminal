@@ -97,6 +97,17 @@ export interface SimTrade {
   fees: number;
   confidenceScore: number;
   scorePattern?: "A" | "B" | "none" | "early"; // pattern that triggered this trade
+  scoreBreakdownAtEntry?: {
+    priceStructure: number;
+    pattern: "A" | "B" | "none" | "early";
+    rrGateFailed: boolean;
+    liquidityContext?: {
+      score: number;
+      sweepGatePassed: boolean | undefined;
+      sweepAgeMs: number | null;
+      reasons: string[];
+    };
+  };
   currentScore: number | null;
   currentScorePattern?: "A" | "B" | "none" | "early"; // live pattern, updated each cycle
   biasAtEntry: string;
@@ -170,6 +181,17 @@ export interface IncubatedCandidate {
   scorePattern?: "A" | "B" | "none" | "early"; // from scoring engine breakdown
   rrGateFailed?: boolean;    // true if dynamic RR gate capped the score
   sweepGatePassed?: boolean; // true/false/undefined — undefined = no WS data (no block)
+  scoreBreakdown?: {
+    priceStructure: number;
+    pattern: "A" | "B" | "none" | "early";
+    rrGateFailed: boolean;
+    liquidityContext?: {
+      score: number;
+      sweepGatePassed: boolean | undefined;
+      sweepAgeMs: number | null;
+      reasons: string[];
+    };
+  };
 }
 
 export interface IncubatedResult {
@@ -626,6 +648,17 @@ export function openTrade(params: {
     tp3: number;
     confidenceScore: number;
     scorePattern?: "A" | "B" | "none" | "early";
+    scoreBreakdown?: {
+      priceStructure: number;
+      pattern: "A" | "B" | "none" | "early";
+      rrGateFailed: boolean;
+      liquidityContext?: {
+        score: number;
+        sweepGatePassed: boolean | undefined;
+        sweepAgeMs: number | null;
+        reasons: string[];
+      };
+    };
   };
   positionSize: number;
   state: SimulatorState;
@@ -673,6 +706,7 @@ export function openTrade(params: {
     fees: entryFee,
     confidenceScore: signal.confidenceScore,
     scorePattern: signal.scorePattern,
+    scoreBreakdownAtEntry: signal.scoreBreakdown,
     biasAtEntry: biasLabel,
     liveWinRateAtEntry: liveWinRate,
     algoWinRateAtEntry: algoWinRate,

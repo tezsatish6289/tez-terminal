@@ -1302,14 +1302,63 @@ function DesktopTradeRow({ trade, onSelect, onForceClose, cs }: { trade: SimTrad
       <TableCell className="font-mono text-xs font-bold text-white/60">{formatMoney(trade.positionSize, cs)}</TableCell>
       <TableCell>
         <div className="flex gap-3">
-          {/* Entry */}
-          <div className="flex flex-col gap-0.5">
-            <span className="font-mono text-[10px] text-muted-foreground/40 uppercase tracking-wider">Entry</span>
-            <span className="font-mono text-xs font-bold text-accent">{trade.confidenceScore}</span>
-            {trade.scorePattern && (
-              <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
+          {/* Entry — click to see score breakdown */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <div className="flex flex-col gap-0.5 cursor-pointer hover:opacity-80 transition-opacity">
+                <span className="font-mono text-[10px] text-muted-foreground/40 uppercase tracking-wider">Entry</span>
+                <span className="font-mono text-xs font-bold text-accent underline decoration-dotted underline-offset-2">{trade.confidenceScore}</span>
+                {trade.scorePattern && (
+                  <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
+                )}
+              </div>
+            </PopoverTrigger>
+            {trade.scoreBreakdownAtEntry && (
+              <PopoverContent className="w-72 p-3 text-xs space-y-2" side="right">
+                <p className="font-black uppercase tracking-widest text-[10px] text-muted-foreground/50 mb-1">Score at Entry</p>
+                {/* Price structure */}
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Price Structure</span>
+                  <span className="font-mono font-bold text-white">{trade.scoreBreakdownAtEntry.priceStructure} <span className="text-muted-foreground/50">/ 60</span></span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Pattern</span>
+                  <span className="font-mono font-bold text-accent uppercase">{trade.scoreBreakdownAtEntry.pattern}</span>
+                </div>
+                {trade.scoreBreakdownAtEntry.rrGateFailed && (
+                  <div className="text-rose-400 text-[10px]">⚠ RR gate failed</div>
+                )}
+                {/* Liquidity */}
+                {trade.scoreBreakdownAtEntry.liquidityContext && (
+                  <>
+                    <div className="border-t border-white/[0.06] pt-2 mt-1">
+                      <div className="flex justify-between items-center mb-1.5">
+                        <span className="text-muted-foreground">Liquidity</span>
+                        <span className="font-mono font-bold text-white">{trade.scoreBreakdownAtEntry.liquidityContext.score} <span className="text-muted-foreground/50">/ 40</span></span>
+                      </div>
+                      <div className="space-y-1">
+                        {trade.scoreBreakdownAtEntry.liquidityContext.reasons.map((r, i) => (
+                          <div key={i} className={cn(
+                            "text-[10px] flex items-start gap-1",
+                            r.startsWith("Sweep") || r.startsWith("Fresh") || r.startsWith("Strong") || r.startsWith("Moderate") || r.startsWith("OI rising") || r.startsWith("OI falling") || r.startsWith("Bid") || r.startsWith("Ask pressure") || r.startsWith("Clear") || r.startsWith("Protective") || r.startsWith("Neutral")
+                              ? "text-positive/80" : "text-rose-400/80"
+                          )}>
+                            <span>{r.startsWith("No ") || r.startsWith("Sweep AGAINST") || r.startsWith("Wall") || r.startsWith("Extreme") || r.startsWith("Ask heavy") || r.startsWith("Bid heavy") ? "↓" : "↑"}</span>
+                            <span>{r}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+                {/* Total */}
+                <div className="border-t border-white/[0.06] pt-2 flex justify-between items-center">
+                  <span className="font-bold text-white/70">Total</span>
+                  <span className="font-mono font-black text-accent">{trade.confidenceScore} / 100</span>
+                </div>
+              </PopoverContent>
             )}
-          </div>
+          </Popover>
           {/* Current / last */}
           {trade.currentScore != null && (
             <div className="flex flex-col gap-0.5 pl-3 border-l border-white/[0.06]">
@@ -1485,7 +1534,29 @@ function MobileTradeCard({ trade, onSelect, onForceClose, cs }: { trade: SimTrad
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             <span className="text-[10px] font-bold text-muted-foreground/30 uppercase">{trade.algo || "—"}</span>
             <span className="text-white/15">·</span>
-            <span className="text-[10px] font-bold text-accent">Entry {trade.confidenceScore}</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <span className="text-[10px] font-bold text-accent underline decoration-dotted underline-offset-2 cursor-pointer">Entry {trade.confidenceScore}</span>
+              </PopoverTrigger>
+              {trade.scoreBreakdownAtEntry && (
+                <PopoverContent className="w-64 p-3 text-xs space-y-2" side="bottom">
+                  <p className="font-black uppercase tracking-widest text-[10px] text-muted-foreground/50 mb-1">Score at Entry</p>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Price Structure</span><span className="font-mono font-bold">{trade.scoreBreakdownAtEntry.priceStructure}/60</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Pattern</span><span className="font-mono font-bold text-accent uppercase">{trade.scoreBreakdownAtEntry.pattern}</span></div>
+                  {trade.scoreBreakdownAtEntry.liquidityContext && (
+                    <>
+                      <div className="flex justify-between border-t border-white/[0.06] pt-2"><span className="text-muted-foreground">Liquidity</span><span className="font-mono font-bold">{trade.scoreBreakdownAtEntry.liquidityContext.score}/40</span></div>
+                      {trade.scoreBreakdownAtEntry.liquidityContext.reasons.map((r, i) => (
+                        <div key={i} className={cn("text-[10px]", r.startsWith("No ") || r.startsWith("Sweep AGAINST") || r.startsWith("Wall") || r.startsWith("Extreme") || r.startsWith("Ask heavy") || r.startsWith("Bid heavy") ? "text-rose-400/80" : "text-positive/80")}>
+                          {r.startsWith("No ") || r.startsWith("Sweep AGAINST") || r.startsWith("Wall") || r.startsWith("Extreme") ? "↓ " : "↑ "}{r}
+                        </div>
+                      ))}
+                    </>
+                  )}
+                  <div className="border-t border-white/[0.06] pt-2 flex justify-between font-bold"><span>Total</span><span className="text-accent font-mono">{trade.confidenceScore}/100</span></div>
+                </PopoverContent>
+              )}
+            </Popover>
             {trade.scorePattern && <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />}
             {trade.currentScore != null && (
               <>
@@ -1749,7 +1820,29 @@ function TradeNarrationDialog({ trade, onClose, cs }: { trade: SimTrade | null; 
             <div className="flex flex-col items-end gap-1.5">
               <div className="flex flex-col items-end gap-0.5">
                 <span className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Entry</span>
-                <span className="font-mono font-bold text-accent">{trade.confidenceScore}</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <span className="font-mono font-bold text-accent underline decoration-dotted underline-offset-2 cursor-pointer">{trade.confidenceScore}</span>
+                  </PopoverTrigger>
+                  {trade.scoreBreakdownAtEntry && (
+                    <PopoverContent className="w-64 p-3 text-xs space-y-2" side="left">
+                      <p className="font-black uppercase tracking-widest text-[10px] text-muted-foreground/50 mb-1">Score at Entry</p>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Price Structure</span><span className="font-mono font-bold">{trade.scoreBreakdownAtEntry.priceStructure}/60</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Pattern</span><span className="font-mono font-bold text-accent uppercase">{trade.scoreBreakdownAtEntry.pattern}</span></div>
+                      {trade.scoreBreakdownAtEntry.liquidityContext && (
+                        <>
+                          <div className="flex justify-between border-t border-white/[0.06] pt-2"><span className="text-muted-foreground">Liquidity</span><span className="font-mono font-bold">{trade.scoreBreakdownAtEntry.liquidityContext.score}/40</span></div>
+                          {trade.scoreBreakdownAtEntry.liquidityContext.reasons.map((r, i) => (
+                            <div key={i} className={cn("text-[10px]", r.startsWith("No ") || r.startsWith("Sweep AGAINST") || r.startsWith("Wall") || r.startsWith("Extreme") || r.startsWith("Ask heavy") || r.startsWith("Bid heavy") ? "text-rose-400/80" : "text-positive/80")}>
+                              {r.startsWith("No ") || r.startsWith("Sweep AGAINST") || r.startsWith("Wall") || r.startsWith("Extreme") ? "↓ " : "↑ "}{r}
+                            </div>
+                          ))}
+                        </>
+                      )}
+                      <div className="border-t border-white/[0.06] pt-2 flex justify-between font-bold"><span>Total</span><span className="text-accent font-mono">{trade.confidenceScore}/100</span></div>
+                    </PopoverContent>
+                  )}
+                </Popover>
                 {trade.scorePattern && <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />}
               </div>
               {trade.currentScore != null && (

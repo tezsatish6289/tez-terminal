@@ -478,6 +478,17 @@ export async function GET(request: NextRequest) {
             scorePattern: scored?.breakdown?.pattern,
             rrGateFailed: scored?.breakdown?.rrGateFailed ?? false,
             sweepGatePassed,
+            scoreBreakdown: scored?.breakdown ? {
+              priceStructure: scored.breakdown.priceStructure,
+              pattern: scored.breakdown.pattern,
+              rrGateFailed: scored.breakdown.rrGateFailed,
+              liquidityContext: scored.breakdown.liquidityContext ? {
+                score: scored.breakdown.liquidityContext.score,
+                sweepGatePassed: scored.breakdown.liquidityContext.sweepGatePassed,
+                sweepAgeMs: scored.breakdown.liquidityContext.sweepAgeMs,
+                reasons: scored.breakdown.liquidityContext.reasons,
+              } : undefined,
+            } : undefined,
           };
         });
 
@@ -581,6 +592,7 @@ export async function GET(request: NextRequest) {
               tp3: c.tp3,
               confidenceScore: c.confidenceScore,
               scorePattern: c.scorePattern,
+              scoreBreakdown: c.scoreBreakdown,
             },
             positionSize,
             state: simState3,

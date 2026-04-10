@@ -150,8 +150,8 @@ async function testConnectivity(): Promise<void> {
 
 const BYBIT_WS_URL = "wss://stream.bybit.com/v5/public/linear";
 const SWEEP_INTERVAL_MS = 5_000;
-const OI_INTERVAL_MS = 30_000;
-const OB_INTERVAL_MS = 60_000;
+const OI_INTERVAL_MS = 120_000;  // 2 min — 120 symbols × ~500ms each ≈ 60s per cycle
+const OB_INTERVAL_MS = 180_000;  // 3 min — gives OI cycle time to finish first
 const SYMBOL_REFRESH_MS = 60_000;
 const PING_INTERVAL_MS = 20_000;
 const EVENT_BUFFER_TTL_MS = 35_000;
@@ -444,40 +444,56 @@ class LiquidityWSServer {
   }
 
   private async runOICycle(): Promise<void> {
-    for (const symbol of this.subscribedSymbols) {
-      try {
-        const oi = await fetchOIContext(symbol);
-        if (oi) {
-          await callNextApp("POST", "/api/internal/liquidity-cache", {
-            symbol,
-            type: "oi",
-            data: oi,
-          });
-        }
-      } catch (err) {
-        console.error(`[LiqWS][oi] Failed for ${symbol}:`, err);
-      }
+    const symbols = [...this.subscribedSymbols];
+    // Fetch all OI data concurrently (Bybit REST, no rate limit concerns at this scale)
+    const results = await Promise.allSettled(
+      symbols.map((symbol) => fetchOIContext(symbol).then((oi) => ({ symbol, oi }))),
+    );
+
+    const updates = results
+      .filter(
+        (r): r is PromiseFulfilledResult<{ symbol: string; oi: NonNullable<unknown> }> =>
+          r.status === "fulfilled" && r.value.oi !== null,
+      )
+      .map(({ value: { symbol, oi } }) => ({ symbol, type: "oi" as const, data: oi }));
+
+    if (updates.length === 0) return;
+
+    try {
+      await callNextApp("POST", "/api/internal/liquidity-cache/batch", { updates });
+      console.log(`[LiqWS][oi] Batch wrote ${updates.length} symbols`);
+    } catch (err) {
+      console.error("[LiqWS][oi] Batch write failed:", err);
     }
   }
 
   private async runOBCycle(): Promise<void> {
-    for (const symbol of this.subscribedSymbols) {
-      const state = this.symbolStates.get(symbol);
-      const price = state?.lastPrice ?? 0;
-      if (price <= 0) continue;
-
-      try {
+    const symbols = [...this.subscribedSymbols];
+    // Fetch all OB data concurrently
+    const results = await Promise.allSettled(
+      symbols.map(async (symbol) => {
+        const state = this.symbolStates.get(symbol);
+        const price = state?.lastPrice ?? 0;
+        if (price <= 0) return { symbol, ob: null };
         const ob = await fetchOrderBookContext(symbol, price);
-        if (ob) {
-          await callNextApp("POST", "/api/internal/liquidity-cache", {
-            symbol,
-            type: "ob",
-            data: ob,
-          });
-        }
-      } catch (err) {
-        console.error(`[LiqWS][ob] Failed for ${symbol}:`, err);
-      }
+        return { symbol, ob };
+      }),
+    );
+
+    const updates = results
+      .filter(
+        (r): r is PromiseFulfilledResult<{ symbol: string; ob: NonNullable<unknown> }> =>
+          r.status === "fulfilled" && r.value.ob !== null,
+      )
+      .map(({ value: { symbol, ob } }) => ({ symbol, type: "ob" as const, data: ob }));
+
+    if (updates.length === 0) return;
+
+    try {
+      await callNextApp("POST", "/api/internal/liquidity-cache/batch", { updates });
+      console.log(`[LiqWS][ob] Batch wrote ${updates.length} symbols`);
+    } catch (err) {
+      console.error("[LiqWS][ob] Batch write failed:", err);
     }
   }
 

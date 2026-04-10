@@ -104,6 +104,12 @@ async function callNextApp<T = unknown>(
         headers: {
           Authorization: `Bearer ${LIQUIDITY_WS_SECRET}`,
           "Content-Type": "application/json",
+          // Prevent undici from reusing stale pooled connections. Firebase App
+          // Hosting closes idle connections after ~30s; undici's pool doesn't
+          // notice until it tries to write, producing EPIPE. Connection: close
+          // forces a fresh TLS handshake per request — slightly slower but
+          // eliminates the stale-connection EPIPE entirely.
+          Connection: "close",
         },
         body: body ? JSON.stringify(body) : undefined,
         signal: controller.signal,
@@ -404,6 +410,10 @@ class LiquidityWSServer {
   // ── Timer cycles ──────────────────────────────────────────
 
   private startTimers(): void {
+    console.log(
+      `[LiqWS] Starting timers — sweep=${SWEEP_INTERVAL_MS}ms oi=${OI_INTERVAL_MS}ms ob=${OB_INTERVAL_MS}ms refresh=${SYMBOL_REFRESH_MS}ms`,
+    );
+
     // Heartbeat
     this.pingTimer = setInterval(() => {
       this.wsSend({ op: "ping" });
@@ -412,11 +422,20 @@ class LiquidityWSServer {
     // Sweep detection — every 5s
     this.sweepTimer = setInterval(() => this.runSweepCycle(), SWEEP_INTERVAL_MS);
 
-    // OI + funding rate — every 30s
-    this.oiTimer = setInterval(() => this.runOICycle(), OI_INTERVAL_MS);
+    // OI + funding rate — every 2 min. Wrap Promise so a rejection can't
+    // escape to the global unhandledRejection handler and crash the process.
+    this.oiTimer = setInterval(() => {
+      this.runOICycle().catch((err) =>
+        console.error("[LiqWS][oi] Cycle uncaught error:", err),
+      );
+    }, OI_INTERVAL_MS);
 
-    // Order book — every 60s
-    this.obTimer = setInterval(() => this.runOBCycle(), OB_INTERVAL_MS);
+    // Order book — every 3 min
+    this.obTimer = setInterval(() => {
+      this.runOBCycle().catch((err) =>
+        console.error("[LiqWS][ob] Cycle uncaught error:", err),
+      );
+    }, OB_INTERVAL_MS);
 
     // Symbol refresh — every 60s
     this.symbolRefreshTimer = setInterval(
@@ -459,6 +478,7 @@ class LiquidityWSServer {
 
   private async runOICycle(): Promise<void> {
     const symbols = [...this.subscribedSymbols];
+    console.log(`[LiqWS][oi] Cycle start — ${symbols.length} symbols`);
     // Throttle Bybit REST calls: process in batches of 10 with 300ms delay.
     // 120 concurrent calls = 360 simultaneous Bybit requests → rate-limited → all null.
     const updates: Array<{ symbol: string; type: "oi"; data: unknown }> = [];
@@ -491,6 +511,7 @@ class LiquidityWSServer {
 
   private async runOBCycle(): Promise<void> {
     const symbols = [...this.subscribedSymbols];
+    console.log(`[LiqWS][ob] Cycle start — ${symbols.length} symbols`);
     // Same throttling as OI cycle: batches of 10 with 300ms between batches.
     const updates: Array<{ symbol: string; type: "ob"; data: unknown }> = [];
     const BATCH = 10;

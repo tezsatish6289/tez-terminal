@@ -503,7 +503,7 @@ class LiquidityWSServer {
     const symbols = [...this.subscribedSymbols];
     console.log(`[LiqWS][oi] Cycle start — ${symbols.length} symbols`);
     const updates: Array<{ symbol: string; type: "oi"; data: unknown }> = [];
-    const BATCH = 10;
+    const BATCH = 3; // 3 symbols × 3 calls = 9 concurrent — avoids overwhelming Bybit
     const BATCH_TIMEOUT_MS = 10_000; // hard ceiling per batch (inner AbortController is 6s)
     const totalBatches = Math.ceil(symbols.length / BATCH);
     for (let i = 0; i < symbols.length; i += BATCH) {
@@ -543,7 +543,7 @@ class LiquidityWSServer {
     const symbols = [...this.subscribedSymbols];
     console.log(`[LiqWS][ob] Cycle start — ${symbols.length} symbols`);
     const updates: Array<{ symbol: string; type: "ob"; data: unknown }> = [];
-    const BATCH = 10;
+    const BATCH = 5; // 5 symbols × 1 call = 5 concurrent — OB has 1 call/symbol so can afford more
     const BATCH_TIMEOUT_MS = 10_000; // hard ceiling per batch (inner AbortController is 5s)
     const totalBatches = Math.ceil(symbols.length / BATCH);
     for (let i = 0; i < symbols.length; i += BATCH) {

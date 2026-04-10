@@ -453,7 +453,7 @@ export async function GET(request: NextRequest) {
           // in computeAutoFilter. undefined = no data (no block).
           const sweepGatePassed =
             assetType !== "INDIAN_STOCKS" && liqConfig.enabled && liqConfig.sweepGateEnabled
-              ? scored?.breakdown?.liquidityContext?.sweepGatePassed
+              ? (scored?.breakdown?.liquidityContext?.sweepGatePassed ?? undefined)
               : undefined;
 
           return {
@@ -484,10 +484,10 @@ export async function GET(request: NextRequest) {
               rrGateFailed: scored.breakdown.rrGateFailed,
               liquidityContext: scored.breakdown.liquidityContext ? {
                 score: scored.breakdown.liquidityContext.score,
-                sweepGatePassed: scored.breakdown.liquidityContext.sweepGatePassed,
-                sweepAgeMs: scored.breakdown.liquidityContext.sweepAgeMs,
+                sweepGatePassed: scored.breakdown.liquidityContext.sweepGatePassed ?? null,
+                sweepAgeMs: scored.breakdown.liquidityContext.sweepAgeMs ?? null,
                 reasons: scored.breakdown.liquidityContext.reasons,
-              } : undefined,
+              } : null,
             } : undefined,
           };
         });

@@ -103,10 +103,10 @@ export interface SimTrade {
     rrGateFailed: boolean;
     liquidityContext?: {
       score: number;
-      sweepGatePassed: boolean | undefined;
+      sweepGatePassed: boolean | null | undefined;
       sweepAgeMs: number | null;
       reasons: string[];
-    };
+    } | null;
   };
   currentScore: number | null;
   currentScorePattern?: "A" | "B" | "none" | "early"; // live pattern, updated each cycle
@@ -187,10 +187,10 @@ export interface IncubatedCandidate {
     rrGateFailed: boolean;
     liquidityContext?: {
       score: number;
-      sweepGatePassed: boolean | undefined;
+      sweepGatePassed: boolean | null | undefined;
       sweepAgeMs: number | null;
       reasons: string[];
-    };
+    } | null;
   };
 }
 
@@ -654,10 +654,10 @@ export function openTrade(params: {
       rrGateFailed: boolean;
       liquidityContext?: {
         score: number;
-        sweepGatePassed: boolean | undefined;
+        sweepGatePassed: boolean | null | undefined;
         sweepAgeMs: number | null;
         reasons: string[];
-      };
+      } | null;
     };
   };
   positionSize: number;

@@ -106,7 +106,7 @@ export interface LiquidityCache {
 
 export interface LiquidityContextScore {
   score: number;                        // 0–20
-  sweepGatePassed: boolean | undefined; // true / false / undefined (no data)
+  sweepGatePassed: boolean | null | undefined; // true / false / null|undefined (no data)
   sweepAgeMs: number | null;
   reasons: string[];
 }

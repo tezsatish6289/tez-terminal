@@ -156,7 +156,7 @@ const SYMBOL_REFRESH_MS = 60_000;
 const PING_INTERVAL_MS = 20_000;
 const EVENT_BUFFER_TTL_MS = 35_000;
 const MAX_RECONNECT_DELAY_MS = 60_000;
-const MAX_SYMBOLS_PER_CONNECTION = 50; // Bybit limit
+const MAX_SYMBOLS_PER_CONNECTION = 10; // Bybit limit: max 10 args per subscribe message
 const SWEEP_MIN_SIGMA = parseFloat(process.env.LIQUIDITY_SWEEP_MIN_SIGMA ?? "2.5");
 const SWEEP_MIN_USD = parseFloat(process.env.LIQUIDITY_SWEEP_MIN_USD ?? "50000");
 
@@ -294,9 +294,12 @@ class LiquidityWSServer {
     if (msg.op === "pong" || msg.ret_msg === "pong") return;
     if (msg.op === "subscribe") {
       const success = msg.success === true;
-      console.log(
-        `[LiqWS] Subscribe ack: success=${success} conn_id=${msg.conn_id ?? ""}`,
-      );
+      const retMsg = String(msg.ret_msg ?? "");
+      if (!success) {
+        console.error(`[LiqWS] Subscribe FAILED: ${retMsg} conn_id=${msg.conn_id ?? ""}`);
+      } else {
+        console.log(`[LiqWS] Subscribe ack: success=true conn_id=${msg.conn_id ?? ""}`);
+      }
       return;
     }
 
@@ -353,10 +356,15 @@ class LiquidityWSServer {
 
     // Bybit WS topic format: "liquidation.BTCUSDT" (no .P suffix).
     // Our internal symbol format adds .P (e.g. "BTCUSDT.P"), strip it here.
+    // Max 10 args per message; stagger batches 200ms apart to avoid rate limits.
     for (let i = 0; i < symbols.length; i += MAX_SYMBOLS_PER_CONNECTION) {
       const chunk = symbols.slice(i, i + MAX_SYMBOLS_PER_CONNECTION);
       const args = chunk.map((s) => `liquidation.${s.replace(/\.P$/, "")}`);
-      this.wsSend({ op: "subscribe", args });
+      if (i === 0) {
+        this.wsSend({ op: "subscribe", args });
+      } else {
+        setTimeout(() => this.wsSend({ op: "subscribe", args }), (i / MAX_SYMBOLS_PER_CONNECTION) * 200);
+      }
     }
   }
 

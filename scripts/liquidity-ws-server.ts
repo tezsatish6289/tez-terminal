@@ -133,6 +133,29 @@ async function callNextApp<T = unknown>(
   throw lastErr;
 }
 
+// ── Batch timeout helper ──────────────────────────────────────
+// Promise.race between the real work and a hard deadline. Used in OI/OB
+// cycles so a single hung batch cannot block the entire loop.
+async function withBatchTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  fallback: T,
+  label: string,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<T>((resolve) => {
+    timer = setTimeout(() => {
+      console.warn(`[LiqWS] ${label} timed out after ${ms}ms — skipping batch`);
+      resolve(fallback);
+    }, ms);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function testConnectivity(): Promise<void> {
   console.log(`[LiqWS] Testing connectivity to Next.js proxy at ${NEXT_APP_URL}...`);
   if (!NEXT_APP_URL || !LIQUIDITY_WS_SECRET) {
@@ -479,14 +502,21 @@ class LiquidityWSServer {
   private async runOICycle(): Promise<void> {
     const symbols = [...this.subscribedSymbols];
     console.log(`[LiqWS][oi] Cycle start — ${symbols.length} symbols`);
-    // Throttle Bybit REST calls: process in batches of 10 with 300ms delay.
-    // 120 concurrent calls = 360 simultaneous Bybit requests → rate-limited → all null.
     const updates: Array<{ symbol: string; type: "oi"; data: unknown }> = [];
     const BATCH = 10;
+    const BATCH_TIMEOUT_MS = 10_000; // hard ceiling per batch (inner AbortController is 6s)
+    const totalBatches = Math.ceil(symbols.length / BATCH);
     for (let i = 0; i < symbols.length; i += BATCH) {
       const chunk = symbols.slice(i, i + BATCH);
-      const results = await Promise.allSettled(
-        chunk.map((symbol) => fetchOIContext(symbol).then((oi) => ({ symbol, oi }))),
+      const batchNum = Math.floor(i / BATCH) + 1;
+      console.log(`[LiqWS][oi] Batch ${batchNum}/${totalBatches} (${chunk.length} symbols)`);
+      const results = await withBatchTimeout(
+        Promise.allSettled(
+          chunk.map((symbol) => fetchOIContext(symbol).then((oi) => ({ symbol, oi }))),
+        ),
+        BATCH_TIMEOUT_MS,
+        [] as PromiseSettledResult<{ symbol: string; oi: Awaited<ReturnType<typeof fetchOIContext>> }>[],
+        `[oi] batch ${batchNum}/${totalBatches}`,
       );
       for (const r of results) {
         if (r.status === "fulfilled" && r.value.oi !== null) {
@@ -512,19 +542,27 @@ class LiquidityWSServer {
   private async runOBCycle(): Promise<void> {
     const symbols = [...this.subscribedSymbols];
     console.log(`[LiqWS][ob] Cycle start — ${symbols.length} symbols`);
-    // Same throttling as OI cycle: batches of 10 with 300ms between batches.
     const updates: Array<{ symbol: string; type: "ob"; data: unknown }> = [];
     const BATCH = 10;
+    const BATCH_TIMEOUT_MS = 10_000; // hard ceiling per batch (inner AbortController is 5s)
+    const totalBatches = Math.ceil(symbols.length / BATCH);
     for (let i = 0; i < symbols.length; i += BATCH) {
       const chunk = symbols.slice(i, i + BATCH);
-      const results = await Promise.allSettled(
-        chunk.map(async (symbol) => {
-          const state = this.symbolStates.get(symbol);
-          const price = state?.lastPrice ?? 0;
-          if (price <= 0) return { symbol, ob: null };
-          const ob = await fetchOrderBookContext(symbol, price);
-          return { symbol, ob };
-        }),
+      const batchNum = Math.floor(i / BATCH) + 1;
+      console.log(`[LiqWS][ob] Batch ${batchNum}/${totalBatches} (${chunk.length} symbols)`);
+      const results = await withBatchTimeout(
+        Promise.allSettled(
+          chunk.map(async (symbol) => {
+            const state = this.symbolStates.get(symbol);
+            const price = state?.lastPrice ?? 0;
+            if (price <= 0) return { symbol, ob: null };
+            const ob = await fetchOrderBookContext(symbol, price);
+            return { symbol, ob };
+          }),
+        ),
+        BATCH_TIMEOUT_MS,
+        [] as PromiseSettledResult<{ symbol: string; ob: Awaited<ReturnType<typeof fetchOrderBookContext>> }>[],
+        `[ob] batch ${batchNum}/${totalBatches}`,
       );
       for (const r of results) {
         if (r.status === "fulfilled" && r.value.ob !== null) {

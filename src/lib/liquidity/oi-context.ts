@@ -49,18 +49,22 @@ export async function fetchOIContext(
   const hit = cache.get(symbol);
   if (hit && Date.now() - hit.fetchedAt < CACHE_TTL_MS) return hit.data;
 
+  // Bybit REST API uses bare symbols (e.g. "BTCUSDT"), not the ".P"-suffixed
+  // format used by signals and WS subscriptions (e.g. "BTCUSDT.P").
+  const apiSymbol = symbol.replace(/\.P$/, "");
+
   try {
     // Fetch OI history + klines (for mark prices) + ticker (for funding rate)
     // in parallel to minimise latency.
     const [oiRes, klineRes, tickerRes] = await Promise.all([
       fetch(
-        `${BYBIT_BASE}/v5/market/open-interest?category=linear&symbol=${symbol}&intervalTime=5min&limit=7`,
+        `${BYBIT_BASE}/v5/market/open-interest?category=linear&symbol=${apiSymbol}&intervalTime=5min&limit=7`,
       ),
       fetch(
-        `${BYBIT_BASE}/v5/market/kline?category=linear&symbol=${symbol}&interval=5&limit=8`,
+        `${BYBIT_BASE}/v5/market/kline?category=linear&symbol=${apiSymbol}&interval=5&limit=8`,
       ),
       fetch(
-        `${BYBIT_BASE}/v5/market/tickers?category=linear&symbol=${symbol}`,
+        `${BYBIT_BASE}/v5/market/tickers?category=linear&symbol=${apiSymbol}`,
       ),
     ]);
 

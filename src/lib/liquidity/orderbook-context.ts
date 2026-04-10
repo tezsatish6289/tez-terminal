@@ -104,10 +104,14 @@ export async function fetchOrderBookContext(
   const hit = cache.get(symbol);
   if (hit && Date.now() - hit.fetchedAt < CACHE_TTL_MS) return hit.data;
 
+  // Bybit REST API uses bare symbols (e.g. "BTCUSDT"), not the ".P"-suffixed
+  // format used by signals and WS subscriptions (e.g. "BTCUSDT.P").
+  const apiSymbol = symbol.replace(/\.P$/, "");
+
   try {
     // limit=50 gives ±50 levels each side — sufficient for ±1% at most prices
     const res = await fetch(
-      `${BYBIT_BASE}/v5/market/orderbook?category=linear&symbol=${symbol}&limit=50`,
+      `${BYBIT_BASE}/v5/market/orderbook?category=linear&symbol=${apiSymbol}&limit=50`,
     );
     const json = await res.json();
 

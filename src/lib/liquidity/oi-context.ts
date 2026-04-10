@@ -53,18 +53,26 @@ export async function fetchOIContext(
   // format used by signals and WS subscriptions (e.g. "BTCUSDT.P").
   const apiSymbol = symbol.replace(/\.P$/, "");
 
+  // Abort if Bybit doesn't respond within 6s — prevents indefinite hangs that
+  // would stall the entire OI batch loop in the WS server.
+  const controller = new AbortController();
+  const abortTimer = setTimeout(() => controller.abort(), 6_000);
+
   try {
     // Fetch OI history + klines (for mark prices) + ticker (for funding rate)
     // in parallel to minimise latency.
     const [oiRes, klineRes, tickerRes] = await Promise.all([
       fetch(
         `${BYBIT_BASE}/v5/market/open-interest?category=linear&symbol=${apiSymbol}&intervalTime=5min&limit=7`,
+        { signal: controller.signal },
       ),
       fetch(
         `${BYBIT_BASE}/v5/market/kline?category=linear&symbol=${apiSymbol}&interval=5&limit=8`,
+        { signal: controller.signal },
       ),
       fetch(
         `${BYBIT_BASE}/v5/market/tickers?category=linear&symbol=${apiSymbol}`,
+        { signal: controller.signal },
       ),
     ]);
 
@@ -135,8 +143,10 @@ export async function fetchOIContext(
     };
 
     cache.set(symbol, { data: result, fetchedAt: Date.now() });
+    clearTimeout(abortTimer);
     return result;
   } catch {
+    clearTimeout(abortTimer);
     return null;
   }
 }

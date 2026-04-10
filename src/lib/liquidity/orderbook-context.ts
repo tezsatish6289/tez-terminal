@@ -108,10 +108,16 @@ export async function fetchOrderBookContext(
   // format used by signals and WS subscriptions (e.g. "BTCUSDT.P").
   const apiSymbol = symbol.replace(/\.P$/, "");
 
+  // Abort if Bybit doesn't respond within 5s — prevents indefinite hangs that
+  // would stall the entire OB batch loop in the WS server.
+  const controller = new AbortController();
+  const abortTimer = setTimeout(() => controller.abort(), 5_000);
+
   try {
     // limit=50 gives ±50 levels each side — sufficient for ±1% at most prices
     const res = await fetch(
       `${BYBIT_BASE}/v5/market/orderbook?category=linear&symbol=${apiSymbol}&limit=50`,
+      { signal: controller.signal },
     );
     const json = await res.json();
 
@@ -138,8 +144,10 @@ export async function fetchOrderBookContext(
     };
 
     cache.set(symbol, { data: result, fetchedAt: Date.now() });
+    clearTimeout(abortTimer);
     return result;
   } catch {
+    clearTimeout(abortTimer);
     return null;
   }
 }

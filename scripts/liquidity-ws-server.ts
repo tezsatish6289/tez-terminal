@@ -56,7 +56,7 @@ async function callNextApp<T = unknown>(
   method: "GET" | "POST",
   path: string,
   body?: object,
-  timeoutMs = 15_000,
+  timeoutMs = 30_000,
 ): Promise<T> {
   if (!NEXT_APP_URL) throw new Error("NEXT_APP_URL env var is not set");
   if (!LIQUIDITY_WS_SECRET) throw new Error("LIQUIDITY_WS_SECRET env var is not set");

@@ -82,9 +82,30 @@ export async function batchReadLiquidityCache(
   const refs = symbols.map((s) => db.collection(COLLECTION).doc(s));
   const docs = await db.getAll(...refs);
 
+  const defaultSweep: SweepDetection = {
+    detected: false,
+    side: null,
+    strength: 0,
+    weightedSweepPrice: null,
+    sellVol5s: 0,
+    buyVol5s: 0,
+    sellMean: 0,
+    sellSigma: 0,
+    buyMean: 0,
+    buySigma: 0,
+    lastSweepAt: null,
+    lastSweepSide: null,
+    lastSweepStrength: 0,
+    updatedAt: new Date().toISOString(),
+  };
+
   for (const doc of docs) {
     if (doc.exists) {
-      result.set(doc.id, doc.data() as LiquidityCache);
+      const data = doc.data() as Partial<LiquidityCache>;
+      // sweep is only written when a spike is detected — docs with only oi/ob
+      // have no sweep field. Provide a safe default so the scorer never crashes.
+      if (!data.sweep) data.sweep = defaultSweep;
+      result.set(doc.id, data as LiquidityCache);
     }
   }
 

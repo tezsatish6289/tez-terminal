@@ -8,8 +8,8 @@
  *   1. Connects to Bybit public liquidation WS (wss://stream.bybit.com/v5/public/linear)
  *   2. Subscribes to `liquidation.{SYMBOL}` for each active crypto signal
  *   3. Every 5s  → detectSweep() per symbol → POST /api/internal/liquidity-cache (sweep)
- *   4. Every 30s → fetchOIContext() per symbol → POST /api/internal/liquidity-cache (oi)
- *   5. Every 60s → fetchOrderBookContext() per symbol → POST /api/internal/liquidity-cache (ob)
+ *   4. Every 5min → POST /api/internal/run-liquidity-fetch (oi) — fetches Bybit + writes Firestore
+ *   5. Every 5min → POST /api/internal/run-liquidity-fetch (ob) — fetches Bybit + writes Firestore
  *   6. Every 60s → GET /api/internal/active-signals → adjust WS subscriptions
  *   7. Ping/pong every 20s to keep WS alive
  *   8. Exponential backoff reconnect on disconnect/error
@@ -31,11 +31,6 @@ import WebSocket from "ws";
 
 // Use relative paths from scripts/ → src/
 import { detectSweep } from "../src/lib/liquidity/sweep-detector";
-import { fetchOIContext, evictOICache } from "../src/lib/liquidity/oi-context";
-import {
-  fetchOrderBookContext,
-  evictOBCache,
-} from "../src/lib/liquidity/orderbook-context";
 import type {
   LiqEvent,
   LiqSource,
@@ -131,29 +126,6 @@ async function callNextApp<T = unknown>(
     }
   }
   throw lastErr;
-}
-
-// ── Batch timeout helper ──────────────────────────────────────
-// Promise.race between the real work and a hard deadline. Used in OI/OB
-// cycles so a single hung batch cannot block the entire loop.
-async function withBatchTimeout<T>(
-  promise: Promise<T>,
-  ms: number,
-  fallback: T,
-  label: string,
-): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<T>((resolve) => {
-    timer = setTimeout(() => {
-      console.warn(`[LiqWS] ${label} timed out after ${ms}ms — skipping batch`);
-      resolve(fallback);
-    }, ms);
-  });
-  try {
-    return await Promise.race([promise, timeout]);
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 async function testConnectivity(): Promise<void> {
@@ -502,86 +474,51 @@ class LiquidityWSServer {
   private async runOICycle(): Promise<void> {
     const symbols = [...this.subscribedSymbols];
     console.log(`[LiqWS][oi] Cycle start — ${symbols.length} symbols`);
-    const updates: Array<{ symbol: string; type: "oi"; data: unknown }> = [];
-    const BATCH = 3; // 3 symbols × 3 calls = 9 concurrent — avoids overwhelming Bybit
-    const BATCH_TIMEOUT_MS = 10_000; // hard ceiling per batch (inner AbortController is 6s)
-    const totalBatches = Math.ceil(symbols.length / BATCH);
-    for (let i = 0; i < symbols.length; i += BATCH) {
-      const chunk = symbols.slice(i, i + BATCH);
-      const batchNum = Math.floor(i / BATCH) + 1;
-      console.log(`[LiqWS][oi] Batch ${batchNum}/${totalBatches} (${chunk.length} symbols)`);
-      const results = await withBatchTimeout(
-        Promise.allSettled(
-          chunk.map((symbol) => fetchOIContext(symbol).then((oi) => ({ symbol, oi }))),
-        ),
-        BATCH_TIMEOUT_MS,
-        [] as PromiseSettledResult<{ symbol: string; oi: Awaited<ReturnType<typeof fetchOIContext>> }>[],
-        `[oi] batch ${batchNum}/${totalBatches}`,
-      );
-      for (const r of results) {
-        if (r.status === "fulfilled" && r.value.oi !== null) {
-          updates.push({ symbol: r.value.symbol, type: "oi", data: r.value.oi });
-        }
-      }
-      if (i + BATCH < symbols.length) {
-        await new Promise((r) => setTimeout(r, 300));
-      }
-    }
+    if (symbols.length === 0) return;
 
-    console.log(`[LiqWS][oi] Fetched ${updates.length}/${symbols.length} symbols`);
-    if (updates.length === 0) return;
-
+    // Bybit REST API is throttled from Cloud Run's NAT IPs (~20-30s/request).
+    // Proxy through Firebase App Hosting which has normal latency to Bybit.
     try {
-      await callNextApp("POST", "/api/internal/liquidity-cache/batch", { updates });
-      console.log(`[LiqWS][oi] Batch wrote ${updates.length} symbols`);
+      const result = await callNextApp<{ ok: boolean; count: number; total: number }>(
+        "POST",
+        "/api/internal/run-liquidity-fetch",
+        { type: "oi", symbols },
+        180_000, // 3-min timeout — Next.js fetches 120+ symbols from Bybit
+        1,
+      );
+      console.log(`[LiqWS][oi] Done — wrote ${result.count}/${result.total} symbols`);
     } catch (err) {
-      console.error("[LiqWS][oi] Batch write failed:", err);
+      console.error("[LiqWS][oi] Failed:", err);
     }
   }
 
   private async runOBCycle(): Promise<void> {
     const symbols = [...this.subscribedSymbols];
     console.log(`[LiqWS][ob] Cycle start — ${symbols.length} symbols`);
-    const updates: Array<{ symbol: string; type: "ob"; data: unknown }> = [];
-    const BATCH = 5; // 5 symbols × 1 call = 5 concurrent — OB has 1 call/symbol so can afford more
-    const BATCH_TIMEOUT_MS = 10_000; // hard ceiling per batch (inner AbortController is 5s)
-    const totalBatches = Math.ceil(symbols.length / BATCH);
-    for (let i = 0; i < symbols.length; i += BATCH) {
-      const chunk = symbols.slice(i, i + BATCH);
-      const batchNum = Math.floor(i / BATCH) + 1;
-      console.log(`[LiqWS][ob] Batch ${batchNum}/${totalBatches} (${chunk.length} symbols)`);
-      const results = await withBatchTimeout(
-        Promise.allSettled(
-          chunk.map(async (symbol) => {
-            const state = this.symbolStates.get(symbol);
-            const price = state?.lastPrice ?? 0;
-            if (price <= 0) return { symbol, ob: null };
-            const ob = await fetchOrderBookContext(symbol, price);
-            return { symbol, ob };
-          }),
-        ),
-        BATCH_TIMEOUT_MS,
-        [] as PromiseSettledResult<{ symbol: string; ob: Awaited<ReturnType<typeof fetchOrderBookContext>> }>[],
-        `[ob] batch ${batchNum}/${totalBatches}`,
-      );
-      for (const r of results) {
-        if (r.status === "fulfilled" && r.value.ob !== null) {
-          updates.push({ symbol: r.value.symbol, type: "ob", data: r.value.ob });
-        }
-      }
-      if (i + BATCH < symbols.length) {
-        await new Promise((r) => setTimeout(r, 300));
-      }
-    }
+    if (symbols.length === 0) return;
 
-    console.log(`[LiqWS][ob] Fetched ${updates.length}/${symbols.length} symbols`);
-    if (updates.length === 0) return;
+    // Collect prices from symbol states — OB fetch requires current price
+    const prices: Record<string, number> = {};
+    for (const [sym, state] of this.symbolStates) {
+      if (state.lastPrice > 0) prices[sym] = state.lastPrice;
+    }
+    const symbolsWithPrice = symbols.filter((s) => (prices[s] ?? 0) > 0);
+    console.log(
+      `[LiqWS][ob] ${symbolsWithPrice.length}/${symbols.length} symbols have price`,
+    );
+    if (symbolsWithPrice.length === 0) return;
 
     try {
-      await callNextApp("POST", "/api/internal/liquidity-cache/batch", { updates });
-      console.log(`[LiqWS][ob] Batch wrote ${updates.length} symbols`);
+      const result = await callNextApp<{ ok: boolean; count: number; total: number }>(
+        "POST",
+        "/api/internal/run-liquidity-fetch",
+        { type: "ob", symbols: symbolsWithPrice, prices },
+        180_000,
+        1,
+      );
+      console.log(`[LiqWS][ob] Done — wrote ${result.count}/${result.total} symbols`);
     } catch (err) {
-      console.error("[LiqWS][ob] Batch write failed:", err);
+      console.error("[LiqWS][ob] Failed:", err);
     }
   }
 
@@ -610,8 +547,7 @@ class LiquidityWSServer {
       for (const s of toRemove) {
         this.subscribedSymbols.delete(s);
         this.symbolStates.delete(s);
-        evictOICache(s);
-        evictOBCache(s);
+        // OI/OB cache eviction is handled server-side in the Next.js proxy
       }
 
       this.subscribeSymbols(toAdd);

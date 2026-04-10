@@ -303,48 +303,53 @@ class LiquidityWSServer {
       return;
     }
 
-    // Liquidation event
+    // Public trade event (Bybit V5 — liquidation.{symbol} was deprecated)
+    // We use publicTrade.{symbol} and detect sweep patterns from large volume bursts.
+    // "Buy" side = buyer-initiated (market buy) → short liquidation pressure
+    // "Sell" side = seller-initiated (market sell) → long liquidation pressure
     const topic = String(msg.topic ?? "");
-    if (!topic.startsWith("liquidation.")) return;
+    if (!topic.startsWith("publicTrade.")) return;
 
-    const data = msg.data as {
-      symbol: string;
-      side: "Buy" | "Sell";
-      size: string;
-      price: string;
-      updatedTime?: number;
-    } | null;
+    // publicTrade data is an array of trade ticks
+    const trades = Array.isArray(msg.data)
+      ? (msg.data as Array<{
+          T: number;       // timestamp ms
+          s: string;       // symbol e.g. "BTCUSDT"
+          S: "Buy" | "Sell";
+          v: string;       // qty in base asset
+          p: string;       // price
+        }>)
+      : [];
 
-    if (!data) return;
+    for (const trade of trades) {
+      const rawSymbol = trade.s ?? "";
+      const symbol = rawSymbol.endsWith(".P") ? rawSymbol : `${rawSymbol}.P`;
+      const price = parseFloat(trade.p);
+      const qty = parseFloat(trade.v);
+      if (!symbol || isNaN(price) || isNaN(qty) || qty <= 0) continue;
 
-    // Bybit sends symbol as "BTCUSDT"; our internal format is "BTCUSDT.P"
-    const rawSymbol = data.symbol;
-    const symbol = rawSymbol.endsWith(".P") ? rawSymbol : `${rawSymbol}.P`;
-    const price = parseFloat(data.price);
-    const qty = parseFloat(data.size);
-    if (!symbol || isNaN(price) || isNaN(qty) || qty <= 0) return;
+      const sizeUSD = qty * price;
+      // Filter tiny trades — we only care about volume bursts that signal forced selling/buying.
+      // Min $500 per trade to reduce noise from retail micro-trades.
+      if (sizeUSD < 500) continue;
 
-    // USD notional = qty × price (Bybit Futures quantities are in contracts)
-    const sizeUSD = qty * price;
-    const ts = data.updatedTime ?? Date.now();
+      const event: LiqEvent = {
+        symbol,
+        side: trade.S,
+        size: sizeUSD,
+        price,
+        timestamp: trade.T ?? Date.now(),
+        source: "BYBIT",
+      };
 
-    const event: LiqEvent = {
-      symbol,
-      side: data.side,
-      size: sizeUSD,
-      price,
-      timestamp: ts,
-      source: "BYBIT",
-    };
-
-    // Append to per-symbol buffer
-    let state = this.symbolStates.get(symbol);
-    if (!state) {
-      state = emptyState();
-      this.symbolStates.set(symbol, state);
+      let state = this.symbolStates.get(symbol);
+      if (!state) {
+        state = emptyState();
+        this.symbolStates.set(symbol, state);
+      }
+      state.events.push(event);
+      if (price > 0) state.lastPrice = price;
     }
-    state.events.push(event);
-    if (price > 0) state.lastPrice = price;
   }
 
   // ── Subscription management ───────────────────────────────
@@ -354,12 +359,11 @@ class LiquidityWSServer {
     const symbols = [...this.subscribedSymbols];
     if (symbols.length === 0) return;
 
-    // Bybit WS topic format: "liquidation.BTCUSDT" (no .P suffix).
-    // Our internal symbol format adds .P (e.g. "BTCUSDT.P"), strip it here.
-    // Max 10 args per message; stagger batches 200ms apart to avoid rate limits.
+    // Topic: publicTrade.{symbol} (no .P suffix — Bybit bare symbol format).
+    // Max 10 args per message per Bybit limit; stagger 200ms between batches.
     for (let i = 0; i < symbols.length; i += MAX_SYMBOLS_PER_CONNECTION) {
       const chunk = symbols.slice(i, i + MAX_SYMBOLS_PER_CONNECTION);
-      const args = chunk.map((s) => `liquidation.${s.replace(/\.P$/, "")}`);
+      const args = chunk.map((s) => `publicTrade.${s.replace(/\.P$/, "")}`);
       if (i === 0) {
         this.wsSend({ op: "subscribe", args });
       } else {
@@ -375,7 +379,7 @@ class LiquidityWSServer {
       symbols.length === 0
     )
       return;
-    const args = symbols.map((s) => `liquidation.${s.replace(/\.P$/, "")}`);
+    const args = symbols.map((s) => `publicTrade.${s.replace(/\.P$/, "")}`);
     this.wsSend({ op: "subscribe", args });
     console.log(`[LiqWS] Subscribed: ${symbols.join(", ")}`);
   }
@@ -387,7 +391,7 @@ class LiquidityWSServer {
       symbols.length === 0
     )
       return;
-    const args = symbols.map((s) => `liquidation.${s.replace(/\.P$/, "")}`);
+    const args = symbols.map((s) => `publicTrade.${s.replace(/\.P$/, "")}`);
     this.wsSend({ op: "unsubscribe", args });
     console.log(`[LiqWS] Unsubscribed: ${symbols.join(", ")}`);
   }

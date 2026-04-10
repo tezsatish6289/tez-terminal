@@ -179,8 +179,8 @@ async function testConnectivity(): Promise<void> {
 
 const BYBIT_WS_URL = "wss://stream.bybit.com/v5/public/linear";
 const SWEEP_INTERVAL_MS = 5_000;
-const OI_INTERVAL_MS = 15 * 60_000; // 15 min — OI changes slowly, 5-min candles are finest grain
-const OB_INTERVAL_MS = 15 * 60_000; // 15 min — wall positions don't shift in seconds
+const OI_INTERVAL_MS = 5 * 60_000; // 5 min — matches Bybit's finest OI candle granularity
+const OB_INTERVAL_MS = 5 * 60_000; // 5 min — walls can shift during volatile moves
 const SYMBOL_REFRESH_MS = 60_000;
 const PING_INTERVAL_MS = 20_000;
 const EVENT_BUFFER_TTL_MS = 35_000;

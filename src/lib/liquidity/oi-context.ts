@@ -14,7 +14,7 @@
 import type { OIContext, OISnapshot } from "./types";
 
 const BYBIT_BASE = "https://api.bybit.com";
-const CACHE_TTL_MS = 30_000;
+const CACHE_TTL_MS = 5 * 60_000; // matches WS server OI_INTERVAL_MS
 
 // ── In-memory cache ───────────────────────────────────────────
 

@@ -13,7 +13,7 @@
 import type { OrderBookContext, OBBand, OBWall } from "./types";
 
 const BYBIT_BASE = "https://api.bybit.com";
-const CACHE_TTL_MS = 60_000;
+const CACHE_TTL_MS = 5 * 60_000; // matches WS server OB_INTERVAL_MS
 const WALL_MULTIPLIER = 3; // a wall = single order ≥ 3× avg order size
 
 // ── In-memory cache ───────────────────────────────────────────

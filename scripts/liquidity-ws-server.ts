@@ -314,7 +314,9 @@ class LiquidityWSServer {
 
     if (!data) return;
 
-    const symbol = data.symbol;
+    // Bybit sends symbol as "BTCUSDT"; our internal format is "BTCUSDT.P"
+    const rawSymbol = data.symbol;
+    const symbol = rawSymbol.endsWith(".P") ? rawSymbol : `${rawSymbol}.P`;
     const price = parseFloat(data.price);
     const qty = parseFloat(data.size);
     if (!symbol || isNaN(price) || isNaN(qty) || qty <= 0) return;
@@ -349,11 +351,11 @@ class LiquidityWSServer {
     const symbols = [...this.subscribedSymbols];
     if (symbols.length === 0) return;
 
-    // Bybit allows batching topics in one subscribe message
-    // Stay within MAX_SYMBOLS_PER_CONNECTION per message
+    // Bybit WS topic format: "liquidation.BTCUSDT" (no .P suffix).
+    // Our internal symbol format adds .P (e.g. "BTCUSDT.P"), strip it here.
     for (let i = 0; i < symbols.length; i += MAX_SYMBOLS_PER_CONNECTION) {
       const chunk = symbols.slice(i, i + MAX_SYMBOLS_PER_CONNECTION);
-      const args = chunk.map((s) => `liquidation.${s}`);
+      const args = chunk.map((s) => `liquidation.${s.replace(/\.P$/, "")}`);
       this.wsSend({ op: "subscribe", args });
     }
   }
@@ -365,7 +367,7 @@ class LiquidityWSServer {
       symbols.length === 0
     )
       return;
-    const args = symbols.map((s) => `liquidation.${s}`);
+    const args = symbols.map((s) => `liquidation.${s.replace(/\.P$/, "")}`);
     this.wsSend({ op: "subscribe", args });
     console.log(`[LiqWS] Subscribed: ${symbols.join(", ")}`);
   }
@@ -377,7 +379,7 @@ class LiquidityWSServer {
       symbols.length === 0
     )
       return;
-    const args = symbols.map((s) => `liquidation.${s}`);
+    const args = symbols.map((s) => `liquidation.${s.replace(/\.P$/, "")}`);
     this.wsSend({ op: "unsubscribe", args });
     console.log(`[LiqWS] Unsubscribed: ${symbols.join(", ")}`);
   }

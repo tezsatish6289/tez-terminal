@@ -42,7 +42,7 @@ export async function GET(req: Request) {
       .select("symbol", "assetType", "exchange")
       .get();
 
-    const symbols: string[] = [];
+    const symbolSet = new Set<string>();
     for (const doc of snap.docs) {
       const data = doc.data();
       const assetType: string = data.assetType ?? "CRYPTO";
@@ -50,9 +50,10 @@ export async function GET(req: Request) {
       const exchange: string = (data.exchange ?? "").toUpperCase();
 
       if (symbol && assetType !== "INDIAN_STOCKS" && !EXCLUDED_EXCHANGES.has(exchange)) {
-        symbols.push(symbol.toUpperCase());
+        symbolSet.add(symbol.toUpperCase());
       }
     }
+    const symbols = [...symbolSet];
 
     cachedSymbols = symbols;
     cacheExpiresAt = now + CACHE_TTL_MS;

@@ -15,8 +15,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { fetchOIContext } from "@/lib/liquidity/oi-context";
 import { fetchOrderBookContext } from "@/lib/liquidity/orderbook-context";
-import * as Sentry from "@sentry/nextjs";
-
 const SECRET = process.env.LIQUIDITY_WS_SECRET ?? "";
 const CHUNK = 10; // symbols per parallel batch
 const BATCH_DELAY_MS = 200; // ms between batches
@@ -95,7 +93,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, count: written, total: symbols.length });
   } catch (err) {
     console.error("[run-liquidity-fetch] Error:", err);
-    Sentry.captureException(err);
     return NextResponse.json({ error: "Failed" }, { status: 500 });
   }
 }

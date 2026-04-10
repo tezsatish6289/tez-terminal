@@ -459,18 +459,26 @@ class LiquidityWSServer {
 
   private async runOICycle(): Promise<void> {
     const symbols = [...this.subscribedSymbols];
-    // Fetch all OI data concurrently (Bybit REST, no rate limit concerns at this scale)
-    const results = await Promise.allSettled(
-      symbols.map((symbol) => fetchOIContext(symbol).then((oi) => ({ symbol, oi }))),
-    );
+    // Throttle Bybit REST calls: process in batches of 10 with 300ms delay.
+    // 120 concurrent calls = 360 simultaneous Bybit requests → rate-limited → all null.
+    const updates: Array<{ symbol: string; type: "oi"; data: unknown }> = [];
+    const BATCH = 10;
+    for (let i = 0; i < symbols.length; i += BATCH) {
+      const chunk = symbols.slice(i, i + BATCH);
+      const results = await Promise.allSettled(
+        chunk.map((symbol) => fetchOIContext(symbol).then((oi) => ({ symbol, oi }))),
+      );
+      for (const r of results) {
+        if (r.status === "fulfilled" && r.value.oi !== null) {
+          updates.push({ symbol: r.value.symbol, type: "oi", data: r.value.oi });
+        }
+      }
+      if (i + BATCH < symbols.length) {
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    }
 
-    const updates = results
-      .filter(
-        (r): r is PromiseFulfilledResult<{ symbol: string; oi: NonNullable<unknown> }> =>
-          r.status === "fulfilled" && r.value.oi !== null,
-      )
-      .map(({ value: { symbol, oi } }) => ({ symbol, type: "oi" as const, data: oi }));
-
+    console.log(`[LiqWS][oi] Fetched ${updates.length}/${symbols.length} symbols`);
     if (updates.length === 0) return;
 
     try {
@@ -483,24 +491,31 @@ class LiquidityWSServer {
 
   private async runOBCycle(): Promise<void> {
     const symbols = [...this.subscribedSymbols];
-    // Fetch all OB data concurrently
-    const results = await Promise.allSettled(
-      symbols.map(async (symbol) => {
-        const state = this.symbolStates.get(symbol);
-        const price = state?.lastPrice ?? 0;
-        if (price <= 0) return { symbol, ob: null };
-        const ob = await fetchOrderBookContext(symbol, price);
-        return { symbol, ob };
-      }),
-    );
+    // Same throttling as OI cycle: batches of 10 with 300ms between batches.
+    const updates: Array<{ symbol: string; type: "ob"; data: unknown }> = [];
+    const BATCH = 10;
+    for (let i = 0; i < symbols.length; i += BATCH) {
+      const chunk = symbols.slice(i, i + BATCH);
+      const results = await Promise.allSettled(
+        chunk.map(async (symbol) => {
+          const state = this.symbolStates.get(symbol);
+          const price = state?.lastPrice ?? 0;
+          if (price <= 0) return { symbol, ob: null };
+          const ob = await fetchOrderBookContext(symbol, price);
+          return { symbol, ob };
+        }),
+      );
+      for (const r of results) {
+        if (r.status === "fulfilled" && r.value.ob !== null) {
+          updates.push({ symbol: r.value.symbol, type: "ob", data: r.value.ob });
+        }
+      }
+      if (i + BATCH < symbols.length) {
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    }
 
-    const updates = results
-      .filter(
-        (r): r is PromiseFulfilledResult<{ symbol: string; ob: NonNullable<unknown> }> =>
-          r.status === "fulfilled" && r.value.ob !== null,
-      )
-      .map(({ value: { symbol, ob } }) => ({ symbol, type: "ob" as const, data: ob }));
-
+    console.log(`[LiqWS][ob] Fetched ${updates.length}/${symbols.length} symbols`);
     if (updates.length === 0) return;
 
     try {

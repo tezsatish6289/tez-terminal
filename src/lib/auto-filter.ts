@@ -3,10 +3,10 @@
  *
  * Scores each signal on two factors (0-100):
  *
- *   1. Price Structure  (0-80) — Pattern A (holding/loading) or
+ *   1. Price Structure  (0-60) — Pattern A (holding/loading) or
  *                                Pattern B (tested SL zone, rejected, recovering)
  *                                detected from up to 12 candle-frequency snapshots
- *   2. Signal Freshness (0-20) — Age in candles relative to the signal's TF
+ *   2. Liquidity Context (0-40) — Sweep + OI + Order Book (crypto only)
  *
  * Hard gates (applied before scoring; fail = score capped at 20):
  *   - Dynamic RR: (TP2 − currentPrice) / (currentPrice − SL) ≥ 1.5
@@ -256,10 +256,10 @@ export interface SignalForScoring {
 }
 
 export interface ScoreBreakdown {
-  priceStructure: number;          // 0-80 — Pattern A or B detection
+  priceStructure: number;          // 0-60 — Pattern A or B detection
   pattern: "A" | "B" | "none" | "early";
   rrGateFailed: boolean;           // true if dynamic RR gate failed (remaining upside to TP2 < 1.5× risk)
-  liquidityContext?: LiquidityContextScore; // 0-20 — sweep + OI + order book (undefined if WS server offline)
+  liquidityContext?: LiquidityContextScore; // 0-40 — sweep + OI + order book (undefined if WS server offline)
 }
 
 export interface ScoredSignal {
@@ -342,7 +342,7 @@ function scorePatternA(signal: SignalForScoring): number {
   else if (holdPct >= 0.80) score += 15;
   else score += 8; // ≥ 0.70 already guaranteed above
 
-  return Math.min(80, score);
+  return Math.min(60, score);
 }
 
 // ── Pattern B — SL zone tested, held, momentum confirmed (0-80) ──
@@ -432,7 +432,7 @@ function scorePatternB(signal: SignalForScoring): number {
   else if (zoneSnaps >= 2)  score +=  6;
   else if (zoneSnaps >= 1)  score +=  3;
 
-  return Math.min(80, score);
+  return Math.min(60, score);
 }
 
 // ── Price structure: pick best pattern ──────────────────────
@@ -557,7 +557,7 @@ export function computeAutoFilter(
         ? scoreLiquidityContext(signal, liqCache, cfg)
         : undefined;
 
-    // Total score: price structure (0-80) + liquidity context (0-20) = 0-100
+    // Total score: price structure (0-60) + liquidity context (0-40) = 0-100
     const finalScore = Math.min(
       100,
       structureScore + (liquidityContext?.score ?? 0),

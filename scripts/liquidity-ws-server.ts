@@ -52,6 +52,31 @@ import type {
 const NEXT_APP_URL = (process.env.NEXT_APP_URL ?? "").replace(/\/$/, "");
 const LIQUIDITY_WS_SECRET = process.env.LIQUIDITY_WS_SECRET ?? "";
 
+// ── Concurrency limiter ───────────────────────────────────────
+// Prevents flooding the Next.js proxy with too many simultaneous requests.
+// With 100+ symbols, naive fire-and-forget creates hundreds of concurrent
+// connections per minute, exhausting the proxy's connection pool.
+const PROXY_MAX_CONCURRENCY = 6;
+let proxyConcurrent = 0;
+const proxyQueue: Array<() => void> = [];
+
+function proxyAcquire(): Promise<void> {
+  if (proxyConcurrent < PROXY_MAX_CONCURRENCY) {
+    proxyConcurrent++;
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => proxyQueue.push(resolve));
+}
+
+function proxyRelease(): void {
+  const next = proxyQueue.shift();
+  if (next) {
+    next();
+  } else {
+    proxyConcurrent--;
+  }
+}
+
 async function callNextApp<T = unknown>(
   method: "GET" | "POST",
   path: string,
@@ -60,6 +85,8 @@ async function callNextApp<T = unknown>(
 ): Promise<T> {
   if (!NEXT_APP_URL) throw new Error("NEXT_APP_URL env var is not set");
   if (!LIQUIDITY_WS_SECRET) throw new Error("LIQUIDITY_WS_SECRET env var is not set");
+
+  await proxyAcquire();
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -70,11 +97,13 @@ async function callNextApp<T = unknown>(
       headers: {
         Authorization: `Bearer ${LIQUIDITY_WS_SECRET}`,
         "Content-Type": "application/json",
+        Connection: "close",
       },
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
     });
     clearTimeout(timer);
+    proxyRelease();
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`HTTP ${res.status}: ${text}`);
@@ -82,6 +111,7 @@ async function callNextApp<T = unknown>(
     return (await res.json()) as T;
   } catch (err) {
     clearTimeout(timer);
+    proxyRelease();
     throw err;
   }
 }
@@ -381,15 +411,18 @@ class LiquidityWSServer {
       const result = detectSweep(state.events, SWEEP_MIN_SIGMA, SWEEP_MIN_USD, now);
       const detection = buildSweepDetection(result, state);
 
-      callNextApp("POST", "/api/internal/liquidity-cache", {
-        symbol,
-        type: "sweep",
-        data: detection,
-      }).catch((err) =>
-        console.error(`[LiqWS][sweep] Write failed for ${symbol}:`, err),
-      );
-
+      // Only write to the proxy when a sweep is detected.
+      // Writing on every 5s tick for all 114 symbols (~23 req/s) saturates
+      // the Next.js proxy even when there is nothing to report.
       if (result.detected) {
+        callNextApp("POST", "/api/internal/liquidity-cache", {
+          symbol,
+          type: "sweep",
+          data: detection,
+        }).catch((err) =>
+          console.error(`[LiqWS][sweep] Write failed for ${symbol}:`, err),
+        );
+
         console.log(
           `[LiqWS] SWEEP ${symbol} ${result.side} ${result.strength.toFixed(1)}σ ` +
             `sell5s=$${Math.round(result.sellVol5s / 1000)}k ` +

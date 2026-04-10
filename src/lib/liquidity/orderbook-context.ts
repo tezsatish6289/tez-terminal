@@ -117,7 +117,7 @@ export async function fetchOrderBookContext(
     // limit=50 gives ±50 levels each side — sufficient for ±1% at most prices
     const res = await fetch(
       `${BYBIT_BASE}/v5/market/orderbook?category=linear&symbol=${apiSymbol}&limit=50`,
-      { signal: controller.signal },
+      { signal: controller.signal, headers: { Connection: "close" } },
     );
     const json = await res.json();
 

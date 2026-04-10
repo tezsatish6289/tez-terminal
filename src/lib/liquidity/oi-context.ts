@@ -61,18 +61,19 @@ export async function fetchOIContext(
   try {
     // Fetch OI history + klines (for mark prices) + ticker (for funding rate)
     // in parallel to minimise latency.
+    const headers = { Connection: "close" };
     const [oiRes, klineRes, tickerRes] = await Promise.all([
       fetch(
         `${BYBIT_BASE}/v5/market/open-interest?category=linear&symbol=${apiSymbol}&intervalTime=5min&limit=7`,
-        { signal: controller.signal },
+        { signal: controller.signal, headers },
       ),
       fetch(
         `${BYBIT_BASE}/v5/market/kline?category=linear&symbol=${apiSymbol}&interval=5&limit=8`,
-        { signal: controller.signal },
+        { signal: controller.signal, headers },
       ),
       fetch(
         `${BYBIT_BASE}/v5/market/tickers?category=linear&symbol=${apiSymbol}`,
-        { signal: controller.signal },
+        { signal: controller.signal, headers },
       ),
     ]);
 

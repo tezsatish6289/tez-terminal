@@ -82,38 +82,49 @@ async function callNextApp<T = unknown>(
   path: string,
   body?: object,
   timeoutMs = 30_000,
+  maxRetries = 2,
 ): Promise<T> {
   if (!NEXT_APP_URL) throw new Error("NEXT_APP_URL env var is not set");
   if (!LIQUIDITY_WS_SECRET) throw new Error("LIQUIDITY_WS_SECRET env var is not set");
 
-  await proxyAcquire();
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const res = await fetch(`${NEXT_APP_URL}${path}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${LIQUIDITY_WS_SECRET}`,
-        "Content-Type": "application/json",
-        Connection: "close",
-      },
-      body: body ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    proxyRelease();
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`HTTP ${res.status}: ${text}`);
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, 2_000 * attempt));
     }
-    return (await res.json()) as T;
-  } catch (err) {
-    clearTimeout(timer);
-    proxyRelease();
-    throw err;
+
+    await proxyAcquire();
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const res = await fetch(`${NEXT_APP_URL}${path}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${LIQUIDITY_WS_SECRET}`,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      proxyRelease();
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text}`);
+      }
+      return (await res.json()) as T;
+    } catch (err) {
+      clearTimeout(timer);
+      proxyRelease();
+      lastErr = err;
+      if (attempt < maxRetries) {
+        console.warn(`[LiqWS] proxy ${method} ${path} attempt ${attempt + 1} failed, retrying...`);
+      }
+    }
   }
+  throw lastErr;
 }
 
 async function testConnectivity(): Promise<void> {
@@ -478,6 +489,9 @@ class LiquidityWSServer {
       const result = await callNextApp<{ symbols: string[] }>(
         "GET",
         "/api/internal/active-signals",
+        undefined,
+        60_000, // 60s — allows for Next.js cold-start + Firestore query
+        2,      // retry up to 2 times
       );
       const freshSymbols = new Set(result.symbols);
       console.log(`[LiqWS] refreshSymbols: got ${freshSymbols.size} active symbols`);

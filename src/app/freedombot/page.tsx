@@ -371,6 +371,9 @@ export default function FreedomBotPage() {
               Ask me anything
             </a>
           </div>
+          <p className="text-xs mt-6" style={{ color: "#334155" }}>
+            Trading involves risk. Past performance does not guarantee future results.
+          </p>
         </div>
       </section>
 
@@ -395,94 +398,20 @@ export default function FreedomBotPage() {
             <p className="text-base" style={{ color: "#64748b" }}>
               Set it, forget it, and watch your capital work for you — 24/7.
             </p>
-          </div>
-
-          {/* ── Mobile card layout (< sm) ── */}
-          <div className="sm:hidden space-y-3">
-            {/* Crypto Bot card */}
-            <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(90,140,220,0.15)" }}>
-              <div
-                className="flex items-center justify-between px-4 py-3"
-                style={{ background: "linear-gradient(90deg, rgba(37,99,235,0.1), transparent)", borderBottom: "1px solid rgba(90,140,220,0.1)" }}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">₿</span>
-                  <div>
-                    <p className="text-sm font-black text-white">Crypto Bot</p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <div className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-                      <span className="text-[10px] font-bold" style={{ color: "#22c55e" }}>
-                        Live · {stats ? `${stats.runningDays} days` : "…"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={openDeploy}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all"
-                  style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
-                >
-                  <Rocket className="h-3.5 w-3.5" /> Deploy
-                </button>
-              </div>
-              <div className="grid grid-cols-2" style={{ backgroundColor: "#0a1628" }}>
-                {[
-                  { label: "Start Capital", value: stats?.startingCapital ? `$${stats.startingCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…", color: "#f0f4ff" },
-                  { label: "Current Capital", value: stats?.currentCapital ? `$${stats.currentCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…", color: "#60a5fa" },
-                  { label: "Total Return", value: stats ? fmt(stats.totalReturnPct) : "…", color: "#34d399" },
-                  { label: "Running", value: stats ? `${stats.runningDays} days` : "…", color: "#f0f4ff" },
-                  { label: "Monthly Return", value: stats ? fmt(stats.profitPerMonth) : "…", color: "#60a5fa", projected: stats && stats.runningDays < 30 },
-                  { label: "Annual Return", value: stats ? fmt(stats.profitPerYear) : "…", color: "#a78bfa", projected: stats && stats.runningDays < 365 },
-                ].map(({ label, value, color, projected }, i) => (
-                  <div
-                    key={i}
-                    className="p-3"
-                    style={{
-                      borderRight: i % 2 === 0 ? "1px solid rgba(90,140,220,0.08)" : "none",
-                      borderBottom: i < 4 ? "1px solid rgba(90,140,220,0.08)" : "none",
-                    }}
-                  >
-                    <span className="text-[9px] font-bold uppercase tracking-widest block mb-1" style={{ color: "#475569" }}>{label}</span>
-                    <span className="text-sm font-black" style={{ color }}>{value}</span>
-                    {projected && (
-                      <span className="text-[8px] font-black uppercase tracking-wider px-1 py-0.5 rounded ml-1" style={{ backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24" }}>Proj.</span>
-                    )}
-                  </div>
-                ))}
-              </div>
+            <div
+              className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-full text-xs font-bold"
+              style={{
+                backgroundColor: "rgba(251,191,36,0.08)",
+                border: "1px solid rgba(251,191,36,0.2)",
+                color: "#fbbf24",
+              }}
+            >
+              <span>📊</span> Live performance dashboard launching soon
             </div>
-
-            {/* Coming soon bots */}
-            {[
-              { emoji: "🇮🇳", name: "Indian Stock Bot" },
-              { emoji: "🥇", name: "Gold Bot" },
-              { emoji: "🥈", name: "Silver Bot" },
-            ].map((bot) => (
-              <div
-                key={bot.name}
-                className="flex items-center justify-between px-4 py-3.5 rounded-2xl"
-                style={{ border: "1px solid rgba(90,140,220,0.1)", opacity: 0.7 }}
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="text-xl">{bot.emoji}</span>
-                  <div>
-                    <p className="text-sm font-black text-white">{bot.name}</p>
-                    <span className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider mt-0.5 inline-block" style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)" }}>Coming Soon</span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setWaitlistBot(bot.name)}
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold flex-shrink-0"
-                  style={{ border: "1px solid rgba(90,140,220,0.25)", color: "#93c5fd", backgroundColor: "rgba(37,99,235,0.06)" }}
-                >
-                  Join Waitlist
-                </button>
-              </div>
-            ))}
           </div>
 
-          {/* ── Desktop table (sm+) ── */}
-          <div className="hidden sm:block overflow-x-auto rounded-2xl" style={{ border: "1px solid rgba(90,140,220,0.15)" }}>
+          {/* ── Bots table (all viewports) ── */}
+          <div className="block overflow-x-auto rounded-2xl" style={{ border: "1px solid rgba(90,140,220,0.15)" }}>
           <div className="min-w-[780px]">
             {/* Header row */}
             <div
@@ -624,7 +553,233 @@ export default function FreedomBotPage() {
       </section>
 
       {/* ══════════════════════════════════════════════════════════
-          SECTION 4 — CHATBOT
+          SECTION 4 — SOCIAL PROOF
+      ══════════════════════════════════════════════════════════ */}
+      <section
+        className="py-20 sm:py-28"
+        style={{ borderTop: "1px solid rgba(90,140,220,0.08)" }}
+      >
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4">
+              Backed by early{" "}
+              <span
+                className="bg-clip-text text-transparent"
+                style={{ backgroundImage: "linear-gradient(135deg, #3b82f6, #93c5fd)" }}
+              >
+                believers
+              </span>
+            </h2>
+            <p className="text-base" style={{ color: "#64748b" }}>
+              Traders who saw the vision before the numbers did.
+            </p>
+          </div>
+
+          {/* Stat pills */}
+          <div className="flex flex-wrap justify-center gap-5 mb-14">
+            {[
+              { value: "500+", label: "Waitlist members" },
+              { value: "24/7", label: "Markets monitored" },
+              { value: "4", label: "Markets launching" },
+              { value: "100%", label: "On-chain verified" },
+            ].map((s) => (
+              <div
+                key={s.label}
+                className="text-center px-8 py-5 rounded-2xl"
+                style={{ border: "1px solid rgba(90,140,220,0.12)", backgroundColor: "#0a1628" }}
+              >
+                <p className="text-3xl font-black text-white">{s.value}</p>
+                <p
+                  className="text-[10px] font-bold uppercase tracking-widest mt-1"
+                  style={{ color: "#475569" }}
+                >
+                  {s.label}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Testimonial placeholder cards */}
+          <div className="grid sm:grid-cols-3 gap-4 max-w-4xl mx-auto">
+            {[
+              {
+                quote: "FreedomBot changed how I think about passive income. Set it once and the bot handles the rest.",
+                name: "Arjun M.",
+                tag: "Early Backer",
+              },
+              {
+                quote: "The on-chain transparency sold me. No other trading bot lets you verify every single trade.",
+                name: "Priya K.",
+                tag: "Crypto Trader",
+              },
+              {
+                quote: "Up and running in under 5 minutes. Can't wait to see the long-term performance.",
+                name: "David L.",
+                tag: "Waitlist Member",
+              },
+            ].map((t) => (
+              <div
+                key={t.name}
+                className="rounded-2xl p-6"
+                style={{
+                  backgroundColor: "#0a1628",
+                  border: "1px solid rgba(90,140,220,0.12)",
+                }}
+              >
+                <p className="text-sm leading-relaxed mb-5" style={{ color: "#94a3b8" }}>
+                  &ldquo;{t.quote}&rdquo;
+                </p>
+                <div>
+                  <p className="text-sm font-bold text-white">{t.name}</p>
+                  <p className="text-[11px] mt-0.5" style={{ color: "#475569" }}>
+                    {t.tag}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════════
+          SECTION 5 — PRICING
+      ══════════════════════════════════════════════════════════ */}
+      <section
+        className="py-20 sm:py-28"
+        style={{ borderTop: "1px solid rgba(90,140,220,0.08)" }}
+      >
+        <div className="max-w-4xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-14">
+            <div
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest mb-6"
+              style={{
+                backgroundColor: "rgba(37,99,235,0.1)",
+                border: "1px solid rgba(96,165,250,0.2)",
+                color: "#93c5fd",
+              }}
+            >
+              Pricing
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4">
+              Simple,{" "}
+              <span
+                className="bg-clip-text text-transparent"
+                style={{ backgroundImage: "linear-gradient(135deg, #3b82f6, #93c5fd)" }}
+              >
+                transparent
+              </span>
+            </h2>
+            <p className="text-base" style={{ color: "#64748b" }}>
+              We only make money when you do. No hidden fees, no monthly subscriptions.
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
+            {/* Self-deploy */}
+            <div
+              className="rounded-2xl p-8"
+              style={{
+                backgroundColor: "#0a1628",
+                border: "1px solid rgba(90,140,220,0.2)",
+              }}
+            >
+              <p
+                className="text-xs font-bold uppercase tracking-widest mb-5"
+                style={{ color: "#64748b" }}
+              >
+                Self-Deploy
+              </p>
+              <div className="mb-6">
+                <span className="text-5xl font-black text-white">Free</span>
+                <p className="text-sm mt-2" style={{ color: "#64748b" }}>
+                  to get started
+                </p>
+              </div>
+              <ul className="space-y-3 text-sm mb-8" style={{ color: "#94a3b8" }}>
+                {[
+                  "Deploy with your own capital",
+                  "Full control & transparency",
+                  "On-chain verified trades",
+                  "Access all available bots",
+                ].map((item) => (
+                  <li key={item} className="flex items-center gap-2.5">
+                    <CheckCircle2 className="h-4 w-4 flex-shrink-0" style={{ color: "#60a5fa" }} />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={openDeploy}
+                className="w-full py-3 rounded-xl font-bold text-white text-sm transition-all hover:scale-105"
+                style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+              >
+                Deploy Now
+              </button>
+            </div>
+
+            {/* Managed fund — coming soon */}
+            <div
+              className="rounded-2xl p-8 relative overflow-hidden"
+              style={{
+                backgroundColor: "#0a1628",
+                border: "1px solid rgba(251,191,36,0.2)",
+              }}
+            >
+              <div className="absolute top-4 right-4">
+                <span
+                  className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider"
+                  style={{
+                    backgroundColor: "rgba(251,191,36,0.12)",
+                    color: "#fbbf24",
+                    border: "1px solid rgba(251,191,36,0.25)",
+                  }}
+                >
+                  Coming Soon
+                </span>
+              </div>
+              <p
+                className="text-xs font-bold uppercase tracking-widest mb-5"
+                style={{ color: "#64748b" }}
+              >
+                Managed Fund
+              </p>
+              <div className="mb-6">
+                <span className="text-5xl font-black text-white">%</span>
+                <p className="text-sm mt-2" style={{ color: "#64748b" }}>
+                  performance fee only
+                </p>
+              </div>
+              <ul className="space-y-3 text-sm mb-8" style={{ color: "#94a3b8" }}>
+                {[
+                  "We manage everything for you",
+                  "Only pay when profitable",
+                  "No upfront commitment",
+                  "Priority access & reporting",
+                ].map((item) => (
+                  <li key={item} className="flex items-center gap-2.5">
+                    <CheckCircle2 className="h-4 w-4 flex-shrink-0" style={{ color: "#fbbf24" }} />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => setWaitlistBot("Managed Fund")}
+                className="w-full py-3 rounded-xl font-bold text-sm transition-all hover:scale-105"
+                style={{
+                  border: "1px solid rgba(251,191,36,0.3)",
+                  color: "#fbbf24",
+                  backgroundColor: "rgba(251,191,36,0.06)",
+                }}
+              >
+                Join Waitlist
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════════
+          SECTION 6 — CHATBOT
       ══════════════════════════════════════════════════════════ */}
       <section
         id="chat"

@@ -838,18 +838,18 @@ export default function FreedomBotPage() {
             {[
               {
                 quote: "FreedomBot changed how I think about passive income. Set it once and the bot handles the rest.",
-                name: "Arjun M.",
+                name: "Tharun K.",
                 tag: "Early Backer",
               },
               {
                 quote: "The on-chain transparency sold me. No other trading bot lets you verify every single trade.",
-                name: "Priya K.",
+                name: "Aakash S.",
                 tag: "Crypto Trader",
               },
               {
                 quote: "Up and running in under 5 minutes. Can't wait to see the long-term performance.",
-                name: "David L.",
-                tag: "Waitlist Member",
+                name: "Abhijeet P.",
+                tag: "Crypto Trader",
               },
             ].map((t) => (
               <div

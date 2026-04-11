@@ -50,9 +50,14 @@ interface Trade {
   status: string;
   realizedPnl: number;
   unrealizedPnl: number;
+  positionSize: number | null;
+  leverage: number;
+  entryPrice: number | null;
+  currentPrice: number | null;
+  capitalAtEntry: number | null;
+  blockchainTxHash: string | null;
   openedAt: string;
   closedAt: string | null;
-  leverage: number;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -724,17 +729,32 @@ export default function FreedomBotDashboard() {
     }
   }, [user]);
 
+  const fetchUserTrades = useCallback(async () => {
+    if (!user) return;
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/freedombot/my-trades", {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json();
+      setTrades(data.trades ?? []);
+    } catch {
+      setTrades([]);
+    }
+  }, [user]);
+
   useEffect(() => {
     fetchDeployment();
     fetch("/api/freedombot/stats").then((r) => r.json()).then(setStats).catch(() => {});
-    fetch("/api/freedombot/trades").then((r) => r.json()).then((d) => setTrades(d.trades ?? [])).catch(() => {});
-  }, [fetchDeployment]);
+    fetchUserTrades();
+  }, [fetchDeployment, fetchUserTrades]);
 
-  // After deploying, re-check deployment status
+  // After deploying, re-check deployment status and reload trades
   const handleDeployClose = useCallback(() => {
     setDeployOpen(false);
     fetchDeployment();
-  }, [fetchDeployment]);
+    fetchUserTrades();
+  }, [fetchDeployment, fetchUserTrades]);
 
   const handleStopBot = useCallback(async () => {
     if (!user || !deployment) return;

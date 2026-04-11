@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -14,9 +14,12 @@ import {
   X,
   ShieldCheck,
   ExternalLink,
+  ChevronDown,
+  Search,
 } from "lucide-react";
 import { useUser, useAuth } from "@/firebase";
 import { DeployModal } from "./components/DeployModal";
+import { COUNTRIES, POPULAR_COUNTRY_CODES } from "@/lib/countries";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -46,6 +49,17 @@ function fmt(n: number | null, suffix = "%") {
 
 // ─── Waitlist Modal ───────────────────────────────────────────────────────────
 
+const ASSET_TYPES = [
+  { id: "Crypto",        label: "Crypto",         emoji: "₿" },
+  { id: "IndianStock",   label: "Indian Stock",    emoji: "🇮🇳" },
+  { id: "Gold",          label: "Gold",            emoji: "🥇" },
+  { id: "Silver",        label: "Silver",          emoji: "🥈" },
+  { id: "Commodities",   label: "Commodities",     emoji: "🛢️" },
+];
+
+const popularCountries = COUNTRIES.filter((c) => POPULAR_COUNTRY_CODES.includes(c.code));
+const otherCountries   = COUNTRIES.filter((c) => !POPULAR_COUNTRY_CODES.includes(c.code));
+
 function WaitlistModal({
   bot,
   onClose,
@@ -53,38 +67,78 @@ function WaitlistModal({
   bot: string;
   onClose: () => void;
 }) {
-  const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
+  const [name,       setName]       = useState("");
+  const [email,      setEmail]      = useState("");
+  const [mobile,     setMobile]     = useState("");
+  const [country,    setCountry]    = useState("");
+  const [countryQ,   setCountryQ]   = useState("");
+  const [countryOpen, setCountryOpen] = useState(false);
+  const [assetTypes, setAssetTypes] = useState<string[]>([]);
+  const [loading,    setLoading]    = useState(false);
+  const [success,    setSuccess]    = useState(false);
+  const [error,      setError]      = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setCountryOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const filteredCountries = useMemo(() => {
+    const q = countryQ.toLowerCase();
+    if (!q) return null; // show sections when no search
+    return COUNTRIES.filter((c) => c.name.toLowerCase().includes(q));
+  }, [countryQ]);
+
+  const selectedCountry = COUNTRIES.find((c) => c.code === country);
+
+  const toggleAsset = (id: string) => {
+    setAssetTypes((prev) =>
+      prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    if (!assetTypes.length) { setError("Please select at least one asset type"); return; }
+    if (!country)           { setError("Please select your country"); return; }
     setLoading(true);
     try {
       const res = await fetch("/api/freedombot/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, bot }),
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), mobile: mobile.trim(), country, assetTypes }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Something went wrong");
       setSuccess(true);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
     }
   };
 
+  const inputStyle = {
+    backgroundColor: "#162444",
+    border: "1px solid rgba(90,140,220,0.25)",
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+      style={{ backgroundColor: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="relative w-full max-w-md rounded-2xl p-8"
+        className="relative w-full max-w-lg rounded-2xl p-8 max-h-[90vh] overflow-y-auto"
         style={{ backgroundColor: "#0f2044", border: "1px solid rgba(90,140,220,0.3)" }}
       >
         <button
@@ -95,15 +149,16 @@ function WaitlistModal({
         </button>
 
         {success ? (
-          <div className="text-center py-4">
-            <CheckCircle2 className="h-14 w-14 mx-auto mb-4" style={{ color: "#60a5fa" }} />
-            <h3 className="text-xl font-bold text-white mb-2">You&apos;re on the list!</h3>
-            <p className="text-slate-400 text-sm">
-              We&apos;ll notify you the moment {bot} launches. Stay tuned.
+          <div className="text-center py-6">
+            <CheckCircle2 className="h-16 w-16 mx-auto mb-4" style={{ color: "#60a5fa" }} />
+            <h3 className="text-2xl font-bold text-white mb-2">You&apos;re on the list!</h3>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              We will send you an invite once we go live.<br />
+              Keep an eye on your inbox — this one will be worth the wait.
             </p>
             <button
               onClick={onClose}
-              className="mt-6 px-6 py-2 rounded-xl text-sm font-bold text-white transition-all"
+              className="mt-6 px-8 py-2.5 rounded-xl text-sm font-bold text-white transition-all"
               style={{ backgroundColor: "#2563eb" }}
             >
               Got it
@@ -111,24 +166,183 @@ function WaitlistModal({
           </div>
         ) : (
           <>
-            <h3 className="text-xl font-bold text-white mb-1">Join the waitlist</h3>
+            <h3 className="text-xl font-bold text-white mb-1">Join the Waitlist</h3>
             <p className="text-slate-400 text-sm mb-6">
-              Be first to know when <span className="text-blue-400 font-semibold">{bot}</span> goes live.
+              Be first to know when{" "}
+              <span className="text-blue-400 font-semibold">{bot}</span> goes live.
             </p>
+
             <form onSubmit={handleSubmit} className="space-y-4">
-              <input
-                type="email"
-                required
-                placeholder="your@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-white placeholder-slate-500 outline-none transition-all text-sm"
-                style={{
-                  backgroundColor: "#162444",
-                  border: "1px solid rgba(90,140,220,0.25)",
-                }}
-              />
-              {error && <p className="text-red-400 text-xs">{error}</p>}
+
+              {/* Asset Type — multi-select chips */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-widest">
+                  Asset Type <span className="text-red-400">*</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {ASSET_TYPES.map((a) => {
+                    const active = assetTypes.includes(a.id);
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => toggleAsset(a.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                        style={{
+                          backgroundColor: active ? "#2563eb" : "#162444",
+                          border: `1px solid ${active ? "#3b82f6" : "rgba(90,140,220,0.25)"}`,
+                          color: active ? "#fff" : "#94a3b8",
+                        }}
+                      >
+                        <span>{a.emoji}</span> {a.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Country — searchable dropdown */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-widest">
+                  Country <span className="text-red-400">*</span>
+                </label>
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => { setCountryOpen((o) => !o); setCountryQ(""); }}
+                    className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm text-left transition-all"
+                    style={inputStyle}
+                  >
+                    <span className={selectedCountry ? "text-white" : "text-slate-500"}>
+                      {selectedCountry ? `${selectedCountry.flag}  ${selectedCountry.name}` : "Select your country…"}
+                    </span>
+                    <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${countryOpen ? "rotate-180" : ""}`} />
+                  </button>
+
+                  {countryOpen && (
+                    <div
+                      className="absolute z-50 w-full mt-1 rounded-xl overflow-hidden shadow-2xl"
+                      style={{ backgroundColor: "#0d1b35", border: "1px solid rgba(90,140,220,0.3)", maxHeight: "240px" }}
+                    >
+                      {/* Search input */}
+                      <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ borderColor: "rgba(90,140,220,0.2)" }}>
+                        <Search className="h-3.5 w-3.5 text-slate-500 flex-shrink-0" />
+                        <input
+                          autoFocus
+                          type="text"
+                          placeholder="Search country…"
+                          value={countryQ}
+                          onChange={(e) => setCountryQ(e.target.value)}
+                          className="flex-1 bg-transparent text-sm text-white placeholder-slate-500 outline-none"
+                        />
+                      </div>
+
+                      <div className="overflow-y-auto" style={{ maxHeight: "192px" }}>
+                        {filteredCountries ? (
+                          filteredCountries.length === 0 ? (
+                            <p className="px-4 py-3 text-xs text-slate-500">No results</p>
+                          ) : (
+                            filteredCountries.map((c) => (
+                              <button
+                                key={c.code} type="button"
+                                onClick={() => { setCountry(c.code); setCountryOpen(false); setCountryQ(""); }}
+                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left transition-colors hover:bg-white/5"
+                                style={{ color: c.code === country ? "#60a5fa" : "#cbd5e1" }}
+                              >
+                                <span className="text-base">{c.flag}</span>
+                                <span>{c.name}</span>
+                              </button>
+                            ))
+                          )
+                        ) : (
+                          <>
+                            <p className="px-4 pt-2 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Popular</p>
+                            {popularCountries.map((c) => (
+                              <button
+                                key={c.code} type="button"
+                                onClick={() => { setCountry(c.code); setCountryOpen(false); }}
+                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-left transition-colors hover:bg-white/5"
+                                style={{ color: c.code === country ? "#60a5fa" : "#cbd5e1" }}
+                              >
+                                <span className="text-base">{c.flag}</span>
+                                <span>{c.name}</span>
+                              </button>
+                            ))}
+                            <p className="px-4 pt-2 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest border-t" style={{ borderColor: "rgba(90,140,220,0.15)" }}>All Countries</p>
+                            {otherCountries.map((c) => (
+                              <button
+                                key={c.code} type="button"
+                                onClick={() => { setCountry(c.code); setCountryOpen(false); }}
+                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-left transition-colors hover:bg-white/5"
+                                style={{ color: c.code === country ? "#60a5fa" : "#cbd5e1" }}
+                              >
+                                <span className="text-base">{c.flag}</span>
+                                <span>{c.name}</span>
+                              </button>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Name */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-widest">
+                  Name <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Your full name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl text-white placeholder-slate-500 outline-none transition-all text-sm"
+                  style={inputStyle}
+                />
+              </div>
+
+              {/* Mobile */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-widest">
+                  Mobile Number
+                </label>
+                <input
+                  type="tel"
+                  placeholder="+91 98765 43210"
+                  value={mobile}
+                  onChange={(e) => setMobile(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl text-white placeholder-slate-500 outline-none transition-all text-sm"
+                  style={inputStyle}
+                />
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-widest">
+                  Email ID <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="email"
+                  required
+                  placeholder="your@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl text-white placeholder-slate-500 outline-none transition-all text-sm"
+                  style={inputStyle}
+                />
+              </div>
+
+              {/* Privacy notice */}
+              <p className="flex items-start gap-2 text-[11px] text-slate-500 leading-relaxed pt-1">
+                <ShieldCheck className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-blue-500/60" />
+                Your name, mobile & email are encrypted with AES-256-GCM and stored securely. We only use them to send your invite.
+              </p>
+
+              {error && <p className="text-red-400 text-xs font-medium">{error}</p>}
+
               <button
                 type="submit"
                 disabled={loading}
@@ -136,13 +350,12 @@ function WaitlistModal({
                 style={{ backgroundColor: "#2563eb" }}
               >
                 {loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</>
                 ) : (
-                  <>
-                    Notify me <ArrowRight className="h-4 w-4" />
-                  </>
+                  <>Notify me when live <ArrowRight className="h-4 w-4" /></>
                 )}
               </button>
+
             </form>
           </>
         )}

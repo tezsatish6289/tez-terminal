@@ -16,19 +16,22 @@ export async function GET(req: NextRequest) {
     const uid = decoded.uid;
 
     const db = getAdminFirestore();
+    // Use the already-deployed (uid, createdAt DESC) index.
+    // Fetch the most recent records and find the first active one in code
+    // to avoid requiring a composite index that may still be building.
     const snap = await db
       .collection("bot_deployments")
       .where("uid", "==", uid)
-      .where("status", "==", "active")
       .orderBy("createdAt", "desc")
-      .limit(1)
+      .limit(10)
       .get();
 
-    if (snap.empty) {
+    const activeDoc = snap.docs.find((d) => d.data().status === "active");
+    if (!activeDoc) {
       return NextResponse.json({ deployment: null });
     }
 
-    const doc = snap.docs[0];
+    const doc = activeDoc;
     const data = doc.data();
 
     return NextResponse.json({

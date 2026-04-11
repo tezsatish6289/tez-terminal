@@ -266,22 +266,27 @@ function NotConnected({ stats, onDeploy }: { stats: BotStats | null; onDeploy: (
               <Rocket className="h-3.5 w-3.5" /> Deploy
             </button>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4" style={{ backgroundColor: "#060d1a" }}>
+          <div className="grid grid-cols-3 sm:grid-cols-6" style={{ backgroundColor: "#060d1a" }}>
             {[
+              { label: "Running", value: stats ? `${stats.runningDays}d` : "…", color: "#f0f4ff" },
+              { label: "Start Capital", value: stats?.startingCapital ? `$${stats.startingCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…", color: "#f0f4ff" },
+              { label: "Current Capital", value: stats?.currentCapital ? `$${stats.currentCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…", color: "#60a5fa" },
               { label: "Total Return", value: stats ? fmt(stats.totalReturnPct) : "…", color: (stats?.totalReturnPct ?? 0) >= 0 ? "#34d399" : "#f87171" },
-              { label: "Monthly Return", value: stats ? fmt(stats.profitPerMonth) : "…", color: "#60a5fa" },
-              { label: "Win Rate", value: stats?.winRate ? `${stats.winRate}%` : "…", color: "#a78bfa" },
-              { label: "Total Trades", value: stats ? stats.totalTrades.toString() : "…", color: "#f0f4ff" },
-            ].map((s, i) => (
+              { label: "Monthly Return", value: stats ? fmt(stats.profitPerMonth) : "…", color: "#60a5fa", projected: stats ? (stats.runningDays < 30) : false },
+              { label: "Annual Return", value: stats ? fmt(stats.profitPerYear) : "…", color: "#a78bfa", projected: stats ? (stats.runningDays < 365) : false },
+            ].map((s, i, arr) => (
               <div
                 key={s.label}
                 className="p-4 text-center"
-                style={{
-                  borderRight: i < 3 ? "1px solid rgba(90,140,220,0.06)" : "none",
-                }}
+                style={{ borderRight: i < arr.length - 1 ? "1px solid rgba(90,140,220,0.06)" : "none" }}
               >
-                <p className="text-lg font-black" style={{ color: s.color }}>{s.value}</p>
-                <p className="text-[9px] font-bold uppercase tracking-widest mt-1" style={{ color: "#334155" }}>{s.label}</p>
+                <div className="flex items-center justify-center gap-1.5 mb-0.5">
+                  <p className="text-base font-black" style={{ color: s.color }}>{s.value}</p>
+                  {"projected" in s && s.projected && (
+                    <span className="text-[7px] font-black uppercase tracking-wider px-1 py-0.5 rounded" style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24" }}>Proj.</span>
+                  )}
+                </div>
+                <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "#334155" }}>{s.label}</p>
               </div>
             ))}
           </div>

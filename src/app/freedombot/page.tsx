@@ -181,18 +181,18 @@ export default function FreedomBotPage() {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    window.history.scrollRestoration = "manual";
-    window.scrollTo(0, 0);
-  }, []);
-
-  useEffect(() => {
     fetch("/api/freedombot/stats")
       .then((r) => r.json())
       .then((data) => setStats(data))
       .catch(() => {});
   }, []);
 
+  const isChatInitialMount = useRef(true);
   useEffect(() => {
+    if (isChatInitialMount.current) {
+      isChatInitialMount.current = false;
+      return;
+    }
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 

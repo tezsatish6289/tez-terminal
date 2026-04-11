@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore, getAdminAuth } from "@/firebase/admin";
 import { encrypt } from "@/lib/crypto";
 import { getConnector, getSecretDocId } from "@/lib/exchanges";
+import type { ExchangeName } from "@/lib/exchanges";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
 // ─── HMAC fingerprint (exchange + primary credential) ────────────────────────
-// Deterministic and irreversible — safe to store in plaintext for uniqueness checks.
 
 function computeFingerprint(
   exchange: string,
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     const { bot, exchange, credentials } = body as {
       bot?: string;
       exchange?: string;
-      credentials?: { apiKey: string; apiSecret: string };
+      credentials?: Record<string, string>;
     };
 
     if (!bot || !exchange || !credentials?.apiKey || !credentials?.apiSecret) {
@@ -69,10 +69,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
     }
 
-    // ── Uniqueness check (fingerprint-based) ──────────────────────────────────
     const keyFingerprint = computeFingerprint(exchange, credentials.apiKey, encryptionKey);
     const db = getAdminFirestore();
 
+    // ── Check if a *different* user already owns this exact API key ────────────
     const duplicateSnap = await db
       .collection("bot_deployments")
       .where("exchange", "==", exchange)
@@ -80,14 +80,7 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .get();
 
-    if (!duplicateSnap.empty) {
-      const existingUid = duplicateSnap.docs[0].data().uid;
-      if (existingUid === uid) {
-        return NextResponse.json(
-          { error: "You have already connected this API key. Visit your dashboard to manage your bot." },
-          { status: 409 },
-        );
-      }
+    if (!duplicateSnap.empty && duplicateSnap.docs[0].data().uid !== uid) {
       return NextResponse.json(
         { error: "This API key is already registered on FreedomBot. Each exchange account can only be linked once." },
         { status: 409 },
@@ -105,14 +98,15 @@ export async function POST(req: NextRequest) {
       if (balance.total < 0) throw new Error("Unexpected negative balance");
     } catch (e) {
       return NextResponse.json(
-        { error: `Could not verify your ${exchange} API keys: ${e instanceof Error ? e.message : String(e)}. Please check they are correct and have futures trading permissions.` },
+        {
+          error: `Could not verify your ${exchange} API keys: ${e instanceof Error ? e.message : String(e)}. Please check they are correct and have futures trading permissions enabled.`,
+        },
         { status: 400 },
       );
     }
 
-    // ── Write credentials to the trading engine's secrets collection ──────────
-    // This is the same path the live trading cron reads from: users/{uid}/secrets/{docId}
-    const docId = getSecretDocId(exchange as "BYBIT" | "BINANCE" | "MEXC" | "DHAN");
+    // ── Write credentials into the trading engine's secrets collection ─────────
+    const docId = getSecretDocId(exchange as ExchangeName);
     await db.collection("users").doc(uid).collection("secrets").doc(docId).set({
       exchange,
       encryptedKey: encrypt(credentials.apiKey),
@@ -126,8 +120,16 @@ export async function POST(req: NextRequest) {
       savedAt: new Date().toISOString(),
     });
 
-    // ── Record deployment for tracking / dashboard ────────────────────────────
-    const docRef = await db.collection("bot_deployments").add({
+    // ── Upsert the bot_deployments tracking record ────────────────────────────
+    // If the user is re-deploying (same or new keys), update their existing record.
+    const existingSnap = await db
+      .collection("bot_deployments")
+      .where("uid", "==", uid)
+      .where("exchange", "==", exchange)
+      .limit(1)
+      .get();
+
+    const deployData = {
       uid,
       email: decoded.email ?? null,
       displayName: decoded.name ?? null,
@@ -136,10 +138,23 @@ export async function POST(req: NextRequest) {
       keyFingerprint,
       keyLastFour: credentials.apiKey.slice(-4),
       status: "active",
-      createdAt: new Date(),
-    });
+      updatedAt: new Date(),
+    };
 
-    return NextResponse.json({ success: true, deploymentId: docRef.id });
+    let deploymentId: string;
+    if (!existingSnap.empty) {
+      const existingDoc = existingSnap.docs[0];
+      await existingDoc.ref.update(deployData);
+      deploymentId = existingDoc.id;
+    } else {
+      const docRef = await db.collection("bot_deployments").add({
+        ...deployData,
+        createdAt: new Date(),
+      });
+      deploymentId = docRef.id;
+    }
+
+    return NextResponse.json({ success: true, deploymentId });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unexpected error";
     return NextResponse.json({ error: message }, { status: 500 });

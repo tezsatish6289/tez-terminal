@@ -665,14 +665,23 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                 </div>
               )}
 
+              {error && (
+                <div
+                  className="mt-4 px-4 py-3 rounded-xl text-sm font-medium"
+                  style={{ backgroundColor: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}
+                >
+                  {error}
+                </div>
+              )}
+
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting || !credsFilled}
-                className="mt-5 w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
+                className="mt-4 w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
               >
                 {isSubmitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Verifying keys…</>
                 ) : (
                   <><Rocket className="h-4 w-4" /> Deploy Bot</>
                 )}

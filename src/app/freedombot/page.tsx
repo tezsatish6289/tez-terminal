@@ -160,9 +160,9 @@ export default function FreedomBotPage() {
   const router = useRouter();
   const [deployOpen, setDeployOpen] = useState(false);
 
-  // Only redirect logged-in users if they're NOT in the deploy flow
+  // Redirect logged-in users to the FreedomBot dashboard
   useEffect(() => {
-    if (user && !deployOpen) router.replace("/live");
+    if (user && !deployOpen) router.replace("/dashboard");
   }, [user, deployOpen, router]);
 
   const openDeploy = useCallback(() => setDeployOpen(true), []);

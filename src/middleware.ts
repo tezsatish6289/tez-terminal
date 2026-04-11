@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 const FREEDOMBOT_HOSTS = ["freedombot.ai", "www.freedombot.ai"];
 
 // Pages that belong to the FreedomBot marketing site (rewritten to /freedombot/*)
-const FREEDOMBOT_SITE_PATHS = new Set(["/", "/about", "/privacy", "/terms", "/records"]);
+const FREEDOMBOT_SITE_PATHS = new Set(["/", "/about", "/privacy", "/terms", "/records", "/dashboard"]);
 
 function isFreedomBot(request: NextRequest): boolean {
   // Firebase App Hosting CDN may forward the original hostname in x-forwarded-host

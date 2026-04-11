@@ -181,6 +181,11 @@ export default function FreedomBotPage() {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    window.history.scrollRestoration = "manual";
+    window.scrollTo(0, 0);
+  }, []);
+
+  useEffect(() => {
     fetch("/api/freedombot/stats")
       .then((r) => r.json())
       .then((data) => setStats(data))

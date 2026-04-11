@@ -358,8 +358,8 @@ export default function FreedomBotPage() {
               <Rocket className="h-5 w-5" />
               Deploy a Bot
             </button>
-            <a
-              href="#chat"
+            <button
+              onClick={() => document.getElementById("chat")?.scrollIntoView({ behavior: "smooth" })}
               className="h-14 px-10 rounded-2xl font-bold text-base flex items-center gap-2 transition-all hover:scale-105"
               style={{
                 border: "1px solid rgba(90,140,220,0.3)",
@@ -369,7 +369,7 @@ export default function FreedomBotPage() {
             >
               <Bot className="h-5 w-5" />
               Ask me anything
-            </a>
+            </button>
           </div>
           <p className="text-xs mt-6" style={{ color: "#334155" }}>
             Trading involves risk. Past performance does not guarantee future results.

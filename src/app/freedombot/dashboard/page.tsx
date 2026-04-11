@@ -463,196 +463,146 @@ function Connected({ deployment, trades, onStop }: {
         className="rounded-2xl overflow-hidden"
         style={{ border: "1px solid rgba(90,140,220,0.12)" }}
       >
-        {/* Table header */}
+        {/* Table header — 7 columns */}
         <div
-          className="grid px-4 py-3"
+          className="hidden sm:grid px-4 py-3"
           style={{
-            gridTemplateColumns: "1.5fr 0.7fr 0.8fr 0.8fr 0.6fr 1fr 1fr 0.9fr 1fr 0.9fr",
+            gridTemplateColumns: "1.4fr 1.8fr 1fr 1fr 1fr 1fr 0.8fr",
             backgroundColor: "#060d1a",
             borderBottom: "1px solid rgba(90,140,220,0.1)",
           }}
         >
-          {["Entry | Exit Time", "Symbol", "Side", "Position Size", "Leverage", "Entry Price", "Exit Price", "P&L", "Fund Balance", "Proof of Trade"].map((h) => (
-            <div key={h} className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "#334155" }}>
-              {h}
-            </div>
+          {["Entry | Exit Time", "Side & Symbol", "Size & Leverage", "Entry Price", "Exit Price", "P&L", "Status"].map((h) => (
+            <div key={h} className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "#334155" }}>{h}</div>
           ))}
         </div>
 
-        {/* Mobile fallback */}
-        <div className="sm:hidden">
-          {trades.length === 0 ? (
-            <div className="py-14 text-center" style={{ backgroundColor: "#0a1628" }}>
-              <Zap className="h-8 w-8 mx-auto mb-3 opacity-20" />
-              <p className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.2)" }}>No trades yet</p>
-              <p className="text-xs mt-1" style={{ color: "#334155" }}>Trades appear once your bot is active</p>
-            </div>
-          ) : (
-            trades.slice(0, 20).map((trade, i) => {
-              const pnl = trade.status === "open" ? trade.unrealizedPnl : trade.realizedPnl;
-              const isWin = pnl >= 0;
-              return (
-                <div
-                  key={trade.id}
-                  className="px-4 py-3 flex items-center justify-between"
-                  style={{
-                    backgroundColor: "#0a1628",
-                    borderBottom: i < trades.length - 1 ? "1px solid rgba(90,140,220,0.06)" : "none",
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    {trade.side === "LONG"
-                      ? <TrendingUp className="h-3.5 w-3.5" style={{ color: "#34d399" }} />
-                      : <TrendingDown className="h-3.5 w-3.5" style={{ color: "#f87171" }} />
-                    }
-                    <span className="text-sm font-black text-white">{trade.symbol}</span>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(96,165,250,0.1)", color: "#60a5fa" }}>
-                      {trade.leverage}x
+        {/* Empty state */}
+        {trades.length === 0 && (
+          <div className="py-16 text-center" style={{ backgroundColor: "#0a1628" }}>
+            <Zap className="h-8 w-8 mx-auto mb-3 opacity-20" />
+            <p className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.2)" }}>No trades yet</p>
+            <p className="text-xs mt-1" style={{ color: "#334155" }}>Trades will appear here once your bot starts placing orders</p>
+          </div>
+        )}
+
+        {/* Rows */}
+        {trades.slice(0, 50).map((trade, i) => {
+          const pnl = trade.status === "open" ? trade.unrealizedPnl : trade.realizedPnl;
+          const isWin = pnl >= 0;
+          const isOpen = trade.status === "open";
+          const isBuy = trade.side === "LONG" || trade.side === "BUY";
+          const rowStyle = { borderBottom: i < trades.length - 1 ? "1px solid rgba(90,140,220,0.06)" : "none" };
+
+          return (
+            <div key={trade.id}>
+              {/* Mobile */}
+              <div
+                className="sm:hidden flex items-center justify-between px-4 py-3"
+                style={{ backgroundColor: "#0a1628", ...rowStyle }}
+              >
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded uppercase"
+                      style={isBuy ? { backgroundColor: "rgba(34,197,94,0.12)", color: "#34d399" } : { backgroundColor: "rgba(248,113,113,0.12)", color: "#f87171" }}>
+                      {isBuy ? "Buy" : "Sell"}
                     </span>
+                    <span className="text-sm font-black text-white">{trade.symbol}</span>
                   </div>
-                  <span className="text-sm font-black" style={{ color: isWin ? "#34d399" : "#f87171" }}>
-                    {pnl >= 0 ? "+" : ""}${Math.abs(pnl).toFixed(2)}
+                  <span className="text-[10px] font-mono" style={{ color: "#475569" }}>
+                    {trade.openedAt ? new Date(trade.openedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
                   </span>
                 </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* Desktop table */}
-        <div className="hidden sm:block overflow-x-auto">
-          <div style={{ minWidth: "900px", backgroundColor: "#0a1628" }}>
-            {trades.length === 0 ? (
-              <div className="py-16 text-center">
-                <Zap className="h-8 w-8 mx-auto mb-3 opacity-20" />
-                <p className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.2)" }}>No trades yet</p>
-                <p className="text-xs mt-1" style={{ color: "#334155" }}>Trades will appear here once your bot is active</p>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="font-mono text-sm font-black" style={{ color: isWin ? "#34d399" : "#f87171" }}>
+                    {pnl >= 0 ? "+" : ""}${Math.abs(pnl).toFixed(2)}
+                  </span>
+                  <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded"
+                    style={isOpen ? { backgroundColor: "rgba(34,197,94,0.1)", color: "#22c55e" } : { backgroundColor: "rgba(255,255,255,0.04)", color: "#475569" }}>
+                    {isOpen ? "Open" : "Closed"}
+                  </span>
+                </div>
               </div>
-            ) : (
-              trades.slice(0, 50).map((trade, i) => {
-                const pnl = trade.status === "open" ? trade.unrealizedPnl : trade.realizedPnl;
-                const isWin = pnl >= 0;
-                const isOpen = trade.status === "open";
-                return (
-                  <div
-                    key={trade.id}
-                    className="grid px-4 py-3.5 items-center hover:bg-white/[0.02] transition-colors"
-                    style={{
-                      gridTemplateColumns: "1.5fr 0.7fr 0.8fr 0.8fr 0.6fr 1fr 1fr 0.9fr 1fr 0.9fr",
-                      borderBottom: i < trades.length - 1 ? "1px solid rgba(90,140,220,0.06)" : "none",
-                    }}
-                  >
-                    {/* Entry | Exit Time */}
-                    <div className="flex flex-col gap-0.5">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: "#334155" }}>In</span>
-                        <span className="text-[10px] font-mono font-bold" style={{ color: "#60a5fa" }}>
-                          {trade.openedAt ? new Date(trade.openedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
-                        </span>
-                      </div>
-                      {trade.closedAt && (
-                        <div className="flex items-center gap-1">
-                          <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: "#334155" }}>Out</span>
-                          <span className="text-[10px] font-mono" style={{ color: "#475569" }}>
-                            {new Date(trade.closedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                          </span>
-                        </div>
-                      )}
-                    </div>
 
-                    {/* Symbol */}
-                    <div className="flex items-center gap-1.5">
-                      {trade.side === "LONG"
-                        ? <TrendingUp className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "#34d399" }} />
-                        : <TrendingDown className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "#f87171" }} />
-                      }
-                      <span className="text-sm font-black text-white leading-none">{trade.symbol}</span>
-                    </div>
-
-                    {/* Side */}
-                    <div>
-                      <span
-                        className="text-[10px] font-bold px-2 py-0.5 rounded"
-                        style={trade.side === "LONG"
-                          ? { backgroundColor: "rgba(34,197,94,0.1)", color: "#34d399" }
-                          : { backgroundColor: "rgba(248,113,113,0.1)", color: "#f87171" }
-                        }
-                      >
-                        {trade.side}
-                      </span>
-                    </div>
-
-                    {/* Position Size */}
-                    <div className="font-mono text-xs font-bold" style={{ color: "#94a3b8" }}>
-                      {trade.positionSize ? `$${trade.positionSize.toFixed(2)}` : "—"}
-                    </div>
-
-                    {/* Leverage */}
-                    <div>
-                      <span
-                        className="text-[10px] font-bold px-2 py-0.5 rounded"
-                        style={{ backgroundColor: "rgba(96,165,250,0.1)", color: "#60a5fa", border: "1px solid rgba(96,165,250,0.2)" }}
-                      >
-                        {trade.leverage}x
-                      </span>
-                    </div>
-
-                    {/* Entry Price */}
-                    <div className="font-mono text-xs font-bold" style={{ color: "rgba(255,255,255,0.5)" }}>
-                      ${formatPrice(trade.entryPrice)}
-                    </div>
-
-                    {/* Exit Price */}
-                    <div className="font-mono text-xs font-bold" style={{ color: isOpen ? "#475569" : "rgba(255,255,255,0.5)" }}>
-                      {isOpen ? (
-                        <div className="flex items-center gap-1">
-                          <div className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-                          <span style={{ color: "#22c55e" }}>Open</span>
-                        </div>
-                      ) : (
-                        `$${formatPrice(trade.currentPrice)}`
-                      )}
-                    </div>
-
-                    {/* P&L */}
-                    <div className="flex items-center gap-1">
-                      {isWin
-                        ? <TrendingUp className="h-3 w-3" style={{ color: "#34d399" }} />
-                        : <TrendingDown className="h-3 w-3" style={{ color: "#f87171" }} />
-                      }
-                      <span className="font-mono text-xs font-black" style={{ color: isWin ? "#34d399" : "#f87171" }}>
-                        {pnl >= 0 ? "+" : ""}${Math.abs(pnl).toFixed(2)}
-                      </span>
-                    </div>
-
-                    {/* Fund Balance */}
-                    <div className="font-mono text-xs font-bold" style={{ color: "#94a3b8" }}>
-                      {trade.capitalAtEntry ? `$${trade.capitalAtEntry.toFixed(2)}` : "—"}
-                    </div>
-
-                    {/* Proof of Trade */}
-                    <div>
-                      {trade.blockchainTxHash ? (
-                        <a
-                          href={`https://solscan.io/tx/${trade.blockchainTxHash}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 text-[10px] font-bold transition-opacity hover:opacity-80"
-                          style={{ color: "#34d399" }}
-                        >
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Verified
-                        </a>
-                      ) : (
-                        <span className="text-[10px]" style={{ color: "#334155" }}>Pending</span>
-                      )}
-                    </div>
+              {/* Desktop */}
+              <div
+                className="hidden sm:grid px-4 py-3.5 items-center hover:bg-white/[0.015] transition-colors"
+                style={{ gridTemplateColumns: "1.4fr 1.8fr 1fr 1fr 1fr 1fr 0.8fr", backgroundColor: "#0a1628", ...rowStyle }}
+              >
+                {/* Entry | Exit Time */}
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: "#334155" }}>In</span>
+                    <span className="text-[10px] font-mono font-bold" style={{ color: "#60a5fa" }}>
+                      {trade.openedAt ? new Date(trade.openedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
+                    </span>
                   </div>
-                );
-              })
-            )}
-          </div>
-        </div>
+                  {trade.closedAt && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: "#334155" }}>Out</span>
+                      <span className="text-[10px] font-mono" style={{ color: "#475569" }}>
+                        {new Date(trade.closedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Side & Symbol (merged) */}
+                <div className="flex items-center gap-2">
+                  <span
+                    className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wide flex-shrink-0"
+                    style={isBuy
+                      ? { backgroundColor: "rgba(34,197,94,0.12)", color: "#34d399" }
+                      : { backgroundColor: "rgba(248,113,113,0.12)", color: "#f87171" }
+                    }
+                  >
+                    {isBuy ? "Buy" : "Sell"}
+                  </span>
+                  <span className="text-sm font-black text-white leading-none truncate">{trade.symbol}</span>
+                </div>
+
+                {/* Size & Leverage (merged) */}
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-mono text-xs font-bold" style={{ color: "#94a3b8" }}>
+                    {trade.positionSize ? `$${trade.positionSize.toFixed(2)}` : "—"}
+                  </span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded inline-flex w-fit"
+                    style={{ backgroundColor: "rgba(96,165,250,0.08)", color: "#60a5fa" }}>
+                    {trade.leverage}x
+                  </span>
+                </div>
+
+                {/* Entry Price */}
+                <div className="font-mono text-xs font-bold" style={{ color: "rgba(255,255,255,0.45)" }}>
+                  ${formatPrice(trade.entryPrice)}
+                </div>
+
+                {/* Exit Price */}
+                <div className="font-mono text-xs font-bold" style={{ color: "rgba(255,255,255,0.45)" }}>
+                  {isOpen ? <span style={{ color: "#334155" }}>—</span> : `$${formatPrice(trade.currentPrice)}`}
+                </div>
+
+                {/* P&L */}
+                <div className="font-mono text-xs font-black" style={{ color: isWin ? "#34d399" : "#f87171" }}>
+                  {pnl >= 0 ? "+" : ""}${Math.abs(pnl).toFixed(2)}
+                </div>
+
+                {/* Status */}
+                <div>
+                  <span
+                    className="text-[9px] font-black px-2 py-1 rounded uppercase tracking-wide"
+                    style={isOpen
+                      ? { backgroundColor: "rgba(34,197,94,0.1)", color: "#22c55e" }
+                      : { backgroundColor: "rgba(255,255,255,0.04)", color: "#475569" }
+                    }
+                  >
+                    {isOpen ? "Open" : "Closed"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

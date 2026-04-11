@@ -707,7 +707,7 @@ export default function FreedomBotPage() {
               </button>
             </div>
 
-            {/* Managed fund — coming soon */}
+            {/* PostPay — coming soon */}
             <div
               className="rounded-2xl p-8 relative overflow-hidden"
               style={{
@@ -731,20 +731,33 @@ export default function FreedomBotPage() {
                 className="text-xs font-bold uppercase tracking-widest mb-5"
                 style={{ color: "#64748b" }}
               >
-                Managed Fund
+                PostPay
               </p>
-              <div className="mb-6">
-                <span className="text-5xl font-black text-white">%</span>
-                <p className="text-sm mt-2" style={{ color: "#64748b" }}>
-                  performance fee only
-                </p>
+              <div className="mb-2">
+                <span className="text-5xl font-black text-white">10%</span>
+              </div>
+              <p className="text-sm mb-6" style={{ color: "#64748b" }}>
+                of net profit, paid after you earn
+              </p>
+              <div
+                className="rounded-xl px-4 py-3 mb-6 text-sm"
+                style={{
+                  backgroundColor: "rgba(251,191,36,0.06)",
+                  border: "1px solid rgba(251,191,36,0.15)",
+                  color: "#94a3b8",
+                }}
+              >
+                You make{" "}
+                <span className="font-bold text-white">$100 profit</span>
+                {" → "}you pay us{" "}
+                <span className="font-bold" style={{ color: "#fbbf24" }}>$10</span>
               </div>
               <ul className="space-y-3 text-sm mb-8" style={{ color: "#94a3b8" }}>
                 {[
-                  "We manage everything for you",
-                  "Only pay when profitable",
-                  "No upfront commitment",
-                  "Priority access & reporting",
+                  "Pay only after you profit",
+                  "No upfront fees, ever",
+                  "Calculated on net profit after exchange fees",
+                  "Monthly settlements",
                 ].map((item) => (
                   <li key={item} className="flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 flex-shrink-0" style={{ color: "#fbbf24" }} />
@@ -753,7 +766,7 @@ export default function FreedomBotPage() {
                 ))}
               </ul>
               <button
-                onClick={() => setWaitlistBot("Managed Fund")}
+                onClick={() => setWaitlistBot("PostPay")}
                 className="w-full py-3 rounded-xl font-bold text-sm transition-all hover:scale-105"
                 style={{
                   border: "1px solid rgba(251,191,36,0.3)",

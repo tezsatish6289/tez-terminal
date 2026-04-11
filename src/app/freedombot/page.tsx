@@ -248,20 +248,46 @@ export default function FreedomBotPage() {
       <nav
         className="sticky top-0 z-40 border-b"
         style={{
-          backgroundColor: "rgba(8,15,30,0.85)",
+          backgroundColor: "rgba(8,15,30,0.92)",
           borderColor: "rgba(90,140,220,0.12)",
           backdropFilter: "blur(16px)",
         }}
       >
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center">
-          <Image
-            src="/freedombot/icon.png"
-            alt="FreedomBot.ai"
-            width={40}
-            height={40}
-            className="object-contain h-10 w-auto"
-            priority
-          />
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Image
+              src="/freedombot/icon.png"
+              alt="FreedomBot.ai"
+              width={28}
+              height={28}
+              className="object-contain rounded-lg"
+              priority
+            />
+            <span className="font-black text-lg tracking-tight" style={{ color: "#60a5fa" }}>
+              FreedomBot.ai
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={openDeploy}
+              className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all hover:scale-105"
+              style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+            >
+              <Rocket className="h-3.5 w-3.5" /> Deploy a Bot
+            </button>
+            <button
+              onClick={openDeploy}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105"
+              style={{
+                border: "1px solid rgba(90,140,220,0.3)",
+                color: "#93c5fd",
+                backgroundColor: "rgba(37,99,235,0.08)",
+              }}
+            >
+              Sign In
+            </button>
+          </div>
         </div>
       </nav>
 

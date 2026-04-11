@@ -412,7 +412,7 @@ function Connected({ deployment, stats, trades, onDeploy }: {
             <div className="flex items-center gap-2">
               <Clock className="h-3.5 w-3.5" style={{ color: "#fbbf24" }} />
               <span className="text-xs" style={{ color: "#64748b" }}>
-                Our team is reviewing your deployment. You&apos;ll be notified when it goes live.
+                Bot is connecting to {exchangeLabel}. First trade fires on the next signal.
               </span>
             </div>
           )}

@@ -1,56 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore, getAdminAuth } from "@/firebase/admin";
+import { encrypt } from "@/lib/crypto";
+import { getConnector, getSecretDocId } from "@/lib/exchanges";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
-// ─── AES-256-CBC encryption ──────────────────────────────────────────────────
-
-function deriveKey(secret: string): Buffer {
-  return crypto.createHash("sha256").update(secret).digest();
-}
-
-function encryptValue(plaintext: string, key: Buffer): string {
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
-  const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
-  return `${iv.toString("hex")}:${encrypted.toString("hex")}`;
-}
-
-function encryptCredentials(
-  credentials: Record<string, string>,
-  encryptionKey: string,
-): Record<string, string> {
-  const key = deriveKey(encryptionKey);
-  const result: Record<string, string> = {};
-  for (const [field, value] of Object.entries(credentials)) {
-    result[field] = encryptValue(value, key);
-  }
-  return result;
-}
-
 // ─── HMAC fingerprint (exchange + primary credential) ────────────────────────
 // Deterministic and irreversible — safe to store in plaintext for uniqueness checks.
-// We use the first credential field (apiKey / clientId) as the primary identifier.
 
 function computeFingerprint(
   exchange: string,
-  credentials: Record<string, string>,
+  primaryCredential: string,
   secret: string,
 ): string {
-  const primaryKey = Object.values(credentials)[0] ?? "";
   return crypto
     .createHmac("sha256", secret)
-    .update(`${exchange}:${primaryKey}`)
+    .update(`${exchange}:${primaryCredential}`)
     .digest("hex");
 }
 
 // ─── Validation ──────────────────────────────────────────────────────────────
 
 const ALLOWED_BOTS = new Set(["CRYPTO", "INDIAN_STOCKS", "GOLD", "SILVER"]);
-const ALLOWED_EXCHANGES: Record<string, Set<string>> = {
-  CRYPTO:        new Set(["BINANCE", "BYBIT"]),
-  INDIAN_STOCKS: new Set(["ZERODHA", "UPSTOX", "ANGEL_ONE", "DHAN"]),
+const ALLOWED_EXCHANGES: Record<string, string[]> = {
+  CRYPTO:        ["BYBIT"],
+  INDIAN_STOCKS: ["ZERODHA", "UPSTOX", "ANGEL_ONE", "DHAN"],
 };
 
 // ─── Route handler ───────────────────────────────────────────────────────────
@@ -73,10 +48,10 @@ export async function POST(req: NextRequest) {
     const { bot, exchange, credentials } = body as {
       bot?: string;
       exchange?: string;
-      credentials?: Record<string, string>;
+      credentials?: { apiKey: string; apiSecret: string };
     };
 
-    if (!bot || !exchange || !credentials || typeof credentials !== "object") {
+    if (!bot || !exchange || !credentials?.apiKey || !credentials?.apiSecret) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -84,22 +59,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid bot" }, { status: 400 });
     }
 
-    const allowedExchanges = ALLOWED_EXCHANGES[bot];
-    if (!allowedExchanges?.has(exchange)) {
+    const allowedExchanges = ALLOWED_EXCHANGES[bot] ?? [];
+    if (!allowedExchanges.includes(exchange)) {
       return NextResponse.json({ error: "Invalid exchange for this bot" }, { status: 400 });
     }
 
-    // Check ENCRYPTION_KEY
     const encryptionKey = process.env.ENCRYPTION_KEY;
     if (!encryptionKey) {
       return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
     }
 
-    // Compute fingerprint for (exchange, primaryCredential) uniqueness check
-    const keyFingerprint = computeFingerprint(exchange, credentials, encryptionKey);
-
-    // Reject if this exact (exchange + API key) is already registered by anyone
+    // ── Uniqueness check (fingerprint-based) ──────────────────────────────────
+    const keyFingerprint = computeFingerprint(exchange, credentials.apiKey, encryptionKey);
     const db = getAdminFirestore();
+
     const duplicateSnap = await db
       .collection("bot_deployments")
       .where("exchange", "==", exchange)
@@ -121,19 +94,48 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Encrypt credentials
-    const encryptedCreds = encryptCredentials(credentials, encryptionKey);
+    // ── Validate API keys by calling the exchange ─────────────────────────────
+    try {
+      const connector = getConnector(exchange);
+      const balance = await connector.getUsdtBalance({
+        apiKey: credentials.apiKey,
+        apiSecret: credentials.apiSecret,
+        testnet: false,
+      });
+      if (balance.total < 0) throw new Error("Unexpected negative balance");
+    } catch (e) {
+      return NextResponse.json(
+        { error: `Could not verify your ${exchange} API keys: ${e instanceof Error ? e.message : String(e)}. Please check they are correct and have futures trading permissions.` },
+        { status: 400 },
+      );
+    }
 
-    // Save with fingerprint for future uniqueness enforcement
+    // ── Write credentials to the trading engine's secrets collection ──────────
+    // This is the same path the live trading cron reads from: users/{uid}/secrets/{docId}
+    const docId = getSecretDocId(exchange as "BYBIT" | "BINANCE" | "MEXC" | "DHAN");
+    await db.collection("users").doc(uid).collection("secrets").doc(docId).set({
+      exchange,
+      encryptedKey: encrypt(credentials.apiKey),
+      encryptedSecret: encrypt(credentials.apiSecret),
+      keyLastFour: credentials.apiKey.slice(-4),
+      autoTradeEnabled: true,
+      riskPerTrade: 0.5,
+      maxConcurrentTrades: 1,
+      dailyLossLimit: 5,
+      useTestnet: false,
+      savedAt: new Date().toISOString(),
+    });
+
+    // ── Record deployment for tracking / dashboard ────────────────────────────
     const docRef = await db.collection("bot_deployments").add({
       uid,
       email: decoded.email ?? null,
       displayName: decoded.name ?? null,
       bot,
       exchange,
-      credentials: encryptedCreds,
       keyFingerprint,
-      status: "pending",
+      keyLastFour: credentials.apiKey.slice(-4),
+      status: "active",
       createdAt: new Date(),
     });
 

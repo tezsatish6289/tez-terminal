@@ -667,7 +667,7 @@ export default function FreedomBotPage() {
           <div className="grid sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
             {/* Self-deploy */}
             <div
-              className="rounded-2xl p-8"
+              className="rounded-2xl p-8 flex flex-col"
               style={{
                 backgroundColor: "#0a1628",
                 border: "1px solid rgba(90,140,220,0.2)",
@@ -685,7 +685,7 @@ export default function FreedomBotPage() {
                   to get started
                 </p>
               </div>
-              <ul className="space-y-3 text-sm mb-8" style={{ color: "#94a3b8" }}>
+              <ul className="space-y-3 text-sm mb-8 flex-1" style={{ color: "#94a3b8" }}>
                 {[
                   "Deploy with your own capital",
                   "Full control & transparency",
@@ -700,7 +700,7 @@ export default function FreedomBotPage() {
               </ul>
               <button
                 onClick={openDeploy}
-                className="w-full py-3 rounded-xl font-bold text-white text-sm transition-all hover:scale-105"
+                className="w-full py-3 rounded-xl font-bold text-white text-sm transition-all hover:scale-105 mt-auto"
                 style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
               >
                 Deploy Now
@@ -709,7 +709,7 @@ export default function FreedomBotPage() {
 
             {/* PostPay — coming soon */}
             <div
-              className="rounded-2xl p-8 relative overflow-hidden"
+              className="rounded-2xl p-8 relative overflow-hidden flex flex-col"
               style={{
                 backgroundColor: "#0a1628",
                 border: "1px solid rgba(251,191,36,0.2)",
@@ -752,12 +752,11 @@ export default function FreedomBotPage() {
                 {" → "}you pay us{" "}
                 <span className="font-bold" style={{ color: "#fbbf24" }}>$10</span>
               </div>
-              <ul className="space-y-3 text-sm mb-8" style={{ color: "#94a3b8" }}>
+              <ul className="space-y-3 text-sm mb-8 flex-1" style={{ color: "#94a3b8" }}>
                 {[
                   "Pay only after you profit",
                   "No upfront fees, ever",
-                  "Calculated on net profit after exchange fees",
-                  "Monthly settlements",
+                  "Calculated on net profit after broker & exchange fees",
                 ].map((item) => (
                   <li key={item} className="flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 flex-shrink-0" style={{ color: "#fbbf24" }} />
@@ -767,7 +766,7 @@ export default function FreedomBotPage() {
               </ul>
               <button
                 onClick={() => setWaitlistBot("PostPay")}
-                className="w-full py-3 rounded-xl font-bold text-sm transition-all hover:scale-105"
+                className="w-full py-3 rounded-xl font-bold text-sm transition-all hover:scale-105 mt-auto"
                 style={{
                   border: "1px solid rgba(251,191,36,0.3)",
                   color: "#fbbf24",

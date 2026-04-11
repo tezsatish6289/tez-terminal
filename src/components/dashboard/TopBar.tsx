@@ -34,12 +34,14 @@ export function TopBar() {
     setIsFreedomBot(fb);
     if (fb) {
       document.title = "FreedomBot.ai — Dashboard";
-      const existing = document.querySelector("link[rel~='icon']") as HTMLLinkElement | null;
-      const link = existing ?? document.createElement("link");
+      // Remove every existing favicon link so the browser doesn't serve the cached one
+      document.querySelectorAll("link[rel~='icon'], link[rel='shortcut icon']").forEach((el) => el.remove());
+      const link = document.createElement("link");
       link.rel = "icon";
       link.type = "image/png";
-      link.href = "/freedombot/icon.png";
-      if (!existing) document.head.appendChild(link);
+      // Cache-bust so the browser is forced to fetch the new icon
+      link.href = `/freedombot/icon.png?v=${Date.now()}`;
+      document.head.appendChild(link);
     }
   }, []);
   const isAdmin = user?.email === "hello@tezterminal.com";

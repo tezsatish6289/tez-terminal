@@ -398,16 +398,6 @@ export default function FreedomBotPage() {
             <p className="text-base" style={{ color: "#64748b" }}>
               Set it, forget it, and watch your capital work for you — 24/7.
             </p>
-            <div
-              className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-full text-xs font-bold"
-              style={{
-                backgroundColor: "rgba(251,191,36,0.08)",
-                border: "1px solid rgba(251,191,36,0.2)",
-                color: "#fbbf24",
-              }}
-            >
-              <span>📊</span> Live performance dashboard launching soon
-            </div>
           </div>
 
           {/* ── Bots table (all viewports) ── */}

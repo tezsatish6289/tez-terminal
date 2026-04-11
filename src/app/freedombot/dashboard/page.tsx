@@ -184,7 +184,7 @@ function NotConnected({ stats, onDeploy }: { stats: BotStats | null; onDeploy: (
           Connect your bot
         </h1>
         <p className="text-base sm:text-lg max-w-md mx-auto leading-relaxed mb-8" style={{ color: "#64748b" }}>
-          You haven&apos;t deployed a bot yet. Connect your Bybit account and let FreedomBot trade for you 24/7.
+          You haven&apos;t deployed a bot yet. Connect your broker or exchange and let FreedomBot trade financial markets for you 24/7.
         </p>
 
         <button
@@ -209,12 +209,12 @@ function NotConnected({ stats, onDeploy }: { stats: BotStats | null; onDeploy: (
         className="rounded-2xl p-6 sm:p-8 mb-8"
         style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.15)" }}
       >
-        <h2 className="text-lg font-black text-white mb-6">What happens next?</h2>
+        <h2 className="text-lg font-black text-white mb-6">How it works</h2>
         <div className="space-y-5">
           {[
-            { step: "1", title: "Connect your exchange", desc: "Link your Bybit account via API key. Read + trade access only — withdrawals are never enabled." },
-            { step: "2", title: "We configure your bot", desc: "Our team reviews your deployment and activates your bot. Usually within a few hours." },
-            { step: "3", title: "Bot starts trading", desc: "FreedomBot begins executing trades automatically. Your dashboard updates with live performance." },
+            { step: "1", title: "Connect your broker or exchange", desc: "Link your account via API key. Read + trade access only — withdrawals are never enabled." },
+            { step: "2", title: "Fund your account", desc: "Deposit capital into your broker or exchange. FreedomBot only trades what's already there — no transfers needed." },
+            { step: "3", title: "Bot starts trading", desc: "FreedomBot begins executing trades across markets automatically. Your dashboard updates with live performance." },
           ].map((item) => (
             <div key={item.step} className="flex items-start gap-4">
               <div

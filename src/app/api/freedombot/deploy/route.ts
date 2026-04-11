@@ -7,7 +7,6 @@ export const dynamic = "force-dynamic";
 // ─── AES-256-CBC encryption ──────────────────────────────────────────────────
 
 function deriveKey(secret: string): Buffer {
-  // Derive a stable 32-byte key from whatever string ENCRYPTION_KEY holds
   return crypto.createHash("sha256").update(secret).digest();
 }
 
@@ -28,6 +27,22 @@ function encryptCredentials(
     result[field] = encryptValue(value, key);
   }
   return result;
+}
+
+// ─── HMAC fingerprint (exchange + primary credential) ────────────────────────
+// Deterministic and irreversible — safe to store in plaintext for uniqueness checks.
+// We use the first credential field (apiKey / clientId) as the primary identifier.
+
+function computeFingerprint(
+  exchange: string,
+  credentials: Record<string, string>,
+  secret: string,
+): string {
+  const primaryKey = Object.values(credentials)[0] ?? "";
+  return crypto
+    .createHmac("sha256", secret)
+    .update(`${exchange}:${primaryKey}`)
+    .digest("hex");
 }
 
 // ─── Validation ──────────────────────────────────────────────────────────────
@@ -80,11 +95,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
     }
 
+    // Compute fingerprint for (exchange, primaryCredential) uniqueness check
+    const keyFingerprint = computeFingerprint(exchange, credentials, encryptionKey);
+
+    // Reject if this exact (exchange + API key) is already registered by anyone
+    const db = getAdminFirestore();
+    const duplicateSnap = await db
+      .collection("bot_deployments")
+      .where("exchange", "==", exchange)
+      .where("keyFingerprint", "==", keyFingerprint)
+      .limit(1)
+      .get();
+
+    if (!duplicateSnap.empty) {
+      const existingUid = duplicateSnap.docs[0].data().uid;
+      if (existingUid === uid) {
+        return NextResponse.json(
+          { error: "You have already connected this API key. Visit your dashboard to manage your bot." },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json(
+        { error: "This API key is already registered on FreedomBot. Each exchange account can only be linked once." },
+        { status: 409 },
+      );
+    }
+
     // Encrypt credentials
     const encryptedCreds = encryptCredentials(credentials, encryptionKey);
 
-    // Save to Firestore
-    const db = getAdminFirestore();
+    // Save with fingerprint for future uniqueness enforcement
     const docRef = await db.collection("bot_deployments").add({
       uid,
       email: decoded.email ?? null,
@@ -92,6 +132,7 @@ export async function POST(req: NextRequest) {
       bot,
       exchange,
       credentials: encryptedCreds,
+      keyFingerprint,
       status: "pending",
       createdAt: new Date(),
     });

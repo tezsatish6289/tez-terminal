@@ -16,6 +16,7 @@ import {
   LogOut,
   ChevronRight,
   Activity,
+  Square,
 } from "lucide-react";
 import { useUser, useAuth } from "@/firebase";
 import { initiateSignOut } from "@/firebase/non-blocking-login";
@@ -85,7 +86,7 @@ const EXCHANGE_LABELS: Record<string, string> = {
 
 // ─── TopBar ──────────────────────────────────────────────────────────────────
 
-function DashTopBar({ onDeploy }: { onDeploy: () => void }) {
+function DashTopBar({ onDeploy, hasDeployment = false }: { onDeploy: () => void; hasDeployment?: boolean }) {
   const { user } = useUser();
   const auth = useAuth();
   const router = useRouter();
@@ -125,13 +126,15 @@ function DashTopBar({ onDeploy }: { onDeploy: () => void }) {
       </div>
 
       <div className="flex items-center gap-3">
-        <button
-          onClick={onDeploy}
-          className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all hover:scale-105"
-          style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
-        >
-          <Rocket className="h-3.5 w-3.5" /> Deploy Bot
-        </button>
+        {!hasDeployment && (
+          <button
+            onClick={onDeploy}
+            className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all hover:scale-105"
+            style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+          >
+            <Rocket className="h-3.5 w-3.5" /> Deploy Bot
+          </button>
+        )}
 
         <div className="relative">
           <button
@@ -337,11 +340,11 @@ const BOTS_NAV = [
   { key: "SILVER",        emoji: "🥈", label: "Silver Bot",       live: false },
 ];
 
-function Connected({ deployment, stats, trades, onDeploy }: {
+function Connected({ deployment, stats, trades, onStop }: {
   deployment: Deployment;
   stats: BotStats | null;
   trades: Trade[];
-  onDeploy: () => void;
+  onStop: () => void;
 }) {
   const isPending = deployment.status === "pending";
   const exchangeLabel = EXCHANGE_LABELS[deployment.exchange] ?? deployment.exchange;
@@ -418,11 +421,11 @@ function Connected({ deployment, stats, trades, onDeploy }: {
           )}
         </div>
         <button
-          onClick={onDeploy}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all hover:scale-105 flex-shrink-0"
-          style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+          onClick={onStop}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105 flex-shrink-0"
+          style={{ backgroundColor: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}
         >
-          <Rocket className="h-3.5 w-3.5" /> Deploy
+          <Square className="h-3.5 w-3.5" /> Stop Bot
         </button>
       </div>
 
@@ -692,6 +695,8 @@ export default function FreedomBotDashboard() {
   const [deployment, setDeployment] = useState<Deployment | null | undefined>(undefined);
   const [stats, setStats] = useState<BotStats | null>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [stopConfirm, setStopConfirm] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
 
   // Redirect unauthenticated users back to landing
   useEffect(() => {
@@ -726,6 +731,25 @@ export default function FreedomBotDashboard() {
     fetchDeployment();
   }, [fetchDeployment]);
 
+  const handleStopBot = useCallback(async () => {
+    if (!user || !deployment) return;
+    setIsStopping(true);
+    try {
+      const idToken = await user.getIdToken();
+      await fetch("/api/freedombot/stop-deployment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ deploymentId: deployment.id }),
+      });
+      setStopConfirm(false);
+      fetchDeployment();
+    } catch {
+      // silently retry on next refresh
+    } finally {
+      setIsStopping(false);
+    }
+  }, [user, deployment, fetchDeployment]);
+
   if (isUserLoading || deployment === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#080f1e" }}>
@@ -738,7 +762,7 @@ export default function FreedomBotDashboard() {
 
   return (
     <div className="min-h-screen font-sans antialiased" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
-      <DashTopBar onDeploy={() => setDeployOpen(true)} />
+      <DashTopBar onDeploy={() => setDeployOpen(true)} hasDeployment={!!deployment} />
 
       {deployment === null ? (
         <NotConnected stats={stats} onDeploy={() => setDeployOpen(true)} />
@@ -747,8 +771,50 @@ export default function FreedomBotDashboard() {
           deployment={deployment}
           stats={stats}
           trades={trades}
-          onDeploy={() => setDeployOpen(true)}
+          onStop={() => setStopConfirm(true)}
         />
+      )}
+
+      {/* Stop Bot confirmation dialog */}
+      {stopConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)" }}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl p-6 text-center"
+            style={{ backgroundColor: "#0a1628", border: "1px solid rgba(239,68,68,0.25)" }}
+          >
+            <div
+              className="h-14 w-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ backgroundColor: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}
+            >
+              <Square className="h-7 w-7" style={{ color: "#f87171" }} />
+            </div>
+            <h3 className="text-lg font-black text-white mb-2">Stop your bot?</h3>
+            <p className="text-sm mb-6 leading-relaxed" style={{ color: "#64748b" }}>
+              This will disable auto-trading immediately. No new trades will be placed.
+              You can deploy a new bot at any time after stopping.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setStopConfirm(false)}
+                className="flex-1 py-3 rounded-2xl text-sm font-bold transition-colors"
+                style={{ backgroundColor: "rgba(90,140,220,0.08)", color: "#64748b", border: "1px solid rgba(90,140,220,0.12)" }}
+              >
+                Keep running
+              </button>
+              <button
+                onClick={handleStopBot}
+                disabled={isStopping}
+                className="flex-1 py-3 rounded-2xl text-sm font-bold text-white transition-all disabled:opacity-50"
+                style={{ backgroundColor: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171" }}
+              >
+                {isStopping ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Yes, stop it"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <DeployModal

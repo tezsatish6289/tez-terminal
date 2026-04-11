@@ -72,6 +72,22 @@ export async function POST(req: NextRequest) {
     const keyFingerprint = computeFingerprint(exchange, credentials.apiKey, encryptionKey);
     const db = getAdminFirestore();
 
+    // ── Block if this user already has an active deployment on this exchange ────
+    const existingActiveSnap = await db
+      .collection("bot_deployments")
+      .where("uid", "==", uid)
+      .where("exchange", "==", exchange)
+      .where("status", "==", "active")
+      .limit(1)
+      .get();
+
+    if (!existingActiveSnap.empty) {
+      return NextResponse.json(
+        { error: "You already have an active bot on this exchange. Stop it from your dashboard before deploying a new one." },
+        { status: 409 },
+      );
+    }
+
     // ── Check if a *different* user already owns this exact API key ────────────
     const duplicateSnap = await db
       .collection("bot_deployments")
@@ -120,16 +136,8 @@ export async function POST(req: NextRequest) {
       savedAt: new Date().toISOString(),
     });
 
-    // ── Upsert the bot_deployments tracking record ────────────────────────────
-    // If the user is re-deploying (same or new keys), update their existing record.
-    const existingSnap = await db
-      .collection("bot_deployments")
-      .where("uid", "==", uid)
-      .where("exchange", "==", exchange)
-      .limit(1)
-      .get();
-
-    const deployData = {
+    // ── Create new deployment record ──────────────────────────────────────────
+    const docRef = await db.collection("bot_deployments").add({
       uid,
       email: decoded.email ?? null,
       displayName: decoded.name ?? null,
@@ -138,21 +146,9 @@ export async function POST(req: NextRequest) {
       keyFingerprint,
       keyLastFour: credentials.apiKey.slice(-4),
       status: "active",
-      updatedAt: new Date(),
-    };
-
-    let deploymentId: string;
-    if (!existingSnap.empty) {
-      const existingDoc = existingSnap.docs[0];
-      await existingDoc.ref.update(deployData);
-      deploymentId = existingDoc.id;
-    } else {
-      const docRef = await db.collection("bot_deployments").add({
-        ...deployData,
-        createdAt: new Date(),
-      });
-      deploymentId = docRef.id;
-    }
+      createdAt: new Date(),
+    });
+    const deploymentId = docRef.id;
 
     return NextResponse.json({ success: true, deploymentId });
   } catch (err: unknown) {

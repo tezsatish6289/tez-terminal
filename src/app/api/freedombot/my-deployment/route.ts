@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
     const snap = await db
       .collection("bot_deployments")
       .where("uid", "==", uid)
+      .where("status", "==", "active")
       .orderBy("createdAt", "desc")
       .limit(1)
       .get();

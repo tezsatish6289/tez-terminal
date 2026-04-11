@@ -708,13 +708,13 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                 API keys verified. Your bot will start placing trades on the next signal.
               </p>
               <div className="flex flex-col gap-2">
-                <a
-                  href="/dashboard"
+                <button
+                  onClick={() => { window.location.href = "/dashboard"; }}
                   className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.01]"
                   style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
                 >
                   <Rocket className="h-4 w-4" /> Go to Dashboard
-                </a>
+                </button>
                 <button
                   onClick={onClose}
                   className="px-6 py-3 rounded-2xl text-sm font-bold transition-colors"

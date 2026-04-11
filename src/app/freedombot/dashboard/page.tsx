@@ -350,7 +350,7 @@ const BOTS_NAV = [
   { key: "SILVER",        emoji: "🥈", label: "Silver Bot",       live: false },
 ];
 
-function Connected({ deployment, stats, trades, onStop }: {
+function Connected({ deployment, trades, onStop }: {
   deployment: Deployment;
   stats: BotStats | null;
   trades: Trade[];
@@ -359,30 +359,34 @@ function Connected({ deployment, stats, trades, onStop }: {
   const isPending = deployment.status === "pending";
   const exchangeLabel = EXCHANGE_LABELS[deployment.exchange] ?? deployment.exchange;
 
+  // Compute user-specific stats from their actual trades + deployment date
+  const runningDays = deployment.createdAt
+    ? Math.floor((Date.now() - new Date(deployment.createdAt).getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+  const closedTrades = trades.filter((t) => t.status === "closed");
+  const totalPnl = closedTrades.reduce((sum, t) => sum + (t.realizedPnl ?? 0), 0);
+
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-4">
 
       {/* ── Bot tabs ── */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-1">
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
         {BOTS_NAV.map((bot) => {
           const isActive = bot.key === deployment.bot;
           return (
             <div
               key={bot.key}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl flex-shrink-0 text-sm font-black"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl flex-shrink-0 text-xs font-black"
               style={{
                 backgroundColor: isActive ? "rgba(37,99,235,0.15)" : "rgba(10,22,40,0.6)",
-                border: `1px solid ${isActive ? "rgba(59,130,246,0.4)" : "rgba(90,140,220,0.1)"}`,
+                border: `1px solid ${isActive ? "rgba(59,130,246,0.35)" : "rgba(90,140,220,0.08)"}`,
                 color: isActive ? "#f0f4ff" : "#334155",
               }}
             >
               <span>{bot.emoji}</span>
               <span>{bot.label}</span>
               {!bot.live && (
-                <span
-                  className="text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider"
-                  style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24" }}
-                >
+                <span className="text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider" style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24" }}>
                   Soon
                 </span>
               )}
@@ -394,106 +398,65 @@ function Connected({ deployment, stats, trades, onStop }: {
         })}
       </div>
 
-      {/* ── Status bar ── */}
+      {/* ── Status + stats bar ── */}
       <div
-        className="flex items-center justify-between px-5 py-3.5 rounded-2xl"
-        style={{
-          backgroundColor: "#0a1628",
-          border: `1px solid ${isPending ? "rgba(251,191,36,0.2)" : "rgba(34,197,94,0.15)"}`,
-        }}
+        className="rounded-2xl overflow-hidden"
+        style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.12)" }}
       >
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div
-              className="h-2 w-2 rounded-full"
-              style={{
-                backgroundColor: isPending ? "#fbbf24" : "#22c55e",
-                boxShadow: `0 0 6px ${isPending ? "#fbbf24" : "#22c55e"}`,
-                animation: "pulse 2s infinite",
-              }}
-            />
-            <span className="text-sm font-black" style={{ color: isPending ? "#fbbf24" : "#22c55e" }}>
-              {isPending ? "Setting up" : "Live"}
-            </span>
-          </div>
-          {stats && !isPending && (
-            <span className="text-xs" style={{ color: "#475569" }}>
-              Running {stats.runningDays} days · {exchangeLabel}
-            </span>
-          )}
-          {isPending && (
+        {/* Status row */}
+        <div
+          className="flex items-center justify-between px-5 py-3"
+          style={{ borderBottom: "1px solid rgba(90,140,220,0.08)" }}
+        >
+          <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <Clock className="h-3.5 w-3.5" style={{ color: "#fbbf24" }} />
-              <span className="text-xs" style={{ color: "#64748b" }}>
-                Bot is connecting to {exchangeLabel}. First trade fires on the next signal.
+              <div className="h-2 w-2 rounded-full animate-pulse" style={{ backgroundColor: isPending ? "#fbbf24" : "#22c55e", boxShadow: `0 0 6px ${isPending ? "#fbbf24" : "#22c55e"}` }} />
+              <span className="text-sm font-black" style={{ color: isPending ? "#fbbf24" : "#22c55e" }}>
+                {isPending ? "Setting up" : "Live"}
               </span>
             </div>
-          )}
+            <span className="text-xs" style={{ color: "#334155" }}>·</span>
+            <span className="text-xs font-medium" style={{ color: "#475569" }}>{exchangeLabel}</span>
+          </div>
+          <button
+            onClick={onStop}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-105"
+            style={{ backgroundColor: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.15)" }}
+          >
+            <Square className="h-3 w-3" /> Stop Bot
+          </button>
         </div>
-        <button
-          onClick={onStop}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105 flex-shrink-0"
-          style={{ backgroundColor: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}
-        >
-          <Square className="h-3.5 w-3.5" /> Stop Bot
-        </button>
-      </div>
 
-      {/* ── Stats row ── */}
-      {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {/* 3-stat strip */}
+        <div className="grid grid-cols-3">
           {[
             {
-              label: "Start Capital",
-              value: stats.startingCapital ? `$${stats.startingCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—",
+              label: "Running",
+              value: `${runningDays} ${runningDays === 1 ? "Day" : "Days"}`,
               color: "#f0f4ff",
             },
             {
-              label: "Current Capital",
-              value: stats.currentCapital ? `$${stats.currentCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—",
+              label: "Trades",
+              value: trades.length.toString(),
               color: "#60a5fa",
             },
             {
-              label: "Total Return",
-              value: fmt(stats.totalReturnPct),
-              color: (stats.totalReturnPct ?? 0) >= 0 ? "#34d399" : "#f87171",
+              label: "Realised P&L",
+              value: `${totalPnl >= 0 ? "+" : ""}$${Math.abs(totalPnl).toFixed(2)}`,
+              color: totalPnl >= 0 ? "#34d399" : "#f87171",
             },
-            {
-              label: "Monthly Return",
-              value: fmt(stats.profitPerMonth),
-              color: "#60a5fa",
-              projected: stats.runningDays < 30,
-            },
-            {
-              label: "Annual Return",
-              value: fmt(stats.profitPerYear),
-              color: "#a78bfa",
-              projected: stats.runningDays < 365,
-            },
-          ].map((s) => (
+          ].map((s, i) => (
             <div
               key={s.label}
-              className="rounded-2xl p-4"
-              style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.1)" }}
+              className="px-5 py-4"
+              style={{ borderRight: i < 2 ? "1px solid rgba(90,140,220,0.08)" : "none" }}
             >
-              <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: "#475569" }}>
-                {s.label}
-              </p>
-              <div className="flex items-baseline gap-2">
-                <p className="text-lg font-black" style={{ color: s.color }}>{s.value}</p>
-                {"projected" in s && s.projected && (
-                  <span
-                    className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
-                    style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}
-                  >
-                    Proj.
-                  </span>
-                )}
-              </div>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>{s.label}</p>
+              <p className="text-2xl font-black" style={{ color: s.color }}>{s.value}</p>
             </div>
           ))}
         </div>
-      )}
+      </div>
 
       {/* ── Trades table ── */}
       <div

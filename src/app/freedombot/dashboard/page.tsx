@@ -319,7 +319,23 @@ function NotConnected({ stats, onDeploy }: { stats: BotStats | null; onDeploy: (
   );
 }
 
+// ─── Price formatter ─────────────────────────────────────────────────────────
+
+function formatPrice(v: number | null | undefined): string {
+  if (v == null || v === 0) return "—";
+  if (v >= 100) return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (v >= 1)   return v.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+  return v.toLocaleString(undefined, { minimumFractionDigits: 6, maximumFractionDigits: 6 });
+}
+
 // ─── Connected State ──────────────────────────────────────────────────────────
+
+const BOTS_NAV = [
+  { key: "CRYPTO",        emoji: "₿",  label: "Crypto Bot",       live: true  },
+  { key: "INDIAN_STOCKS", emoji: "🇮🇳", label: "Indian Stock Bot", live: false },
+  { key: "GOLD",          emoji: "🥇", label: "Gold Bot",         live: false },
+  { key: "SILVER",        emoji: "🥈", label: "Silver Bot",       live: false },
+];
 
 function Connected({ deployment, stats, trades, onDeploy }: {
   deployment: Deployment;
@@ -328,177 +344,338 @@ function Connected({ deployment, stats, trades, onDeploy }: {
   onDeploy: () => void;
 }) {
   const isPending = deployment.status === "pending";
-  const botLabel = BOT_LABELS[deployment.bot] ?? deployment.bot;
   const exchangeLabel = EXCHANGE_LABELS[deployment.exchange] ?? deployment.exchange;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-      {/* Bot status card */}
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+
+      {/* ── Bot tabs ── */}
+      <div className="flex items-center gap-1 overflow-x-auto pb-1">
+        {BOTS_NAV.map((bot) => {
+          const isActive = bot.key === deployment.bot;
+          return (
+            <div
+              key={bot.key}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl flex-shrink-0 text-sm font-black"
+              style={{
+                backgroundColor: isActive ? "rgba(37,99,235,0.15)" : "rgba(10,22,40,0.6)",
+                border: `1px solid ${isActive ? "rgba(59,130,246,0.4)" : "rgba(90,140,220,0.1)"}`,
+                color: isActive ? "#f0f4ff" : "#334155",
+              }}
+            >
+              <span>{bot.emoji}</span>
+              <span>{bot.label}</span>
+              {!bot.live && (
+                <span
+                  className="text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider"
+                  style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24" }}
+                >
+                  Soon
+                </span>
+              )}
+              {bot.live && isActive && (
+                <div className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Status bar ── */}
       <div
-        className="rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+        className="flex items-center justify-between px-5 py-3.5 rounded-2xl"
         style={{
           backgroundColor: "#0a1628",
-          border: `1px solid ${isPending ? "rgba(251,191,36,0.2)" : "rgba(34,197,94,0.2)"}`,
+          border: `1px solid ${isPending ? "rgba(251,191,36,0.2)" : "rgba(34,197,94,0.15)"}`,
         }}
       >
         <div className="flex items-center gap-4">
-          <div
-            className="h-12 w-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
-            style={{ backgroundColor: isPending ? "rgba(251,191,36,0.08)" : "rgba(34,197,94,0.08)" }}
-          >
-            {deployment.bot === "CRYPTO" ? "₿" : deployment.bot === "INDIAN_STOCKS" ? "🇮🇳" : "🤖"}
+          <div className="flex items-center gap-2">
+            <div
+              className="h-2 w-2 rounded-full"
+              style={{
+                backgroundColor: isPending ? "#fbbf24" : "#22c55e",
+                boxShadow: `0 0 6px ${isPending ? "#fbbf24" : "#22c55e"}`,
+                animation: "pulse 2s infinite",
+              }}
+            />
+            <span className="text-sm font-black" style={{ color: isPending ? "#fbbf24" : "#22c55e" }}>
+              {isPending ? "Setting up" : "Live"}
+            </span>
           </div>
-          <div>
-            <div className="flex items-center gap-2.5 mb-1">
-              <p className="text-base font-black text-white">{botLabel}</p>
-              <span
-                className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider"
-                style={isPending
-                  ? { backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)" }
-                  : { backgroundColor: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.25)" }
-                }
-              >
-                {isPending ? "Setting up" : "Active"}
+          {stats && !isPending && (
+            <span className="text-xs" style={{ color: "#475569" }}>
+              Running {stats.runningDays} days · {exchangeLabel}
+            </span>
+          )}
+          {isPending && (
+            <div className="flex items-center gap-2">
+              <Clock className="h-3.5 w-3.5" style={{ color: "#fbbf24" }} />
+              <span className="text-xs" style={{ color: "#64748b" }}>
+                Our team is reviewing your deployment. You&apos;ll be notified when it goes live.
               </span>
             </div>
-            <p className="text-xs" style={{ color: "#475569" }}>
-              {exchangeLabel} · Deployed {fmtDate(deployment.createdAt)}
-            </p>
-          </div>
+          )}
         </div>
-
-        {isPending && (
-          <div
-            className="flex items-start gap-3 px-4 py-3 rounded-xl sm:max-w-xs"
-            style={{ backgroundColor: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.15)" }}
-          >
-            <Clock className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: "#fbbf24" }} />
-            <p className="text-xs leading-relaxed" style={{ color: "#94a3b8" }}>
-              Our team is reviewing your deployment. You&apos;ll be notified once your bot goes live.
-            </p>
-          </div>
-        )}
+        <button
+          onClick={onDeploy}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all hover:scale-105 flex-shrink-0"
+          style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+        >
+          <Rocket className="h-3.5 w-3.5" /> Deploy
+        </button>
       </div>
 
-      {/* Performance stats */}
+      {/* ── Stats row ── */}
       {stats && (
-        <div>
-          <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "#475569" }}>
-            Bot Performance {isPending && <span style={{ color: "#334155" }}>· Updates once your bot is active</span>}
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { label: "Total Return", value: fmt(stats.totalReturnPct), color: (stats.totalReturnPct ?? 0) >= 0 ? "#34d399" : "#f87171", icon: TrendingUp },
-              { label: "Monthly Return", value: fmt(stats.profitPerMonth), color: "#60a5fa", icon: BarChart3 },
-              { label: "Win Rate", value: stats.winRate ? `${stats.winRate}%` : "—", color: "#a78bfa", icon: Zap },
-              { label: "Total Trades", value: stats.totalTrades.toString(), color: "#f0f4ff", icon: Activity },
-            ].map((s) => (
-              <div
-                key={s.label}
-                className="rounded-2xl p-4"
-                style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.1)" }}
-              >
-                <p className="text-2xl font-black mb-1" style={{ color: s.color }}>{s.value}</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#475569" }}>{s.label}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {[
+            {
+              label: "Start Capital",
+              value: stats.startingCapital ? `$${stats.startingCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—",
+              color: "#f0f4ff",
+            },
+            {
+              label: "Current Capital",
+              value: stats.currentCapital ? `$${stats.currentCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—",
+              color: "#60a5fa",
+            },
+            {
+              label: "Total Return",
+              value: fmt(stats.totalReturnPct),
+              color: (stats.totalReturnPct ?? 0) >= 0 ? "#34d399" : "#f87171",
+            },
+            {
+              label: "Monthly Return",
+              value: fmt(stats.profitPerMonth),
+              color: "#60a5fa",
+              projected: stats.runningDays < 30,
+            },
+            {
+              label: "Annual Return",
+              value: fmt(stats.profitPerYear),
+              color: "#a78bfa",
+              projected: stats.runningDays < 365,
+            },
+          ].map((s) => (
+            <div
+              key={s.label}
+              className="rounded-2xl p-4"
+              style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.1)" }}
+            >
+              <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: "#475569" }}>
+                {s.label}
+              </p>
+              <div className="flex items-baseline gap-2">
+                <p className="text-lg font-black" style={{ color: s.color }}>{s.value}</p>
+                {"projected" in s && s.projected && (
+                  <span
+                    className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
+                    style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}
+                  >
+                    Proj.
+                  </span>
+                )}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Recent trades */}
-      <div>
-        <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "#475569" }}>
-          Recent Trades
-        </p>
+      {/* ── Trades table ── */}
+      <div
+        className="rounded-2xl overflow-hidden"
+        style={{ border: "1px solid rgba(90,140,220,0.12)" }}
+      >
+        {/* Table header */}
         <div
-          className="rounded-2xl overflow-hidden"
-          style={{ border: "1px solid rgba(90,140,220,0.12)" }}
+          className="grid px-4 py-3"
+          style={{
+            gridTemplateColumns: "1.5fr 0.7fr 0.8fr 0.8fr 0.6fr 1fr 1fr 0.9fr 1fr 0.9fr",
+            backgroundColor: "#060d1a",
+            borderBottom: "1px solid rgba(90,140,220,0.1)",
+          }}
         >
+          {["Entry | Exit Time", "Symbol", "Side", "Position Size", "Leverage", "Entry Price", "Exit Price", "P&L", "Fund Balance", "Proof of Trade"].map((h) => (
+            <div key={h} className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "#334155" }}>
+              {h}
+            </div>
+          ))}
+        </div>
+
+        {/* Mobile fallback */}
+        <div className="sm:hidden">
           {trades.length === 0 ? (
             <div className="py-14 text-center" style={{ backgroundColor: "#0a1628" }}>
               <Zap className="h-8 w-8 mx-auto mb-3 opacity-20" />
-              <p className="text-sm font-bold text-white/30">No trades yet</p>
-              <p className="text-xs mt-1" style={{ color: "#334155" }}>
-                Trades will appear here once your bot is active
-              </p>
+              <p className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.2)" }}>No trades yet</p>
+              <p className="text-xs mt-1" style={{ color: "#334155" }}>Trades appear once your bot is active</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[600px]">
-                <thead>
-                  <tr style={{ backgroundColor: "#060d1a", borderBottom: "1px solid rgba(90,140,220,0.1)" }}>
-                    {["Symbol", "Side", "Status", "PnL", "Opened"].map((h) => (
-                      <th
-                        key={h}
-                        className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest"
-                        style={{ color: "#475569" }}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody style={{ backgroundColor: "#0a1628" }}>
-                  {trades.slice(0, 20).map((trade, i) => {
-                    const pnl = trade.status === "open" ? trade.unrealizedPnl : trade.realizedPnl;
-                    const isWin = pnl >= 0;
-                    return (
-                      <tr
-                        key={trade.id}
-                        style={{ borderBottom: i < trades.length - 1 ? "1px solid rgba(90,140,220,0.06)" : "none" }}
-                      >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            {trade.side === "LONG"
-                              ? <TrendingUp className="h-3.5 w-3.5" style={{ color: "#34d399" }} />
-                              : <TrendingDown className="h-3.5 w-3.5" style={{ color: "#f87171" }} />
-                            }
-                            <span className="text-sm font-black text-white">{trade.symbol}</span>
-                            {trade.leverage > 1 && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(96,165,250,0.1)", color: "#60a5fa" }}>
-                                {trade.leverage}x
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className="text-[10px] font-bold px-2 py-0.5 rounded"
-                            style={trade.side === "LONG"
-                              ? { backgroundColor: "rgba(34,197,94,0.1)", color: "#34d399" }
-                              : { backgroundColor: "rgba(248,113,113,0.1)", color: "#f87171" }
-                            }
-                          >
-                            {trade.side}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1.5">
-                            {trade.status === "open"
-                              ? <div className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-                              : <CheckCircle2 className="h-3 w-3" style={{ color: "#475569" }} />
-                            }
-                            <span className="text-xs font-bold capitalize" style={{ color: trade.status === "open" ? "#22c55e" : "#64748b" }}>
-                              {trade.status}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-sm font-black" style={{ color: isWin ? "#34d399" : "#f87171" }}>
-                            {fmt(pnl, "%")}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-xs" style={{ color: "#475569" }}>
-                          {fmtDate(trade.openedAt)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            trades.slice(0, 20).map((trade, i) => {
+              const pnl = trade.status === "open" ? trade.unrealizedPnl : trade.realizedPnl;
+              const isWin = pnl >= 0;
+              return (
+                <div
+                  key={trade.id}
+                  className="px-4 py-3 flex items-center justify-between"
+                  style={{
+                    backgroundColor: "#0a1628",
+                    borderBottom: i < trades.length - 1 ? "1px solid rgba(90,140,220,0.06)" : "none",
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    {trade.side === "LONG"
+                      ? <TrendingUp className="h-3.5 w-3.5" style={{ color: "#34d399" }} />
+                      : <TrendingDown className="h-3.5 w-3.5" style={{ color: "#f87171" }} />
+                    }
+                    <span className="text-sm font-black text-white">{trade.symbol}</span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(96,165,250,0.1)", color: "#60a5fa" }}>
+                      {trade.leverage}x
+                    </span>
+                  </div>
+                  <span className="text-sm font-black" style={{ color: isWin ? "#34d399" : "#f87171" }}>
+                    {pnl >= 0 ? "+" : ""}${Math.abs(pnl).toFixed(2)}
+                  </span>
+                </div>
+              );
+            })
           )}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden sm:block overflow-x-auto">
+          <div style={{ minWidth: "900px", backgroundColor: "#0a1628" }}>
+            {trades.length === 0 ? (
+              <div className="py-16 text-center">
+                <Zap className="h-8 w-8 mx-auto mb-3 opacity-20" />
+                <p className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.2)" }}>No trades yet</p>
+                <p className="text-xs mt-1" style={{ color: "#334155" }}>Trades will appear here once your bot is active</p>
+              </div>
+            ) : (
+              trades.slice(0, 50).map((trade, i) => {
+                const pnl = trade.status === "open" ? trade.unrealizedPnl : trade.realizedPnl;
+                const isWin = pnl >= 0;
+                const isOpen = trade.status === "open";
+                return (
+                  <div
+                    key={trade.id}
+                    className="grid px-4 py-3.5 items-center hover:bg-white/[0.02] transition-colors"
+                    style={{
+                      gridTemplateColumns: "1.5fr 0.7fr 0.8fr 0.8fr 0.6fr 1fr 1fr 0.9fr 1fr 0.9fr",
+                      borderBottom: i < trades.length - 1 ? "1px solid rgba(90,140,220,0.06)" : "none",
+                    }}
+                  >
+                    {/* Entry | Exit Time */}
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: "#334155" }}>In</span>
+                        <span className="text-[10px] font-mono font-bold" style={{ color: "#60a5fa" }}>
+                          {trade.openedAt ? new Date(trade.openedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
+                        </span>
+                      </div>
+                      {trade.closedAt && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: "#334155" }}>Out</span>
+                          <span className="text-[10px] font-mono" style={{ color: "#475569" }}>
+                            {new Date(trade.closedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Symbol */}
+                    <div className="flex items-center gap-1.5">
+                      {trade.side === "LONG"
+                        ? <TrendingUp className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "#34d399" }} />
+                        : <TrendingDown className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "#f87171" }} />
+                      }
+                      <span className="text-sm font-black text-white leading-none">{trade.symbol}</span>
+                    </div>
+
+                    {/* Side */}
+                    <div>
+                      <span
+                        className="text-[10px] font-bold px-2 py-0.5 rounded"
+                        style={trade.side === "LONG"
+                          ? { backgroundColor: "rgba(34,197,94,0.1)", color: "#34d399" }
+                          : { backgroundColor: "rgba(248,113,113,0.1)", color: "#f87171" }
+                        }
+                      >
+                        {trade.side}
+                      </span>
+                    </div>
+
+                    {/* Position Size */}
+                    <div className="font-mono text-xs font-bold" style={{ color: "#94a3b8" }}>
+                      {trade.positionSize ? `$${trade.positionSize.toFixed(2)}` : "—"}
+                    </div>
+
+                    {/* Leverage */}
+                    <div>
+                      <span
+                        className="text-[10px] font-bold px-2 py-0.5 rounded"
+                        style={{ backgroundColor: "rgba(96,165,250,0.1)", color: "#60a5fa", border: "1px solid rgba(96,165,250,0.2)" }}
+                      >
+                        {trade.leverage}x
+                      </span>
+                    </div>
+
+                    {/* Entry Price */}
+                    <div className="font-mono text-xs font-bold" style={{ color: "rgba(255,255,255,0.5)" }}>
+                      ${formatPrice(trade.entryPrice)}
+                    </div>
+
+                    {/* Exit Price */}
+                    <div className="font-mono text-xs font-bold" style={{ color: isOpen ? "#475569" : "rgba(255,255,255,0.5)" }}>
+                      {isOpen ? (
+                        <div className="flex items-center gap-1">
+                          <div className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+                          <span style={{ color: "#22c55e" }}>Open</span>
+                        </div>
+                      ) : (
+                        `$${formatPrice(trade.currentPrice)}`
+                      )}
+                    </div>
+
+                    {/* P&L */}
+                    <div className="flex items-center gap-1">
+                      {isWin
+                        ? <TrendingUp className="h-3 w-3" style={{ color: "#34d399" }} />
+                        : <TrendingDown className="h-3 w-3" style={{ color: "#f87171" }} />
+                      }
+                      <span className="font-mono text-xs font-black" style={{ color: isWin ? "#34d399" : "#f87171" }}>
+                        {pnl >= 0 ? "+" : ""}${Math.abs(pnl).toFixed(2)}
+                      </span>
+                    </div>
+
+                    {/* Fund Balance */}
+                    <div className="font-mono text-xs font-bold" style={{ color: "#94a3b8" }}>
+                      {trade.capitalAtEntry ? `$${trade.capitalAtEntry.toFixed(2)}` : "—"}
+                    </div>
+
+                    {/* Proof of Trade */}
+                    <div>
+                      {trade.blockchainTxHash ? (
+                        <a
+                          href={`https://solscan.io/tx/${trade.blockchainTxHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 text-[10px] font-bold transition-opacity hover:opacity-80"
+                          style={{ color: "#34d399" }}
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Verified
+                        </a>
+                      ) : (
+                        <span className="text-[10px]" style={{ color: "#334155" }}>Pending</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
     </div>

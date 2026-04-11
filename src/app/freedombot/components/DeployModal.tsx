@@ -155,13 +155,6 @@ const HELP_GUIDES: Record<string, HelpGuide> = {
 const EXCHANGES: Record<string, Exchange[]> = {
   CRYPTO: [
     {
-      key: "BINANCE", name: "Binance", icon: "🔶",
-      fields: [
-        { key: "apiKey",    label: "API Key",    type: "text",     placeholder: "Your Binance API Key" },
-        { key: "apiSecret", label: "API Secret", type: "password", placeholder: "Your Binance API Secret" },
-      ],
-    },
-    {
       key: "BYBIT", name: "Bybit", icon: "🟡",
       fields: [
         { key: "apiKey",    label: "API Key",    type: "text",     placeholder: "Your Bybit API Key" },

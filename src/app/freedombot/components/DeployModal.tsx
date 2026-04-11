@@ -491,6 +491,27 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                   );
                 })}
               </div>
+              {/* Bybit referral prompt */}
+              {(EXCHANGES[selectedBot] ?? []).some((e) => e.key === "BYBIT") && (
+                <div
+                  className="mt-4 flex items-center justify-between px-4 py-3 rounded-2xl"
+                  style={{ backgroundColor: "rgba(10,22,40,0.6)", border: "1px solid rgba(90,140,220,0.1)" }}
+                >
+                  <p className="text-xs" style={{ color: "#475569" }}>
+                    Don&apos;t have a Bybit account?
+                  </p>
+                  <a
+                    href="https://www.bybit.com/invite?ref=80NAZZM"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs font-bold transition-opacity hover:opacity-80"
+                    style={{ color: "#60a5fa" }}
+                  >
+                    Create account <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              )}
+
               <button
                 onClick={() => { setCredentials({}); setShowPwd({}); setStep("enter-creds"); }}
                 disabled={!selectedExchange}

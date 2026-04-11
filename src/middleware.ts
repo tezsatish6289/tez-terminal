@@ -39,8 +39,8 @@ export function middleware(request: NextRequest) {
       return NextResponse.rewrite(new URL(newPath, request.url));
     }
 
-    // All app pages (/live, /purchases, /referrals, etc.) pass through unchanged
-    return NextResponse.next();
+    // Any other path on freedombot.ai (e.g. /live, /purchases) → redirect to homepage
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   return NextResponse.next();

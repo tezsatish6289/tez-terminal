@@ -16,31 +16,41 @@ export async function GET(req: NextRequest) {
     const uid = decoded.uid;
 
     const db = getAdminFirestore();
-    // Use the already-deployed (uid, createdAt DESC) index.
-    // Fetch the most recent records and find the first active one in code
-    // to avoid requiring a composite index that may still be building.
+
+    // Single equality filter — no composite index needed at all.
+    // Sort and filter by status entirely in code.
     const snap = await db
       .collection("bot_deployments")
       .where("uid", "==", uid)
-      .orderBy("createdAt", "desc")
-      .limit(10)
       .get();
 
-    const activeDoc = snap.docs.find((d) => d.data().status === "active");
-    if (!activeDoc) {
+    if (snap.empty) {
       return NextResponse.json({ deployment: null });
     }
 
-    const doc = activeDoc;
-    const data = doc.data();
+    // Find the most recent active deployment
+    const active = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown> & { id: string }))
+      .filter((d) => d.status === "active")
+      .sort((a, b) => {
+        const aMs = (a.createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+        const bMs = (b.createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+        return bMs - aMs;
+      });
+
+    if (active.length === 0) {
+      return NextResponse.json({ deployment: null });
+    }
+
+    const dep = active[0];
 
     return NextResponse.json({
       deployment: {
-        id: doc.id,
-        bot: data.bot,
-        exchange: data.exchange,
-        status: data.status,
-        createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
+        id: dep.id,
+        bot: dep.bot,
+        exchange: dep.exchange,
+        status: dep.status,
+        createdAt: (dep.createdAt as { toDate?: () => Date })?.toDate?.()?.toISOString() ?? null,
       },
     });
   } catch (err: unknown) {

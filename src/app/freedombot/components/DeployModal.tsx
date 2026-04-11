@@ -305,7 +305,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
             <Image src="/freedombot/icon.png" alt="FreedomBot" width={22} height={22} className="rounded-lg" />
             <span className="text-sm font-black text-white">Deploy a Bot</span>
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
+          <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-1 -mr-1">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -332,7 +332,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                         {done ? "✓" : i + 1}
                       </div>
                       <span
-                        className="text-[10px] font-bold hidden sm:block truncate transition-colors"
+                        className="text-[9px] sm:text-[10px] font-bold block truncate transition-colors"
                         style={{ color: active ? "#f0f4ff" : done ? "#22c55e" : "#334155" }}
                       >
                         {STEP_LABELS[s]}
@@ -494,7 +494,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
               {/* Bybit referral prompt */}
               {(EXCHANGES[selectedBot] ?? []).some((e) => e.key === "BYBIT") && (
                 <div
-                  className="mt-4 flex items-center justify-between px-4 py-3 rounded-2xl"
+                  className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 rounded-2xl"
                   style={{ backgroundColor: "rgba(10,22,40,0.6)", border: "1px solid rgba(90,140,220,0.1)" }}
                 >
                   <p className="text-xs" style={{ color: "#475569" }}>
@@ -504,7 +504,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                     href="https://www.bybit.com/invite?ref=80NAZZM"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-xs font-bold transition-opacity hover:opacity-80"
+                    className="flex items-center gap-1 text-xs font-bold transition-opacity hover:opacity-80 self-start sm:self-auto"
                     style={{ color: "#60a5fa" }}
                   >
                     Create account <ExternalLink className="h-3 w-3" />
@@ -577,11 +577,12 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                         onChange={(e) => setCredentials((p) => ({ ...p, [field.key]: e.target.value }))}
                         placeholder={field.placeholder}
                         autoComplete="off"
-                        className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-slate-700 outline-none transition-all"
+                        className="w-full px-4 py-3 rounded-xl text-white placeholder-slate-700 outline-none transition-all"
                         style={{
                           backgroundColor: "#060d1a",
                           border: "1px solid rgba(90,140,220,0.15)",
                           fontFamily: "ui-monospace, monospace",
+                          fontSize: "16px",
                           letterSpacing: field.type === "password" && !showPwd[field.key] ? "0.1em" : "normal",
                         }}
                         onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(59,130,246,0.4)")}
@@ -591,7 +592,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                         <button
                           type="button"
                           onClick={() => setShowPwd((p) => ({ ...p, [field.key]: !p[field.key] }))}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 transition-colors p-1"
                           style={{ color: "#334155" }}
                           onMouseEnter={(e) => (e.currentTarget.style.color = "#94a3b8")}
                           onMouseLeave={(e) => (e.currentTarget.style.color = "#334155")}

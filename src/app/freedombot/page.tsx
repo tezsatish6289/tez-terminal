@@ -143,7 +143,7 @@ function WaitlistModal({
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
+          className="absolute top-3 right-3 text-slate-400 hover:text-white transition-colors p-1.5"
         >
           <X className="h-5 w-5" />
         </button>
@@ -549,9 +549,9 @@ export default function FreedomBotPage() {
           </div>
 
           <div className="relative inline-block mb-2">
-            {/* Hola — peeking in from the left, just before "I am" */}
+            {/* Hi badge — hidden on very small phones */}
             <div
-              className="absolute -left-2 -top-7 flex items-center gap-1.5 text-[13px] font-bold"
+              className="hidden xs:flex absolute -left-2 -top-7 items-center gap-1.5 text-[13px] font-bold sm:flex"
               style={{
                 color: "#93c5fd",
                 transform: "rotate(-4deg)",
@@ -562,7 +562,7 @@ export default function FreedomBotPage() {
               <span>👋</span> Hi
             </div>
 
-          <h1 className="text-5xl sm:text-7xl lg:text-8xl font-black tracking-tighter leading-[0.9] mb-6">
+          <h1 className="text-4xl sm:text-6xl lg:text-8xl font-black tracking-tighter leading-[0.9] mb-6">
             I am{" "}
             <span
               className="bg-clip-text text-transparent"
@@ -590,10 +590,10 @@ export default function FreedomBotPage() {
             </span>
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 mt-10 w-full sm:w-auto">
             <button
               onClick={openDeploy}
-              className="h-14 px-10 rounded-2xl font-bold text-base text-white flex items-center gap-2 transition-all hover:scale-105 shadow-lg"
+              className="h-14 px-10 rounded-2xl font-bold text-base text-white flex items-center justify-center gap-2 transition-all hover:scale-105 shadow-lg"
               style={{
                 background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",
                 boxShadow: "0 8px 30px rgba(59,130,246,0.35)",
@@ -604,7 +604,7 @@ export default function FreedomBotPage() {
             </button>
             <button
               onClick={() => document.getElementById("chat")?.scrollIntoView({ behavior: "smooth" })}
-              className="h-14 px-10 rounded-2xl font-bold text-base flex items-center gap-2 transition-all hover:scale-105"
+              className="h-14 px-10 rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-all hover:scale-105"
               style={{
                 border: "1px solid rgba(90,140,220,0.3)",
                 color: "#93c5fd",
@@ -644,8 +644,59 @@ export default function FreedomBotPage() {
             </p>
           </div>
 
-          {/* ── Bots table (all viewports) ── */}
-          <div className="block overflow-x-auto rounded-2xl" style={{ border: "1px solid rgba(90,140,220,0.15)" }}>
+          {/* ── Mobile: card layout (< sm) ── */}
+          <div className="sm:hidden space-y-3">
+            {/* Crypto Bot card */}
+            <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(90,140,220,0.15)", backgroundColor: "#0a1628" }}>
+              <div className="flex items-center justify-between px-4 py-3.5" style={{ background: "linear-gradient(90deg, rgba(37,99,235,0.08), transparent)", borderBottom: "1px solid rgba(90,140,220,0.1)" }}>
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xl">₿</span>
+                  <p className="text-sm font-black text-white">Crypto Bot</p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="h-2 w-2 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+                  <span className="text-xs font-bold" style={{ color: "#22c55e" }}>Live</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-0 px-0" style={{ borderBottom: "1px solid rgba(90,140,220,0.08)" }}>
+                {[
+                  { label: "Running",        value: stats ? `${stats.runningDays} Days` : "…",  color: "#f0f4ff" },
+                  { label: "Total Return",   value: stats ? fmt(stats.totalReturnPct) : "…",    color: "#34d399" },
+                  { label: "Start Capital",  value: stats?.startingCapital ? `$${stats.startingCapital.toFixed(2)}` : "…", color: "#f0f4ff" },
+                  { label: "Current Capital",value: stats?.currentCapital ? `$${stats.currentCapital.toFixed(2)}` : "…",   color: "#60a5fa" },
+                ].map((s, i, arr) => (
+                  <div key={s.label} className="p-4" style={{ borderRight: i % 2 === 0 ? "1px solid rgba(90,140,220,0.06)" : "none", borderBottom: i < 2 ? "1px solid rgba(90,140,220,0.06)" : "none" }}>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>{s.label}</p>
+                    <p className="text-base font-black" style={{ color: s.color }}>{s.value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="px-4 py-3">
+                <button onClick={openDeploy} className="w-full py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-1.5 transition-all" style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}>
+                  <Rocket className="h-4 w-4" /> Deploy Now
+                </button>
+              </div>
+            </div>
+
+            {/* Coming soon cards */}
+            {[{ emoji: "🇮🇳", name: "Indian Stock Bot" }, { emoji: "🥇", name: "Gold Bot" }, { emoji: "🥈", name: "Silver Bot" }].map((bot) => (
+              <div key={bot.name} className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(90,140,220,0.1)", backgroundColor: "#0a1628", opacity: 0.75 }}>
+                <div className="flex items-center justify-between px-4 py-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-xl">{bot.emoji}</span>
+                    <p className="text-sm font-black text-white">{bot.name}</p>
+                  </div>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider" style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)" }}>Coming Soon</span>
+                </div>
+                <div className="px-4 pb-3">
+                  <button onClick={() => setWaitlistBot(bot.name)} className="w-full py-2.5 rounded-xl text-sm font-bold transition-all" style={{ border: "1px solid rgba(90,140,220,0.25)", color: "#93c5fd", backgroundColor: "rgba(37,99,235,0.06)" }}>Join Waitlist</button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Desktop: table (sm+) ── */}
+          <div className="hidden sm:block overflow-x-auto rounded-2xl" style={{ border: "1px solid rgba(90,140,220,0.15)" }}>
           <div className="min-w-[780px]">
             {/* Header row */}
             <div
@@ -1146,10 +1197,11 @@ export default function FreedomBotPage() {
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Ask me anything…"
-                  className="flex-1 px-4 py-3 rounded-xl text-sm text-white placeholder-slate-500 outline-none"
+                  className="flex-1 px-4 py-3 rounded-xl text-white placeholder-slate-500 outline-none"
                   style={{
                     backgroundColor: "#0f2044",
                     border: "1px solid rgba(90,140,220,0.2)",
+                    fontSize: "16px",
                   }}
                 />
                 <button

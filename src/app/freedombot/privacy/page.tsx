@@ -53,7 +53,7 @@ export default function PrivacyPage() {
         </h1>
 
         <div
-          className="rounded-2xl p-8"
+          className="rounded-2xl p-5 sm:p-8"
           style={{
             backgroundColor: "#0f2044",
             border: "1px solid rgba(90,140,220,0.15)",

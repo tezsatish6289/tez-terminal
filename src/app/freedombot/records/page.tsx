@@ -469,24 +469,28 @@ export default function RecordsPage() {
           backdropFilter: "blur(16px)",
         }}
       >
-        <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="transition-opacity hover:opacity-70">
+        <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-8 h-16 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link href="/" className="transition-opacity hover:opacity-70 flex-shrink-0">
               <Image src="/freedombot/icon.png" alt="FreedomBot.ai" width={32} height={32} className="object-contain" />
             </Link>
-            <div className="h-5 w-px" style={{ backgroundColor: "rgba(90,140,220,0.2)" }} />
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4" style={{ color: "#34d399" }} />
-              <span className="text-sm font-black" style={{ color: "#34d399" }}>On-chain Trade History</span>
+            <div className="h-5 w-px flex-shrink-0" style={{ backgroundColor: "rgba(90,140,220,0.2)" }} />
+            <div className="flex items-center gap-2 min-w-0">
+              <ShieldCheck className="h-4 w-4 flex-shrink-0" style={{ color: "#34d399" }} />
+              <span className="text-xs sm:text-sm font-black truncate" style={{ color: "#34d399" }}>
+                <span className="hidden sm:inline">On-chain Trade History</span>
+                <span className="sm:hidden">Trade Records</span>
+              </span>
             </div>
           </div>
           <Link
             href="/"
-            className="flex items-center gap-1.5 text-xs font-bold transition-colors hover:text-white"
+            className="flex items-center gap-1.5 text-xs font-bold transition-colors hover:text-white flex-shrink-0"
             style={{ color: "#64748b" }}
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            Back to Home
+            <span className="hidden sm:inline">Back to Home</span>
+            <span className="sm:hidden">Home</span>
           </Link>
         </div>
       </nav>
@@ -494,7 +498,7 @@ export default function RecordsPage() {
       <main className="w-full max-w-[1440px] mx-auto px-4 sm:px-8 py-12">
         {/* Page header */}
         <div className="mb-10 max-w-2xl">
-          <h1 className="text-4xl sm:text-5xl font-black tracking-tighter mb-4 leading-[1.05]">
+          <h1 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4 leading-[1.05]">
             Every trade.{" "}
             <span
               className="bg-clip-text text-transparent"

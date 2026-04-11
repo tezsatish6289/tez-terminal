@@ -132,13 +132,25 @@ function DashTopBar({ onDeploy, hasDeployment = false }: { onDeploy: () => void;
 
       <div className="flex items-center gap-3">
         {!hasDeployment && (
-          <button
-            onClick={onDeploy}
-            className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all hover:scale-105"
-            style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
-          >
-            <Rocket className="h-3.5 w-3.5" /> Deploy Bot
-          </button>
+          <>
+            {/* Desktop label */}
+            <button
+              onClick={onDeploy}
+              className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all hover:scale-105"
+              style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+            >
+              <Rocket className="h-3.5 w-3.5" /> Deploy Bot
+            </button>
+            {/* Mobile icon-only */}
+            <button
+              onClick={onDeploy}
+              className="sm:hidden h-9 w-9 rounded-xl flex items-center justify-center text-white transition-all"
+              style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+              aria-label="Deploy Bot"
+            >
+              <Rocket className="h-4 w-4" />
+            </button>
+          </>
         )}
 
         <div className="relative">
@@ -271,7 +283,7 @@ function NotConnected({ stats, onDeploy }: { stats: BotStats | null; onDeploy: (
               <Rocket className="h-3.5 w-3.5" /> Deploy
             </button>
           </div>
-          <div className="grid grid-cols-3 sm:grid-cols-6" style={{ backgroundColor: "#060d1a" }}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 divide-x divide-y" style={{ backgroundColor: "#060d1a", borderColor: "rgba(90,140,220,0.06)" }}>
             {[
               { label: "Running", value: stats ? `${stats.runningDays} Days` : "…", color: "#f0f4ff" },
               { label: "Start Capital", value: stats?.startingCapital ? `$${stats.startingCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…", color: "#f0f4ff" },
@@ -279,19 +291,15 @@ function NotConnected({ stats, onDeploy }: { stats: BotStats | null; onDeploy: (
               { label: "Total Return", value: stats ? fmt(stats.totalReturnPct) : "…", color: (stats?.totalReturnPct ?? 0) >= 0 ? "#34d399" : "#f87171" },
               { label: "Monthly Return", value: stats ? fmt(stats.profitPerMonth) : "…", color: "#60a5fa", projected: stats ? (stats.runningDays < 30) : false },
               { label: "Annual Return", value: stats ? fmt(stats.profitPerYear) : "…", color: "#a78bfa", projected: stats ? (stats.runningDays < 365) : false },
-            ].map((s, i, arr) => (
-              <div
-                key={s.label}
-                className="p-4 text-center"
-                style={{ borderRight: i < arr.length - 1 ? "1px solid rgba(90,140,220,0.06)" : "none" }}
-              >
-                <div className="flex items-center justify-center gap-1.5 mb-0.5">
+            ].map((s) => (
+              <div key={s.label} className="p-4 text-center">
+                <div className="flex items-center justify-center gap-1.5 mb-0.5 flex-wrap">
                   <p className="text-base font-black" style={{ color: s.color }}>{s.value}</p>
                   {"projected" in s && s.projected && (
-                    <span className="text-[7px] font-black uppercase tracking-wider px-1 py-0.5 rounded" style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24" }}>Proj.</span>
+                    <span className="text-[9px] font-black uppercase tracking-wider px-1 py-0.5 rounded" style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24" }}>Proj.</span>
                   )}
                 </div>
-                <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "#334155" }}>{s.label}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#334155" }}>{s.label}</p>
               </div>
             ))}
           </div>

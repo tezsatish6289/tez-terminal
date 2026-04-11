@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useState, useEffect } from "react";
 import { User, LogOut, Zap, History, LineChart, Webhook, Settings, CreditCard, Bell, Gift, Users, Twitter, Activity, Link2 } from "lucide-react";
 import { RadarIcon } from "@/components/icons/RadarIcon";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/hooks/use-toast";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +26,22 @@ export function TopBar() {
   const auth = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const [isFreedomBot, setIsFreedomBot] = useState(false);
+
+  useEffect(() => {
+    const host = window.location.hostname.toLowerCase();
+    const fb = host === "freedombot.ai" || host === "www.freedombot.ai";
+    setIsFreedomBot(fb);
+    if (fb) {
+      document.title = "FreedomBot.ai — Dashboard";
+      const existing = document.querySelector("link[rel~='icon']") as HTMLLinkElement | null;
+      const link = existing ?? document.createElement("link");
+      link.rel = "icon";
+      link.type = "image/png";
+      link.href = "/freedombot/icon.png";
+      if (!existing) document.head.appendChild(link);
+    }
+  }, []);
   const isAdmin = user?.email === "hello@tezterminal.com";
   const handleLogout = () => {
     if (auth) {
@@ -57,10 +75,25 @@ export function TopBar() {
   return (
     <header className="h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 w-full">
       <div className="relative flex h-full items-center px-4 justify-between gap-4">
-        <Link href="/signals" className="flex items-center gap-2.5">
-          <RadarIcon className="h-5 w-5 text-accent" />
-          <span className="font-black text-lg text-accent tracking-tight leading-tight">TezTerminal.com</span>
-        </Link>
+        {isFreedomBot ? (
+          <Link href="/" className="flex items-center gap-2.5">
+            <Image
+              src="/freedombot/icon.png"
+              alt="FreedomBot"
+              width={28}
+              height={28}
+              className="rounded-lg object-contain"
+            />
+            <span className="font-black text-lg tracking-tight leading-tight" style={{ color: "#60a5fa" }}>
+              FreedomBot.ai
+            </span>
+          </Link>
+        ) : (
+          <Link href="/signals" className="flex items-center gap-2.5">
+            <RadarIcon className="h-5 w-5 text-accent" />
+            <span className="font-black text-lg text-accent tracking-tight leading-tight">TezTerminal.com</span>
+          </Link>
+        )}
 
         <div className="flex items-center gap-3">
           <DropdownMenu>

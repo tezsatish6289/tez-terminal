@@ -232,33 +232,89 @@ function NotConnected({ stats, onDeploy }: { stats: BotStats | null; onDeploy: (
         </div>
       </div>
 
-      {/* Global performance teaser */}
-      {stats && (
-        <div
-          className="rounded-2xl p-6"
-          style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.15)" }}
-        >
-          <div className="flex items-center gap-2 mb-5">
-            <Activity className="h-4 w-4" style={{ color: "#60a5fa" }} />
-            <p className="text-sm font-black text-white">FreedomBot&apos;s live performance</p>
-            <div className="h-1.5 w-1.5 rounded-full animate-pulse ml-auto" style={{ backgroundColor: "#22c55e" }} />
-            <span className="text-[10px] font-bold" style={{ color: "#22c55e" }}>Live</span>
+      {/* All bots — live + coming soon */}
+      <div
+        className="rounded-2xl overflow-hidden"
+        style={{ border: "1px solid rgba(90,140,220,0.15)" }}
+      >
+        {/* Crypto Bot — live */}
+        <div style={{ borderBottom: "1px solid rgba(90,140,220,0.1)" }}>
+          <div
+            className="flex items-center justify-between px-5 py-4"
+            style={{ background: "linear-gradient(90deg, rgba(37,99,235,0.08), transparent)", borderBottom: "1px solid rgba(90,140,220,0.08)" }}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">₿</span>
+              <div>
+                <p className="text-sm font-black text-white">Crypto Bot</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <div className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+                  <span className="text-[10px] font-bold" style={{ color: "#22c55e" }}>
+                    Live · {stats ? `${stats.runningDays} days` : "…"}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={onDeploy}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all hover:scale-105"
+              style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+            >
+              <Rocket className="h-3.5 w-3.5" /> Deploy
+            </button>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4" style={{ backgroundColor: "#060d1a" }}>
             {[
-              { label: "Total Return", value: fmt(stats.totalReturnPct), color: (stats.totalReturnPct ?? 0) >= 0 ? "#34d399" : "#f87171" },
-              { label: "Monthly Return", value: fmt(stats.profitPerMonth), color: "#60a5fa" },
-              { label: "Win Rate", value: stats.winRate ? `${stats.winRate}%` : "—", color: "#a78bfa" },
-              { label: "Total Trades", value: stats.totalTrades.toString(), color: "#f0f4ff" },
-            ].map((s) => (
-              <div key={s.label} className="text-center">
-                <p className="text-xl font-black" style={{ color: s.color }}>{s.value}</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: "#475569" }}>{s.label}</p>
+              { label: "Total Return", value: stats ? fmt(stats.totalReturnPct) : "…", color: (stats?.totalReturnPct ?? 0) >= 0 ? "#34d399" : "#f87171" },
+              { label: "Monthly Return", value: stats ? fmt(stats.profitPerMonth) : "…", color: "#60a5fa" },
+              { label: "Win Rate", value: stats?.winRate ? `${stats.winRate}%` : "…", color: "#a78bfa" },
+              { label: "Total Trades", value: stats ? stats.totalTrades.toString() : "…", color: "#f0f4ff" },
+            ].map((s, i) => (
+              <div
+                key={s.label}
+                className="p-4 text-center"
+                style={{
+                  borderRight: i < 3 ? "1px solid rgba(90,140,220,0.06)" : "none",
+                }}
+              >
+                <p className="text-lg font-black" style={{ color: s.color }}>{s.value}</p>
+                <p className="text-[9px] font-bold uppercase tracking-widest mt-1" style={{ color: "#334155" }}>{s.label}</p>
               </div>
             ))}
           </div>
         </div>
-      )}
+
+        {/* Coming soon bots */}
+        {[
+          { emoji: "🇮🇳", name: "Indian Stock Bot", desc: "NSE / BSE automated trading" },
+          { emoji: "🥇", name: "Gold Bot", desc: "Precious metals trading" },
+          { emoji: "🥈", name: "Silver Bot", desc: "Precious metals trading" },
+        ].map((bot, i, arr) => (
+          <div
+            key={bot.name}
+            className="flex items-center justify-between px-5 py-4"
+            style={{
+              backgroundColor: "#060d1a",
+              borderBottom: i < arr.length - 1 ? "1px solid rgba(90,140,220,0.06)" : "none",
+              opacity: 0.6,
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{bot.emoji}</span>
+              <div>
+                <p className="text-sm font-black text-white">{bot.name}</p>
+                <p className="text-[10px] mt-0.5" style={{ color: "#475569" }}>{bot.desc}</p>
+              </div>
+            </div>
+            <span
+              className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider"
+              style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)" }}
+            >
+              Coming Soon
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -268,7 +268,7 @@ function NotConnected({ stats, onDeploy }: { stats: BotStats | null; onDeploy: (
           </div>
           <div className="grid grid-cols-3 sm:grid-cols-6" style={{ backgroundColor: "#060d1a" }}>
             {[
-              { label: "Running", value: stats ? `${stats.runningDays}d` : "…", color: "#f0f4ff" },
+              { label: "Running", value: stats ? `${stats.runningDays} Days` : "…", color: "#f0f4ff" },
               { label: "Start Capital", value: stats?.startingCapital ? `$${stats.startingCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…", color: "#f0f4ff" },
               { label: "Current Capital", value: stats?.currentCapital ? `$${stats.currentCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…", color: "#60a5fa" },
               { label: "Total Return", value: stats ? fmt(stats.totalReturnPct) : "…", color: (stats?.totalReturnPct ?? 0) >= 0 ? "#34d399" : "#f87171" },

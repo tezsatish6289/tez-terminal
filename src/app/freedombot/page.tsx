@@ -483,9 +483,9 @@ export default function FreedomBotPage() {
             <Image
               src="/freedombot/icon.png"
               alt="FreedomBot.ai"
-              width={28}
-              height={28}
-              className="object-contain rounded-lg"
+              width={32}
+              height={32}
+              className="rounded-xl object-contain"
               priority
             />
             <span className="font-black text-lg tracking-tight" style={{ color: "#60a5fa" }}>
@@ -1244,7 +1244,7 @@ export default function FreedomBotPage() {
                 alt="FreedomBot.ai"
                 width={40}
                 height={40}
-                className="object-contain h-10 w-auto mb-3"
+                className="rounded-xl object-contain mb-3"
               />
               <p className="text-xs max-w-xs" style={{ color: "#475569" }}>
                 AI-powered trading bots that work 24/7 so you can focus on living freely.

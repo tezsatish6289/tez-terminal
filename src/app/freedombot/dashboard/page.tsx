@@ -122,7 +122,7 @@ function DashTopBar({ onDeploy, hasDeployment = false }: { onDeploy: () => void;
       }}
     >
       <div className="flex items-center gap-2.5">
-        <Image src="/freedombot/icon.png" alt="FreedomBot" width={28} height={28} className="rounded-lg object-contain" />
+        <Image src="/freedombot/icon.png" alt="FreedomBot" width={32} height={32} className="rounded-xl object-contain" />
         <span className="font-black text-lg tracking-tight" style={{ color: "#60a5fa" }}>
           FreedomBot.ai
         </span>
@@ -195,7 +195,7 @@ function NotConnected({ stats, onDeploy }: { stats: BotStats | null; onDeploy: (
           className="relative p-1 rounded-3xl inline-block mb-8"
           style={{ background: "linear-gradient(135deg, rgba(37,99,235,0.4), rgba(96,165,250,0.2))" }}
         >
-          <Image src="/freedombot/icon.png" alt="FreedomBot" width={80} height={80} className="rounded-2xl object-contain h-20 w-20" />
+          <Image src="/freedombot/icon.png" alt="FreedomBot" width={80} height={80} className="rounded-2xl object-contain" />
         </div>
 
         <h1 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4 text-white">

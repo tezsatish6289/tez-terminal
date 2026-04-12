@@ -21,14 +21,9 @@ export default function TermsPage() {
         }}
       >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Link href="/">
-            <Image
-              src="/freedombot/logo.png"
-              alt="FreedomBot.ai"
-              width={160}
-              height={48}
-              className="object-contain h-9 w-auto"
-            />
+          <Link href="/" className="flex items-center gap-2.5">
+            <Image src="/freedombot/icon.png" alt="FreedomBot.ai" width={32} height={32} className="rounded-xl object-contain" />
+            <span className="font-black text-lg tracking-tight" style={{ color: "#60a5fa" }}>FreedomBot.ai</span>
           </Link>
         </div>
       </nav>

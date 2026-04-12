@@ -302,7 +302,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
           style={{ borderBottom: "1px solid rgba(90,140,220,0.1)" }}
         >
           <div className="flex items-center gap-2.5">
-            <Image src="/freedombot/icon.png" alt="FreedomBot" width={22} height={22} className="rounded-lg" />
+            <Image src="/freedombot/icon.png" alt="FreedomBot" width={24} height={24} className="rounded-lg object-contain" />
             <span className="text-sm font-black text-white">Deploy a Bot</span>
           </div>
           <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors p-1 -mr-1">

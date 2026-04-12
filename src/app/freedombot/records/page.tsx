@@ -472,7 +472,7 @@ export default function RecordsPage() {
         <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-8 h-16 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <Link href="/" className="transition-opacity hover:opacity-70 flex-shrink-0">
-              <Image src="/freedombot/icon.png" alt="FreedomBot.ai" width={32} height={32} className="object-contain" />
+              <Image src="/freedombot/icon.png" alt="FreedomBot.ai" width={32} height={32} className="rounded-xl object-contain" />
             </Link>
             <div className="h-5 w-px flex-shrink-0" style={{ backgroundColor: "rgba(90,140,220,0.2)" }} />
             <div className="flex items-center gap-2 min-w-0">
@@ -652,7 +652,7 @@ export default function RecordsPage() {
       <footer className="py-8 mt-10" style={{ borderTop: "1px solid rgba(90,140,220,0.08)" }}>
         <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
           <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-70">
-            <Image src="/freedombot/icon.png" alt="FreedomBot.ai" width={28} height={28} className="object-contain" />
+            <Image src="/freedombot/icon.png" alt="FreedomBot.ai" width={28} height={28} className="rounded-lg object-contain" />
             <span className="text-xs font-bold" style={{ color: "#334155" }}>freedombot.ai</span>
           </Link>
           <p className="text-[11px]" style={{ color: "#1e3a5f" }}>

@@ -418,14 +418,20 @@ export async function GET(request: NextRequest) {
         .where("status", "==", "OPEN").get();
       const openSimTrades = openSimSnap2.docs.map((d) => ({ id: d.id, ...d.data() } as SimTrade));
 
-      // Collect signal IDs from recently force-closed trades.
-      // Cooldown = 6 × chart timeframe so the signal can re-qualify later.
+      // Collect signal IDs that must never be re-entered:
+      //   1. Force-closed (KILL_SWITCH) — cooldown = 6 × chart timeframe
+      //   2. Trailing-SL closed — permanently blocked; the signal is still ACTIVE
+      //      in Firestore but the sim already exited it, so re-entry is noise.
       const TF_MINS: Record<string, number> = {
         "1": 1, "5": 5, "15": 15, "30": 30, "60": 60, "240": 240, "D": 1440, "W": 10080,
       };
-      const killedSnap = await db.collection("simulator_trades")
-        .where("closeReason", "==", "KILL_SWITCH").get();
       const killedSignalIds = new Set<string>();
+
+      const [killedSnap, trailingSlSnap] = await Promise.all([
+        db.collection("simulator_trades").where("closeReason", "==", "KILL_SWITCH").get(),
+        db.collection("simulator_trades").where("closeReason", "==", "TRAILING_SL").get(),
+      ]);
+
       for (const kDoc of killedSnap.docs) {
         const kd = kDoc.data();
         if (!kd.signalId || !kd.closedAt) continue;
@@ -437,9 +443,17 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // Trailing SL exits — permanently blocked (no cooldown window).
+      for (const tDoc of trailingSlSnap.docs) {
+        const td = tDoc.data();
+        if (td.signalId) killedSignalIds.add(td.signalId);
+      }
+
       const candidates: IncubatedCandidate[] = postUpdateDocs
         .filter((d) =>
           d.status === "ACTIVE" &&
+          // Permanently drop any signal whose TP or real-market SL was already hit
+          !d.tp1Hit && !d.tp2Hit && !d.tp3Hit && !d.slHitAt &&
           d.currentPrice != null &&
           d.price != null &&
           d.stopLoss != null,
@@ -447,7 +461,6 @@ export async function GET(request: NextRequest) {
         .map((d) => {
           const scored = scores.get(d.id);
           const assetType = d.assetType ?? "CRYPTO";
-          const symbol = String(d.symbol ?? "").toUpperCase();
 
           // sweepGatePassed: read from the liquidity context already computed
           // in computeAutoFilter. undefined = no data (no block).
@@ -472,9 +485,10 @@ export async function GET(request: NextRequest) {
             tp2: Number(d.tp2 || 0),
             tp3: Number(d.tp3 || 0),
             confidenceScore: scored?.score ?? (d.confidenceScore ?? 0),
-            tp1Hit: d.tp1Hit === true,
-            tp2Hit: d.tp2Hit === true,
-            slHitAt: d.slHitAt ?? null,
+            tp1Hit: false,   // already filtered out above
+            tp2Hit: false,
+            tp3Hit: false,
+            slHitAt: null,
             scorePattern: scored?.breakdown?.pattern,
             rrGateFailed: scored?.breakdown?.rrGateFailed ?? false,
             sweepGatePassed,
@@ -503,17 +517,22 @@ export async function GET(request: NextRequest) {
         let simState3 = await loadSimState(assetType);
 
         // Per-asset-type assessment counters for the summary log
+        const activeForAsset = postUpdateDocs.filter((d) => d.status === "ACTIVE" && (d.assetType ?? "CRYPTO") === assetType);
         const assess = {
-          active: postUpdateDocs.filter((d) => d.status === "ACTIVE" && (d.assetType ?? "CRYPTO") === assetType).length,
-          resolvedExcluded: postUpdateDocs.filter((d) => d.status === "ACTIVE" && (d.assetType ?? "CRYPTO") === assetType && (d.tp1Hit || d.tp2Hit || d.slHitAt)).length,
-          noPriceExcluded: postUpdateDocs.filter((d) => d.status === "ACTIVE" && (d.assetType ?? "CRYPTO") === assetType && !d.tp1Hit && !d.tp2Hit && !d.slHitAt && (d.currentPrice == null || d.price == null || d.stopLoss == null)).length,
+          active: activeForAsset.length,
+          bullActive: activeForAsset.filter((d) => d.type === "BUY").length,
+          bearActive: activeForAsset.filter((d) => d.type === "SELL").length,
+          resolvedExcluded: activeForAsset.filter((d) => d.tp1Hit || d.tp2Hit || d.tp3Hit || d.slHitAt).length,
+          noPriceExcluded: activeForAsset.filter((d) => !d.tp1Hit && !d.tp2Hit && !d.tp3Hit && !d.slHitAt && (d.currentPrice == null || d.price == null || d.stopLoss == null)).length,
           evaluated: assetCandidates.length,
           alreadyOpen: 0, duplicate: 0, slConsumed: 0, tp1Consumed: 0,
-          earlySnapshots: 0, noPattern: 0, rrGateFailed: 0, noSweep: 0, selected: 0,
+          earlySnapshots: 0, noPattern: 0, rrGateFailed: 0, noSweep: 0,
+          directionBias: 0, killed: 0, invalidLevels: 0, other: 0,
+          maxTradesCap: 0, selected: 0,
         };
 
         const { simEnabled: assetSimEnabled, directionBias: assetDirectionBias } = getAssetControls(assetType);
-        const { selected, skipped: incubSkipped } = assetSimEnabled
+        const { selected, skipped: incubSkipped, cappedByMaxTrades } = assetSimEnabled
           ? selectIncubatedSignals({
               candidates: assetCandidates,
               state: simState3,
@@ -524,7 +543,7 @@ export async function GET(request: NextRequest) {
               simConfig,
               directionBias: assetDirectionBias,
             })
-          : { selected: [], skipped: [] };
+          : { selected: [], skipped: [], cappedByMaxTrades: 0 };
 
         // Categorise skip reasons for the summary log
         for (const skip of incubSkipped) {
@@ -537,7 +556,12 @@ export async function GET(request: NextRequest) {
           else if (r.includes("no price structure")) assess.noPattern++;
           else if (r.includes("rr gate")) assess.rrGateFailed++;
           else if (r.includes("no liquidation sweep")) assess.noSweep++;
+          else if (r.includes("direction bias")) assess.directionBias++;
+          else if (r.includes("kill_switch") || r.includes("force-closed")) assess.killed++;
+          else if (r.includes("invalid sl") || r.includes("missing sl")) assess.invalidLevels++;
+          else assess.other++;
         }
+        assess.maxTradesCap = cappedByMaxTrades;
         assess.selected = selected.length;
 
         for (const c of selected) {
@@ -664,6 +688,8 @@ export async function GET(request: NextRequest) {
           action: "ASSESSMENT_SUMMARY",
           details: [
             `active=${assess.active}`,
+            `bull=${assess.bullActive}`,
+            `bear=${assess.bearActive}`,
             `resolved=${assess.resolvedExcluded}`,
             `no_price=${assess.noPriceExcluded}`,
             `evaluated=${assess.evaluated}`,
@@ -675,6 +701,11 @@ export async function GET(request: NextRequest) {
             `no_pattern=${assess.noPattern}`,
             `rr_gate=${assess.rrGateFailed}`,
             `no_sweep=${assess.noSweep}`,
+            `bias_skip=${assess.directionBias}`,
+            `killed=${assess.killed}`,
+            `invalid=${assess.invalidLevels}`,
+            ...(assess.other > 0 ? [`other=${assess.other}`] : []),
+            `cap=${assess.maxTradesCap}`,
             `→ selected=${assess.selected}`,
           ].join(" | "),
           capital: simState3.capital,

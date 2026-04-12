@@ -177,6 +177,7 @@ export interface IncubatedCandidate {
   confidenceScore: number;
   tp1Hit: boolean;
   tp2Hit: boolean;           // permanently ineligible if true
+  tp3Hit: boolean;           // permanently ineligible if true
   slHitAt: string | null;
   scorePattern?: "A" | "B" | "none" | "early"; // from scoring engine breakdown
   rrGateFailed?: boolean;    // true if dynamic RR gate capped the score
@@ -197,6 +198,7 @@ export interface IncubatedCandidate {
 export interface IncubatedResult {
   selected: IncubatedCandidate[];
   skipped: { symbol: string; reason: string }[];
+  cappedByMaxTrades: number; // candidates not evaluated because max open trades was already reached
 }
 
 export type DirectionBias = "BULL" | "BEAR" | "BOTH";
@@ -217,10 +219,11 @@ export function selectIncubatedSignals(params: {
   const bias = params.directionBias ?? "BOTH";
   const selected: IncubatedCandidate[] = [];
   const skipped: { symbol: string; reason: string }[] = [];
+  let cappedByMaxTrades = 0;
 
   const currentState = checkDailyReset(state);
 
-  if (!currentState.isActive) return { selected, skipped };
+  if (!currentState.isActive) return { selected, skipped, cappedByMaxTrades };
 
   const maxTrades = currentState.currentMaxTrades ?? cfg.MAX_OPEN_TRADES_BASE;
   const currentOpen = openTrades.filter((t) => t.status === "OPEN");
@@ -231,7 +234,10 @@ export function selectIncubatedSignals(params: {
   const sorted = [...candidates].sort((a, b) => b.confidenceScore - a.confidenceScore);
 
   for (const c of sorted) {
-    if (currentOpen.length + selected.length >= maxTrades) break;
+    if (currentOpen.length + selected.length >= maxTrades) {
+      cappedByMaxTrades++;
+      continue;
+    }
 
     // Already in simulator
     if (openSignalIds.has(c.id)) {
@@ -254,8 +260,8 @@ export function selectIncubatedSignals(params: {
       continue;
     }
 
-    // TP1, TP2, or SL already hit — permanently ineligible, no log
-    if (c.tp1Hit || c.tp2Hit || c.slHitAt) continue;
+    // Any TP or SL already hit in the real market — permanently ineligible, no log
+    if (c.tp1Hit || c.tp2Hit || c.tp3Hit || c.slHitAt) continue;
 
     // Direction bias filter
     if (bias === "BULL" && c.type !== "BUY") {
@@ -329,7 +335,7 @@ export function selectIncubatedSignals(params: {
     selected.push(c);
   }
 
-  return { selected, skipped };
+  return { selected, skipped, cappedByMaxTrades };
 }
 
 // ── Trailing SL: move SL to breakeven at 50% of TP1 distance ─

@@ -510,7 +510,7 @@ export default function PerformancePage() {
             />
             <SummaryCard
               label="Starting Capital"
-              value={fmtMoney(stats?.startingCapital)}
+              value={fmtMoney(simState?.startingCapital)}
               sub="initial investment"
               icon={<DollarSign className="w-3.5 h-3.5" />}
               color="#94a3b8"

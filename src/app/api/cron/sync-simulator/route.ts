@@ -516,23 +516,31 @@ export async function GET(request: NextRequest) {
         const assetOpenTrades = openSimTrades.filter((t) => (t.assetType ?? "CRYPTO") === assetType);
         let simState3 = await loadSimState(assetType);
 
-        // Per-asset-type assessment counters for the summary log
+        // Per-side (BULL / BEAR) assessment counters for the summary log
         const activeForAsset = postUpdateDocs.filter((d) => d.status === "ACTIVE" && (d.assetType ?? "CRYPTO") === assetType);
-        const assess = {
-          active: activeForAsset.length,
-          bullActive: activeForAsset.filter((d) => d.type === "BUY").length,
-          bearActive: activeForAsset.filter((d) => d.type === "SELL").length,
-          resolvedExcluded: activeForAsset.filter((d) => d.tp1Hit || d.tp2Hit || d.tp3Hit || d.slHitAt).length,
-          noPriceExcluded: activeForAsset.filter((d) => !d.tp1Hit && !d.tp2Hit && !d.tp3Hit && !d.slHitAt && (d.currentPrice == null || d.price == null || d.stopLoss == null)).length,
-          evaluated: assetCandidates.length,
-          alreadyOpen: 0, duplicate: 0, lowScore: 0, slConsumed: 0, tp1Consumed: 0,
-          earlySnapshots: 0, noPattern: 0, rrGateFailed: 0,
-          directionBias: 0, killed: 0, invalidLevels: 0, other: 0,
-          maxTradesCap: 0, selected: 0,
+
+        type SideAssess = {
+          active: number; resolved: number; noPrice: number; evaluated: number;
+          open: number; dup: number; lowScore: number; slConsumed: number; tp1Consumed: number;
+          early: number; noPattern: number; rrGate: number;
+          biasSkip: number; killed: number; invalid: number; other: number;
+          cap: number; selected: number;
         };
+        const makeAssess = (side: "BUY" | "SELL"): SideAssess => ({
+          active: activeForAsset.filter((d) => d.type === side).length,
+          resolved: activeForAsset.filter((d) => d.type === side && (d.tp1Hit || d.tp2Hit || d.tp3Hit || d.slHitAt)).length,
+          noPrice: activeForAsset.filter((d) => d.type === side && !d.tp1Hit && !d.tp2Hit && !d.tp3Hit && !d.slHitAt && (d.currentPrice == null || d.price == null || d.stopLoss == null)).length,
+          evaluated: assetCandidates.filter((c) => c.type === side).length,
+          open: 0, dup: 0, lowScore: 0, slConsumed: 0, tp1Consumed: 0,
+          early: 0, noPattern: 0, rrGate: 0,
+          biasSkip: 0, killed: 0, invalid: 0, other: 0,
+          cap: 0, selected: 0,
+        });
+        const bull = makeAssess("BUY");
+        const bear = makeAssess("SELL");
 
         const { simEnabled: assetSimEnabled, directionBias: assetDirectionBias } = getAssetControls(assetType);
-        const { selected, skipped: incubSkipped, cappedByMaxTrades } = assetSimEnabled
+        const { selected, skipped: incubSkipped, cappedByType } = assetSimEnabled
           ? selectIncubatedSignals({
               candidates: assetCandidates,
               state: simState3,
@@ -543,26 +551,29 @@ export async function GET(request: NextRequest) {
               simConfig,
               directionBias: assetDirectionBias,
             })
-          : { selected: [], skipped: [], cappedByMaxTrades: 0 };
+          : { selected: [], skipped: [], cappedByType: { BUY: 0, SELL: 0 } };
 
-        // Categorise skip reasons for the summary log
+        // Categorise skip reasons per side
         for (const skip of incubSkipped) {
+          const side = skip.type === "BUY" ? bull : bear;
           const r = skip.reason.toLowerCase();
-          if (r.includes("already in simulator")) assess.alreadyOpen++;
-          else if (r.includes("duplicate")) assess.duplicate++;
-          else if (r.includes("sl consumed")) assess.slConsumed++;
-          else if (r.includes("tp1 consumed")) assess.tp1Consumed++;
-          else if (r.includes("too early")) assess.earlySnapshots++;
-          else if (r.includes("no price structure")) assess.noPattern++;
-          else if (r.includes("rr gate")) assess.rrGateFailed++;
-          else if (r.includes("score") && r.includes("below minimum")) assess.lowScore++;
-          else if (r.includes("direction bias")) assess.directionBias++;
-          else if (r.includes("kill_switch") || r.includes("force-closed")) assess.killed++;
-          else if (r.includes("invalid sl") || r.includes("missing sl")) assess.invalidLevels++;
-          else assess.other++;
+          if (r.includes("already in simulator")) side.open++;
+          else if (r.includes("duplicate")) side.dup++;
+          else if (r.includes("sl consumed")) side.slConsumed++;
+          else if (r.includes("tp1 consumed")) side.tp1Consumed++;
+          else if (r.includes("too early")) side.early++;
+          else if (r.includes("no price structure")) side.noPattern++;
+          else if (r.includes("rr gate")) side.rrGate++;
+          else if (r.includes("score") && r.includes("below minimum")) side.lowScore++;
+          else if (r.includes("direction bias")) side.biasSkip++;
+          else if (r.includes("kill_switch") || r.includes("force-closed")) side.killed++;
+          else if (r.includes("invalid sl") || r.includes("missing sl")) side.invalid++;
+          else side.other++;
         }
-        assess.maxTradesCap = cappedByMaxTrades;
-        assess.selected = selected.length;
+        bull.cap = cappedByType?.BUY ?? 0;
+        bear.cap = cappedByType?.SELL ?? 0;
+        bull.selected = selected.filter((s) => s.type === "BUY").length;
+        bear.selected = selected.filter((s) => s.type === "SELL").length;
 
         for (const c of selected) {
           const isBuy = c.type === "BUY";
@@ -682,35 +693,47 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Assessment summary — one entry per asset type per cycle, full funnel visible at a glance
-        await db.collection("simulator_logs").add({
-          timestamp: new Date().toISOString(),
-          action: "ASSESSMENT_SUMMARY",
-          details: [
-            `active=${assess.active}`,
-            `bull=${assess.bullActive}`,
-            `bear=${assess.bearActive}`,
-            `resolved=${assess.resolvedExcluded}`,
-            `no_price=${assess.noPriceExcluded}`,
-            `evaluated=${assess.evaluated}`,
-            `open=${assess.alreadyOpen}`,
-            `dup=${assess.duplicate}`,
-            `low_score=${assess.lowScore}`,
-            `sl_consumed=${assess.slConsumed}`,
-            `tp1_consumed=${assess.tp1Consumed}`,
-            `early=${assess.earlySnapshots}`,
-            `no_pattern=${assess.noPattern}`,
-            `rr_gate=${assess.rrGateFailed}`,
-            `bias_skip=${assess.directionBias}`,
-            `killed=${assess.killed}`,
-            `invalid=${assess.invalidLevels}`,
-            ...(assess.other > 0 ? [`other=${assess.other}`] : []),
-            `cap=${assess.maxTradesCap}`,
-            `→ selected=${assess.selected}`,
-          ].join(" | "),
-          capital: simState3.capital,
-          assetType,
-        });
+        // Assessment summary — one BULL + one BEAR entry per asset type per cycle
+        const formatAssess = (side: SideAssess, label: "BULL" | "BEAR") => [
+          `[${label}]`,
+          `active=${side.active}`,
+          `resolved=${side.resolved}`,
+          `no_price=${side.noPrice}`,
+          `evaluated=${side.evaluated}`,
+          `open=${side.open}`,
+          `dup=${side.dup}`,
+          `low_score=${side.lowScore}`,
+          `sl_consumed=${side.slConsumed}`,
+          `tp1_consumed=${side.tp1Consumed}`,
+          `early=${side.early}`,
+          `no_pattern=${side.noPattern}`,
+          `rr_gate=${side.rrGate}`,
+          `bias_skip=${side.biasSkip}`,
+          `killed=${side.killed}`,
+          ...(side.invalid > 0 ? [`invalid=${side.invalid}`] : []),
+          ...(side.other > 0 ? [`other=${side.other}`] : []),
+          `cap=${side.cap}`,
+          `→ selected=${side.selected}`,
+        ].join(" | ");
+
+        await Promise.all([
+          db.collection("simulator_logs").add({
+            timestamp: new Date().toISOString(),
+            action: "ASSESSMENT_SUMMARY",
+            side: "BULL",
+            details: formatAssess(bull, "BULL"),
+            capital: simState3.capital,
+            assetType,
+          }),
+          db.collection("simulator_logs").add({
+            timestamp: new Date().toISOString(),
+            action: "ASSESSMENT_SUMMARY",
+            side: "BEAR",
+            details: formatAssess(bear, "BEAR"),
+            capital: simState3.capital,
+            assetType,
+          }),
+        ]);
 
         // Log fresh skips (< 3 candles old) for new signals — kept brief to avoid spam
         const CANDLE_MINS: Record<string, number> = {

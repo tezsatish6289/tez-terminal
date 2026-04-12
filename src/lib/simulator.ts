@@ -198,8 +198,9 @@ export interface IncubatedCandidate {
 
 export interface IncubatedResult {
   selected: IncubatedCandidate[];
-  skipped: { symbol: string; reason: string }[];
-  cappedByMaxTrades: number; // candidates not evaluated because max open trades was already reached
+  skipped: { symbol: string; type: "BUY" | "SELL"; reason: string }[];
+  cappedByMaxTrades: number; // total candidates not evaluated because max open trades was reached
+  cappedByType: { BUY: number; SELL: number };
 }
 
 export type DirectionBias = "BULL" | "BEAR" | "BOTH";
@@ -219,12 +220,12 @@ export function selectIncubatedSignals(params: {
   const cfg = params.simConfig ?? SIM_CONFIG;
   const bias = params.directionBias ?? "BOTH";
   const selected: IncubatedCandidate[] = [];
-  const skipped: { symbol: string; reason: string }[] = [];
-  let cappedByMaxTrades = 0;
+  const skipped: { symbol: string; type: "BUY" | "SELL"; reason: string }[] = [];
+  const cappedByType = { BUY: 0, SELL: 0 };
 
   const currentState = checkDailyReset(state);
 
-  if (!currentState.isActive) return { selected, skipped, cappedByMaxTrades };
+  if (!currentState.isActive) return { selected, skipped, cappedByMaxTrades: 0, cappedByType };
 
   const maxTrades = currentState.currentMaxTrades ?? cfg.MAX_OPEN_TRADES_BASE;
   const currentOpen = openTrades.filter((t) => t.status === "OPEN");
@@ -236,19 +237,19 @@ export function selectIncubatedSignals(params: {
 
   for (const c of sorted) {
     if (currentOpen.length + selected.length >= maxTrades) {
-      cappedByMaxTrades++;
+      cappedByType[c.type]++;
       continue;
     }
 
     // Already in simulator
     if (openSignalIds.has(c.id)) {
-      skipped.push({ symbol: c.symbol, reason: "Already in simulator" });
+      skipped.push({ symbol: c.symbol, type: c.type, reason: "Already in simulator" });
       continue;
     }
 
     // Force-closed — user explicitly killed this trade, do not re-enter
     if (killed.has(c.id)) {
-      skipped.push({ symbol: c.symbol, reason: "Force-closed (KILL_SWITCH)" });
+      skipped.push({ symbol: c.symbol, type: c.type, reason: "Force-closed (KILL_SWITCH)" });
       continue;
     }
 
@@ -257,7 +258,7 @@ export function selectIncubatedSignals(params: {
 
     // No duplicate symbols
     if (openSymbols.has(c.symbol) || selected.some((s) => s.symbol === c.symbol)) {
-      skipped.push({ symbol: c.symbol, reason: "Duplicate symbol" });
+      skipped.push({ symbol: c.symbol, type: c.type, reason: "Duplicate symbol" });
       continue;
     }
 
@@ -266,17 +267,17 @@ export function selectIncubatedSignals(params: {
 
     // Direction bias filter — manual override set from the simulator UI
     if (bias === "BULL" && c.type !== "BUY") {
-      skipped.push({ symbol: c.symbol, reason: "Direction bias: BULL only (skipping SELL)" });
+      skipped.push({ symbol: c.symbol, type: c.type, reason: "Direction bias: BULL only (skipping SELL)" });
       continue;
     }
     if (bias === "BEAR" && c.type !== "SELL") {
-      skipped.push({ symbol: c.symbol, reason: "Direction bias: BEAR only (skipping BUY)" });
+      skipped.push({ symbol: c.symbol, type: c.type, reason: "Direction bias: BEAR only (skipping BUY)" });
       continue;
     }
 
     // Minimum confidence score gate
     if (c.confidenceScore < cfg.INCUBATED_MIN_SCORE) {
-      skipped.push({ symbol: c.symbol, reason: `Score ${c.confidenceScore} below minimum ${cfg.INCUBATED_MIN_SCORE}` });
+      skipped.push({ symbol: c.symbol, type: c.type, reason: `Score ${c.confidenceScore} below minimum ${cfg.INCUBATED_MIN_SCORE}` });
       continue;
     }
 
@@ -286,7 +287,7 @@ export function selectIncubatedSignals(params: {
     const tp1Distance = Math.abs(c.tp1 - c.entryPrice);
 
     if (slDistance <= 0 || tp1Distance <= 0) {
-      skipped.push({ symbol: c.symbol, reason: "Invalid SL/TP1 distance" });
+      skipped.push({ symbol: c.symbol, type: c.type, reason: "Invalid SL/TP1 distance" });
       continue;
     }
 
@@ -295,7 +296,7 @@ export function selectIncubatedSignals(params: {
       : c.currentPrice - c.entryPrice;
 
     if (priceMovedAgainst > 0 && priceMovedAgainst / slDistance > cfg.INCUBATED_SL_CONSUMED_MAX) {
-      skipped.push({ symbol: c.symbol, reason: `${(priceMovedAgainst / slDistance * 100).toFixed(0)}% of SL consumed (>${cfg.INCUBATED_SL_CONSUMED_MAX * 100}%)` });
+      skipped.push({ symbol: c.symbol, type: c.type, reason: `${(priceMovedAgainst / slDistance * 100).toFixed(0)}% of SL consumed (>${cfg.INCUBATED_SL_CONSUMED_MAX * 100}%)` });
       continue;
     }
 
@@ -304,7 +305,7 @@ export function selectIncubatedSignals(params: {
       : c.entryPrice - c.currentPrice;
 
     if (priceMovedInFavor > 0 && priceMovedInFavor / tp1Distance > cfg.INCUBATED_TP1_CONSUMED_MAX) {
-      skipped.push({ symbol: c.symbol, reason: `${(priceMovedInFavor / tp1Distance * 100).toFixed(0)}% of TP1 consumed (>${cfg.INCUBATED_TP1_CONSUMED_MAX * 100}%)` });
+      skipped.push({ symbol: c.symbol, type: c.type, reason: `${(priceMovedInFavor / tp1Distance * 100).toFixed(0)}% of TP1 consumed (>${cfg.INCUBATED_TP1_CONSUMED_MAX * 100}%)` });
       continue;
     }
 
@@ -312,27 +313,27 @@ export function selectIncubatedSignals(params: {
     // "early" (< 3 snapshots) and "none" (no detectable pattern) are rejected.
     // RR gate failure is a hard block regardless of pattern quality.
     if (c.rrGateFailed) {
-      skipped.push({ symbol: c.symbol, reason: "RR gate: not enough remaining upside to TP2 (< 1.5:1)" });
+      skipped.push({ symbol: c.symbol, type: c.type, reason: "RR gate: not enough remaining upside to TP2 (< 1.5:1)" });
       continue;
     }
     if (c.scorePattern !== "A" && c.scorePattern !== "B") {
       const note = c.scorePattern === "early"
         ? "too early — snapshots still accumulating"
         : "no price structure pattern detected";
-      skipped.push({ symbol: c.symbol, reason: note });
+      skipped.push({ symbol: c.symbol, type: c.type, reason: note });
       continue;
     }
 
     // SL / TP validation
     if (c.stopLoss <= 0 || !c.tp1 || !c.tp2 || !c.tp3) {
-      skipped.push({ symbol: c.symbol, reason: "Missing SL/TP levels" });
+      skipped.push({ symbol: c.symbol, type: c.type, reason: "Missing SL/TP levels" });
       continue;
     }
 
     selected.push(c);
   }
 
-  return { selected, skipped, cappedByMaxTrades };
+  return { selected, skipped, cappedByMaxTrades: cappedByType.BUY + cappedByType.SELL, cappedByType };
 }
 
 // ── Trailing SL: move SL to breakeven at 50% of TP1 distance ─

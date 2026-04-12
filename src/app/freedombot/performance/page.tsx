@@ -690,7 +690,7 @@ export default function PerformancePage() {
             </MethodCard>
             <MethodCard icon={TrendingDown} title="Liquidation Protection" accent="#f87171">
               <Bullet>Our position sizing ensures the SL is always triggered <strong className="text-white">long before</strong> the liquidation price is reached.</Bullet>
-              <Bullet>We do not use cross-margin. Each trade&apos;s risk is isolated.</Bullet>
+              <Bullet>We use <strong className="text-white">isolated margin</strong> on every trade — the bot sets this automatically before placing any order. Your full account balance is never at risk from a single position.</Bullet>
               <Bullet>In the event of a flash crash, the position closes at the next available price — but liquidation risk is <strong className="text-white">structurally eliminated by design</strong>.</Bullet>
             </MethodCard>
           </div>

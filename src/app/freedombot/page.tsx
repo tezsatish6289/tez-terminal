@@ -18,6 +18,7 @@ import {
   Search,
 } from "lucide-react";
 import { useUser, useAuth } from "@/firebase";
+import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { DeployModal } from "./components/DeployModal";
 import { COUNTRIES, POPULAR_COUNTRY_CODES } from "@/lib/countries";
 
@@ -372,6 +373,7 @@ export default function FreedomBotPage() {
   const auth = useAuth();
   const router = useRouter();
   const [deployOpen, setDeployOpen] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
   // Redirect logged-in users to the FreedomBot dashboard
   useEffect(() => {
@@ -379,6 +381,16 @@ export default function FreedomBotPage() {
   }, [user, deployOpen, router]);
 
   const openDeploy = useCallback(() => setDeployOpen(true), []);
+
+  // Direct sign-in (no deploy modal) — redirects to /dashboard via useEffect above
+  const handleSignIn = useCallback(async () => {
+    setIsSigningIn(true);
+    try {
+      await initiateGoogleSignIn(auth);
+    } finally {
+      setIsSigningIn(false);
+    }
+  }, [auth]);
 
   const [stats, setStats] = useState<BotStats | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
@@ -490,15 +502,16 @@ export default function FreedomBotPage() {
               <Rocket className="h-3.5 w-3.5" /> Deploy a Bot
             </button>
             <button
-              onClick={openDeploy}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105"
+              onClick={handleSignIn}
+              disabled={isSigningIn}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105 disabled:opacity-70"
               style={{
                 border: "1px solid rgba(90,140,220,0.3)",
                 color: "#93c5fd",
                 backgroundColor: "rgba(37,99,235,0.08)",
               }}
             >
-              Sign In
+              {isSigningIn ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Sign In"}
             </button>
           </div>
         </div>

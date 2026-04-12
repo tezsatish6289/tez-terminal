@@ -133,7 +133,7 @@ export default function PrivacyPage() {
         </p>
 
         <p className="text-xs mb-16" style={{ color: "#475569" }}>
-          Last updated: {LAST_UPDATED}
+          Last updated: {LAST_UPDATED} · Turbogains Fintech Solutions Private Limited (CIN: U62099UP2025PTC232196)
         </p>
 
         <div className="space-y-6">

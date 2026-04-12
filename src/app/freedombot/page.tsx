@@ -1075,7 +1075,7 @@ export default function FreedomBotPage() {
               },
               {
                 q: "How much capital do I need to get started?",
-                a: "There is no hard minimum enforced by us, but we recommend at least ₹50,000 (or equivalent in USDT) so position sizing stays meaningful and fees don't eat returns. The bot scales position sizes as a percentage of your balance, so it works across a wide range of account sizes.",
+                a: "There is no hard minimum enforced by us, but we recommend at least 500 USDT (around ₹50,000) so position sizing stays meaningful and fees don't eat returns. The bot scales position sizes as a percentage of your balance, so it works across a wide range of account sizes.",
               },
               {
                 q: "What's the maximum I can lose on a single trade?",

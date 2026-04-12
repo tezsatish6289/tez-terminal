@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
-  Send,
   Bot,
   Rocket,
   Loader2,
@@ -16,6 +15,8 @@ import {
   ExternalLink,
   ChevronDown,
   Search,
+  Plus,
+  Minus,
 } from "lucide-react";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
@@ -33,11 +34,6 @@ interface BotStats {
   profitPerYear: number | null;
   winRate: number | null;
   totalTrades: number;
-}
-
-interface ChatMessage {
-  role: "user" | "model";
-  content: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -393,17 +389,8 @@ export default function FreedomBotPage() {
   }, [auth]);
 
   const [stats, setStats] = useState<BotStats | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      role: "model",
-      content:
-        "Hey there! 👋 I'm FreedomBot. Got questions about how I trade, what bots are available, or how to get started? Ask me anything!",
-    },
-  ]);
-  const [chatInput, setChatInput] = useState("");
-  const [isChatLoading, setIsChatLoading] = useState(false);
   const [waitlistBot, setWaitlistBot] = useState<string | null>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   useEffect(() => {
     fetch("/api/freedombot/stats")
@@ -411,53 +398,6 @@ export default function FreedomBotPage() {
       .then((data) => setStats(data))
       .catch(() => {});
   }, []);
-
-  const isChatInitialMount = useRef(true);
-  useEffect(() => {
-    if (isChatInitialMount.current) {
-      isChatInitialMount.current = false;
-      return;
-    }
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
-
-  const sendMessage = useCallback(async () => {
-    const text = chatInput.trim();
-    if (!text || isChatLoading) return;
-
-    const userMsg: ChatMessage = { role: "user", content: text };
-    const newMessages = [...chatMessages, userMsg];
-    setChatMessages(newMessages);
-    setChatInput("");
-    setIsChatLoading(true);
-
-    try {
-      const res = await fetch("/api/freedombot/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages }),
-      });
-      const data = await res.json();
-      setChatMessages((prev) => [
-        ...prev,
-        { role: "model", content: data.reply || "Sorry, I couldn't process that." },
-      ]);
-    } catch {
-      setChatMessages((prev) => [
-        ...prev,
-        { role: "model", content: "Hmm, something went wrong. Try again?" },
-      ]);
-    } finally {
-      setIsChatLoading(false);
-    }
-  }, [chatInput, chatMessages, isChatLoading]);
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
 
   return (
     <div
@@ -1092,14 +1032,12 @@ export default function FreedomBotPage() {
       </section>
 
       {/* ══════════════════════════════════════════════════════════
-          SECTION 6 — CHATBOT
+          SECTION 6 — FAQ
       ══════════════════════════════════════════════════════════ */}
-      <section
-        id="chat"
-        className="py-20 sm:py-28"
-      >
-        <div className="max-w-2xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-10">
+      <section id="faq" className="py-20 sm:py-28">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6">
+          {/* Header */}
+          <div className="text-center mb-14">
             <div
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-4"
               style={{
@@ -1108,132 +1046,105 @@ export default function FreedomBotPage() {
                 color: "#93c5fd",
               }}
             >
-              <Bot className="h-3 w-3" /> AI Chat
+              FAQ
             </div>
-            <h2 className="text-3xl sm:text-4xl font-black tracking-tighter">
-              Got{" "}
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tighter">
+              Common{" "}
               <span
                 className="bg-clip-text text-transparent"
                 style={{ backgroundImage: "linear-gradient(135deg, #3b82f6, #93c5fd)" }}
               >
-                questions?
+                questions
               </span>
             </h2>
-            <p className="mt-3 text-sm" style={{ color: "#64748b" }}>
-              Ask me anything about how I work, what I trade, or how to get started.
+            <p className="mt-4 text-base" style={{ color: "#94a3b8" }}>
+              Everything you need to know before you deploy.
             </p>
           </div>
 
-          {/* Chat window */}
-          <div
-            className="rounded-2xl overflow-hidden"
-            style={{
-              backgroundColor: "#0a1628",
-              border: "1px solid rgba(90,140,220,0.2)",
-              boxShadow: "0 0 60px rgba(37,99,235,0.08)",
-            }}
-          >
-            {/* Messages */}
-            <div className="h-96 overflow-y-auto p-5 space-y-4 scrollbar-thin">
-              {chatMessages.map((msg, i) => (
+          {/* Accordion */}
+          <div className="space-y-3">
+            {[
+              {
+                q: "How does the bot decide when to enter a trade?",
+                a: "Every entry is rule-based — no discretion, no emotions. The bot identifies high-probability setups using order blocks (zones where institutional orders were previously filled) and filters signals using funding rate data and liquidation heatmaps. The specific indicator combinations are our core IP, but the full risk framework is documented on the Performance page.",
+              },
+              {
+                q: "What exchange does it trade on? Is my capital with FreedomBot?",
+                a: "The Crypto Bot trades on Bybit. Your capital stays in your own Bybit account at all times — we never hold, touch, or custody your funds. You connect the bot via a read/trade-only API key; withdrawal permissions are neither required nor accepted.",
+              },
+              {
+                q: "How much capital do I need to get started?",
+                a: "There is no hard minimum enforced by us, but we recommend at least ₹50,000 (or equivalent in USDT) so position sizing stays meaningful and fees don't eat returns. The bot scales position sizes as a percentage of your balance, so it works across a wide range of account sizes.",
+              },
+              {
+                q: "What's the maximum I can lose on a single trade?",
+                a: "By default the bot risks 1% of your current balance per trade (1.5% during a confirmed win streak). With leverage capped at 10×, a stop-loss hit means a small, defined loss — never a wipeout. It would take roughly 460 consecutive losing trades to approach zero, a scenario that has never come close to occurring.",
+              },
+              {
+                q: "Am I at risk of liquidation?",
+                a: "No. We use isolated margin on every trade — set automatically before each order — so your full account balance is never at risk from a single position. The stop-loss is always triggered well before the liquidation price is reached, structurally eliminating liquidation risk under normal market conditions.",
+              },
+              {
+                q: "What happens during a flash crash or extreme volatility?",
+                a: "The stop-loss closes the position at the next available price. In extreme gaps, slippage may occur, but because we use isolated margin and small position sizes, the worst-case outcome on a single trade remains a fraction of your account — not a catastrophic loss.",
+              },
+              {
+                q: "Can I withdraw my capital anytime?",
+                a: "Yes. Your capital is in your Bybit account and is always accessible to you. You can withdraw or pause the bot at any time. If a trade is open when you pause, you can choose to let it run to completion or close it manually.",
+              },
+              {
+                q: "Does FreedomBot charge fees?",
+                a: "Pricing details are shared during onboarding. There are no hidden charges — you'll see a clear breakdown before you deploy. The bot itself incurs standard Bybit trading fees on each trade, which are factored into the performance numbers shown on the Performance page.",
+              },
+            ].map((item, i) => {
+              const isOpen = openFaq === i;
+              return (
                 <div
                   key={i}
-                  className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
+                  className="rounded-2xl overflow-hidden transition-all"
+                  style={{
+                    backgroundColor: "#0a1628",
+                    border: `1px solid ${isOpen ? "rgba(96,165,250,0.3)" : "rgba(90,140,220,0.12)"}`,
+                  }}
                 >
-                  {msg.role === "model" && (
-                    <div
-                      className="h-8 w-8 rounded-xl flex-shrink-0 flex items-center justify-center"
-                      style={{ backgroundColor: "rgba(37,99,235,0.2)" }}
+                  <button
+                    onClick={() => setOpenFaq(isOpen ? null : i)}
+                    className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left"
+                  >
+                    <span className="text-sm sm:text-base font-semibold leading-snug" style={{ color: "#e2e8f0" }}>
+                      {item.q}
+                    </span>
+                    <span
+                      className="flex-shrink-0 h-6 w-6 rounded-full flex items-center justify-center transition-colors"
+                      style={{
+                        backgroundColor: isOpen ? "rgba(37,99,235,0.25)" : "rgba(90,140,220,0.1)",
+                        color: isOpen ? "#60a5fa" : "#475569",
+                      }}
                     >
-                      <Bot className="h-4 w-4" style={{ color: "#60a5fa" }} />
+                      {isOpen ? <Minus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                    </span>
+                  </button>
+                  {isOpen && (
+                    <div
+                      className="px-6 pb-5 text-sm leading-relaxed"
+                      style={{ color: "#94a3b8", borderTop: "1px solid rgba(90,140,220,0.08)" }}
+                    >
+                      <div className="pt-4">{item.a}</div>
                     </div>
                   )}
-                  <div
-                    className="max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed"
-                    style={
-                      msg.role === "user"
-                        ? {
-                            background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",
-                            color: "#fff",
-                            borderBottomRightRadius: "4px",
-                          }
-                        : {
-                            backgroundColor: "#0f2044",
-                            color: "#cbd5e1",
-                            border: "1px solid rgba(90,140,220,0.15)",
-                            borderBottomLeftRadius: "4px",
-                          }
-                    }
-                  >
-                    {msg.content}
-                  </div>
                 </div>
-              ))}
-              {isChatLoading && (
-                <div className="flex gap-3">
-                  <div
-                    className="h-8 w-8 rounded-xl flex-shrink-0 flex items-center justify-center"
-                    style={{ backgroundColor: "rgba(37,99,235,0.2)" }}
-                  >
-                    <Bot className="h-4 w-4" style={{ color: "#60a5fa" }} />
-                  </div>
-                  <div
-                    className="rounded-2xl px-4 py-3 flex items-center gap-1.5"
-                    style={{
-                      backgroundColor: "#0f2044",
-                      border: "1px solid rgba(90,140,220,0.15)",
-                      borderBottomLeftRadius: "4px",
-                    }}
-                  >
-                    {[0, 1, 2].map((d) => (
-                      <div
-                        key={d}
-                        className="h-2 w-2 rounded-full animate-bounce"
-                        style={{
-                          backgroundColor: "#60a5fa",
-                          animationDelay: `${d * 0.15}s`,
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div ref={chatEndRef} />
-            </div>
-
-            {/* Input */}
-            <div
-              className="p-4"
-              style={{ borderTop: "1px solid rgba(90,140,220,0.12)" }}
-            >
-              <div className="flex gap-3">
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask me anything…"
-                  className="flex-1 px-4 py-3 rounded-xl text-white placeholder-slate-500 outline-none"
-                  style={{
-                    backgroundColor: "#0f2044",
-                    border: "1px solid rgba(90,140,220,0.2)",
-                    fontSize: "16px",
-                  }}
-                />
-                <button
-                  onClick={sendMessage}
-                  disabled={!chatInput.trim() || isChatLoading}
-                  className="h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-all disabled:opacity-40 hover:scale-105"
-                  style={{
-                    background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",
-                    boxShadow: "0 4px 15px rgba(59,130,246,0.3)",
-                  }}
-                >
-                  <Send className="h-4 w-4 text-white" />
-                </button>
-              </div>
-            </div>
+              );
+            })}
           </div>
+
+          {/* CTA below */}
+          <p className="text-center mt-10 text-sm" style={{ color: "#475569" }}>
+            Want a deeper look?{" "}
+            <a href="/performance" className="font-semibold hover:text-blue-300 transition-colors" style={{ color: "#60a5fa" }}>
+              See the full performance breakdown →
+            </a>
+          </p>
         </div>
       </section>
 

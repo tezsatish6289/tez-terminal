@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import {
   Rocket,
   TrendingUp,
@@ -94,13 +93,12 @@ const EXCHANGE_LABELS: Record<string, string> = {
 function DashTopBar({ onDeploy, hasDeployment = false }: { onDeploy: () => void; hasDeployment?: boolean }) {
   const { user } = useUser();
   const auth = useAuth();
-  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (auth) {
-      initiateSignOut(auth);
-      router.push("/");
+      await initiateSignOut(auth);
+      window.location.href = "/";
     }
   };
 
@@ -621,7 +619,6 @@ function Connected({ deployment, trades, onStop }: {
 export default function FreedomBotDashboard() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
-  const router = useRouter();
   const [deployOpen, setDeployOpen] = useState(false);
   const [deployment, setDeployment] = useState<Deployment | null | undefined>(undefined);
   const [stats, setStats] = useState<BotStats | null>(null);
@@ -629,12 +626,12 @@ export default function FreedomBotDashboard() {
   const [stopConfirm, setStopConfirm] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
 
-  // Redirect unauthenticated users back to landing
+  // Redirect unauthenticated users back to landing (hard nav — reliable after sign-out)
   useEffect(() => {
     if (!isUserLoading && !user) {
-      router.replace("/");
+      window.location.href = "/";
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading]);
 
   const fetchDeployment = useCallback(async () => {
     if (!user) return;

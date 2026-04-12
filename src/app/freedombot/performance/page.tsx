@@ -60,17 +60,6 @@ interface ApiTrade {
   events: TradeEvent[];
 }
 
-interface BotStats {
-  runningDays: number;
-  currentCapital: number;
-  startingCapital: number;
-  totalReturnPct: number | null;
-  profitPerMonth: number | null;
-  profitPerYear: number | null;
-  winRate: number | null;
-  totalTrades: number;
-}
-
 // ─── trueNetPnl — identical to performance-metrics.ts ────────────────────────
 // sum(event.pnl) - events[0].fee  = price PnL - all fees
 function trueNetPnl(events: TradeEvent[]): number {
@@ -377,43 +366,87 @@ function Bullet({ children }: { children: React.ReactNode }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// ─── Simulator state type ─────────────────────────────────────────────────────
+
+interface SimState {
+  capital: number;
+  startingCapital: number;
+}
+
 export default function PerformancePage() {
-  const [stats,  setStats]  = useState<BotStats | null>(null);
-  const [trades, setTrades] = useState<ApiTrade[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [simState, setSimState] = useState<SimState | null>(null);
+  const [trades,   setTrades]   = useState<ApiTrade[]>([]);
+  const [loading,  setLoading]  = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/freedombot/stats").then((r) => r.json()),
-      fetch("/api/freedombot/trades").then((r) => r.json()),
-    ]).then(([s, t]) => {
-      if (s && !s.error) setStats(s);
-      if (t?.trades)     setTrades(t.trades);
-    }).finally(() => setLoading(false));
+    // Single endpoint: reads config/simulator_state + ALL CRYPTO simulator_trades
+    // No limit, no cache — mirrors exactly what the simulator dashboard reads
+    fetch("/api/freedombot/perf-data")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.state)  setSimState(d.state as SimState);
+        if (d.trades) setTrades(d.trades as ApiTrade[]);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  // Same function + same data the simulator dashboard uses — no custom re-implementation
-  const metrics = useMemo(
-    () => (trades.length > 0 && stats?.startingCapital
-      ? calcPerformanceMetrics(trades as any, stats.startingCapital, 0)
-      : null),
-    [trades, stats]
-  );
+  // ── Replicate simulator page calculations exactly ──────────────────────────
 
-  const closedTrades = useMemo(
-    () => trades.filter((t) => t.status === "CLOSED" && t.closedAt),
-    [trades]
-  );
+  const openTrades   = useMemo(() => trades.filter((t) => t.status === "OPEN"),   [trades]);
+  const closedTrades = useMemo(() => trades.filter((t) => t.status === "CLOSED"), [trades]);
 
-  const startCap   = stats?.startingCapital ?? 1000;
-  const totalReturn = stats && stats.startingCapital > 0
-    ? ((stats.currentCapital - stats.startingCapital) / stats.startingCapital) * 100
+  // Running days from earliest trade openedAt — identical to simulator page
+  const runningDays = useMemo(() => {
+    const all = [...openTrades, ...closedTrades];
+    if (!all.length) return 0;
+    const earliest = all.reduce((a, b) =>
+      new Date(a.openedAt ?? 0).getTime() < new Date(b.openedAt ?? 0).getTime() ? a : b
+    );
+    return Math.max(1, Math.ceil((Date.now() - new Date(earliest.openedAt ?? 0).getTime()) / 86_400_000));
+  }, [openTrades, closedTrades]);
+
+  const startCap    = simState?.startingCapital ?? 1000;
+  const totalReturn = simState
+    ? ((simState.capital - simState.startingCapital) / simState.startingCapital) * 100
     : 0;
-  const runningDays = stats?.runningDays ?? 0;
   const isPositive  = totalReturn >= 0;
 
-  const monthlyIsProjected = (stats?.runningDays ?? 0) < 30;
-  const yearlyIsProjected  = (stats?.runningDays ?? 0) < 365;
+  // Monthly — actual this-calendar-month if ≥30 days, else projected (identical to simulator)
+  const monthlyPnl = useMemo(() => {
+    if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
+    const netPnl = simState.capital - simState.startingCapital;
+    if (runningDays >= 30) {
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0, 0, 0, 0);
+      const monthNet = closedTrades.reduce((sum, t) => {
+        if (!t.closedAt || new Date(t.closedAt) < monthStart) return sum;
+        const evts = t.events ?? [];
+        return sum + evts.reduce((s, e) => s + e.pnl, 0) - (evts[0]?.fee ?? 0);
+      }, 0);
+      return { pct: (monthNet / simState.startingCapital) * 100, isProjected: false };
+    }
+    return { pct: ((netPnl / runningDays) * 30 / simState.startingCapital) * 100, isProjected: true };
+  }, [simState, runningDays, closedTrades]);
+
+  // Yearly — projected if < 365 days (identical to simulator)
+  const yearlyPnl = useMemo(() => {
+    if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
+    const netPnl    = simState.capital - simState.startingCapital;
+    const annualPnl = runningDays >= 365 ? netPnl : (netPnl / runningDays) * 365;
+    return { pct: (annualPnl / simState.startingCapital) * 100, isProjected: runningDays < 365 };
+  }, [simState, runningDays]);
+
+  // Performance metrics — same function AND same args as simulator
+  const metrics = useMemo(
+    () => closedTrades.length > 0 && startCap > 0
+      ? calcPerformanceMetrics(closedTrades as any, startCap, 0)
+      : null,
+    [closedTrades, startCap]
+  );
+
+  const monthlyIsProjected = monthlyPnl.isProjected;
+  const yearlyIsProjected  = yearlyPnl.isProjected;
 
   return (
     <div className="min-h-screen font-sans antialiased" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
@@ -484,8 +517,8 @@ export default function PerformancePage() {
             />
             <SummaryCard
               label="Current Capital"
-              value={fmtMoney(stats?.currentCapital)}
-              sub={`${totalReturn >= 0 ? "+" : ""}${fmtMoney((stats?.currentCapital ?? startCap) - startCap)} overall`}
+              value={fmtMoney(simState?.capital)}
+              sub={`${totalReturn >= 0 ? "+" : ""}${fmtMoney((simState?.capital ?? startCap) - startCap)} overall`}
               icon={<DollarSign className="w-3.5 h-3.5" />}
               color={isPositive ? "#34d399" : "#f87171"}
             />
@@ -498,18 +531,18 @@ export default function PerformancePage() {
             />
             <SummaryCard
               label="Monthly Return"
-              value={fmtPct(stats?.profitPerMonth ?? null)}
+              value={fmtPct(monthlyPnl.pct)}
               sub={monthlyIsProjected ? `at current ${runningDays}d rate` : "this calendar month"}
-              icon={(stats?.profitPerMonth ?? 0) >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-              color={(stats?.profitPerMonth ?? 0) >= 0 ? "#34d399" : "#f87171"}
+              icon={monthlyPnl.pct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+              color={monthlyPnl.pct >= 0 ? "#34d399" : "#f87171"}
               badge={monthlyIsProjected ? { text: "Projected", variant: "projected" } : undefined}
             />
             <SummaryCard
               label="Annual Return"
-              value={fmtPct(stats?.profitPerYear ?? null)}
+              value={fmtPct(yearlyPnl.pct)}
               sub={yearlyIsProjected ? `at current ${runningDays}d rate` : "actual 12-month"}
-              icon={(stats?.profitPerYear ?? 0) >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-              color={(stats?.profitPerYear ?? 0) >= 0 ? "#34d399" : "#f87171"}
+              icon={yearlyPnl.pct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+              color={yearlyPnl.pct >= 0 ? "#34d399" : "#f87171"}
               badge={yearlyIsProjected ? { text: "Projected", variant: "projected" } : { text: "Actual", variant: "actual" }}
             />
           </div>

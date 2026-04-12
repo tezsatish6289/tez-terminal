@@ -680,7 +680,7 @@ export default function PerformancePage() {
             </MethodCard>
             <MethodCard icon={Lock} title="Leverage — Controlled, Not Reckless" accent="#a78bfa">
               <Bullet>We use leverage to amplify <strong className="text-white">signal efficiency</strong>, not to chase bigger bets.</Bullet>
-              <Bullet>Leverage is capped. With our position sizing, a stop-loss hit represents a <strong className="text-white">small, defined loss</strong> — not a wipeout.</Bullet>
+              <Bullet>Leverage is capped at <strong className="text-white">10×</strong>. With our 1% position sizing, a stop-loss hit represents a <strong className="text-white">small, defined loss</strong> — not a wipeout.</Bullet>
               <Bullet>The distance from entry to stop loss is always wider than the liquidation price — <strong className="text-white">liquidation cannot happen on a normal SL-triggering move</strong>.</Bullet>
             </MethodCard>
             <MethodCard icon={AlertTriangle} title="Funding Rate Awareness" accent="#fbbf24">

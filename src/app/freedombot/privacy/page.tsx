@@ -195,13 +195,17 @@ export default function PrivacyPage() {
                 <p className="font-semibold mb-2" style={{ color: "#cbd5e1" }}>Waitlist entries (if applicable)</p>
                 <ul className="space-y-1 pl-4">
                   {[
-                    "Name, email, country, and optionally phone — used only to contact you when your requested bot goes live",
+                    "Name, email, and optionally phone — encrypted using AES-256-GCM before storage, identical to how API keys are protected",
+                    "Country and asset type interest — stored unencrypted for aggregate analytics only (not personally identifiable)",
                   ].map((item) => (
                     <li key={item} className="flex gap-2">
                       <span style={{ color: "#60a5fa" }}>·</span> {item}
                     </li>
                   ))}
                 </ul>
+                <p className="mt-2 text-xs" style={{ color: "#64748b" }}>
+                  Decrypted waitlist data is accessible only to verified FreedomBot admins via a token-protected API route. It is used solely to notify you when your requested bot goes live.
+                </p>
               </div>
             </div>
           </Section>
@@ -352,8 +356,9 @@ export default function PrivacyPage() {
           {/* 5. On-chain records */}
           <Section title="5. On-chain trade records and public data" icon={<Shield className="h-5 w-5" />}>
             <P>
-              Every trade our bots close is permanently written to the{" "}
-              <Highlight>Solana blockchain</Highlight>. These records are public, immutable, and
+              Every trade our <Highlight>own system</Highlight> closes is permanently written to the{" "}
+              <Highlight>Solana blockchain</Highlight>. These are records of FreedomBot&apos;s
+              aggregate trading activity — not individual user records. They are public, immutable, and
               verifiable by anyone at{" "}
               <Link href="/records" className="font-semibold hover:text-blue-300 transition-colors" style={{ color: "#60a5fa" }}>
                 freedombot.ai/records
@@ -361,9 +366,12 @@ export default function PrivacyPage() {
             </P>
             <P>
               On-chain records contain: trade direction (long/short), entry and exit prices,
-              profit/loss, and timestamp. They do <Highlight>not</Highlight> contain your identity,
-              your exchange account, your API keys, or any personally identifiable information.
-              On-chain data is aggregated across all users and carries no link back to any individual.
+              profit/loss, and timestamp. They are <Highlight>system-level records only</Highlight> —
+              your personal identity, your exchange account, your API keys, your individual trade
+              history, and any other personally identifiable information are{" "}
+              <Highlight>never written to the blockchain</Highlight>. We deliberately designed it this
+              way to give the public full visibility into our system&apos;s performance while maintaining
+              complete privacy for every individual user.
             </P>
           </Section>
 

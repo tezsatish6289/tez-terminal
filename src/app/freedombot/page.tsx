@@ -1174,6 +1174,13 @@ export default function FreedomBotPage() {
                 About Us
               </Link>
               <Link
+                href="/contact"
+                className="text-sm font-medium transition-colors hover:text-white"
+                style={{ color: "#64748b" }}
+              >
+                Contact
+              </Link>
+              <Link
                 href="/privacy"
                 className="text-sm font-medium transition-colors hover:text-white"
                 style={{ color: "#64748b" }}

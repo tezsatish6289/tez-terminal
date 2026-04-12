@@ -403,8 +403,14 @@ export default function TermsPage() {
 
           {/* 16. Contact */}
           <Section title="16. Contact" icon={<Mail className="h-5 w-5" />}>
-            <P>For questions about these Terms, contact us at:</P>
-            <p className="font-semibold" style={{ color: "#60a5fa" }}>legal@freedombot.ai</p>
+            <P>For questions about these Terms, please use our contact form:</P>
+            <Link
+              href="/contact"
+              className="inline-flex items-center gap-2 font-semibold transition-colors hover:text-blue-300"
+              style={{ color: "#60a5fa" }}
+            >
+              <Mail className="h-4 w-4" /> Contact Us →
+            </Link>
             <P>We aim to respond within 5 business days.</P>
           </Section>
 

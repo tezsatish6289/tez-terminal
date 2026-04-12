@@ -472,9 +472,16 @@ export default function PrivacyPage() {
           {/* 11. Contact */}
           <Section title="11. Contact" icon={<Mail className="h-5 w-5" />}>
             <P>
-              For any privacy-related questions, data requests, or concerns, contact us at:
+              For any privacy-related questions, data requests, or concerns, please use our
+              contact form and mention your request in the message:
             </P>
-            <p className="font-semibold" style={{ color: "#60a5fa" }}>privacy@freedombot.ai</p>
+            <Link
+              href="/contact"
+              className="inline-flex items-center gap-2 font-semibold transition-colors hover:text-blue-300"
+              style={{ color: "#60a5fa" }}
+            >
+              <Mail className="h-4 w-4" /> Contact Us →
+            </Link>
             <P>We aim to respond to all privacy enquiries within 5 business days.</P>
           </Section>
 

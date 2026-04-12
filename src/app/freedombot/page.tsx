@@ -1095,7 +1095,7 @@ export default function FreedomBotPage() {
               },
               {
                 q: "Does FreedomBot charge fees?",
-                a: "Pricing details are shared during onboarding. There are no hidden charges — you'll see a clear breakdown before you deploy. The bot itself incurs standard Bybit trading fees on each trade, which are factored into the performance numbers shown on the Performance page.",
+                a: "Self-deploy is completely free — no upfront fees, no subscription. A PostPay plan (10% of net profit, paid only after you earn) is coming soon. The bot incurs standard Bybit trading fees on each trade, which are already factored into the performance numbers shown on the Performance page.",
               },
             ].map((item, i) => {
               const isOpen = openFaq === i;

@@ -6,40 +6,33 @@ import Link from "next/link";
 import {
   ArrowLeft,
   Rocket,
-  ShieldCheck,
+  Activity,
+  DollarSign,
   TrendingUp,
   TrendingDown,
-  Target,
   BarChart3,
+  Shield,
+  Target,
   Zap,
   Lock,
   AlertTriangle,
   CheckCircle2,
 } from "lucide-react";
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
+  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
+import { format } from "date-fns";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface BotStats {
-  runningDays: number;
-  currentCapital: number;
-  startingCapital: number;
-  totalReturnPct: number | null;
-  profitPerMonth: number | null;
-  profitPerYear: number | null;
-  winRate: number | null;
-  totalTrades: number;
-}
-
-interface Trade {
+interface ApiTrade {
   id: string;
   symbol: string;
   side: "BUY" | "SELL";
@@ -57,140 +50,372 @@ interface Trade {
   closedAt: string | null;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmt(n: number | null, suffix = "%", decimals = 2) {
-  if (n === null || n === undefined) return "—";
-  const sign = n >= 0 ? "+" : "";
-  return `${sign}${n.toFixed(decimals)}${suffix}`;
+interface BotStats {
+  runningDays: number;
+  currentCapital: number;
+  startingCapital: number;
+  totalReturnPct: number | null;
+  profitPerMonth: number | null;
+  profitPerYear: number | null;
+  winRate: number | null;
+  totalTrades: number;
 }
 
-function fmtCapital(n: number | null | undefined) {
-  if (n == null) return "—";
-  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+interface PerfMetrics {
+  sharpeRatio: number;
+  sortinoRatio: number;
+  calmarRatio: number;
+  maxDrawdownPct: number;
+  tradingDays: number;
 }
 
-function computeMetrics(trades: Trade[], startingCapital: number) {
+// ─── Performance calculation ──────────────────────────────────────────────────
+
+function calcMetrics(trades: ApiTrade[], startingCapital: number): PerfMetrics | null {
   const closed = trades
     .filter((t) => t.status === "CLOSED" && t.closedAt)
     .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
 
-  if (closed.length < 3) return null;
+  if (closed.length < 5) return null;
 
-  // Equity curve
+  // Max drawdown
   let capital = startingCapital;
   let peak = startingCapital;
   let maxDrawdown = 0;
-  const curve: { date: string; value: number }[] = [
-    { date: "Start", value: startingCapital }
-  ];
 
-  const dayPnl = new Map<string, number>();
-  const dayCapStart = new Map<string, number>();
+  // Build day→pnl and day→startCap maps for Sharpe/Sortino
+  const dayPnl     = new Map<string, number>();
+  const dayCapital = new Map<string, number>();
   let running = startingCapital;
 
   for (const t of closed) {
     const day = t.closedAt!.slice(0, 10);
-    if (!dayCapStart.has(day)) dayCapStart.set(day, running);
-    dayPnl.set(day, (dayPnl.get(day) ?? 0) + (t.realizedPnl ?? 0));
-    running += t.realizedPnl ?? 0;
-  }
-
-  const sortedDays = Array.from(dayPnl.keys()).sort();
-  for (const day of sortedDays) {
-    capital += dayPnl.get(day) ?? 0;
+    if (!dayCapital.has(day)) dayCapital.set(day, running);
+    const pnl = t.realizedPnl ?? 0;
+    dayPnl.set(day, (dayPnl.get(day) ?? 0) + pnl);
+    running += pnl;
+    capital  = running;
     if (capital > peak) peak = capital;
     const dd = peak > 0 ? (peak - capital) / peak : 0;
     if (dd > maxDrawdown) maxDrawdown = dd;
-    curve.push({
-      date: new Date(day).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      value: Math.round(capital * 100) / 100,
-    });
   }
 
-  // Daily returns for Sharpe / Sortino
-  const dailyReturns: number[] = [];
-  for (const day of sortedDays) {
-    const startCap = dayCapStart.get(day) ?? startingCapital;
-    if (startCap > 0) dailyReturns.push((dayPnl.get(day) ?? 0) / startCap);
-  }
+  const sortedDays = Array.from(dayPnl.keys()).sort();
+  const tradingDays = sortedDays.length;
 
-  const n = dailyReturns.length;
-  if (n < 2) return { curve, maxDrawdownPct: maxDrawdown * 100, sharpe: null, sortino: null, calmar: null };
+  if (tradingDays < 2) return { sharpeRatio: 0, sortinoRatio: 0, calmarRatio: 0, maxDrawdownPct: maxDrawdown * 100, tradingDays };
 
+  // Daily returns
+  const dailyReturns = sortedDays.map((day) => {
+    const startCap = dayCapital.get(day) ?? startingCapital;
+    return startCap > 0 ? (dayPnl.get(day) ?? 0) / startCap : 0;
+  });
+
+  const n    = dailyReturns.length;
   const mean = dailyReturns.reduce((a, r) => a + r, 0) / n;
-  const variance = dailyReturns.reduce((a, r) => a + (r - mean) ** 2, 0) / (n - 1);
-  const std = Math.sqrt(variance);
+  const variance = dailyReturns.reduce((a, r) => a + (r - mean) ** 2, 0) / Math.max(n - 1, 1);
+  const std  = Math.sqrt(variance);
   const SQRT252 = Math.sqrt(252);
 
-  const sharpe = std > 0 ? (mean / std) * SQRT252 : 0;
+  const sharpeRatio = std > 0 ? (mean / std) * SQRT252 : 0;
 
   const downside = dailyReturns.filter((r) => r < 0);
-  const downsideVar = downside.length > 0
-    ? downside.reduce((a, r) => a + r ** 2, 0) / downside.length
-    : 0;
+  const downsideVar = downside.length > 0 ? downside.reduce((a, r) => a + r ** 2, 0) / downside.length : 0;
   const downsideStd = Math.sqrt(downsideVar);
-  const sortino = downsideStd > 0 ? (mean / downsideStd) * SQRT252 : sharpe;
+  const sortinoRatio = downsideStd > 0 ? (mean / downsideStd) * SQRT252 : (sharpeRatio > 0 ? Infinity : 0);
 
-  // Calmar — annualised return / max drawdown
-  const totalReturn = (capital - startingCapital) / startingCapital;
-  const calendarDays = Math.max(1, (new Date(sortedDays[sortedDays.length - 1]).getTime() - new Date(sortedDays[0]).getTime()) / 86_400_000);
-  const annReturn = Math.pow(1 + totalReturn, 365 / calendarDays) - 1;
-  const calmar = maxDrawdown > 0 ? annReturn / maxDrawdown : null;
-
-  // close reason breakdown
-  const tp1Count = closed.filter((t) => t.tp1Hit).length;
-  const tp2Count = closed.filter((t) => t.tp2Hit).length;
-  const tp3Count = closed.filter((t) => t.tp3Hit).length;
-  const slCount  = closed.filter((t) => t.slHit).length;
+  // Calmar
+  const totalReturn  = (capital - startingCapital) / startingCapital;
+  const calDays      = Math.max(1, (new Date(sortedDays[sortedDays.length - 1]).getTime() - new Date(sortedDays[0]).getTime()) / 86_400_000);
+  const annReturn    = Math.pow(1 + totalReturn, 365 / calDays) - 1;
+  const calmarRatio  = maxDrawdown > 0 ? annReturn / maxDrawdown : (annReturn > 0 ? Infinity : 0);
 
   return {
-    curve,
+    sharpeRatio,
+    sortinoRatio: isFinite(sortinoRatio) ? sortinoRatio : sharpeRatio * 1.1,
+    calmarRatio:  isFinite(calmarRatio)  ? calmarRatio  : 99,
     maxDrawdownPct: maxDrawdown * 100,
-    sharpe,
-    sortino,
-    calmar,
-    tp1Count,
-    tp2Count,
-    tp3Count,
-    slCount,
-    closedCount: closed.length,
+    tradingDays,
   };
 }
 
-// ─── Custom chart tooltip ─────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function ChartTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  const val = payload[0].value as number;
+function fmtPct(n: number | null | undefined, dp = 2) {
+  if (n == null) return "—";
+  const sign = n >= 0 ? "+" : "";
+  return `${sign}${n.toFixed(dp)}%`;
+}
+
+function fmtMoney(n: number | null | undefined) {
+  if (n == null) return "—";
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function fmtRatio(n: number, dp = 2) {
+  if (!isFinite(n)) return "∞";
+  const sign = n >= 0 ? "+" : "";
+  return `${sign}${n.toFixed(dp)}`;
+}
+
+// ─── SummaryCard — identical to simulator ─────────────────────────────────────
+
+function SummaryCard({
+  label, value, sub, badge, color, icon,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  badge?: { text: string; variant: "projected" | "actual" | "live" };
+  color: string;
+  icon: React.ReactNode;
+}) {
+  const badgeStyle =
+    badge?.variant === "projected" ? { backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24" } :
+    badge?.variant === "live"      ? { backgroundColor: "rgba(34,197,94,0.15)",  color: "#22c55e" } :
+                                     { backgroundColor: "rgba(255,255,255,0.05)", color: "#64748b" };
+
   return (
-    <div className="rounded-xl px-3 py-2 text-xs font-bold" style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.2)" }}>
-      <p style={{ color: "#475569" }}>{label}</p>
-      <p style={{ color: val >= 1000 ? "#34d399" : "#f87171" }}>{fmtCapital(val)}</p>
+    <div
+      className="rounded-xl p-4 flex flex-col gap-2 transition-colors hover:brightness-110"
+      style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.1)" }}
+    >
+      <div className="flex items-center gap-1.5">
+        <span style={{ color, opacity: 0.6 }}>{icon}</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "#334155" }}>{label}</span>
+      </div>
+      <div className="text-2xl font-black tabular-nums leading-none" style={{ color }}>{value}</div>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {sub && <span className="text-[10px]" style={{ color: "#475569" }}>{sub}</span>}
+        {badge && (
+          <span
+            className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+            style={badgeStyle}
+          >
+            {badge.text}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
 
-// ─── Section components ───────────────────────────────────────────────────────
+// ─── MetricTile — identical to simulator ─────────────────────────────────────
 
-function RatioCard({ label, value, desc, color }: { label: string; value: string; desc: string; color: string }) {
+function MetricTile({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
   return (
-    <div className="rounded-2xl p-5 flex flex-col" style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.1)" }}>
-      <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "#334155" }}>{label}</p>
-      <p className="text-3xl font-black mb-2" style={{ color }}>{value}</p>
-      <p className="text-xs leading-relaxed mt-auto" style={{ color: "#475569" }}>{desc}</p>
+    <div
+      className="flex flex-col gap-1 px-4 py-3 rounded-lg"
+      style={{ backgroundColor: "rgba(255,255,255,0.02)", border: "1px solid rgba(90,140,220,0.08)" }}
+    >
+      <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#334155" }}>{label}</span>
+      <span className="text-xl font-mono font-bold" style={{ color }}>{value}</span>
+      {sub && <span className="text-[10px]" style={{ color: "#334155" }}>{sub}</span>}
     </div>
   );
 }
+
+// ─── PerformanceMetricsPanel — identical layout to simulator ──────────────────
+
+function PerformanceMetricsPanel({ metrics }: { metrics: PerfMetrics | null }) {
+  if (!metrics) return null;
+
+  const ratioColor = (n: number) =>
+    !isFinite(n) || n >= 1.5 ? "#34d399" : n >= 0.5 ? "#fbbf24" : "#f87171";
+
+  return (
+    <div
+      className="rounded-lg p-4 flex flex-col gap-3 h-full"
+      style={{ backgroundColor: "rgba(255,255,255,0.02)", border: "1px solid rgba(90,140,220,0.08)" }}
+    >
+      <div className="flex items-center justify-between flex-wrap gap-1">
+        <div className="flex items-center gap-2">
+          <Shield className="w-4 h-4" style={{ color: "#60a5fa" }} />
+          <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "#475569" }}>Performance</span>
+        </div>
+        <span className="text-[9px]" style={{ color: "#334155" }}>{metrics.tradingDays}d · annualised</span>
+      </div>
+
+      <div className="flex flex-col gap-2 flex-1">
+        <MetricTile label="Sharpe Ratio" value={fmtRatio(metrics.sharpeRatio)} sub="Higher › 1 is good" color={ratioColor(metrics.sharpeRatio)} />
+        <MetricTile label="Sortino Ratio" value={fmtRatio(metrics.sortinoRatio)} sub="Downside-adjusted" color={ratioColor(metrics.sortinoRatio)} />
+        <MetricTile label="Calmar Ratio" value={fmtRatio(metrics.calmarRatio)} sub="Return / Max DD" color={ratioColor(metrics.calmarRatio)} />
+        <MetricTile
+          label="Max Drawdown"
+          value={`-${metrics.maxDrawdownPct.toFixed(2)}%`}
+          sub="Peak-to-trough (closed)"
+          color={metrics.maxDrawdownPct < 15 ? "#34d399" : metrics.maxDrawdownPct < 30 ? "#fbbf24" : "#f87171"}
+        />
+      </div>
+
+      <p className="text-[10px] leading-relaxed" style={{ color: "#1e3a5f" }}>
+        Based on <span style={{ color: "#334155", fontWeight: 600 }}>closed trades only</span>. Ratios are annualised. Risk-free: 0% (crypto).
+      </p>
+    </div>
+  );
+}
+
+// ─── EquityCurve — identical layout to simulator ──────────────────────────────
+
+type ChartView = "trade" | "day";
+
+function EquityCurve({ trades, startingCapital }: { trades: ApiTrade[]; startingCapital: number }) {
+  const [view, setView] = useState<ChartView>("trade");
+
+  const closed = useMemo(
+    () => trades
+      .filter((t) => t.status === "CLOSED" && t.closedAt)
+      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime()),
+    [trades]
+  );
+
+  const tradeData = useMemo(() => {
+    if (!closed.length) return [];
+    const pts: { x: number | string; value: number; tooltip: string }[] = [
+      { x: 0, value: startingCapital, tooltip: "Start" },
+    ];
+    let running = startingCapital;
+    closed.forEach((t, i) => {
+      running += t.realizedPnl ?? 0;
+      pts.push({
+        x: i + 1,
+        value: parseFloat(running.toFixed(2)),
+        tooltip: `${t.symbol} · ${format(new Date(t.closedAt!), "MMM dd HH:mm")}`,
+      });
+    });
+    return pts;
+  }, [closed, startingCapital]);
+
+  const dayData = useMemo(() => {
+    if (!closed.length) return [];
+    const dayCapital = new Map<string, number>();
+    let running = startingCapital;
+    for (const t of closed) {
+      running += t.realizedPnl ?? 0;
+      dayCapital.set(t.closedAt!.slice(0, 10), parseFloat(running.toFixed(2)));
+    }
+    const pts: { x: string; value: number; tooltip: string }[] = [
+      { x: "Start", value: startingCapital, tooltip: "Starting capital" },
+    ];
+    for (const [day, capital] of dayCapital) {
+      pts.push({ x: format(new Date(day), "MMM dd"), value: capital, tooltip: day });
+    }
+    return pts;
+  }, [closed, startingCapital]);
+
+  if (closed.length < 2) return null;
+
+  const chartData  = view === "trade" ? tradeData : dayData;
+  const lastVal    = chartData[chartData.length - 1]?.value ?? startingCapital;
+  const isPositive = lastVal >= startingCapital;
+  const chartColor = isPositive ? "#34d399" : "#f87171";
+  const yMin = Math.floor(Math.min(...chartData.map((d) => d.value)) * 0.995);
+  const yMax = Math.ceil(Math.max(...chartData.map((d) => d.value)) * 1.005);
+
+  return (
+    <div
+      className="rounded-lg p-4 space-y-3"
+      style={{ backgroundColor: "rgba(255,255,255,0.02)", border: "1px solid rgba(90,140,220,0.08)" }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="w-4 h-4" style={{ color: "#60a5fa" }} />
+          <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "#475569" }}>Fund Value</span>
+        </div>
+        <div className="flex items-center gap-0.5 rounded-md p-0.5" style={{ backgroundColor: "rgba(255,255,255,0.04)" }}>
+          {(["trade", "day"] as ChartView[]).map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className="px-2.5 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all"
+              style={view === v
+                ? { backgroundColor: "rgba(96,165,250,0.2)", color: "#60a5fa" }
+                : { color: "#334155" }
+              }
+            >
+              {v === "trade" ? "Tradewise" : "Daywise"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Chart */}
+      <div className="h-[340px] sm:h-[440px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="fbEquityGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor={chartColor} stopOpacity={0.3} />
+                <stop offset="95%" stopColor={chartColor} stopOpacity={0}   />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(90,140,220,0.06)" />
+            <XAxis
+              dataKey="x"
+              tick={{ fontSize: 9, fill: "rgba(90,140,220,0.45)" }}
+              tickLine={false}
+              axisLine={{ stroke: "rgba(90,140,220,0.08)" }}
+            />
+            <YAxis
+              domain={[yMin, yMax]}
+              tick={{ fontSize: 9, fill: "rgba(90,140,220,0.45)" }}
+              tickLine={false}
+              axisLine={{ stroke: "rgba(90,140,220,0.08)" }}
+              tickFormatter={(v: number) => `$${v.toFixed(0)}`}
+              width={55}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "#0a1628",
+                border: "1px solid rgba(90,140,220,0.2)",
+                borderRadius: "8px",
+                fontSize: "11px",
+              }}
+              labelFormatter={(v) => view === "trade" ? (v === 0 ? "Start" : `Trade #${v}`) : String(v)}
+              formatter={(value: number, _name: string, props: any) => [
+                fmtMoney(value),
+                props.payload.tooltip,
+              ]}
+            />
+            <ReferenceLine
+              y={startingCapital}
+              stroke="rgba(90,140,220,0.15)"
+              strokeDasharray="4 4"
+              label={{ value: fmtMoney(startingCapital), position: "right", fontSize: 9, fill: "rgba(90,140,220,0.35)" }}
+            />
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke={chartColor}
+              strokeWidth={2}
+              fill="url(#fbEquityGradient)"
+              dot={false}
+              activeDot={{ r: 4, fill: chartColor, stroke: "#080f1e", strokeWidth: 2 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+// ─── Methodology section components ──────────────────────────────────────────
 
 function MethodCard({ icon: Icon, title, children, accent = "#3b82f6" }: {
   icon: React.ElementType; title: string; children: React.ReactNode; accent?: string;
 }) {
   return (
-    <div className="rounded-2xl p-6" style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.1)" }}>
+    <div
+      className="rounded-2xl p-6"
+      style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.1)" }}
+    >
       <div className="flex items-center gap-3 mb-4">
-        <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${accent}15`, border: `1px solid ${accent}25` }}>
-          <Icon className="h-4.5 w-4.5" style={{ color: accent }} />
+        <div
+          className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: `${accent}15`, border: `1px solid ${accent}25` }}
+        >
+          <Icon className="h-[18px] w-[18px]" style={{ color: accent }} />
         </div>
         <h3 className="text-sm font-black text-white">{title}</h3>
       </div>
@@ -213,8 +438,8 @@ function Bullet({ children }: { children: React.ReactNode }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PerformancePage() {
-  const [stats, setStats] = useState<BotStats | null>(null);
-  const [trades, setTrades] = useState<Trade[]>([]);
+  const [stats,  setStats]  = useState<BotStats | null>(null);
+  const [trades, setTrades] = useState<ApiTrade[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -223,16 +448,29 @@ export default function PerformancePage() {
       fetch("/api/freedombot/trades").then((r) => r.json()),
     ]).then(([s, t]) => {
       if (s && !s.error) setStats(s);
-      if (t?.trades) setTrades(t.trades);
+      if (t?.trades)     setTrades(t.trades);
     }).finally(() => setLoading(false));
   }, []);
 
   const metrics = useMemo(
-    () => (trades.length > 0 && stats?.startingCapital ? computeMetrics(trades, stats.startingCapital) : null),
+    () => (trades.length > 0 && stats?.startingCapital ? calcMetrics(trades, stats.startingCapital) : null),
     [trades, stats]
   );
 
-  const startCapital = stats?.startingCapital ?? 1000;
+  const closedTrades = useMemo(
+    () => trades.filter((t) => t.status === "CLOSED" && t.closedAt),
+    [trades]
+  );
+
+  const startCap   = stats?.startingCapital ?? 1000;
+  const totalReturn = stats && stats.startingCapital > 0
+    ? ((stats.currentCapital - stats.startingCapital) / stats.startingCapital) * 100
+    : 0;
+  const runningDays = stats?.runningDays ?? 0;
+  const isPositive  = totalReturn >= 0;
+
+  const monthlyIsProjected = (stats?.runningDays ?? 0) < 30;
+  const yearlyIsProjected  = (stats?.runningDays ?? 0) < 365;
 
   return (
     <div className="min-h-screen font-sans antialiased" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
@@ -242,7 +480,7 @@ export default function PerformancePage() {
         className="sticky top-0 z-40 border-b"
         style={{ backgroundColor: "rgba(8,15,30,0.92)", borderColor: "rgba(90,140,220,0.12)", backdropFilter: "blur(16px)" }}
       >
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
           <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
             <Image src="/freedombot/icon.png" alt="FreedomBot.ai" width={32} height={32} className="rounded-xl object-contain" />
             <span className="font-black text-lg tracking-tight" style={{ color: "#60a5fa" }}>FreedomBot.ai</span>
@@ -255,270 +493,167 @@ export default function PerformancePage() {
         </div>
       </nav>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-12 sm:py-16 space-y-16">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
 
-        {/* ══ HEADER ══════════════════════════════════════════════════════════ */}
-        <div className="text-center max-w-2xl mx-auto">
-          <div
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-6"
-            style={{ backgroundColor: "rgba(37,99,235,0.1)", border: "1px solid rgba(96,165,250,0.2)", color: "#93c5fd" }}
-          >
-            <BarChart3 className="h-3.5 w-3.5" /> Live Performance
-          </div>
-          <h1 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4">
-            Transparent by{" "}
-            <span className="bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(135deg, #3b82f6, #93c5fd)" }}>
-              design
-            </span>
-          </h1>
-          <p className="text-base sm:text-lg leading-relaxed" style={{ color: "#64748b" }}>
-            Real capital. Real trades. Every number on this page is live — pulled directly from our trading system, not a backtest.
-          </p>
-        </div>
-
-        {/* ══ LIVE METRICS ════════════════════════════════════════════════════ */}
-        <section>
-          <h2 className="text-xs font-bold uppercase tracking-widest mb-5" style={{ color: "#334155" }}>Live Performance</h2>
-          {loading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="rounded-2xl p-5 animate-pulse" style={{ backgroundColor: "#0a1628", height: 80 }} />
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {[
-                { label: "Running",        value: stats ? `${stats.runningDays} Days` : "—",   color: "#f0f4ff" },
-                { label: "Start Capital",  value: fmtCapital(stats?.startingCapital),            color: "#f0f4ff" },
-                { label: "Current Capital",value: fmtCapital(stats?.currentCapital),             color: "#60a5fa" },
-                { label: "Total Return",   value: fmt(stats?.totalReturnPct ?? null),             color: (stats?.totalReturnPct ?? 0) >= 0 ? "#34d399" : "#f87171" },
-                { label: "Monthly Return", value: fmt(stats?.profitPerMonth ?? null), sub: "Proj.", color: "#60a5fa" },
-                { label: "Annual Return",  value: fmt(stats?.profitPerYear ?? null),  sub: "Proj.", color: "#a78bfa" },
-              ].map((s) => (
-                <div key={s.label} className="rounded-2xl p-4 text-center" style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.1)" }}>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "#334155" }}>{s.label}</p>
-                  <p className="text-base sm:text-lg font-black" style={{ color: s.color }}>{s.value}</p>
-                  {"sub" in s && s.sub && (
-                    <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded mt-1 inline-block" style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24" }}>
-                      {s.sub}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
-            {[
-              { label: "Total Trades",   value: stats?.totalTrades?.toString() ?? "—",                    color: "#f0f4ff" },
-              { label: "Win Rate",       value: stats?.winRate != null ? `${stats.winRate}%` : "—",        color: "#34d399" },
-              { label: "Max Drawdown",   value: metrics ? fmt(-metrics.maxDrawdownPct) : "—",              color: "#f87171" },
-              { label: "SL Triggered",  value: metrics && metrics.closedCount > 0 ? `${Math.round((metrics.slCount / metrics.closedCount) * 100)}%` : "—", color: "#fbbf24" },
-            ].map((s) => (
-              <div key={s.label} className="rounded-2xl p-4 text-center" style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.1)" }}>
-                <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "#334155" }}>{s.label}</p>
-                <p className="text-xl font-black" style={{ color: s.color }}>{s.value}</p>
-              </div>
+        {/* ── Stats Cards — same grid as simulator ── */}
+        {loading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-xl animate-pulse h-[100px]" style={{ backgroundColor: "#0a1628" }} />
             ))}
           </div>
-        </section>
-
-        {/* ══ EQUITY CURVE ════════════════════════════════════════════════════ */}
-        <section>
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-xs font-bold uppercase tracking-widest" style={{ color: "#334155" }}>Fund Value Over Time</h2>
-            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#334155" }}>
-              Starting {fmtCapital(startCapital)}
-            </span>
-          </div>
-          <div className="rounded-2xl p-4 sm:p-6" style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.1)" }}>
-            {loading || !metrics?.curve?.length ? (
-              <div className="h-56 flex items-center justify-center" style={{ color: "#334155" }}>
-                {loading ? "Loading chart…" : "Not enough data yet"}
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={metrics.curve} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fill: "#334155", fontSize: 10 }}
-                    tickLine={false}
-                    axisLine={false}
-                    interval="preserveStartEnd"
-                  />
-                  <YAxis
-                    tick={{ fill: "#334155", fontSize: 10 }}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(v) => `$${v}`}
-                    domain={["auto", "auto"]}
-                    width={55}
-                  />
-                  <Tooltip content={<ChartTooltip />} />
-                  <ReferenceLine y={startCapital} stroke="rgba(90,140,220,0.15)" strokeDasharray="4 4" />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke="#34d399"
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4, fill: "#34d399", strokeWidth: 0 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-          <p className="text-[11px] mt-3" style={{ color: "#1e3a5f" }}>
-            Based on closed trades only. Each data point represents end-of-day fund value. Live and open positions are not included.
-          </p>
-        </section>
-
-        {/* ══ RISK-ADJUSTED RATIOS ════════════════════════════════════════════ */}
-        <section>
-          <h2 className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#334155" }}>Risk-Adjusted Performance</h2>
-          <p className="text-sm mb-5" style={{ color: "#475569" }}>
-            Raw returns are easy to fake with leverage. Risk-adjusted ratios tell you how efficiently capital is being deployed.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <RatioCard
-              label="Sharpe Ratio"
-              value={metrics?.sharpe != null ? `+${metrics.sharpe.toFixed(2)}` : "—"}
-              color="#60a5fa"
-              desc="Return per unit of total risk. Above 1 is good; above 2 is excellent. We target > 2."
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <SummaryCard
+              label="Running"
+              value={`${runningDays} Day${runningDays !== 1 ? "s" : ""}`}
+              sub="live bot active"
+              icon={<Activity className="w-3.5 h-3.5" />}
+              color="#94a3b8"
+              badge={{ text: "Live", variant: "live" }}
             />
-            <RatioCard
-              label="Sortino Ratio"
-              value={metrics?.sortino != null ? `+${metrics.sortino.toFixed(2)}` : "—"}
-              color="#a78bfa"
-              desc="Like Sharpe but penalises only downside volatility — the risk that actually matters."
+            <SummaryCard
+              label="Starting Capital"
+              value={fmtMoney(stats?.startingCapital)}
+              sub="initial investment"
+              icon={<DollarSign className="w-3.5 h-3.5" />}
+              color="#94a3b8"
             />
-            <RatioCard
-              label="Calmar Ratio"
-              value={metrics?.calmar != null ? `+${metrics.calmar.toFixed(2)}` : "—"}
-              color="#34d399"
-              desc="Annualised return divided by max drawdown. Higher means better recovery from the worst dip."
+            <SummaryCard
+              label="Current Capital"
+              value={fmtMoney(stats?.currentCapital)}
+              sub={`${totalReturn >= 0 ? "+" : ""}${fmtMoney((stats?.currentCapital ?? startCap) - startCap)} overall`}
+              icon={<DollarSign className="w-3.5 h-3.5" />}
+              color={isPositive ? "#34d399" : "#f87171"}
             />
-            <RatioCard
-              label="Max Drawdown"
-              value={metrics?.maxDrawdownPct != null ? fmt(-metrics.maxDrawdownPct) : "—"}
-              color="#f87171"
-              desc="The largest peak-to-trough decline in fund value. Lower is better — this is your worst-case scenario."
+            <SummaryCard
+              label="Total Return"
+              value={fmtPct(totalReturn)}
+              sub={`across ${runningDays} day${runningDays !== 1 ? "s" : ""}`}
+              icon={isPositive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+              color={isPositive ? "#34d399" : "#f87171"}
+            />
+            <SummaryCard
+              label="Monthly Return"
+              value={fmtPct(stats?.profitPerMonth ?? null)}
+              sub={monthlyIsProjected ? `at current ${runningDays}d rate` : "this calendar month"}
+              icon={(stats?.profitPerMonth ?? 0) >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+              color={(stats?.profitPerMonth ?? 0) >= 0 ? "#34d399" : "#f87171"}
+              badge={monthlyIsProjected ? { text: "Projected", variant: "projected" } : undefined}
+            />
+            <SummaryCard
+              label="Annual Return"
+              value={fmtPct(stats?.profitPerYear ?? null)}
+              sub={yearlyIsProjected ? `at current ${runningDays}d rate` : "actual 12-month"}
+              icon={(stats?.profitPerYear ?? 0) >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+              color={(stats?.profitPerYear ?? 0) >= 0 ? "#34d399" : "#f87171"}
+              badge={yearlyIsProjected ? { text: "Projected", variant: "projected" } : { text: "Actual", variant: "actual" }}
             />
           </div>
-        </section>
+        )}
 
-        {/* ══ HOW WE EXECUTE ══════════════════════════════════════════════════ */}
-        <section>
-          <h2 className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#334155" }}>How We Execute Trades</h2>
-          <p className="text-sm mb-6" style={{ color: "#475569" }}>
-            Every trade follows a strict, rule-based playbook. No improvisation. No emotions.
-          </p>
-          <div className="grid sm:grid-cols-2 gap-4">
+        {/* ── Chart + Performance Panel — same side-by-side as simulator ── */}
+        {!loading && closedTrades.length >= 2 && (
+          <div className="flex flex-col lg:flex-row gap-3 items-stretch">
+            <div className="flex-1 min-w-0">
+              <EquityCurve trades={trades} startingCapital={startCap} />
+            </div>
+            <div className="lg:w-72 xl:w-80 shrink-0 flex flex-col">
+              <PerformanceMetricsPanel metrics={metrics} />
+            </div>
+          </div>
+        )}
 
+        {/* ── Divider ── */}
+        <div className="border-t pt-10" style={{ borderColor: "rgba(90,140,220,0.08)" }}>
+          <div className="text-center mb-10">
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tighter mb-3">
+              How it{" "}
+              <span className="bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(135deg, #3b82f6, #93c5fd)" }}>
+                works
+              </span>
+            </h2>
+            <p className="text-sm" style={{ color: "#64748b" }}>
+              Every trade follows a strict, rule-based playbook. No improvisation. No emotions.
+            </p>
+          </div>
+
+          {/* Trade execution */}
+          <h3 className="text-[10px] font-bold uppercase tracking-widest mb-4" style={{ color: "#334155" }}>Trade Execution</h3>
+          <div className="grid sm:grid-cols-2 gap-4 mb-10">
             <MethodCard icon={Target} title="Stop Loss — Capital Protection First" accent="#f87171">
               <Bullet>Every position has a Stop Loss set <strong className="text-white">at the moment of entry</strong> — no exceptions.</Bullet>
               <Bullet>SL is placed at a technically significant level, not an arbitrary percentage, so it reflects genuine market structure.</Bullet>
               <Bullet>If SL is triggered, the position is fully closed and capital is preserved for the next opportunity.</Bullet>
             </MethodCard>
-
             <MethodCard icon={TrendingUp} title="Trailing Stop Loss — Lock In Gains" accent="#34d399">
-              <Bullet>Once a trade moves in our favour past a defined threshold, the SL automatically trails the price.</Bullet>
+              <Bullet>Once a trade moves in our favour past a defined threshold, the SL automatically <strong className="text-white">trails the price</strong>.</Bullet>
               <Bullet>This locks in profit progressively — you can never give back more than a small portion of an open gain.</Bullet>
               <Bullet>Trailing is based on market structure, not a fixed trailing distance, so it adapts to volatility.</Bullet>
             </MethodCard>
-
             <MethodCard icon={Zap} title="Partial Profit Booking (TP1 & TP2)" accent="#fbbf24">
               <Bullet><strong className="text-white">TP1</strong> closes roughly <strong className="text-white">40% of the position</strong> at the first target — locking in guaranteed profit early.</Bullet>
               <Bullet><strong className="text-white">TP2</strong> closes another <strong className="text-white">40%</strong> at a deeper target as momentum continues.</Bullet>
               <Bullet>After TP1 hits, the SL is moved to breakeven — making the remaining position <strong className="text-white">risk-free</strong>.</Bullet>
-              {metrics && metrics.tp1Count > 0 && (
-                <Bullet>
-                  In our live run, TP1 was hit in <strong className="text-white">{metrics.tp1Count} trades</strong>
-                  {metrics.tp2Count > 0 && `, TP2 in ${metrics.tp2Count}`}.
-                </Bullet>
-              )}
             </MethodCard>
-
             <MethodCard icon={CheckCircle2} title="Full Profit Booking (TP3)" accent="#60a5fa">
               <Bullet><strong className="text-white">TP3</strong> exits the final <strong className="text-white">20%</strong> of the position at the maximum target.</Bullet>
               <Bullet>This is the &quot;let the winners run&quot; portion — giving the trade room to capture the full move.</Bullet>
               <Bullet>If TP3 is not reached, the trailing SL eventually closes this slice at a still-profitable level.</Bullet>
-              {metrics && metrics.tp3Count > 0 && (
-                <Bullet>TP3 (full target) hit in <strong className="text-white">{metrics.tp3Count} trades</strong> in our live run.</Bullet>
-              )}
             </MethodCard>
           </div>
-        </section>
 
-        {/* ══ RISK MANAGEMENT ═════════════════════════════════════════════════ */}
-        <section>
-          <h2 className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#334155" }}>Risk Management</h2>
-          <p className="text-sm mb-6" style={{ color: "#475569" }}>
-            Protecting your capital is the first job. Growth is second.
-          </p>
-          <div className="grid sm:grid-cols-2 gap-4">
-
-            <MethodCard icon={ShieldCheck} title="Position Sizing — Never Risk the House" accent="#34d399">
+          {/* Risk management */}
+          <h3 className="text-[10px] font-bold uppercase tracking-widest mb-4" style={{ color: "#334155" }}>Risk Management</h3>
+          <div className="grid sm:grid-cols-2 gap-4 mb-10">
+            <MethodCard icon={Shield} title="Position Sizing — Never Risk the House" accent="#34d399">
               <Bullet>Each trade risks a <strong className="text-white">fixed percentage of current capital</strong>, not a fixed dollar amount.</Bullet>
               <Bullet>As your capital grows, position sizes grow proportionally — compounding gains automatically.</Bullet>
               <Bullet>As capital contracts, sizes shrink — protecting against a bad streak wiping out the account.</Bullet>
             </MethodCard>
-
             <MethodCard icon={Lock} title="Leverage — Controlled, Not Reckless" accent="#a78bfa">
               <Bullet>We use leverage to amplify <strong className="text-white">signal efficiency</strong>, not to chase bigger bets.</Bullet>
               <Bullet>Leverage is capped. With our position sizing, a stop-loss hit represents a <strong className="text-white">small, defined loss</strong> — not a wipeout.</Bullet>
               <Bullet>The distance from entry to stop loss is always wider than the liquidation price — <strong className="text-white">liquidation cannot happen on a normal SL-triggering move</strong>.</Bullet>
             </MethodCard>
-
             <MethodCard icon={AlertTriangle} title="Funding Rate Awareness" accent="#fbbf24">
               <Bullet>In perpetual futures, open positions pay or receive <strong className="text-white">funding every 8 hours</strong>.</Bullet>
-              <Bullet>We monitor funding rates in real time. When funding becomes extreme (very positive or very negative), it signals an overcrowded trade — a potential reversal.</Bullet>
+              <Bullet>We monitor funding rates in real time. When funding becomes extreme, it signals an overcrowded trade — a potential reversal.</Bullet>
               <Bullet>High funding on a long = we avoid adding. Extremely negative funding = we look for long entries, not shorts.</Bullet>
             </MethodCard>
-
             <MethodCard icon={TrendingDown} title="Liquidation Protection" accent="#f87171">
-              <Bullet>Liquidation happens when losses consume your margin. Our position sizing ensures the SL is always triggered <strong className="text-white">long before</strong> the liquidation price is reached.</Bullet>
-              <Bullet>We do not use cross-margin (where all capital is at risk). Each trade&apos;s risk is isolated.</Bullet>
-              <Bullet>In the event of a flash crash (price gap past the SL), the position is closed at the next available price — but liquidation risk is structurally eliminated by design.</Bullet>
+              <Bullet>Our position sizing ensures the SL is always triggered <strong className="text-white">long before</strong> the liquidation price is reached.</Bullet>
+              <Bullet>We do not use cross-margin. Each trade&apos;s risk is isolated.</Bullet>
+              <Bullet>In the event of a flash crash, the position closes at the next available price — but liquidation risk is <strong className="text-white">structurally eliminated by design</strong>.</Bullet>
             </MethodCard>
           </div>
-        </section>
 
-        {/* ══ MARKET INTELLIGENCE ═════════════════════════════════════════════ */}
-        <section>
-          <h2 className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "#334155" }}>Market Intelligence</h2>
-          <p className="text-sm mb-6" style={{ color: "#475569" }}>
-            We don&apos;t just react to price. We read the market&apos;s structure and intent.
-          </p>
-          <div className="grid sm:grid-cols-3 gap-4">
-
+          {/* Market intelligence */}
+          <h3 className="text-[10px] font-bold uppercase tracking-widest mb-4" style={{ color: "#334155" }}>Market Intelligence</h3>
+          <div className="grid sm:grid-cols-3 gap-4 mb-10">
             <MethodCard icon={BarChart3} title="Order Blocks" accent="#60a5fa">
-              <Bullet>Order blocks are price zones where large institutional orders were previously filled — leaving a footprint in price action.</Bullet>
-              <Bullet>Price often returns to these zones to &quot;retest&quot; them. We use order blocks to identify <strong className="text-white">high-probability entry zones</strong> and <strong className="text-white">stop-loss placement levels</strong>.</Bullet>
-              <Bullet>Entering at an order block means a tighter SL to a nearby invalidation point — better risk-reward on every trade.</Bullet>
+              <Bullet>Order blocks are zones where large institutional orders were previously filled, leaving a footprint in price action.</Bullet>
+              <Bullet>Price often returns to these zones to retest them. We use order blocks to identify <strong className="text-white">high-probability entry zones</strong>.</Bullet>
+              <Bullet>Entering at an order block means a tighter SL — better risk-reward on every trade.</Bullet>
             </MethodCard>
-
             <MethodCard icon={Zap} title="Liquidation Heatmaps" accent="#fbbf24">
-              <Bullet>Exchanges track where leveraged positions will be force-closed. This creates <strong className="text-white">liquidity clusters</strong> at predictable price levels.</Bullet>
-              <Bullet>Large players often push price into these zones to trigger liquidations and fill their own orders at better prices.</Bullet>
-              <Bullet>We map these zones in advance, avoiding placing stops at obvious liquidation clusters and using heatmap data as a confluence signal.</Bullet>
+              <Bullet>Exchanges track where leveraged positions will be force-closed, creating <strong className="text-white">liquidity clusters</strong> at predictable price levels.</Bullet>
+              <Bullet>Large players push price into these zones to trigger liquidations and fill their own orders.</Bullet>
+              <Bullet>We map these zones in advance, avoiding obvious liquidation cluster stops.</Bullet>
             </MethodCard>
-
             <MethodCard icon={TrendingUp} title="Funding Rate Signals" accent="#34d399">
-              <Bullet>Funding rate is a real-time measure of market sentiment. When everyone is long and paying high funding, the crowd is likely wrong.</Bullet>
+              <Bullet>Funding rate is a real-time measure of sentiment. Extreme funding = the crowd is likely wrong.</Bullet>
               <Bullet>We use extreme funding readings as a <strong className="text-white">contrarian filter</strong> — avoiding trades that align with an overly crowded side.</Bullet>
-              <Bullet>Normal or negative funding supports long bias. Extreme positive funding signals caution on longs and potential short opportunity.</Bullet>
+              <Bullet>Normal or negative funding supports long bias. Extreme positive funding signals caution.</Bullet>
             </MethodCard>
           </div>
-        </section>
 
-        {/* ══ WHAT WE DON'T SHARE ════════════════════════════════════════════ */}
-        <section>
+          {/* What we don't publish */}
           <div
-            className="rounded-2xl p-6 sm:p-8"
+            className="rounded-2xl p-5 sm:p-7 mb-10"
             style={{ backgroundColor: "rgba(37,99,235,0.04)", border: "1px solid rgba(96,165,250,0.12)" }}
           >
-            <h2 className="text-base font-black text-white mb-3">What we don&apos;t publish</h2>
+            <h3 className="text-sm font-black text-white mb-2">What we don&apos;t publish</h3>
             <p className="text-sm leading-relaxed" style={{ color: "#475569" }}>
               The specific signal logic — which indicators, which thresholds, which combinations trigger an entry — is our core IP.
               Publishing it would let anyone replicate (and front-run) the strategy, degrading performance for all users.
@@ -526,29 +661,29 @@ export default function PerformancePage() {
               how risk is managed, what the real numbers look like, and exactly what the system does when things go right or wrong.
             </p>
           </div>
-        </section>
 
-        {/* ══ CTA ═════════════════════════════════════════════════════════════ */}
-        <section className="text-center pb-8">
-          <p className="text-sm mb-6" style={{ color: "#475569" }}>Ready to let FreedomBot trade for you?</p>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2.5 h-14 px-10 rounded-2xl font-bold text-base text-white transition-all hover:scale-105"
-            style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)", boxShadow: "0 8px 30px rgba(59,130,246,0.35)" }}
-          >
-            <Rocket className="h-5 w-5" />
-            Deploy Your Bot
-          </Link>
-          <p className="text-xs mt-4" style={{ color: "#334155" }}>
-            Takes less than 5 minutes · No withdrawal access required · Free to start
-          </p>
-        </section>
+          {/* CTA */}
+          <div className="text-center pb-8">
+            <p className="text-sm mb-5" style={{ color: "#475569" }}>Ready to let FreedomBot trade for you?</p>
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2.5 h-14 px-10 rounded-2xl font-bold text-base text-white transition-all hover:scale-105"
+              style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)", boxShadow: "0 8px 30px rgba(59,130,246,0.35)" }}
+            >
+              <Rocket className="h-5 w-5" />
+              Deploy Your Bot
+            </Link>
+            <p className="text-xs mt-4" style={{ color: "#334155" }}>
+              Takes less than 5 minutes · No withdrawal access required · Free to start
+            </p>
+          </div>
+        </div>
 
       </main>
 
-      {/* ── Footer ── */}
+      {/* Footer */}
       <footer className="py-8 border-t" style={{ borderColor: "rgba(90,140,220,0.08)" }}>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-70">
             <Image src="/freedombot/icon.png" alt="FreedomBot.ai" width={24} height={24} className="rounded-lg object-contain" />
             <span className="text-xs font-bold" style={{ color: "#334155" }}>freedombot.ai</span>
@@ -558,7 +693,6 @@ export default function PerformancePage() {
           </p>
         </div>
       </footer>
-
     </div>
   );
 }

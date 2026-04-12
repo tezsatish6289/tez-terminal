@@ -673,9 +673,10 @@ export default function PerformancePage() {
           <h3 className="text-[10px] font-bold uppercase tracking-widest mb-4" style={{ color: "#334155" }}>Risk Management</h3>
           <div className="grid sm:grid-cols-2 gap-4 mb-10">
             <MethodCard icon={Shield} title="Position Sizing — Never Risk the House" accent="#34d399">
-              <Bullet>Each trade risks a <strong className="text-white">fixed percentage of current capital</strong>, not a fixed dollar amount.</Bullet>
-              <Bullet>As your capital grows, position sizes grow proportionally — compounding gains automatically.</Bullet>
-              <Bullet>As capital contracts, sizes shrink — protecting against a bad streak wiping out the account.</Bullet>
+              <Bullet>Each trade risks <strong className="text-white">1% of current capital</strong> by default. During a confirmed win streak, this steps up to <strong className="text-white">1.5%</strong> — still small, just leaning into momentum.</Bullet>
+              <Bullet>Because we use compounding risk (% of current balance, not a fixed dollar), position sizes automatically shrink as capital dips and grow as it rises.</Bullet>
+              <Bullet>At 1% risk per trade, it would take roughly <strong className="text-white">460 consecutive losses</strong> to approach zero — a scenario that has never come close to occurring. Even after 100 straight losses, capital would still be ~36% intact.</Bullet>
+              <Bullet>Every drawdown in our history has recovered. The math is designed so that <strong className="text-white">staying committed</strong> is the most powerful edge a user has — though past behaviour is not a promise of future outcomes.</Bullet>
             </MethodCard>
             <MethodCard icon={Lock} title="Leverage — Controlled, Not Reckless" accent="#a78bfa">
               <Bullet>We use leverage to amplify <strong className="text-white">signal efficiency</strong>, not to chase bigger bets.</Bullet>

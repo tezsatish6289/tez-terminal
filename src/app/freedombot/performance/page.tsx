@@ -512,6 +512,14 @@ export default function PerformancePage() {
           <p className="text-sm sm:text-base max-w-xl mx-auto leading-relaxed" style={{ color: "#64748b" }}>
             Real data. Real trades. Every number on this page is live — pulled directly from our trading system, not a backtest.
           </p>
+          <Link
+            href="/records"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold transition-colors hover:text-blue-300 mt-1"
+            style={{ color: "#60a5fa" }}
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Every trade is permanently recorded on the Solana blockchain — verify independently →
+          </Link>
         </div>
 
         {/* ── Asset selector — same style as dashboard ── */}

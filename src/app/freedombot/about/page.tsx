@@ -42,7 +42,7 @@ export default function AboutPage() {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
         <Link
           href="/"
-          className="inline-flex items-center gap-2 text-sm mb-12 transition-colors hover:text-blue-300"
+          className="flex items-center gap-2 text-sm mb-12 transition-colors hover:text-blue-300 w-fit"
           style={{ color: "#64748b" }}
         >
           <ArrowLeft className="h-4 w-4" /> Back to home
@@ -179,6 +179,38 @@ export default function AboutPage() {
               exists because we think you deserve the full picture before you deploy a
               single rupee.
             </p>
+          </div>
+
+          {/* Blockchain */}
+          <div
+            className="rounded-2xl p-7 sm:p-10"
+            style={{
+              backgroundColor: "#0a1628",
+              border: "1px solid rgba(96,165,250,0.25)",
+            }}
+          >
+            <h2 className="text-xl sm:text-2xl font-bold mb-4" style={{ color: "#e2e8f0" }}>
+              Every trade is on the blockchain.
+            </h2>
+            <p className="text-base leading-relaxed mb-5" style={{ color: "#94a3b8" }}>
+              We don&apos;t just show you numbers on a dashboard — we write every closed
+              trade permanently to the{" "}
+              <span style={{ color: "#cbd5e1", fontWeight: 600 }}>Solana blockchain</span>.
+              Timestamped, immutable, and publicly verifiable by anyone. No edits.
+              No deletions. No way to hide a bad trade.
+            </p>
+            <p className="text-base leading-relaxed mb-6" style={{ color: "#94a3b8" }}>
+              This is the highest standard of transparency we know how to offer. You don&apos;t
+              have to trust our dashboard — you can verify every single trade independently,
+              forever.
+            </p>
+            <Link
+              href="/records"
+              className="inline-flex items-center gap-2 text-sm font-semibold transition-colors hover:text-blue-300"
+              style={{ color: "#60a5fa" }}
+            >
+              View on-chain trade records <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
 
           {/* What's next */}

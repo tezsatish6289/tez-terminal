@@ -684,10 +684,13 @@ export default function FreedomBotPage() {
                   </div>
                 ))}
               </div>
-              <div className="px-4 py-3">
+              <div className="px-4 py-3 space-y-2">
                 <button onClick={openDeploy} className="w-full py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-1.5 transition-all" style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}>
                   <Rocket className="h-4 w-4" /> Deploy Now
                 </button>
+                <a href="/performance" className="block text-center text-xs font-bold transition-colors hover:text-blue-300 py-1" style={{ color: "#475569" }}>
+                  See Performance Details →
+                </a>
               </div>
             </div>
 
@@ -743,10 +746,13 @@ export default function FreedomBotPage() {
                 <span className="text-sm font-black" style={{ color: "#a78bfa" }}>{stats ? fmt(stats.profitPerYear) : "…"}</span>
                 {stats && stats.runningDays < 365 && <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded self-start" style={{ backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}>Projected</span>}
               </div>
-              <div>
+              <div className="flex flex-col gap-1.5">
                 <button onClick={openDeploy} className="px-4 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all hover:scale-105" style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}>
                   <Rocket className="h-3.5 w-3.5" /> Deploy
                 </button>
+                <a href="/performance" className="text-[10px] font-bold text-center transition-colors hover:text-blue-300" style={{ color: "#475569" }}>
+                  See Details →
+                </a>
               </div>
             </div>
 

@@ -37,7 +37,7 @@ const PARAM_GROUPS: { title: string; params: ParamDef[] }[] = [
   {
     title: "Incubation Filters",
     params: [
-      { key: "INCUBATED_SL_CONSUMED_MAX", label: "Max SL Consumed", description: "Skip incubated signal if price has moved this far toward SL", min: 0.1, max: 0.8, step: 0.05, format: "pctDecimal" },
+      { key: "INCUBATED_MIN_SCORE", label: "Minimum Score", description: "Minimum confidence score (0–100) required for a signal to enter the simulator", min: 40, max: 90, step: 5, format: "number" },
       { key: "INCUBATED_TP1_CONSUMED_MAX", label: "Max TP1 Consumed", description: "Skip incubated signal if price has already reached this far toward TP1", min: 0.1, max: 0.9, step: 0.05, format: "pctDecimal" },
     ],
   },

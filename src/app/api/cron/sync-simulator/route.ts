@@ -526,7 +526,7 @@ export async function GET(request: NextRequest) {
           noPriceExcluded: activeForAsset.filter((d) => !d.tp1Hit && !d.tp2Hit && !d.tp3Hit && !d.slHitAt && (d.currentPrice == null || d.price == null || d.stopLoss == null)).length,
           evaluated: assetCandidates.length,
           alreadyOpen: 0, duplicate: 0, lowScore: 0, slConsumed: 0, tp1Consumed: 0,
-          earlySnapshots: 0, noPattern: 0, rrGateFailed: 0, noSweep: 0,
+          earlySnapshots: 0, noPattern: 0, rrGateFailed: 0,
           directionBias: 0, killed: 0, invalidLevels: 0, other: 0,
           maxTradesCap: 0, selected: 0,
         };
@@ -555,7 +555,6 @@ export async function GET(request: NextRequest) {
           else if (r.includes("too early")) assess.earlySnapshots++;
           else if (r.includes("no price structure")) assess.noPattern++;
           else if (r.includes("rr gate")) assess.rrGateFailed++;
-          else if (r.includes("no liquidation sweep")) assess.noSweep++;
           else if (r.includes("score") && r.includes("below minimum")) assess.lowScore++;
           else if (r.includes("direction bias")) assess.directionBias++;
           else if (r.includes("kill_switch") || r.includes("force-closed")) assess.killed++;
@@ -702,7 +701,6 @@ export async function GET(request: NextRequest) {
             `early=${assess.earlySnapshots}`,
             `no_pattern=${assess.noPattern}`,
             `rr_gate=${assess.rrGateFailed}`,
-            `no_sweep=${assess.noSweep}`,
             `bias_skip=${assess.directionBias}`,
             `killed=${assess.killed}`,
             `invalid=${assess.invalidLevels}`,

@@ -264,7 +264,7 @@ export function selectIncubatedSignals(params: {
     // Any TP or SL already hit in the real market — permanently ineligible, no log
     if (c.tp1Hit || c.tp2Hit || c.tp3Hit || c.slHitAt) continue;
 
-    // Direction bias filter
+    // Direction bias filter — manual override set from the simulator UI
     if (bias === "BULL" && c.type !== "BUY") {
       skipped.push({ symbol: c.symbol, reason: "Direction bias: BULL only (skipping SELL)" });
       continue;
@@ -305,16 +305,6 @@ export function selectIncubatedSignals(params: {
 
     if (priceMovedInFavor > 0 && priceMovedInFavor / tp1Distance > cfg.INCUBATED_TP1_CONSUMED_MAX) {
       skipped.push({ symbol: c.symbol, reason: `${(priceMovedInFavor / tp1Distance * 100).toFixed(0)}% of TP1 consumed (>${cfg.INCUBATED_TP1_CONSUMED_MAX * 100}%)` });
-      continue;
-    }
-
-    // Liquidity sweep gate (crypto only).
-    // sweepGatePassed === false  → cache is fresh, no matching sweep → score penalty already
-    //                              applied; skip to avoid entering without a flush.
-    // sweepGatePassed === undefined → WS server offline or cache stale → pass through silently.
-    // sweepGatePassed === true  → sweep confirmed, continue.
-    if (c.assetType !== "INDIAN_STOCKS" && c.sweepGatePassed === false) {
-      skipped.push({ symbol: c.symbol, reason: "No liquidation sweep in window (2–3 min)" });
       continue;
     }
 

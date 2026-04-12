@@ -337,8 +337,8 @@ export default function PrivacyPage() {
               {[
                 "Authentication: Firebase Authentication (Google Cloud Identity Platform)",
                 "User credentials and deployment records: Google Cloud Firestore",
-                "Trade records and simulator state: Google Cloud Firestore",
-                "On-chain trade history: Solana blockchain (publicly verifiable, immutable)",
+                "Trade records and bot state: Google Cloud Firestore",
+                "Waitlist entries: Google Cloud Firestore (PII fields encrypted before storage)",
               ].map((item) => (
                 <li key={item} className="flex gap-2">
                   <span style={{ color: "#60a5fa" }}>·</span> {item}
@@ -409,10 +409,8 @@ export default function PrivacyPage() {
             </P>
             <ul className="space-y-2 pl-4">
               {[
-                "Google Firebase — authentication and database infrastructure",
+                "Google Firebase — authentication, database, and application hosting infrastructure",
                 "Your chosen exchange (e.g. Bybit) — receives trade orders signed with your API key; they hold your funds and execute trades",
-                "Solana blockchain — receives aggregated, anonymised trade records",
-                "Vercel — hosts our Next.js application; processes HTTP requests but does not store user data",
               ].map((item) => (
                 <li key={item} className="flex gap-2">
                   <span style={{ color: "#60a5fa" }}>·</span> {item}

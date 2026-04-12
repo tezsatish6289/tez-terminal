@@ -291,15 +291,6 @@ export function selectIncubatedSignals(params: {
       continue;
     }
 
-    const priceMovedAgainst = isBuy
-      ? c.entryPrice - c.currentPrice
-      : c.currentPrice - c.entryPrice;
-
-    if (priceMovedAgainst > 0 && priceMovedAgainst / slDistance > cfg.INCUBATED_SL_CONSUMED_MAX) {
-      skipped.push({ symbol: c.symbol, type: c.type, reason: `${(priceMovedAgainst / slDistance * 100).toFixed(0)}% of SL consumed (>${cfg.INCUBATED_SL_CONSUMED_MAX * 100}%)` });
-      continue;
-    }
-
     const priceMovedInFavor = isBuy
       ? c.currentPrice - c.entryPrice
       : c.entryPrice - c.currentPrice;

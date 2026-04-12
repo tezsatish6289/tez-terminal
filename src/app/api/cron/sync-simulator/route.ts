@@ -521,7 +521,7 @@ export async function GET(request: NextRequest) {
 
         type SideAssess = {
           active: number; resolved: number; noPrice: number; evaluated: number;
-          open: number; dup: number; lowScore: number; slConsumed: number; tp1Consumed: number;
+          open: number; dup: number; lowScore: number; tp1Consumed: number;
           early: number; noPattern: number; rrGate: number;
           biasSkip: number; killed: number; invalid: number; other: number;
           cap: number; selected: number;
@@ -531,7 +531,7 @@ export async function GET(request: NextRequest) {
           resolved: activeForAsset.filter((d) => d.type === side && (d.tp1Hit || d.tp2Hit || d.tp3Hit || d.slHitAt)).length,
           noPrice: activeForAsset.filter((d) => d.type === side && !d.tp1Hit && !d.tp2Hit && !d.tp3Hit && !d.slHitAt && (d.currentPrice == null || d.price == null || d.stopLoss == null)).length,
           evaluated: assetCandidates.filter((c) => c.type === side).length,
-          open: 0, dup: 0, lowScore: 0, slConsumed: 0, tp1Consumed: 0,
+          open: 0, dup: 0, lowScore: 0, tp1Consumed: 0,
           early: 0, noPattern: 0, rrGate: 0,
           biasSkip: 0, killed: 0, invalid: 0, other: 0,
           cap: 0, selected: 0,
@@ -559,7 +559,6 @@ export async function GET(request: NextRequest) {
           const r = skip.reason.toLowerCase();
           if (r.includes("already in simulator")) side.open++;
           else if (r.includes("duplicate")) side.dup++;
-          else if (r.includes("sl consumed")) side.slConsumed++;
           else if (r.includes("tp1 consumed")) side.tp1Consumed++;
           else if (r.includes("too early")) side.early++;
           else if (r.includes("no price structure")) side.noPattern++;
@@ -703,7 +702,6 @@ export async function GET(request: NextRequest) {
           `open=${side.open}`,
           `dup=${side.dup}`,
           `low_score=${side.lowScore}`,
-          `sl_consumed=${side.slConsumed}`,
           `tp1_consumed=${side.tp1Consumed}`,
           `early=${side.early}`,
           `no_pattern=${side.noPattern}`,

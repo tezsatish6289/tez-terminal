@@ -331,24 +331,24 @@ function EquityCurve({ trades, startingCapital }: { trades: ApiTrade[]; starting
 
 // ─── Methodology section components ──────────────────────────────────────────
 
-function MethodCard({ icon: Icon, title, children, accent = "#3b82f6" }: {
-  icon: React.ElementType; title: string; children: React.ReactNode; accent?: string;
+function MethodCard({ icon: Icon, title, children }: {
+  icon: React.ElementType; title: string; children: React.ReactNode;
 }) {
   return (
     <div
-      className="rounded-2xl p-6"
-      style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.1)" }}
+      className="rounded-2xl p-7 sm:p-8"
+      style={{ backgroundColor: "#0d1a2e", border: "1px solid rgba(148,163,184,0.08)" }}
     >
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-start gap-4 mb-5">
         <div
-          className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: `${accent}15`, border: `1px solid ${accent}25` }}
+          className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
+          style={{ backgroundColor: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.15)" }}
         >
-          <Icon className="h-[18px] w-[18px]" style={{ color: accent }} />
+          <Icon className="h-5 w-5" style={{ color: "#60a5fa" }} />
         </div>
-        <h3 className="text-sm font-black text-white">{title}</h3>
+        <h3 className="text-base sm:text-lg font-bold text-white leading-snug">{title}</h3>
       </div>
-      <div className="space-y-2.5 text-sm leading-relaxed" style={{ color: "#64748b" }}>
+      <div className="space-y-3.5 text-sm sm:text-[15px] leading-relaxed" style={{ color: "#94a3b8" }}>
         {children}
       </div>
     </div>
@@ -357,9 +357,19 @@ function MethodCard({ icon: Icon, title, children, accent = "#3b82f6" }: {
 
 function Bullet({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-2.5">
-      <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" style={{ color: "#3b82f6" }} />
+    <div className="flex items-start gap-3">
+      <span className="mt-[7px] h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: "#60a5fa", opacity: 0.6 }} />
       <span>{children}</span>
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 mb-6">
+      <span className="h-px flex-1" style={{ backgroundColor: "rgba(148,163,184,0.08)" }} />
+      <span className="text-xs font-bold uppercase tracking-[0.2em]" style={{ color: "#64748b" }}>{children}</span>
+      <span className="h-px flex-1" style={{ backgroundColor: "rgba(148,163,184,0.08)" }} />
     </div>
   );
 }
@@ -630,39 +640,39 @@ export default function PerformancePage() {
           </div>
         )}
 
-        {/* ── Divider ── */}
-        <div className="border-t pt-10" style={{ borderColor: "rgba(90,140,220,0.08)" }}>
-          <div className="text-center mb-10">
-            <h2 className="text-2xl sm:text-3xl font-black tracking-tighter mb-3">
+        {/* ── Methodology ── */}
+        <div className="border-t pt-14 sm:pt-20" style={{ borderColor: "rgba(148,163,184,0.08)" }}>
+          <div className="text-center mb-14 sm:mb-16">
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tight mb-4">
               How it{" "}
               <span className="bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(135deg, #3b82f6, #93c5fd)" }}>
                 works
               </span>
             </h2>
-            <p className="text-sm" style={{ color: "#64748b" }}>
+            <p className="text-base sm:text-lg max-w-xl mx-auto leading-relaxed" style={{ color: "#94a3b8" }}>
               Every trade follows a strict, rule-based playbook. No improvisation. No emotions.
             </p>
           </div>
 
           {/* Trade execution */}
-          <h3 className="text-[10px] font-bold uppercase tracking-widest mb-4" style={{ color: "#334155" }}>Trade Execution</h3>
-          <div className="grid sm:grid-cols-2 gap-4 mb-10">
-            <MethodCard icon={Target} title="Stop Loss — Capital Protection First" accent="#f87171">
+          <SectionLabel>Trade Execution</SectionLabel>
+          <div className="grid sm:grid-cols-2 gap-5 sm:gap-6 mb-14 sm:mb-16">
+            <MethodCard icon={Target} title="Stop Loss — Capital Protection First">
               <Bullet>Every position has a Stop Loss set <strong className="text-white">at the moment of entry</strong> — no exceptions.</Bullet>
               <Bullet>SL is placed at a technically significant level, not an arbitrary percentage, so it reflects genuine market structure.</Bullet>
               <Bullet>If SL is triggered, the position is fully closed and capital is preserved for the next opportunity.</Bullet>
             </MethodCard>
-            <MethodCard icon={TrendingUp} title="Trailing Stop Loss — Lock In Gains" accent="#34d399">
+            <MethodCard icon={TrendingUp} title="Trailing Stop Loss — Lock In Gains">
               <Bullet>Once a trade moves in our favour past a defined threshold, the SL automatically <strong className="text-white">trails the price</strong>.</Bullet>
               <Bullet>This locks in profit progressively — you can never give back more than a small portion of an open gain.</Bullet>
               <Bullet>Trailing is based on market structure, not a fixed trailing distance, so it adapts to volatility.</Bullet>
             </MethodCard>
-            <MethodCard icon={Zap} title="TP1 — Lock In & De-Risk" accent="#fbbf24">
+            <MethodCard icon={Zap} title="TP1 — Lock In & De-Risk">
               <Bullet>When price hits <strong className="text-white">TP1</strong>, we close <strong className="text-white">20% of the position</strong> — securing a small, guaranteed profit immediately.</Bullet>
               <Bullet>The SL is then moved to the <strong className="text-white">cost price (breakeven)</strong> — the trade can no longer result in a loss, no matter what happens next.</Bullet>
               <Bullet>The remaining <strong className="text-white">80%</strong> continues to run with zero downside risk.</Bullet>
             </MethodCard>
-            <MethodCard icon={CheckCircle2} title="TP2, TP3 & Trailing SL — Let Winners Run" accent="#60a5fa">
+            <MethodCard icon={CheckCircle2} title="TP2, TP3 & Trailing SL — Let Winners Run">
               <Bullet>TP2 and TP3 are <strong className="text-white">reference levels</strong>, not partial exits — when price reaches them, we know momentum is strong and tighten the trailing SL.</Bullet>
               <Bullet>The trailing SL <strong className="text-white">follows the price upward</strong>, locking in more profit with every move in our favour.</Bullet>
               <Bullet>The remaining 80% is closed when the trailing SL is eventually triggered — capturing as much of the move as possible.</Bullet>
@@ -670,25 +680,25 @@ export default function PerformancePage() {
           </div>
 
           {/* Risk management */}
-          <h3 className="text-[10px] font-bold uppercase tracking-widest mb-4" style={{ color: "#334155" }}>Risk Management</h3>
-          <div className="grid sm:grid-cols-2 gap-4 mb-10">
-            <MethodCard icon={Shield} title="Position Sizing — Never Risk the House" accent="#34d399">
+          <SectionLabel>Risk Management</SectionLabel>
+          <div className="grid sm:grid-cols-2 gap-5 sm:gap-6 mb-14 sm:mb-16">
+            <MethodCard icon={Shield} title="Position Sizing — Never Risk the House">
               <Bullet>Each trade risks <strong className="text-white">1% of current capital</strong> by default. During a confirmed win streak, this steps up to <strong className="text-white">1.5%</strong> — still small, just leaning into momentum.</Bullet>
               <Bullet>Because we use compounding risk (% of current balance, not a fixed dollar), position sizes automatically shrink as capital dips and grow as it rises.</Bullet>
               <Bullet>At 1% risk per trade, it would take roughly <strong className="text-white">460 consecutive losses</strong> to approach zero — a scenario that has never come close to occurring. Even after 100 straight losses, capital would still be ~36% intact.</Bullet>
               <Bullet>Every drawdown in our history has recovered. The math is designed so that <strong className="text-white">staying committed</strong> is the most powerful edge a user has — though past behaviour is not a promise of future outcomes.</Bullet>
             </MethodCard>
-            <MethodCard icon={Lock} title="Leverage — Controlled, Not Reckless" accent="#a78bfa">
+            <MethodCard icon={Lock} title="Leverage — Controlled, Not Reckless">
               <Bullet>We use leverage to amplify <strong className="text-white">signal efficiency</strong>, not to chase bigger bets.</Bullet>
               <Bullet>Leverage is capped at <strong className="text-white">10×</strong>. With our 1% position sizing, a stop-loss hit represents a <strong className="text-white">small, defined loss</strong> — not a wipeout.</Bullet>
               <Bullet>The distance from entry to stop loss is always wider than the liquidation price — <strong className="text-white">liquidation cannot happen on a normal SL-triggering move</strong>.</Bullet>
             </MethodCard>
-            <MethodCard icon={AlertTriangle} title="Funding Rate Awareness" accent="#fbbf24">
+            <MethodCard icon={AlertTriangle} title="Funding Rate Awareness">
               <Bullet>In perpetual futures, open positions pay or receive <strong className="text-white">funding every 8 hours</strong>.</Bullet>
               <Bullet>We monitor funding rates in real time. When funding becomes extreme, it signals an overcrowded trade — a potential reversal.</Bullet>
               <Bullet>High funding on a long = we avoid adding. Extremely negative funding = we look for long entries, not shorts.</Bullet>
             </MethodCard>
-            <MethodCard icon={TrendingDown} title="Liquidation Protection" accent="#f87171">
+            <MethodCard icon={TrendingDown} title="Liquidation Protection">
               <Bullet>Our position sizing ensures the SL is always triggered <strong className="text-white">long before</strong> the liquidation price is reached.</Bullet>
               <Bullet>We use <strong className="text-white">isolated margin</strong> on every trade — the bot sets this automatically before placing any order. Your full account balance is never at risk from a single position.</Bullet>
               <Bullet>In the event of a flash crash, the position closes at the next available price — but liquidation risk is <strong className="text-white">structurally eliminated by design</strong>.</Bullet>
@@ -696,19 +706,19 @@ export default function PerformancePage() {
           </div>
 
           {/* Market intelligence */}
-          <h3 className="text-[10px] font-bold uppercase tracking-widest mb-4" style={{ color: "#334155" }}>Market Intelligence</h3>
-          <div className="grid sm:grid-cols-3 gap-4 mb-10">
-            <MethodCard icon={BarChart3} title="Order Blocks" accent="#60a5fa">
+          <SectionLabel>Market Intelligence</SectionLabel>
+          <div className="grid sm:grid-cols-3 gap-5 sm:gap-6 mb-14 sm:mb-16">
+            <MethodCard icon={BarChart3} title="Order Blocks">
               <Bullet>Order blocks are zones where large institutional orders were previously filled, leaving a footprint in price action.</Bullet>
               <Bullet>Price often returns to these zones to retest them. We use order blocks to identify <strong className="text-white">high-probability entry zones</strong>.</Bullet>
               <Bullet>Entering at an order block means a tighter SL — better risk-reward on every trade.</Bullet>
             </MethodCard>
-            <MethodCard icon={Zap} title="Liquidation Heatmaps" accent="#fbbf24">
+            <MethodCard icon={Zap} title="Liquidation Heatmaps">
               <Bullet>Exchanges track where leveraged positions will be force-closed, creating <strong className="text-white">liquidity clusters</strong> at predictable price levels.</Bullet>
               <Bullet>Large players push price into these zones to trigger liquidations and fill their own orders.</Bullet>
               <Bullet>We map these zones in advance, avoiding obvious liquidation cluster stops.</Bullet>
             </MethodCard>
-            <MethodCard icon={TrendingUp} title="Funding Rate Signals" accent="#34d399">
+            <MethodCard icon={TrendingUp} title="Funding Rate Signals">
               <Bullet>Funding rate is a real-time measure of sentiment. Extreme funding = the crowd is likely wrong.</Bullet>
               <Bullet>We use extreme funding readings as a <strong className="text-white">contrarian filter</strong> — avoiding trades that align with an overly crowded side.</Bullet>
               <Bullet>Normal or negative funding supports long bias. Extreme positive funding signals caution.</Bullet>
@@ -717,21 +727,21 @@ export default function PerformancePage() {
 
           {/* What we don't publish */}
           <div
-            className="rounded-2xl p-5 sm:p-7 mb-10"
-            style={{ backgroundColor: "rgba(37,99,235,0.04)", border: "1px solid rgba(96,165,250,0.12)" }}
+            className="rounded-2xl p-7 sm:p-9 mb-14"
+            style={{ backgroundColor: "rgba(96,165,250,0.04)", border: "1px solid rgba(96,165,250,0.1)" }}
           >
-            <h3 className="text-sm font-black text-white mb-2">What we don&apos;t publish</h3>
-            <p className="text-sm leading-relaxed" style={{ color: "#475569" }}>
+            <h3 className="text-base sm:text-lg font-bold text-white mb-3">What we don&apos;t publish</h3>
+            <p className="text-sm sm:text-[15px] leading-relaxed" style={{ color: "#94a3b8" }}>
               The specific signal logic — which indicators, which thresholds, which combinations trigger an entry — is our core IP.
               Publishing it would let anyone replicate (and front-run) the strategy, degrading performance for all users.
-              What you see above is <strong className="text-white/70">everything that matters to you as a capital allocator</strong>:
+              What you see above is <strong className="text-white">everything that matters to you as a capital allocator</strong>:
               how risk is managed, what the real numbers look like, and exactly what the system does when things go right or wrong.
             </p>
           </div>
 
           {/* CTA */}
-          <div className="text-center pb-8">
-            <p className="text-sm mb-5" style={{ color: "#475569" }}>Ready to let FreedomBot trade for you?</p>
+          <div className="text-center pb-10">
+            <p className="text-base mb-6" style={{ color: "#94a3b8" }}>Ready to let FreedomBot trade for you?</p>
             <Link
               href="/"
               className="inline-flex items-center gap-2.5 h-14 px-10 rounded-2xl font-bold text-base text-white transition-all hover:scale-105"
@@ -740,7 +750,7 @@ export default function PerformancePage() {
               <Rocket className="h-5 w-5" />
               Deploy Your Bot
             </Link>
-            <p className="text-xs mt-4" style={{ color: "#334155" }}>
+            <p className="text-sm mt-4" style={{ color: "#64748b" }}>
               Takes less than 5 minutes · No withdrawal access required · Free to start
             </p>
           </div>

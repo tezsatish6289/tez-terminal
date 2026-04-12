@@ -704,7 +704,11 @@ export default function FreedomBotDashboard() {
     );
   }
 
-  if (!user) return null;
+  if (!user) return (
+    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#080f1e" }}>
+      <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#3b82f6" }} />
+    </div>
+  );
 
   return (
     <div className="min-h-screen font-sans antialiased" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>

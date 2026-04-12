@@ -657,15 +657,15 @@ export default function PerformancePage() {
               <Bullet>This locks in profit progressively — you can never give back more than a small portion of an open gain.</Bullet>
               <Bullet>Trailing is based on market structure, not a fixed trailing distance, so it adapts to volatility.</Bullet>
             </MethodCard>
-            <MethodCard icon={Zap} title="Partial Profit Booking (TP1 & TP2)" accent="#fbbf24">
-              <Bullet><strong className="text-white">TP1</strong> closes roughly <strong className="text-white">40% of the position</strong> at the first target — locking in guaranteed profit early.</Bullet>
-              <Bullet><strong className="text-white">TP2</strong> closes another <strong className="text-white">40%</strong> at a deeper target as momentum continues.</Bullet>
-              <Bullet>After TP1 hits, the SL is moved to breakeven — making the remaining position <strong className="text-white">risk-free</strong>.</Bullet>
+            <MethodCard icon={Zap} title="TP1 — Lock In & De-Risk" accent="#fbbf24">
+              <Bullet>When price hits <strong className="text-white">TP1</strong>, we close <strong className="text-white">20% of the position</strong> — securing a small, guaranteed profit immediately.</Bullet>
+              <Bullet>The SL is then moved to the <strong className="text-white">cost price (breakeven)</strong> — the trade can no longer result in a loss, no matter what happens next.</Bullet>
+              <Bullet>The remaining <strong className="text-white">80%</strong> continues to run with zero downside risk.</Bullet>
             </MethodCard>
-            <MethodCard icon={CheckCircle2} title="Full Profit Booking (TP3)" accent="#60a5fa">
-              <Bullet><strong className="text-white">TP3</strong> exits the final <strong className="text-white">20%</strong> of the position at the maximum target.</Bullet>
-              <Bullet>This is the &quot;let the winners run&quot; portion — giving the trade room to capture the full move.</Bullet>
-              <Bullet>If TP3 is not reached, the trailing SL eventually closes this slice at a still-profitable level.</Bullet>
+            <MethodCard icon={CheckCircle2} title="TP2, TP3 & Trailing SL — Let Winners Run" accent="#60a5fa">
+              <Bullet>TP2 and TP3 are <strong className="text-white">reference levels</strong>, not partial exits — when price reaches them, we know momentum is strong and tighten the trailing SL.</Bullet>
+              <Bullet>The trailing SL <strong className="text-white">follows the price upward</strong>, locking in more profit with every move in our favour.</Bullet>
+              <Bullet>The remaining 80% is closed when the trailing SL is eventually triggered — capturing as much of the move as possible.</Bullet>
             </MethodCard>
           </div>
 

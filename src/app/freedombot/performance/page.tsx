@@ -373,22 +373,35 @@ interface SimState {
   startingCapital: number;
 }
 
+type AssetKey = "CRYPTO" | "INDIAN_STOCKS" | "GOLD" | "SILVER";
+
+const ASSETS: { key: AssetKey; label: string; icon: string; live: boolean; cs: string }[] = [
+  { key: "CRYPTO",        label: "Crypto Bot",       icon: "₿",  live: true,  cs: "$" },
+  { key: "INDIAN_STOCKS", label: "Indian Stock Bot",  icon: "🇮🇳", live: false, cs: "₹" },
+  { key: "GOLD",          label: "Gold Bot",          icon: "🥇", live: false, cs: "$" },
+  { key: "SILVER",        label: "Silver Bot",        icon: "🥈", live: false, cs: "$" },
+];
+
 export default function PerformancePage() {
-  const [simState, setSimState] = useState<SimState | null>(null);
-  const [trades,   setTrades]   = useState<ApiTrade[]>([]);
-  const [loading,  setLoading]  = useState(true);
+  const [assetType, setAssetType] = useState<AssetKey>("CRYPTO");
+  const [simState,  setSimState]  = useState<SimState | null>(null);
+  const [trades,    setTrades]    = useState<ApiTrade[]>([]);
+  const [loading,   setLoading]   = useState(true);
 
   useEffect(() => {
-    // Single endpoint: reads config/simulator_state + ALL CRYPTO simulator_trades
-    // No limit, no cache — mirrors exactly what the simulator dashboard reads
-    fetch("/api/freedombot/perf-data")
+    setLoading(true);
+    setSimState(null);
+    setTrades([]);
+    fetch(`/api/freedombot/perf-data?assetType=${assetType}`)
       .then((r) => r.json())
       .then((d) => {
         if (d.state)  setSimState(d.state as SimState);
         if (d.trades) setTrades(d.trades as ApiTrade[]);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [assetType]);
+
+  const cs = ASSETS.find((a) => a.key === assetType)?.cs ?? "$";
 
   // ── Replicate simulator page calculations exactly ──────────────────────────
 
@@ -491,8 +504,65 @@ export default function PerformancePage() {
           </p>
         </div>
 
-        {/* ── Stats Cards — same grid as simulator ── */}
-        {loading ? (
+        {/* ── Asset selector — same style as dashboard ── */}
+        <div className="flex items-center gap-0 rounded-xl p-1 w-fit mx-auto overflow-x-auto"
+          style={{ backgroundColor: "rgba(255,255,255,0.03)", border: "1px solid rgba(90,140,220,0.1)" }}
+        >
+          {ASSETS.map((a) => {
+            const isActive = assetType === a.key;
+            return (
+              <button
+                key={a.key}
+                onClick={() => a.live && setAssetType(a.key)}
+                disabled={!a.live}
+                className="relative flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap"
+                style={isActive
+                  ? { backgroundColor: "rgba(96,165,250,0.15)", color: "#60a5fa", border: "1px solid rgba(96,165,250,0.25)" }
+                  : { color: "#475569", border: "1px solid transparent", cursor: a.live ? "pointer" : "default" }
+                }
+              >
+                <span>{a.icon}</span>
+                <span className="hidden sm:inline">{a.label}</span>
+                <span className="sm:hidden">{a.label.split(" ")[0]}</span>
+                {a.live && isActive && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                )}
+                {!a.live && (
+                  <span
+                    className="text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded"
+                    style={{ backgroundColor: "rgba(96,165,250,0.08)", color: "#334155" }}
+                  >
+                    Soon
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── Coming soon state for non-live assets ── */}
+        {!ASSETS.find((a) => a.key === assetType)?.live ? (
+          <div
+            className="rounded-2xl p-12 text-center"
+            style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.1)" }}
+          >
+            <div className="text-4xl mb-4">{ASSETS.find((a) => a.key === assetType)?.icon}</div>
+            <h3 className="text-lg font-black text-white mb-2">
+              {ASSETS.find((a) => a.key === assetType)?.label} — Coming Soon
+            </h3>
+            <p className="text-sm" style={{ color: "#475569" }}>
+              We&apos;re actively building this bot. Join the waitlist to get early access.
+            </p>
+            <a
+              href="/"
+              className="inline-flex items-center gap-2 mt-6 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:scale-105"
+              style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+            >
+              Join Waitlist
+            </a>
+          </div>
+        ) : loading ? (
+          /* loading skeletons for live asset */
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="rounded-xl animate-pulse h-[100px]" style={{ backgroundColor: "#0a1628" }} />
@@ -549,7 +619,7 @@ export default function PerformancePage() {
         )}
 
         {/* ── Chart + Performance Panel — same side-by-side as simulator ── */}
-        {!loading && closedTrades.length >= 2 && (
+        {ASSETS.find((a) => a.key === assetType)?.live && !loading && closedTrades.length >= 2 && (
           <div className="flex flex-col lg:flex-row gap-3 items-stretch">
             <div className="flex-1 min-w-0">
               <EquityCurve trades={trades} startingCapital={startCap} />

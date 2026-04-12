@@ -1,26 +1,30 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 
 export const dynamic = "force-dynamic";
-// No caching — always fresh data matching the simulator dashboard
 export const revalidate = 0;
 
-export async function GET() {
+// Same helper as simulator.ts
+function getSimStateDocId(assetType: string): string {
+  if (!assetType || assetType === "CRYPTO") return "simulator_state";
+  return `simulator_state_${assetType}`;
+}
+
+export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = new URL(req.url);
+    const assetType = searchParams.get("assetType") ?? "CRYPTO";
+
     const db = getAdminFirestore();
 
-    // Read exactly what the simulator page reads:
-    // 1. config/simulator_state (same doc the simulator dashboard shows)
-    // 2. ALL simulator_trades — no limit, then filter CRYPTO client-side
-    //    (matches simulator page: .filter(t => (t.assetType || "CRYPTO") === "CRYPTO"))
     const [stateDoc, tradesSnap] = await Promise.all([
-      db.collection("config").doc("simulator_state").get(),
+      db.collection("config").doc(getSimStateDocId(assetType)).get(),
       db.collection("simulator_trades").orderBy("openedAt", "asc").get(),
     ]);
 
     const state = stateDoc.exists ? (stateDoc.data() as Record<string, unknown>) : null;
 
-    // Replicate exactly what the simulator page does
+    // Replicate exactly what the simulator page does — filter by assetType client-side
     const trades = tradesSnap.docs
       .map((doc) => {
         const d = doc.data();
@@ -53,21 +57,14 @@ export async function GET() {
           closeReason: d.closeReason ?? null,
           openedAt: d.openedAt ?? null,
           closedAt: d.closedAt ?? null,
-          // The events array is what calcPerformanceMetrics and EquityCurve use
-          // Must be included — this is the source of truth for PnL calculation
           events: d.events ?? [],
         };
       })
-      // Same filter as simulator page:
-      .filter((t) => (t.assetType || "CRYPTO") === "CRYPTO");
+      .filter((t) => (t.assetType || "CRYPTO") === assetType);
 
     return NextResponse.json(
       { state, trades },
-      {
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      }
+      { headers: { "Cache-Control": "no-store" } }
     );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unexpected error";

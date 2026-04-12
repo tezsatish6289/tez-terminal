@@ -132,8 +132,17 @@ export default function PrivacyPage() {
           and what we will never do with it — in plain language and with full technical detail.
         </p>
 
+        <p className="text-sm mb-3" style={{ color: "#64748b" }}>
+          This Privacy Policy is published by{" "}
+          <span style={{ color: "#cbd5e1", fontWeight: 600 }}>Turbogains Fintech Solutions Private Limited</span>
+          {" "}(CIN: U62099UP2025PTC232196), the company that operates FreedomBot.ai,
+          incorporated under the Companies Act, 2013, with registered office at
+          312 C, Tower-3, Golf View Apartments, Sushant Golf City, Lucknow,
+          Uttar Pradesh — 226030, India.
+        </p>
+
         <p className="text-xs mb-16" style={{ color: "#475569" }}>
-          Last updated: {LAST_UPDATED} · Turbogains Fintech Solutions Private Limited (CIN: U62099UP2025PTC232196)
+          Last updated: {LAST_UPDATED}
         </p>
 
         <div className="space-y-6">

@@ -15,6 +15,7 @@ export const SIM_CONFIG = {
   TP2_CLOSE_PCT: 0.0,
   TP3_CLOSE_PCT: 0.0,
   // Incubated signal selection
+  INCUBATED_MIN_SCORE: 65,          // minimum confidence score to enter simulator
   INCUBATED_SL_CONSUMED_MAX: 0.50,
   INCUBATED_TP1_CONSUMED_MAX: 0.65,
   // Confidence thresholds for evaluateTrade (legacy, not used by sim sync)
@@ -270,6 +271,12 @@ export function selectIncubatedSignals(params: {
     }
     if (bias === "BEAR" && c.type !== "SELL") {
       skipped.push({ symbol: c.symbol, reason: "Direction bias: BEAR only (skipping BUY)" });
+      continue;
+    }
+
+    // Minimum confidence score gate
+    if (c.confidenceScore < cfg.INCUBATED_MIN_SCORE) {
+      skipped.push({ symbol: c.symbol, reason: `Score ${c.confidenceScore} below minimum ${cfg.INCUBATED_MIN_SCORE}` });
       continue;
     }
 

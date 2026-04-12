@@ -615,8 +615,8 @@ export default function FreedomBotPage() {
               <Rocket className="h-5 w-5" />
               Deploy a Bot
             </button>
-            <button
-              onClick={() => document.getElementById("chat")?.scrollIntoView({ behavior: "smooth" })}
+            <a
+              href="/performance"
               className="h-14 px-10 rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-all hover:scale-105"
               style={{
                 border: "1px solid rgba(90,140,220,0.3)",
@@ -625,8 +625,8 @@ export default function FreedomBotPage() {
               }}
             >
               <Bot className="h-5 w-5" />
-              Ask me anything
-            </button>
+              How it works
+            </a>
           </div>
           <p className="text-xs mt-6" style={{ color: "#334155" }}>
             Trading involves risk. Past performance does not guarantee future results.
@@ -688,9 +688,6 @@ export default function FreedomBotPage() {
                 <button onClick={openDeploy} className="w-full py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-1.5 transition-all" style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}>
                   <Rocket className="h-4 w-4" /> Deploy Now
                 </button>
-                <a href="/performance" className="block text-center text-xs font-bold transition-colors hover:text-blue-300 py-1" style={{ color: "#475569" }}>
-                  See Performance Details →
-                </a>
               </div>
             </div>
 
@@ -750,9 +747,6 @@ export default function FreedomBotPage() {
                 <button onClick={openDeploy} className="px-4 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all hover:scale-105" style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}>
                   <Rocket className="h-3.5 w-3.5" /> Deploy
                 </button>
-                <a href="/performance" className="text-[10px] font-bold text-center transition-colors hover:text-blue-300" style={{ color: "#475569" }}>
-                  See Details →
-                </a>
               </div>
             </div>
 

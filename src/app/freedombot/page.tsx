@@ -688,6 +688,9 @@ export default function FreedomBotPage() {
                 <button onClick={openDeploy} className="w-full py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-1.5 transition-all" style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}>
                   <Rocket className="h-4 w-4" /> Deploy Now
                 </button>
+                <a href="/performance" className="block text-center text-xs font-bold transition-colors hover:text-blue-300 py-1" style={{ color: "#475569" }}>
+                  See Performance Details →
+                </a>
               </div>
             </div>
 

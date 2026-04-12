@@ -29,8 +29,16 @@ import {
   ReferenceLine,
 } from "recharts";
 import { format } from "date-fns";
+import { calcPerformanceMetrics } from "@/lib/performance-metrics";
+import type { PerformanceMetrics } from "@/lib/performance-metrics";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface TradeEvent {
+  pnl: number;
+  fee: number;
+  reason?: string;
+}
 
 interface ApiTrade {
   id: string;
@@ -48,6 +56,8 @@ interface ApiTrade {
   closeReason: string | null;
   openedAt: string;
   closedAt: string | null;
+  // Same structure the simulator uses — required for accurate PnL
+  events: TradeEvent[];
 }
 
 interface BotStats {
@@ -61,82 +71,11 @@ interface BotStats {
   totalTrades: number;
 }
 
-interface PerfMetrics {
-  sharpeRatio: number;
-  sortinoRatio: number;
-  calmarRatio: number;
-  maxDrawdownPct: number;
-  tradingDays: number;
-}
-
-// ─── Performance calculation ──────────────────────────────────────────────────
-
-function calcMetrics(trades: ApiTrade[], startingCapital: number): PerfMetrics | null {
-  const closed = trades
-    .filter((t) => t.status === "CLOSED" && t.closedAt)
-    .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
-
-  if (closed.length < 5) return null;
-
-  // Max drawdown
-  let capital = startingCapital;
-  let peak = startingCapital;
-  let maxDrawdown = 0;
-
-  // Build day→pnl and day→startCap maps for Sharpe/Sortino
-  const dayPnl     = new Map<string, number>();
-  const dayCapital = new Map<string, number>();
-  let running = startingCapital;
-
-  for (const t of closed) {
-    const day = t.closedAt!.slice(0, 10);
-    if (!dayCapital.has(day)) dayCapital.set(day, running);
-    const pnl = t.realizedPnl ?? 0;
-    dayPnl.set(day, (dayPnl.get(day) ?? 0) + pnl);
-    running += pnl;
-    capital  = running;
-    if (capital > peak) peak = capital;
-    const dd = peak > 0 ? (peak - capital) / peak : 0;
-    if (dd > maxDrawdown) maxDrawdown = dd;
-  }
-
-  const sortedDays = Array.from(dayPnl.keys()).sort();
-  const tradingDays = sortedDays.length;
-
-  if (tradingDays < 2) return { sharpeRatio: 0, sortinoRatio: 0, calmarRatio: 0, maxDrawdownPct: maxDrawdown * 100, tradingDays };
-
-  // Daily returns
-  const dailyReturns = sortedDays.map((day) => {
-    const startCap = dayCapital.get(day) ?? startingCapital;
-    return startCap > 0 ? (dayPnl.get(day) ?? 0) / startCap : 0;
-  });
-
-  const n    = dailyReturns.length;
-  const mean = dailyReturns.reduce((a, r) => a + r, 0) / n;
-  const variance = dailyReturns.reduce((a, r) => a + (r - mean) ** 2, 0) / Math.max(n - 1, 1);
-  const std  = Math.sqrt(variance);
-  const SQRT252 = Math.sqrt(252);
-
-  const sharpeRatio = std > 0 ? (mean / std) * SQRT252 : 0;
-
-  const downside = dailyReturns.filter((r) => r < 0);
-  const downsideVar = downside.length > 0 ? downside.reduce((a, r) => a + r ** 2, 0) / downside.length : 0;
-  const downsideStd = Math.sqrt(downsideVar);
-  const sortinoRatio = downsideStd > 0 ? (mean / downsideStd) * SQRT252 : (sharpeRatio > 0 ? Infinity : 0);
-
-  // Calmar
-  const totalReturn  = (capital - startingCapital) / startingCapital;
-  const calDays      = Math.max(1, (new Date(sortedDays[sortedDays.length - 1]).getTime() - new Date(sortedDays[0]).getTime()) / 86_400_000);
-  const annReturn    = Math.pow(1 + totalReturn, 365 / calDays) - 1;
-  const calmarRatio  = maxDrawdown > 0 ? annReturn / maxDrawdown : (annReturn > 0 ? Infinity : 0);
-
-  return {
-    sharpeRatio,
-    sortinoRatio: isFinite(sortinoRatio) ? sortinoRatio : sharpeRatio * 1.1,
-    calmarRatio:  isFinite(calmarRatio)  ? calmarRatio  : 99,
-    maxDrawdownPct: maxDrawdown * 100,
-    tradingDays,
-  };
+// ─── trueNetPnl — identical to performance-metrics.ts ────────────────────────
+// sum(event.pnl) - events[0].fee  = price PnL - all fees
+function trueNetPnl(events: TradeEvent[]): number {
+  if (!events.length) return 0;
+  return events.reduce((s, e) => s + e.pnl, 0) - events[0].fee;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -217,7 +156,7 @@ function MetricTile({ label, value, sub, color }: { label: string; value: string
 
 // ─── PerformanceMetricsPanel — identical layout to simulator ──────────────────
 
-function PerformanceMetricsPanel({ metrics }: { metrics: PerfMetrics | null }) {
+function PerformanceMetricsPanel({ metrics }: { metrics: PerformanceMetrics | null }) {
   if (!metrics) return null;
 
   const ratioColor = (n: number) =>
@@ -276,7 +215,8 @@ function EquityCurve({ trades, startingCapital }: { trades: ApiTrade[]; starting
     ];
     let running = startingCapital;
     closed.forEach((t, i) => {
-      running += t.realizedPnl ?? 0;
+      // Use same trueNetPnl as simulator — events-based, not raw realizedPnl
+      running += trueNetPnl(t.events ?? []);
       pts.push({
         x: i + 1,
         value: parseFloat(running.toFixed(2)),
@@ -291,7 +231,7 @@ function EquityCurve({ trades, startingCapital }: { trades: ApiTrade[]; starting
     const dayCapital = new Map<string, number>();
     let running = startingCapital;
     for (const t of closed) {
-      running += t.realizedPnl ?? 0;
+      running += trueNetPnl(t.events ?? []);
       dayCapital.set(t.closedAt!.slice(0, 10), parseFloat(running.toFixed(2)));
     }
     const pts: { x: string; value: number; tooltip: string }[] = [
@@ -452,8 +392,11 @@ export default function PerformancePage() {
     }).finally(() => setLoading(false));
   }, []);
 
+  // Same function + same data the simulator dashboard uses — no custom re-implementation
   const metrics = useMemo(
-    () => (trades.length > 0 && stats?.startingCapital ? calcMetrics(trades, stats.startingCapital) : null),
+    () => (trades.length > 0 && stats?.startingCapital
+      ? calcPerformanceMetrics(trades as any, stats.startingCapital, 0)
+      : null),
     [trades, stats]
   );
 

@@ -44,6 +44,8 @@ export async function GET() {
         openedAt: d.openedAt,
         closedAt: d.closedAt ?? null,
         blockchainTxHash: d.txHash ?? null,
+        // Required for accurate PnL calculation (same as simulator dashboard)
+        events: d.events ?? [],
       };
     });
 

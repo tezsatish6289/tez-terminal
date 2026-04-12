@@ -495,6 +495,26 @@ export default function PerformancePage() {
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
 
+        {/* ── Hero header ── */}
+        <div className="text-center py-6 sm:py-10 space-y-4">
+          <div
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest"
+            style={{ backgroundColor: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.2)", color: "#60a5fa" }}
+          >
+            <BarChart3 className="h-3 w-3" />
+            Live Performance
+          </div>
+          <h1 className="text-3xl sm:text-5xl font-black tracking-tighter">
+            Transparent by{" "}
+            <span className="bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(135deg, #3b82f6, #93c5fd)" }}>
+              design
+            </span>
+          </h1>
+          <p className="text-sm sm:text-base max-w-xl mx-auto leading-relaxed" style={{ color: "#64748b" }}>
+            Real data. Real trades. Every number on this page is live — pulled directly from our trading system, not a backtest.
+          </p>
+        </div>
+
         {/* ── Stats Cards — same grid as simulator ── */}
         {loading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

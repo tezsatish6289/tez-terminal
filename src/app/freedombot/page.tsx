@@ -938,10 +938,10 @@ export default function FreedomBotPage() {
               </div>
               <ul className="space-y-3 text-sm mb-8 flex-1" style={{ color: "#94a3b8" }}>
                 {[
-                  "Full control & transparency",
+                  "Your capital, always yours",
                   "Guided deployment flow",
                   "Less than 5 min set up",
-                  "Disable anytime",
+                  "Disable anytime, instantly",
                 ].map((item) => (
                   <li key={item} className="flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 flex-shrink-0" style={{ color: "#60a5fa" }} />

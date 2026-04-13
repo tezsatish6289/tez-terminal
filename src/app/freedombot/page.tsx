@@ -995,7 +995,7 @@ export default function FreedomBotPage() {
               <ul className="space-y-3 text-sm mb-6 flex-1" style={{ color: "#94a3b8" }}>
                 {[
                   "Pay only after you profit — zero risk to get started",
-                  "Calculated monthly on net profit after exchange fees",
+                  "Calculated monthly on net profit",
                   "Minimum billing $10/month — only when you're in profit",
                 ].map((item) => (
                   <li key={item} className="flex items-center gap-2.5">
@@ -1012,8 +1012,7 @@ export default function FreedomBotPage() {
                   style={{ backgroundColor: "rgba(251,191,36,0.04)", border: "1px solid rgba(251,191,36,0.10)" }}
                 >
                   <p className="text-xs mb-3" style={{ color: "#64748b" }}>
-                    Earnings estimate — based on live{" "}
-                    <span style={{ color: "#94a3b8" }}>{stats.runningDays}d</span> performance
+                    Monthly earnings estimate — based on current performance
                   </p>
                   <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
                     <thead>

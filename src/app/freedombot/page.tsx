@@ -942,6 +942,7 @@ export default function FreedomBotPage() {
                   "Guided deployment flow",
                   "Less than 5 min set up",
                   "Disable anytime, instantly",
+                  "No credit card required",
                 ].map((item) => (
                   <li key={item} className="flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 flex-shrink-0" style={{ color: "#60a5fa" }} />

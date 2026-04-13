@@ -534,7 +534,7 @@ export default function FreedomBotPage() {
             style={{ color: "#94a3b8" }}
           >
             I trade financial markets to{" "}
-            <span className="text-white font-bold">fastrack</span> your{" "}
+            <span className="text-white font-bold">fast-track</span> your{" "}
             <span
               className="font-bold bg-clip-text text-transparent"
               style={{ backgroundImage: "linear-gradient(135deg, #60a5fa, #93c5fd)" }}

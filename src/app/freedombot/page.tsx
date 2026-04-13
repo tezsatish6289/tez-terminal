@@ -1005,9 +1005,9 @@ export default function FreedomBotPage() {
               </div>
               <ul className="space-y-3 text-sm mb-8 flex-1" style={{ color: "#94a3b8" }}>
                 {[
-                  "Pay only after you profit",
-                  "No upfront fees, ever",
-                  "Calculated on net profit after broker & exchange fees",
+                  "Pay only after you profit — zero risk to get started",
+                  "Calculated monthly on net profit after exchange fees",
+                  "Minimum billing $10/month — only when you're in profit",
                 ].map((item) => (
                   <li key={item} className="flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 flex-shrink-0" style={{ color: "#fbbf24" }} />
@@ -1015,17 +1015,6 @@ export default function FreedomBotPage() {
                   </li>
                 ))}
               </ul>
-              <button
-                onClick={() => setWaitlistBot("PostPay")}
-                className="w-full py-3 rounded-xl font-bold text-sm transition-all hover:scale-105 mt-auto"
-                style={{
-                  border: "1px solid rgba(251,191,36,0.3)",
-                  color: "#fbbf24",
-                  backgroundColor: "rgba(251,191,36,0.06)",
-                }}
-              >
-                Join Waitlist
-              </button>
             </div>
           </div>
         </div>

@@ -938,10 +938,10 @@ export default function FreedomBotPage() {
               </div>
               <ul className="space-y-3 text-sm mb-8 flex-1" style={{ color: "#94a3b8" }}>
                 {[
-                  "Deploy with your own capital",
                   "Full control & transparency",
-                  "On-chain verified trades",
-                  "Access all available bots",
+                  "Guided deployment flow",
+                  "Less than 5 min set up",
+                  "Disable anytime",
                 ].map((item) => (
                   <li key={item} className="flex items-center gap-2.5">
                     <CheckCircle2 className="h-4 w-4 flex-shrink-0" style={{ color: "#60a5fa" }} />
@@ -966,18 +966,6 @@ export default function FreedomBotPage() {
                 border: "1px solid rgba(251,191,36,0.2)",
               }}
             >
-              <div className="absolute top-4 right-4">
-                <span
-                  className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider"
-                  style={{
-                    backgroundColor: "rgba(251,191,36,0.12)",
-                    color: "#fbbf24",
-                    border: "1px solid rgba(251,191,36,0.25)",
-                  }}
-                >
-                  Coming Soon
-                </span>
-              </div>
               <p
                 className="text-xs font-bold uppercase tracking-widest mb-5"
                 style={{ color: "#64748b" }}

@@ -992,7 +992,7 @@ export default function FreedomBotPage() {
                 {" → "}you pay us{" "}
                 <span className="font-bold" style={{ color: "#fbbf24" }}>$10</span>
               </div>
-              <ul className="space-y-3 text-sm mb-8 flex-1" style={{ color: "#94a3b8" }}>
+              <ul className="space-y-3 text-sm mb-6 flex-1" style={{ color: "#94a3b8" }}>
                 {[
                   "Pay only after you profit — zero risk to get started",
                   "Calculated monthly on net profit after exchange fees",
@@ -1004,6 +1004,54 @@ export default function FreedomBotPage() {
                   </li>
                 ))}
               </ul>
+
+              {/* Earnings estimate table — live data */}
+              {stats && stats.profitPerMonth !== null && stats.profitPerMonth > 0 && (
+                <div
+                  className="rounded-xl px-4 py-3 mb-6"
+                  style={{ backgroundColor: "rgba(251,191,36,0.04)", border: "1px solid rgba(251,191,36,0.10)" }}
+                >
+                  <p className="text-xs mb-3" style={{ color: "#64748b" }}>
+                    Earnings estimate — based on live{" "}
+                    <span style={{ color: "#94a3b8" }}>{stats.runningDays}d</span> performance
+                  </p>
+                  <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ color: "#64748b", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                        <th className="text-left pb-2 font-medium">Account</th>
+                        <th className="text-right pb-2 font-medium">Earn/mo</th>
+                        <th className="text-right pb-2 font-medium">Our fee</th>
+                        <th className="text-right pb-2 font-medium" style={{ color: "#34d399" }}>You keep</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[100, 500, 5000].map((size, i) => {
+                        const gross = size * (stats.profitPerMonth ?? 0) / 100;
+                        const fee   = gross * 0.10;
+                        const net   = gross * 0.90;
+                        return (
+                          <tr
+                            key={size}
+                            style={{
+                              borderBottom: i < 2 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                              color: "#94a3b8",
+                            }}
+                          >
+                            <td className="py-1.5 font-mono">${size.toLocaleString()}</td>
+                            <td className="text-right py-1.5 font-mono">${gross.toFixed(0)}</td>
+                            <td className="text-right py-1.5 font-mono" style={{ color: "#fbbf24" }}>${fee.toFixed(0)}</td>
+                            <td className="text-right py-1.5 font-mono font-bold text-white">${net.toFixed(0)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <p className="text-xs mt-3" style={{ color: "#475569" }}>
+                    Projected · past returns ≠ future results ·{" "}
+                    <Link href="/performance" style={{ color: "#60a5fa" }}>view full data →</Link>
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

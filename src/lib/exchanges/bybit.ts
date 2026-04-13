@@ -325,6 +325,24 @@ export class BybitConnector implements ExchangeConnector {
     };
   }
 
+  /**
+   * Returns the stable Bybit account userID (not the API key ID).
+   * This is permanent — survives API key rotation and cannot be changed.
+   * Used to prevent multi-account evasion of PostPay fees.
+   */
+  async getAccountUid(creds: ExchangeCredentials): Promise<string | null> {
+    try {
+      const result = await signedGet<{ userID: number }>(
+        "/v5/user/query-api",
+        {},
+        creds
+      );
+      return result.userID != null ? String(result.userID) : null;
+    } catch {
+      return null;
+    }
+  }
+
   // ── Positions ───────────────────────────────────────────────
 
   async getPositions(creds: ExchangeCredentials): Promise<FuturesPosition[]> {

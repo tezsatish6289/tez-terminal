@@ -739,6 +739,43 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, message: "No active auto-trade users", pairs: 0 });
     }
 
+    // ── 3b. Lazy backfill: store exchangeUid for existing BYBIT deployments ────
+    // Runs best-effort and never blocks trading. Each deployment only pays
+    // this cost once — subsequent ticks skip if exchangeUid is already set.
+    const bybitPairs = pairs.filter((p) => p.exchange === "BYBIT");
+    if (bybitPairs.length > 0) {
+      await Promise.allSettled(
+        bybitPairs.map(async (pair) => {
+          try {
+            const deploySnap = await db
+              .collection("bot_deployments")
+              .where("uid", "==", pair.userId)
+              .where("exchange", "==", "BYBIT")
+              .where("status", "==", "active")
+              .limit(1)
+              .get();
+
+            if (deploySnap.empty) return;
+            const deployDoc = deploySnap.docs[0];
+            if (deployDoc.data().exchangeUid) return; // already stored
+
+            const connector = getConnector("BYBIT") as {
+              getAccountUid?: (c: Credentials) => Promise<string | null>;
+            };
+            if (!connector.getAccountUid) return;
+
+            const exchangeUid = await connector.getAccountUid(pair.creds);
+            if (exchangeUid) {
+              await deployDoc.ref.update({ exchangeUid });
+              console.log(`[LiveSync] Backfilled exchangeUid for user ${pair.userId}`);
+            }
+          } catch {
+            // best-effort, do not interrupt trading
+          }
+        })
+      );
+    }
+
     // ── 4. Process all user×exchange pairs in parallel ──────
     const results = await Promise.allSettled(
       pairs.map((pair) =>

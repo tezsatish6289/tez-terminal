@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore, getAdminAuth } from "@/firebase/admin";
 import { encrypt } from "@/lib/crypto";
 import { getConnector, getSecretDocId } from "@/lib/exchanges";
-import type { ExchangeName } from "@/lib/exchanges";
+import type { ExchangeName, ExchangeCredentials } from "@/lib/exchanges";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -104,14 +104,25 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Validate API keys by calling the exchange ─────────────────────────────
+    const liveCreds: ExchangeCredentials = {
+      apiKey: credentials.apiKey,
+      apiSecret: credentials.apiSecret,
+      testnet: false,
+    };
+
+    let exchangeUid: string | null = null;
     try {
       const connector = getConnector(exchange);
-      const balance = await connector.getUsdtBalance({
-        apiKey: credentials.apiKey,
-        apiSecret: credentials.apiSecret,
-        testnet: false,
-      });
+      const balance = await connector.getUsdtBalance(liveCreds);
       if (balance.total < 0) throw new Error("Unexpected negative balance");
+
+      // Fetch the stable exchange account UID (Bybit userID survives key rotation)
+      const connectorWithUid = connector as {
+        getAccountUid?: (c: ExchangeCredentials) => Promise<string | null>;
+      };
+      if (connectorWithUid.getAccountUid) {
+        exchangeUid = await connectorWithUid.getAccountUid(liveCreds);
+      }
     } catch (e) {
       return NextResponse.json(
         {
@@ -119,6 +130,28 @@ export async function POST(req: NextRequest) {
         },
         { status: 400 },
       );
+    }
+
+    // ── Block if another user's active deployment already uses this Bybit account ─
+    if (exchangeUid) {
+      const uidDuplicateSnap = await db
+        .collection("bot_deployments")
+        .where("exchange", "==", exchange)
+        .where("exchangeUid", "==", exchangeUid)
+        .where("status", "==", "active")
+        .limit(2)
+        .get();
+
+      const otherOwner = uidDuplicateSnap.docs.find((d) => d.data().uid !== uid);
+      if (otherOwner) {
+        return NextResponse.json(
+          {
+            error:
+              "This Bybit account is already linked to an active FreedomBot deployment. Each Bybit account can only run one bot at a time. Please stop the existing deployment first.",
+          },
+          { status: 409 },
+        );
+      }
     }
 
     // ── Write credentials into the trading engine's secrets collection ─────────
@@ -145,6 +178,7 @@ export async function POST(req: NextRequest) {
       exchange,
       keyFingerprint,
       keyLastFour: credentials.apiKey.slice(-4),
+      ...(exchangeUid ? { exchangeUid } : {}),
       status: "active",
       createdAt: new Date(),
     });

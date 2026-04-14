@@ -5,6 +5,14 @@ import { Loader2, Save, Zap, TrendingUp, TrendingDown, PowerOff } from "lucide-r
 import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 interface HeatmapZones {
   bullZoneLow:   number | null;
@@ -44,9 +52,7 @@ function PriceInput({
 
   return (
     <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <label className="text-[11px] font-bold text-foreground/80">{label}</label>
-      </div>
+      <label className="text-[11px] font-bold text-foreground/80">{label}</label>
       <input
         type="number"
         value={raw}
@@ -70,7 +76,7 @@ export function HeatmapAutoSwitch() {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  // Live auto-switch status from Firestore (written by cron every minute)
+  // Live auto-switch status (written by cron every minute)
   const statusRef = useMemoFirebase(() => {
     if (!firestore) return null;
     return doc(firestore, "config", "heatmap_auto_status");
@@ -106,136 +112,158 @@ export function HeatmapAutoSwitch() {
     }
   }, [zones]);
 
-  const statusLabel = status?.simEnabled
-    ? status.directionBias === "BULL" ? "BULL ACTIVE" : "BEAR ACTIVE"
-    : "OFF";
+  const isActive   = status?.simEnabled ?? false;
+  const isBull     = isActive && status?.directionBias === "BULL";
+  const isBear     = isActive && status?.directionBias === "BEAR";
 
-  const statusColor = status?.simEnabled
-    ? status.directionBias === "BULL" ? "text-positive" : "text-negative"
-    : "text-muted-foreground/50";
+  const pillLabel  = isBull ? "BULL" : isBear ? "BEAR" : "OFF";
+  const pillColor  = isBull
+    ? "bg-positive/15 text-positive border-positive/20"
+    : isBear
+      ? "bg-negative/15 text-negative border-negative/20"
+      : "bg-white/[0.04] text-muted-foreground/50 border-white/[0.06]";
 
-  const statusBg = status?.simEnabled
-    ? status.directionBias === "BULL"
-      ? "bg-positive/10 border-positive/20"
-      : "bg-negative/10 border-negative/20"
-    : "bg-white/[0.02] border-white/[0.06]";
-
-  const StatusIcon = status?.simEnabled
-    ? status.directionBias === "BULL" ? TrendingUp : TrendingDown
-    : PowerOff;
+  const PillIcon = isBull ? TrendingUp : isBear ? TrendingDown : PowerOff;
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
-        <div className="flex items-center gap-2">
+    <Sheet>
+      <SheetTrigger asChild>
+        {/* Compact trigger — sits alongside SimulatorParamsDialog in the top bar */}
+        <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.04] transition-all">
           <Zap className="w-3.5 h-3.5 text-accent/70" />
-          <span className="text-[11px] font-black uppercase tracking-widest text-foreground/80">
-            Heatmap Auto-Switch
+          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70">
+            Heatmap
           </span>
-        </div>
-        {/* Live status pill */}
-        {status && (
-          <div className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-widest", statusBg, statusColor)}>
-            <StatusIcon className="w-3 h-3" />
-            {statusLabel}
+          {/* Live status pill */}
+          <span className={cn(
+            "flex items-center gap-1 px-2 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-widest",
+            pillColor,
+          )}>
+            <PillIcon className="w-2.5 h-2.5" />
+            {pillLabel}
+          </span>
+        </button>
+      </SheetTrigger>
+
+      <SheetContent side="right" className="w-[420px] sm:w-[460px] flex flex-col gap-0 p-0">
+        <SheetHeader className="px-5 py-4 border-b border-white/[0.06]">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-accent/70" />
+              <SheetTitle className="text-[13px] font-black uppercase tracking-widest">
+                Heatmap Auto-Switch
+              </SheetTitle>
+            </div>
+            <span className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-widest",
+              pillColor,
+            )}>
+              <PillIcon className="w-3 h-3" />
+              {pillLabel}
+            </span>
           </div>
-        )}
-      </div>
+          <SheetDescription className="text-[11px] text-muted-foreground/50 mt-1">
+            Simulator turns ON/OFF automatically based on where BTC trades relative to these zones.
+          </SheetDescription>
+        </SheetHeader>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-24">
-          <Loader2 className="w-4 h-4 animate-spin text-accent/40" />
-        </div>
-      ) : (
-        <div className="p-4 space-y-5">
-
-          {/* Live status reason */}
+        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
+          {/* Live status line */}
           {status?.reason && (
-            <div className="px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.05]">
+            <div className="px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.05]">
               <p className="text-[10px] font-mono text-muted-foreground/60">
-                BTC <span className="text-foreground/80 font-bold">
+                BTC{" "}
+                <span className="text-foreground/80 font-bold">
                   ${status.btcPrice?.toLocaleString() ?? "—"}
                 </span>
-                &nbsp;·&nbsp;{status.reason}
+                {" · "}
+                {status.reason}
               </p>
             </div>
           )}
 
-          {/* Bull zone */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-1.5">
-              <TrendingUp className="w-3 h-3 text-positive/70" />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-positive/80">Bull</span>
+          {loading ? (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="w-4 h-4 animate-spin text-accent/40" />
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <PriceInput
-                label="Bull Zone — Low"
-                description="BTC must be above this"
-                value={zones.bullZoneLow}
-                onChange={(v) => handleChange("bullZoneLow", v)}
-              />
-              <PriceInput
-                label="Bull Zone — High"
-                description="BTC must be below this"
-                value={zones.bullZoneHigh}
-                onChange={(v) => handleChange("bullZoneHigh", v)}
-              />
-              <PriceInput
-                label="Exit Bull Above"
-                description="Zone cleared — stop bull trades"
-                value={zones.bullExitAbove}
-                onChange={(v) => handleChange("bullExitAbove", v)}
-              />
-            </div>
-          </div>
+          ) : (
+            <>
+              {/* Bull zone */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-1.5 pb-1 border-b border-white/[0.05]">
+                  <TrendingUp className="w-3.5 h-3.5 text-positive/70" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-positive/80">Bull</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <PriceInput
+                    label="Zone — Low"
+                    description="BTC must be above this"
+                    value={zones.bullZoneLow}
+                    onChange={(v) => handleChange("bullZoneLow", v)}
+                  />
+                  <PriceInput
+                    label="Zone — High"
+                    description="BTC must be below this"
+                    value={zones.bullZoneHigh}
+                    onChange={(v) => handleChange("bullZoneHigh", v)}
+                  />
+                  <PriceInput
+                    label="Exit Bull Above"
+                    description="Zone cleared — stop bull"
+                    value={zones.bullExitAbove}
+                    onChange={(v) => handleChange("bullExitAbove", v)}
+                  />
+                </div>
+              </div>
 
-          {/* Bear zone */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-1.5">
-              <TrendingDown className="w-3 h-3 text-negative/70" />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-negative/80">Bear</span>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <PriceInput
-                label="Bear Zone — Low"
-                description="BTC must be above this"
-                value={zones.bearZoneLow}
-                onChange={(v) => handleChange("bearZoneLow", v)}
-              />
-              <PriceInput
-                label="Bear Zone — High"
-                description="BTC must be below this"
-                value={zones.bearZoneHigh}
-                onChange={(v) => handleChange("bearZoneHigh", v)}
-              />
-              <PriceInput
-                label="Exit Bear Below"
-                description="Zone cleared — stop bear trades"
-                value={zones.bearExitBelow}
-                onChange={(v) => handleChange("bearExitBelow", v)}
-              />
-            </div>
-          </div>
-
-          {/* Save */}
-          <div className="flex justify-end pt-1">
-            <button
-              onClick={handleSave}
-              disabled={!dirty || saving}
-              className={cn(
-                "flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
-                dirty
-                  ? "bg-accent text-accent-foreground hover:bg-accent/90"
-                  : "bg-white/[0.03] text-muted-foreground/30 cursor-not-allowed border border-white/[0.06]",
-              )}
-            >
-              {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-              Save Zones
-            </button>
-          </div>
+              {/* Bear zone */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-1.5 pb-1 border-b border-white/[0.05]">
+                  <TrendingDown className="w-3.5 h-3.5 text-negative/70" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-negative/80">Bear</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <PriceInput
+                    label="Zone — Low"
+                    description="BTC must be above this"
+                    value={zones.bearZoneLow}
+                    onChange={(v) => handleChange("bearZoneLow", v)}
+                  />
+                  <PriceInput
+                    label="Zone — High"
+                    description="BTC must be below this"
+                    value={zones.bearZoneHigh}
+                    onChange={(v) => handleChange("bearZoneHigh", v)}
+                  />
+                  <PriceInput
+                    label="Exit Bear Below"
+                    description="Zone cleared — stop bear"
+                    value={zones.bearExitBelow}
+                    onChange={(v) => handleChange("bearExitBelow", v)}
+                  />
+                </div>
+              </div>
+            </>
+          )}
         </div>
-      )}
-    </div>
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-white/[0.06] flex justify-end">
+          <button
+            onClick={handleSave}
+            disabled={!dirty || saving}
+            className={cn(
+              "flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+              dirty
+                ? "bg-accent text-accent-foreground hover:bg-accent/90"
+                : "bg-white/[0.03] text-muted-foreground/30 cursor-not-allowed border border-white/[0.06]",
+            )}
+          >
+            {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+            Save Zones
+          </button>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }

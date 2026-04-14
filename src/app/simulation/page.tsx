@@ -260,6 +260,7 @@ export default function SimulationPage() {
 
               {/* Simulator controls */}
               <div className="flex items-center gap-2">
+                {assetType === "CRYPTO" && <HeatmapAutoSwitch />}
                 <SimulatorParamsDialog />
               </div>
             </div>
@@ -292,9 +293,6 @@ export default function SimulationPage() {
               </div>
             ) : (
               <>
-                {/* Heatmap Auto-Switch — crypto only */}
-                {assetType === "CRYPTO" && <HeatmapAutoSwitch />}
-
                 {/* Stats Cards */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                   <SummaryCard

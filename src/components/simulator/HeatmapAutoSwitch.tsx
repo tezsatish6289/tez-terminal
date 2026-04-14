@@ -14,13 +14,16 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
+type ManualOverride = "AUTO" | "BULL" | "BEAR" | "OFF";
+
 interface HeatmapZones {
-  bullZoneLow:   number | null;
-  bullZoneHigh:  number | null;
-  bullExitAbove: number | null;
-  bearZoneHigh:  number | null;
-  bearZoneLow:   number | null;
-  bearExitBelow: number | null;
+  bullZoneLow:    number | null;
+  bullZoneHigh:   number | null;
+  bullExitAbove:  number | null;
+  bearZoneHigh:   number | null;
+  bearZoneLow:    number | null;
+  bearExitBelow:  number | null;
+  manualOverride: ManualOverride;
 }
 
 interface AutoStatus {
@@ -34,6 +37,7 @@ interface AutoStatus {
 const EMPTY_ZONES: HeatmapZones = {
   bullZoneLow: null, bullZoneHigh: null, bullExitAbove: null,
   bearZoneHigh: null, bearZoneLow: null, bearExitBelow: null,
+  manualOverride: "AUTO",
 };
 
 function PriceInput({
@@ -94,6 +98,20 @@ export function HeatmapAutoSwitch() {
   const handleChange = useCallback((key: keyof HeatmapZones, val: number | null) => {
     setZones((prev) => ({ ...prev, [key]: val }));
     setDirty(true);
+  }, []);
+
+  // Override saves immediately (no dirty/save button needed — instant feedback)
+  const handleOverride = useCallback(async (override: ManualOverride) => {
+    setZones((prev) => ({ ...prev, manualOverride: override }));
+    try {
+      await fetch("/api/settings/heatmap-zones", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ manualOverride: override }),
+      });
+    } catch (err) {
+      console.error("Failed to save override:", err);
+    }
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -181,6 +199,39 @@ export function HeatmapAutoSwitch() {
               </p>
             </div>
           )}
+
+          {/* Manual override — instant save, no dirty flag */}
+          <div className="space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+              Manual Override
+            </p>
+            <div className="flex items-center gap-1.5 p-1 rounded-xl border border-white/[0.08] bg-white/[0.02]">
+              {([
+                { key: "AUTO" as ManualOverride, label: "Auto",  color: "bg-accent text-accent-foreground" },
+                { key: "BULL" as ManualOverride, label: "Bull",  color: "bg-positive text-black" },
+                { key: "BEAR" as ManualOverride, label: "Bear",  color: "bg-negative text-white" },
+                { key: "OFF"  as ManualOverride, label: "Force Off", color: "bg-white/10 text-foreground" },
+              ]).map(({ key, label, color }) => (
+                <button
+                  key={key}
+                  onClick={() => handleOverride(key)}
+                  className={cn(
+                    "flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                    zones.manualOverride === key
+                      ? color
+                      : "text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.04]",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {zones.manualOverride !== "AUTO" && (
+              <p className="text-[9px] text-amber-400/70">
+                Zone logic is bypassed — switch back to Auto to resume normal behaviour.
+              </p>
+            )}
+          </div>
 
           {loading ? (
             <div className="flex items-center justify-center h-32">

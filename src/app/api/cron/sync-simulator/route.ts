@@ -24,6 +24,7 @@ import { batchReadLiquidityCache } from "@/lib/liquidity/firestore-cache";
 import { scoreLiquidityContext } from "@/lib/liquidity/liquidity-scorer";
 import { parseLiquidityConfig } from "@/lib/liquidity/types";
 import { deserializePrices, getReferencePrice, getPrice, type AllExchangePrices } from "@/lib/exchanges";
+import { computeAutoSwitch } from "@/app/api/settings/heatmap-zones/route";
 import { executeForAllUsers } from "@/lib/live-execution";
 import { isMarketOpen, isIndianSquareOffTime } from "@/lib/market-hours";
 import { markTradeForBlockchain } from "@/lib/blockchain-logger";
@@ -64,27 +65,27 @@ export async function GET(request: NextRequest) {
     }
   } catch {}
 
-  // Resolve simEnabled / directionBias per asset type.
-  // Per-asset-type keys (e.g. simEnabled_CRYPTO) take precedence over the
-  // legacy global keys (simEnabled / directionBias) for backward compat.
-  function getAssetControls(assetType: string): { simEnabled: boolean; directionBias: DirectionBias } {
-    const enabledKey = `simEnabled_${assetType}`;
-    const biasKey = `directionBias_${assetType}`;
-    const simEnabled =
-      typeof simParamsData[enabledKey] === "boolean"
-        ? (simParamsData[enabledKey] as boolean)
-        : typeof simParamsData.simEnabled === "boolean"
-          ? (simParamsData.simEnabled as boolean)
-          : true;
-    const directionBias = (
-      ["BULL", "BEAR", "BOTH"].includes(simParamsData[biasKey] as string)
-        ? (simParamsData[biasKey] as DirectionBias)
-        : ["BULL", "BEAR", "BOTH"].includes(simParamsData.directionBias as string)
-          ? (simParamsData.directionBias as DirectionBias)
-          : "BOTH"
-    ) as DirectionBias;
-    return { simEnabled, directionBias };
-  }
+  // ── Load heatmap auto-switch zones ──────────────────────────
+  // CRYPTO simulator is controlled entirely by BTC price vs configured zones.
+  // INDIAN_STOCKS falls back to always-on (BOTH directions).
+  let heatmapZones: import("@/app/api/settings/heatmap-zones/route").HeatmapZones = {
+    bullZoneLow: null, bullZoneHigh: null, bullExitAbove: null,
+    bearZoneHigh: null, bearZoneLow: null, bearExitBelow: null,
+  };
+  try {
+    const zonesDoc = await db.doc("config/heatmap_zones").get();
+    if (zonesDoc.exists) {
+      const d = zonesDoc.data() ?? {};
+      heatmapZones = {
+        bullZoneLow:   typeof d.bullZoneLow   === "number" ? d.bullZoneLow   : null,
+        bullZoneHigh:  typeof d.bullZoneHigh  === "number" ? d.bullZoneHigh  : null,
+        bullExitAbove: typeof d.bullExitAbove === "number" ? d.bullExitAbove : null,
+        bearZoneHigh:  typeof d.bearZoneHigh  === "number" ? d.bearZoneHigh  : null,
+        bearZoneLow:   typeof d.bearZoneLow   === "number" ? d.bearZoneLow   : null,
+        bearExitBelow: typeof d.bearExitBelow === "number" ? d.bearExitBelow : null,
+      };
+    }
+  } catch {}
 
   try {
     // ── Read cached prices from Cron 1 ──────────────────────
@@ -100,6 +101,21 @@ export async function GET(request: NextRequest) {
     // Helper: get price for a sim trade using its originating exchange
     const getSimPrice = (symbol: string, exchange?: string): number | null =>
       getReferencePrice(allPrices, symbol, exchange);
+
+    // ── Auto-switch: resolve simEnabled + directionBias per asset type ──
+    // CRYPTO is controlled by BTC price vs heatmap zones (set in the UI).
+    // Other asset types are always-on, both directions.
+    // Prefer Bybit (primary signal exchange), fall back to Binance
+    const btcPrice =
+      allPrices.BYBIT.get("BTCUSDT") ??
+      allPrices.BINANCE.get("BTCUSDT") ??
+      null;
+    const cryptoSwitch = computeAutoSwitch(btcPrice, heatmapZones);
+
+    function getAssetControls(assetType: string): { simEnabled: boolean; directionBias: DirectionBias } {
+      if (assetType === "CRYPTO") return { simEnabled: cryptoSwitch.simEnabled, directionBias: cryptoSwitch.directionBias };
+      return { simEnabled: true, directionBias: "BOTH" };
+    }
 
     // ── Load signals for scoring context ────────────────────
     const signalsSnap = await db.collection("signals").get();
@@ -406,6 +422,15 @@ export async function GET(request: NextRequest) {
     } catch (priceErr: any) {
       console.error("[SimSync] Price update loop failed:", priceErr.message);
     }
+
+    // ── Write auto-switch status (readable by UI in real-time) ──
+    await db.doc("config/heatmap_auto_status").set({
+      btcPrice,
+      simEnabled: cryptoSwitch.simEnabled,
+      directionBias: cryptoSwitch.directionBias,
+      reason: cryptoSwitch.reason,
+      updatedAt: new Date().toISOString(),
+    }).catch(() => {});
 
     // ── Incubated signal selection (per asset type) ────────
     let incubatedCount = 0;

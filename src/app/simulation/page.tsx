@@ -58,6 +58,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import type { SimulatorState, SimTrade, SimLog, SimTradeEvent } from "@/lib/simulator";
 import { getSimStateDocId } from "@/lib/simulator";
 import { SimulatorParamsDialog } from "@/components/simulator/SimulatorParamsDialog";
+import { HeatmapAutoSwitch } from "@/components/simulator/HeatmapAutoSwitch";
 import { format, startOfDay, startOfWeek, startOfMonth, isAfter } from "date-fns";
 import { calcPerformanceMetrics } from "@/lib/performance-metrics";
 
@@ -101,44 +102,6 @@ export default function SimulationPage() {
   const [selectedTrade, setSelectedTrade] = useState<SimTrade | null>(null);
   const cs = assetType === "INDIAN_STOCKS" ? "₹" : "$";
 
-  // Simulator controls — separate per asset type
-  const [simEnabled, setSimEnabled] = useState(true);
-  const [directionBias, setDirectionBias] = useState<"BULL" | "BEAR" | "BOTH">("BOTH");
-  const [controlsLoaded, setControlsLoaded] = useState(false);
-
-  useEffect(() => {
-    setControlsLoaded(false);
-    fetch(`/api/settings/simulator-controls?assetType=${assetType}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setSimEnabled(data.simEnabled ?? true);
-        setDirectionBias(data.directionBias ?? "BOTH");
-        setControlsLoaded(true);
-      })
-      .catch(() => setControlsLoaded(true));
-  }, [assetType]);
-
-  const updateControl = useCallback(async (field: string, value: unknown) => {
-    try {
-      await fetch(`/api/settings/simulator-controls?assetType=${assetType}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [field]: value }),
-      });
-    } catch (err) {
-      console.error("Failed to update simulator control:", err);
-    }
-  }, [assetType]);
-
-  const handleToggleEnabled = useCallback((checked: boolean) => {
-    setSimEnabled(checked);
-    updateControl("simEnabled", checked);
-  }, [updateControl]);
-
-  const handleDirectionBias = useCallback((bias: "BULL" | "BEAR" | "BOTH") => {
-    setDirectionBias(bias);
-    updateControl("directionBias", bias);
-  }, [updateControl]);
 
   const stateRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -295,53 +258,8 @@ export default function SimulationPage() {
                 ))}
               </div>
 
-              {/* Per-asset simulator controls */}
-              <div className="flex items-center gap-3 flex-wrap">
-                {controlsLoaded && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/[0.08] bg-white/[0.02]">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Sim</span>
-                    <Switch
-                      checked={simEnabled}
-                      onCheckedChange={handleToggleEnabled}
-                      className={cn(
-                        simEnabled ? "data-[state=checked]:bg-positive" : "",
-                      )}
-                    />
-                    <span className={cn(
-                      "text-[10px] font-bold uppercase tracking-widest",
-                      simEnabled ? "text-positive" : "text-negative",
-                    )}>
-                      {simEnabled ? "ON" : "OFF"}
-                    </span>
-                  </div>
-                )}
-                {controlsLoaded && (
-                  <div className="flex items-center gap-0 rounded-xl border border-white/[0.08] bg-white/[0.02] p-1">
-                    {([
-                      { key: "BULL" as const, label: "Bull", icon: <TrendingUp className="w-3.5 h-3.5" /> },
-                      { key: "BOTH" as const, label: "Both", icon: <Activity className="w-3.5 h-3.5" /> },
-                      { key: "BEAR" as const, label: "Bear", icon: <TrendingDown className="w-3.5 h-3.5" /> },
-                    ]).map(({ key, label, icon }) => (
-                      <button
-                        key={key}
-                        onClick={() => handleDirectionBias(key)}
-                        className={cn(
-                          "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
-                          directionBias === key
-                            ? key === "BULL"
-                              ? "bg-positive text-black shadow-sm"
-                              : key === "BEAR"
-                                ? "bg-negative text-white shadow-sm"
-                                : "bg-accent text-black shadow-sm"
-                            : "text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.04]",
-                        )}
-                      >
-                        {icon}
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+              {/* Simulator controls */}
+              <div className="flex items-center gap-2">
                 <SimulatorParamsDialog />
               </div>
             </div>
@@ -374,6 +292,9 @@ export default function SimulationPage() {
               </div>
             ) : (
               <>
+                {/* Heatmap Auto-Switch — crypto only */}
+                {assetType === "CRYPTO" && <HeatmapAutoSwitch />}
+
                 {/* Stats Cards */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                   <SummaryCard

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, Save, Zap, TrendingUp, TrendingDown, PowerOff } from "lucide-react";
+import { Loader2, Save, Zap, TrendingUp, TrendingDown, PowerOff, Activity } from "lucide-react";
 import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-type ManualOverride = "AUTO" | "BULL" | "BEAR" | "OFF";
+type ManualOverride = "AUTO" | "BULL" | "BOTH" | "BEAR" | "OFF";
 
 interface HeatmapZones {
   bullZoneLow:    number | null;
@@ -130,18 +130,27 @@ export function HeatmapAutoSwitch() {
     }
   }, [zones]);
 
-  const isActive   = status?.simEnabled ?? false;
-  const isBull     = isActive && status?.directionBias === "BULL";
-  const isBear     = isActive && status?.directionBias === "BEAR";
+  // When override is active, derive pill from zones state immediately (no cron delay).
+  // When on AUTO, derive from the cron-written status doc.
+  const override = zones.manualOverride;
+  const isOverride = override !== "AUTO";
 
-  const pillLabel  = isBull ? "BULL" : isBear ? "BEAR" : "OFF";
-  const pillColor  = isBull
-    ? "bg-positive/15 text-positive border-positive/20"
-    : isBear
-      ? "bg-negative/15 text-negative border-negative/20"
-      : "bg-white/[0.04] text-muted-foreground/50 border-white/[0.06]";
+  // Derive display state — from override immediately, or cron doc in AUTO mode
+  const effectiveBull = isOverride ? (override === "BULL" || override === "BOTH") : (status?.simEnabled && status?.directionBias === "BULL");
+  const effectiveBear = isOverride ? (override === "BEAR" || override === "BOTH") : (status?.simEnabled && status?.directionBias === "BEAR");
+  const effectiveBoth = isOverride ? override === "BOTH" : (status?.simEnabled && status?.directionBias === "BOTH");
+  const effectiveOn   = isOverride ? override !== "OFF" : (status?.simEnabled ?? false);
 
-  const PillIcon = isBull ? TrendingUp : isBear ? TrendingDown : PowerOff;
+  const pillLabel = effectiveBoth ? "BOTH" : effectiveBull ? "BULL" : effectiveBear ? "BEAR" : "OFF";
+  const pillColor = effectiveBoth
+    ? "bg-accent/15 text-accent border-accent/20"
+    : effectiveBull
+      ? "bg-positive/15 text-positive border-positive/20"
+      : effectiveBear
+        ? "bg-negative/15 text-negative border-negative/20"
+        : "bg-white/[0.04] text-muted-foreground/50 border-white/[0.06]";
+
+  const PillIcon = effectiveBoth ? Activity : effectiveBull ? TrendingUp : effectiveBear ? TrendingDown : PowerOff;
 
   return (
     <Sheet>
@@ -186,19 +195,30 @@ export function HeatmapAutoSwitch() {
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
-          {/* Live status line */}
-          {status?.reason && (
-            <div className="px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.05]">
-              <p className="text-[10px] font-mono text-muted-foreground/60">
-                BTC{" "}
-                <span className="text-foreground/80 font-bold">
-                  ${status.btcPrice?.toLocaleString() ?? "—"}
-                </span>
+          {/* Status line — shows override state immediately, or cron result in AUTO */}
+          <div className={cn(
+            "px-3 py-2.5 rounded-lg border text-[10px] font-mono",
+            effectiveOn
+              ? effectiveBull ? "bg-positive/5 border-positive/20 text-positive/80" : "bg-negative/5 border-negative/20 text-negative/80"
+              : "bg-white/[0.03] border-white/[0.05] text-muted-foreground/60",
+          )}>
+            {isOverride ? (
+              <span>
+                BTC <span className="font-bold">${status?.btcPrice?.toLocaleString() ?? "—"}</span>
+                {" · "}
+                <span className="font-bold">{override === "BULL" ? "BULL ACTIVE" : override === "BEAR" ? "BEAR ACTIVE" : override === "BOTH" ? "BULL + BEAR ACTIVE" : "FORCED OFF"}</span>
+                {" — manual override (takes effect next cron cycle)"}
+              </span>
+            ) : status?.reason ? (
+              <span>
+                BTC <span className="font-bold">${status.btcPrice?.toLocaleString() ?? "—"}</span>
                 {" · "}
                 {status.reason}
-              </p>
-            </div>
-          )}
+              </span>
+            ) : (
+              <span className="text-muted-foreground/40">Waiting for first cron cycle…</span>
+            )}
+          </div>
 
           {/* Manual override — instant save, no dirty flag */}
           <div className="space-y-2">
@@ -207,9 +227,10 @@ export function HeatmapAutoSwitch() {
             </p>
             <div className="flex items-center gap-1.5 p-1 rounded-xl border border-white/[0.08] bg-white/[0.02]">
               {([
-                { key: "AUTO" as ManualOverride, label: "Auto",  color: "bg-accent text-accent-foreground" },
-                { key: "BULL" as ManualOverride, label: "Bull",  color: "bg-positive text-black" },
-                { key: "BEAR" as ManualOverride, label: "Bear",  color: "bg-negative text-white" },
+                { key: "AUTO" as ManualOverride, label: "Auto",      color: "bg-accent text-accent-foreground" },
+                { key: "BULL" as ManualOverride, label: "Bull",      color: "bg-positive text-black" },
+                { key: "BOTH" as ManualOverride, label: "Both",      color: "bg-accent text-accent-foreground" },
+                { key: "BEAR" as ManualOverride, label: "Bear",      color: "bg-negative text-white" },
                 { key: "OFF"  as ManualOverride, label: "Force Off", color: "bg-white/10 text-foreground" },
               ]).map(({ key, label, color }) => (
                 <button

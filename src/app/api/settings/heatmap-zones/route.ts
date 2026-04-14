@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 const ZONES_DOC = "config/heatmap_zones";
 
-export type ManualOverride = "AUTO" | "BULL" | "BEAR" | "OFF";
+export type ManualOverride = "AUTO" | "BULL" | "BOTH" | "BEAR" | "OFF";
 
 export interface HeatmapZones {
   bullZoneLow:    number | null;  // BTC must be above this to trade BULL
@@ -22,7 +22,7 @@ const ZONE_KEYS: (keyof Omit<HeatmapZones, "manualOverride">)[] = [
   "bearZoneHigh", "bearZoneLow", "bearExitBelow",
 ];
 
-const VALID_OVERRIDES: ManualOverride[] = ["AUTO", "BULL", "BEAR", "OFF"];
+const VALID_OVERRIDES: ManualOverride[] = ["AUTO", "BULL", "BOTH", "BEAR", "OFF"];
 
 function parseZones(data: Record<string, unknown>): HeatmapZones {
   const zones: HeatmapZones = {
@@ -48,6 +48,9 @@ export function computeAutoSwitch(
   if (zones.manualOverride === "BULL") {
     return { simEnabled: true,  directionBias: "BULL", reason: "BULL ACTIVE — manual override" };
   }
+  if (zones.manualOverride === "BOTH") {
+    return { simEnabled: true,  directionBias: "BOTH", reason: "BULL + BEAR ACTIVE — manual override" };
+  }
   if (zones.manualOverride === "BEAR") {
     return { simEnabled: true,  directionBias: "BEAR", reason: "BEAR ACTIVE — manual override" };
   }
@@ -61,52 +64,66 @@ export function computeAutoSwitch(
   }
 
   const { bullZoneLow, bullZoneHigh, bullExitAbove, bearZoneHigh, bearZoneLow, bearExitBelow } = zones;
+  const fmt = (n: number) => `$${n.toLocaleString()}`;
 
-  // Bull zone active
-  if (bullZoneLow !== null && bullZoneHigh !== null &&
-      btcPrice >= bullZoneLow && btcPrice <= bullZoneHigh) {
+  // ── BULL ────────────────────────────────────────────────────────────────
+  // Active range: bullZoneLow → bullExitAbove
+  //   Zone is the entry trigger; simulator stays ON until exit is reached.
+  //   Turns OFF when price falls below zone bottom OR rises above exit.
+  const bullActive =
+    bullZoneLow !== null && bullExitAbove !== null &&
+    btcPrice >= bullZoneLow && btcPrice <= bullExitAbove;
+
+  if (bullActive) {
+    const inZone = bullZoneHigh !== null && btcPrice <= bullZoneHigh;
     return {
       simEnabled: true,
       directionBias: "BULL",
-      reason: `BULL ACTIVE — BTC $${btcPrice.toLocaleString()} in zone $${bullZoneLow.toLocaleString()}–$${bullZoneHigh.toLocaleString()}`,
+      reason: inZone
+        ? `BULL ACTIVE — BTC ${fmt(btcPrice)} in entry zone ${fmt(bullZoneLow!)}–${fmt(bullZoneHigh!)}`
+        : `BULL ACTIVE — BTC ${fmt(btcPrice)} above zone, exit at ${fmt(bullExitAbove!)}`,
     };
   }
 
-  // Bear zone active
-  if (bearZoneLow !== null && bearZoneHigh !== null &&
-      btcPrice >= bearZoneLow && btcPrice <= bearZoneHigh) {
+  // ── BEAR ────────────────────────────────────────────────────────────────
+  // Active range: bearExitBelow → bearZoneHigh
+  //   Zone is the entry trigger; simulator stays ON until exit is reached.
+  //   Turns OFF when price rises above zone top OR drops below exit.
+  const bearActive =
+    bearExitBelow !== null && bearZoneHigh !== null &&
+    btcPrice >= bearExitBelow && btcPrice <= bearZoneHigh;
+
+  if (bearActive) {
+    const inZone = bearZoneLow !== null && btcPrice >= bearZoneLow;
     return {
       simEnabled: true,
       directionBias: "BEAR",
-      reason: `BEAR ACTIVE — BTC $${btcPrice.toLocaleString()} in zone $${bearZoneLow.toLocaleString()}–$${bearZoneHigh.toLocaleString()}`,
+      reason: inZone
+        ? `BEAR ACTIVE — BTC ${fmt(btcPrice)} in entry zone ${fmt(bearZoneLow!)}–${fmt(bearZoneHigh!)}`
+        : `BEAR ACTIVE — BTC ${fmt(btcPrice)} below zone, exit at ${fmt(bearExitBelow!)}`,
     };
   }
 
-  // Bull exit triggered
+  // ── OFF ─────────────────────────────────────────────────────────────────
   if (bullExitAbove !== null && btcPrice > bullExitAbove) {
-    return {
-      simEnabled: false,
-      directionBias: "BOTH",
-      reason: `OFF — BTC $${btcPrice.toLocaleString()} above bull exit $${bullExitAbove.toLocaleString()}`,
-    };
+    return { simEnabled: false, directionBias: "BOTH", reason: `OFF — BTC ${fmt(btcPrice)} above bull exit ${fmt(bullExitAbove)}` };
   }
-
-  // Bear exit triggered
   if (bearExitBelow !== null && btcPrice < bearExitBelow) {
-    return {
-      simEnabled: false,
-      directionBias: "BOTH",
-      reason: `OFF — BTC $${btcPrice.toLocaleString()} below bear exit $${bearExitBelow.toLocaleString()}`,
-    };
+    return { simEnabled: false, directionBias: "BOTH", reason: `OFF — BTC ${fmt(btcPrice)} below bear exit ${fmt(bearExitBelow)}` };
+  }
+  if (bearZoneHigh !== null && btcPrice > bearZoneHigh) {
+    return { simEnabled: false, directionBias: "BOTH", reason: `OFF — BTC ${fmt(btcPrice)} above bear zone top ${fmt(bearZoneHigh)}` };
+  }
+  if (bullZoneLow !== null && btcPrice < bullZoneLow) {
+    return { simEnabled: false, directionBias: "BOTH", reason: `OFF — BTC ${fmt(btcPrice)} below bull zone ${fmt(bullZoneLow)}` };
   }
 
-  // Price between zones or no zones configured
-  const hasZones = Object.values(zones).some((v) => v !== null);
+  const hasZones = [bullZoneLow, bullZoneHigh, bullExitAbove, bearZoneLow, bearZoneHigh, bearExitBelow].some((v) => v !== null);
   return {
     simEnabled: false,
     directionBias: "BOTH",
     reason: hasZones
-      ? `OFF — BTC $${btcPrice.toLocaleString()} outside all configured zones`
+      ? `OFF — BTC ${fmt(btcPrice)} between zones`
       : "OFF — no heatmap zones configured",
   };
 }

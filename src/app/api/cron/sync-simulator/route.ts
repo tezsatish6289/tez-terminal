@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     const zonesDoc = await db.doc("config/heatmap_zones").get();
     if (zonesDoc.exists) {
       const d = zonesDoc.data() ?? {};
-      const validOverrides = ["AUTO", "BULL", "BEAR", "OFF"];
+      const validOverrides = ["AUTO", "BULL", "BOTH", "BEAR", "OFF"];
       heatmapZones = {
         bullZoneLow:    typeof d.bullZoneLow   === "number" ? d.bullZoneLow   : null,
         bullZoneHigh:   typeof d.bullZoneHigh  === "number" ? d.bullZoneHigh  : null,

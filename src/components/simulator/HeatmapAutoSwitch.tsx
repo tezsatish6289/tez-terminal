@@ -135,38 +135,37 @@ export function HeatmapAutoSwitch() {
   const override = zones.manualOverride;
   const isOverride = override !== "AUTO";
 
-  // Derive display state — from override immediately, or cron doc in AUTO mode
+  // Trigger pill always mirrors the override label directly
+  const OVERRIDE_META: Record<ManualOverride, { label: string; color: string; icon: React.ReactNode }> = {
+    AUTO:  { label: "Auto",      color: "bg-white/[0.06] text-muted-foreground/70 border-white/[0.08]", icon: <Zap className="w-2.5 h-2.5" /> },
+    BULL:  { label: "Bull",      color: "bg-positive/15 text-positive border-positive/20",              icon: <TrendingUp className="w-2.5 h-2.5" /> },
+    BOTH:  { label: "Both",      color: "bg-accent/15 text-accent border-accent/20",                    icon: <Activity className="w-2.5 h-2.5" /> },
+    BEAR:  { label: "Bear",      color: "bg-negative/15 text-negative border-negative/20",              icon: <TrendingDown className="w-2.5 h-2.5" /> },
+    OFF:   { label: "Force Off", color: "bg-white/[0.04] text-muted-foreground/40 border-white/[0.06]", icon: <PowerOff className="w-2.5 h-2.5" /> },
+  };
+
+  const pillMeta  = OVERRIDE_META[override];
+  const pillLabel = pillMeta.label;
+  const pillColor = pillMeta.color;
+
+  // Still needed for status line colouring inside the sheet
+  const effectiveOn   = isOverride ? override !== "OFF" : (status?.simEnabled ?? false);
   const effectiveBull = isOverride ? (override === "BULL" || override === "BOTH") : (status?.simEnabled && status?.directionBias === "BULL");
   const effectiveBear = isOverride ? (override === "BEAR" || override === "BOTH") : (status?.simEnabled && status?.directionBias === "BEAR");
-  const effectiveBoth = isOverride ? override === "BOTH" : (status?.simEnabled && status?.directionBias === "BOTH");
-  const effectiveOn   = isOverride ? override !== "OFF" : (status?.simEnabled ?? false);
-
-  const pillLabel = effectiveBoth ? "BOTH" : effectiveBull ? "BULL" : effectiveBear ? "BEAR" : "OFF";
-  const pillColor = effectiveBoth
-    ? "bg-accent/15 text-accent border-accent/20"
-    : effectiveBull
-      ? "bg-positive/15 text-positive border-positive/20"
-      : effectiveBear
-        ? "bg-negative/15 text-negative border-negative/20"
-        : "bg-white/[0.04] text-muted-foreground/50 border-white/[0.06]";
-
-  const PillIcon = effectiveBoth ? Activity : effectiveBull ? TrendingUp : effectiveBear ? TrendingDown : PowerOff;
 
   return (
     <Sheet>
       <SheetTrigger asChild>
-        {/* Compact trigger — sits alongside SimulatorParamsDialog in the top bar */}
         <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.04] transition-all">
           <Zap className="w-3.5 h-3.5 text-accent/70" />
           <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70">
             Heatmap
           </span>
-          {/* Live status pill */}
           <span className={cn(
             "flex items-center gap-1 px-2 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-widest",
             pillColor,
           )}>
-            <PillIcon className="w-2.5 h-2.5" />
+            {pillMeta.icon}
             {pillLabel}
           </span>
         </button>
@@ -185,7 +184,7 @@ export function HeatmapAutoSwitch() {
               "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-widest",
               pillColor,
             )}>
-              <PillIcon className="w-3 h-3" />
+              {pillMeta.icon}
               {pillLabel}
             </span>
           </div>

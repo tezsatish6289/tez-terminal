@@ -14,6 +14,7 @@ const ALLOWED_KEYS = new Set<string>([
   "STREAK_WINS_TO_SCALE",
   "INCUBATED_MIN_SCORE",
   "INCUBATED_TP1_CONSUMED_MAX",
+  "INCUBATED_MAX_SL_DISTANCE_PCT",
 ]);
 
 export async function GET() {

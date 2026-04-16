@@ -16,6 +16,7 @@ export const SIM_CONFIG = {
   TP3_CLOSE_PCT: 0.0,
   // Incubated signal selection
   INCUBATED_MIN_SCORE: 65,          // minimum confidence score to enter simulator
+  INCUBATED_MAX_SL_DISTANCE_PCT: 0.08, // max SL distance as % of entry price (8%)
   INCUBATED_SL_CONSUMED_MAX: 0.50,
   INCUBATED_TP1_CONSUMED_MAX: 0.65,
   // Confidence thresholds for evaluateTrade (legacy, not used by sim sync)
@@ -281,8 +282,17 @@ export function selectIncubatedSignals(params: {
       continue;
     }
 
-    // Price drift check — dynamic based on SL and TP1 distance
+    // Maximum SL distance gate — rejects wide-stop signals that produce tiny positions
     const isBuy = c.type === "BUY";
+    const slDistancePct = isBuy
+      ? (c.entryPrice - c.stopLoss) / c.entryPrice
+      : (c.stopLoss - c.entryPrice) / c.entryPrice;
+    if (slDistancePct > cfg.INCUBATED_MAX_SL_DISTANCE_PCT) {
+      skipped.push({ symbol: c.symbol, type: c.type, reason: `SL distance ${(slDistancePct * 100).toFixed(2)}% exceeds max ${(cfg.INCUBATED_MAX_SL_DISTANCE_PCT * 100).toFixed(0)}%` });
+      continue;
+    }
+
+    // Price drift check — dynamic based on SL and TP1 distance
     const slDistance = Math.abs(c.entryPrice - c.stopLoss);
     const tp1Distance = Math.abs(c.tp1 - c.entryPrice);
 

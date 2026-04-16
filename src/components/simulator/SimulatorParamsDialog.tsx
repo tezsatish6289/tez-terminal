@@ -39,6 +39,7 @@ const PARAM_GROUPS: { title: string; params: ParamDef[] }[] = [
     params: [
       { key: "INCUBATED_MIN_SCORE", label: "Minimum Score", description: "Minimum confidence score (0–100) required for a signal to enter the simulator", min: 40, max: 90, step: 5, format: "number" },
       { key: "INCUBATED_TP1_CONSUMED_MAX", label: "Max TP1 Consumed", description: "Skip incubated signal if price has already reached this far toward TP1", min: 0.1, max: 0.9, step: 0.05, format: "pctDecimal" },
+      { key: "INCUBATED_MAX_SL_DISTANCE_PCT", label: "Max SL Distance", description: "Skip signal if stop-loss is further than this % from entry (prevents tiny positions)", min: 0.02, max: 0.20, step: 0.01, format: "pctDecimal" },
     ],
   },
 ];

@@ -386,7 +386,7 @@ export default function SimulationPage() {
 
                 {/* Tab Content */}
                 {tab === "overview" && (
-                  <TradeList trades={openTrades} emptyIcon={<Activity className="w-6 h-6" />} emptyLabel="No open trades" onSelectTrade={setSelectedTrade} onForceClose={handleForceClose} cs={cs} />
+                  <TradeList trades={openTrades} emptyIcon={<Activity className="w-6 h-6" />} emptyLabel="No open trades" onSelectTrade={setSelectedTrade} cs={cs} />
                 )}
 
                 {tab === "trades" && (

@@ -218,6 +218,66 @@ export async function POST(request: NextRequest) {
 
     const docRef = await db.collection("signals").add(signalData);
 
+    // ── Kill superseded signals ──────────────────────────────────────────────
+    // When a new signal arrives for the same symbol + assetType + side, any
+    // older ACTIVE signal that has NO open simulator_trade and NO open
+    // live_trade is stale — the algo has re-fired, so we supersede it.
+    if (signalType !== "NEUTRAL") {
+      try {
+        const sameDirectionSnap = await db.collection("signals")
+          .where("symbol", "==", symbol)
+          .where("status", "==", "ACTIVE")
+          .get();
+
+        const killBatch = db.batch();
+        let killCount = 0;
+        const killedIds: string[] = [];
+
+        for (const oldDoc of sameDirectionSnap.docs) {
+          if (oldDoc.id === docRef.id) continue;
+
+          const d = oldDoc.data();
+          if (d.assetType !== assetType || d.type !== signalType) continue;
+
+          const [simSnap, liveSnap] = await Promise.all([
+            db.collection("simulator_trades")
+              .where("signalId", "==", oldDoc.id)
+              .where("status", "==", "OPEN")
+              .limit(1)
+              .get(),
+            db.collection("live_trades")
+              .where("signalId", "==", oldDoc.id)
+              .where("status", "==", "OPEN")
+              .limit(1)
+              .get(),
+          ]);
+
+          if (!simSnap.empty || !liveSnap.empty) continue;
+
+          killBatch.update(db.collection("signals").doc(oldDoc.id), {
+            status: "INACTIVE",
+            supersededBy: docRef.id,
+            supersededAt: timestamp,
+          });
+          killedIds.push(oldDoc.id);
+          killCount++;
+        }
+
+        if (killCount > 0) {
+          await killBatch.commit();
+          await db.collection("logs").add({
+            timestamp,
+            level: "INFO",
+            message: `Superseded ${killCount} stale signal(s) for ${symbol}`,
+            details: `New signal ${docRef.id} superseded: [${killedIds.join(", ")}] — same ${signalType} on ${symbol} (${assetType}), no open positions`,
+            webhookId,
+          });
+        }
+      } catch (killErr) {
+        console.error("[Webhook] Signal supersession check failed:", killErr);
+      }
+    }
+
     let processingResult = "Signal ingested as ACTIVE";
 
     if (signalType !== "NEUTRAL" && (assetType === "CRYPTO" || assetType === "INDIAN_STOCKS")) {

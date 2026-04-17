@@ -202,6 +202,7 @@ export async function GET(request: NextRequest) {
           state: simState,
           exitType: "SL", // treat as a forced exit for capital accounting
           exitPrice: closePrice,
+          simConfig,
         });
 
         if (result) {
@@ -264,6 +265,7 @@ export async function GET(request: NextRequest) {
             state: simState,
             exitType,
             exitPrice,
+            simConfig,
           });
 
           if (result) {
@@ -328,6 +330,7 @@ export async function GET(request: NextRequest) {
                   state: simState2,
                   exitType: exit.type,
                   exitPrice: exit.price,
+                  simConfig,
                 });
                 if (result) {
                   currentTrade = result.updatedTrade;
@@ -368,6 +371,7 @@ export async function GET(request: NextRequest) {
                 exitType: "SL",
                 exitPrice: effectiveSl,
                 state: simState2,
+                simConfig,
               });
               if (exitResult) {
                 updateSimState(tradeAsset, exitResult.updatedState);

@@ -761,8 +761,10 @@ export function processTradeExit(params: {
   state: SimulatorState;
   exitType: "TP1" | "TP2" | "TP3" | "SL";
   exitPrice: number;
+  simConfig?: SimConfigType;
 }): { updatedTrade: SimTrade; updatedState: SimulatorState; log: SimLog } | null {
-  const { trade, state, exitType, exitPrice } = params;
+  const { trade, state, exitType, exitPrice, simConfig } = params;
+  const cfg = simConfig ?? SIM_CONFIG;
 
   if (trade.status === "CLOSED") return null;
 
@@ -875,7 +877,7 @@ export function processTradeExit(params: {
   //   WIN: TP2 or TP3 hit → increments streak
   //   BREAKEVEN: closed with non-negative PnL but no TP2/TP3 → streak unchanged
   //   LOSS: closed with negative PnL → resets streak
-  let { consecutiveWins = 0, streakSide = null, currentMaxTrades = SIM_CONFIG.MAX_OPEN_TRADES_BASE } = state;
+  let { consecutiveWins = 0, streakSide = null, currentMaxTrades = cfg.MAX_OPEN_TRADES_BASE } = state;
   let streakOutcome: "WIN" | "BREAKEVEN" | "LOSS" | null = null;
 
   if (isClosed) {
@@ -891,14 +893,14 @@ export function processTradeExit(params: {
         streakSide = trade.side;
       }
       currentMaxTrades = Math.min(
-        SIM_CONFIG.MAX_OPEN_TRADES_CAP,
-        SIM_CONFIG.MAX_OPEN_TRADES_BASE + Math.max(0, consecutiveWins - SIM_CONFIG.STREAK_WINS_TO_SCALE + 1),
+        cfg.MAX_OPEN_TRADES_CAP,
+        cfg.MAX_OPEN_TRADES_BASE + Math.max(0, consecutiveWins - cfg.STREAK_WINS_TO_SCALE + 1),
       );
     } else if (isLoss) {
       streakOutcome = "LOSS";
       consecutiveWins = 0;
       streakSide = null;
-      currentMaxTrades = SIM_CONFIG.MAX_OPEN_TRADES_BASE;
+      currentMaxTrades = cfg.MAX_OPEN_TRADES_BASE;
     } else {
       streakOutcome = "BREAKEVEN";
       // No change to streak — direction was right, just didn't follow through

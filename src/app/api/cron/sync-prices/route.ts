@@ -496,12 +496,12 @@ export async function GET(request: NextRequest) {
       console.error("[Sync] Regime computation failed:", regimeErr.message);
     }
 
-    await db.collection("logs").add({
-      timestamp: new Date().toISOString(),
+    console.log(JSON.stringify({
       level: "INFO",
       message: `PRICE SYNC: updated=${updateCount} skipped=${skipCount} events=${signalEvents.length} scored=${scoreCount} dhan=${dhanPriceCount} exchanges=${Object.keys(allPrices).filter(k => allPrices[k as keyof AllExchangePrices].size > 0).length}`,
       webhookId: "SYSTEM_CRON",
-    });
+      timestamp: new Date().toISOString(),
+    }));
 
     return NextResponse.json({
       success: true,

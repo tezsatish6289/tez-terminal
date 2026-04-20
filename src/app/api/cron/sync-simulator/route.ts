@@ -32,6 +32,11 @@ import { markTradeForBlockchain } from "@/lib/blockchain-logger";
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+// Throttle verbose assessment summary logs to once every 5 minutes per asset type.
+// These are for debugging only — the cron runs every minute so 1-per-minute is excessive.
+const lastAssessmentLogAt = new Map<string, number>();
+const ASSESSMENT_LOG_INTERVAL_MS = 5 * 60 * 1000;
+
 /**
  * CRON 2: SIMULATOR TRADE MANAGEMENT
  *
@@ -126,6 +131,10 @@ export async function GET(request: NextRequest) {
     for (const signalDoc of signalsSnap.docs) {
       postUpdateDocs.push({ id: signalDoc.id, ...signalDoc.data() });
     }
+    // Keyed map for O(1) lookups — avoids individual Firestore reads in the open-trades loop below.
+    const signalsMap = new Map<string, Record<string, any>>(
+      postUpdateDocs.map((d) => [d.id, d])
+    );
 
     // ── Liquidity config from simulator params ───────────────
     const liqConfig = parseLiquidityConfig(simParamsData as Record<string, unknown>);
@@ -309,8 +318,7 @@ export async function GET(request: NextRequest) {
           if (!isMarketOpen(tradeAsset)) continue;
           const livePrice = getSimPrice(t.symbol, t.exchange);
 
-          const signalDoc = await db.collection("signals").doc(t.signalId).get();
-          const signal = signalDoc.exists ? signalDoc.data() : null;
+          const signal = signalsMap.get(t.signalId) ?? null;
 
           let simState2 = await loadSimState(tradeAsset);
 
@@ -724,7 +732,7 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Assessment summary — one BULL + one BEAR entry per asset type per cycle
+        // Assessment summary — throttled to once per 5 minutes per asset type.
         const formatAssess = (side: SideAssess, label: "BULL" | "BEAR") => [
           `[${label}]`,
           `active=${side.active}`,
@@ -746,24 +754,31 @@ export async function GET(request: NextRequest) {
           `→ selected=${side.selected}`,
         ].join(" | ");
 
-        await Promise.all([
-          db.collection("simulator_logs").add({
-            timestamp: new Date().toISOString(),
-            action: "ASSESSMENT_SUMMARY",
-            side: "BULL",
-            details: formatAssess(bull, "BULL"),
-            capital: simState3.capital,
-            assetType,
-          }),
-          db.collection("simulator_logs").add({
-            timestamp: new Date().toISOString(),
-            action: "ASSESSMENT_SUMMARY",
-            side: "BEAR",
-            details: formatAssess(bear, "BEAR"),
-            capital: simState3.capital,
-            assetType,
-          }),
-        ]);
+        const lastAssessAt = lastAssessmentLogAt.get(assetType) ?? 0;
+        const shouldLogAssessment = Date.now() - lastAssessAt >= ASSESSMENT_LOG_INTERVAL_MS;
+        if (shouldLogAssessment) {
+          lastAssessmentLogAt.set(assetType, Date.now());
+          await Promise.all([
+            db.collection("simulator_logs").add({
+              timestamp: new Date().toISOString(),
+              action: "ASSESSMENT_SUMMARY",
+              side: "BULL",
+              details: formatAssess(bull, "BULL"),
+              capital: simState3.capital,
+              assetType,
+            }),
+            db.collection("simulator_logs").add({
+              timestamp: new Date().toISOString(),
+              action: "ASSESSMENT_SUMMARY",
+              side: "BEAR",
+              details: formatAssess(bear, "BEAR"),
+              capital: simState3.capital,
+              assetType,
+            }),
+          ]);
+        } else {
+          console.log(JSON.stringify({ action: "ASSESSMENT_SUMMARY", bull: formatAssess(bull, "BULL"), bear: formatAssess(bear, "BEAR"), assetType }));
+        }
 
         // Log fresh skips (< 3 candles old) for new signals — kept brief to avoid spam
         const CANDLE_MINS: Record<string, number> = {
@@ -792,12 +807,12 @@ export async function GET(request: NextRequest) {
       console.error("[SimSync] Incubated signal selection failed:", incErr.message);
     }
 
-    await db.collection("logs").add({
-      timestamp: new Date().toISOString(),
+    console.log(JSON.stringify({
       level: "INFO",
       message: `SIM SYNC: eventCloses=${eventCloses} priceUpdates=${priceUpdates} trailingSl=${trailingSlCloses} incubated=${incubatedCount}`,
       webhookId: "SYSTEM_CRON",
-    });
+      timestamp: new Date().toISOString(),
+    }));
 
     return NextResponse.json({
       success: true,

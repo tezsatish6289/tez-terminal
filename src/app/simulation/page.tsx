@@ -8,7 +8,7 @@ import {
   useDoc,
   useMemoFirebase,
 } from "@/firebase";
-import { collection, query, orderBy, limit, doc } from "firebase/firestore";
+import { collection, query, orderBy, limit, where, doc } from "firebase/firestore";
 import {
   Loader2,
   TrendingUp,
@@ -110,14 +110,30 @@ export default function SimulationPage() {
   const { data: stateData, isLoading: stateLoading } = useDoc(stateRef);
   const simState = stateData as SimulatorState | null;
 
-  const tradesQuery = useMemoFirebase(() => {
+  // OPEN trades — small set (5–20 docs), updated every minute by the cron.
+  // No orderBy so no composite index is required; client sorts if needed.
+  const openTradesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
       collection(firestore, "simulator_trades"),
-      orderBy("openedAt", "desc"),
+      where("status", "==", "OPEN"),
     );
   }, [firestore, user]);
-  const { data: rawTrades, isLoading: tradesLoading } = useCollection(tradesQuery);
+  const { data: rawOpenTrades, isLoading: openTradesLoading } = useCollection(openTradesQuery);
+
+  // CLOSED trades — static once written; limit to 200 most recent so the
+  // listener scope is bounded and initial page load doesn't scan the full collection.
+  // Requires composite index: status ASC + openedAt DESC (see firestore.indexes.json).
+  const closedTradesQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, "simulator_trades"),
+      where("status", "==", "CLOSED"),
+      orderBy("openedAt", "desc"),
+      limit(200),
+    );
+  }, [firestore, user]);
+  const { data: rawClosedTrades, isLoading: closedTradesLoading } = useCollection(closedTradesQuery);
 
   const logsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -129,12 +145,17 @@ export default function SimulationPage() {
   }, [firestore, user]);
   const { data: rawLogs, isLoading: logsLoading } = useCollection(logsQuery);
 
-  const trades = useMemo(() => {
-    if (!rawTrades) return [];
-    return rawTrades
+  const openTrades = useMemo(() => {
+    return (rawOpenTrades ?? [])
       .map((d: any) => ({ id: d.id, ...d } as SimTrade))
       .filter((t) => (t.assetType || "CRYPTO") === assetType);
-  }, [rawTrades, assetType]);
+  }, [rawOpenTrades, assetType]);
+
+  const closedTrades = useMemo(() => {
+    return (rawClosedTrades ?? [])
+      .map((d: any) => ({ id: d.id, ...d } as SimTrade))
+      .filter((t) => (t.assetType || "CRYPTO") === assetType);
+  }, [rawClosedTrades, assetType]);
 
   const logs = useMemo(() => {
     if (!rawLogs) return [];
@@ -143,15 +164,14 @@ export default function SimulationPage() {
       .filter((l) => (l.assetType || "CRYPTO") === assetType);
   }, [rawLogs, assetType]);
 
-  const openTrades = useMemo(() => trades.filter((t) => t.status === "OPEN"), [trades]);
-  const closedTrades = useMemo(() => trades.filter((t) => t.status === "CLOSED"), [trades]);
-
-  const isLoading = stateLoading || tradesLoading || logsLoading;
+  const isLoading = stateLoading || openTradesLoading || closedTradesLoading || logsLoading;
 
   const totalReturn = simState ? ((simState.capital - simState.startingCapital) / simState.startingCapital) * 100 : 0;
 
   // Running days — from first trade's openedAt to today
   const runningDays = useMemo(() => {
+    // Combine open + the 200 most-recent closed trades to find the earliest loaded trade.
+    // For projections this is accurate enough; simState.startingCapital anchors the P&L math.
     const all = [...openTrades, ...closedTrades];
     if (!all.length) return 0;
     const earliest = all.reduce((a, b) =>

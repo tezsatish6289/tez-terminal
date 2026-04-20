@@ -4,6 +4,14 @@
       "collectionGroup": "simulator_trades",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "openedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "simulator_trades",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "blockchainStatus", "order": "ASCENDING" },
         { "fieldPath": "blockchainConfirmedAt", "order": "DESCENDING" }
       ]

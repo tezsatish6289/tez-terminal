@@ -366,7 +366,7 @@ export default function SimulationPage() {
                 {/* Chart + Performance Metrics side by side */}
                 <div className="flex flex-col lg:flex-row gap-3 items-stretch">
                   <div className="flex-1 min-w-0">
-                    <EquityCurve trades={closedTrades} openTrades={openTrades} startingCapital={simState.startingCapital} cs={cs} />
+                    <EquityCurve trades={closedTrades} openTrades={openTrades} startingCapital={simState.startingCapital} currentCapital={simState.capital} cs={cs} />
                   </div>
                   <div className="lg:w-72 xl:w-80 shrink-0 flex flex-col">
                     <PerformanceMetricsPanel
@@ -554,7 +554,7 @@ function PerformanceMetricsPanel({
 
 type ChartView = "trade" | "day";
 
-function EquityCurve({ trades, openTrades = [], startingCapital, cs }: { trades: SimTrade[]; openTrades?: SimTrade[]; startingCapital: number; cs: string }) {
+function EquityCurve({ trades, openTrades = [], startingCapital, currentCapital, cs }: { trades: SimTrade[]; openTrades?: SimTrade[]; startingCapital: number; currentCapital: number; cs: string }) {
   const [view, setView] = useState<ChartView>("trade");
 
   /**
@@ -569,6 +569,7 @@ function EquityCurve({ trades, openTrades = [], startingCapital, cs }: { trades:
   const buildRunningTotal = useCallback((
     closedSorted: SimTrade[],
     allTrades: SimTrade[],
+    nowCapital: number,
   ) => {
     // Build a map of each event's timestamp → delta, keyed by (tradeId, eventIndex)
     // so we can apply them in chronological order.
@@ -623,6 +624,18 @@ function EquityCurve({ trades, openTrades = [], startingCapital, cs }: { trades:
       }
     }
 
+    // Append a "Now" point that equals the current live capital.
+    // This closes the gap caused by open-trade partial exits or entry fees
+    // that occurred after the last closed trade.
+    const lastVal = points[points.length - 1]?.value ?? startingCapital;
+    if (Math.abs(nowCapital - lastVal) > 0.005) {
+      points.push({
+        x: closedSorted.length + 1,
+        value: parseFloat(nowCapital.toFixed(2)),
+        tooltip: "Now",
+      });
+    }
+
     return points;
   }, [startingCapital]);
 
@@ -632,8 +645,8 @@ function EquityCurve({ trades, openTrades = [], startingCapital, cs }: { trades:
       .filter((t) => t.closedAt)
       .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
     if (!closedSorted.length) return [];
-    return buildRunningTotal(closedSorted, [...trades, ...openTrades]);
-  }, [trades, openTrades, buildRunningTotal]);
+    return buildRunningTotal(closedSorted, [...trades, ...openTrades], currentCapital);
+  }, [trades, openTrades, currentCapital, buildRunningTotal]);
 
   // Day-by-day: one point per calendar day with trade activity
   const dayData = useMemo(() => {
@@ -673,8 +686,13 @@ function EquityCurve({ trades, openTrades = [], startingCapital, cs }: { trades:
     for (const [day, capital] of dayCapital) {
       points.push({ x: format(new Date(day), "MMM dd"), value: capital, tooltip: day });
     }
+    // Append "Now" if current capital differs from last day point
+    const lastDayVal = points[points.length - 1]?.value ?? startingCapital;
+    if (Math.abs(currentCapital - lastDayVal) > 0.005) {
+      points.push({ x: "Now", value: parseFloat(currentCapital.toFixed(2)), tooltip: "Current capital" });
+    }
     return points;
-  }, [trades, openTrades, startingCapital]);
+  }, [trades, openTrades, startingCapital, currentCapital]);
 
   if (trades.filter((t) => t.closedAt).length < 2) return null;
 

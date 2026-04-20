@@ -366,7 +366,7 @@ export default function SimulationPage() {
                 {/* Chart + Performance Metrics side by side */}
                 <div className="flex flex-col lg:flex-row gap-3 items-stretch">
                   <div className="flex-1 min-w-0">
-                    <EquityCurve trades={closedTrades} startingCapital={simState.startingCapital} cs={cs} />
+                    <EquityCurve trades={closedTrades} openTrades={openTrades} startingCapital={simState.startingCapital} cs={cs} />
                   </div>
                   <div className="lg:w-72 xl:w-80 shrink-0 flex flex-col">
                     <PerformanceMetricsPanel
@@ -554,61 +554,127 @@ function PerformanceMetricsPanel({
 
 type ChartView = "trade" | "day";
 
-function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; startingCapital: number; cs: string }) {
+function EquityCurve({ trades, openTrades = [], startingCapital, cs }: { trades: SimTrade[]; openTrades?: SimTrade[]; startingCapital: number; cs: string }) {
   const [view, setView] = useState<ChartView>("trade");
 
-  // Trade-by-trade: one point per closed trade
-  const tradeData = useMemo(() => {
-    const sorted = [...trades]
-      .filter((t) => t.closedAt)
-      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
-    if (!sorted.length) return [];
+  /**
+   * Build a flat, time-ordered list of ALL capital changes across every trade
+   * (open and closed). For each trade event:
+   *   - OPEN event (index 0): delta = -entryFee (fee paid at entry)
+   *   - Any subsequent event (TP/SL/partial): delta = event.pnl (already net of exit fee)
+   *
+   * This ensures the chart's running total stays in sync with state.capital, which
+   * also updates on every partial exit even when the trade is still OPEN.
+   */
+  const buildRunningTotal = useCallback((
+    closedSorted: SimTrade[],
+    allTrades: SimTrade[],
+  ) => {
+    // Build a map of each event's timestamp → delta, keyed by (tradeId, eventIndex)
+    // so we can apply them in chronological order.
+    interface RawEvt { ts: number; delta: number; tradeId: string; eventIdx: number; closedAt: string | null; symbol: string }
+    const raw: RawEvt[] = [];
 
+    for (const t of allTrades) {
+      const evts = t.events ?? [];
+      for (let i = 0; i < evts.length; i++) {
+        const e = evts[i];
+        const ts = e.timestamp ? new Date(e.timestamp).getTime() : 0;
+        raw.push({
+          ts,
+          delta: i === 0 ? -e.fee : e.pnl, // entry → deduct fee; exit → net PnL (already fee-net)
+          tradeId: t.id!,
+          eventIdx: i,
+          closedAt: t.closedAt ?? null,
+          symbol: t.symbol,
+        });
+      }
+    }
+    raw.sort((a, b) => a.ts - b.ts || a.eventIdx - b.eventIdx);
+
+    // Set of trade IDs that are fully closed (in closedSorted), and the index they'll
+    // get as a chart point (sorted by closedAt).
+    const closedOrder = new Map(closedSorted.map((t, i) => [t.id!, i + 1]));
+
+    let running = startingCapital;
     const points: { x: string | number; value: number; tooltip: string }[] = [
       { x: 0, value: startingCapital, tooltip: "Start" },
     ];
-    let running = startingCapital;
-    sorted.forEach((t, i) => {
-      const evts = t.events ?? [];
-      running += evts.reduce((s, e) => s + e.pnl, 0) - (evts[0]?.fee ?? 0);
-      points.push({
-        x: i + 1,
-        value: parseFloat(running.toFixed(2)),
-        tooltip: `${t.symbol} · ${format(new Date(t.closedAt!), "MMM dd HH:mm")}`,
-      });
-    });
+    // Track how many chart-points we've emitted per closed trade (only emit on last event)
+    const closedEventCount = new Map<string, number>(closedSorted.map((t) => [t.id!, (t.events ?? []).length]));
+
+    // Count events seen per trade so far
+    const seenEvents = new Map<string, number>();
+
+    for (const e of raw) {
+      running += e.delta;
+      const seen = (seenEvents.get(e.tradeId) ?? 0) + 1;
+      seenEvents.set(e.tradeId, seen);
+
+      // Emit a chart point only when the trade is fully closed AND this is its last event
+      const totalEvts = closedEventCount.get(e.tradeId);
+      if (totalEvts !== undefined && seen === totalEvts && e.closedAt) {
+        const x = closedOrder.get(e.tradeId)!;
+        points.push({
+          x,
+          value: parseFloat(running.toFixed(2)),
+          tooltip: `${e.symbol} · ${format(new Date(e.closedAt), "MMM dd HH:mm")}`,
+        });
+      }
+    }
+
     return points;
-  }, [trades, startingCapital]);
+  }, [startingCapital]);
+
+  // Trade-by-trade: one point per closed trade
+  const tradeData = useMemo(() => {
+    const closedSorted = [...trades]
+      .filter((t) => t.closedAt)
+      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
+    if (!closedSorted.length) return [];
+    return buildRunningTotal(closedSorted, [...trades, ...openTrades]);
+  }, [trades, openTrades, buildRunningTotal]);
 
   // Day-by-day: one point per calendar day with trade activity
   const dayData = useMemo(() => {
-    const sorted = [...trades]
+    const closedSorted = [...trades]
       .filter((t) => t.closedAt)
       .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
-    if (!sorted.length) return [];
+    if (!closedSorted.length) return [];
 
-    // Build end-of-day capital map
+    // Apply all events (open + closed) in time order, snapshot capital at each day boundary
+    interface RawEvt { ts: number; delta: number; closedAt: string | null }
+    const raw: RawEvt[] = [];
+    for (const t of [...trades, ...openTrades]) {
+      const evts = t.events ?? [];
+      for (let i = 0; i < evts.length; i++) {
+        const e = evts[i];
+        raw.push({
+          ts: e.timestamp ? new Date(e.timestamp).getTime() : 0,
+          delta: i === 0 ? -e.fee : e.pnl,
+          closedAt: t.closedAt ?? null,
+        });
+      }
+    }
+    raw.sort((a, b) => a.ts - b.ts);
+
     const dayCapital = new Map<string, number>();
     let running = startingCapital;
-    for (const t of sorted) {
-      const day = t.closedAt!.slice(0, 10);
-      const evts = t.events ?? [];
-      running += evts.reduce((s, e) => s + e.pnl, 0) - (evts[0]?.fee ?? 0);
-      dayCapital.set(day, parseFloat(running.toFixed(2)));
+    for (const e of raw) {
+      running += e.delta;
+      if (e.closedAt) {
+        dayCapital.set(e.closedAt.slice(0, 10), parseFloat(running.toFixed(2)));
+      }
     }
 
     const points: { x: string; value: number; tooltip: string }[] = [
       { x: "Start", value: startingCapital, tooltip: "Starting capital" },
     ];
     for (const [day, capital] of dayCapital) {
-      points.push({
-        x: format(new Date(day), "MMM dd"),
-        value: capital,
-        tooltip: day,
-      });
+      points.push({ x: format(new Date(day), "MMM dd"), value: capital, tooltip: day });
     }
     return points;
-  }, [trades, startingCapital]);
+  }, [trades, openTrades, startingCapital]);
 
   if (trades.filter((t) => t.closedAt).length < 2) return null;
 

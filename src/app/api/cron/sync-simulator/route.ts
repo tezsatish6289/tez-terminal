@@ -24,7 +24,7 @@ import { batchReadLiquidityCache } from "@/lib/liquidity/firestore-cache";
 import { scoreLiquidityContext } from "@/lib/liquidity/liquidity-scorer";
 import { parseLiquidityConfig } from "@/lib/liquidity/types";
 import { deserializePrices, getReferencePrice, getPrice, type AllExchangePrices } from "@/lib/exchanges";
-import { computeAutoSwitch, type PricePoint } from "@/app/api/settings/heatmap-zones/route";
+import { computeAutoSwitch, parseZones, type PricePoint } from "@/app/api/settings/heatmap-zones/route";
 import { executeForAllUsers } from "@/lib/live-execution";
 import { isMarketOpen, isIndianSquareOffTime } from "@/lib/market-hours";
 import { markTradeForBlockchain } from "@/lib/blockchain-logger";
@@ -73,25 +73,11 @@ export async function GET(request: NextRequest) {
   // ── Load heatmap auto-switch zones ──────────────────────────
   // CRYPTO simulator is controlled entirely by BTC price vs configured zones.
   // INDIAN_STOCKS falls back to always-on (BOTH directions).
-  let heatmapZones: import("@/app/api/settings/heatmap-zones/route").HeatmapZones = {
-    bullZoneLow: null, bullZoneHigh: null, bullExitAbove: null,
-    bearZoneHigh: null, bearZoneLow: null, bearExitBelow: null,
-    manualOverride: "AUTO",
-  };
+  let heatmapZones = parseZones({});
   try {
     const zonesDoc = await db.doc("config/heatmap_zones").get();
     if (zonesDoc.exists) {
-      const d = zonesDoc.data() ?? {};
-      const validOverrides = ["AUTO", "BULL", "BOTH", "BEAR", "OFF"];
-      heatmapZones = {
-        bullZoneLow:    typeof d.bullZoneLow   === "number" ? d.bullZoneLow   : null,
-        bullZoneHigh:   typeof d.bullZoneHigh  === "number" ? d.bullZoneHigh  : null,
-        bullExitAbove:  typeof d.bullExitAbove === "number" ? d.bullExitAbove : null,
-        bearZoneHigh:   typeof d.bearZoneHigh  === "number" ? d.bearZoneHigh  : null,
-        bearZoneLow:    typeof d.bearZoneLow   === "number" ? d.bearZoneLow   : null,
-        bearExitBelow:  typeof d.bearExitBelow === "number" ? d.bearExitBelow : null,
-        manualOverride: validOverrides.includes(d.manualOverride) ? d.manualOverride : "AUTO",
-      };
+      heatmapZones = parseZones(zonesDoc.data() ?? {});
     }
   } catch {}
 

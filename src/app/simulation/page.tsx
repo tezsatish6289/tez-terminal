@@ -122,18 +122,18 @@ export default function SimulationPage() {
   }, [firestore, user]);
   const { data: rawOpenTrades, isLoading: openTradesLoading } = useCollection(openTradesQuery);
 
-  // CLOSED trades — static once written; limit to 200 most recent so the
-  // listener scope is bounded and initial page load doesn't scan the full collection.
-  // Requires composite index: status ASC + openedAt DESC (see firestore.indexes.json).
+  // CLOSED trades — filtered by assetType server-side so each tab only receives
+  // its own trades. No limit: we need the full history to reconstruct the equity
+  // curve accurately. Requires composite index: status + assetType + openedAt DESC.
   const closedTradesQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
       collection(firestore, "simulator_trades"),
       where("status", "==", "CLOSED"),
+      where("assetType", "==", assetType),
       orderBy("openedAt", "desc"),
-      limit(200),
     );
-  }, [firestore, user]);
+  }, [firestore, user, assetType]);
   const { data: rawClosedTrades, isLoading: closedTradesLoading } = useCollection(closedTradesQuery);
 
   const logsQuery = useMemoFirebase(() => {
@@ -366,7 +366,7 @@ export default function SimulationPage() {
                 {/* Chart + Performance Metrics side by side */}
                 <div className="flex flex-col lg:flex-row gap-3 items-stretch">
                   <div className="flex-1 min-w-0">
-                    <EquityCurve trades={closedTrades} openTrades={openTrades} startingCapital={simState.startingCapital} currentCapital={simState.capital} cs={cs} />
+                    <EquityCurve trades={closedTrades} startingCapital={simState.startingCapital} cs={cs} />
                   </div>
                   <div className="lg:w-72 xl:w-80 shrink-0 flex flex-col">
                     <PerformanceMetricsPanel
@@ -554,130 +554,52 @@ function PerformanceMetricsPanel({
 
 type ChartView = "trade" | "day";
 
-function EquityCurve({ trades, openTrades = [], startingCapital, currentCapital, cs }: { trades: SimTrade[]; openTrades?: SimTrade[]; startingCapital: number; currentCapital: number; cs: string }) {
+function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; startingCapital: number; cs: string }) {
   const [view, setView] = useState<ChartView>("trade");
 
-  /**
-   * Build a flat, time-ordered list of ALL capital changes across every trade
-   * (open and closed). For each trade event:
-   *   - OPEN event (index 0): delta = -entryFee (fee paid at entry)
-   *   - Any subsequent event (TP/SL/partial): delta = event.pnl (already net of exit fee)
-   *
-   * This ensures the chart's running total stays in sync with state.capital, which
-   * also updates on every partial exit even when the trade is still OPEN.
-   */
-  const buildRunningTotal = useCallback((
-    closedSorted: SimTrade[],
-    allTrades: SimTrade[],
-    nowCapital: number,
-  ) => {
-    // Build a map of each event's timestamp → delta, keyed by (tradeId, eventIndex)
-    // so we can apply them in chronological order.
-    interface RawEvt { ts: number; delta: number; tradeId: string; eventIdx: number; closedAt: string | null; symbol: string }
-    const raw: RawEvt[] = [];
+  // Trade-by-trade: one point per closed trade
+  // Reconstructs capital by replaying each trade's events in time order.
+  // Entry fee is at events[0].fee; each exit event's pnl is already net of exit fee.
+  const tradeData = useMemo(() => {
+    const sorted = [...trades]
+      .filter((t) => t.closedAt)
+      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
+    if (!sorted.length) return [];
 
-    for (const t of allTrades) {
-      const evts = t.events ?? [];
-      for (let i = 0; i < evts.length; i++) {
-        const e = evts[i];
-        const ts = e.timestamp ? new Date(e.timestamp).getTime() : 0;
-        raw.push({
-          ts,
-          delta: i === 0 ? -e.fee : e.pnl, // entry → deduct fee; exit → net PnL (already fee-net)
-          tradeId: t.id!,
-          eventIdx: i,
-          closedAt: t.closedAt ?? null,
-          symbol: t.symbol,
-        });
-      }
-    }
-    raw.sort((a, b) => a.ts - b.ts || a.eventIdx - b.eventIdx);
-
-    // Set of trade IDs that are fully closed (in closedSorted), and the index they'll
-    // get as a chart point (sorted by closedAt).
-    const closedOrder = new Map(closedSorted.map((t, i) => [t.id!, i + 1]));
-
-    let running = startingCapital;
     const points: { x: string | number; value: number; tooltip: string }[] = [
       { x: 0, value: startingCapital, tooltip: "Start" },
     ];
-    // Track how many chart-points we've emitted per closed trade (only emit on last event)
-    const closedEventCount = new Map<string, number>(closedSorted.map((t) => [t.id!, (t.events ?? []).length]));
-
-    // Count events seen per trade so far
-    const seenEvents = new Map<string, number>();
-
-    for (const e of raw) {
-      running += e.delta;
-      const seen = (seenEvents.get(e.tradeId) ?? 0) + 1;
-      seenEvents.set(e.tradeId, seen);
-
-      // Emit a chart point only when the trade is fully closed AND this is its last event
-      const totalEvts = closedEventCount.get(e.tradeId);
-      if (totalEvts !== undefined && seen === totalEvts && e.closedAt) {
-        const x = closedOrder.get(e.tradeId)!;
-        points.push({
-          x,
-          value: parseFloat(running.toFixed(2)),
-          tooltip: `${e.symbol} · ${format(new Date(e.closedAt), "MMM dd HH:mm")}`,
-        });
-      }
-    }
-
-    // Append a "Now" point that equals the current live capital.
-    // This closes the gap caused by open-trade partial exits or entry fees
-    // that occurred after the last closed trade.
-    const lastVal = points[points.length - 1]?.value ?? startingCapital;
-    if (Math.abs(nowCapital - lastVal) > 0.005) {
-      points.push({
-        x: closedSorted.length + 1,
-        value: parseFloat(nowCapital.toFixed(2)),
-        tooltip: "Now",
-      });
-    }
-
-    return points;
-  }, [startingCapital]);
-
-  // Trade-by-trade: one point per closed trade
-  const tradeData = useMemo(() => {
-    const closedSorted = [...trades]
-      .filter((t) => t.closedAt)
-      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
-    if (!closedSorted.length) return [];
-    return buildRunningTotal(closedSorted, [...trades, ...openTrades], currentCapital);
-  }, [trades, openTrades, currentCapital, buildRunningTotal]);
-
-  // Day-by-day: one point per calendar day with trade activity
-  const dayData = useMemo(() => {
-    const closedSorted = [...trades]
-      .filter((t) => t.closedAt)
-      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
-    if (!closedSorted.length) return [];
-
-    // Apply all events (open + closed) in time order, snapshot capital at each day boundary
-    interface RawEvt { ts: number; delta: number; closedAt: string | null }
-    const raw: RawEvt[] = [];
-    for (const t of [...trades, ...openTrades]) {
+    let running = startingCapital;
+    sorted.forEach((t, i) => {
       const evts = t.events ?? [];
-      for (let i = 0; i < evts.length; i++) {
-        const e = evts[i];
-        raw.push({
-          ts: e.timestamp ? new Date(e.timestamp).getTime() : 0,
-          delta: i === 0 ? -e.fee : e.pnl,
-          closedAt: t.closedAt ?? null,
-        });
-      }
-    }
-    raw.sort((a, b) => a.ts - b.ts);
+      // Entry fee is in events[0].fee; subsequent events carry net PnL in .pnl
+      const entryFee = evts[0]?.fee ?? 0;
+      const exitPnl  = evts.slice(1).reduce((s, e) => s + e.pnl, 0);
+      running += exitPnl - entryFee;
+      points.push({
+        x: i + 1,
+        value: parseFloat(running.toFixed(2)),
+        tooltip: `${t.symbol} · ${format(new Date(t.closedAt!), "MMM dd HH:mm")}`,
+      });
+    });
+    return points;
+  }, [trades, startingCapital]);
+
+  // Day-by-day: one point per calendar day
+  const dayData = useMemo(() => {
+    const sorted = [...trades]
+      .filter((t) => t.closedAt)
+      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
+    if (!sorted.length) return [];
 
     const dayCapital = new Map<string, number>();
     let running = startingCapital;
-    for (const e of raw) {
-      running += e.delta;
-      if (e.closedAt) {
-        dayCapital.set(e.closedAt.slice(0, 10), parseFloat(running.toFixed(2)));
-      }
+    for (const t of sorted) {
+      const evts     = t.events ?? [];
+      const entryFee = evts[0]?.fee ?? 0;
+      const exitPnl  = evts.slice(1).reduce((s, e) => s + e.pnl, 0);
+      running += exitPnl - entryFee;
+      dayCapital.set(t.closedAt!.slice(0, 10), parseFloat(running.toFixed(2)));
     }
 
     const points: { x: string; value: number; tooltip: string }[] = [
@@ -686,13 +608,8 @@ function EquityCurve({ trades, openTrades = [], startingCapital, currentCapital,
     for (const [day, capital] of dayCapital) {
       points.push({ x: format(new Date(day), "MMM dd"), value: capital, tooltip: day });
     }
-    // Append "Now" if current capital differs from last day point
-    const lastDayVal = points[points.length - 1]?.value ?? startingCapital;
-    if (Math.abs(currentCapital - lastDayVal) > 0.005) {
-      points.push({ x: "Now", value: parseFloat(currentCapital.toFixed(2)), tooltip: "Current capital" });
-    }
     return points;
-  }, [trades, openTrades, startingCapital, currentCapital]);
+  }, [trades, startingCapital]);
 
   if (trades.filter((t) => t.closedAt).length < 2) return null;
 

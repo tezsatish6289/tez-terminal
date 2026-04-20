@@ -24,7 +24,7 @@ import { batchReadLiquidityCache } from "@/lib/liquidity/firestore-cache";
 import { scoreLiquidityContext } from "@/lib/liquidity/liquidity-scorer";
 import { parseLiquidityConfig } from "@/lib/liquidity/types";
 import { deserializePrices, getReferencePrice, getPrice, type AllExchangePrices } from "@/lib/exchanges";
-import { computeAutoSwitch } from "@/app/api/settings/heatmap-zones/route";
+import { computeAutoSwitch, type PricePoint } from "@/app/api/settings/heatmap-zones/route";
 import { executeForAllUsers } from "@/lib/live-execution";
 import { isMarketOpen, isIndianSquareOffTime } from "@/lib/market-hours";
 import { markTradeForBlockchain } from "@/lib/blockchain-logger";
@@ -118,7 +118,29 @@ export async function GET(request: NextRequest) {
       allPrices.BYBIT.get("BTCUSDT") ??
       allPrices.BINANCE.get("BTCUSDT") ??
       null;
-    const cryptoSwitch = computeAutoSwitch(btcPrice, heatmapZones);
+
+    // ── Rolling BTC price history (max 35 entries ≈ 35 min) ──
+    // Read existing history from the status doc, append current price, trim old.
+    let priceHistory: PricePoint[] = [];
+    try {
+      const statusSnap = await db.doc("config/heatmap_auto_status").get();
+      if (statusSnap.exists) {
+        const existing = statusSnap.data()?.priceHistory;
+        if (Array.isArray(existing)) {
+          priceHistory = existing.filter(
+            (p): p is PricePoint => typeof p?.price === "number" && typeof p?.ts === "number",
+          );
+        }
+      }
+    } catch {}
+
+    if (btcPrice !== null) {
+      priceHistory.push({ price: btcPrice, ts: Date.now() });
+    }
+    // Keep last 35 entries (≈35 min at 1 cron/min)
+    if (priceHistory.length > 35) priceHistory = priceHistory.slice(-35);
+
+    const cryptoSwitch = computeAutoSwitch(btcPrice, heatmapZones, priceHistory);
 
     function getAssetControls(assetType: string): { simEnabled: boolean; directionBias: DirectionBias } {
       if (assetType === "CRYPTO") return { simEnabled: cryptoSwitch.simEnabled, directionBias: cryptoSwitch.directionBias };
@@ -444,6 +466,8 @@ export async function GET(request: NextRequest) {
       simEnabled: cryptoSwitch.simEnabled,
       directionBias: cryptoSwitch.directionBias,
       reason: cryptoSwitch.reason,
+      priceHistory,
+      momentumLookbackMin: heatmapZones.momentumLookbackMin ?? null,
       updatedAt: new Date().toISOString(),
     }).catch(() => {});
 

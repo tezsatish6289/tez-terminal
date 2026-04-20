@@ -613,12 +613,16 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
 
   if (trades.filter((t) => t.closedAt).length < 2) return null;
 
-  const chartData = view === "trade" ? tradeData : dayData;
-  const lastVal   = chartData[chartData.length - 1]?.value ?? startingCapital;
-  const isPositive = lastVal >= startingCapital;
-  const chartColor = isPositive ? "#34d399" : "#f87171";
-  const yMin = Math.floor(Math.min(...chartData.map((d) => d.value)) * 0.995);
-  const yMax = Math.ceil(Math.max(...chartData.map((d) => d.value)) * 1.005);
+  const chartData  = view === "trade" ? tradeData : dayData;
+  const allValues  = chartData.map((d) => d.value);
+  const yMin       = Math.floor(Math.min(...allValues) * 0.995);
+  const yMax       = Math.ceil(Math.max(...allValues) * 1.005);
+
+  // Percentage from the TOP of the chart where startingCapital sits.
+  // Used to split the gradient: green above the baseline, red below it.
+  const splitPct = Math.max(0, Math.min(100,
+    yMax === yMin ? 50 : ((yMax - startingCapital) / (yMax - yMin)) * 100,
+  ));
 
   return (
     <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
@@ -657,9 +661,17 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
               <defs>
-                <linearGradient id="equityGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={chartColor} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
+                {/* Stroke: green above baseline, red below */}
+                <linearGradient id="equityStroke" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset={`${splitPct}%`} stopColor="#34d399" />
+                  <stop offset={`${splitPct}%`} stopColor="#f87171" />
+                </linearGradient>
+                {/* Fill: green fade above, red fade below */}
+                <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%"              stopColor="#34d399" stopOpacity={0.28} />
+                  <stop offset={`${splitPct}%`}  stopColor="#34d399" stopOpacity={0.06} />
+                  <stop offset={`${splitPct}%`}  stopColor="#f87171" stopOpacity={0.06} />
+                  <stop offset="100%"            stopColor="#f87171" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
@@ -699,11 +711,11 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
               <Area
                 type="monotone"
                 dataKey="value"
-                stroke={chartColor}
+                stroke="url(#equityStroke)"
                 strokeWidth={2}
-                fill="url(#equityGradient)"
+                fill="url(#equityFill)"
                 dot={false}
-                activeDot={{ r: 4, fill: chartColor, stroke: "#0f0f11", strokeWidth: 2 }}
+                activeDot={{ r: 4, fill: "#ffffff", stroke: "#0f0f11", strokeWidth: 2 }}
               />
             </AreaChart>
           </ResponsiveContainer>

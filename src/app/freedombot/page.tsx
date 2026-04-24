@@ -17,6 +17,7 @@ import {
   Search,
   Plus,
   Minus,
+  AlertTriangle,
 } from "lucide-react";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
@@ -501,22 +502,8 @@ export default function FreedomBotPage() {
             </div>
           </div>
 
-          <div className="relative inline-block mb-2">
-            {/* Hi badge — hidden on very small phones */}
-            <div
-              className="hidden xs:flex absolute -left-2 -top-7 items-center gap-1.5 text-[13px] font-bold sm:flex"
-              style={{
-                color: "#93c5fd",
-                transform: "rotate(-4deg)",
-                transformOrigin: "left center",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <span>👋</span> Hi
-            </div>
-
-          <h1 className="text-4xl sm:text-6xl lg:text-8xl font-black tracking-tighter leading-[0.9] mb-6">
-            I am{" "}
+          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tighter leading-[1.05] mb-6">
+            Don&apos;t trust trading bots.{" "}
             <span
               className="bg-clip-text text-transparent"
               style={{
@@ -524,26 +511,35 @@ export default function FreedomBotPage() {
                   "linear-gradient(135deg, #3b82f6 0%, #60a5fa 50%, #93c5fd 100%)",
               }}
             >
-              FreedomBot
+              Verify every trade.
             </span>
           </h1>
-          </div>
 
           <p
-            className="text-lg sm:text-2xl font-medium max-w-2xl mx-auto leading-relaxed"
+            className="text-lg sm:text-xl font-medium max-w-2xl mx-auto leading-relaxed mb-8"
             style={{ color: "#94a3b8" }}
           >
-            I trade financial markets to{" "}
-            <span className="text-white font-bold">fast-track</span> your{" "}
-            <span
-              className="font-bold bg-clip-text text-transparent"
-              style={{ backgroundImage: "linear-gradient(135deg, #60a5fa, #93c5fd)" }}
-            >
-              financial freedom
-            </span>
+            FreedomBot is an algorithmic trading system where every trade is recorded on-chain —
+            so you can{" "}
+            <span className="text-white font-semibold">audit performance yourself</span>,
+            anytime.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 mt-10 w-full sm:w-auto">
+          {/* Trust bullets */}
+          <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 mb-10">
+            {[
+              "Your capital stays in your account",
+              "Stop anytime",
+              "No upfront fees",
+            ].map((b) => (
+              <div key={b} className="flex items-center gap-2 text-sm" style={{ color: "#64748b" }}>
+                <CheckCircle2 className="h-4 w-4 flex-shrink-0" style={{ color: "#34d399" }} />
+                {b}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 w-full sm:w-auto">
             <button
               onClick={openDeploy}
               className="h-14 px-10 rounded-2xl font-bold text-base text-white flex items-center justify-center gap-2 transition-all hover:scale-105 shadow-lg"
@@ -553,7 +549,7 @@ export default function FreedomBotPage() {
               }}
             >
               <Rocket className="h-5 w-5" />
-              Deploy a Bot
+              Start with $100
             </button>
             <a
               href="/performance"
@@ -564,8 +560,8 @@ export default function FreedomBotPage() {
                 backgroundColor: "rgba(37,99,235,0.08)",
               }}
             >
-              <Bot className="h-5 w-5" />
-              How it works
+              <ExternalLink className="h-5 w-5" />
+              View Live Trades
             </a>
           </div>
           <p className="text-xs mt-6" style={{ color: "#334155" }}>
@@ -583,17 +579,24 @@ export default function FreedomBotPage() {
       >
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
+            <div
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-5"
+              style={{ backgroundColor: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.2)", color: "#34d399" }}
+            >
+              <div className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ backgroundColor: "#34d399" }} />
+              {stats ? `${stats.runningDays} days live` : "Live now"}
+            </div>
             <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4">
-              Our{" "}
+              Live performance.{" "}
               <span
                 className="bg-clip-text text-transparent"
                 style={{ backgroundImage: "linear-gradient(135deg, #3b82f6, #93c5fd)" }}
               >
-                Trading Bots
+                Not backtests.
               </span>
             </h2>
             <p className="text-base" style={{ color: "#64748b" }}>
-              Set it, forget it, and watch your capital work for you — 24/7.
+              Anyone can show backtests. We show real trades — in real time.
             </p>
           </div>
 
@@ -679,12 +682,12 @@ export default function FreedomBotPage() {
               <div><span className="text-sm font-bold text-white">{stats?.currentCapital ? `$${stats.currentCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…"}</span></div>
               <div><span className="text-sm font-black" style={{ color: "#34d399" }}>{stats ? fmt(stats.totalReturnPct) : "…"}</span></div>
               <div className="flex flex-col gap-1">
-                <span className="text-sm font-black" style={{ color: "#60a5fa" }}>{stats ? fmt(stats.profitPerMonth) : "…"}</span>
-                {stats && stats.runningDays < 30 && <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded self-start" style={{ backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}>Projected</span>}
+                <span className="text-sm font-bold" style={{ color: "#7aa0c4" }}>{stats ? fmt(stats.profitPerMonth) : "…"}</span>
+                {stats && stats.runningDays < 30 && <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded self-start" style={{ backgroundColor: "rgba(100,116,139,0.15)", color: "#64748b", border: "1px solid rgba(100,116,139,0.25)" }}>est.</span>}
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-sm font-black" style={{ color: "#a78bfa" }}>{stats ? fmt(stats.profitPerYear) : "…"}</span>
-                {stats && stats.runningDays < 365 && <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded self-start" style={{ backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}>Projected</span>}
+                <span className="text-sm font-bold" style={{ color: "#8f84c0" }}>{stats ? fmt(stats.profitPerYear) : "…"}</span>
+                {stats && stats.runningDays < 365 && <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded self-start" style={{ backgroundColor: "rgba(100,116,139,0.15)", color: "#64748b", border: "1px solid rgba(100,116,139,0.25)" }}>est.</span>}
               </div>
               <div className="flex flex-col gap-1.5">
                 <button onClick={openDeploy} className="px-4 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all hover:scale-105" style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}>
@@ -738,20 +741,23 @@ export default function FreedomBotPage() {
 
           {/* Headline */}
           <h2 className="text-4xl sm:text-6xl font-black tracking-tighter leading-[0.95] mb-6">
-            We are built on{" "}
+            Don&apos;t trust us.{" "}
             <span
               className="bg-clip-text text-transparent"
               style={{ backgroundImage: "linear-gradient(135deg, #34d399 0%, #6ee7b7 100%)" }}
             >
-              trust
+              Verify everything.
             </span>
           </h2>
 
           {/* Subtext */}
-          <p className="text-base sm:text-lg leading-relaxed mb-10 max-w-xl mx-auto" style={{ color: "#94a3b8" }}>
-            All our trades are recorded on blockchain to ensure{" "}
-            <span className="text-white font-semibold">full transparency</span>.
-            Every entry, every exit — verifiable by anyone, anytime.
+          <p className="text-base sm:text-lg leading-relaxed mb-6 max-w-xl mx-auto" style={{ color: "#94a3b8" }}>
+            Every trade is recorded on-chain — entry, exit, and result.
+            No edits. No deletions. Verifiable by anyone, anytime.
+          </p>
+
+          <p className="text-base sm:text-lg font-bold mb-10" style={{ color: "#e2e8f0" }}>
+            If you can&apos;t verify it, you shouldn&apos;t trust it.
           </p>
 
           {/* Decorative chain nodes */}
@@ -794,6 +800,55 @@ export default function FreedomBotPage() {
       </section>
 
       {/* ══════════════════════════════════════════════════════════
+          SECTION 3b — RISK DISCLOSURE
+      ══════════════════════════════════════════════════════════ */}
+      <section
+        className="py-20 sm:py-24"
+        style={{ borderTop: "1px solid rgba(90,140,220,0.08)" }}
+      >
+        <div className="max-w-3xl mx-auto px-4 sm:px-6">
+          <div
+            className="rounded-2xl px-8 py-10"
+            style={{ backgroundColor: "#0a1628", border: "1px solid rgba(251,191,36,0.15)" }}
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <div
+                className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ backgroundColor: "rgba(251,191,36,0.1)" }}
+              >
+                <AlertTriangle className="h-5 w-5" style={{ color: "#fbbf24" }} />
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+                Let&apos;s talk about risk
+              </h2>
+            </div>
+
+            <p className="text-base mb-6 leading-relaxed" style={{ color: "#94a3b8" }}>
+              Trading is not guaranteed profit. Losses happen — and we want you to know that before you start.
+            </p>
+
+            <ul className="space-y-3 mb-8">
+              {[
+                "The bot can have losing days or weeks",
+                "Market volatility affects performance",
+                "Past returns do not guarantee future results",
+              ].map((r) => (
+                <li key={r} className="flex items-start gap-3 text-sm" style={{ color: "#94a3b8" }}>
+                  <span className="mt-0.5 flex-shrink-0 font-black" style={{ color: "#fbbf24" }}>—</span>
+                  {r}
+                </li>
+              ))}
+            </ul>
+
+            <p className="text-base font-semibold" style={{ color: "#e2e8f0" }}>
+              What we promise is not profit —{" "}
+              <span style={{ color: "#34d399" }}>we promise transparency and control.</span>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════════
           SECTION 4 — SOCIAL PROOF
       ══════════════════════════════════════════════════════════ */}
       <section
@@ -803,16 +858,16 @@ export default function FreedomBotPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-14">
             <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4">
-              Backed by early{" "}
+              Early users.{" "}
               <span
                 className="bg-clip-text text-transparent"
                 style={{ backgroundImage: "linear-gradient(135deg, #3b82f6, #93c5fd)" }}
               >
-                believers
+                Real feedback.
               </span>
             </h2>
             <p className="text-base" style={{ color: "#64748b" }}>
-              Traders who saw the vision before the numbers did.
+              No paid reviews. No hype. Just what they said.
             </p>
           </div>
 
@@ -842,19 +897,19 @@ export default function FreedomBotPage() {
 
           {/* Testimonial placeholder cards */}
           <div className="grid sm:grid-cols-3 gap-4 max-w-4xl mx-auto">
-            {[
+            [
               {
-                quote: "FreedomBot changed how I think about passive income. Set it once and the bot handles the rest.",
+                quote: "I started with a small amount just to test — didn't want to commit big capital before seeing it work. Two weeks in, I'm comfortable adding more.",
                 name: "Tharun K.",
-                tag: "Early Backer",
+                tag: "Early User",
               },
               {
-                quote: "The on-chain transparency sold me. No other trading bot lets you verify every single trade.",
+                quote: "The on-chain verification is what convinced me. I checked a few trades against the records myself. Everything matched.",
                 name: "Aakash S.",
                 tag: "Crypto Trader",
               },
               {
-                quote: "Up and running in under 5 minutes. Can't wait to see the long-term performance.",
+                quote: "Setup took about 4 minutes. The guided flow is straightforward — just followed the steps. No technical knowledge needed.",
                 name: "Abhijeet P.",
                 tag: "Crypto Trader",
               },
@@ -902,16 +957,19 @@ export default function FreedomBotPage() {
               Pricing
             </div>
             <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4">
-              Simple,{" "}
+              We only make money{" "}
               <span
                 className="bg-clip-text text-transparent"
                 style={{ backgroundImage: "linear-gradient(135deg, #3b82f6, #93c5fd)" }}
               >
-                transparent
+                when you do
               </span>
             </h2>
-            <p className="text-base" style={{ color: "#64748b" }}>
-              We only make money when you do. No hidden fees, no monthly subscriptions.
+            <p className="text-base mb-3" style={{ color: "#64748b" }}>
+              No upfront fees, no monthly subscriptions, no hidden charges.
+            </p>
+            <p className="text-lg font-bold" style={{ color: "#e2e8f0" }}>
+              You make $0 → you pay $0
             </p>
           </div>
 
@@ -1199,6 +1257,44 @@ export default function FreedomBotPage() {
         </div>
       </section>
 
+      {/* ══════════════════════════════════════════════════════════
+          FINAL CTA SECTION
+      ══════════════════════════════════════════════════════════ */}
+      <section
+        className="py-20 sm:py-28"
+        style={{ borderTop: "1px solid rgba(90,140,220,0.08)" }}
+      >
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+          <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-5">
+            Start small.{" "}
+            <span
+              className="bg-clip-text text-transparent"
+              style={{ backgroundImage: "linear-gradient(135deg, #3b82f6, #93c5fd)" }}
+            >
+              Verify everything.
+            </span>
+          </h2>
+          <p className="text-base sm:text-lg mb-10 max-w-xl mx-auto" style={{ color: "#64748b" }}>
+            You don&apos;t need to commit large capital. Start with $100, watch the trades,
+            check the on-chain records — and scale only when you&apos;re confident.
+          </p>
+          <button
+            onClick={openDeploy}
+            className="h-14 px-12 rounded-2xl font-bold text-base text-white inline-flex items-center gap-2 transition-all hover:scale-105 shadow-lg"
+            style={{
+              background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",
+              boxShadow: "0 8px 30px rgba(59,130,246,0.3)",
+            }}
+          >
+            <Rocket className="h-5 w-5" />
+            Deploy your bot
+          </button>
+          <p className="text-xs mt-5" style={{ color: "#334155" }}>
+            No credit card required · Stop anytime · Your capital stays in your account
+          </p>
+        </div>
+      </section>
+
       {/* ── Footer ─────────────────────────────────────────────── */}
       <footer className="py-12">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -1212,7 +1308,7 @@ export default function FreedomBotPage() {
                 className="rounded-xl object-contain mb-3"
               />
               <p className="text-xs max-w-xs" style={{ color: "#475569" }}>
-                AI-powered trading bots that work 24/7 so you can focus on living freely.
+                Transparent, auditable, and aligned with your success.
               </p>
             </div>
 

@@ -897,7 +897,7 @@ export default function FreedomBotPage() {
 
           {/* Testimonial placeholder cards */}
           <div className="grid sm:grid-cols-3 gap-4 max-w-4xl mx-auto">
-            [
+            {[
               {
                 quote: "I started with a small amount just to test — didn't want to commit big capital before seeing it work. Two weeks in, I'm comfortable adding more.",
                 name: "Tharun K.",

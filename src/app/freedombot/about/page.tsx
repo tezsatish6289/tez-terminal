@@ -100,9 +100,7 @@ export default function AboutPage() {
               felt the losses ourselves, and that is exactly why we built FreedomBot.
             </p>
             <p className="text-base leading-relaxed mt-4" style={{ color: "#94a3b8" }}>
-              FreedomBot.ai is the product of{" "}
-              <span style={{ color: "#cbd5e1", fontWeight: 600 }}>Turbogains Fintech Solutions Private Limited</span>,
-              a company incorporated in India in September 2025 (CIN: U62099UP2025PTC232196).
+              FreedomBot.ai is backed by a registered company in India.
             </p>
           </div>
 

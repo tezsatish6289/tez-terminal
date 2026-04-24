@@ -245,7 +245,7 @@ export default function ContactPage() {
       {/* Footer */}
       <footer className="py-10" style={{ borderTop: "1px solid rgba(90,140,220,0.1)" }}>
         <div className="max-w-2xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-xs" style={{ color: "#334155" }}>© 2026 FreedomBot.ai · Turbogains Fintech Solutions Pvt. Ltd.</p>
+          <p className="text-xs" style={{ color: "#334155" }}>© 2026 FreedomBot.ai</p>
           <div className="flex gap-6">
             <Link href="/privacy" className="text-xs transition-colors hover:text-blue-300" style={{ color: "#475569" }}>Privacy</Link>
             <Link href="/terms" className="text-xs transition-colors hover:text-blue-300" style={{ color: "#475569" }}>Terms</Link>

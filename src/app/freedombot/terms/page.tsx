@@ -121,7 +121,7 @@ export default function TermsPage() {
         </p>
 
         <p className="text-xs mb-16" style={{ color: "#475569" }}>
-          Last updated: {LAST_UPDATED} · Operated by Turbogains Fintech Solutions Private Limited (CIN: U62099UP2025PTC232196)
+          Last updated: {LAST_UPDATED} · Operated by FreedomBot.ai
         </p>
 
         <div className="space-y-6">
@@ -138,12 +138,8 @@ export default function TermsPage() {
               If you do not agree, please do not use the platform.
             </P>
             <P>
-              FreedomBot.ai is operated by{" "}
-              <Highlight>Turbogains Fintech Solutions Private Limited</Highlight>, a company
-              incorporated under the Companies Act, 2013 (CIN: U62099UP2025PTC232196),
-              having its registered office at 312 C, Tower-3, Golf View Apartments, Sushant
-              Golf City, Lucknow, Uttar Pradesh — 226030, India (referred to as
-              &quot;FreedomBot&quot;, &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;).
+              FreedomBot.ai is operated by a registered company in India
+              (referred to as &quot;FreedomBot&quot;, &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;).
             </P>
           </Section>
 

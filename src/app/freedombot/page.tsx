@@ -840,10 +840,34 @@ export default function FreedomBotPage() {
               ))}
             </ul>
 
-            <p className="text-base font-semibold" style={{ color: "#e2e8f0" }}>
+            <p className="text-base font-semibold mb-8" style={{ color: "#e2e8f0" }}>
               What we promise is not profit —{" "}
               <span style={{ color: "#34d399" }}>we promise transparency and control.</span>
             </p>
+
+            <div
+              className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-6"
+              style={{ borderTop: "1px solid rgba(251,191,36,0.1)" }}
+            >
+              <div>
+                <p className="text-sm font-bold text-white mb-0.5">See how we manage risk</p>
+                <p className="text-xs" style={{ color: "#64748b" }}>
+                  Entry rules, stop-loss logic, position sizing — fully documented
+                </p>
+              </div>
+              <Link
+                href="/performance"
+                className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105 whitespace-nowrap"
+                style={{
+                  backgroundColor: "rgba(251,191,36,0.08)",
+                  border: "1px solid rgba(251,191,36,0.2)",
+                  color: "#fbbf24",
+                }}
+              >
+                How it works
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
         </div>
       </section>

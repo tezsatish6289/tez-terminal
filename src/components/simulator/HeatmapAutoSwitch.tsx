@@ -42,10 +42,12 @@ interface SuggestedZones {
   bearZoneLow:   number | null;
   bearZoneHigh:  number | null;
   bearExitBelow: number | null;
-  bullVolume:    number | null;
-  bearVolume:    number | null;
+  bullVolume:    number | null; // put OI at bull strike (BTC contracts)
+  bearVolume:    number | null; // call OI at bear strike (BTC contracts)
+  maxPain:       number | null;
+  expiriesUsed:  string[]  | null;
   btcPrice:      number | null;
-  source:        "bybit" | "binance";
+  source:        string;
   computedAt:    string;
 }
 
@@ -316,10 +318,13 @@ export function HeatmapAutoSwitch() {
                         setDirty(true);
                       }}
                       className="flex items-center gap-1 px-2 py-0.5 rounded-md border border-positive/20 bg-positive/[0.06] text-[9px] font-mono font-bold text-positive/70 hover:text-positive hover:bg-positive/10 transition-all"
-                      title="Apply volume-profile suggestion to bull zone"
+                      title={`Deribit put OI: ${suggested.bullVolume?.toLocaleString() ?? "?"} contracts — click to apply`}
                     >
                       <RefreshCw className="w-2.5 h-2.5" />
                       ${suggested.bullZoneLow.toLocaleString()}–${suggested.bullZoneHigh.toLocaleString()}
+                      {suggested.bullVolume && (
+                        <span className="opacity-60 font-normal">·{Math.round(suggested.bullVolume)}c</span>
+                      )}
                     </button>
                   )}
                 </div>
@@ -365,10 +370,13 @@ export function HeatmapAutoSwitch() {
                         setDirty(true);
                       }}
                       className="flex items-center gap-1 px-2 py-0.5 rounded-md border border-negative/20 bg-negative/[0.06] text-[9px] font-mono font-bold text-negative/70 hover:text-negative hover:bg-negative/10 transition-all"
-                      title="Apply volume-profile suggestion to bear zone"
+                      title={`Deribit call OI: ${suggested.bearVolume?.toLocaleString() ?? "?"} contracts — click to apply`}
                     >
                       <RefreshCw className="w-2.5 h-2.5" />
                       ${suggested.bearZoneLow.toLocaleString()}–${suggested.bearZoneHigh.toLocaleString()}
+                      {suggested.bearVolume && (
+                        <span className="opacity-60 font-normal">·{Math.round(suggested.bearVolume)}c</span>
+                      )}
                     </button>
                   )}
                 </div>
@@ -439,22 +447,36 @@ export function HeatmapAutoSwitch() {
           )}
         </div>
 
-        {/* Footer */}
+          {/* Footer */}
         <div className="px-5 py-3 border-t border-white/[0.06] flex items-center justify-between gap-3">
-          {/* Volume profile refresh — compact, stays out of the way */}
-          <div className="flex items-center gap-2 min-w-0">
-            <button
-              onClick={handleRefreshSuggestions}
-              disabled={refreshing}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-white/[0.07] bg-white/[0.02] text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.05] transition-all disabled:opacity-40 shrink-0"
-            >
-              <RefreshCw className={cn("w-3 h-3", refreshing && "animate-spin")} />
-              {refreshing ? "Analysing…" : "Refresh Zones"}
-            </button>
-            {suggested?.computedAt && (
-              <span className="text-[9px] text-muted-foreground/30 truncate">
-                vol profile · {new Date(suggested.computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · {suggested.source}
-              </span>
+          {/* Deribit refresh — compact */}
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRefreshSuggestions}
+                disabled={refreshing}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-white/[0.07] bg-white/[0.02] text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.05] transition-all disabled:opacity-40 shrink-0"
+              >
+                <RefreshCw className={cn("w-3 h-3", refreshing && "animate-spin")} />
+                {refreshing ? "Fetching…" : "Refresh Zones"}
+              </button>
+              {suggested?.computedAt && (
+                <span className="text-[9px] text-muted-foreground/30 truncate">
+                  deribit · {new Date(suggested.computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              )}
+            </div>
+            {/* Max pain + expiries row */}
+            {suggested?.maxPain && (
+              <p className="text-[9px] text-muted-foreground/35 pl-0.5">
+                Max Pain{" "}
+                <span className="font-mono font-bold text-accent/60">
+                  ${suggested.maxPain.toLocaleString()}
+                </span>
+                {suggested.expiriesUsed?.length
+                  ? ` · ${suggested.expiriesUsed.join(", ")}`
+                  : ""}
+              </p>
             )}
           </div>
 

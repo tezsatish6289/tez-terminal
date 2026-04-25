@@ -189,13 +189,15 @@ export async function computeOptionsZones(
     bullStrike,
     bullZoneLow:   bullStrike !== null ? bullStrike - ZONE_HALF_WIDTH : null,
     bullZoneHigh:  bullStrike !== null ? bullStrike + ZONE_HALF_WIDTH : null,
-    bullExitAbove: bearStrike,
+    // Exit bull when price leaves the bull zone from above — trades only near the zone
+    bullExitAbove: bullStrike !== null ? bullStrike + ZONE_HALF_WIDTH : null,
     bullOI:        bullOI > 0 ? bullOI : null,
 
     bearStrike,
     bearZoneLow:   bearStrike !== null ? bearStrike - ZONE_HALF_WIDTH : null,
     bearZoneHigh:  bearStrike !== null ? bearStrike + ZONE_HALF_WIDTH : null,
-    bearExitBelow: bullStrike,
+    // Exit bear when price leaves the bear zone from below — trades only near the zone
+    bearExitBelow: bearStrike !== null ? bearStrike - ZONE_HALF_WIDTH : null,
     bearOI:        bearOI > 0 ? bearOI : null,
 
     maxPain,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, Save, Zap, TrendingUp, TrendingDown, PowerOff, Activity } from "lucide-react";
+import { Loader2, Save, Zap, TrendingUp, TrendingDown, PowerOff, Activity, RefreshCw } from "lucide-react";
 import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
@@ -33,6 +33,20 @@ interface AutoStatus {
   directionBias: "BULL" | "BEAR" | "BOTH";
   reason:        string;
   updatedAt:     string;
+}
+
+interface SuggestedZones {
+  bullZoneLow:   number | null;
+  bullZoneHigh:  number | null;
+  bullExitAbove: number | null;
+  bearZoneLow:   number | null;
+  bearZoneHigh:  number | null;
+  bearExitBelow: number | null;
+  bullVolume:    number | null;
+  bearVolume:    number | null;
+  btcPrice:      number | null;
+  source:        "bybit" | "binance";
+  computedAt:    string;
 }
 
 const EMPTY_ZONES: HeatmapZones = {
@@ -81,6 +95,7 @@ export function HeatmapAutoSwitch() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Live auto-switch status (written by cron every minute)
   const statusRef = useMemoFirebase(() => {
@@ -89,6 +104,14 @@ export function HeatmapAutoSwitch() {
   }, [firestore]);
   const { data: statusData } = useDoc(statusRef);
   const status = statusData as AutoStatus | null;
+
+  // Suggested zones from volume profile analysis (written by suggest-zones cron)
+  const suggestedRef = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return doc(firestore, "config", "suggested_zones");
+  }, [firestore]);
+  const { data: suggestedData } = useDoc(suggestedRef);
+  const suggested = suggestedData as SuggestedZones | null;
 
   useEffect(() => {
     fetch("/api/settings/heatmap-zones")
@@ -131,6 +154,18 @@ export function HeatmapAutoSwitch() {
       setSaving(false);
     }
   }, [zones]);
+
+  const handleRefreshSuggestions = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetch("/api/cron/suggest-zones", { method: "POST" });
+    } catch (err) {
+      console.error("Failed to refresh suggestions:", err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
 
   // When override is active, derive pill from zones state immediately (no cron delay).
   // When on AUTO, derive from the cron-written status doc.
@@ -263,9 +298,30 @@ export function HeatmapAutoSwitch() {
             <>
               {/* Bull zone */}
               <div className="space-y-3">
-                <div className="flex items-center gap-1.5 pb-1 border-b border-white/[0.05]">
-                  <TrendingUp className="w-3.5 h-3.5 text-positive/70" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-positive/80">Bull</span>
+                <div className="flex items-center justify-between pb-1 border-b border-white/[0.05]">
+                  <div className="flex items-center gap-1.5">
+                    <TrendingUp className="w-3.5 h-3.5 text-positive/70" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-positive/80">Bull</span>
+                  </div>
+                  {/* Inline suggestion chip */}
+                  {suggested?.bullZoneLow && suggested?.bullZoneHigh && (
+                    <button
+                      onClick={() => {
+                        setZones((p) => ({
+                          ...p,
+                          bullZoneLow:   suggested.bullZoneLow,
+                          bullZoneHigh:  suggested.bullZoneHigh,
+                          bullExitAbove: suggested.bullExitAbove,
+                        }));
+                        setDirty(true);
+                      }}
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-md border border-positive/20 bg-positive/[0.06] text-[9px] font-mono font-bold text-positive/70 hover:text-positive hover:bg-positive/10 transition-all"
+                      title="Apply volume-profile suggestion to bull zone"
+                    >
+                      <RefreshCw className="w-2.5 h-2.5" />
+                      ${suggested.bullZoneLow.toLocaleString()}–${suggested.bullZoneHigh.toLocaleString()}
+                    </button>
+                  )}
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <PriceInput
@@ -291,9 +347,30 @@ export function HeatmapAutoSwitch() {
 
               {/* Bear zone */}
               <div className="space-y-3">
-                <div className="flex items-center gap-1.5 pb-1 border-b border-white/[0.05]">
-                  <TrendingDown className="w-3.5 h-3.5 text-negative/70" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-negative/80">Bear</span>
+                <div className="flex items-center justify-between pb-1 border-b border-white/[0.05]">
+                  <div className="flex items-center gap-1.5">
+                    <TrendingDown className="w-3.5 h-3.5 text-negative/70" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-negative/80">Bear</span>
+                  </div>
+                  {/* Inline suggestion chip */}
+                  {suggested?.bearZoneLow && suggested?.bearZoneHigh && (
+                    <button
+                      onClick={() => {
+                        setZones((p) => ({
+                          ...p,
+                          bearZoneLow:   suggested.bearZoneLow,
+                          bearZoneHigh:  suggested.bearZoneHigh,
+                          bearExitBelow: suggested.bearExitBelow,
+                        }));
+                        setDirty(true);
+                      }}
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-md border border-negative/20 bg-negative/[0.06] text-[9px] font-mono font-bold text-negative/70 hover:text-negative hover:bg-negative/10 transition-all"
+                      title="Apply volume-profile suggestion to bear zone"
+                    >
+                      <RefreshCw className="w-2.5 h-2.5" />
+                      ${suggested.bearZoneLow.toLocaleString()}–${suggested.bearZoneHigh.toLocaleString()}
+                    </button>
+                  )}
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <PriceInput
@@ -363,12 +440,29 @@ export function HeatmapAutoSwitch() {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-white/[0.06] flex justify-end">
+        <div className="px-5 py-3 border-t border-white/[0.06] flex items-center justify-between gap-3">
+          {/* Volume profile refresh — compact, stays out of the way */}
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              onClick={handleRefreshSuggestions}
+              disabled={refreshing}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-white/[0.07] bg-white/[0.02] text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.05] transition-all disabled:opacity-40 shrink-0"
+            >
+              <RefreshCw className={cn("w-3 h-3", refreshing && "animate-spin")} />
+              {refreshing ? "Analysing…" : "Refresh Zones"}
+            </button>
+            {suggested?.computedAt && (
+              <span className="text-[9px] text-muted-foreground/30 truncate">
+                vol profile · {new Date(suggested.computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · {suggested.source}
+              </span>
+            )}
+          </div>
+
           <button
             onClick={handleSave}
             disabled={!dirty || saving}
             className={cn(
-              "flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+              "flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all shrink-0",
               dirty
                 ? "bg-accent text-accent-foreground hover:bg-accent/90"
                 : "bg-white/[0.03] text-muted-foreground/30 cursor-not-allowed border border-white/[0.06]",

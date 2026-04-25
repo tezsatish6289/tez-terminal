@@ -462,7 +462,7 @@ export function HeatmapAutoSwitch() {
               </button>
               {suggested?.computedAt && (
                 <span className="text-[9px] text-muted-foreground/30 truncate">
-                  deribit · {new Date(suggested.computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  {suggested.source ?? "deribit"} · {new Date(suggested.computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </span>
               )}
             </div>

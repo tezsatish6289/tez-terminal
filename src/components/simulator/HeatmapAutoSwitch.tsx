@@ -36,19 +36,25 @@ interface AutoStatus {
 }
 
 interface SuggestedZones {
-  bullZoneLow:   number | null;
-  bullZoneHigh:  number | null;
-  bullExitAbove: number | null;
-  bearZoneLow:   number | null;
-  bearZoneHigh:  number | null;
-  bearExitBelow: number | null;
-  bullVolume:    number | null; // put OI at bull strike (BTC contracts)
-  bearVolume:    number | null; // call OI at bear strike (BTC contracts)
-  maxPain:       number | null;
-  expiriesUsed:  string[]  | null;
-  btcPrice:      number | null;
-  source:        string;
-  computedAt:    string;
+  bullZoneLow:     number | null;
+  bullZoneHigh:    number | null;
+  bullExitAbove:   number | null;
+  bearZoneLow:     number | null;
+  bearZoneHigh:    number | null;
+  bearExitBelow:   number | null;
+  bullOI:          number | null;
+  bearOI:          number | null;
+  // legacy field names kept for backwards compat
+  bullVolume:      number | null;
+  bearVolume:      number | null;
+  maxPain:         number | null;
+  expiryUsed:      string  | null;
+  expiriesUsed:    string[] | null;
+  expiryOI:        number | null;
+  insufficientGap: boolean | null;
+  btcPrice:        number | null;
+  source:          string;
+  computedAt:      string;
 }
 
 const EMPTY_ZONES: HeatmapZones = {
@@ -296,8 +302,79 @@ export function HeatmapAutoSwitch() {
             <div className="flex items-center justify-center h-32">
               <Loader2 className="w-4 h-4 animate-spin text-accent/40" />
             </div>
+          ) : zones.manualOverride === "AUTO" ? (
+            /* ── AUTO mode: read-only Deribit zone summary ── */
+            <div className="space-y-3">
+              {suggested?.insufficientGap && (
+                <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.05] px-3 py-2.5">
+                  <p className="text-[10px] font-bold text-amber-400/80">Zones too close — no trades</p>
+                  <p className="text-[9px] text-muted-foreground/50 mt-0.5">
+                    Put and call clusters are less than $2,500 apart. Simulator stays OFF until zones widen.
+                  </p>
+                </div>
+              )}
+              {suggested ? (
+                <>
+                  {/* Max Pain banner */}
+                  {suggested.maxPain && (
+                    <div className="flex items-center justify-between rounded-lg border border-accent/20 bg-accent/[0.05] px-3 py-2">
+                      <div>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-accent/60">Max Pain — exit target</p>
+                        <p className="text-[14px] font-mono font-bold text-accent">${suggested.maxPain.toLocaleString()}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[9px] text-muted-foreground/40">{suggested.expiryUsed ?? (suggested.expiriesUsed?.[0])}</p>
+                        {suggested.expiryOI && (
+                          <p className="text-[9px] font-mono text-muted-foreground/40">{Math.round(suggested.expiryOI)} BTC OI</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {/* Bull + Bear zone cards */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-lg border border-positive/20 bg-positive/[0.04] px-3 py-2.5 space-y-1">
+                      <div className="flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3 text-positive/60" />
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-positive/70">Bull entry</p>
+                      </div>
+                      <p className="text-[12px] font-mono font-bold text-positive">
+                        ${suggested.bullZoneLow?.toLocaleString()}–${suggested.bullZoneHigh?.toLocaleString()}
+                      </p>
+                      {(suggested.bullOI ?? suggested.bullVolume) && (
+                        <p className="text-[9px] text-muted-foreground/40">
+                          {Math.round(suggested.bullOI ?? suggested.bullVolume ?? 0)}c put OI
+                        </p>
+                      )}
+                    </div>
+                    <div className="rounded-lg border border-negative/20 bg-negative/[0.04] px-3 py-2.5 space-y-1">
+                      <div className="flex items-center gap-1">
+                        <TrendingDown className="w-3 h-3 text-negative/60" />
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-negative/70">Bear entry</p>
+                      </div>
+                      <p className="text-[12px] font-mono font-bold text-negative">
+                        ${suggested.bearZoneLow?.toLocaleString()}–${suggested.bearZoneHigh?.toLocaleString()}
+                      </p>
+                      {(suggested.bearOI ?? suggested.bearVolume) && (
+                        <p className="text-[9px] text-muted-foreground/40">
+                          {Math.round(suggested.bearOI ?? suggested.bearVolume ?? 0)}c call OI
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-[9px] text-muted-foreground/30 text-center">
+                    Zones auto-managed · refreshed every 4 h · last {new Date(suggested.computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </>
+              ) : (
+                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-4 text-center">
+                  <p className="text-[10px] text-muted-foreground/40">No zone data yet</p>
+                  <p className="text-[9px] text-muted-foreground/25 mt-1">Hit Refresh Zones to compute from Deribit</p>
+                </div>
+              )}
+            </div>
           ) : (
             <>
+              {/* Manual mode: editable zone inputs */}
               {/* Bull zone */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between pb-1 border-b border-white/[0.05]">
@@ -447,7 +524,7 @@ export function HeatmapAutoSwitch() {
           )}
         </div>
 
-          {/* Footer */}
+        {/* Footer */}
         <div className="px-5 py-3 border-t border-white/[0.06] flex items-center justify-between gap-3">
           {/* Deribit refresh — compact */}
           <div className="flex flex-col gap-0.5 min-w-0">
@@ -466,33 +543,33 @@ export function HeatmapAutoSwitch() {
                 </span>
               )}
             </div>
-            {/* Max pain + expiries row */}
-            {suggested?.maxPain && (
+            {/* Expiry row — only shown in manual mode; AUTO mode shows this in the zone card */}
+            {suggested?.expiryUsed && zones.manualOverride !== "AUTO" && (
               <p className="text-[9px] text-muted-foreground/35 pl-0.5">
                 Max Pain{" "}
                 <span className="font-mono font-bold text-accent/60">
-                  ${suggested.maxPain.toLocaleString()}
+                  ${suggested.maxPain?.toLocaleString() ?? "—"}
                 </span>
-                {suggested.expiriesUsed?.length
-                  ? ` · ${suggested.expiriesUsed.join(", ")}`
-                  : ""}
+                {` · ${suggested.expiryUsed}`}
               </p>
             )}
           </div>
 
-          <button
-            onClick={handleSave}
-            disabled={!dirty || saving}
-            className={cn(
-              "flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all shrink-0",
-              dirty
-                ? "bg-accent text-accent-foreground hover:bg-accent/90"
-                : "bg-white/[0.03] text-muted-foreground/30 cursor-not-allowed border border-white/[0.06]",
-            )}
-          >
-            {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-            Save Zones
-          </button>
+          {zones.manualOverride !== "AUTO" && (
+            <button
+              onClick={handleSave}
+              disabled={!dirty || saving}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all shrink-0",
+                dirty
+                  ? "bg-accent text-accent-foreground hover:bg-accent/90"
+                  : "bg-white/[0.03] text-muted-foreground/30 cursor-not-allowed border border-white/[0.06]",
+              )}
+            >
+              {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+              Save Zones
+            </button>
+          )}
         </div>
       </SheetContent>
     </Sheet>

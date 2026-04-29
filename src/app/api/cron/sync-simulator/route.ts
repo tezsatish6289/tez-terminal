@@ -81,6 +81,35 @@ export async function GET(request: NextRequest) {
     }
   } catch {}
 
+  // ── AUTO mode: override zones with Deribit-computed suggested zones ──
+  // When manualOverride is AUTO, the simulator uses the zones computed
+  // from Deribit options OI (written every 4h by the suggest-zones cron).
+  // Max Pain is used as the exit level for both bull and bear.
+  if (heatmapZones.manualOverride === "AUTO") {
+    try {
+      const suggestedSnap = await db.doc("config/suggested_zones").get();
+      if (suggestedSnap.exists) {
+        const s = suggestedSnap.data() as Record<string, unknown>;
+        const computedAt = s.computedAt as string | undefined;
+        const ageMs = computedAt ? Date.now() - new Date(computedAt).getTime() : Infinity;
+        const isStale = ageMs > 12 * 60 * 60 * 1000; // stale if >12 hours old
+        const hasZones = s.bullZoneLow && s.bullZoneHigh && s.bearZoneLow && s.bearZoneHigh;
+        const sufficientGap = !s.insufficientGap;
+        if (!isStale && hasZones && sufficientGap) {
+          heatmapZones = {
+            ...heatmapZones,
+            bullZoneLow:   s.bullZoneLow   as number,
+            bullZoneHigh:  s.bullZoneHigh  as number,
+            bullExitAbove: s.bullExitAbove as number | null ?? null, // maxPain
+            bearZoneLow:   s.bearZoneLow   as number,
+            bearZoneHigh:  s.bearZoneHigh  as number,
+            bearExitBelow: s.bearExitBelow as number | null ?? null, // maxPain
+          };
+        }
+      }
+    } catch {}
+  }
+
   try {
     // ── Read cached prices from Cron 1 ──────────────────────
     const priceDoc = await db.collection("config").doc("exchange_prices").get();

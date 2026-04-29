@@ -371,6 +371,48 @@ export function HeatmapAutoSwitch() {
                   <p className="text-[9px] text-muted-foreground/25 mt-1">Hit Refresh Zones to compute from Deribit</p>
                 </div>
               )}
+
+              {/* Momentum filter — always visible regardless of mode */}
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center justify-between pb-1 border-b border-white/[0.05]">
+                  <div className="flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-accent/60" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-accent/80">Momentum Filter</span>
+                  </div>
+                  <button
+                    onClick={() => { handleChange("momentumLookbackMin", zones.momentumLookbackMin !== null ? null : 10); }}
+                    className={cn(
+                      "text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border transition-all",
+                      zones.momentumLookbackMin !== null
+                        ? "bg-accent/15 text-accent border-accent/20"
+                        : "bg-white/[0.03] text-muted-foreground/40 border-white/[0.06]",
+                    )}
+                  >
+                    {zones.momentumLookbackMin !== null ? "On" : "Off"}
+                  </button>
+                </div>
+                {zones.momentumLookbackMin !== null && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-foreground/80">Lookback Window</label>
+                      <span className="text-[11px] font-mono font-bold text-accent">{zones.momentumLookbackMin} min</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={3} max={30} step={1}
+                      value={zones.momentumLookbackMin}
+                      onChange={(e) => handleChange("momentumLookbackMin", parseInt(e.target.value))}
+                      className="w-full accent-accent"
+                    />
+                    <div className="flex justify-between text-[9px] text-muted-foreground/30">
+                      <span>3 min</span><span>30 min</span>
+                    </div>
+                    <p className="text-[9px] text-muted-foreground/40 pt-0.5">
+                      Simulator only activates when BTC is trending in the right direction over this window.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <>
@@ -555,21 +597,19 @@ export function HeatmapAutoSwitch() {
             )}
           </div>
 
-          {zones.manualOverride !== "AUTO" && (
-            <button
-              onClick={handleSave}
-              disabled={!dirty || saving}
-              className={cn(
-                "flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all shrink-0",
-                dirty
-                  ? "bg-accent text-accent-foreground hover:bg-accent/90"
-                  : "bg-white/[0.03] text-muted-foreground/30 cursor-not-allowed border border-white/[0.06]",
-              )}
-            >
-              {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-              Save Zones
-            </button>
-          )}
+          <button
+            onClick={handleSave}
+            disabled={!dirty || saving}
+            className={cn(
+              "flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all shrink-0",
+              dirty
+                ? "bg-accent text-accent-foreground hover:bg-accent/90"
+                : "bg-white/[0.03] text-muted-foreground/30 cursor-not-allowed border border-white/[0.06]",
+            )}
+          >
+            {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+            Save
+          </button>
         </div>
       </SheetContent>
     </Sheet>

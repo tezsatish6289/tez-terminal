@@ -319,7 +319,7 @@ export function HeatmapAutoSwitch() {
                   {suggested.maxPain && (
                     <div className="flex items-center justify-between rounded-lg border border-accent/20 bg-accent/[0.05] px-3 py-2">
                       <div>
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-accent/60">Max Pain — exit target</p>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-accent/60">Max Pain — directional target</p>
                         <p className="text-[14px] font-mono font-bold text-accent">${suggested.maxPain.toLocaleString()}</p>
                       </div>
                       <div className="text-right">

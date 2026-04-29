@@ -15,7 +15,7 @@
  */
 
 const DERIBIT_API       = "https://www.deribit.com/api/v2/public";
-const ZONE_HALF_WIDTH   = 250;   // ± $250 → each zone is $500 wide total
+const ZONE_HALF_WIDTH   = 300;   // ± $300 → each zone is $600 wide total
 const MIN_OI_THRESHOLD  = 300;   // minimum BTC contracts to consider an expiry liquid
 const MIN_STRIKE_GAP    = 2500;  // bearStrike - bullStrike must be ≥ $2,500
 
@@ -187,12 +187,14 @@ export async function computeOptionsZones(
     bullStrike,
     bullZoneLow:   bullStrike !== null ? bullStrike - ZONE_HALF_WIDTH : null,
     bullZoneHigh:  bullStrike !== null ? bullStrike + ZONE_HALF_WIDTH : null,
-    bullExitAbove: maxPain,   // trade bull until price reaches Max Pain
+    // Exit bull the moment price leaves the zone upward — strict zone only
+    bullExitAbove: bullStrike !== null ? bullStrike + ZONE_HALF_WIDTH : null,
 
     bearStrike,
     bearZoneLow:   bearStrike !== null ? bearStrike - ZONE_HALF_WIDTH : null,
     bearZoneHigh:  bearStrike !== null ? bearStrike + ZONE_HALF_WIDTH : null,
-    bearExitBelow: maxPain,   // trade bear until price drops to Max Pain
+    // Exit bear the moment price leaves the zone downward — strict zone only
+    bearExitBelow: bearStrike !== null ? bearStrike - ZONE_HALF_WIDTH : null,
 
     maxPain,
     expiryUsed,

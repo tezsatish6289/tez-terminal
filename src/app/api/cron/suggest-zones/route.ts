@@ -65,10 +65,11 @@ async function run() {
   return suggested;
 }
 
-// GET — called by Vercel cron (no secret required, cron is internal)
+// GET — called by cron-job.org with ?key=CRON_SECRET
 export async function GET(request: NextRequest) {
-  const auth = request.headers.get("x-cron-secret");
-  if (CRON_SECRET && auth && auth !== CRON_SECRET) {
+  const { searchParams } = new URL(request.url);
+  const key = searchParams.get("key");
+  if (CRON_SECRET && key !== CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
@@ -83,12 +84,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST — called by the UI Refresh button
-export async function POST(request: NextRequest) {
-  const auth = request.headers.get("x-cron-secret");
-  if (CRON_SECRET && auth && auth !== CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+// POST — called by the UI Refresh button (no key required, internal)
+export async function POST(_request: NextRequest) {
   try {
     const suggested = await run();
     return NextResponse.json({ success: true, suggested });

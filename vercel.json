@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/suggest-zones",
-      "schedule": "0 */4 * * *"
-    }
-  ]
-}

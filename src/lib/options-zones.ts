@@ -54,10 +54,9 @@ const MONTH_MAP: Record<string, number> = {
   JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11,
 };
 
-/** Parse "26APR26" → UTC Date at 08:00 (Deribit expiry time). */
+/** Parse "26APR26" or "1MAY26" → UTC Date at 08:00 (Deribit expiry time). */
 function parseExpiryDate(s: string): Date | null {
-  const m = s.match(/^(\d{2})([A-Z]{3})(\d{2})$/);
-  if (!m) return null;
+  const m = s.match(/^(\d{1,2})([A-Z]{3})(\d{2})$/); // 1 or 2 digit day  if (!m) return null;
   const month = MONTH_MAP[m[2]];
   if (month === undefined) return null;
   return new Date(Date.UTC(2000 + parseInt(m[3], 10), month, parseInt(m[1], 10), 8, 0, 0));

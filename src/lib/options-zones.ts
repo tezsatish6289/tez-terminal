@@ -152,27 +152,40 @@ export async function computeOptionsZones(
   const chosen = sorted.find(([, v]) => v.totalOI >= MIN_OI_THRESHOLD);
   if (!chosen) return empty();
 
-  const [expiryUsed, { totalOI: expiryOI, items }] = chosen;
+  const [expiryUsed, { totalOI: expiryOI, items: primaryItems }] = chosen;
 
-  // 4. Aggregate call/put OI by strike
+  // 4. Aggregate call/put OI by strike from chosen expiry
   const strikes = new Map<number, { callOI: number; putOI: number }>();
-  for (const p of items) {
-    const entry = strikes.get(p.strike) ?? { callOI: 0, putOI: 0 };
-    if (p.type === "C") entry.callOI += p.oi;
-    else                entry.putOI  += p.oi;
-    strikes.set(p.strike, entry);
-  }
+  const addToStrikes = (items: Parsed[]) => {
+    for (const p of items) {
+      const entry = strikes.get(p.strike) ?? { callOI: 0, putOI: 0 };
+      if (p.type === "C") entry.callOI += p.oi;
+      else                entry.putOI  += p.oi;
+      strikes.set(p.strike, entry);
+    }
+  };
+  addToStrikes(primaryItems);
 
-  // 5. Bull zone: highest put OI BELOW current price
-  let bullStrike: number | null = null; let bullOI = 0;
-  for (const [strike, { putOI }] of strikes) {
-    if (strike < currentBtcPrice && putOI > bullOI) { bullOI = putOI; bullStrike = strike; }
-  }
+  // Helper: find bull/bear strikes from current state of strikes map
+  const findStrikes = () => {
+    let bullStrike: number | null = null; let bullOI = 0;
+    let bearStrike: number | null = null; let bearOI = 0;
+    for (const [strike, { putOI, callOI }] of strikes) {
+      if (strike < currentBtcPrice && putOI > bullOI) { bullOI = putOI; bullStrike = strike; }
+      if (strike > currentBtcPrice && callOI > bearOI) { bearOI = callOI; bearStrike = strike; }
+    }
+    return { bullStrike, bullOI, bearStrike, bearOI };
+  };
 
-  // 6. Bear zone: highest call OI ABOVE current price
-  let bearStrike: number | null = null; let bearOI = 0;
-  for (const [strike, { callOI }] of strikes) {
-    if (strike > currentBtcPrice && callOI > bearOI) { bearOI = callOI; bearStrike = strike; }
+  let { bullStrike, bullOI, bearStrike, bearOI } = findStrikes();
+
+  // Fallback: if one side is missing, pull in the next 2 expiries to get more coverage.
+  // This handles days where the nearest liquid expiry has no puts/calls on one side
+  // (e.g. bullish days where all near-term puts are above current price).
+  if (bullStrike === null || bearStrike === null) {
+    const fallbacks = sorted.filter(([label]) => label !== expiryUsed).slice(0, 2);
+    for (const [, { items }] of fallbacks) addToStrikes(items);
+    ({ bullStrike, bullOI, bearStrike, bearOI } = findStrikes());
   }
 
   // 7. Max Pain

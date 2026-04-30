@@ -83,8 +83,10 @@ export async function GET(request: NextRequest) {
 
   // ── AUTO mode: override zones with Deribit-computed suggested zones ──
   // When manualOverride is AUTO, the simulator uses the zones computed
-  // from Deribit options OI (written every 4h by the suggest-zones cron).
-  // Max Pain is used as the exit level for both bull and bear.
+  // from Deribit options OI (written every hour by the suggest-zones cron).
+  // If suggested zones are stale or have insufficient gap, force all zone
+  // values to null so the simulator stays OFF rather than falling back to
+  // stale manually-saved zones which may be completely wrong.
   if (heatmapZones.manualOverride === "AUTO") {
     try {
       const suggestedSnap = await db.doc("config/suggested_zones").get();
@@ -95,17 +97,34 @@ export async function GET(request: NextRequest) {
         const isStale = ageMs > 12 * 60 * 60 * 1000; // stale if >12 hours old
         const hasZones = s.bullZoneLow && s.bullZoneHigh && s.bearZoneLow && s.bearZoneHigh;
         const sufficientGap = !s.insufficientGap;
+
         if (!isStale && hasZones && sufficientGap) {
+          // Good data — use Deribit zones
           heatmapZones = {
             ...heatmapZones,
             bullZoneLow:   s.bullZoneLow   as number,
             bullZoneHigh:  s.bullZoneHigh  as number,
-            bullExitAbove: s.bullExitAbove as number | null ?? null, // maxPain
+            bullExitAbove: s.bullExitAbove as number | null ?? null,
             bearZoneLow:   s.bearZoneLow   as number,
             bearZoneHigh:  s.bearZoneHigh  as number,
-            bearExitBelow: s.bearExitBelow as number | null ?? null, // maxPain
+            bearExitBelow: s.bearExitBelow as number | null ?? null,
+          };
+        } else {
+          // Stale or insufficient gap — clear all zones so simulator stays OFF
+          // Never fall back to old manual zones which may be completely outdated
+          heatmapZones = {
+            ...heatmapZones,
+            bullZoneLow: null, bullZoneHigh: null, bullExitAbove: null,
+            bearZoneLow: null, bearZoneHigh: null, bearExitBelow: null,
           };
         }
+      } else {
+        // No suggested zones doc at all — clear zones
+        heatmapZones = {
+          ...heatmapZones,
+          bullZoneLow: null, bullZoneHigh: null, bullExitAbove: null,
+          bearZoneLow: null, bearZoneHigh: null, bearExitBelow: null,
+        };
       }
     } catch {}
   }

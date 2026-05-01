@@ -38,6 +38,8 @@ interface AutoStatus {
 }
 
 interface SuggestedZones {
+  bullStrike:      number | null;
+  bearStrike:      number | null;
   bullZoneLow:     number | null;
   bullZoneHigh:    number | null;
   bullExitAbove:   number | null;
@@ -55,6 +57,7 @@ interface SuggestedZones {
   expiryOI:        number | null;
   insufficientGap: boolean | null;
   btcPrice:        number | null;
+  deribitIndexPrice: number | null;
   source:          string;
   computedAt:      string;
 }
@@ -343,6 +346,14 @@ export function HeatmapAutoSwitch() {
                       <p className="text-[12px] font-mono font-bold text-positive">
                         ${suggested.bullZoneLow?.toLocaleString()}–${suggested.bullZoneHigh?.toLocaleString()}
                       </p>
+                      {suggested.bullStrike != null && (
+                        <p className="text-[9px] font-mono text-muted-foreground/45">
+                          Center strike ${suggested.bullStrike.toLocaleString()}
+                          {suggested.deribitIndexPrice != null && (
+                            <> · vs index ${Math.round(suggested.deribitIndexPrice).toLocaleString()}</>
+                          )}
+                        </p>
+                      )}
                       {(suggested.bullOI ?? suggested.bullVolume) && (
                         <p className="text-[9px] text-muted-foreground/40">
                           {Math.round(suggested.bullOI ?? suggested.bullVolume ?? 0)}c put OI
@@ -357,6 +368,14 @@ export function HeatmapAutoSwitch() {
                       <p className="text-[12px] font-mono font-bold text-negative">
                         ${suggested.bearZoneLow?.toLocaleString()}–${suggested.bearZoneHigh?.toLocaleString()}
                       </p>
+                      {suggested.bearStrike != null && (
+                        <p className="text-[9px] font-mono text-muted-foreground/45">
+                          Center strike ${suggested.bearStrike.toLocaleString()}
+                          {suggested.deribitIndexPrice != null && (
+                            <> · vs index ${Math.round(suggested.deribitIndexPrice).toLocaleString()}</>
+                          )}
+                        </p>
+                      )}
                       {(suggested.bearOI ?? suggested.bearVolume) && (
                         <p className="text-[9px] text-muted-foreground/40">
                           {Math.round(suggested.bearOI ?? suggested.bearVolume ?? 0)}c call OI

@@ -53,21 +53,24 @@ async function run() {
   const result = await computeOptionsZones(btcPrice, { zoneHalfWidthUsd });
 
   const suggested = {
-    bullZoneLow:     result.bullZoneLow,
-    bullZoneHigh:    result.bullZoneHigh,
-    bullExitAbove:   result.bullExitAbove,   // = maxPain
-    bearZoneLow:     result.bearZoneLow,
-    bearZoneHigh:    result.bearZoneHigh,
-    bearExitBelow:   result.bearExitBelow,   // = maxPain
-    bullOI:          result.bullOI,
-    bearOI:          result.bearOI,
-    maxPain:         result.maxPain,
-    expiryUsed:      result.expiryUsed,
-    expiryOI:        result.expiryOI,
-    insufficientGap: result.insufficientGap,
-    btcPrice:        result.btcPrice,
-    source:          "deribit",
-    computedAt:      result.computedAt,
+    bullStrike:        result.bullStrike,
+    bearStrike:        result.bearStrike,
+    bullZoneLow:       result.bullZoneLow,
+    bullZoneHigh:      result.bullZoneHigh,
+    bullExitAbove:     result.bullExitAbove,
+    bearZoneLow:       result.bearZoneLow,
+    bearZoneHigh:      result.bearZoneHigh,
+    bearExitBelow:     result.bearExitBelow,
+    bullOI:            result.bullOI,
+    bearOI:            result.bearOI,
+    maxPain:           result.maxPain,
+    expiryUsed:        result.expiryUsed,
+    expiryOI:          result.expiryOI,
+    insufficientGap:   result.insufficientGap,
+    btcPrice:          result.btcPrice,
+    deribitIndexPrice: result.deribitIndexPrice,
+    source:            "deribit",
+    computedAt:        result.computedAt,
   };
 
   await db.doc("config/suggested_zones").set(suggested);

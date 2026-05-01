@@ -7,8 +7,8 @@
  *   3. Find the nearest expiry with total OI ≥ MIN_OI_THRESHOLD; if thin,
  *      fall back to the next liquid one (still within 7 days).
  *   4. Aggregate call OI and put OI by strike for that single expiry.
- *   5. Bull zone  → dominant PUT  strike below price (highest put OI)
- *   6. Bear zone  → dominant CALL strike above price (highest call OI)
+ *   5. Bull zone  → dominant PUT  strike below Deribit index (highest put OI)
+ *   6. Bear zone  → dominant CALL strike above Deribit index (highest call OI)
  *   7. Gap check  → bearStrike - bullStrike must be ≥ MIN_STRIKE_GAP ($2,500)
  *   8. Exit levels → Max Pain (price gravitates there by expiry; used as
  *      deactivation level for new trades, not individual trade exits)
@@ -27,12 +27,12 @@ export interface OptionsZones {
   bullStrike:    number | null;
   bullZoneLow:   number | null;  // bullStrike - halfWidth
   bullZoneHigh:  number | null;  // bullStrike + halfWidth
-  bullExitAbove: number | null;  // maxPain — keep trading until natural target
+  bullExitAbove: number | null;  // bullStrike + halfWidth (top of band)
 
   bearStrike:    number | null;
   bearZoneLow:   number | null;  // bearStrike - halfWidth
   bearZoneHigh:  number | null;  // bearStrike + halfWidth
-  bearExitBelow: number | null;  // maxPain
+  bearExitBelow: number | null;  // bearStrike − halfWidth (bottom of band)
 
   maxPain:          number | null;
   expiryUsed:       string | null;   // e.g. "29APR26"
@@ -40,7 +40,9 @@ export interface OptionsZones {
   bullOI:           number | null;   // put OI at bull strike
   bearOI:           number | null;   // call OI at bear strike
   insufficientGap:  boolean;         // true if gap < MIN_STRIKE_GAP
-  btcPrice:         number;
+  btcPrice:         number;          // reference price passed in (e.g. exchange cache)
+  /** Deribit BTC index used for above/below strike selection; null if fetch failed. */
+  deribitIndexPrice: number | null;
   computedAt:       string;
 }
 
@@ -49,6 +51,21 @@ export interface OptionsZones {
 interface DeribitSummary {
   instrument_name: string;
   open_interest:   number; // BTC contracts
+}
+
+async function fetchDeribitBtcIndex(): Promise<number | null> {
+  try {
+    const res = await fetch(
+      `${DERIBIT_API}/get_index_price?index_name=btc_usd`,
+      { signal: AbortSignal.timeout(8_000) },
+    );
+    if (!res.ok) return null;
+    const json = (await res.json()) as { result?: { index_price?: number } };
+    const p = json.result?.index_price;
+    return typeof p === "number" && p > 0 ? p : null;
+  } catch {
+    return null;
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -115,16 +132,23 @@ export async function computeOptionsZones(
   opts?: { zoneHalfWidthUsd?: number | null },
 ): Promise<OptionsZones> {
   const halfWidth = clampZoneHalfWidth(opts?.zoneHalfWidthUsd ?? null);
-  const empty = (reason?: string): OptionsZones => ({
+
+  // “Below / above spot” must use Deribit index — exchange BTCUSDT can sit on the wrong side of strikes.
+  const deribitIndexPrice = await fetchDeribitBtcIndex();
+  const spotForStrikes = deribitIndexPrice ?? currentBtcPrice;
+
+  const empty = (): OptionsZones => ({
     bullStrike: null, bullZoneLow: null, bullZoneHigh: null, bullExitAbove: null,
     bearStrike: null, bearZoneLow: null, bearZoneHigh: null, bearExitBelow: null,
     maxPain: null, expiryUsed: null, expiryOI: null,
     bullOI: null, bearOI: null,
     insufficientGap: false,
-    btcPrice: currentBtcPrice, computedAt: new Date().toISOString(),
+    btcPrice: currentBtcPrice,
+    deribitIndexPrice,
+    computedAt: new Date().toISOString(),
   });
 
-  // 1. Fetch
+  // Option book summary
   const res  = await fetch(
     `${DERIBIT_API}/get_book_summary_by_currency?currency=BTC&kind=option`,
     { signal: AbortSignal.timeout(15_000) },
@@ -177,13 +201,13 @@ export async function computeOptionsZones(
   };
   addToStrikes(primaryItems);
 
-  // Helper: find bull/bear strikes from current state of strikes map
+  // Helper: find bull/bear strikes — “below / above” vs Deribit index (not exchange BTCUSDT)
   const findStrikes = () => {
     let bullStrike: number | null = null; let bullOI = 0;
     let bearStrike: number | null = null; let bearOI = 0;
     for (const [strike, { putOI, callOI }] of strikes) {
-      if (strike < currentBtcPrice && putOI > bullOI) { bullOI = putOI; bullStrike = strike; }
-      if (strike > currentBtcPrice && callOI > bearOI) { bearOI = callOI; bearStrike = strike; }
+      if (strike < spotForStrikes && putOI > bullOI) { bullOI = putOI; bullStrike = strike; }
+      if (strike > spotForStrikes && callOI > bearOI) { bearOI = callOI; bearStrike = strike; }
     }
     return { bullStrike, bullOI, bearStrike, bearOI };
   };
@@ -227,6 +251,7 @@ export async function computeOptionsZones(
     bearOI:  bearOI  > 0 ? bearOI  : null,
     insufficientGap,
     btcPrice:   currentBtcPrice,
+    deribitIndexPrice,
     computedAt: new Date().toISOString(),
   };
 }

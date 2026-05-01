@@ -29,6 +29,7 @@ import {
   computeAutoSwitch,
   loadEffectiveHeatmapZones,
   loadPriceHistoryFromHeatmapStatus,
+  resolveHeatmapAutoStatusReason,
   type PricePoint,
 } from "@/app/api/settings/heatmap-zones/route";
 import {
@@ -82,7 +83,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // ── Effective zones (manual + AUTO Deribit merge) ─────────
-    const heatmapZones = await loadEffectiveHeatmapZones(db);
+    const { zones: heatmapZones, autoZoneClearReason } = await loadEffectiveHeatmapZones(db);
 
     // ── Read cached prices from Cron 1 ──────────────────────
     const priceDoc = await db.collection("config").doc("exchange_prices").get();
@@ -112,6 +113,11 @@ export async function GET(request: NextRequest) {
     const priceHistory = appendBtcPriceHistory(priorHistory, btcPrice);
 
     const cryptoSwitch = computeAutoSwitch(btcPrice, heatmapZones, priceHistory);
+    const heatmapReason = resolveHeatmapAutoStatusReason(
+      heatmapZones,
+      cryptoSwitch.reason,
+      autoZoneClearReason,
+    );
 
     const hasOpenSimTrade = await hasAnyOpenSimulatorTrade(db);
     const throttleHeavyCycle = shouldThrottleHeavySimulatorCycle(
@@ -125,7 +131,7 @@ export async function GET(request: NextRequest) {
         btcPrice,
         simEnabled: cryptoSwitch.simEnabled,
         directionBias: cryptoSwitch.directionBias,
-        reason: cryptoSwitch.reason,
+        reason: heatmapReason,
         priceHistory,
         momentumLookbackMin: heatmapZones.momentumLookbackMin ?? null,
         updatedAt: new Date().toISOString(),
@@ -460,7 +466,7 @@ export async function GET(request: NextRequest) {
       btcPrice,
       simEnabled: cryptoSwitch.simEnabled,
       directionBias: cryptoSwitch.directionBias,
-      reason: cryptoSwitch.reason,
+      reason: heatmapReason,
       priceHistory,
       momentumLookbackMin: heatmapZones.momentumLookbackMin ?? null,
       updatedAt: new Date().toISOString(),

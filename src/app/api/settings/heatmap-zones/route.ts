@@ -88,14 +88,29 @@ export function appendBtcPriceHistory(
   return h;
 }
 
+/** Why AUTO mode dropped Deribit zones (for clearer heatmap_auto_status line). */
+export type AutoZoneClearReason =
+  | null
+  | "insufficient_gap"
+  | "stale"
+  | "missing_suggested";
+
+export interface EffectiveHeatmapZonesResult {
+  zones: HeatmapZones;
+  /** Set when AUTO clears suggested zones so UI status is not generic "no zones configured". */
+  autoZoneClearReason: AutoZoneClearReason;
+}
+
 /**
  * Effective zones for AUTO (merges Deribit suggested_zones when override is AUTO).
  * Mirrors sync-simulator so throttle and switch logic stay consistent.
  */
 export async function loadEffectiveHeatmapZones(
   db: import("firebase-admin/firestore").Firestore,
-): Promise<HeatmapZones> {
+): Promise<EffectiveHeatmapZonesResult> {
   let heatmapZones = parseZones({});
+  let autoZoneClearReason: AutoZoneClearReason = null;
+
   try {
     const zonesDoc = await db.doc("config/heatmap_zones").get();
     if (zonesDoc.exists) {
@@ -125,6 +140,11 @@ export async function loadEffectiveHeatmapZones(
             bearExitBelow: (s.bearExitBelow as number | null) ?? null,
           };
         } else {
+          if (!hasZones) autoZoneClearReason = "missing_suggested";
+          else if (!sufficientGap) autoZoneClearReason = "insufficient_gap";
+          else if (isStale) autoZoneClearReason = "stale";
+          else autoZoneClearReason = "stale";
+
           heatmapZones = {
             ...heatmapZones,
             bullZoneLow: null,
@@ -136,6 +156,7 @@ export async function loadEffectiveHeatmapZones(
           };
         }
       } else {
+        autoZoneClearReason = "missing_suggested";
         heatmapZones = {
           ...heatmapZones,
           bullZoneLow: null,
@@ -151,7 +172,27 @@ export async function loadEffectiveHeatmapZones(
     }
   }
 
-  return heatmapZones;
+  return { zones: heatmapZones, autoZoneClearReason };
+}
+
+/** Maps generic AUTO "no zones" to why Deribit zones were dropped (clearer status line). */
+export function resolveHeatmapAutoStatusReason(
+  zones: HeatmapZones,
+  computeReason: string,
+  autoZoneClearReason: AutoZoneClearReason,
+): string {
+  if (zones.manualOverride !== "AUTO") return computeReason;
+  if (computeReason !== "OFF — no heatmap zones configured") return computeReason;
+  if (autoZoneClearReason === "insufficient_gap") {
+    return "OFF — strikes under $2,500 apart (Deribit clusters too close)";
+  }
+  if (autoZoneClearReason === "stale") {
+    return "OFF — Deribit zones stale (>12h). Tap Refresh Zones.";
+  }
+  if (autoZoneClearReason === "missing_suggested") {
+    return "OFF — no Deribit zones yet. Tap Refresh Zones.";
+  }
+  return computeReason;
 }
 
 /**

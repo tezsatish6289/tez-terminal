@@ -355,7 +355,7 @@ export async function GET(request: NextRequest) {
         allPrices.BYBIT.get("BTCUSDT") ??
         allPrices.BINANCE.get("BTCUSDT") ??
         null;
-      const hz = await loadEffectiveHeatmapZones(db);
+      const { zones: hz } = await loadEffectiveHeatmapZones(db);
       const hist = appendBtcPriceHistory(
         await loadPriceHistoryFromHeatmapStatus(db),
         btcThrottle,

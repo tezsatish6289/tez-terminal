@@ -25,6 +25,8 @@ interface HeatmapZones {
   bearExitBelow:       number | null;
   manualOverride:      ManualOverride;
   momentumLookbackMin: number | null; // null = disabled
+  /** ±USD around Deribit strike; full band = 2×. Null → server default (500). */
+  zoneHalfWidthUsd:    number | null;
 }
 
 interface AutoStatus {
@@ -62,6 +64,7 @@ const EMPTY_ZONES: HeatmapZones = {
   bearZoneHigh: null, bearZoneLow: null, bearExitBelow: null,
   manualOverride: "AUTO",
   momentumLookbackMin: 10,
+  zoneHalfWidthUsd: null,
 };
 
 function PriceInput({
@@ -371,6 +374,18 @@ export function HeatmapAutoSwitch() {
                   <p className="text-[9px] text-muted-foreground/25 mt-1">Hit Refresh Zones to compute from Deribit</p>
                 </div>
               )}
+
+              <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                  Deribit zone half-width
+                </p>
+                <PriceInput
+                  label="± USD around strike"
+                  description="Full entry band = 2× this value. Leave empty for default (500)."
+                  value={zones.zoneHalfWidthUsd}
+                  onChange={(v) => handleChange("zoneHalfWidthUsd", v)}
+                />
+              </div>
 
               {/* Momentum filter — always visible regardless of mode */}
               <div className="space-y-3 pt-1">

@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { computeOptionsZones } from "@/lib/options-zones";
 import { deserializePrices } from "@/lib/exchanges";
+import { parseZones } from "@/app/api/settings/heatmap-zones/route";
 
 export const dynamic     = "force-dynamic";
 export const maxDuration = 30;
@@ -41,7 +42,15 @@ async function run() {
 
   if (!btcPrice) throw new Error("BTC price unavailable");
 
-  const result = await computeOptionsZones(btcPrice);
+  let zoneHalfWidthUsd: number | null = null;
+  try {
+    const hzSnap = await db.doc("config/heatmap_zones").get();
+    if (hzSnap.exists) {
+      zoneHalfWidthUsd = parseZones(hzSnap.data() ?? {}).zoneHalfWidthUsd;
+    }
+  } catch {}
+
+  const result = await computeOptionsZones(btcPrice, { zoneHalfWidthUsd });
 
   const suggested = {
     bullZoneLow:     result.bullZoneLow,

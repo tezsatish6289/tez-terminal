@@ -14,20 +14,24 @@
  *      deactivation level for new trades, not individual trade exits)
  */
 
-const DERIBIT_API       = "https://www.deribit.com/api/v2/public";
-const ZONE_HALF_WIDTH   = 300;   // ± $300 → each zone is $600 wide total
+const DERIBIT_API = "https://www.deribit.com/api/v2/public";
+
+/** Default ±USD around each dominant strike; entry band width = 2 × this value. */
+export const DEFAULT_ZONE_HALF_WIDTH_USD = 500;
+const MIN_ZONE_HALF_WIDTH_USD = 50;
+const MAX_ZONE_HALF_WIDTH_USD = 3000;
 const MIN_OI_THRESHOLD  = 300;   // minimum BTC contracts to consider an expiry liquid
 const MIN_STRIKE_GAP    = 2500;  // bearStrike - bullStrike must be ≥ $2,500
 
 export interface OptionsZones {
   bullStrike:    number | null;
-  bullZoneLow:   number | null;  // bullStrike - ZONE_HALF_WIDTH
-  bullZoneHigh:  number | null;  // bullStrike + ZONE_HALF_WIDTH
+  bullZoneLow:   number | null;  // bullStrike - halfWidth
+  bullZoneHigh:  number | null;  // bullStrike + halfWidth
   bullExitAbove: number | null;  // maxPain — keep trading until natural target
 
   bearStrike:    number | null;
-  bearZoneLow:   number | null;  // bearStrike - ZONE_HALF_WIDTH
-  bearZoneHigh:  number | null;  // bearStrike + ZONE_HALF_WIDTH
+  bearZoneLow:   number | null;  // bearStrike - halfWidth
+  bearZoneHigh:  number | null;  // bearStrike + halfWidth
   bearExitBelow: number | null;  // maxPain
 
   maxPain:          number | null;
@@ -56,7 +60,8 @@ const MONTH_MAP: Record<string, number> = {
 
 /** Parse "26APR26" or "1MAY26" → UTC Date at 08:00 (Deribit expiry time). */
 function parseExpiryDate(s: string): Date | null {
-  const m = s.match(/^(\d{1,2})([A-Z]{3})(\d{2})$/); // 1 or 2 digit day  if (!m) return null;
+  const m = s.match(/^(\d{1,2})([A-Z]{3})(\d{2})$/);
+  if (!m) return null;
   const month = MONTH_MAP[m[2]];
   if (month === undefined) return null;
   return new Date(Date.UTC(2000 + parseInt(m[3], 10), month, parseInt(m[1], 10), 8, 0, 0));
@@ -100,9 +105,16 @@ function computeMaxPain(
 
 // ── Public API ────────────────────────────────────────────────────
 
+function clampZoneHalfWidth(raw: number | null | undefined): number {
+  const v = raw ?? DEFAULT_ZONE_HALF_WIDTH_USD;
+  return Math.min(MAX_ZONE_HALF_WIDTH_USD, Math.max(MIN_ZONE_HALF_WIDTH_USD, v));
+}
+
 export async function computeOptionsZones(
   currentBtcPrice: number,
+  opts?: { zoneHalfWidthUsd?: number | null },
 ): Promise<OptionsZones> {
+  const halfWidth = clampZoneHalfWidth(opts?.zoneHalfWidthUsd ?? null);
   const empty = (reason?: string): OptionsZones => ({
     bullStrike: null, bullZoneLow: null, bullZoneHigh: null, bullExitAbove: null,
     bearStrike: null, bearZoneLow: null, bearZoneHigh: null, bearExitBelow: null,
@@ -197,16 +209,16 @@ export async function computeOptionsZones(
 
   return {
     bullStrike,
-    bullZoneLow:   bullStrike !== null ? bullStrike - ZONE_HALF_WIDTH : null,
-    bullZoneHigh:  bullStrike !== null ? bullStrike + ZONE_HALF_WIDTH : null,
+    bullZoneLow:   bullStrike !== null ? bullStrike - halfWidth : null,
+    bullZoneHigh:  bullStrike !== null ? bullStrike + halfWidth : null,
     // Exit bull the moment price leaves the zone upward — strict zone only
-    bullExitAbove: bullStrike !== null ? bullStrike + ZONE_HALF_WIDTH : null,
+    bullExitAbove: bullStrike !== null ? bullStrike + halfWidth : null,
 
     bearStrike,
-    bearZoneLow:   bearStrike !== null ? bearStrike - ZONE_HALF_WIDTH : null,
-    bearZoneHigh:  bearStrike !== null ? bearStrike + ZONE_HALF_WIDTH : null,
+    bearZoneLow:   bearStrike !== null ? bearStrike - halfWidth : null,
+    bearZoneHigh:  bearStrike !== null ? bearStrike + halfWidth : null,
     // Exit bear the moment price leaves the zone downward — strict zone only
-    bearExitBelow: bearStrike !== null ? bearStrike - ZONE_HALF_WIDTH : null,
+    bearExitBelow: bearStrike !== null ? bearStrike - halfWidth : null,
 
     maxPain,
     expiryUsed,

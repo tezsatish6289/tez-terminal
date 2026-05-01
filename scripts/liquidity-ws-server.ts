@@ -8,8 +8,8 @@
  *   1. Connects to Bybit public liquidation WS (wss://stream.bybit.com/v5/public/linear)
  *   2. Subscribes to `liquidation.{SYMBOL}` for each active crypto signal
  *   3. Every 5s  → detectSweep() per symbol → POST /api/internal/liquidity-cache (sweep)
- *   4. Every 5min → POST /api/internal/run-liquidity-fetch (oi) — fetches Bybit + writes Firestore
- *   5. Every 5min → POST /api/internal/run-liquidity-fetch (ob) — fetches Bybit + writes Firestore
+ *   4. Every 15min → POST /api/internal/run-liquidity-fetch (oi) — fetches Bybit + writes Firestore
+ *   5. Every 10min → POST /api/internal/run-liquidity-fetch (ob) — fetches Bybit + writes Firestore
  *   6. Every 60s → GET /api/internal/active-signals → adjust WS subscriptions
  *   7. Ping/pong every 20s to keep WS alive
  *   8. Exponential backoff reconnect on disconnect/error
@@ -151,8 +151,8 @@ async function testConnectivity(): Promise<void> {
 
 const BYBIT_WS_URL = "wss://stream.bybit.com/v5/public/linear";
 const SWEEP_INTERVAL_MS = 5_000;
-const OI_INTERVAL_MS = 5 * 60_000; // 5 min — matches Bybit's finest OI candle granularity
-const OB_INTERVAL_MS = 5 * 60_000; // 5 min — walls can shift during volatile moves
+const OI_INTERVAL_MS = 15 * 60_000; // 15 min — OI shifts slowly; finer granularity adds writes without value
+const OB_INTERVAL_MS = 10 * 60_000; // 10 min — order-book walls shift on volatility but 5 min was excessive
 const SYMBOL_REFRESH_MS = 60_000;
 const PING_INTERVAL_MS = 20_000;
 const EVENT_BUFFER_TTL_MS = 35_000;

@@ -16,6 +16,8 @@ export interface HeatmapZones {
   bearExitBelow:       number | null;
   manualOverride:      ManualOverride;
   momentumLookbackMin: number | null; // null = momentum check disabled
+  /** ±USD around each Deribit strike for AUTO zones; null → server default (500). */
+  zoneHalfWidthUsd:    number | null;
 }
 
 export interface PricePoint {
@@ -36,6 +38,7 @@ export function parseZones(data: Record<string, unknown>): HeatmapZones {
     bearZoneHigh: null, bearZoneLow: null, bearExitBelow: null,
     manualOverride: "AUTO",
     momentumLookbackMin: 10,
+    zoneHalfWidthUsd: null,
   };
   for (const key of ZONE_KEYS) {
     const v = data[key];
@@ -46,7 +49,109 @@ export function parseZones(data: Record<string, unknown>): HeatmapZones {
   }
   const mlb = data.momentumLookbackMin;
   zones.momentumLookbackMin = typeof mlb === "number" && mlb > 0 ? mlb : null;
+  const zh = data.zoneHalfWidthUsd;
+  zones.zoneHalfWidthUsd =
+    typeof zh === "number" && zh >= 50 && zh <= 3000 ? zh : null;
   return zones;
+}
+
+/** Rolling BTC samples for momentum (same cap as sync-simulator). */
+const PRICE_HISTORY_MAX = 35;
+
+export async function loadPriceHistoryFromHeatmapStatus(
+  db: import("firebase-admin/firestore").Firestore,
+): Promise<PricePoint[]> {
+  try {
+    const statusSnap = await db.doc("config/heatmap_auto_status").get();
+    if (!statusSnap.exists) return [];
+    const existing = statusSnap.data()?.priceHistory;
+    if (!Array.isArray(existing)) return [];
+    return existing.filter(
+      (p): p is PricePoint =>
+        typeof p?.price === "number" && typeof p?.ts === "number",
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function appendBtcPriceHistory(
+  existing: PricePoint[],
+  btcPrice: number | null,
+  maxEntries: number = PRICE_HISTORY_MAX,
+): PricePoint[] {
+  let h = [...existing];
+  if (btcPrice !== null) {
+    h.push({ price: btcPrice, ts: Date.now() });
+  }
+  if (h.length > maxEntries) h = h.slice(-maxEntries);
+  return h;
+}
+
+/**
+ * Effective zones for AUTO (merges Deribit suggested_zones when override is AUTO).
+ * Mirrors sync-simulator so throttle and switch logic stay consistent.
+ */
+export async function loadEffectiveHeatmapZones(
+  db: import("firebase-admin/firestore").Firestore,
+): Promise<HeatmapZones> {
+  let heatmapZones = parseZones({});
+  try {
+    const zonesDoc = await db.doc("config/heatmap_zones").get();
+    if (zonesDoc.exists) {
+      heatmapZones = parseZones(zonesDoc.data() ?? {});
+    }
+  } catch {}
+
+  if (heatmapZones.manualOverride === "AUTO") {
+    try {
+      const suggestedSnap = await db.doc("config/suggested_zones").get();
+      if (suggestedSnap.exists) {
+        const s = suggestedSnap.data() as Record<string, unknown>;
+        const computedAt = s.computedAt as string | undefined;
+        const ageMs = computedAt ? Date.now() - new Date(computedAt).getTime() : Infinity;
+        const isStale = ageMs > 12 * 60 * 60 * 1000;
+        const hasZones = s.bullZoneLow && s.bullZoneHigh && s.bearZoneLow && s.bearZoneHigh;
+        const sufficientGap = !s.insufficientGap;
+
+        if (!isStale && hasZones && sufficientGap) {
+          heatmapZones = {
+            ...heatmapZones,
+            bullZoneLow: s.bullZoneLow as number,
+            bullZoneHigh: s.bullZoneHigh as number,
+            bullExitAbove: (s.bullExitAbove as number | null) ?? null,
+            bearZoneLow: s.bearZoneLow as number,
+            bearZoneHigh: s.bearZoneHigh as number,
+            bearExitBelow: (s.bearExitBelow as number | null) ?? null,
+          };
+        } else {
+          heatmapZones = {
+            ...heatmapZones,
+            bullZoneLow: null,
+            bullZoneHigh: null,
+            bullExitAbove: null,
+            bearZoneLow: null,
+            bearZoneHigh: null,
+            bearExitBelow: null,
+          };
+        }
+      } else {
+        heatmapZones = {
+          ...heatmapZones,
+          bullZoneLow: null,
+          bullZoneHigh: null,
+          bullExitAbove: null,
+          bearZoneLow: null,
+          bearZoneHigh: null,
+          bearExitBelow: null,
+        };
+      }
+    } catch {
+      /* keep cleared or partial */
+    }
+  }
+
+  return heatmapZones;
 }
 
 /**
@@ -193,6 +298,11 @@ export async function PUT(request: NextRequest) {
   if ("momentumLookbackMin" in body) {
     const v = body.momentumLookbackMin;
     update.momentumLookbackMin = typeof v === "number" && v > 0 ? v : null;
+  }
+  if ("zoneHalfWidthUsd" in body) {
+    const v = body.zoneHalfWidthUsd;
+    update.zoneHalfWidthUsd =
+      typeof v === "number" && v >= 50 && v <= 3000 ? v : null;
   }
 
   await db.doc(ZONES_DOC).set({ ...update, updatedAt: new Date().toISOString() }, { merge: true });

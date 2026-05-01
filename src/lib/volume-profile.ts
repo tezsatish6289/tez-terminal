@@ -10,7 +10,7 @@
  *   – lots of positions → large liquidation exposure at that price
  */
 
-const BUCKET_SIZE    = 200;  // $200 per bucket
+const BUCKET_SIZE    = 500;  // $500 per bucket — wide enough to smooth noise
 const LOOKBACK_HOURS = 168;  // 7 days
 
 export interface VolumeNode {
@@ -125,11 +125,14 @@ export async function computeSuggestedZones(
   const profile   = buildProfile(klines);
   const priceIdx  = Math.floor(currentBtcPrice / BUCKET_SIZE);
 
-  // Search range: 50 buckets = $10,000 either side of current price
-  const SEARCH_RADIUS = 50;
+  // Skip the 3 buckets ($1,500) immediately around current price — those
+  // are always the highest-volume because that's where price has been
+  // sitting. We want meaningful liquidation clusters away from spot.
+  const MIN_GAP      = 3;   // buckets = $1,500 minimum distance from spot
+  const SEARCH_RADIUS = 20; // 20 buckets = $10,000 search window each side
 
-  const bullNode = topNode(profile, priceIdx - SEARCH_RADIUS, priceIdx - 1);
-  const bearNode = topNode(profile, priceIdx + 1, priceIdx + SEARCH_RADIUS);
+  const bullNode = topNode(profile, priceIdx - SEARCH_RADIUS, priceIdx - MIN_GAP);
+  const bearNode = topNode(profile, priceIdx + MIN_GAP, priceIdx + SEARCH_RADIUS);
 
   return {
     bullNode,

@@ -35,7 +35,7 @@ gcloud run deploy "$SERVICE_NAME" \
   --timeout 3600 \
   --concurrency 1 \
   --no-allow-unauthenticated \
-  --set-env-vars "NODE_ENV=production,LIQUIDITY_SWEEP_MIN_SIGMA=2.5,LIQUIDITY_SWEEP_MIN_USD=50000"
+  --update-env-vars "NODE_ENV=production,LIQUIDITY_SWEEP_MIN_SIGMA=2.5,LIQUIDITY_SWEEP_MIN_USD=50000"
 
 echo "✓ Deployed. Service URL:"
 gcloud run services describe "$SERVICE_NAME" \

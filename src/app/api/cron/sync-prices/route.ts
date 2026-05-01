@@ -22,6 +22,15 @@ import {
   type AllExchangePrices,
 } from "@/lib/exchanges";
 import { ensureValidToken } from "@/lib/dhan-token";
+import {
+  appendBtcPriceHistory,
+  loadEffectiveHeatmapZones,
+  loadPriceHistoryFromHeatmapStatus,
+} from "@/app/api/settings/heatmap-zones/route";
+import {
+  hasAnyOpenSimulatorTrade,
+  shouldThrottleHeavySimulatorCycle,
+} from "@/lib/cron-throttle";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -340,91 +349,115 @@ export async function GET(request: NextRequest) {
       await evtBatch.commit();
     }
 
+    let heavyCronThrottle = false;
+    try {
+      const btcThrottle =
+        allPrices.BYBIT.get("BTCUSDT") ??
+        allPrices.BINANCE.get("BTCUSDT") ??
+        null;
+      const hz = await loadEffectiveHeatmapZones(db);
+      const hist = appendBtcPriceHistory(
+        await loadPriceHistoryFromHeatmapStatus(db),
+        btcThrottle,
+      );
+      heavyCronThrottle = shouldThrottleHeavySimulatorCycle(
+        hz,
+        btcThrottle,
+        hist,
+        await hasAnyOpenSimulatorTrade(db),
+      );
+    } catch {
+      heavyCronThrottle = false;
+    }
+
     // ── 3. AI Filter Rescoring ──────────────────────────────
     let scoreCount = 0;
     let previousRegime: MarketRegimeData | undefined;
     let baseThreshold = AUTO_FILTER_THRESHOLD;
     let scores = new Map<string, { signalId: string; score: number; label: string; color: string; breakdown: any }>();
-    try {
+    if (!heavyCronThrottle) {
       try {
-        const filterCfg = await db.collection("config").doc("auto_filter").get();
-        if (filterCfg.exists) {
-          const val = filterCfg.data()?.baseThreshold;
-          if (typeof val === "number" && val > 0) baseThreshold = val;
-        }
-      } catch {}
-
-      let regimeData: Record<string, any> = {};
-      try {
-        const regimeDoc = await db.collection("config").doc("market_regime").get();
-        if (regimeDoc.exists) {
-          const raw = regimeDoc.data() || {};
-          previousRegime = raw as MarketRegimeData;
-          regimeData = raw;
-        }
-      } catch {}
-
-      const allSignalsForScoring = postUpdateDocs.map(mapFirestoreSignal);
-      scores = computeAutoFilter(allSignalsForScoring);
-
-      const scoreBatch = db.batch();
-      let scoreBatchCount = 0;
-
-      for (const signalDoc of signalsSnap.docs) {
-        const signal = signalDoc.data();
-        if (signal.status !== "ACTIVE") continue;
-        if (signal.tp1Hit || signal.tp2Hit || signal.tp3Hit || signal.slHitAt) continue;
-
-        const scoreResult = scores.get(signalDoc.id);
-        const scoreData: Record<string, any> = {
-          lastScoredAt: new Date().toISOString(),
-        };
-
-        const regimeKey = `${signal.timeframe || "15"}_${signal.type || "BUY"}`;
-        const regimeEntry = regimeData[regimeKey];
-        const threshold = (regimeEntry?.adjustedThreshold && !isRegimeStale(regimeEntry.lastUpdated, signal.timeframe || "15"))
-          ? regimeEntry.adjustedThreshold
-          : baseThreshold;
-
-        if (scoreResult) {
-          scoreData.confidenceScore = scoreResult.score;
-          scoreData.confidenceLabel = scoreResult.label;
-          scoreData.scoreBreakdown = scoreResult.breakdown;
-          scoreData.scoredAtThreshold = threshold;
-          if (signal.initialConfidenceScore == null) {
-            scoreData.initialConfidenceScore = scoreResult.score;
+        try {
+          const filterCfg = await db.collection("config").doc("auto_filter").get();
+          if (filterCfg.exists) {
+            const val = filterCfg.data()?.baseThreshold;
+            if (typeof val === "number" && val > 0) baseThreshold = val;
           }
-          const existingMax = signal.maxConfidenceScore ?? scoreResult.score;
-          const existingMin = signal.minConfidenceScore ?? scoreResult.score;
-          scoreData.maxConfidenceScore = Math.max(existingMax, scoreResult.score);
-          scoreData.minConfidenceScore = Math.min(existingMin, scoreResult.score);
-        } else if (isSignalStale(signal.receivedAt, signal.timeframe || "15")) {
-          scoreData.confidenceScore = 0;
-          scoreData.confidenceLabel = "Stale";
-          scoreData.scoredAtThreshold = threshold;
-        }
+        } catch {}
 
-        if (Object.keys(scoreData).length > 1) {
-          scoreBatch.update(db.collection("signals").doc(signalDoc.id), scoreData);
-          scoreBatchCount++;
-          scoreCount++;
+        let regimeData: Record<string, any> = {};
+        try {
+          const regimeDoc = await db.collection("config").doc("market_regime").get();
+          if (regimeDoc.exists) {
+            const raw = regimeDoc.data() || {};
+            previousRegime = raw as MarketRegimeData;
+            regimeData = raw;
+          }
+        } catch {}
 
-          if (scoreBatchCount >= 490) {
-            await scoreBatch.commit();
-            scoreBatchCount = 0;
+        const allSignalsForScoring = postUpdateDocs.map(mapFirestoreSignal);
+        scores = computeAutoFilter(allSignalsForScoring);
+
+        const scoreBatch = db.batch();
+        let scoreBatchCount = 0;
+
+        for (const signalDoc of signalsSnap.docs) {
+          const signal = signalDoc.data();
+          if (signal.status !== "ACTIVE") continue;
+          if (signal.tp1Hit || signal.tp2Hit || signal.tp3Hit || signal.slHitAt) continue;
+
+          const scoreResult = scores.get(signalDoc.id);
+          const scoreData: Record<string, any> = {
+            lastScoredAt: new Date().toISOString(),
+          };
+
+          const regimeKey = `${signal.timeframe || "15"}_${signal.type || "BUY"}`;
+          const regimeEntry = regimeData[regimeKey];
+          const threshold = (regimeEntry?.adjustedThreshold && !isRegimeStale(regimeEntry.lastUpdated, signal.timeframe || "15"))
+            ? regimeEntry.adjustedThreshold
+            : baseThreshold;
+
+          if (scoreResult) {
+            scoreData.confidenceScore = scoreResult.score;
+            scoreData.confidenceLabel = scoreResult.label;
+            scoreData.scoreBreakdown = scoreResult.breakdown;
+            scoreData.scoredAtThreshold = threshold;
+            if (signal.initialConfidenceScore == null) {
+              scoreData.initialConfidenceScore = scoreResult.score;
+            }
+            const existingMax = signal.maxConfidenceScore ?? scoreResult.score;
+            const existingMin = signal.minConfidenceScore ?? scoreResult.score;
+            scoreData.maxConfidenceScore = Math.max(existingMax, scoreResult.score);
+            scoreData.minConfidenceScore = Math.min(existingMin, scoreResult.score);
+          } else if (isSignalStale(signal.receivedAt, signal.timeframe || "15")) {
+            scoreData.confidenceScore = 0;
+            scoreData.confidenceLabel = "Stale";
+            scoreData.scoredAtThreshold = threshold;
+          }
+
+          if (Object.keys(scoreData).length > 1) {
+            scoreBatch.update(db.collection("signals").doc(signalDoc.id), scoreData);
+            scoreBatchCount++;
+            scoreCount++;
+
+            if (scoreBatchCount >= 490) {
+              await scoreBatch.commit();
+              scoreBatchCount = 0;
+            }
           }
         }
-      }
 
-      if (scoreBatchCount > 0) {
-        await scoreBatch.commit();
+        if (scoreBatchCount > 0) {
+          await scoreBatch.commit();
+        }
+      } catch (scoreErr: any) {
+        console.error("[Sync] AI rescoring failed:", scoreErr.message);
       }
-    } catch (scoreErr: any) {
-      console.error("[Sync] AI rescoring failed:", scoreErr.message);
     }
 
     // ── 4. Market Bias ──────────────────────────────────────
-    try {
+    if (!heavyCronThrottle) {
+      try {
       const TF_WEIGHTS: Record<string, number> = { "5": 1, "15": 2, "60": 3, "240": 4 };
       const biasData: Record<string, number> = {};
 
@@ -467,12 +500,14 @@ export async function GET(request: NextRequest) {
         ...biasData,
         lastUpdated: new Date().toISOString(),
       });
-    } catch (biasErr: any) {
+      } catch (biasErr: any) {
       console.error("[Sync] Market bias computation failed:", biasErr.message);
+      }
     }
 
     // ── 5. Market Regime ────────────────────────────────────
-    try {
+    if (!heavyCronThrottle) {
+      try {
       const regime = computeMarketRegime(
         postUpdateDocs.map((d) => ({
           timeframe: String(d.timeframe || "15"),
@@ -492,13 +527,14 @@ export async function GET(request: NextRequest) {
         ...regime,
         lastUpdated: new Date().toISOString(),
       });
-    } catch (regimeErr: any) {
+      } catch (regimeErr: any) {
       console.error("[Sync] Regime computation failed:", regimeErr.message);
+      }
     }
 
     console.log(JSON.stringify({
       level: "INFO",
-      message: `PRICE SYNC: updated=${updateCount} skipped=${skipCount} events=${signalEvents.length} scored=${scoreCount} dhan=${dhanPriceCount} exchanges=${Object.keys(allPrices).filter(k => allPrices[k as keyof AllExchangePrices].size > 0).length}`,
+      message: `PRICE SYNC: updated=${updateCount} skipped=${skipCount} events=${signalEvents.length} scored=${scoreCount} heavyThrottle=${heavyCronThrottle} dhan=${dhanPriceCount} exchanges=${Object.keys(allPrices).filter(k => allPrices[k as keyof AllExchangePrices].size > 0).length}`,
       webhookId: "SYSTEM_CRON",
       timestamp: new Date().toISOString(),
     }));
@@ -509,6 +545,7 @@ export async function GET(request: NextRequest) {
       skipped: skipCount,
       events: signalEvents.length,
       scored: scoreCount,
+      heavyCronThrottle,
     });
   } catch (error: any) {
     await db.collection("logs").add({

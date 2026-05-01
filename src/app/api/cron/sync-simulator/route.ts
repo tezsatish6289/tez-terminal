@@ -24,7 +24,17 @@ import { batchReadLiquidityCache } from "@/lib/liquidity/firestore-cache";
 import { scoreLiquidityContext } from "@/lib/liquidity/liquidity-scorer";
 import { parseLiquidityConfig } from "@/lib/liquidity/types";
 import { deserializePrices, getReferencePrice, getPrice, type AllExchangePrices } from "@/lib/exchanges";
-import { computeAutoSwitch, parseZones, type PricePoint } from "@/app/api/settings/heatmap-zones/route";
+import {
+  appendBtcPriceHistory,
+  computeAutoSwitch,
+  loadEffectiveHeatmapZones,
+  loadPriceHistoryFromHeatmapStatus,
+  type PricePoint,
+} from "@/app/api/settings/heatmap-zones/route";
+import {
+  hasAnyOpenSimulatorTrade,
+  shouldThrottleHeavySimulatorCycle,
+} from "@/lib/cron-throttle";
 import { executeForAllUsers } from "@/lib/live-execution";
 import { isMarketOpen, isIndianSquareOffTime } from "@/lib/market-hours";
 import { markTradeForBlockchain } from "@/lib/blockchain-logger";
@@ -70,66 +80,10 @@ export async function GET(request: NextRequest) {
     }
   } catch {}
 
-  // ── Load heatmap auto-switch zones ──────────────────────────
-  // CRYPTO simulator is controlled entirely by BTC price vs configured zones.
-  // INDIAN_STOCKS falls back to always-on (BOTH directions).
-  let heatmapZones = parseZones({});
   try {
-    const zonesDoc = await db.doc("config/heatmap_zones").get();
-    if (zonesDoc.exists) {
-      heatmapZones = parseZones(zonesDoc.data() ?? {});
-    }
-  } catch {}
+    // ── Effective zones (manual + AUTO Deribit merge) ─────────
+    const heatmapZones = await loadEffectiveHeatmapZones(db);
 
-  // ── AUTO mode: override zones with Deribit-computed suggested zones ──
-  // When manualOverride is AUTO, the simulator uses the zones computed
-  // from Deribit options OI (written every hour by the suggest-zones cron).
-  // If suggested zones are stale or have insufficient gap, force all zone
-  // values to null so the simulator stays OFF rather than falling back to
-  // stale manually-saved zones which may be completely wrong.
-  if (heatmapZones.manualOverride === "AUTO") {
-    try {
-      const suggestedSnap = await db.doc("config/suggested_zones").get();
-      if (suggestedSnap.exists) {
-        const s = suggestedSnap.data() as Record<string, unknown>;
-        const computedAt = s.computedAt as string | undefined;
-        const ageMs = computedAt ? Date.now() - new Date(computedAt).getTime() : Infinity;
-        const isStale = ageMs > 12 * 60 * 60 * 1000; // stale if >12 hours old
-        const hasZones = s.bullZoneLow && s.bullZoneHigh && s.bearZoneLow && s.bearZoneHigh;
-        const sufficientGap = !s.insufficientGap;
-
-        if (!isStale && hasZones && sufficientGap) {
-          // Good data — use Deribit zones
-          heatmapZones = {
-            ...heatmapZones,
-            bullZoneLow:   s.bullZoneLow   as number,
-            bullZoneHigh:  s.bullZoneHigh  as number,
-            bullExitAbove: s.bullExitAbove as number | null ?? null,
-            bearZoneLow:   s.bearZoneLow   as number,
-            bearZoneHigh:  s.bearZoneHigh  as number,
-            bearExitBelow: s.bearExitBelow as number | null ?? null,
-          };
-        } else {
-          // Stale or insufficient gap — clear all zones so simulator stays OFF
-          // Never fall back to old manual zones which may be completely outdated
-          heatmapZones = {
-            ...heatmapZones,
-            bullZoneLow: null, bullZoneHigh: null, bullExitAbove: null,
-            bearZoneLow: null, bearZoneHigh: null, bearExitBelow: null,
-          };
-        }
-      } else {
-        // No suggested zones doc at all — clear zones
-        heatmapZones = {
-          ...heatmapZones,
-          bullZoneLow: null, bullZoneHigh: null, bullExitAbove: null,
-          bearZoneLow: null, bearZoneHigh: null, bearExitBelow: null,
-        };
-      }
-    } catch {}
-  }
-
-  try {
     // ── Read cached prices from Cron 1 ──────────────────────
     const priceDoc = await db.collection("config").doc("exchange_prices").get();
     let allPrices: AllExchangePrices = { BINANCE: new Map(), BYBIT: new Map(), MEXC: new Map(), DHAN: new Map() };
@@ -154,27 +108,34 @@ export async function GET(request: NextRequest) {
       null;
 
     // ── Rolling BTC price history (max 35 entries ≈ 35 min) ──
-    // Read existing history from the status doc, append current price, trim old.
-    let priceHistory: PricePoint[] = [];
-    try {
-      const statusSnap = await db.doc("config/heatmap_auto_status").get();
-      if (statusSnap.exists) {
-        const existing = statusSnap.data()?.priceHistory;
-        if (Array.isArray(existing)) {
-          priceHistory = existing.filter(
-            (p): p is PricePoint => typeof p?.price === "number" && typeof p?.ts === "number",
-          );
-        }
-      }
-    } catch {}
-
-    if (btcPrice !== null) {
-      priceHistory.push({ price: btcPrice, ts: Date.now() });
-    }
-    // Keep last 35 entries (≈35 min at 1 cron/min)
-    if (priceHistory.length > 35) priceHistory = priceHistory.slice(-35);
+    const priorHistory = await loadPriceHistoryFromHeatmapStatus(db);
+    const priceHistory = appendBtcPriceHistory(priorHistory, btcPrice);
 
     const cryptoSwitch = computeAutoSwitch(btcPrice, heatmapZones, priceHistory);
+
+    const hasOpenSimTrade = await hasAnyOpenSimulatorTrade(db);
+    const throttleHeavyCycle = shouldThrottleHeavySimulatorCycle(
+      heatmapZones,
+      btcPrice,
+      priceHistory,
+      hasOpenSimTrade,
+    );
+    if (throttleHeavyCycle) {
+      await db.doc("config/heatmap_auto_status").set({
+        btcPrice,
+        simEnabled: cryptoSwitch.simEnabled,
+        directionBias: cryptoSwitch.directionBias,
+        reason: cryptoSwitch.reason,
+        priceHistory,
+        momentumLookbackMin: heatmapZones.momentumLookbackMin ?? null,
+        updatedAt: new Date().toISOString(),
+      }).catch(() => {});
+      return NextResponse.json({
+        success: true,
+        skippedHeavyCycle: true,
+        prices: { binance: binancePriceCount, bybit: bybitPriceCount },
+      });
+    }
 
     function getAssetControls(assetType: string): { simEnabled: boolean; directionBias: DirectionBias } {
       if (assetType === "CRYPTO") return { simEnabled: cryptoSwitch.simEnabled, directionBias: cryptoSwitch.directionBias };

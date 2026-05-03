@@ -258,6 +258,61 @@ export async function GET(request: NextRequest) {
       await flushSimStates();
     }
 
+    // ── Zone flip: force-close opposite-direction crypto trades ──────
+    // When AUTO mode switches to BEAR, force-close all open BUY trades.
+    // When AUTO mode switches to BULL, force-close all open SELL trades.
+    // Only runs in AUTO mode — manual overrides leave trade management to the user.
+    // Idempotent: if no opposite-direction trades exist, nothing happens.
+    if (
+      heatmapZones.manualOverride === "AUTO" &&
+      (cryptoSwitch.directionBias === "BULL" || cryptoSwitch.directionBias === "BEAR")
+    ) {
+      const sideToClose = cryptoSwitch.directionBias === "BEAR" ? "BUY" : "SELL";
+      try {
+        const flipSnap = await db.collection("simulator_trades")
+          .where("status", "==", "OPEN")
+          .where("assetType", "==", "CRYPTO")
+          .where("side", "==", sideToClose)
+          .get();
+
+        if (!flipSnap.empty) {
+          for (const simDoc of flipSnap.docs) {
+            const t = simDoc.data() as SimTrade;
+            const closePrice = getSimPrice(t.symbol, t.exchange) ?? t.entryPrice;
+            const simState = await loadSimState("CRYPTO");
+
+            const result = processTradeExit({
+              trade: { ...t, id: simDoc.id },
+              state: simState,
+              exitType: "SL",
+              exitPrice: closePrice,
+              simConfig,
+            });
+
+            if (result) {
+              const { id: _id, ...fields } = result.updatedTrade;
+              await db.collection("simulator_trades").doc(simDoc.id).update({
+                ...fields,
+                closeReason: "ZONE_FLIP",
+              });
+              updateSimState("CRYPTO", result.updatedState);
+              await db.collection("simulator_logs").add({
+                ...result.log,
+                action: "ZONE_FLIP",
+                details: `[SIM] ${t.symbol} ${t.side} force-closed @ $${closePrice} — zone flipped to ${cryptoSwitch.directionBias}`,
+              });
+              if (result.updatedTrade.status === "CLOSED") {
+                await markTradeForBlockchain(db, simDoc.id);
+              }
+            }
+          }
+          await flushSimStates();
+        }
+      } catch (flipErr: any) {
+        console.error("[SimSync] Zone-flip force-close failed:", flipErr.message);
+      }
+    }
+
     // ── Signal-event-driven exits ───────────────────────────
     // Track trade IDs processed here so the catch-up loop below won't
     // re-process the same exit from a stale Firestore snapshot, which

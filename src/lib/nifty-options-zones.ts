@@ -6,14 +6,15 @@
  *
  * Logic:
  *   1. Fetch NSE option chain (requires a session cookie from the NSE homepage).
- *   2. Filter to options expiring within 14 days.
- *   3. Find the nearest weekly expiry with total OI ≥ MIN_OI_THRESHOLD.
- *   4. Aggregate call OI and put OI by strike for that expiry.
- *   5. Bull zone → dominant PUT  strike below spot (highest put OI).
- *   6. Bear zone → dominant CALL strike above spot (highest call OI).
- *   7. Gap check → bearStrike - bullStrike must be ≥ MIN_STRIKE_GAP.
- *   8. Zone bands → ±ZONE_HALF_WIDTH points around each dominant strike.
- *   9. Max Pain  → minimises total payout across all strikes (directional
+ *   2. Use embedded underlyingValue as spot price (no external price dependency).
+ *   3. Filter to options expiring within 14 days.
+ *   4. Find the nearest weekly expiry with total OI ≥ MIN_OI_THRESHOLD.
+ *   5. Aggregate call OI and put OI by strike for that expiry.
+ *   6. Bull zone → dominant PUT  strike below spot (highest put OI).
+ *   7. Bear zone → dominant CALL strike above spot (highest call OI).
+ *   8. Gap check → bearStrike - bullStrike must be ≥ MIN_STRIKE_GAP.
+ *   9. Zone bands → ±ZONE_HALF_WIDTH points around each dominant strike.
+ *  10. Max Pain  → minimises total payout across all strikes (directional
  *      target for the UI; not used as hard exit).
  */
 
@@ -73,7 +74,6 @@ async function getNseCookies(): Promise<string> {
     signal: AbortSignal.timeout(10_000),
   });
   const setCookie = res.headers.get("set-cookie") ?? "";
-  // Extract individual cookie name=value pairs
   return setCookie
     .split(",")
     .map((c) => c.split(";")[0].trim())
@@ -90,8 +90,9 @@ interface NseOptionEntry {
 
 interface NseOcResponse {
   records?: {
-    data?:        NseOptionEntry[];
-    expiryDates?: string[];
+    data?:            NseOptionEntry[];
+    expiryDates?:     string[];
+    underlyingValue?: number; // current Nifty spot price embedded in response
   };
 }
 
@@ -154,14 +155,6 @@ export async function computeNiftyOptionsZones(
 ): Promise<NiftyOptionsZones> {
   const halfWidth = clampZoneHalfWidth(opts?.zoneHalfWidthPts ?? null);
 
-  const empty = (): NiftyOptionsZones => ({
-    bullStrike: null, bullZoneLow: null, bullZoneHigh: null, bullExitAbove: null,
-    bearStrike: null, bearZoneLow: null, bearZoneHigh: null, bearExitBelow: null,
-    maxPain: null, expiryUsed: null, expiryOI: null,
-    bullOI: null, bearOI: null, insufficientGap: false,
-    niftyPrice: currentNiftyPrice, computedAt: new Date().toISOString(),
-  });
-
   // 1. Fetch NSE option chain
   let ocData: NseOcResponse;
   try {
@@ -171,11 +164,26 @@ export async function computeNiftyOptionsZones(
     throw new Error(`NSE fetch failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 
+  // Use embedded spot price from NSE response if caller didn't provide one
+  const spotPrice =
+    (currentNiftyPrice > 0 ? currentNiftyPrice : null) ??
+    (ocData.records?.underlyingValue ?? 0);
+
+  const empty = (): NiftyOptionsZones => ({
+    bullStrike: null, bullZoneLow: null, bullZoneHigh: null, bullExitAbove: null,
+    bearStrike: null, bearZoneLow: null, bearZoneHigh: null, bearExitBelow: null,
+    maxPain: null, expiryUsed: null, expiryOI: null,
+    bullOI: null, bearOI: null, insufficientGap: false,
+    niftyPrice: spotPrice || currentNiftyPrice, computedAt: new Date().toISOString(),
+  });
+
+  if (spotPrice <= 0) return empty();
+
   const rows = ocData.records?.data ?? [];
   if (!rows.length) return empty();
 
-  const nowMs        = Date.now();
-  const maxExpiryMs  = MAX_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+  const nowMs       = Date.now();
+  const maxExpiryMs = MAX_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
 
   // 2. Group by expiry — filter to near-term only
   const byExpiry = new Map<string, {
@@ -226,8 +234,8 @@ export async function computeNiftyOptionsZones(
     let bullStrike: number | null = null; let bullOI = 0;
     let bearStrike: number | null = null; let bearOI = 0;
     for (const [strike, { putOI, callOI }] of strikes) {
-      if (strike < currentNiftyPrice && putOI > bullOI) { bullOI = putOI; bullStrike = strike; }
-      if (strike > currentNiftyPrice && callOI > bearOI) { bearOI = callOI; bearStrike = strike; }
+      if (strike < spotPrice && putOI > bullOI) { bullOI = putOI; bullStrike = strike; }
+      if (strike > spotPrice && callOI > bearOI) { bearOI = callOI; bearStrike = strike; }
     }
     return { bullStrike, bullOI, bearStrike, bearOI };
   };
@@ -273,7 +281,7 @@ export async function computeNiftyOptionsZones(
     bullOI: bullOI > 0 ? bullOI : null,
     bearOI: bearOI > 0 ? bearOI : null,
     insufficientGap,
-    niftyPrice: currentNiftyPrice,
+    niftyPrice: spotPrice,
     computedAt: new Date().toISOString(),
   };
 }

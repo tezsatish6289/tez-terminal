@@ -24,19 +24,19 @@ const CRON_SECRET = process.env.CRON_SECRET;
 async function run() {
   const db = getAdminFirestore();
 
-  // Get current Nifty price from Firestore (kept fresh by sync-prices cron)
-  let niftyPrice: number | null = null;
+  // Get current Nifty price from Firestore (kept fresh by sync-prices cron).
+  // If unavailable, pass 0 — computeNiftyOptionsZones will fall back to
+  // records.underlyingValue embedded in the NSE option chain response.
+  let niftyPrice = 0;
   try {
     const priceDoc = await db.doc("config/exchange_prices").get();
     if (priceDoc.exists) {
       const allPrices = deserializePrices(
         priceDoc.data() as Record<string, Record<string, number>>,
       );
-      niftyPrice = allPrices.DHAN?.get("NIFTY50") ?? null;
+      niftyPrice = allPrices.DHAN?.get("NIFTY50") ?? 0;
     }
   } catch {}
-
-  if (!niftyPrice) throw new Error("Nifty price unavailable");
 
   const result = await computeNiftyOptionsZones(niftyPrice);
 

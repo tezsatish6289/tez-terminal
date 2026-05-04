@@ -100,6 +100,27 @@
         { "fieldPath": "exchange", "order": "ASCENDING" },
         { "fieldPath": "keyFingerprint", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "live_trades",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "exchange", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "testnet", "order": "ASCENDING" },
+        { "fieldPath": "openedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "live_trades",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "exchange", "order": "ASCENDING" },
+        { "fieldPath": "testnet", "order": "ASCENDING" },
+        { "fieldPath": "openedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

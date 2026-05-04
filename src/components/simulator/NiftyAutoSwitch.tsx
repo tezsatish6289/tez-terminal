@@ -102,6 +102,7 @@ export function NiftyAutoSwitch() {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
 
   // Live auto-switch status (written by sync-simulator cron every minute)
   const statusRef = useMemoFirebase(() => {
@@ -162,10 +163,15 @@ export function NiftyAutoSwitch() {
 
   const handleRefreshSuggestions = useCallback(async () => {
     setRefreshing(true);
+    setRefreshError(null);
     try {
-      await fetch("/api/cron/suggest-nifty-zones", { method: "POST" });
+      const res = await fetch("/api/cron/suggest-nifty-zones", { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setRefreshError((body as { error?: string }).error ?? `HTTP ${res.status}`);
+      }
     } catch (err) {
-      console.error("Failed to refresh Nifty zone suggestions:", err);
+      setRefreshError(err instanceof Error ? err.message : String(err));
     } finally {
       setRefreshing(false);
     }
@@ -576,13 +582,18 @@ export function NiftyAutoSwitch() {
                 <RefreshCw className={cn("w-3 h-3", refreshing && "animate-spin")} />
                 {refreshing ? "Fetching…" : "Refresh Zones"}
               </button>
-              {suggested?.computedAt && (
+              {suggested?.computedAt && !refreshError && (
                 <span className="text-[9px] text-muted-foreground/30 truncate">
                   {suggested.source ?? "nse"} · {new Date(suggested.computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </span>
               )}
             </div>
-            {suggested?.expiryUsed && zones.manualOverride !== "AUTO" && (
+            {refreshError && (
+              <p className="text-[9px] text-red-400/80 pl-0.5 font-mono truncate" title={refreshError}>
+                ✕ {refreshError}
+              </p>
+            )}
+            {suggested?.expiryUsed && zones.manualOverride !== "AUTO" && !refreshError && (
               <p className="text-[9px] text-muted-foreground/35 pl-0.5">
                 Max Pain{" "}
                 <span className="font-mono font-bold text-accent/60">

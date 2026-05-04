@@ -60,25 +60,57 @@ export interface NiftyOptionsZones {
 
 const BROWSER_HEADERS = {
   "User-Agent":
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-  Accept: "application/json, text/plain, */*",
-  "Accept-Language": "en-US,en;q=0.9",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-IN,en;q=0.9",
   "Accept-Encoding": "gzip, deflate, br",
-  Referer: "https://www.nseindia.com/",
+  Connection: "keep-alive",
+  "Upgrade-Insecure-Requests": "1",
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "none",
+};
+
+const API_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  Accept: "application/json, text/plain, */*",
+  "Accept-Language": "en-IN,en;q=0.9",
+  "Accept-Encoding": "gzip, deflate, br",
+  Referer: "https://www.nseindia.com/option-chain",
+  "X-Requested-With": "XMLHttpRequest",
   Connection: "keep-alive",
 };
 
+function parseCookies(res: Response): string[] {
+  const raw = res.headers.get("set-cookie") ?? "";
+  return raw.split(",").map((c) => c.split(";")[0].trim()).filter(Boolean);
+}
+
 async function getNseCookies(): Promise<string> {
-  const res = await fetch(NSE_HOME, {
+  // Step 1: hit the homepage to get initial cookies (nsit, nseappid, etc.)
+  const homeRes = await fetch(NSE_HOME, {
     headers: BROWSER_HEADERS,
-    signal: AbortSignal.timeout(10_000),
+    signal: AbortSignal.timeout(12_000),
+    redirect: "follow",
   });
-  const setCookie = res.headers.get("set-cookie") ?? "";
-  return setCookie
-    .split(",")
-    .map((c) => c.split(";")[0].trim())
-    .filter(Boolean)
-    .join("; ");
+  const cookies1 = parseCookies(homeRes);
+
+  // Step 2: hit the option-chain page with those cookies to get additional tokens
+  const ocPageRes = await fetch("https://www.nseindia.com/option-chain", {
+    headers: { ...BROWSER_HEADERS, Cookie: cookies1.join("; "), Referer: NSE_HOME },
+    signal: AbortSignal.timeout(12_000),
+    redirect: "follow",
+  });
+  const cookies2 = parseCookies(ocPageRes);
+
+  // Merge: prefer newer cookies (later values override earlier ones for same key)
+  const cookieMap = new Map<string, string>();
+  for (const c of [...cookies1, ...cookies2]) {
+    const [name] = c.split("=");
+    if (name) cookieMap.set(name.trim(), c);
+  }
+  return [...cookieMap.values()].join("; ");
 }
 
 interface NseOptionEntry {
@@ -98,11 +130,17 @@ interface NseOcResponse {
 
 async function fetchNseOptionChain(cookies: string): Promise<NseOcResponse> {
   const res = await fetch(NSE_OC, {
-    headers: { ...BROWSER_HEADERS, Cookie: cookies },
+    headers: { ...API_HEADERS, Cookie: cookies },
     signal: AbortSignal.timeout(15_000),
   });
-  if (!res.ok) throw new Error(`NSE option chain HTTP ${res.status}`);
-  return res.json() as Promise<NseOcResponse>;
+  if (!res.ok) throw new Error(`NSE option chain HTTP ${res.status} ${res.statusText}`);
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as NseOcResponse;
+  } catch {
+    // Likely got an HTML error page instead of JSON — NSE blocked the request
+    throw new Error(`NSE returned non-JSON (likely bot-blocked). Status: ${res.status}`);
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────

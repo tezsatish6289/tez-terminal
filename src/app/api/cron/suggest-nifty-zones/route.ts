@@ -17,7 +17,7 @@ import { computeNiftyOptionsZones } from "@/lib/nifty-options-zones";
 import { deserializePrices } from "@/lib/exchanges";
 
 export const dynamic     = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const CRON_SECRET = process.env.CRON_SECRET;
 

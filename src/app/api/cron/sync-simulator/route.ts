@@ -33,6 +33,11 @@ import {
   type PricePoint,
 } from "@/app/api/settings/heatmap-zones/route";
 import {
+  computeNiftyAutoSwitch,
+  loadEffectiveNiftyZones,
+  loadNiftyPriceHistory,
+} from "@/app/api/settings/nifty-zones/route";
+import {
   hasAnyOpenSimulatorTrade,
   shouldThrottleHeavySimulatorCycle,
 } from "@/lib/cron-throttle";
@@ -143,8 +148,34 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    function getAssetControls(assetType: string): { simEnabled: boolean; directionBias: DirectionBias } {
+    // Indian stocks controls resolved lazily (only loaded if there are Indian signals/trades)
+    let _indianControlsResolved: { simEnabled: boolean; directionBias: DirectionBias } | null = null;
+    async function getAssetControls(assetType: string): Promise<{ simEnabled: boolean; directionBias: DirectionBias }> {
       if (assetType === "CRYPTO") return { simEnabled: cryptoSwitch.simEnabled, directionBias: cryptoSwitch.directionBias };
+      if (assetType === "INDIAN_STOCKS") {
+        if (_indianControlsResolved) return _indianControlsResolved;
+        try {
+          const niftyPrice = getSimPrice("NIFTY50", "NSE") ?? null;
+          const { zones: niftyZones } = await loadEffectiveNiftyZones(db);
+          const niftyHistory = await loadNiftyPriceHistory(db);
+          const niftySwitch = computeNiftyAutoSwitch(niftyPrice, niftyZones, niftyHistory);
+          await db.doc("config/nifty_auto_status").set(
+            {
+              niftyPrice,
+              simEnabled:    niftySwitch.simEnabled,
+              directionBias: niftySwitch.directionBias,
+              reason:        niftySwitch.reason,
+              updatedAt:     new Date().toISOString(),
+            },
+            { merge: true },
+          ).catch(() => {});
+          _indianControlsResolved = { simEnabled: niftySwitch.simEnabled, directionBias: niftySwitch.directionBias };
+        } catch (err: any) {
+          console.error("[SimSync] Nifty controls failed (non-fatal):", err.message);
+          _indianControlsResolved = { simEnabled: true, directionBias: "BOTH" };
+        }
+        return _indianControlsResolved;
+      }
       return { simEnabled: true, directionBias: "BOTH" };
     }
 
@@ -311,6 +342,63 @@ export async function GET(request: NextRequest) {
       } catch (flipErr: any) {
         console.error("[SimSync] Zone-flip force-close failed:", flipErr.message);
       }
+    }
+
+    // ── Zone flip: force-close opposite-direction Indian stocks trades ──
+    // Mirror of the CRYPTO zone-flip block above, but for INDIAN_STOCKS.
+    // Only runs in AUTO mode — manual overrides leave trade management to the user.
+    try {
+      const indianControls = await getAssetControls("INDIAN_STOCKS");
+      const indianZonesSnap = await db.doc("config/nifty_zones").get();
+      const indianManualOverride = (indianZonesSnap.data()?.manualOverride ?? "AUTO") as string;
+
+      if (
+        indianManualOverride === "AUTO" &&
+        (indianControls.directionBias === "BULL" || indianControls.directionBias === "BEAR")
+      ) {
+        const sideToClose = indianControls.directionBias === "BEAR" ? "BUY" : "SELL";
+        const flipSnap = await db.collection("simulator_trades")
+          .where("status", "==", "OPEN")
+          .where("assetType", "==", "INDIAN_STOCKS")
+          .where("side", "==", sideToClose)
+          .get();
+
+        if (!flipSnap.empty) {
+          for (const simDoc of flipSnap.docs) {
+            const t = simDoc.data() as SimTrade;
+            const closePrice = getSimPrice(t.symbol, t.exchange) ?? t.entryPrice;
+            const simState = await loadSimState("INDIAN_STOCKS");
+
+            const result = processTradeExit({
+              trade: { ...t, id: simDoc.id },
+              state: simState,
+              exitType: "SL",
+              exitPrice: closePrice,
+              simConfig,
+            });
+
+            if (result) {
+              const { id: _id, ...fields } = result.updatedTrade;
+              await db.collection("simulator_trades").doc(simDoc.id).update({
+                ...fields,
+                closeReason: "ZONE_FLIP",
+              });
+              updateSimState("INDIAN_STOCKS", result.updatedState);
+              await db.collection("simulator_logs").add({
+                ...result.log,
+                action: "ZONE_FLIP",
+                details: `[SIM] ${t.symbol} ${t.side} force-closed @ ₹${closePrice} — Nifty zone flipped to ${indianControls.directionBias}`,
+              });
+              if (result.updatedTrade.status === "CLOSED") {
+                await markTradeForBlockchain(db, simDoc.id);
+              }
+            }
+          }
+          await flushSimStates();
+        }
+      }
+    } catch (indianFlipErr: any) {
+      console.error("[SimSync] Indian zone-flip force-close failed:", indianFlipErr.message);
     }
 
     // ── Signal-event-driven exits ───────────────────────────
@@ -659,7 +747,7 @@ export async function GET(request: NextRequest) {
         const bull = makeAssess("BUY");
         const bear = makeAssess("SELL");
 
-        const { simEnabled: assetSimEnabled, directionBias: assetDirectionBias } = getAssetControls(assetType);
+        const { simEnabled: assetSimEnabled, directionBias: assetDirectionBias } = await getAssetControls(assetType);
         const { selected, skipped: incubSkipped, cappedByType } = assetSimEnabled
           ? selectIncubatedSignals({
               candidates: assetCandidates,

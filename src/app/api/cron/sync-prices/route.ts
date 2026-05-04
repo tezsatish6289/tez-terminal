@@ -28,6 +28,10 @@ import {
   loadPriceHistoryFromHeatmapStatus,
 } from "@/app/api/settings/heatmap-zones/route";
 import {
+  appendNiftyPriceHistory,
+  loadNiftyPriceHistory,
+} from "@/app/api/settings/nifty-zones/route";
+import {
   hasAnyOpenSimulatorTrade,
   shouldThrottleHeavySimulatorCycle,
 } from "@/lib/cron-throttle";
@@ -72,6 +76,8 @@ export async function GET(request: NextRequest) {
             .get();
 
           const stockSymbols = new Set<string>();
+          // Always fetch NIFTY50 so the Nifty auto-switch always has a fresh price
+          stockSymbols.add("NIFTY50");
           for (const d of activeSnap.docs) {
             const s = d.data();
             const exchange = String(s.exchange ?? "").toUpperCase();
@@ -103,6 +109,21 @@ export async function GET(request: NextRequest) {
       ...serializePrices(allPrices),
       updatedAt: new Date().toISOString(),
     });
+
+    // ── 1c. Append Nifty price to rolling history (drives Nifty momentum filter) ─
+    try {
+      const niftyPrice = allPrices.DHAN?.get("NIFTY50") ?? null;
+      if (niftyPrice !== null) {
+        const existing = await loadNiftyPriceHistory(db);
+        const updated  = appendNiftyPriceHistory(existing, niftyPrice);
+        await db.doc("config/nifty_auto_status").set(
+          { priceHistory: updated },
+          { merge: true },
+        );
+      }
+    } catch (niftyHistErr: any) {
+      console.error("[Sync] Nifty price history update failed (non-fatal):", niftyHistErr.message);
+    }
 
     // ── 2. Update signal prices + TP/SL lifecycle ───────────
     const signalsSnap = await db.collection("signals").get();

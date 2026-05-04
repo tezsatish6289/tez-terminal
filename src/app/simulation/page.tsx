@@ -60,6 +60,7 @@ import type { SimulatorState, SimTrade, SimLog, SimTradeEvent } from "@/lib/simu
 import { getSimStateDocId } from "@/lib/simulator";
 import { SimulatorParamsDialog } from "@/components/simulator/SimulatorParamsDialog";
 import { HeatmapAutoSwitch } from "@/components/simulator/HeatmapAutoSwitch";
+import { NiftyAutoSwitch } from "@/components/simulator/NiftyAutoSwitch";
 import { format, startOfDay, startOfWeek, startOfMonth, isAfter } from "date-fns";
 import { calcPerformanceMetrics } from "@/lib/performance-metrics";
 
@@ -282,6 +283,7 @@ export default function SimulationPage() {
               {/* Simulator controls */}
               <div className="flex items-center gap-2">
                 {assetType === "CRYPTO" && <HeatmapAutoSwitch />}
+                {assetType === "INDIAN_STOCKS" && <NiftyAutoSwitch />}
                 <SimulatorParamsDialog />
               </div>
             </div>

@@ -7,8 +7,8 @@
  * When manualOverride === "AUTO" in nifty_zones, the sync-simulator cron
  * reads these suggested zones and uses them for auto-switch.
  *
- * Scheduled: every 1–4 hours via cron-job.org (GET).
- * Also callable manually from the UI Refresh button (POST).
+ * Scheduled: e.g. every 15 min via cron (GET). GET skips NSE work outside Mon–Fri
+ * 9:00–16:00 IST (see isNiftyOptionChainCronWindow). POST (UI refresh) always runs.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -20,6 +20,7 @@ import {
   type NiftyOptionsZones,
 } from "@/lib/nifty-options-zones";
 import { deserializePrices } from "@/lib/exchanges";
+import { isNiftyOptionChainCronWindow } from "@/lib/market-hours";
 
 export const dynamic     = "force-dynamic";
 export const maxDuration = 60;
@@ -163,6 +164,14 @@ export async function GET(request: NextRequest) {
   const key = searchParams.get("key");
   if (CRON_SECRET && key !== CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!isNiftyOptionChainCronWindow()) {
+    return NextResponse.json({
+      success: true,
+      skipped: true,
+      reason: "outside_nifty_zones_window",
+      detail: "Skipped: Mon–Fri 9:00–16:00 IST only (cron GET). Use POST to refresh manually.",
+    });
   }
   try {
     const suggested = await run();

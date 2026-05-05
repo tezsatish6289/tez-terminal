@@ -31,6 +31,22 @@ export function isIndianMarketOpen(now: Date = new Date()): boolean {
 }
 
 /**
+ * Mon–Fri, 9:00–16:00 IST (inclusive of 4:00 PM).
+ * For scheduled NSE option-chain / Nifty zone refresh: skip outside this window to avoid
+ * useless calls when the external cron is every 15 minutes, 24/7.
+ *
+ * Set `NIFTY_ZONES_CRON_IGNORE_WINDOW=true` to always allow (e.g. local testing).
+ */
+export function isNiftyOptionChainCronWindow(now: Date = new Date()): boolean {
+  if (typeof process !== "undefined" && process.env.NIFTY_ZONES_CRON_IGNORE_WINDOW === "true") {
+    return true;
+  }
+  const { day, mins } = istTimeInMins(now);
+  if (day === 0 || day === 6) return false;
+  return mins >= 9 * 60 && mins <= 16 * 60;
+}
+
+/**
  * True only when new intraday entries are allowed.
  * No new trades after 2:00 PM IST — leaves 1h15m for trades to play out
  * before the 3:15 PM mandatory square-off.

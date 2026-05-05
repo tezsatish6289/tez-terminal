@@ -21,7 +21,8 @@ import { nseFetch } from "@/lib/nse-fetch";
  */
 
 const NSE_HOME = "https://www.nseindia.com";
-const NSE_OC   = "https://www.nseindia.com/api/option-chain-indices?symbol=NIFTY";
+/** NSE site uses v3 in-browser; older `option-chain-indices` often returns `{}` for automated clients. */
+const NSE_OC   = "https://www.nseindia.com/api/option-chain-v3?symbol=NIFTY";
 /** Lightweight JSON endpoints used by scrapers to finalize nsit / nseappid session cookies. */
 const NSE_MARKET_STATUS = "https://www.nseindia.com/api/marketStatus";
 const NSE_ALL_INDICES  = "https://www.nseindia.com/api/allIndices";
@@ -215,9 +216,22 @@ async function getNseCookies(): Promise<string> {
 
 interface NseOptionEntry {
   strikePrice: number;
-  expiryDate:  string; // "08-May-2025"
-  CE?: { openInterest: number };
-  PE?: { openInterest: number };
+  /** v3: row-level label e.g. "05-May-2026" */
+  expiryDates?: string;
+  /** Legacy indices API row field */
+  expiryDate?: string;
+  CE?: { openInterest: number; expiryDate?: string };
+  PE?: { openInterest: number; expiryDate?: string };
+}
+
+/** v3 uses `expiryDates`; legacy used `expiryDate`; CE/PE may carry DD-MM-YYYY. */
+function rowExpiryLabel(row: NseOptionEntry): string | null {
+  const top = row.expiryDates?.trim() || row.expiryDate?.trim();
+  if (top) return top;
+  const ce = row.CE?.expiryDate?.trim();
+  const pe = row.PE?.expiryDate?.trim();
+  if (ce && pe && ce === pe) return ce;
+  return ce ?? pe ?? null;
 }
 
 interface NseOcResponse {
@@ -280,17 +294,26 @@ const MONTH_MAP: Record<string, number> = {
   Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
 };
 
-/** Parse "08-May-2025" → Date at 15:30 IST (NSE expiry time). */
+/**
+ * Parse NSE expiry strings → Date at 15:30 IST (NSE expiry time).
+ * Supports "08-May-2025" / "05-May-2026" (DD-MMM-YYYY) and v3 CE/PE "05-05-2026" (DD-MM-YYYY).
+ */
 function parseNseExpiry(s: string): Date | null {
   const parts = s.split("-");
   if (parts.length !== 3) return null;
-  const month = MONTH_MAP[parts[1]];
-  if (month === undefined) return null;
-  const day  = parseInt(parts[0], 10);
+  const monthName = MONTH_MAP[parts[1]];
+  if (monthName !== undefined) {
+    const day = parseInt(parts[0], 10);
+    const year = parseInt(parts[2], 10);
+    if (isNaN(day) || isNaN(year)) return null;
+    return new Date(Date.UTC(year, monthName, day, 10, 0, 0));
+  }
+  const dayNum = parseInt(parts[0], 10);
+  const monthNum = parseInt(parts[1], 10);
   const year = parseInt(parts[2], 10);
-  if (isNaN(day) || isNaN(year)) return null;
-  // 15:30 IST = 10:00 UTC
-  return new Date(Date.UTC(year, month, day, 10, 0, 0));
+  if (isNaN(dayNum) || isNaN(monthNum) || isNaN(year)) return null;
+  if (monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) return null;
+  return new Date(Date.UTC(year, monthNum - 1, dayNum, 10, 0, 0));
 }
 
 function computeMaxPain(
@@ -402,8 +425,9 @@ export async function computeNiftyOptionsZones(
   }>();
 
   for (const row of rows) {
-    if (!row.expiryDate || !row.strikePrice) continue;
-    const expDate = parseNseExpiry(row.expiryDate);
+    const expiryLabel = rowExpiryLabel(row);
+    if (!expiryLabel || row.strikePrice == null) continue;
+    const expDate = parseNseExpiry(expiryLabel);
     if (!expDate) continue;
     const ms = expDate.getTime() - nowMs;
     if (ms <= 0 || ms > maxExpiryMs) continue;
@@ -412,7 +436,7 @@ export async function computeNiftyOptionsZones(
     const putOI  = row.PE?.openInterest ?? 0;
     if (callOI === 0 && putOI === 0) continue;
 
-    const existing = byExpiry.get(row.expiryDate) ?? {
+    const existing = byExpiry.get(expiryLabel) ?? {
       expiryDate: expDate, totalOI: 0,
       strikes: new Map<number, { callOI: number; putOI: number }>(),
     };
@@ -421,7 +445,7 @@ export async function computeNiftyOptionsZones(
     s.callOI += callOI;
     s.putOI  += putOI;
     existing.strikes.set(row.strikePrice, s);
-    byExpiry.set(row.expiryDate, existing);
+    byExpiry.set(expiryLabel, existing);
   }
 
   if (!byExpiry.size) return empty();

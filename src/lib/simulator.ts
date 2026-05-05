@@ -486,7 +486,7 @@ function utcDateString(): string {
 
 const STARTING_CAPITAL: Record<string, number> = {
   CRYPTO: 1000,         // USDT
-  INDIAN_STOCKS: 100000, // INR
+  INDIAN_STOCKS: 10000, // INR (paper sim default)
   COMMODITIES: 100000,   // INR
 };
 

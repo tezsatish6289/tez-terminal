@@ -21,8 +21,8 @@ import { nseFetch } from "@/lib/nse-fetch";
  */
 
 const NSE_HOME = "https://www.nseindia.com";
-/** NSE site uses v3 in-browser; older `option-chain-indices` often returns `{}` for automated clients. */
-const NSE_OC   = "https://www.nseindia.com/api/option-chain-v3?symbol=NIFTY";
+/** Same query shape as the live site (DevTools), e.g. `type=Indices&symbol=NIFTY&expiry=05-May-2026`. */
+const NSE_OC_V3 = "https://www.nseindia.com/api/option-chain-v3";
 /** Lightweight JSON endpoints used by scrapers to finalize nsit / nseappid session cookies. */
 const NSE_MARKET_STATUS = "https://www.nseindia.com/api/marketStatus";
 const NSE_ALL_INDICES  = "https://www.nseindia.com/api/allIndices";
@@ -242,6 +242,61 @@ interface NseOcResponse {
   };
 }
 
+const NSE_EXPIRY_MONTH_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+] as const;
+
+/** IST calendar Y-M-D for `date` (Asia/Kolkata). */
+function istCalendarParts(date: Date): { year: number; month: number; day: number } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = Number(parts.find((p) => p.type === "year")?.value ?? "0");
+  const month = Number(parts.find((p) => p.type === "month")?.value ?? "1");
+  const day = Number(parts.find((p) => p.type === "day")?.value ?? "1");
+  return { year, month, day };
+}
+
+/** `expiry` query value: `05-May-2026` (matches NSE option-chain-v3). */
+function formatNseExpiryQueryLabel(year: number, month: number, day: number): string {
+  const mon = NSE_EXPIRY_MONTH_SHORT[month - 1];
+  return `${String(day).padStart(2, "0")}-${mon}-${year}`;
+}
+
+/**
+ * Next Tuesday on the IST calendar — aligns with typical NIFTY weekly index expiry selection on nseindia.com.
+ * Override with env `NIFTY_OPTION_CHAIN_EXPIRY` (same format, e.g. `05-May-2026`) when debugging or if NSE shifts schedule.
+ */
+function resolveOptionChainExpiryParam(now: Date): string {
+  const env =
+    typeof process !== "undefined" ? process.env.NIFTY_OPTION_CHAIN_EXPIRY?.trim() : "";
+  if (env) return env;
+
+  for (let delta = 0; delta < 21; delta++) {
+    const probe = new Date(now.getTime() + delta * 86_400_000);
+    const { year, month, day } = istCalendarParts(probe);
+    const weekday = new Date(
+      `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T12:00:00+05:30`,
+    ).getDay();
+    if (weekday === 2) return formatNseExpiryQueryLabel(year, month, day);
+  }
+
+  const fb = istCalendarParts(now);
+  return formatNseExpiryQueryLabel(fb.year, fb.month, fb.day);
+}
+
+function buildNseOptionChainV3Url(expiryLabel: string): string {
+  const u = new URL(NSE_OC_V3);
+  u.searchParams.set("type", "Indices");
+  u.searchParams.set("symbol", "NIFTY");
+  u.searchParams.set("expiry", expiryLabel);
+  return u.toString();
+}
+
 async function fetchNseOptionChain(cookies: string): Promise<NseOcResponse> {
   if (!cookies.trim()) {
     throw new Error(
@@ -249,7 +304,10 @@ async function fetchNseOptionChain(cookies: string): Promise<NseOcResponse> {
     );
   }
 
-  const res = await nseFetch(NSE_OC, {
+  const expiryLabel = resolveOptionChainExpiryParam(new Date());
+  const url = buildNseOptionChainV3Url(expiryLabel);
+
+  const res = await nseFetch(url, {
     headers: { ...API_HEADERS, Cookie: cookies },
     signal: AbortSignal.timeout(20_000),
   });

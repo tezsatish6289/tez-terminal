@@ -26,6 +26,12 @@ export const maxDuration = 60;
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
+/** Synthetic spot bands are opt-in: set `NIFTY_SYNTHETIC_FALLBACK=true` to enable. Default is off (real NSE OI or merge prior doc only). */
+function syntheticFallbackEnabled(): boolean {
+  const v = process.env.NIFTY_SYNTHETIC_FALLBACK?.trim().toLowerCase();
+  return v === "true" || v === "1" || v === "yes";
+}
+
 async function run() {
   const db = getAdminFirestore();
 
@@ -58,8 +64,13 @@ async function run() {
   const spot = Math.max(niftyPrice, result.niftyPrice > 0 ? result.niftyPrice : 0);
   let source: "nse" | "synthetic_spot" = "nse";
 
-  // Cloud regions (e.g. Singapore) often get `{}` from NSE; DHAN spot still lets AUTO-switch work.
-  if (result.bullStrike == null && result.bearStrike == null && spot > 0) {
+  // Optional: synthetic bands when NSE fails but spot exists (off if NIFTY_SYNTHETIC_FALLBACK=false).
+  if (
+    syntheticFallbackEnabled() &&
+    result.bullStrike == null &&
+    result.bearStrike == null &&
+    spot > 0
+  ) {
     result = buildSyntheticZonesFromSpot(spot);
     source = "synthetic_spot";
     nseFetchError = null;

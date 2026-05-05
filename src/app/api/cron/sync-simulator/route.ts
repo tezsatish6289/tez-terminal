@@ -31,15 +31,20 @@ import {
   loadPriceHistoryFromHeatmapStatus,
   resolveHeatmapAutoStatusReason,
   type PricePoint,
-} from "@/app/api/settings/heatmap-zones/route";
+} from "@/lib/heatmap-zones-settings";
 import {
+  appendNiftyPriceHistory,
   computeNiftyAutoSwitch,
   loadEffectiveNiftyZones,
   loadNiftyPriceHistory,
-} from "@/app/api/settings/nifty-zones/route";
+  resolveNiftyAutoStatusReason,
+  type NiftyZones,
+} from "@/lib/nifty-zones-settings";
 import {
-  hasAnyOpenSimulatorTrade,
+  hasOpenSimulatorTradeForAsset,
   shouldSkipCryptoHeavyPolicy,
+  shouldSkipNiftyHeavyPolicy,
+  shouldThrottleHeavyNiftySimulatorCycle,
   shouldThrottleHeavySimulatorCycle,
 } from "@/lib/cron-throttle";
 import { executeForAllUsers } from "@/lib/live-execution";
@@ -125,20 +130,50 @@ export async function GET(request: NextRequest) {
       autoZoneClearReason,
     );
 
-    const hasOpenSimTrade = await hasAnyOpenSimulatorTrade(db);
+    const { zones: niftyZones, autoZoneClearReason: niftyAutoClear } =
+      await loadEffectiveNiftyZones(db);
+    const niftyPrice = getSimPrice("NIFTY50", "NSE") ?? null;
+    const niftyHistoryPrior = await loadNiftyPriceHistory(db);
+    const niftyPriceHistory = appendNiftyPriceHistory(niftyHistoryPrior, niftyPrice);
+    const niftySwitch = computeNiftyAutoSwitch(niftyPrice, niftyZones, niftyPriceHistory);
+    const niftyReason = resolveNiftyAutoStatusReason(
+      niftyZones,
+      niftySwitch.reason,
+      niftyAutoClear,
+    );
+
+    const [hasOpenCrypto, hasOpenIndian] = await Promise.all([
+      hasOpenSimulatorTradeForAsset(db, "CRYPTO"),
+      hasOpenSimulatorTradeForAsset(db, "INDIAN_STOCKS"),
+    ]);
+
     const throttleHeavyCycle = shouldThrottleHeavySimulatorCycle(
       heatmapZones,
       btcPrice,
       priceHistory,
-      hasOpenSimTrade,
+      hasOpenCrypto,
     );
     const policySkipHeavy = shouldSkipCryptoHeavyPolicy(
       heatmapZones,
       autoZoneClearReason,
       cryptoSwitch.reason,
     );
-    const lightSimulatorCycleOnly =
-      !hasOpenSimTrade && (throttleHeavyCycle || policySkipHeavy);
+    const cryptoWantsLight = !hasOpenCrypto && (throttleHeavyCycle || policySkipHeavy);
+
+    const niftyThrottle = shouldThrottleHeavyNiftySimulatorCycle(
+      niftyZones,
+      niftyPrice,
+      niftyPriceHistory,
+      hasOpenIndian,
+    );
+    const niftyPolicySkip = shouldSkipNiftyHeavyPolicy(
+      niftyZones,
+      niftyAutoClear,
+      niftySwitch.reason,
+    );
+    const niftyWantsLight = !hasOpenIndian && (niftyThrottle || niftyPolicySkip);
+
+    const lightSimulatorCycleOnly = cryptoWantsLight && niftyWantsLight;
     if (lightSimulatorCycleOnly) {
       await db.doc("config/heatmap_auto_status").set({
         btcPrice,
@@ -149,38 +184,55 @@ export async function GET(request: NextRequest) {
         momentumLookbackMin: heatmapZones.momentumLookbackMin ?? null,
         updatedAt: new Date().toISOString(),
       }).catch(() => {});
+      await db.doc("config/nifty_auto_status").set(
+        {
+          niftyPrice,
+          simEnabled: niftySwitch.simEnabled,
+          directionBias: niftySwitch.directionBias,
+          reason: niftyReason,
+          priceHistory: niftyPriceHistory,
+          momentumLookbackMin: niftyZones.momentumLookbackMin ?? null,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true },
+      ).catch(() => {});
       return NextResponse.json({
         success: true,
         skippedHeavyCycle: true,
-        skipReason: policySkipHeavy
-          ? (throttleHeavyCycle ? "throttle_and_policy" : "crypto_policy")
-          : "throttle",
+        skipReason: "both_assets_light",
         prices: { binance: binancePriceCount, bybit: bybitPriceCount },
       });
     }
 
-    // Indian stocks controls resolved lazily (only loaded if there are Indian signals/trades)
+    const niftyZonesResolved: NiftyZones = niftyZones;
+    const niftySwitchResolved = niftySwitch;
+    const niftyReasonResolved = niftyReason;
+    const niftyPriceResolved = niftyPrice;
+    const niftyPriceHistoryResolved = niftyPriceHistory;
+
+    // Indian stocks controls — reuse precomputed Nifty switch (same as early-exit path)
     let _indianControlsResolved: { simEnabled: boolean; directionBias: DirectionBias } | null = null;
     async function getAssetControls(assetType: string): Promise<{ simEnabled: boolean; directionBias: DirectionBias }> {
       if (assetType === "CRYPTO") return { simEnabled: cryptoSwitch.simEnabled, directionBias: cryptoSwitch.directionBias };
       if (assetType === "INDIAN_STOCKS") {
         if (_indianControlsResolved) return _indianControlsResolved;
         try {
-          const niftyPrice = getSimPrice("NIFTY50", "NSE") ?? null;
-          const { zones: niftyZones } = await loadEffectiveNiftyZones(db);
-          const niftyHistory = await loadNiftyPriceHistory(db);
-          const niftySwitch = computeNiftyAutoSwitch(niftyPrice, niftyZones, niftyHistory);
           await db.doc("config/nifty_auto_status").set(
             {
-              niftyPrice,
-              simEnabled:    niftySwitch.simEnabled,
-              directionBias: niftySwitch.directionBias,
-              reason:        niftySwitch.reason,
-              updatedAt:     new Date().toISOString(),
+              niftyPrice: niftyPriceResolved,
+              simEnabled: niftySwitchResolved.simEnabled,
+              directionBias: niftySwitchResolved.directionBias,
+              reason: niftyReasonResolved,
+              priceHistory: niftyPriceHistoryResolved,
+              momentumLookbackMin: niftyZonesResolved.momentumLookbackMin ?? null,
+              updatedAt: new Date().toISOString(),
             },
             { merge: true },
           ).catch(() => {});
-          _indianControlsResolved = { simEnabled: niftySwitch.simEnabled, directionBias: niftySwitch.directionBias };
+          _indianControlsResolved = {
+            simEnabled: niftySwitchResolved.simEnabled,
+            directionBias: niftySwitchResolved.directionBias,
+          };
         } catch (err: any) {
           console.error("[SimSync] Nifty controls failed (non-fatal):", err.message);
           _indianControlsResolved = { simEnabled: true, directionBias: "BOTH" };

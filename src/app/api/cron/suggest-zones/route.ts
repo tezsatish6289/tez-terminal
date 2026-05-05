@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { computeOptionsZones } from "@/lib/options-zones";
 import { deserializePrices } from "@/lib/exchanges";
-import { parseZones } from "@/app/api/settings/heatmap-zones/route";
+import { parseZones } from "@/lib/heatmap-zones-settings";
 
 export const dynamic     = "force-dynamic";
 export const maxDuration = 30;

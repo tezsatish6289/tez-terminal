@@ -27,14 +27,18 @@ import {
   computeAutoSwitch,
   loadEffectiveHeatmapZones,
   loadPriceHistoryFromHeatmapStatus,
-} from "@/app/api/settings/heatmap-zones/route";
+} from "@/lib/heatmap-zones-settings";
 import {
   appendNiftyPriceHistory,
+  computeNiftyAutoSwitch,
+  loadEffectiveNiftyZones,
   loadNiftyPriceHistory,
-} from "@/app/api/settings/nifty-zones/route";
+} from "@/lib/nifty-zones-settings";
 import {
-  hasAnyOpenSimulatorTrade,
+  hasOpenSimulatorTradeForAsset,
   shouldSkipCryptoHeavyPolicy,
+  shouldSkipNiftyHeavyPolicy,
+  shouldThrottleHeavyNiftySimulatorCycle,
   shouldThrottleHeavySimulatorCycle,
 } from "@/lib/cron-throttle";
 
@@ -378,21 +382,47 @@ export async function GET(request: NextRequest) {
         allPrices.BYBIT.get("BTCUSDT") ??
         allPrices.BINANCE.get("BTCUSDT") ??
         null;
+      const niftyPx = getReferencePrice(allPrices, "NIFTY50", "NSE") ?? null;
+
       const { zones: hz, autoZoneClearReason } = await loadEffectiveHeatmapZones(db);
+      const { zones: nz, autoZoneClearReason: niftyClear } =
+        await loadEffectiveNiftyZones(db);
+
       const hist = appendBtcPriceHistory(
         await loadPriceHistoryFromHeatmapStatus(db),
         btcThrottle,
       );
-      const hasOpenSim = await hasAnyOpenSimulatorTrade(db);
+      const niftyHist = appendNiftyPriceHistory(
+        await loadNiftyPriceHistory(db),
+        niftyPx,
+      );
+
+      const [hasOpenCrypto, hasOpenIndian] = await Promise.all([
+        hasOpenSimulatorTradeForAsset(db, "CRYPTO"),
+        hasOpenSimulatorTradeForAsset(db, "INDIAN_STOCKS"),
+      ]);
+
       const throttleAlt = shouldThrottleHeavySimulatorCycle(
         hz,
         btcThrottle,
         hist,
-        hasOpenSim,
+        hasOpenCrypto,
       );
       const cryptoReason = computeAutoSwitch(btcThrottle, hz, hist).reason;
       const policySkip = shouldSkipCryptoHeavyPolicy(hz, autoZoneClearReason, cryptoReason);
-      heavyCronThrottle = !hasOpenSim && (throttleAlt || policySkip);
+
+      const niftyThrottle = shouldThrottleHeavyNiftySimulatorCycle(
+        nz,
+        niftyPx,
+        niftyHist,
+        hasOpenIndian,
+      );
+      const niftyReason = computeNiftyAutoSwitch(niftyPx, nz, niftyHist).reason;
+      const niftyPolicy = shouldSkipNiftyHeavyPolicy(nz, niftyClear, niftyReason);
+
+      const cryptoLight = !hasOpenCrypto && (throttleAlt || policySkip);
+      const niftyLight = !hasOpenIndian && (niftyThrottle || niftyPolicy);
+      heavyCronThrottle = cryptoLight && niftyLight;
     } catch {
       heavyCronThrottle = false;
     }

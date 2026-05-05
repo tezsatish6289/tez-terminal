@@ -248,9 +248,9 @@ export function selectIncubatedSignals(params: {
       continue;
     }
 
-    // Force-closed — user explicitly killed this trade, do not re-enter
+    // Kill-switch cooldown, trailing-SL exit, EOD square-off, etc. — do not re-enter
     if (killed.has(c.id)) {
-      skipped.push({ symbol: c.symbol, type: c.type, reason: "Force-closed (KILL_SWITCH)" });
+      skipped.push({ symbol: c.symbol, type: c.type, reason: "Repeat sim entry blocked (prior exit)" });
       continue;
     }
 

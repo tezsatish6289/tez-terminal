@@ -23,7 +23,7 @@ import {
 import { batchReadLiquidityCache } from "@/lib/liquidity/firestore-cache";
 import { scoreLiquidityContext } from "@/lib/liquidity/liquidity-scorer";
 import { parseLiquidityConfig } from "@/lib/liquidity/types";
-import { deserializePrices, getReferencePrice, getPrice, type AllExchangePrices } from "@/lib/exchanges";
+import { deserializePrices, getReferencePrice, type AllExchangePrices } from "@/lib/exchanges";
 import {
   appendBtcPriceHistory,
   computeAutoSwitch,
@@ -48,7 +48,7 @@ import {
   shouldThrottleHeavySimulatorCycle,
 } from "@/lib/cron-throttle";
 import { executeForAllUsers } from "@/lib/live-execution";
-import { isMarketOpen, isIndianSquareOffTime } from "@/lib/market-hours";
+import { isMarketOpen, isIndianMarketEntryAllowed, isIndianSquareOffTime } from "@/lib/market-hours";
 import { markTradeForBlockchain } from "@/lib/blockchain-logger";
 
 export const dynamic = 'force-dynamic';
@@ -132,7 +132,23 @@ export async function GET(request: NextRequest) {
 
     const { zones: niftyZones, autoZoneClearReason: niftyAutoClear } =
       await loadEffectiveNiftyZones(db);
-    const niftyPrice = getSimPrice("NIFTY50", "NSE") ?? null;
+    let niftyPrice = getSimPrice("NIFTY50", "NSE") ?? null;
+    // Dhan LTP batch only includes symbols present in config/dhan_instruments — NIFTY50
+    // is often missing. Fall back to NSE spot from the last zone suggestion (same NSE feed).
+    if (niftyPrice === null) {
+      try {
+        const sugSnap = await db.doc("config/suggested_nifty_zones").get();
+        if (sugSnap.exists) {
+          const s = sugSnap.data() as Record<string, unknown>;
+          const np = typeof s.niftyPrice === "number" ? s.niftyPrice : null;
+          const computedAt = s.computedAt as string | undefined;
+          const ageMs = computedAt ? Date.now() - new Date(computedAt).getTime() : Infinity;
+          if (np != null && np > 0 && ageMs < 6 * 60 * 60 * 1000) {
+            niftyPrice = np;
+          }
+        }
+      } catch {}
+    }
     const niftyHistoryPrior = await loadNiftyPriceHistory(db);
     const niftyPriceHistory = appendNiftyPriceHistory(niftyHistoryPrior, niftyPrice);
     const niftySwitch = computeNiftyAutoSwitch(niftyPrice, niftyZones, niftyPriceHistory);
@@ -235,7 +251,7 @@ export async function GET(request: NextRequest) {
           };
         } catch (err: any) {
           console.error("[SimSync] Nifty controls failed (non-fatal):", err.message);
-          _indianControlsResolved = { simEnabled: true, directionBias: "BOTH" };
+          _indianControlsResolved = { simEnabled: false, directionBias: "BOTH" };
         }
         return _indianControlsResolved;
       }
@@ -698,9 +714,10 @@ export async function GET(request: NextRequest) {
       };
       const killedSignalIds = new Set<string>();
 
-      const [killedSnap, trailingSlSnap] = await Promise.all([
+      const [killedSnap, trailingSlSnap, eodSnap] = await Promise.all([
         db.collection("simulator_trades").where("closeReason", "==", "KILL_SWITCH").get(),
         db.collection("simulator_trades").where("closeReason", "==", "TRAILING_SL").get(),
+        db.collection("simulator_trades").where("closeReason", "==", "EOD_SQUARE_OFF").get(),
       ]);
 
       for (const kDoc of killedSnap.docs) {
@@ -716,6 +733,13 @@ export async function GET(request: NextRequest) {
 
       // Trailing SL exits — permanently blocked (no cooldown window).
       for (const tDoc of trailingSlSnap.docs) {
+        const td = tDoc.data();
+        if (td.signalId) killedSignalIds.add(td.signalId);
+      }
+
+      // EOD square-off — signal stays ACTIVE in Firestore but the sim must not re-enter
+      // the same alert (otherwise 3:15–3:30 IST closes and re-opens every minute).
+      for (const tDoc of eodSnap.docs) {
         const td = tDoc.data();
         if (td.signalId) killedSignalIds.add(td.signalId);
       }
@@ -783,7 +807,17 @@ export async function GET(request: NextRequest) {
 
       for (const assetType of assetTypes) {
         if (!isMarketOpen(assetType)) continue;
-        const assetCandidates = candidates.filter((c) => c.assetType === assetType);
+        // Mandatory intraday square-off window: do not open new Indian positions while
+        // we are force-closing 5m trades (same cron run would otherwise re-open them).
+        if (assetType === "INDIAN_STOCKS" && isIndianSquareOffTime()) continue;
+
+        let assetCandidates = candidates.filter((c) => c.assetType === assetType);
+        // Intraday (5m) entries stop before late session (see market-hours.ts).
+        if (assetType === "INDIAN_STOCKS") {
+          assetCandidates = assetCandidates.filter(
+            (c) => c.timeframe !== "5" || isIndianMarketEntryAllowed(),
+          );
+        }
         const assetOpenTrades = openSimTrades.filter((t) => (t.assetType ?? "CRYPTO") === assetType);
         let simState3 = await loadSimState(assetType);
 

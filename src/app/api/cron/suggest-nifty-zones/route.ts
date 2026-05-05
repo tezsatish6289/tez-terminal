@@ -13,7 +13,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
-import { computeNiftyOptionsZones } from "@/lib/nifty-options-zones";
+import {
+  computeNiftyOptionsZones,
+  createEmptyNiftyZonesResult,
+  type NiftyOptionsZones,
+} from "@/lib/nifty-options-zones";
 import { deserializePrices } from "@/lib/exchanges";
 
 export const dynamic     = "force-dynamic";
@@ -41,7 +45,14 @@ async function run() {
     }
   } catch {}
 
-  const result = await computeNiftyOptionsZones(niftyPrice);
+  let result: NiftyOptionsZones;
+  let nseFetchError: string | null = null;
+  try {
+    result = await computeNiftyOptionsZones(niftyPrice);
+  } catch (err) {
+    nseFetchError = err instanceof Error ? err.message : String(err);
+    result = createEmptyNiftyZonesResult(niftyPrice);
+  }
 
   const zonesMissing = result.bullStrike == null && result.bearStrike == null;
   const prevHadBands =
@@ -97,7 +108,23 @@ async function run() {
     source:          "nse",
     computedAt:      out.computedAt,
     mergedFromPrevious,
+    nseFetchError,
   };
+
+  // Do not replace Firestore with all-null rows when NSE failed and we have nothing new to merge.
+  if (nseFetchError && zonesMissing && !mergedFromPrevious) {
+    await db.doc("config/suggested_nifty_zones").set(
+      {
+        nseFetchError,
+        computedAt: new Date().toISOString(),
+        source: "nse",
+        mergedFromPrevious: false,
+      },
+      { merge: true },
+    );
+    const snap = await db.doc("config/suggested_nifty_zones").get();
+    return { ...(snap.data() as Record<string, unknown>), nseFetchError } as typeof suggested;
+  }
 
   await db.doc("config/suggested_nifty_zones").set(suggested);
   return suggested;

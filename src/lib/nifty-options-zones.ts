@@ -1,3 +1,5 @@
+import { nseFetch } from "@/lib/nse-fetch";
+
 /**
  * NSE option chain based zone suggester for NIFTY.
  *
@@ -39,6 +41,28 @@ const MIN_STRIKE_GAP = 600;
 
 /** Only consider expiries within this many days from today. */
 const MAX_EXPIRY_DAYS = 14;
+
+/** Empty shape when NSE fetch fails before route-layer merge with Firestore. */
+export function createEmptyNiftyZonesResult(niftyPrice: number): NiftyOptionsZones {
+  return {
+    bullStrike: null,
+    bullZoneLow: null,
+    bullZoneHigh: null,
+    bullExitAbove: null,
+    bearStrike: null,
+    bearZoneLow: null,
+    bearZoneHigh: null,
+    bearExitBelow: null,
+    maxPain: null,
+    expiryUsed: null,
+    expiryOI: null,
+    bullOI: null,
+    bearOI: null,
+    insufficientGap: false,
+    niftyPrice: niftyPrice > 0 ? niftyPrice : 0,
+    computedAt: new Date().toISOString(),
+  };
+}
 
 export interface NiftyOptionsZones {
   bullStrike:    number | null;
@@ -136,7 +160,7 @@ async function getNseCookies(): Promise<string> {
 
   // 1) Homepage — initial nsit / bm_sv / etc.
   pushCookies(
-    await fetch(NSE_HOME, {
+    await nseFetch(NSE_HOME, {
       headers: BROWSER_HEADERS,
       signal: AbortSignal.timeout(15_000),
       redirect: "follow",
@@ -150,7 +174,7 @@ async function getNseCookies(): Promise<string> {
   // 2) Session JSON — establishes tokens many scrapers rely on before option-chain API
   try {
     pushCookies(
-      await fetch(NSE_MARKET_STATUS, {
+      await nseFetch(NSE_MARKET_STATUS, {
         headers: { ...API_HEADERS, Cookie: jar, Referer: `${NSE_HOME}/` },
         signal: AbortSignal.timeout(12_000),
       }),
@@ -164,7 +188,7 @@ async function getNseCookies(): Promise<string> {
 
   // 3) Option-chain HTML page (same tab flow as a real user)
   pushCookies(
-    await fetch("https://www.nseindia.com/option-chain", {
+    await nseFetch("https://www.nseindia.com/option-chain", {
       headers: { ...BROWSER_HEADERS, Cookie: jar, Referer: NSE_HOME },
       signal: AbortSignal.timeout(15_000),
       redirect: "follow",
@@ -177,7 +201,7 @@ async function getNseCookies(): Promise<string> {
   // 4) Another JSON hop — keeps cookie jar warm for same-origin XHR-style calls
   try {
     pushCookies(
-      await fetch(NSE_ALL_INDICES, {
+      await nseFetch(NSE_ALL_INDICES, {
         headers: { ...API_HEADERS, Cookie: jar, Referer: "https://www.nseindia.com/option-chain" },
         signal: AbortSignal.timeout(12_000),
       }),
@@ -211,7 +235,7 @@ async function fetchNseOptionChain(cookies: string): Promise<NseOcResponse> {
     );
   }
 
-  const res = await fetch(NSE_OC, {
+  const res = await nseFetch(NSE_OC, {
     headers: { ...API_HEADERS, Cookie: cookies },
     signal: AbortSignal.timeout(20_000),
   });

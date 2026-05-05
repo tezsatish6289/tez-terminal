@@ -55,6 +55,8 @@ interface SuggestedNiftyZones {
   computedAt:      string;
   /** True when the last NSE run could not recompute bands; prior Firestore values were kept. */
   mergedFromPrevious?: boolean;
+  /** Set when the option-chain HTTP layer failed (empty `{}`, timeout, proxy needed, etc.). */
+  nseFetchError?: string | null;
 }
 
 const EMPTY_ZONES: NiftyZones = {
@@ -313,11 +315,29 @@ export function NiftyAutoSwitch() {
                   </p>
                 </div>
               )}
-              {suggested?.mergedFromPrevious && (
+              {suggested?.mergedFromPrevious && !suggested?.nseFetchError && (
                 <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.05] px-3 py-2.5">
                   <p className="text-[10px] font-bold text-amber-400/80">Could not refresh zones from NSE</p>
                   <p className="text-[9px] text-muted-foreground/50 mt-0.5">
                     Showing the last saved bands. Try Refresh Zones again after the chain loads (market hours, stable connection).
+                  </p>
+                </div>
+              )}
+              {suggested?.nseFetchError && (
+                <div className="rounded-lg border border-red-400/25 bg-red-400/[0.06] px-3 py-2.5 space-y-1">
+                  <p className="text-[10px] font-bold text-red-400/85">NSE fetch failed</p>
+                  {suggested.mergedFromPrevious && (
+                    <p className="text-[9px] text-muted-foreground/55">
+                      Previous zone bands were kept in Firestore.
+                    </p>
+                  )}
+                  <p className="text-[9px] font-mono text-muted-foreground/70 break-words whitespace-pre-wrap">
+                    {suggested.nseFetchError}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground/45">
+                    Cloud hosts often get an empty JSON body from NSE. Set{" "}
+                    <span className="font-mono text-muted-foreground/60">NSE_HTTPS_PROXY</span> or{" "}
+                    <span className="font-mono text-muted-foreground/60">HTTPS_PROXY</span> to an Indian HTTPS proxy, then redeploy.
                   </p>
                 </div>
               )}

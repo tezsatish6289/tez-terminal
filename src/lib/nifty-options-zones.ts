@@ -20,6 +20,11 @@
 
 const NSE_HOME = "https://www.nseindia.com";
 const NSE_OC   = "https://www.nseindia.com/api/option-chain-indices?symbol=NIFTY";
+/** Lightweight JSON endpoints used by scrapers to finalize nsit / nseappid session cookies. */
+const NSE_MARKET_STATUS = "https://www.nseindia.com/api/marketStatus";
+const NSE_ALL_INDICES  = "https://www.nseindia.com/api/allIndices";
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** ±Nifty points around each dominant strike; full band = 2×. */
 export const DEFAULT_ZONE_HALF_WIDTH_PTS = 150;
@@ -73,44 +78,115 @@ const BROWSER_HEADERS = {
 
 const API_HEADERS = {
   "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
   Accept: "application/json, text/plain, */*",
   "Accept-Language": "en-IN,en;q=0.9",
-  "Accept-Encoding": "gzip, deflate, br",
+  /** gzip/deflate only — rare broken br decode on serverless breaks JSON parsing. */
+  "Accept-Encoding": "gzip, deflate",
   Referer: "https://www.nseindia.com/option-chain",
   "X-Requested-With": "XMLHttpRequest",
   Connection: "keep-alive",
+  "Sec-Fetch-Site": "same-origin",
+  "Sec-Fetch-Mode": "cors",
+  "Sec-Fetch-Dest": "empty",
+  "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": '"Windows"',
 };
 
-function parseCookies(res: Response): string[] {
+/**
+ * Extract Set-Cookie fragments. IMPORTANT: one comma-separated "set-cookie" header is unsafe
+ * (Expires=Wed, 21 May 2025 contains commas). Prefer Headers#getSetCookie when available (Node/undici).
+ */
+function cookiesFromResponse(res: Response): string[] {
+  const h = res.headers as Headers & { getSetCookie?: () => string[] };
+  if (typeof h.getSetCookie === "function") {
+    try {
+      return h
+        .getSetCookie()
+        .map((line) => line.split(";")[0]?.trim())
+        .filter(Boolean) as string[];
+    } catch {
+      /* fall through */
+    }
+  }
   const raw = res.headers.get("set-cookie") ?? "";
+  if (!raw) return [];
   return raw.split(",").map((c) => c.split(";")[0].trim()).filter(Boolean);
 }
 
-async function getNseCookies(): Promise<string> {
-  // Step 1: hit the homepage to get initial cookies (nsit, nseappid, etc.)
-  const homeRes = await fetch(NSE_HOME, {
-    headers: BROWSER_HEADERS,
-    signal: AbortSignal.timeout(12_000),
-    redirect: "follow",
-  });
-  const cookies1 = parseCookies(homeRes);
-
-  // Step 2: hit the option-chain page with those cookies to get additional tokens
-  const ocPageRes = await fetch("https://www.nseindia.com/option-chain", {
-    headers: { ...BROWSER_HEADERS, Cookie: cookies1.join("; "), Referer: NSE_HOME },
-    signal: AbortSignal.timeout(12_000),
-    redirect: "follow",
-  });
-  const cookies2 = parseCookies(ocPageRes);
-
-  // Merge: prefer newer cookies (later values override earlier ones for same key)
-  const cookieMap = new Map<string, string>();
-  for (const c of [...cookies1, ...cookies2]) {
-    const [name] = c.split("=");
-    if (name) cookieMap.set(name.trim(), c);
+/** Merge cookie fragments from multiple responses (latest wins per cookie name). */
+function mergeCookieJar(fragments: string[][]): string {
+  const map = new Map<string, string>();
+  for (const group of fragments) {
+    for (const c of group) {
+      const name = c.split("=")[0]?.trim();
+      if (name) map.set(name, c);
+    }
   }
-  return [...cookieMap.values()].join("; ");
+  return [...map.values()].join("; ");
+}
+
+async function getNseCookies(): Promise<string> {
+  const batches: string[][] = [];
+
+  const pushCookies = (res: Response) => {
+    batches.push(cookiesFromResponse(res));
+  };
+
+  // 1) Homepage — initial nsit / bm_sv / etc.
+  pushCookies(
+    await fetch(NSE_HOME, {
+      headers: BROWSER_HEADERS,
+      signal: AbortSignal.timeout(15_000),
+      redirect: "follow",
+    }),
+  );
+
+  await sleep(250);
+
+  let jar = mergeCookieJar(batches);
+
+  // 2) Session JSON — establishes tokens many scrapers rely on before option-chain API
+  try {
+    pushCookies(
+      await fetch(NSE_MARKET_STATUS, {
+        headers: { ...API_HEADERS, Cookie: jar, Referer: `${NSE_HOME}/` },
+        signal: AbortSignal.timeout(12_000),
+      }),
+    );
+  } catch {
+    /* non-fatal */
+  }
+
+  await sleep(250);
+  jar = mergeCookieJar(batches);
+
+  // 3) Option-chain HTML page (same tab flow as a real user)
+  pushCookies(
+    await fetch("https://www.nseindia.com/option-chain", {
+      headers: { ...BROWSER_HEADERS, Cookie: jar, Referer: NSE_HOME },
+      signal: AbortSignal.timeout(15_000),
+      redirect: "follow",
+    }),
+  );
+
+  await sleep(250);
+  jar = mergeCookieJar(batches);
+
+  // 4) Another JSON hop — keeps cookie jar warm for same-origin XHR-style calls
+  try {
+    pushCookies(
+      await fetch(NSE_ALL_INDICES, {
+        headers: { ...API_HEADERS, Cookie: jar, Referer: "https://www.nseindia.com/option-chain" },
+        signal: AbortSignal.timeout(12_000),
+      }),
+    );
+  } catch {
+    /* non-fatal */
+  }
+
+  return mergeCookieJar(batches);
 }
 
 interface NseOptionEntry {
@@ -129,18 +205,48 @@ interface NseOcResponse {
 }
 
 async function fetchNseOptionChain(cookies: string): Promise<NseOcResponse> {
+  if (!cookies.trim()) {
+    throw new Error(
+      "NSE session has no cookies after bootstrap — cannot load option chain (check network / TLS).",
+    );
+  }
+
   const res = await fetch(NSE_OC, {
     headers: { ...API_HEADERS, Cookie: cookies },
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) throw new Error(`NSE option chain HTTP ${res.status} ${res.statusText}`);
   const text = await res.text();
+  const trimmed = text.trim();
+  // Unauthenticated browser-tab requests also get "{}". JSON.parse succeeds but there is no chain.
+  if (trimmed === "{}" || trimmed === "") {
+    throw new Error(
+      "NSE returned an empty JSON body (often {}). Session cookies were rejected or expired. " +
+        "If this persists from your server region, NSE may be blocking cloud/datacenter IPs — use an Indian egress proxy or run this job from a residential/VPN endpoint in India.",
+    );
+  }
   try {
     return JSON.parse(text) as NseOcResponse;
   } catch {
     // Likely got an HTML error page instead of JSON — NSE blocked the request
     throw new Error(`NSE returned non-JSON (likely bot-blocked). Status: ${res.status}`);
   }
+}
+
+/** Multiple full bootstrap + chain fetches — NSE often returns {} until cookies stabilize. */
+async function fetchNseOptionChainWithRetries(maxAttempts = 3): Promise<NseOcResponse> {
+  let lastErr: Error | null = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      if (attempt > 1) await sleep(500 * attempt);
+      const cookies = await getNseCookies();
+      return await fetchNseOptionChain(cookies);
+    } catch (e) {
+      lastErr = e instanceof Error ? e : new Error(String(e));
+      if (attempt === maxAttempts) throw lastErr;
+    }
+  }
+  throw lastErr ?? new Error("NSE option chain fetch failed");
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -193,11 +299,10 @@ export async function computeNiftyOptionsZones(
 ): Promise<NiftyOptionsZones> {
   const halfWidth = clampZoneHalfWidth(opts?.zoneHalfWidthPts ?? null);
 
-  // 1. Fetch NSE option chain
+  // 1. Fetch NSE option chain (retries help cold sessions and flaky {} responses)
   let ocData: NseOcResponse;
   try {
-    const cookies = await getNseCookies();
-    ocData = await fetchNseOptionChain(cookies);
+    ocData = await fetchNseOptionChainWithRetries(3);
   } catch (err) {
     throw new Error(`NSE fetch failed: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -260,8 +365,10 @@ export async function computeNiftyOptionsZones(
     (a, b) => a[1].expiryDate.getTime() - b[1].expiryDate.getTime(),
   );
 
-  const chosen = sorted.find(([, v]) => v.totalOI >= MIN_OI_THRESHOLD);
-  if (!chosen) return empty();
+  // Prefer liquid expiry (OI ≥ threshold). If none qualify (early session, holiday week),
+  // still use the nearest expiry — otherwise refresh wipes the UI with empty bands.
+  const chosen =
+    sorted.find(([, v]) => v.totalOI >= MIN_OI_THRESHOLD) ?? sorted[0];
 
   const [expiryUsed, { totalOI: expiryOI, strikes: primaryStrikes }] = chosen;
 

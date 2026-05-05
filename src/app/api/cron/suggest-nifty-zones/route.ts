@@ -24,6 +24,9 @@ const CRON_SECRET = process.env.CRON_SECRET;
 async function run() {
   const db = getAdminFirestore();
 
+  const prevSnap = await db.doc("config/suggested_nifty_zones").get();
+  const prev = prevSnap.exists ? (prevSnap.data() as Record<string, unknown>) : null;
+
   // Get current Nifty price from Firestore (kept fresh by sync-prices cron).
   // If unavailable, pass 0 — computeNiftyOptionsZones will fall back to
   // records.underlyingValue embedded in the NSE option chain response.
@@ -40,24 +43,60 @@ async function run() {
 
   const result = await computeNiftyOptionsZones(niftyPrice);
 
+  const zonesMissing = result.bullStrike == null && result.bearStrike == null;
+  const prevHadBands =
+    typeof prev?.bullZoneLow === "number" &&
+    typeof prev?.bearZoneLow === "number";
+
+  // Failed derivation (e.g. empty chain rows) must not erase last-good zones in Firestore.
+  let mergedFromPrevious = false;
+  let out = result;
+  if (zonesMissing && prevHadBands) {
+    mergedFromPrevious = true;
+    out = {
+      ...result,
+      bullStrike:      prev!.bullStrike != null ? Number(prev.bullStrike) : result.bullStrike,
+      bearStrike:      prev!.bearStrike != null ? Number(prev.bearStrike) : result.bearStrike,
+      bullZoneLow:     typeof prev!.bullZoneLow === "number" ? prev.bullZoneLow as number : result.bullZoneLow,
+      bullZoneHigh:    typeof prev!.bullZoneHigh === "number" ? prev.bullZoneHigh as number : result.bullZoneHigh,
+      bullExitAbove:   typeof prev!.bullExitAbove === "number" ? prev.bullExitAbove as number : result.bullExitAbove,
+      bearZoneLow:     typeof prev!.bearZoneLow === "number" ? prev.bearZoneLow as number : result.bearZoneLow,
+      bearZoneHigh:    typeof prev!.bearZoneHigh === "number" ? prev.bearZoneHigh as number : result.bearZoneHigh,
+      bearExitBelow:   typeof prev!.bearExitBelow === "number" ? prev.bearExitBelow as number : result.bearExitBelow,
+      bullOI:          typeof prev!.bullOI === "number" ? prev.bullOI as number : result.bullOI,
+      bearOI:          typeof prev!.bearOI === "number" ? prev.bearOI as number : result.bearOI,
+      maxPain:         typeof prev!.maxPain === "number" ? prev.maxPain as number : result.maxPain,
+      expiryUsed:      typeof prev!.expiryUsed === "string" ? prev.expiryUsed as string : result.expiryUsed,
+      expiryOI:        typeof prev!.expiryOI === "number" ? prev.expiryOI as number : result.expiryOI,
+      insufficientGap: typeof prev!.insufficientGap === "boolean" ? prev.insufficientGap as boolean : result.insufficientGap,
+      niftyPrice:
+        result.niftyPrice > 0
+          ? result.niftyPrice
+          : typeof prev!.niftyPrice === "number"
+            ? prev.niftyPrice as number
+            : result.niftyPrice,
+    };
+  }
+
   const suggested = {
-    bullStrike:      result.bullStrike,
-    bearStrike:      result.bearStrike,
-    bullZoneLow:     result.bullZoneLow,
-    bullZoneHigh:    result.bullZoneHigh,
-    bullExitAbove:   result.bullExitAbove,
-    bearZoneLow:     result.bearZoneLow,
-    bearZoneHigh:    result.bearZoneHigh,
-    bearExitBelow:   result.bearExitBelow,
-    bullOI:          result.bullOI,
-    bearOI:          result.bearOI,
-    maxPain:         result.maxPain,
-    expiryUsed:      result.expiryUsed,
-    expiryOI:        result.expiryOI,
-    insufficientGap: result.insufficientGap,
-    niftyPrice:      result.niftyPrice,
+    bullStrike:      out.bullStrike,
+    bearStrike:      out.bearStrike,
+    bullZoneLow:     out.bullZoneLow,
+    bullZoneHigh:    out.bullZoneHigh,
+    bullExitAbove:   out.bullExitAbove,
+    bearZoneLow:     out.bearZoneLow,
+    bearZoneHigh:    out.bearZoneHigh,
+    bearExitBelow:   out.bearExitBelow,
+    bullOI:          out.bullOI,
+    bearOI:          out.bearOI,
+    maxPain:         out.maxPain,
+    expiryUsed:      out.expiryUsed,
+    expiryOI:        out.expiryOI,
+    insufficientGap: out.insufficientGap,
+    niftyPrice:      out.niftyPrice,
     source:          "nse",
-    computedAt:      result.computedAt,
+    computedAt:      out.computedAt,
+    mergedFromPrevious,
   };
 
   await db.doc("config/suggested_nifty_zones").set(suggested);

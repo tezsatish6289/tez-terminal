@@ -53,6 +53,8 @@ interface SuggestedNiftyZones {
   niftyPrice:      number | null;
   source:          string;
   computedAt:      string;
+  /** True when the last NSE run could not recompute bands; prior Firestore values were kept. */
+  mergedFromPrevious?: boolean;
 }
 
 const EMPTY_ZONES: NiftyZones = {
@@ -311,6 +313,14 @@ export function NiftyAutoSwitch() {
                   </p>
                 </div>
               )}
+              {suggested?.mergedFromPrevious && (
+                <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.05] px-3 py-2.5">
+                  <p className="text-[10px] font-bold text-amber-400/80">Could not refresh zones from NSE</p>
+                  <p className="text-[9px] text-muted-foreground/50 mt-0.5">
+                    Showing the last saved bands. Try Refresh Zones again after the chain loads (market hours, stable connection).
+                  </p>
+                </div>
+              )}
               {suggested ? (
                 <>
                   {/* Max Pain banner */}
@@ -336,7 +346,9 @@ export function NiftyAutoSwitch() {
                         <p className="text-[9px] font-bold uppercase tracking-widest text-positive/70">Bull entry</p>
                       </div>
                       <p className="text-[12px] font-mono font-bold text-positive">
-                        ₹{suggested.bullZoneLow?.toLocaleString()}–{suggested.bullZoneHigh?.toLocaleString()}
+                        {suggested.bullZoneLow != null && suggested.bullZoneHigh != null
+                          ? `₹${suggested.bullZoneLow.toLocaleString()}–${suggested.bullZoneHigh.toLocaleString()}`
+                          : "—"}
                       </p>
                       {suggested.bullStrike != null && (
                         <p className="text-[9px] font-mono text-muted-foreground/45">
@@ -355,7 +367,9 @@ export function NiftyAutoSwitch() {
                         <p className="text-[9px] font-bold uppercase tracking-widest text-negative/70">Bear entry</p>
                       </div>
                       <p className="text-[12px] font-mono font-bold text-negative">
-                        ₹{suggested.bearZoneLow?.toLocaleString()}–{suggested.bearZoneHigh?.toLocaleString()}
+                        {suggested.bearZoneLow != null && suggested.bearZoneHigh != null
+                          ? `₹${suggested.bearZoneLow.toLocaleString()}–${suggested.bearZoneHigh.toLocaleString()}`
+                          : "—"}
                       </p>
                       {suggested.bearStrike != null && (
                         <p className="text-[9px] font-mono text-muted-foreground/45">

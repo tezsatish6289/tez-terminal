@@ -315,6 +315,48 @@ function clampZoneHalfWidth(raw: number | null | undefined): number {
   return Math.min(MAX_ZONE_HALF_WIDTH_PTS, Math.max(MIN_ZONE_HALF_WIDTH_PTS, v));
 }
 
+const STRIKE_STEP = 50;
+
+/**
+ * When NSE returns `{}` from a foreign/cloud IP but we still know spot (e.g. DHAN `NIFTY50` in
+ * `exchange_prices`), build bull/bear strikes symmetrically around spot so AUTO-switch has usable bands.
+ * This is not OI-based; add `NSE_HTTPS_PROXY` (Indian egress) to get real NSE option chain data.
+ */
+export function buildSyntheticZonesFromSpot(
+  spot: number,
+  opts?: { zoneHalfWidthPts?: number | null },
+): NiftyOptionsZones {
+  if (!Number.isFinite(spot) || spot <= 0) {
+    return createEmptyNiftyZonesResult(0);
+  }
+  const halfWidth = clampZoneHalfWidth(opts?.zoneHalfWidthPts ?? null);
+  const anchor = Math.round(spot / STRIKE_STEP) * STRIKE_STEP;
+  let bullStrike = anchor - 400;
+  let bearStrike = anchor + 400;
+  if (bearStrike - bullStrike < MIN_STRIKE_GAP) {
+    bearStrike = bullStrike + MIN_STRIKE_GAP + STRIKE_STEP;
+  }
+
+  return {
+    bullStrike,
+    bearStrike,
+    bullZoneLow: bullStrike - halfWidth,
+    bullZoneHigh: bullStrike + halfWidth,
+    bullExitAbove: bullStrike + halfWidth,
+    bearZoneLow: bearStrike - halfWidth,
+    bearZoneHigh: bearStrike + halfWidth,
+    bearExitBelow: bearStrike - halfWidth,
+    maxPain: anchor,
+    expiryUsed: "synthetic (spot-only)",
+    expiryOI: null,
+    bullOI: null,
+    bearOI: null,
+    insufficientGap: false,
+    niftyPrice: spot,
+    computedAt: new Date().toISOString(),
+  };
+}
+
 // ── Public API ────────────────────────────────────────────────────
 
 export async function computeNiftyOptionsZones(

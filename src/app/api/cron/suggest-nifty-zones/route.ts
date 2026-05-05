@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import {
+  buildSyntheticZonesFromSpot,
   computeNiftyOptionsZones,
   createEmptyNiftyZonesResult,
   type NiftyOptionsZones,
@@ -52,6 +53,16 @@ async function run() {
   } catch (err) {
     nseFetchError = err instanceof Error ? err.message : String(err);
     result = createEmptyNiftyZonesResult(niftyPrice);
+  }
+
+  const spot = Math.max(niftyPrice, result.niftyPrice > 0 ? result.niftyPrice : 0);
+  let source: "nse" | "synthetic_spot" = "nse";
+
+  // Cloud regions (e.g. Singapore) often get `{}` from NSE; DHAN spot still lets AUTO-switch work.
+  if (result.bullStrike == null && result.bearStrike == null && spot > 0) {
+    result = buildSyntheticZonesFromSpot(spot);
+    source = "synthetic_spot";
+    nseFetchError = null;
   }
 
   const zonesMissing = result.bullStrike == null && result.bearStrike == null;
@@ -105,7 +116,12 @@ async function run() {
     expiryOI:        out.expiryOI,
     insufficientGap: out.insufficientGap,
     niftyPrice:      out.niftyPrice,
-    source:          "nse",
+    source,
+    syntheticSpotFallback: source === "synthetic_spot",
+    zoneNote:
+      source === "synthetic_spot"
+        ? "Synthetic bull/bear bands from Nifty spot only (DHAN/cache). NSE option chain blocked from this region — set NSE_HTTPS_PROXY to an Indian proxy for OI-based zones."
+        : null,
     computedAt:      out.computedAt,
     mergedFromPrevious,
     nseFetchError,

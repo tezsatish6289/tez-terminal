@@ -57,6 +57,8 @@ interface SuggestedNiftyZones {
   mergedFromPrevious?: boolean;
   /** Set when the option-chain HTTP layer failed (empty `{}`, timeout, proxy needed, etc.). */
   nseFetchError?: string | null;
+  syntheticSpotFallback?: boolean;
+  zoneNote?: string | null;
 }
 
 const EMPTY_ZONES: NiftyZones = {
@@ -313,6 +315,12 @@ export function NiftyAutoSwitch() {
                   <p className="text-[9px] text-muted-foreground/50 mt-0.5">
                     Put and call clusters are less than 600 points apart. Simulator stays OFF until zones widen.
                   </p>
+                </div>
+              )}
+              {suggested?.zoneNote && (
+                <div className="rounded-lg border border-cyan-400/20 bg-cyan-400/[0.06] px-3 py-2.5 space-y-1">
+                  <p className="text-[10px] font-bold text-cyan-400/85">Spot-only zone bands</p>
+                  <p className="text-[9px] text-muted-foreground/55 leading-snug">{suggested.zoneNote}</p>
                 </div>
               )}
               {suggested?.mergedFromPrevious && !suggested?.nseFetchError && (

@@ -39,6 +39,7 @@ import {
 } from "@/app/api/settings/nifty-zones/route";
 import {
   hasAnyOpenSimulatorTrade,
+  shouldSkipCryptoHeavyPolicy,
   shouldThrottleHeavySimulatorCycle,
 } from "@/lib/cron-throttle";
 import { executeForAllUsers } from "@/lib/live-execution";
@@ -131,7 +132,14 @@ export async function GET(request: NextRequest) {
       priceHistory,
       hasOpenSimTrade,
     );
-    if (throttleHeavyCycle) {
+    const policySkipHeavy = shouldSkipCryptoHeavyPolicy(
+      heatmapZones,
+      autoZoneClearReason,
+      cryptoSwitch.reason,
+    );
+    const lightSimulatorCycleOnly =
+      !hasOpenSimTrade && (throttleHeavyCycle || policySkipHeavy);
+    if (lightSimulatorCycleOnly) {
       await db.doc("config/heatmap_auto_status").set({
         btcPrice,
         simEnabled: cryptoSwitch.simEnabled,
@@ -144,6 +152,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         skippedHeavyCycle: true,
+        skipReason: policySkipHeavy
+          ? (throttleHeavyCycle ? "throttle_and_policy" : "crypto_policy")
+          : "throttle",
         prices: { binance: binancePriceCount, bybit: bybitPriceCount },
       });
     }

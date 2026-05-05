@@ -1,9 +1,30 @@
 import type { Firestore } from "firebase-admin/firestore";
 import {
   computeAutoSwitch,
+  type AutoZoneClearReason,
   type HeatmapZones,
   type PricePoint,
 } from "@/app/api/settings/heatmap-zones/route";
+
+/**
+ * Skip expensive crypto sim work when policy already forbids new entries:
+ * Force Off, strike gap too small (AUTO), or BTC between bull/bear bands (AUTO).
+ * Used together with open-trade checks — never skip when any sim trade is open.
+ */
+export function shouldSkipCryptoHeavyPolicy(
+  zones: HeatmapZones,
+  autoZoneClearReason: AutoZoneClearReason,
+  cryptoSwitchReason: string,
+): boolean {
+  if (zones.manualOverride === "OFF") return true;
+  if (zones.manualOverride === "AUTO" && autoZoneClearReason === "insufficient_gap") {
+    return true;
+  }
+  if (zones.manualOverride === "AUTO" && cryptoSwitchReason.includes("between zones")) {
+    return true;
+  }
+  return false;
+}
 
 /**
  * When AUTO mode has BTC outside active bull/bear corridors and there are no

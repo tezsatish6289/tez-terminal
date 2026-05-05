@@ -24,6 +24,7 @@ import {
 import { ensureValidToken } from "@/lib/dhan-token";
 import {
   appendBtcPriceHistory,
+  computeAutoSwitch,
   loadEffectiveHeatmapZones,
   loadPriceHistoryFromHeatmapStatus,
 } from "@/app/api/settings/heatmap-zones/route";
@@ -33,6 +34,7 @@ import {
 } from "@/app/api/settings/nifty-zones/route";
 import {
   hasAnyOpenSimulatorTrade,
+  shouldSkipCryptoHeavyPolicy,
   shouldThrottleHeavySimulatorCycle,
 } from "@/lib/cron-throttle";
 
@@ -376,17 +378,21 @@ export async function GET(request: NextRequest) {
         allPrices.BYBIT.get("BTCUSDT") ??
         allPrices.BINANCE.get("BTCUSDT") ??
         null;
-      const { zones: hz } = await loadEffectiveHeatmapZones(db);
+      const { zones: hz, autoZoneClearReason } = await loadEffectiveHeatmapZones(db);
       const hist = appendBtcPriceHistory(
         await loadPriceHistoryFromHeatmapStatus(db),
         btcThrottle,
       );
-      heavyCronThrottle = shouldThrottleHeavySimulatorCycle(
+      const hasOpenSim = await hasAnyOpenSimulatorTrade(db);
+      const throttleAlt = shouldThrottleHeavySimulatorCycle(
         hz,
         btcThrottle,
         hist,
-        await hasAnyOpenSimulatorTrade(db),
+        hasOpenSim,
       );
+      const cryptoReason = computeAutoSwitch(btcThrottle, hz, hist).reason;
+      const policySkip = shouldSkipCryptoHeavyPolicy(hz, autoZoneClearReason, cryptoReason);
+      heavyCronThrottle = !hasOpenSim && (throttleAlt || policySkip);
     } catch {
       heavyCronThrottle = false;
     }

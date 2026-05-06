@@ -5,11 +5,8 @@ import {
   useUser,
   useAuth,
   useFirestore,
-  useCollection,
-  useDoc,
-  useMemoFirebase,
 } from "@/firebase";
-import { collection, query, orderBy, limit, doc } from "firebase/firestore";
+import { collection, query, orderBy, limit, doc, getDocs, getDoc } from "firebase/firestore";
 import {
   Loader2,
   TrendingDown,
@@ -647,41 +644,41 @@ export default function SignalsPage() {
     setDraftAlgo("all");
   }, []);
 
-  const signalsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(
-      collection(firestore, "signals"),
-      orderBy("receivedAt", "desc"),
-      limit(200)
-    );
-  }, [user, firestore]);
+  const [rawSignals, setRawSignals] = useState<any[] | null>(null);
+  const [signalsLoading, setSignalsLoading] = useState(false);
+  const [rawEvents, setRawEvents] = useState<any[] | null>(null);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [filterCfgData, setFilterCfgData] = useState<any>(null);
+  const [biasData, setBiasData] = useState<any>(null);
 
-  const eventsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(
-      collection(firestore, "signal_events"),
-      orderBy("createdAt", "desc"),
-      limit(100)
-    );
-  }, [user, firestore]);
-
-  const { data: rawSignals, isLoading: signalsLoading } =
-    useCollection(signalsQuery);
-  const { data: rawEvents, isLoading: eventsLoading } =
-    useCollection(eventsQuery);
-
-  const filterCfgRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, "config", "auto_filter");
+  useEffect(() => {
+    if (!firestore || !user) return;
+    setSignalsLoading(true);
+    getDocs(query(collection(firestore, "signals"), orderBy("receivedAt", "desc"), limit(200)))
+      .then(snap => setRawSignals(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+      .finally(() => setSignalsLoading(false));
   }, [firestore, user]);
-  const { data: filterCfgData } = useDoc(filterCfgRef);
+
+  useEffect(() => {
+    if (!firestore || !user) return;
+    setEventsLoading(true);
+    getDocs(query(collection(firestore, "signal_events"), orderBy("createdAt", "desc"), limit(100)))
+      .then(snap => setRawEvents(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+      .finally(() => setEventsLoading(false));
+  }, [firestore, user]);
+
+  useEffect(() => {
+    if (!firestore || !user) return;
+    Promise.all([
+      getDoc(doc(firestore, "config", "auto_filter")),
+      getDoc(doc(firestore, "config", "market_bias")),
+    ]).then(([cfgSnap, biasSnap]) => {
+      if (cfgSnap.exists()) setFilterCfgData(cfgSnap.data());
+      if (biasSnap.exists()) setBiasData(biasSnap.data());
+    });
+  }, [firestore, user]);
+
   const configuredThreshold = (filterCfgData as any)?.baseThreshold ?? AUTO_FILTER_THRESHOLD;
-
-  const biasRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, "config", "market_bias");
-  }, [firestore, user]);
-  const { data: biasData } = useDoc(biasRef);
   const bullAggScore = (biasData as any)?.bullScore ?? 0;
   const bearAggScore = (biasData as any)?.bearScore ?? 0;
 

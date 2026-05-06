@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useCollection, useUser, useMemoFirebase, useFirestore, useAuth } from "@/firebase";
-import { collection, query, orderBy, doc, getDoc } from "firebase/firestore";
+import { useUser, useFirestore, useAuth } from "@/firebase";
+import { collection, query, orderBy, doc, getDoc, getDocs } from "firebase/firestore";
 import { addDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Plus, Webhook as WebhookIcon, ShieldAlert, Loader2, Lock, Copy, AlertTriangle, Code, Globe, Zap, ExternalLink, Info, Rocket, CheckCircle2, TrendingUp, TrendingDown, Settings, Activity } from "lucide-react";
@@ -34,12 +34,15 @@ export default function WebhooksPage() {
 
   const isAdmin = user?.email === "hello@tezterminal.com";
 
-  const webhooksQuery = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null;
-    return query(collection(firestore, "webhooks"), orderBy("createdAt", "desc"));
+  const [webhooks, setWebhooks] = useState<any[] | null>(null);
+  const [isWebhooksLoading, setIsWebhooksLoading] = useState(false);
+  useEffect(() => {
+    if (!firestore || !isAdmin) return;
+    setIsWebhooksLoading(true);
+    getDocs(query(collection(firestore, "webhooks"), orderBy("createdAt", "desc")))
+      .then(snap => setWebhooks(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+      .finally(() => setIsWebhooksLoading(false));
   }, [firestore, isAdmin]);
-
-  const { data: webhooks, isLoading: isWebhooksLoading } = useCollection(webhooksQuery);
 
   const [kInput, setKInput] = useState("");
 

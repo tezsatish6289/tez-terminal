@@ -8,7 +8,7 @@ import {
   useDoc,
   useMemoFirebase,
 } from "@/firebase";
-import { collection, query, orderBy, limit, where, doc } from "firebase/firestore";
+import { collection, query, orderBy, limit, where, doc, getDocs } from "firebase/firestore";
 import {
   Loader2,
   TrendingUp,
@@ -123,29 +123,38 @@ export default function SimulationPage() {
   }, [firestore, user]);
   const { data: rawOpenTrades, isLoading: openTradesLoading } = useCollection(openTradesQuery);
 
-  // CLOSED trades — filtered by assetType server-side so each tab only receives
-  // its own trades. No limit: we need the full history to reconstruct the equity
-  // curve accurately. Requires composite index: status + assetType + openedAt DESC.
-  const closedTradesQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(
+  // CLOSED trades — fetched once on mount (historical data, doesn't need real-time).
+  // getDocs instead of onSnapshot eliminates listener cost. Refresh page to see new closures.
+  const [rawClosedTrades, setRawClosedTrades] = useState<any[] | null>(null);
+  const [closedTradesLoading, setClosedTradesLoading] = useState(false);
+  useEffect(() => {
+    if (!firestore || !user) return;
+    setClosedTradesLoading(true);
+    getDocs(query(
       collection(firestore, "simulator_trades"),
       where("status", "==", "CLOSED"),
       where("assetType", "==", assetType),
       orderBy("openedAt", "desc"),
-    );
+      limit(500),
+    )).then(snap => {
+      setRawClosedTrades(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }).finally(() => setClosedTradesLoading(false));
   }, [firestore, user, assetType]);
-  const { data: rawClosedTrades, isLoading: closedTradesLoading } = useCollection(closedTradesQuery);
 
-  const logsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(
+  // Logs — fetched once on mount (historical, no need for real-time).
+  const [rawLogs, setRawLogs] = useState<any[] | null>(null);
+  const [logsLoading, setLogsLoading] = useState(false);
+  useEffect(() => {
+    if (!firestore || !user) return;
+    setLogsLoading(true);
+    getDocs(query(
       collection(firestore, "simulator_logs"),
       orderBy("timestamp", "desc"),
       limit(200),
-    );
+    )).then(snap => {
+      setRawLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }).finally(() => setLogsLoading(false));
   }, [firestore, user]);
-  const { data: rawLogs, isLoading: logsLoading } = useCollection(logsQuery);
 
   const openTrades = useMemo(() => {
     return (rawOpenTrades ?? [])

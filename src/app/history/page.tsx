@@ -2,8 +2,8 @@
 
 import { TopBar } from "@/components/dashboard/TopBar";
 import { SignalHistory } from "@/components/dashboard/SignalHistory";
-import { useUser, useAuth, useCollection, useDoc, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, limit, getDocs, doc, setDoc } from "firebase/firestore";
+import { useUser, useAuth, useFirestore } from "@/firebase";
+import { collection, query, orderBy, limit, getDocs, getDoc, doc, setDoc } from "firebase/firestore";
 import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -65,24 +65,28 @@ export default function HistoryPage() {
   const CRON_SECRET = "ANTIGRAVITY_SYNC_TOKEN_2024";
   const cronUrl = origin ? `${origin}/api/cron/sync-prices?key=${CRON_SECRET}` : "Generating secure URL...";
 
-  const logsQuery = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null;
-    return query(collection(firestore, "logs"), orderBy("timestamp", "desc"), limit(50));
+  const [logs, setLogs] = useState<any[] | null>(null);
+  const [isLogsLoading, setIsLogsLoading] = useState(false);
+  useEffect(() => {
+    if (!firestore || !isAdmin) return;
+    setIsLogsLoading(true);
+    getDocs(query(collection(firestore, "logs"), orderBy("timestamp", "desc"), limit(50)))
+      .then(snap => setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+      .finally(() => setIsLogsLoading(false));
   }, [firestore, isAdmin]);
-
-  const { data: logs, isLoading: isLogsLoading } = useCollection(logsQuery);
 
   const hasRegionBlock = useMemo(() => {
     return logs?.some(log => log.level === 'ERROR' && (log.details?.includes('451') || log.message?.includes('Mirror Exhaustion')));
   }, [logs]);
 
   // ── AI Filter config ─────────────────────────────────────
-  const filterCfgRef = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null;
-    return doc(firestore, "config", "auto_filter");
+  const [filterCfgDoc, setFilterCfgDoc] = useState<Record<string, any> | null>(null);
+  useEffect(() => {
+    if (!firestore || !isAdmin) return;
+    getDoc(doc(firestore, "config", "auto_filter"))
+      .then(snap => { if (snap.exists()) setFilterCfgDoc(snap.data() as Record<string, any>); });
   }, [firestore, isAdmin]);
-  const { data: filterCfgDoc } = useDoc<Record<string, any>>(filterCfgRef);
-  const savedBaseThreshold = (filterCfgDoc as any)?.baseThreshold ?? AUTO_FILTER_THRESHOLD;
+  const savedBaseThreshold = filterCfgDoc?.baseThreshold ?? AUTO_FILTER_THRESHOLD;
   const [pendingThreshold, setPendingThreshold] = useState<number | null>(null);
   const [isSavingThreshold, setIsSavingThreshold] = useState(false);
 
@@ -109,29 +113,27 @@ export default function HistoryPage() {
   }, [firestore, pendingThreshold, user?.email, toast]);
 
   // ── AI Filter data ────────────────────────────────────────
-  const regimeDocRef = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null;
-    return doc(firestore, "config", "market_regime");
+  const [regimeDoc, setRegimeDoc] = useState<Record<string, any> | null>(null);
+  useEffect(() => {
+    if (!firestore || !isAdmin) return;
+    getDoc(doc(firestore, "config", "market_regime"))
+      .then(snap => { if (snap.exists()) setRegimeDoc(snap.data() as Record<string, any>); });
   }, [firestore, isAdmin]);
 
-  const { data: regimeDoc } = useDoc<Record<string, any>>(regimeDocRef);
-
-  const rejectedQuery = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null;
-    return query(
-      collection(firestore, "signals"),
-    );
+  const [rawSignalsData, setRawSignalsData] = useState<any[] | null>(null);
+  const [isSignalsLoading, setIsSignalsLoading] = useState(false);
+  useEffect(() => {
+    if (!firestore || !isAdmin) return;
+    setIsSignalsLoading(true);
+    getDocs(query(collection(firestore, "signals")))
+      .then(snap => setRawSignalsData(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+      .finally(() => setIsSignalsLoading(false));
   }, [firestore, isAdmin]);
 
-  const passedQuery = useMemoFirebase(() => {
-    if (!firestore || !isAdmin) return null;
-    return query(
-      collection(firestore, "signals"),
-    );
-  }, [firestore, isAdmin]);
-
-  const { data: rawRejected, isLoading: isRejectedLoading } = useCollection(rejectedQuery);
-  const { data: rawPassed, isLoading: isPassedLoading } = useCollection(passedQuery);
+  const rawRejected = rawSignalsData;
+  const rawPassed = rawSignalsData;
+  const isRejectedLoading = isSignalsLoading;
+  const isPassedLoading = isSignalsLoading;
 
   const rejectedSignals = useMemo(() => {
     if (!rawRejected) return null;

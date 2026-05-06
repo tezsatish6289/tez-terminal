@@ -7,7 +7,7 @@ import {
   useCollection,
   useMemoFirebase,
 } from "@/firebase";
-import { collection, query, orderBy, limit, where } from "firebase/firestore";
+import { collection, query, orderBy, limit, where, getDocs } from "firebase/firestore";
 import {
   Loader2,
   TrendingUp,
@@ -123,14 +123,19 @@ export default function LiveTradingPage() {
   }, [firestore, user]);
   const { data: rawLiveTrades, isLoading: tradesLoading } = useCollection(liveTradesQuery);
 
-  const logsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(
+  const [rawLogs, setRawLogs] = useState<any[] | null>(null);
+  const [logsLoading, setLogsLoading] = useState(false);
+  useEffect(() => {
+    if (!firestore || !user) return;
+    setLogsLoading(true);
+    getDocs(query(
       collection(firestore, "live_trade_logs"),
       where("userId", "==", user.uid),
-    );
+      limit(500),
+    ))
+      .then(snap => setRawLogs(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+      .finally(() => setLogsLoading(false));
   }, [firestore, user]);
-  const { data: rawLogs, isLoading: logsLoading } = useCollection(logsQuery);
 
   interface LiveLog {
     timestamp: string;

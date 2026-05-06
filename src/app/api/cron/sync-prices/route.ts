@@ -45,6 +45,13 @@ import {
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+// Throttle cosmetic price writes (currentPrice, maxUpside, maxDrawdown) to signal docs.
+// These fields are display-only — writing them every minute triggers onSnapshot for every
+// connected user, generating millions of billed reads per day.
+// TP/SL events and price snapshots always write immediately regardless of this counter.
+let priceSyncRunCount = 0;
+const COSMETIC_WRITE_EVERY_N_RUNS = 10; // write display fields every 10 minutes
+
 /**
  * CRON 1: PRICE SYNC + SIGNAL LIFECYCLE + SCORING + MARKET INTELLIGENCE
  *
@@ -132,9 +139,13 @@ export async function GET(request: NextRequest) {
     }
 
     // ── 2. Update signal prices + TP/SL lifecycle ───────────
+    priceSyncRunCount++;
+    const isCosmeticWriteRun = (priceSyncRunCount % COSMETIC_WRITE_EVERY_N_RUNS) === 0;
+
     const signalsSnap = await db.collection("signals").get();
     let updateCount = 0;
     let skipCount = 0;
+    let cosmeticSkipCount = 0;
     const signalEvents: SignalEvent[] = [];
     const postUpdateDocs: { id: string; [key: string]: any }[] = [];
 
@@ -339,6 +350,21 @@ export async function GET(request: NextRequest) {
         const existing: number[] = Array.isArray(signal.priceSnapshots) ? signal.priceSnapshots : [];
         updateData.priceSnapshots = [...existing.slice(-11), currentPrice]; // max 12
         updateData.lastSnapshotAt = nowISO;
+      }
+
+      // Determine if this signal has a meaningful change worth writing to Firestore.
+      // Cosmetic-only updates (just price/maxUpside/maxDrawdown/lastSyncAt) are throttled
+      // to every 5 runs to avoid triggering onSnapshot for every connected user every minute.
+      const hasLifecycleChange =
+        updateData.tp1Hit || updateData.tp2Hit || updateData.tp3Hit ||
+        updateData.slHitAt || updateData.tp3 != null || newStatus !== "ACTIVE";
+      const hasSnapshotUpdate = updateData.priceSnapshots != null;
+
+      if (!hasLifecycleChange && !hasSnapshotUpdate && !isCosmeticWriteRun) {
+        // Skip the Firestore write — just keep in-memory for scoring/bias/regime
+        postUpdateDocs.push({ id: signalDoc.id, ...signal, ...updateData });
+        cosmeticSkipCount++;
+        continue;
       }
 
       priceBatch.update(db.collection("signals").doc(signalDoc.id), updateData);
@@ -591,7 +617,7 @@ export async function GET(request: NextRequest) {
 
     console.log(JSON.stringify({
       level: "INFO",
-      message: `PRICE SYNC: updated=${updateCount} skipped=${skipCount} events=${signalEvents.length} scored=${scoreCount} heavyThrottle=${heavyCronThrottle} dhan=${dhanPriceCount} exchanges=${Object.keys(allPrices).filter(k => allPrices[k as keyof AllExchangePrices].size > 0).length}`,
+      message: `PRICE SYNC: updated=${updateCount} skipped=${skipCount} cosmeticSkipped=${cosmeticSkipCount} events=${signalEvents.length} scored=${scoreCount} heavyThrottle=${heavyCronThrottle} dhan=${dhanPriceCount} exchanges=${Object.keys(allPrices).filter(k => allPrices[k as keyof AllExchangePrices].size > 0).length}`,
       webhookId: "SYSTEM_CRON",
       timestamp: new Date().toISOString(),
     }));

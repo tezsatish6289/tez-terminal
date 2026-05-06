@@ -1,8 +1,8 @@
 "use client";
 
 import { TopBar } from "@/components/dashboard/TopBar";
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, limit } from "firebase/firestore";
+import { useUser, useFirestore } from "@/firebase";
+import { collection, query, orderBy, limit, getDocs } from "firebase/firestore";
 import {
   TrendingUp,
   TrendingDown,
@@ -403,12 +403,15 @@ function TradeAuditContent() {
 
   useEffect(() => { trackTradeAuditPageView(); }, []);
 
-  const signalsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, "signals"), orderBy("receivedAt", "desc"), limit(500));
-  }, [user, firestore]);
-
-  const { data: allSignals, isLoading } = useCollection(signalsQuery);
+  const [allSignals, setAllSignals] = useState<any[] | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  useEffect(() => {
+    if (!firestore || !user) return;
+    setIsLoading(true);
+    getDocs(query(collection(firestore, "signals"), orderBy("receivedAt", "desc"), limit(500)))
+      .then(snap => setAllSignals(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+      .finally(() => setIsLoading(false));
+  }, [firestore, user]);
 
   const uniqueAlgos = useMemo(() => {
     if (!allSignals) return [];

@@ -1,8 +1,8 @@
 "use client";
 
-import { useDoc, useFirestore, useAuth, useMemoFirebase, useUser } from "@/firebase";
+import { useFirestore, useAuth, useUser } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
-import { doc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { useParams, useRouter } from "next/navigation";
 import { ChartPane } from "@/components/dashboard/ChartPane";
 import { TopBar } from "@/components/dashboard/TopBar";
@@ -75,12 +75,20 @@ export default function DeepDiveChartPage() {
     return () => observer.disconnect();
   }, []);
 
-  const signalRef = useMemoFirebase(() => {
-    if (!firestore || !id) return null;
-    return doc(firestore, "signals", id as string);
+  const [signal, setSignal] = useState<any>(null);
+  const [isSignalLoading, setIsSignalLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  useEffect(() => {
+    if (!firestore || !id) return;
+    setIsSignalLoading(true);
+    getDoc(doc(firestore, "signals", id as string))
+      .then(snap => {
+        if (snap.exists()) setSignal({ id: snap.id, ...snap.data() });
+        else setError(new Error("Signal not found"));
+      })
+      .catch(e => setError(e))
+      .finally(() => setIsSignalLoading(false));
   }, [firestore, id]);
-
-  const { data: signal, isLoading: isSignalLoading, error } = useDoc(signalRef);
 
   const calculatePercent = (target: any, entry: any, type: string) => {
     const e = Number(entry);

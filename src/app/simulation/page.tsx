@@ -175,9 +175,27 @@ export default function SimulationPage() {
       .filter((l) => (l.assetType || "CRYPTO") === assetType);
   }, [rawLogs, assetType]);
 
+  // Derive current capital from actual trade records — same formula the chart uses.
+  // This stays in sync with trade reality regardless of any drift in the simState document.
+  const derivedCapital = useMemo(() => {
+    if (!simState) return 0;
+    let capital = simState.startingCapital;
+    for (const t of closedTrades) {
+      const evts = t.events ?? [];
+      const entryFee = evts[0]?.fee ?? 0;
+      const exitPnl  = evts.slice(1).reduce((s, e) => s + e.pnl, 0);
+      capital += exitPnl - entryFee;
+    }
+    // Include entry-fee deductions and any partial exits from still-open trades
+    for (const t of openTrades) {
+      capital += t.realizedPnl ?? 0;
+    }
+    return parseFloat(capital.toFixed(2));
+  }, [simState, closedTrades, openTrades]);
+
   const isLoading = stateLoading || openTradesLoading || closedTradesLoading || logsLoading;
 
-  const totalReturn = simState ? ((simState.capital - simState.startingCapital) / simState.startingCapital) * 100 : 0;
+  const totalReturn = simState ? ((derivedCapital - simState.startingCapital) / simState.startingCapital) * 100 : 0;
 
   // Running days — from first trade's openedAt to today
   const runningDays = useMemo(() => {
@@ -194,7 +212,7 @@ export default function SimulationPage() {
   // Monthly P&L % — actual this-calendar-month if running >= 30 days, else projected
   const monthlyPnl = useMemo(() => {
     if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
-    const netPnl = simState.capital - simState.startingCapital;
+    const netPnl = derivedCapital - simState.startingCapital;
     if (runningDays >= 30) {
       const monthStart = new Date();
       monthStart.setDate(1);
@@ -208,15 +226,15 @@ export default function SimulationPage() {
     }
     // Project from actual daily rate to 30 days
     return { pct: ((netPnl / runningDays) * 30 / simState.startingCapital) * 100, isProjected: true };
-  }, [simState, runningDays, closedTrades]);
+  }, [simState, runningDays, closedTrades, derivedCapital]);
 
   // Yearly P&L % — projected if running < 365 days, actual if >= 365
   const yearlyPnl = useMemo(() => {
     if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
-    const netPnl = simState.capital - simState.startingCapital;
+    const netPnl = derivedCapital - simState.startingCapital;
     const annualPnl = runningDays >= 365 ? netPnl : (netPnl / runningDays) * 365;
     return { pct: (annualPnl / simState.startingCapital) * 100, isProjected: runningDays < 365 };
-  }, [simState, runningDays]);
+  }, [simState, runningDays, derivedCapital]);
 
   const [forceClosing, setForceClosing] = useState<string | null>(null);
 
@@ -344,10 +362,10 @@ export default function SimulationPage() {
                   />
                   <SummaryCard
                     label="Current Capital"
-                    value={formatMoney(simState.capital, cs)}
-                    sub={`${totalReturn >= 0 ? "+" : ""}${formatMoney(simState.capital - simState.startingCapital, cs)} overall`}
+                    value={formatMoney(derivedCapital, cs)}
+                    sub={`${derivedCapital - simState.startingCapital >= 0 ? "+" : ""}${formatMoney(derivedCapital - simState.startingCapital, cs)} overall`}
                     icon={assetType === "INDIAN_STOCKS" ? <IndianRupee className="w-3.5 h-3.5" /> : <DollarSign className="w-3.5 h-3.5" />}
-                    color={simState.capital >= simState.startingCapital ? "text-positive" : "text-negative"}
+                    color={derivedCapital >= simState.startingCapital ? "text-positive" : "text-negative"}
                   />
                   <SummaryCard
                     label="Total Return"

@@ -388,6 +388,11 @@ export async function GET(request: NextRequest) {
         if (!flipSnap.empty) {
           for (const simDoc of flipSnap.docs) {
             const t = simDoc.data() as SimTrade;
+
+            // Option B: trades that already hit TP1 have their SL at breakeven —
+            // no net downside remaining. Let them run to TP2/TP3/trailing-SL.
+            if (t.tp1Hit) continue;
+
             const closePrice = getSimPrice(t.symbol, t.exchange) ?? t.entryPrice;
             const simState = await loadSimState("CRYPTO");
 
@@ -445,6 +450,11 @@ export async function GET(request: NextRequest) {
         if (!flipSnap.empty) {
           for (const simDoc of flipSnap.docs) {
             const t = simDoc.data() as SimTrade;
+
+            // Option B: trades that already hit TP1 have their SL at breakeven —
+            // no net downside remaining. Let them run to TP2/TP3/trailing-SL.
+            if (t.tp1Hit) continue;
+
             const closePrice = getSimPrice(t.symbol, t.exchange) ?? t.entryPrice;
             const simState = await loadSimState("INDIAN_STOCKS");
 

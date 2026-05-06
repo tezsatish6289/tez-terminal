@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sheet";
 
 type ManualOverride = "AUTO" | "BULL" | "BOTH" | "BEAR" | "OFF";
+type ZoneTab = "smart" | "custom";
 
 interface NiftyZones {
   bullZoneLow:         number | null;
@@ -36,29 +37,27 @@ interface AutoStatus {
 }
 
 interface SuggestedNiftyZones {
-  bullStrike:      number | null;
-  bearStrike:      number | null;
-  bullZoneLow:     number | null;
-  bullZoneHigh:    number | null;
-  bullExitAbove:   number | null;
-  bearZoneLow:     number | null;
-  bearZoneHigh:    number | null;
-  bearExitBelow:   number | null;
-  bullOI:          number | null;
-  bearOI:          number | null;
-  maxPain:         number | null;
-  expiryUsed:      string | null;
-  expiryOI:        number | null;
-  insufficientGap: boolean | null;
-  niftyPrice:      number | null;
-  source:          string;
-  computedAt:      string;
-  /** True when the last NSE run could not recompute bands; prior Firestore values were kept. */
+  bullStrike:          number | null;
+  bearStrike:          number | null;
+  bullZoneLow:         number | null;
+  bullZoneHigh:        number | null;
+  bullExitAbove:       number | null;
+  bearZoneLow:         number | null;
+  bearZoneHigh:        number | null;
+  bearExitBelow:       number | null;
+  bullOI:              number | null;
+  bearOI:              number | null;
+  maxPain:             number | null;
+  expiryUsed:          string | null;
+  expiryOI:            number | null;
+  insufficientGap:     boolean | null;
+  niftyPrice:          number | null;
+  source:              string;
+  computedAt:          string;
   mergedFromPrevious?: boolean;
-  /** Set when the option-chain HTTP layer failed (empty `{}`, timeout, proxy needed, etc.). */
-  nseFetchError?: string | null;
+  nseFetchError?:      string | null;
   syntheticSpotFallback?: boolean;
-  zoneNote?: string | null;
+  zoneNote?:           string | null;
 }
 
 const EMPTY_ZONES: NiftyZones = {
@@ -101,6 +100,58 @@ function PriceInput({
   );
 }
 
+function MomentumFilter({
+  value, onChange, label = "Nifty",
+}: {
+  value: number | null;
+  onChange: (v: number | null) => void;
+  label?: string;
+}) {
+  return (
+    <div className="space-y-3 pt-1">
+      <div className="flex items-center justify-between pb-1 border-b border-white/[0.05]">
+        <div className="flex items-center gap-1.5">
+          <Activity className="w-3.5 h-3.5 text-accent/60" />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-accent/80">Momentum Filter</span>
+        </div>
+        <button
+          onClick={() => onChange(value !== null ? null : 10)}
+          className={cn(
+            "text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border transition-all",
+            value !== null
+              ? "bg-accent/15 text-accent border-accent/20"
+              : "bg-white/[0.03] text-muted-foreground/40 border-white/[0.06]",
+          )}
+        >
+          {value !== null ? "On" : "Off"}
+        </button>
+      </div>
+      {value !== null && (
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-foreground/80">Lookback Window</span>
+            <span className="text-[11px] font-mono font-bold text-accent">{value} min</span>
+          </div>
+          <input
+            type="range"
+            min={3} max={30} step={1}
+            value={value}
+            onChange={(e) => onChange(parseInt(e.target.value))}
+            className="w-full accent-accent"
+          />
+          <div className="flex justify-between text-[9px] text-muted-foreground/30">
+            <span>3 min</span><span>30 min</span>
+          </div>
+          <p className="text-[9px] text-muted-foreground/40 pt-0.5">
+            Simulator only activates when {label} is trending in the right direction over this window.
+            &ldquo;WAITING&rdquo; shows in the status line when price is in zone but momentum isn&apos;t confirmed yet.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function NiftyAutoSwitch() {
   const firestore = useFirestore();
   const [zones, setZones] = useState<NiftyZones>(EMPTY_ZONES);
@@ -109,8 +160,8 @@ export function NiftyAutoSwitch() {
   const [dirty, setDirty] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [zoneTab, setZoneTab] = useState<ZoneTab>("smart");
 
-  // Live auto-switch status (written by sync-simulator cron every minute)
   const statusRef = useMemoFirebase(() => {
     if (!firestore) return null;
     return doc(firestore, "config", "nifty_auto_status");
@@ -118,7 +169,6 @@ export function NiftyAutoSwitch() {
   const { data: statusData } = useDoc(statusRef);
   const status = statusData as AutoStatus | null;
 
-  // Suggested zones from NSE option chain (written by suggest-nifty-zones cron)
   const suggestedRef = useMemoFirebase(() => {
     if (!firestore) return null;
     return doc(firestore, "config", "suggested_nifty_zones");
@@ -194,13 +244,9 @@ export function NiftyAutoSwitch() {
     OFF:   { label: "Force Off", color: "bg-white/[0.04] text-muted-foreground/40 border-white/[0.06]", icon: <PowerOff className="w-2.5 h-2.5" /> },
   };
 
-  const pillMeta  = OVERRIDE_META[override];
-  const pillLabel = pillMeta.label;
-  const pillColor = pillMeta.color;
-
+  const pillMeta   = OVERRIDE_META[override];
   const effectiveOn   = isOverride ? override !== "OFF" : (status?.simEnabled ?? false);
   const effectiveBull = isOverride ? (override === "BULL" || override === "BOTH") : (status?.simEnabled && status?.directionBias === "BULL");
-  const effectiveBear = isOverride ? (override === "BEAR" || override === "BOTH") : (status?.simEnabled && status?.directionBias === "BEAR");
 
   return (
     <Sheet>
@@ -212,10 +258,10 @@ export function NiftyAutoSwitch() {
           </span>
           <span className={cn(
             "flex items-center gap-1 px-2 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-widest",
-            pillColor,
+            pillMeta.color,
           )}>
             {pillMeta.icon}
-            {pillLabel}
+            {pillMeta.label}
           </span>
         </button>
       </SheetTrigger>
@@ -231,10 +277,10 @@ export function NiftyAutoSwitch() {
             </div>
             <span className={cn(
               "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-widest",
-              pillColor,
+              pillMeta.color,
             )}>
               {pillMeta.icon}
-              {pillLabel}
+              {pillMeta.label}
             </span>
           </div>
           <SheetDescription className="text-[11px] text-muted-foreground/50 mt-1">
@@ -242,7 +288,8 @@ export function NiftyAutoSwitch() {
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
+        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+
           {/* Status line */}
           <div className={cn(
             "px-3 py-2.5 rounded-lg border text-[10px] font-mono",
@@ -254,7 +301,9 @@ export function NiftyAutoSwitch() {
               <span>
                 Nifty <span className="font-bold">₹{status?.niftyPrice?.toLocaleString() ?? "—"}</span>
                 {" · "}
-                <span className="font-bold">{override === "BULL" ? "BULL ACTIVE" : override === "BEAR" ? "BEAR ACTIVE" : override === "BOTH" ? "BULL + BEAR ACTIVE" : "FORCED OFF"}</span>
+                <span className="font-bold">
+                  {override === "BULL" ? "BULL ACTIVE" : override === "BEAR" ? "BEAR ACTIVE" : override === "BOTH" ? "BULL + BEAR ACTIVE" : "FORCED OFF"}
+                </span>
                 {" — manual override (takes effect next cron cycle)"}
               </span>
             ) : status?.reason ? (
@@ -268,12 +317,12 @@ export function NiftyAutoSwitch() {
             )}
           </div>
 
-          {/* Manual override pills */}
+          {/* Mode buttons */}
           <div className="space-y-2">
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-              Manual Override
+              Mode
             </p>
-            <div className="flex items-center gap-1.5 p-1 rounded-xl border border-white/[0.08] bg-white/[0.02]">
+            <div className="flex items-center gap-1 p-1 rounded-xl border border-white/[0.08] bg-white/[0.02]">
               {([
                 { key: "AUTO" as ManualOverride, label: "Auto",      color: "bg-accent text-accent-foreground" },
                 { key: "BULL" as ManualOverride, label: "Bull",      color: "bg-positive text-black" },
@@ -295,320 +344,254 @@ export function NiftyAutoSwitch() {
                 </button>
               ))}
             </div>
-            {zones.manualOverride !== "AUTO" && (
-              <p className="text-[9px] text-amber-400/70">
-                Zone logic is bypassed — switch back to Auto to resume normal behaviour.
-              </p>
-            )}
           </div>
 
           {loading ? (
             <div className="flex items-center justify-center h-32">
               <Loader2 className="w-4 h-4 animate-spin text-accent/40" />
             </div>
-          ) : zones.manualOverride === "AUTO" ? (
-            /* ── AUTO mode: read-only NSE option chain zone summary ── */
-            <div className="space-y-3">
-              {suggested?.insufficientGap && (
-                <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.05] px-3 py-2.5">
-                  <p className="text-[10px] font-bold text-amber-400/80">Zones too close — no trades</p>
-                  <p className="text-[9px] text-muted-foreground/50 mt-0.5">
-                    Put and call clusters are less than 600 points apart. Simulator stays OFF until zones widen.
-                  </p>
-                </div>
-              )}
-              {suggested?.zoneNote && (
-                <div className="rounded-lg border border-cyan-400/20 bg-cyan-400/[0.06] px-3 py-2.5 space-y-1">
-                  <p className="text-[10px] font-bold text-cyan-400/85">Spot-only zone bands</p>
-                  <p className="text-[9px] text-muted-foreground/55 leading-snug">{suggested.zoneNote}</p>
-                </div>
-              )}
-              {suggested?.mergedFromPrevious && !suggested?.nseFetchError && (
-                <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.05] px-3 py-2.5">
-                  <p className="text-[10px] font-bold text-amber-400/80">Could not refresh zones from NSE</p>
-                  <p className="text-[9px] text-muted-foreground/50 mt-0.5">
-                    Showing the last saved bands. Try Refresh Zones again after the chain loads (market hours, stable connection).
-                  </p>
-                </div>
-              )}
-              {suggested?.nseFetchError && (
-                <div className="rounded-lg border border-red-400/25 bg-red-400/[0.06] px-3 py-2.5 space-y-1">
-                  <p className="text-[10px] font-bold text-red-400/85">NSE fetch failed</p>
-                  {suggested.mergedFromPrevious && (
-                    <p className="text-[9px] text-muted-foreground/55">
-                      Previous zone bands were kept in Firestore.
-                    </p>
-                  )}
-                  <p className="text-[9px] font-mono text-muted-foreground/70 break-words whitespace-pre-wrap">
-                    {suggested.nseFetchError}
-                  </p>
-                  <p className="text-[9px] text-muted-foreground/45">
-                    Cloud hosts often get an empty JSON body from NSE. Set{" "}
-                    <span className="font-mono text-muted-foreground/60">NSE_HTTPS_PROXY</span> or{" "}
-                    <span className="font-mono text-muted-foreground/60">HTTPS_PROXY</span> to an Indian HTTPS proxy, then redeploy.
-                  </p>
-                </div>
-              )}
-              {suggested ? (
-                <>
-                  {/* Max Pain banner */}
-                  {suggested.maxPain && (
-                    <div className="flex items-center justify-between rounded-lg border border-accent/20 bg-accent/[0.05] px-3 py-2">
-                      <div>
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-accent/60">Max Pain — directional target</p>
-                        <p className="text-[14px] font-mono font-bold text-accent">₹{suggested.maxPain.toLocaleString()}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[9px] text-muted-foreground/40">{suggested.expiryUsed}</p>
-                        {suggested.expiryOI && (
-                          <p className="text-[9px] font-mono text-muted-foreground/40">{Math.round(suggested.expiryOI / 1000)}k contracts OI</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {/* Bull + Bear zone cards */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-lg border border-positive/20 bg-positive/[0.04] px-3 py-2.5 space-y-1">
-                      <div className="flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3 text-positive/60" />
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-positive/70">Bull entry</p>
-                      </div>
-                      <p className="text-[12px] font-mono font-bold text-positive">
-                        {suggested.bullZoneLow != null && suggested.bullZoneHigh != null
-                          ? `₹${suggested.bullZoneLow.toLocaleString()}–${suggested.bullZoneHigh.toLocaleString()}`
-                          : "—"}
-                      </p>
-                      {suggested.bullStrike != null && (
-                        <p className="text-[9px] font-mono text-muted-foreground/45">
-                          Center strike ₹{suggested.bullStrike.toLocaleString()}
-                        </p>
-                      )}
-                      {suggested.bullOI && (
-                        <p className="text-[9px] text-muted-foreground/40">
-                          {Math.round(suggested.bullOI / 1000)}k put OI
-                        </p>
-                      )}
-                    </div>
-                    <div className="rounded-lg border border-negative/20 bg-negative/[0.04] px-3 py-2.5 space-y-1">
-                      <div className="flex items-center gap-1">
-                        <TrendingDown className="w-3 h-3 text-negative/60" />
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-negative/70">Bear entry</p>
-                      </div>
-                      <p className="text-[12px] font-mono font-bold text-negative">
-                        {suggested.bearZoneLow != null && suggested.bearZoneHigh != null
-                          ? `₹${suggested.bearZoneLow.toLocaleString()}–${suggested.bearZoneHigh.toLocaleString()}`
-                          : "—"}
-                      </p>
-                      {suggested.bearStrike != null && (
-                        <p className="text-[9px] font-mono text-muted-foreground/45">
-                          Center strike ₹{suggested.bearStrike.toLocaleString()}
-                        </p>
-                      )}
-                      {suggested.bearOI && (
-                        <p className="text-[9px] text-muted-foreground/40">
-                          {Math.round(suggested.bearOI / 1000)}k call OI
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <p className="text-[9px] text-muted-foreground/30 text-center">
-                    Zones auto-managed · last {new Date(suggested.computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </p>
-                </>
-              ) : (
-                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-4 text-center">
-                  <p className="text-[10px] text-muted-foreground/40">No zone data yet</p>
-                  <p className="text-[9px] text-muted-foreground/25 mt-1">Hit Refresh Zones to compute from NSE option chain</p>
-                </div>
-              )}
-
-              {/* Momentum filter */}
-              <div className="space-y-3 pt-1">
-                <div className="flex items-center justify-between pb-1 border-b border-white/[0.05]">
-                  <div className="flex items-center gap-1.5">
-                    <Activity className="w-3.5 h-3.5 text-accent/60" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-accent/80">Momentum Filter</span>
-                  </div>
-                  <button
-                    onClick={() => { handleChange("momentumLookbackMin", zones.momentumLookbackMin !== null ? null : 10); }}
-                    className={cn(
-                      "text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border transition-all",
-                      zones.momentumLookbackMin !== null
-                        ? "bg-accent/15 text-accent border-accent/20"
-                        : "bg-white/[0.03] text-muted-foreground/40 border-white/[0.06]",
-                    )}
-                  >
-                    {zones.momentumLookbackMin !== null ? "On" : "Off"}
-                  </button>
-                </div>
-                {zones.momentumLookbackMin !== null && (
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-bold text-foreground/80">Lookback Window</label>
-                      <span className="text-[11px] font-mono font-bold text-accent">{zones.momentumLookbackMin} min</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={3} max={30} step={1}
-                      value={zones.momentumLookbackMin}
-                      onChange={(e) => handleChange("momentumLookbackMin", parseInt(e.target.value))}
-                      className="w-full accent-accent"
-                    />
-                    <div className="flex justify-between text-[9px] text-muted-foreground/30">
-                      <span>3 min</span><span>30 min</span>
-                    </div>
-                    <p className="text-[9px] text-muted-foreground/40 pt-0.5">
-                      Simulator only activates when Nifty is trending in the right direction over this window.
-                    </p>
-                  </div>
-                )}
+          ) : isOverride ? (
+            /* ── Non-AUTO override: clean status ── */
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-5 space-y-3 text-center">
+              <div className={cn(
+                "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-bold uppercase tracking-widest",
+                pillMeta.color,
+              )}>
+                {pillMeta.icon}
+                {override === "BULL" ? "Bull trades only" :
+                 override === "BEAR" ? "Bear trades only" :
+                 override === "BOTH" ? "Both directions" :
+                 "Simulator off"}
               </div>
+              <p className="text-[11px] text-muted-foreground/50">
+                Zone logic is bypassed. The simulator will{" "}
+                {override === "OFF"
+                  ? "not open any new trades"
+                  : `only open ${override === "BOTH" ? "bull and bear" : override.toLowerCase()} trades`}{" "}
+                regardless of Nifty price.
+              </p>
+              <p className="text-[9px] text-amber-400/60 mt-1">
+                Switch to <span className="font-bold">Auto</span> to re-enable zone-based switching.
+              </p>
             </div>
           ) : (
-            <>
-              {/* Manual mode: editable zone inputs */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between pb-1 border-b border-white/[0.05]">
-                  <div className="flex items-center gap-1.5">
-                    <TrendingUp className="w-3.5 h-3.5 text-positive/70" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-positive/80">Bull</span>
-                  </div>
-                  {suggested?.bullZoneLow && suggested?.bullZoneHigh && (
-                    <button
-                      onClick={() => {
-                        setZones((p) => ({
-                          ...p,
-                          bullZoneLow:   suggested.bullZoneLow,
-                          bullZoneHigh:  suggested.bullZoneHigh,
-                          bullExitAbove: suggested.bullExitAbove,
-                        }));
-                        setDirty(true);
-                      }}
-                      className="flex items-center gap-1 px-2 py-0.5 rounded-md border border-positive/20 bg-positive/[0.06] text-[9px] font-mono font-bold text-positive/70 hover:text-positive hover:bg-positive/10 transition-all"
-                      title={`NSE put OI: ${suggested.bullOI ? Math.round(suggested.bullOI / 1000) + "k" : "?"} contracts — click to apply`}
-                    >
-                      <RefreshCw className="w-2.5 h-2.5" />
-                      ₹{suggested.bullZoneLow.toLocaleString()}–{suggested.bullZoneHigh.toLocaleString()}
-                      {suggested.bullOI && (
-                        <span className="opacity-60 font-normal">·{Math.round(suggested.bullOI / 1000)}k</span>
-                      )}
-                    </button>
+            /* ── AUTO mode: Smart (NSE) / Custom Zones tabs ── */
+            <div className="space-y-4">
+
+              {/* Tab switcher */}
+              <div className="flex items-center gap-1 p-0.5 rounded-lg border border-white/[0.06] bg-white/[0.02]">
+                <button
+                  onClick={() => setZoneTab("smart")}
+                  className={cn(
+                    "flex-1 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all",
+                    zoneTab === "smart"
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.04]",
                   )}
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <PriceInput
-                    label="Zone — Low"
-                    description="Nifty must be above this"
-                    value={zones.bullZoneLow}
-                    onChange={(v) => handleChange("bullZoneLow", v)}
-                  />
-                  <PriceInput
-                    label="Zone — High"
-                    description="Nifty must be below this"
-                    value={zones.bullZoneHigh}
-                    onChange={(v) => handleChange("bullZoneHigh", v)}
-                  />
-                  <PriceInput
-                    label="Exit Bull Above"
-                    description="Zone cleared — stop bull"
-                    value={zones.bullExitAbove}
-                    onChange={(v) => handleChange("bullExitAbove", v)}
-                  />
-                </div>
+                >
+                  Smart (NSE OI)
+                </button>
+                <button
+                  onClick={() => setZoneTab("custom")}
+                  className={cn(
+                    "flex-1 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all",
+                    zoneTab === "custom"
+                      ? "bg-white/10 text-foreground"
+                      : "text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.04]",
+                  )}
+                >
+                  Manual Zones
+                </button>
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between pb-1 border-b border-white/[0.05]">
-                  <div className="flex items-center gap-1.5">
-                    <TrendingDown className="w-3.5 h-3.5 text-negative/70" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-negative/80">Bear</span>
-                  </div>
-                  {suggested?.bearZoneLow && suggested?.bearZoneHigh && (
-                    <button
-                      onClick={() => {
-                        setZones((p) => ({
-                          ...p,
-                          bearZoneLow:   suggested.bearZoneLow,
-                          bearZoneHigh:  suggested.bearZoneHigh,
-                          bearExitBelow: suggested.bearExitBelow,
-                        }));
-                        setDirty(true);
-                      }}
-                      className="flex items-center gap-1 px-2 py-0.5 rounded-md border border-negative/20 bg-negative/[0.06] text-[9px] font-mono font-bold text-negative/70 hover:text-negative hover:bg-negative/10 transition-all"
-                      title={`NSE call OI: ${suggested.bearOI ? Math.round(suggested.bearOI / 1000) + "k" : "?"} contracts — click to apply`}
-                    >
-                      <RefreshCw className="w-2.5 h-2.5" />
-                      ₹{suggested.bearZoneLow.toLocaleString()}–{suggested.bearZoneHigh.toLocaleString()}
-                      {suggested.bearOI && (
-                        <span className="opacity-60 font-normal">·{Math.round(suggested.bearOI / 1000)}k</span>
-                      )}
-                    </button>
+              {zoneTab === "smart" ? (
+                /* ── Smart tab: NSE OI summary (read-only) ── */
+                <div className="space-y-3">
+                  {suggested?.insufficientGap && (
+                    <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.05] px-3 py-2.5">
+                      <p className="text-[10px] font-bold text-amber-400/80">Zones too close — no trades</p>
+                      <p className="text-[9px] text-muted-foreground/50 mt-0.5">
+                        Put and call clusters are less than 600 pts apart. Simulator stays OFF until zones widen.
+                      </p>
+                    </div>
                   )}
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <PriceInput
-                    label="Zone — Low"
-                    description="Nifty must be above this"
-                    value={zones.bearZoneLow}
-                    onChange={(v) => handleChange("bearZoneLow", v)}
-                  />
-                  <PriceInput
-                    label="Zone — High"
-                    description="Nifty must be below this"
-                    value={zones.bearZoneHigh}
-                    onChange={(v) => handleChange("bearZoneHigh", v)}
-                  />
-                  <PriceInput
-                    label="Exit Bear Below"
-                    description="Zone cleared — stop bear"
-                    value={zones.bearExitBelow}
-                    onChange={(v) => handleChange("bearExitBelow", v)}
-                  />
-                </div>
-              </div>
+                  {suggested?.zoneNote && (
+                    <div className="rounded-lg border border-cyan-400/20 bg-cyan-400/[0.06] px-3 py-2.5 space-y-1">
+                      <p className="text-[10px] font-bold text-cyan-400/85">Spot-only zone bands</p>
+                      <p className="text-[9px] text-muted-foreground/55 leading-snug">{suggested.zoneNote}</p>
+                    </div>
+                  )}
+                  {suggested?.mergedFromPrevious && !suggested?.nseFetchError && (
+                    <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.05] px-3 py-2.5">
+                      <p className="text-[10px] font-bold text-amber-400/80">Could not refresh zones from NSE</p>
+                      <p className="text-[9px] text-muted-foreground/50 mt-0.5">
+                        Showing last saved bands. Try Refresh Zones again during market hours.
+                      </p>
+                    </div>
+                  )}
+                  {suggested?.nseFetchError && (
+                    <div className="rounded-lg border border-red-400/25 bg-red-400/[0.06] px-3 py-2.5 space-y-1">
+                      <p className="text-[10px] font-bold text-red-400/85">NSE fetch failed</p>
+                      {suggested.mergedFromPrevious && (
+                        <p className="text-[9px] text-muted-foreground/55">Previous zone bands were kept.</p>
+                      )}
+                      <p className="text-[9px] font-mono text-muted-foreground/70 break-words">
+                        {suggested.nseFetchError}
+                      </p>
+                    </div>
+                  )}
+                  {suggested ? (
+                    <>
+                      {suggested.maxPain && (
+                        <div className="flex items-center justify-between rounded-lg border border-accent/20 bg-accent/[0.05] px-3 py-2">
+                          <div>
+                            <p className="text-[9px] font-bold uppercase tracking-widest text-accent/60">Max Pain — directional target</p>
+                            <p className="text-[14px] font-mono font-bold text-accent">₹{suggested.maxPain.toLocaleString()}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[9px] text-muted-foreground/40">{suggested.expiryUsed}</p>
+                            {suggested.expiryOI && (
+                              <p className="text-[9px] font-mono text-muted-foreground/40">{Math.round(suggested.expiryOI / 1000)}k contracts OI</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-lg border border-positive/20 bg-positive/[0.04] px-3 py-2.5 space-y-1">
+                          <div className="flex items-center gap-1">
+                            <TrendingUp className="w-3 h-3 text-positive/60" />
+                            <p className="text-[9px] font-bold uppercase tracking-widest text-positive/70">Bull entry</p>
+                          </div>
+                          <p className="text-[12px] font-mono font-bold text-positive">
+                            {suggested.bullZoneLow != null && suggested.bullZoneHigh != null
+                              ? `₹${suggested.bullZoneLow.toLocaleString()}–${suggested.bullZoneHigh.toLocaleString()}`
+                              : "—"}
+                          </p>
+                          {suggested.bullStrike != null && (
+                            <p className="text-[9px] font-mono text-muted-foreground/45">
+                              Center ₹{suggested.bullStrike.toLocaleString()}
+                            </p>
+                          )}
+                          {suggested.bullOI && (
+                            <p className="text-[9px] text-muted-foreground/40">{Math.round(suggested.bullOI / 1000)}k put OI</p>
+                          )}
+                        </div>
+                        <div className="rounded-lg border border-negative/20 bg-negative/[0.04] px-3 py-2.5 space-y-1">
+                          <div className="flex items-center gap-1">
+                            <TrendingDown className="w-3 h-3 text-negative/60" />
+                            <p className="text-[9px] font-bold uppercase tracking-widest text-negative/70">Bear entry</p>
+                          </div>
+                          <p className="text-[12px] font-mono font-bold text-negative">
+                            {suggested.bearZoneLow != null && suggested.bearZoneHigh != null
+                              ? `₹${suggested.bearZoneLow.toLocaleString()}–${suggested.bearZoneHigh.toLocaleString()}`
+                              : "—"}
+                          </p>
+                          {suggested.bearStrike != null && (
+                            <p className="text-[9px] font-mono text-muted-foreground/45">
+                              Center ₹{suggested.bearStrike.toLocaleString()}
+                            </p>
+                          )}
+                          {suggested.bearOI && (
+                            <p className="text-[9px] text-muted-foreground/40">{Math.round(suggested.bearOI / 1000)}k call OI</p>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-[9px] text-muted-foreground/30 text-center">
+                        Zones auto-managed · last {new Date(suggested.computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </>
+                  ) : (
+                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-4 text-center">
+                      <p className="text-[10px] text-muted-foreground/40">No zone data yet</p>
+                      <p className="text-[9px] text-muted-foreground/25 mt-1">Hit Refresh Zones below to compute from NSE option chain</p>
+                    </div>
+                  )}
 
-              {/* Momentum filter */}
-              <div className="space-y-3 pt-1">
-                <div className="flex items-center justify-between pb-1 border-b border-white/[0.05]">
-                  <div className="flex items-center gap-1.5">
-                    <Activity className="w-3.5 h-3.5 text-accent/60" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-accent/80">Momentum Filter</span>
-                  </div>
-                  <button
-                    onClick={() => { handleChange("momentumLookbackMin", zones.momentumLookbackMin !== null ? null : 10); }}
-                    className={cn(
-                      "text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border transition-all",
-                      zones.momentumLookbackMin !== null
-                        ? "bg-accent/15 text-accent border-accent/20"
-                        : "bg-white/[0.03] text-muted-foreground/40 border-white/[0.06]",
-                    )}
-                  >
-                    {zones.momentumLookbackMin !== null ? "On" : "Off"}
-                  </button>
+                  <MomentumFilter
+                    value={zones.momentumLookbackMin}
+                    onChange={(v) => handleChange("momentumLookbackMin", v)}
+                    label="Nifty"
+                  />
                 </div>
-                {zones.momentumLookbackMin !== null && (
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-bold text-foreground/80">Lookback Window</label>
-                      <span className="text-[11px] font-mono font-bold text-accent">{zones.momentumLookbackMin} min</span>
+              ) : (
+                /* ── Manual Zones tab: editable zone inputs ── */
+                <div className="space-y-4">
+                  <p className="text-[9px] text-muted-foreground/40 rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2">
+                    These zones are used as a fallback when NSE data is unavailable. NSE option chain data always takes priority in Auto mode.
+                  </p>
+
+                  {/* Bull zone */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between pb-1 border-b border-white/[0.05]">
+                      <div className="flex items-center gap-1.5">
+                        <TrendingUp className="w-3.5 h-3.5 text-positive/70" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-positive/80">Bull</span>
+                      </div>
+                      {suggested?.bullZoneLow && suggested?.bullZoneHigh && (
+                        <button
+                          onClick={() => {
+                            setZones((p) => ({
+                              ...p,
+                              bullZoneLow:   suggested.bullZoneLow,
+                              bullZoneHigh:  suggested.bullZoneHigh,
+                              bullExitAbove: suggested.bullExitAbove,
+                            }));
+                            setDirty(true);
+                          }}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded-md border border-positive/20 bg-positive/[0.06] text-[9px] font-mono font-bold text-positive/70 hover:text-positive hover:bg-positive/10 transition-all"
+                        >
+                          <RefreshCw className="w-2.5 h-2.5" />
+                          Apply NSE
+                        </button>
+                      )}
                     </div>
-                    <input
-                      type="range"
-                      min={3} max={30} step={1}
-                      value={zones.momentumLookbackMin}
-                      onChange={(e) => handleChange("momentumLookbackMin", parseInt(e.target.value))}
-                      className="w-full accent-accent"
-                    />
-                    <div className="flex justify-between text-[9px] text-muted-foreground/30">
-                      <span>3 min</span><span>30 min</span>
+                    <div className="grid grid-cols-3 gap-3">
+                      <PriceInput label="Zone — Low"    description="Nifty must be above this" value={zones.bullZoneLow}    onChange={(v) => handleChange("bullZoneLow", v)} />
+                      <PriceInput label="Zone — High"   description="Nifty must be below this" value={zones.bullZoneHigh}   onChange={(v) => handleChange("bullZoneHigh", v)} />
+                      <PriceInput label="Exit Bull Above" description="Zone cleared — stop bull" value={zones.bullExitAbove} onChange={(v) => handleChange("bullExitAbove", v)} />
                     </div>
-                    <p className="text-[9px] text-muted-foreground/40 pt-0.5">
-                      Simulator only activates when Nifty is trending in the right direction over this window. &quot;WAITING&quot; shows in the status line when price is in zone but momentum isn&apos;t confirmed yet.
-                    </p>
                   </div>
-                )}
-              </div>
-            </>
+
+                  {/* Bear zone */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between pb-1 border-b border-white/[0.05]">
+                      <div className="flex items-center gap-1.5">
+                        <TrendingDown className="w-3.5 h-3.5 text-negative/70" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-negative/80">Bear</span>
+                      </div>
+                      {suggested?.bearZoneLow && suggested?.bearZoneHigh && (
+                        <button
+                          onClick={() => {
+                            setZones((p) => ({
+                              ...p,
+                              bearZoneLow:   suggested.bearZoneLow,
+                              bearZoneHigh:  suggested.bearZoneHigh,
+                              bearExitBelow: suggested.bearExitBelow,
+                            }));
+                            setDirty(true);
+                          }}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded-md border border-negative/20 bg-negative/[0.06] text-[9px] font-mono font-bold text-negative/70 hover:text-negative hover:bg-negative/10 transition-all"
+                        >
+                          <RefreshCw className="w-2.5 h-2.5" />
+                          Apply NSE
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <PriceInput label="Zone — Low"     description="Nifty must be above this" value={zones.bearZoneLow}    onChange={(v) => handleChange("bearZoneLow", v)} />
+                      <PriceInput label="Zone — High"    description="Nifty must be below this" value={zones.bearZoneHigh}   onChange={(v) => handleChange("bearZoneHigh", v)} />
+                      <PriceInput label="Exit Bear Below" description="Zone cleared — stop bear" value={zones.bearExitBelow} onChange={(v) => handleChange("bearExitBelow", v)} />
+                    </div>
+                  </div>
+
+                  <MomentumFilter
+                    value={zones.momentumLookbackMin}
+                    onChange={(v) => handleChange("momentumLookbackMin", v)}
+                    label="Nifty"
+                  />
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -635,7 +618,7 @@ export function NiftyAutoSwitch() {
                 ✕ {refreshError}
               </p>
             )}
-            {suggested?.expiryUsed && zones.manualOverride !== "AUTO" && !refreshError && (
+            {suggested?.expiryUsed && !refreshError && (
               <p className="text-[9px] text-muted-foreground/35 pl-0.5">
                 Max Pain{" "}
                 <span className="font-mono font-bold text-accent/60">

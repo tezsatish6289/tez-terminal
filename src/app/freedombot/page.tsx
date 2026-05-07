@@ -1017,10 +1017,10 @@ export default function FreedomBotPage() {
               <div className="mb-6">
                 <span className="text-5xl font-black text-white">Free</span>
                 <p className="text-sm mt-2" style={{ color: "#64748b" }}>
-                  to get started
+                  for your first 30 days
                 </p>
               </div>
-              <ul className="space-y-3 text-sm mb-8 flex-1" style={{ color: "#94a3b8" }}>
+              <ul className="space-y-3 text-sm mb-5 flex-1" style={{ color: "#94a3b8" }}>
                 {[
                   "Your capital, always yours",
                   "Guided deployment flow",
@@ -1034,6 +1034,14 @@ export default function FreedomBotPage() {
                   </li>
                 ))}
               </ul>
+              <div
+                className="rounded-xl px-4 py-3 mb-6 text-xs leading-relaxed"
+                style={{ backgroundColor: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.12)", color: "#64748b" }}
+              >
+                After 30 days, PostPay applies —{" "}
+                <span style={{ color: "#94a3b8", fontWeight: 600 }}>10% of net profit, only when you earn.</span>
+                {" "}You pay nothing if you don&apos;t profit.
+              </div>
               <button
                 onClick={openDeploy}
                 className="w-full py-3 rounded-xl font-bold text-white text-sm transition-all hover:scale-105 mt-auto"

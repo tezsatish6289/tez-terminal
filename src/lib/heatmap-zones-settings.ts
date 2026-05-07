@@ -122,8 +122,15 @@ export async function loadEffectiveHeatmapZones(db: Firestore): Promise<Effectiv
         const computedAt = s.computedAt as string | undefined;
         const ageMs = computedAt ? Date.now() - new Date(computedAt).getTime() : Infinity;
         const isStale = ageMs > 12 * 60 * 60 * 1000;
-        const hasZones = s.bullZoneLow && s.bullZoneHigh && s.bearZoneLow && s.bearZoneHigh;
-        const sufficientGap = !s.insufficientGap;
+
+        // A zone is valid if at least one side (bull OR bear) is fully configured.
+        // One-sided zones are intentional — e.g. bear zone rejected due to no TP target.
+        const hasBullZone = !!(s.bullZoneLow && s.bullZoneHigh);
+        const hasBearZone = !!(s.bearZoneLow && s.bearZoneHigh);
+        const hasZones = hasBullZone || hasBearZone;
+
+        // Gap check only applies when both sides are present.
+        const sufficientGap = !(s.insufficientGap && hasBullZone && hasBearZone);
 
         if (!isStale && hasZones && sufficientGap) {
           heatmapZones = {

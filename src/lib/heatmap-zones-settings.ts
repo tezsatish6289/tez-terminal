@@ -2,7 +2,10 @@ import type { Firestore } from "firebase-admin/firestore";
 
 export const HEATMAP_ZONES_DOC = "config/heatmap_zones";
 
-export type ManualOverride = "AUTO" | "BULL" | "BOTH" | "BEAR" | "OFF";
+/** AUTO  = Deribit OI computed zones, price-based switching.
+ *  ZONES = Manually-entered zones, still price-based switching (no Deribit merge).
+ *  BULL/BEAR/BOTH/OFF = direction overrides that bypass zone logic entirely. */
+export type ManualOverride = "AUTO" | "ZONES" | "BULL" | "BOTH" | "BEAR" | "OFF";
 
 export interface HeatmapZones {
   bullZoneLow:         number | null;
@@ -27,7 +30,7 @@ export const ZONE_KEYS: (keyof Omit<HeatmapZones, "manualOverride" | "momentumLo
   "bearZoneHigh", "bearZoneLow", "bearExitBelow",
 ];
 
-export const VALID_OVERRIDES: ManualOverride[] = ["AUTO", "BULL", "BOTH", "BEAR", "OFF"];
+export const VALID_OVERRIDES: ManualOverride[] = ["AUTO", "ZONES", "BULL", "BOTH", "BEAR", "OFF"];
 
 export function parseZones(data: Record<string, unknown>): HeatmapZones {
   const zones: HeatmapZones = {
@@ -174,7 +177,7 @@ export function resolveHeatmapAutoStatusReason(
   computeReason: string,
   autoZoneClearReason: AutoZoneClearReason,
 ): string {
-  if (zones.manualOverride !== "AUTO") return computeReason;
+  if (zones.manualOverride !== "AUTO" && zones.manualOverride !== "ZONES") return computeReason;
   if (computeReason !== "OFF — no heatmap zones configured") return computeReason;
   if (autoZoneClearReason === "insufficient_gap") {
     return "OFF — strikes under $2,500 apart (Deribit clusters too close)";

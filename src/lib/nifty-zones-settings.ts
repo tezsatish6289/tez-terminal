@@ -3,7 +3,10 @@ import type { AutoZoneClearReason } from "@/lib/heatmap-zones-settings";
 
 export const NIFTY_ZONES_DOC = "config/nifty_zones";
 
-export type ManualOverride = "AUTO" | "BULL" | "BOTH" | "BEAR" | "OFF";
+/** AUTO  = NSE OI computed zones, price-based switching.
+ *  ZONES = Manually-entered zones, still price-based switching (no NSE merge).
+ *  BULL/BEAR/BOTH/OFF = direction overrides that bypass zone logic entirely. */
+export type ManualOverride = "AUTO" | "ZONES" | "BULL" | "BOTH" | "BEAR" | "OFF";
 
 export interface NiftyZones {
   bullZoneLow:         number | null;
@@ -26,7 +29,7 @@ export const ZONE_KEYS: (keyof Omit<NiftyZones, "manualOverride" | "momentumLook
   "bearZoneHigh", "bearZoneLow", "bearExitBelow",
 ];
 
-export const VALID_OVERRIDES: ManualOverride[] = ["AUTO", "BULL", "BOTH", "BEAR", "OFF"];
+export const VALID_OVERRIDES: ManualOverride[] = ["AUTO", "ZONES", "BULL", "BOTH", "BEAR", "OFF"];
 
 export function parseNiftyZones(data: Record<string, unknown>): NiftyZones {
   const zones: NiftyZones = {
@@ -249,7 +252,7 @@ export function resolveNiftyAutoStatusReason(
   computeReason: string,
   autoZoneClearReason: AutoZoneClearReason | null,
 ): string {
-  if (zones.manualOverride !== "AUTO") return computeReason;
+  if (zones.manualOverride !== "AUTO" && zones.manualOverride !== "ZONES") return computeReason;
   if (computeReason !== "OFF — no Nifty zones configured") return computeReason;
   if (autoZoneClearReason === "insufficient_gap") {
     return "OFF — strikes under 600 pts apart (clusters too close)";

@@ -906,8 +906,8 @@ export async function GET(request: NextRequest) {
           }
 
           const leverage = (await import("@/lib/leverage")).getLeverage(c.timeframe, assetType);
-          const hasStreak = (simState3.consecutiveWins ?? 0) >= SIM_CONFIG.STREAK_WINS_TO_SCALE;
-          const riskPct = hasStreak ? SIM_CONFIG.RISK_PER_TRADE_STREAK : SIM_CONFIG.RISK_PER_TRADE_BASE;
+          const hasStreak = (simState3.consecutiveWins ?? 0) >= simConfig.STREAK_WINS_TO_SCALE;
+          const riskPct = hasStreak ? simConfig.RISK_PER_TRADE_STREAK : simConfig.RISK_PER_TRADE_BASE;
           const riskAmount = simState3.capital * riskPct;
           let positionSize = riskAmount / (slDistancePct * leverage);
           const maxPosition = simState3.capital * 0.05;

@@ -63,8 +63,22 @@ async function run() {
     bearExitBelow:     result.bearExitBelow,
     bullOI:            result.bullOI,
     bearOI:            result.bearOI,
+
+    // Multi-day max pain picture
     maxPain:           result.maxPain,
+    maxPainByExpiry:   result.maxPainByExpiry,
+    signalConflict:    result.signalConflict,
+
+    // TP targets per zone
+    bullTpTarget:      result.bullTpTarget,
+    bullTpExpiry:      result.bullTpExpiry,
+    bullTpConfidence:  result.bullTpConfidence,
+    bearTpTarget:      result.bearTpTarget,
+    bearTpExpiry:      result.bearTpExpiry,
+    bearTpConfidence:  result.bearTpConfidence,
+
     expiryUsed:        result.expiryUsed,
+    expiriesUsed:      result.expiriesUsed,
     expiryOI:          result.expiryOI,
     insufficientGap:   result.insufficientGap,
     btcPrice:          result.btcPrice,

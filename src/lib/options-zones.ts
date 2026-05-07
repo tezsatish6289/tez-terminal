@@ -1,52 +1,118 @@
 /**
- * Deribit-based liquidation zone suggester.
+ * Deribit-based zone suggester — Market Maker Urgency model.
  *
- * Logic:
- *   1. Fetch all active BTC options from Deribit (free public API).
- *   2. Parse expiry from instrument name (e.g. "BTC-26APR26-78000-C").
- *   3. Find the nearest expiry with total OI ≥ MIN_OI_THRESHOLD; if thin,
- *      fall back to the next liquid one (still within 7 days).
- *   4. Aggregate call OI and put OI by strike for that single expiry.
- *   5. Bull zone  → dominant PUT  strike below Deribit index (highest put OI)
- *   6. Bear zone  → dominant CALL strike above Deribit index (highest call OI)
- *   7. Gap check  → bearStrike - bullStrike must be ≥ MIN_STRIKE_GAP ($2,500)
- *   8. Exit levels → Max Pain (price gravitates there by expiry; used as
- *      deactivation level for new trades, not individual trade exits)
+ * Core insight: market makers who sold options actively hedge by trading BTC
+ * spot toward their max pain strike. The zone where a MM has the most urgent
+ * need to defend is the strongest support/resistance level in the market.
+ *
+ * ──────────────────────────────────────────────────────────────────────────
+ * Algorithm
+ * ──────────────────────────────────────────────────────────────────────────
+ * 1. Fetch all BTC options from Deribit (free public API).
+ * 2. Find the next 3 un-expired daily expiries relative to Date.now().
+ *    - Deribit daily options expire at 08:00 UTC (1:30 PM IST).
+ *    - After today's expiry passes, "tomorrow" automatically becomes day0.
+ *    - Expiry weights: day0 = 3.0  ·  day1 = 1.5  ·  day2 = 1.0
+ *
+ * 3. Compute urgency score for every strike across all 3 expiries:
+ *      weighted_OI(s)  = Σ  rawOI(s, dayI) × expiryWeight[i]
+ *      urgency(s)      = weighted_OI(s) / (distance_pct_from_spot + 0.005)
+ *    Proximity amplifier rewards near-ATM clusters; 0.005 prevents infinity
+ *    at strikes exactly at spot. Strikes > 8% away are excluded (unreachable).
+ *
+ * 4. Select zones:
+ *    - Bull zone = put  strike BELOW spot with highest urgency score
+ *    - Bear zone = call strike ABOVE spot with highest urgency score
+ *
+ * 5. Compute max pain separately for each of the 3 expiries.
+ *    Max pain = price where total option payout to holders is minimised
+ *    (i.e. where MMs lose the least — their preferred destination).
+ *
+ * 6. TP target per zone: find the nearest max pain (from any of the 3 expiries)
+ *    in the correct direction (above zone-high for bull, below zone-low for bear)
+ *    with at least MIN_TP_USD ($1,000) of room.
+ *    - Confidence: day0 max pain = HIGH · day1 = MEDIUM · day2 = LOW
+ *    - If NO valid TP exists → zone is rejected (null).
+ *
+ * 7. Gap check: bearStrike − bullStrike must be ≥ MIN_STRIKE_GAP ($2,500).
+ *
+ * ──────────────────────────────────────────────────────────────────────────
+ * Date context: always dynamic from Date.now() — never hardcoded.
+ * ──────────────────────────────────────────────────────────────────────────
  */
 
 const DERIBIT_API = "https://www.deribit.com/api/v2/public";
 
-/** Default ±USD around each dominant strike; entry band width = 2 × this value. */
 export const DEFAULT_ZONE_HALF_WIDTH_USD = 500;
 const MIN_ZONE_HALF_WIDTH_USD = 50;
 const MAX_ZONE_HALF_WIDTH_USD = 3000;
-const MIN_OI_THRESHOLD  = 300;   // minimum BTC contracts to consider an expiry liquid
-const MIN_STRIKE_GAP    = 2500;  // bearStrike - bullStrike must be ≥ $2,500
+
+const DAYS_TO_SCAN     = 3;                 // always look at the next 3 un-expired expiries
+const MAX_DAYS_WINDOW  = 7;                 // ignore expiries > 7 days out
+const EXPIRY_WEIGHTS   = [3.0, 1.5, 1.0];  // day0, day1, day2 — recency urgency multipliers
+const PROXIMITY_BUFFER = 0.005;             // 0.5% — prevents division by zero at ATM
+const MAX_REACH_PCT    = 0.08;              // 8% max distance from spot; beyond is unreachable
+const MIN_TP_USD       = 1000;             // minimum TP room in USD (zone edge → max pain)
+const MIN_STRIKE_GAP   = 2500;             // bearStrike − bullStrike must be ≥ $2,500
+
+// ── Types ──────────────────────────────────────────────────────────────────
+
+export interface MaxPainEntry {
+  expiry:   string;   // e.g. "8MAY26"
+  maxPain:  number;
+  totalOI:  number;   // total contracts in this expiry
+  dayIndex: number;   // 0 = nearest un-expired
+}
 
 export interface OptionsZones {
+  // ── Zone bands ──────────────────────────────────────────────────────────
   bullStrike:    number | null;
-  bullZoneLow:   number | null;  // bullStrike - halfWidth
+  bullZoneLow:   number | null;  // bullStrike − halfWidth
   bullZoneHigh:  number | null;  // bullStrike + halfWidth
-  bullExitAbove: number | null;  // bullStrike + halfWidth (top of band)
+  bullExitAbove: number | null;  // same as bullZoneHigh (strict zone exit)
 
   bearStrike:    number | null;
-  bearZoneLow:   number | null;  // bearStrike - halfWidth
+  bearZoneLow:   number | null;  // bearStrike − halfWidth
   bearZoneHigh:  number | null;  // bearStrike + halfWidth
-  bearExitBelow: number | null;  // bearStrike − halfWidth (bottom of band)
+  bearExitBelow: number | null;  // same as bearZoneLow  (strict zone exit)
 
-  maxPain:          number | null;
-  expiryUsed:       string | null;   // e.g. "29APR26"
-  expiryOI:         number | null;   // total OI of the chosen expiry
-  bullOI:           number | null;   // put OI at bull strike
-  bearOI:           number | null;   // call OI at bear strike
-  insufficientGap:  boolean;         // true if gap < MIN_STRIKE_GAP
-  btcPrice:         number;          // reference price passed in (e.g. exchange cache)
-  /** Deribit BTC index used for above/below strike selection; null if fetch failed. */
+  // ── Max pain (multi-day) ─────────────────────────────────────────────────
+  /** day0 max pain — primary directional target (backward-compat field) */
+  maxPain:         number | null;
+  /** Max pain for all 3 scanned expiries, ordered by dayIndex */
+  maxPainByExpiry: MaxPainEntry[];
+  /** True if day0 and day1 max pain are on opposite sides of current price */
+  signalConflict:  boolean;
+
+  // ── TP targets ──────────────────────────────────────────────────────────
+  bullTpTarget:     number | null;
+  bullTpExpiry:     string | null;
+  bullTpConfidence: "HIGH" | "MEDIUM" | "LOW" | null;
+
+  bearTpTarget:     number | null;
+  bearTpExpiry:     string | null;
+  bearTpConfidence: "HIGH" | "MEDIUM" | "LOW" | null;
+
+  // ── Metadata ─────────────────────────────────────────────────────────────
+  /** Primary (day0) expiry label, e.g. "8MAY26" */
+  expiryUsed:       string | null;
+  /** All 3 expiry labels scanned */
+  expiriesUsed:     string[];
+  /** Total OI of the day0 expiry */
+  expiryOI:         number | null;
+  /** Urgency-weighted put OI at bull strike */
+  bullOI:           number | null;
+  /** Urgency-weighted call OI at bear strike */
+  bearOI:           number | null;
+  insufficientGap:  boolean;
+  /** Reference BTC price passed in (from exchange cache) */
+  btcPrice:         number;
+  /** Deribit BTC index used for strike selection; null if fetch failed */
   deribitIndexPrice: number | null;
   computedAt:       string;
 }
 
-// ── Deribit API ───────────────────────────────────────────────────
+// ── Deribit API ────────────────────────────────────────────────────────────
 
 interface DeribitSummary {
   instrument_name: string;
@@ -68,7 +134,7 @@ async function fetchDeribitBtcIndex(): Promise<number | null> {
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────
+// ── Parsing helpers ────────────────────────────────────────────────────────
 
 const MONTH_MAP: Record<string, number> = {
   JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5,
@@ -103,6 +169,22 @@ function parseInstrument(name: string, oi: number): Parsed | null {
   return { expiry: parts[1], expiryDate, strike, type: parts[3] as "C" | "P", oi };
 }
 
+/** Build per-strike {callOI, putOI} map from a list of parsed instruments. */
+function buildStrikeMap(items: Parsed[]): Map<number, { callOI: number; putOI: number }> {
+  const map = new Map<number, { callOI: number; putOI: number }>();
+  for (const p of items) {
+    const e = map.get(p.strike) ?? { callOI: 0, putOI: 0 };
+    if (p.type === "C") e.callOI += p.oi;
+    else                e.putOI  += p.oi;
+    map.set(p.strike, e);
+  }
+  return map;
+}
+
+/**
+ * Max Pain = the strike where total ITM option payout to holders is minimised.
+ * This is the price MMs actively push toward before expiry.
+ */
 function computeMaxPain(
   strikes: Map<number, { callOI: number; putOI: number }>,
 ): number | null {
@@ -120,12 +202,12 @@ function computeMaxPain(
   return best;
 }
 
-// ── Public API ────────────────────────────────────────────────────
-
 function clampZoneHalfWidth(raw: number | null | undefined): number {
   const v = raw ?? DEFAULT_ZONE_HALF_WIDTH_USD;
   return Math.min(MAX_ZONE_HALF_WIDTH_USD, Math.max(MIN_ZONE_HALF_WIDTH_USD, v));
 }
+
+// ── Main export ────────────────────────────────────────────────────────────
 
 export async function computeOptionsZones(
   currentBtcPrice: number,
@@ -133,14 +215,18 @@ export async function computeOptionsZones(
 ): Promise<OptionsZones> {
   const halfWidth = clampZoneHalfWidth(opts?.zoneHalfWidthUsd ?? null);
 
-  // “Below / above spot” must use Deribit index — exchange BTCUSDT can sit on the wrong side of strikes.
+  // Use Deribit index for above/below-strike comparisons — exchange BTCUSDT
+  // can sit a few hundred dollars away from true BTC index price.
   const deribitIndexPrice = await fetchDeribitBtcIndex();
-  const spotForStrikes = deribitIndexPrice ?? currentBtcPrice;
+  const spot = deribitIndexPrice ?? currentBtcPrice;
 
   const empty = (): OptionsZones => ({
     bullStrike: null, bullZoneLow: null, bullZoneHigh: null, bullExitAbove: null,
     bearStrike: null, bearZoneLow: null, bearZoneHigh: null, bearExitBelow: null,
-    maxPain: null, expiryUsed: null, expiryOI: null,
+    maxPain: null, maxPainByExpiry: [], signalConflict: false,
+    bullTpTarget: null, bullTpExpiry: null, bullTpConfidence: null,
+    bearTpTarget: null, bearTpExpiry: null, bearTpConfidence: null,
+    expiryUsed: null, expiriesUsed: [], expiryOI: null,
     bullOI: null, bearOI: null,
     insufficientGap: false,
     btcPrice: currentBtcPrice,
@@ -148,8 +234,8 @@ export async function computeOptionsZones(
     computedAt: new Date().toISOString(),
   });
 
-  // Option book summary
-  const res  = await fetch(
+  // ── Fetch option book ────────────────────────────────────────────────────
+  const res = await fetch(
     `${DERIBIT_API}/get_book_summary_by_currency?currency=BTC&kind=option`,
     { signal: AbortSignal.timeout(15_000) },
   );
@@ -157,101 +243,208 @@ export async function computeOptionsZones(
   const json = await res.json() as { result?: DeribitSummary[] };
 
   const nowMs       = Date.now();
-  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  const maxWindowMs = MAX_DAYS_WINDOW * 24 * 60 * 60 * 1000;
 
-  // 2. Parse all near-term options
-  const allParsed: Parsed[] = [];
+  // ── Group by expiry (un-expired, within 7-day window) ────────────────────
+  const byExpiry = new Map<string, { expiryDate: Date; totalOI: number; items: Parsed[] }>();
   for (const item of json.result ?? []) {
     if (item.open_interest <= 0) continue;
     const p = parseInstrument(item.instrument_name, item.open_interest);
     if (!p) continue;
-    const ms = p.expiryDate.getTime() - nowMs;
-    if (ms <= 0 || ms > sevenDaysMs) continue;
-    allParsed.push(p);
-  }
-  if (!allParsed.length) return empty();
-
-  // 3. Group by expiry, sort by date (nearest first), pick first with OI ≥ threshold
-  const byExpiry = new Map<string, { expiryDate: Date; totalOI: number; items: Parsed[] }>();
-  for (const p of allParsed) {
+    const msTillExpiry = p.expiryDate.getTime() - nowMs;
+    if (msTillExpiry <= 0 || msTillExpiry > maxWindowMs) continue;
     const e = byExpiry.get(p.expiry) ?? { expiryDate: p.expiryDate, totalOI: 0, items: [] };
     e.totalOI += p.oi;
     e.items.push(p);
     byExpiry.set(p.expiry, e);
   }
 
-  const sorted = [...byExpiry.entries()].sort(
+  if (!byExpiry.size) return empty();
+
+  // ── Sort by nearest date first — day0, day1, day2 ───────────────────────
+  // Date-based ordering preserves the temporal urgency meaning of the weights.
+  const sortedByDate = [...byExpiry.entries()].sort(
     (a, b) => a[1].expiryDate.getTime() - b[1].expiryDate.getTime(),
   );
 
-  const chosen = sorted.find(([, v]) => v.totalOI >= MIN_OI_THRESHOLD);
-  if (!chosen) return empty();
+  // Take the next DAYS_TO_SCAN (3) un-expired expiries
+  const days = sortedByDate.slice(0, DAYS_TO_SCAN);
+  if (!days.length) return empty();
 
-  const [expiryUsed, { totalOI: expiryOI, items: primaryItems }] = chosen;
+  // ── Max pain per expiry ──────────────────────────────────────────────────
+  const maxPainByExpiry: MaxPainEntry[] = days.map(([expiry, { totalOI, items }], dayIndex) => {
+    const strikeMap = buildStrikeMap(items);
+    const maxPain   = computeMaxPain(strikeMap) ?? 0;
+    return { expiry, maxPain, totalOI, dayIndex };
+  });
 
-  // 4. Aggregate call/put OI by strike from chosen expiry
-  const strikes = new Map<number, { callOI: number; putOI: number }>();
-  const addToStrikes = (items: Parsed[]) => {
-    for (const p of items) {
-      const entry = strikes.get(p.strike) ?? { callOI: 0, putOI: 0 };
-      if (p.type === "C") entry.callOI += p.oi;
-      else                entry.putOI  += p.oi;
-      strikes.set(p.strike, entry);
-    }
-  };
-  addToStrikes(primaryItems);
+  const day0MaxPain = maxPainByExpiry[0]?.maxPain ?? null;
 
-  // Helper: find bull/bear strikes — “below / above” vs Deribit index (not exchange BTCUSDT)
-  const findStrikes = () => {
-    let bullStrike: number | null = null; let bullOI = 0;
-    let bearStrike: number | null = null; let bearOI = 0;
-    for (const [strike, { putOI, callOI }] of strikes) {
-      if (strike < spotForStrikes && putOI > bullOI) { bullOI = putOI; bullStrike = strike; }
-      if (strike > spotForStrikes && callOI > bearOI) { bearOI = callOI; bearStrike = strike; }
-    }
-    return { bullStrike, bullOI, bearStrike, bearOI };
-  };
-
-  let { bullStrike, bullOI, bearStrike, bearOI } = findStrikes();
-
-  // Fallback: if one side is missing, pull in the next 2 expiries to get more coverage.
-  // This handles days where the nearest liquid expiry has no puts/calls on one side
-  // (e.g. bullish days where all near-term puts are above current price).
-  if (bullStrike === null || bearStrike === null) {
-    const fallbacks = sorted.filter(([label]) => label !== expiryUsed).slice(0, 2);
-    for (const [, { items }] of fallbacks) addToStrikes(items);
-    ({ bullStrike, bullOI, bearStrike, bearOI } = findStrikes());
+  // ── Signal conflict: do day0 and day1 max pains pull in opposite directions?
+  // Conflict means MMs on different expiries have competing incentives today.
+  let signalConflict = false;
+  if (maxPainByExpiry.length >= 2) {
+    const d0 = maxPainByExpiry[0].maxPain;
+    const d1 = maxPainByExpiry[1].maxPain;
+    // If spot is between d0 and d1 (or they're on opposite sides of spot)
+    // → the near-term expiry wants price to go one way, next day wants it the other
+    signalConflict = (d0 < spot) !== (d1 < spot);
   }
 
-  // 7. Max Pain
-  const maxPain = computeMaxPain(strikes);
+  // ── Build urgency maps across all 3 expiries ─────────────────────────────
+  //
+  // urgency(strike) = (1 / (dist_pct + PROXIMITY_BUFFER)) × Σ(rawOI × expiry_weight)
+  //
+  // The proximity factor is identical for a given strike regardless of which
+  // expiry the OI comes from (same physical strike, same distance from spot).
+  // So we first accumulate weighted_OI per strike, then apply proximity once.
 
-  // 8. Gap check
-  const gap = (bullStrike !== null && bearStrike !== null)
+  const weightedPutOI  = new Map<number, number>();
+  const weightedCallOI = new Map<number, number>();
+
+  for (const [dayIdx, [, { items }]] of days.entries()) {
+    const w = EXPIRY_WEIGHTS[dayIdx] ?? 1.0;
+    for (const p of items) {
+      const distPct = Math.abs(p.strike - spot) / spot;
+      if (distPct > MAX_REACH_PCT) continue;   // unreachable today — exclude
+      const contrib = p.oi * w;
+      if (p.type === "P") {
+        weightedPutOI.set(p.strike, (weightedPutOI.get(p.strike) ?? 0) + contrib);
+      } else {
+        weightedCallOI.set(p.strike, (weightedCallOI.get(p.strike) ?? 0) + contrib);
+      }
+    }
+  }
+
+  // Apply proximity factor to get final urgency scores
+  const putUrgency  = new Map<number, number>();
+  const callUrgency = new Map<number, number>();
+
+  for (const [strike, wOI] of weightedPutOI) {
+    const distPct = Math.abs(strike - spot) / spot;
+    putUrgency.set(strike, wOI / (distPct + PROXIMITY_BUFFER));
+  }
+  for (const [strike, wOI] of weightedCallOI) {
+    const distPct = Math.abs(strike - spot) / spot;
+    callUrgency.set(strike, wOI / (distPct + PROXIMITY_BUFFER));
+  }
+
+  // ── Select bull (put below spot) and bear (call above spot) strikes ──────
+  let bullStrike: number | null = null;
+  let bullUrgencyScore = 0;
+  let bullWeightedOI   = 0;
+
+  let bearStrike: number | null = null;
+  let bearUrgencyScore = 0;
+  let bearWeightedOI   = 0;
+
+  for (const [strike, urg] of putUrgency) {
+    if (strike < spot && urg > bullUrgencyScore) {
+      bullUrgencyScore = urg;
+      bullStrike       = strike;
+      bullWeightedOI   = weightedPutOI.get(strike) ?? 0;
+    }
+  }
+  for (const [strike, urg] of callUrgency) {
+    if (strike > spot && urg > bearUrgencyScore) {
+      bearUrgencyScore = urg;
+      bearStrike       = strike;
+      bearWeightedOI   = weightedCallOI.get(strike) ?? 0;
+    }
+  }
+
+  // ── TP target: nearest max pain in the correct direction ─────────────────
+  //
+  // For bull: we need a max pain ABOVE the top of the bull zone (zoneHigh)
+  //   with at least MIN_TP_USD ($1,000) clearance.
+  //   Pick the closest qualifying max pain (= first price target price would reach).
+  //
+  // For bear: we need a max pain BELOW the bottom of the bear zone (zoneLow)
+  //   with at least MIN_TP_USD ($1,000) clearance.
+  //
+  // If no qualifying max pain exists → zone is rejected (null strike).
+
+  const findTp = (
+    zoneEdge: number,
+    direction: "bull" | "bear",
+  ): { tpPrice: number; tpExpiry: string; tpConfidence: "HIGH" | "MEDIUM" | "LOW" } | null => {
+    const candidates = maxPainByExpiry.filter(({ maxPain }) =>
+      direction === "bull"
+        ? maxPain >= zoneEdge + MIN_TP_USD
+        : maxPain <= zoneEdge - MIN_TP_USD,
+    );
+    if (!candidates.length) return null;
+
+    // Pick nearest: for bull → lowest max pain above threshold (first TP to reach)
+    //               for bear → highest max pain below threshold (first TP to reach)
+    const sorted = [...candidates].sort((a, b) =>
+      direction === "bull"
+        ? a.maxPain - b.maxPain   // ascending  → pick lowest qualifying
+        : b.maxPain - a.maxPain,  // descending → pick highest qualifying
+    );
+
+    const best = sorted[0];
+    const tpConfidence: "HIGH" | "MEDIUM" | "LOW" =
+      best.dayIndex === 0 ? "HIGH" : best.dayIndex === 1 ? "MEDIUM" : "LOW";
+    return { tpPrice: best.maxPain, tpExpiry: best.expiry, tpConfidence };
+  };
+
+  // Compute zone edges for TP check
+  const bullZoneHigh = bullStrike !== null ? bullStrike + halfWidth : null;
+  const bearZoneLow  = bearStrike !== null ? bearStrike - halfWidth : null;
+
+  let bullTp: ReturnType<typeof findTp> = null;
+  if (bullStrike !== null && bullZoneHigh !== null) {
+    bullTp = findTp(bullZoneHigh, "bull");
+    if (!bullTp) bullStrike = null; // no TP destination → reject zone
+  }
+
+  let bearTp: ReturnType<typeof findTp> = null;
+  if (bearStrike !== null && bearZoneLow !== null) {
+    bearTp = findTp(bearZoneLow, "bear");
+    if (!bearTp) bearStrike = null; // no TP destination → reject zone
+  }
+
+  // ── Gap check ────────────────────────────────────────────────────────────
+  const gap = bullStrike !== null && bearStrike !== null
     ? bearStrike - bullStrike : 0;
-  const insufficientGap = gap < MIN_STRIKE_GAP;
+  const insufficientGap = gap > 0 && gap < MIN_STRIKE_GAP;
+
+  // ── Assemble result ──────────────────────────────────────────────────────
+  const expiriesUsed    = days.map(([label]) => label);
+  const [day0Label, day0Data] = days[0];
 
   return {
     bullStrike,
     bullZoneLow:   bullStrike !== null ? bullStrike - halfWidth : null,
     bullZoneHigh:  bullStrike !== null ? bullStrike + halfWidth : null,
-    // Exit bull the moment price leaves the zone upward — strict zone only
     bullExitAbove: bullStrike !== null ? bullStrike + halfWidth : null,
 
     bearStrike,
     bearZoneLow:   bearStrike !== null ? bearStrike - halfWidth : null,
     bearZoneHigh:  bearStrike !== null ? bearStrike + halfWidth : null,
-    // Exit bear the moment price leaves the zone downward — strict zone only
     bearExitBelow: bearStrike !== null ? bearStrike - halfWidth : null,
 
-    maxPain,
-    expiryUsed,
-    expiryOI,
-    bullOI:  bullOI  > 0 ? bullOI  : null,
-    bearOI:  bearOI  > 0 ? bearOI  : null,
+    maxPain:         day0MaxPain,
+    maxPainByExpiry,
+    signalConflict,
+
+    bullTpTarget:     bullTp?.tpPrice     ?? null,
+    bullTpExpiry:     bullTp?.tpExpiry    ?? null,
+    bullTpConfidence: bullTp?.tpConfidence ?? null,
+
+    bearTpTarget:     bearTp?.tpPrice     ?? null,
+    bearTpExpiry:     bearTp?.tpExpiry    ?? null,
+    bearTpConfidence: bearTp?.tpConfidence ?? null,
+
+    expiryUsed:   day0Label,
+    expiriesUsed,
+    expiryOI:     day0Data.totalOI,
+    bullOI:       bullWeightedOI > 0 ? Math.round(bullWeightedOI) : null,
+    bearOI:       bearWeightedOI > 0 ? Math.round(bearWeightedOI) : null,
     insufficientGap,
-    btcPrice:   currentBtcPrice,
+    btcPrice:     currentBtcPrice,
     deribitIndexPrice,
-    computedAt: new Date().toISOString(),
+    computedAt:   new Date().toISOString(),
   };
 }

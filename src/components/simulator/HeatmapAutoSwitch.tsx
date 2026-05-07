@@ -36,6 +36,13 @@ interface AutoStatus {
   updatedAt:     string;
 }
 
+interface MaxPainEntry {
+  expiry:   string;
+  maxPain:  number;
+  totalOI:  number;
+  dayIndex: number;
+}
+
 interface SuggestedZones {
   bullStrike:        number | null;
   bearStrike:        number | null;
@@ -50,6 +57,14 @@ interface SuggestedZones {
   bullVolume:        number | null;
   bearVolume:        number | null;
   maxPain:           number | null;
+  maxPainByExpiry:   MaxPainEntry[] | null;
+  signalConflict:    boolean | null;
+  bullTpTarget:      number | null;
+  bullTpExpiry:      string | null;
+  bullTpConfidence:  "HIGH" | "MEDIUM" | "LOW" | null;
+  bearTpTarget:      number | null;
+  bearTpExpiry:      string | null;
+  bearTpConfidence:  "HIGH" | "MEDIUM" | "LOW" | null;
   expiryUsed:        string  | null;
   expiriesUsed:      string[] | null;
   expiryOI:          number | null;
@@ -394,30 +409,62 @@ export function HeatmapAutoSwitch() {
           ) : override === "AUTO" ? (
             /* ── AUTO: Deribit smart zones (read-only) ── */
             <div className="space-y-3">
-              {suggested?.insufficientGap && (
-                <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.05] px-3 py-2.5">
-                  <p className="text-[10px] font-bold text-amber-400/80">Zones too close — no trades</p>
-                  <p className="text-[9px] text-muted-foreground/50 mt-0.5">
-                    Put and call clusters are less than $2,500 apart. Simulator stays OFF until zones widen.
-                  </p>
-                </div>
-              )}
               {suggested ? (
                 <>
-                  {suggested.maxPain && (
-                    <div className="flex items-center justify-between rounded-lg border border-accent/20 bg-accent/[0.05] px-3 py-2">
-                      <div>
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-accent/60">Max Pain — directional target</p>
-                        <p className="text-[14px] font-mono font-bold text-accent">${suggested.maxPain.toLocaleString()}</p>
+                  {/* Signal conflict warning */}
+                  {suggested.signalConflict && (
+                    <div className="rounded-lg border border-amber-400/30 bg-amber-400/[0.06] px-3 py-2.5">
+                      <p className="text-[10px] font-bold text-amber-400/90">Signal Conflict — expiry disagreement</p>
+                      <p className="text-[9px] text-muted-foreground/55 mt-0.5">
+                        Day 0 and Day 1 max pain are on opposite sides of current price. MMs have competing incentives. Trade with extra caution.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Insufficient gap warning */}
+                  {suggested.insufficientGap && (
+                    <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.05] px-3 py-2.5">
+                      <p className="text-[10px] font-bold text-amber-400/80">Zones too close — no trades</p>
+                      <p className="text-[9px] text-muted-foreground/50 mt-0.5">
+                        Put and call clusters are less than $2,500 apart. Simulator stays OFF until zones widen.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* 3-day max pain table */}
+                  {suggested.maxPainByExpiry && suggested.maxPainByExpiry.length > 0 && (
+                    <div className="rounded-lg border border-accent/15 bg-accent/[0.03] overflow-hidden">
+                      <div className="px-3 py-2 border-b border-accent/10">
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-accent/60">Max Pain — MM destination</p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-[9px] text-muted-foreground/40">{suggested.expiryUsed ?? (suggested.expiriesUsed?.[0])}</p>
-                        {suggested.expiryOI && (
-                          <p className="text-[9px] font-mono text-muted-foreground/40">{Math.round(suggested.expiryOI)} BTC OI</p>
-                        )}
+                      <div className="divide-y divide-white/[0.04]">
+                        {suggested.maxPainByExpiry.map((entry) => {
+                          const label  = entry.dayIndex === 0 ? "Today" : entry.dayIndex === 1 ? "Tomorrow" : "Day +2";
+                          const isDay0 = entry.dayIndex === 0;
+                          return (
+                            <div key={entry.expiry} className="flex items-center justify-between px-3 py-1.5">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[9px] font-bold uppercase tracking-wider ${isDay0 ? "text-accent/80" : "text-muted-foreground/50"}`}>
+                                  {label}
+                                </span>
+                                <span className="text-[9px] text-muted-foreground/35">{entry.expiry}</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className={`text-[12px] font-mono font-bold ${isDay0 ? "text-accent" : "text-muted-foreground/60"}`}>
+                                  ${entry.maxPain.toLocaleString()}
+                                </span>
+                                <span className="text-[9px] font-mono text-muted-foreground/30">
+                                  {Math.round(entry.totalOI)}c
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
+
+                  {/* Bull / Bear zone cards */}
                   <div className="grid grid-cols-2 gap-2">
                     <div className="rounded-lg border border-positive/20 bg-positive/[0.04] px-3 py-2.5 space-y-1">
                       <div className="flex items-center gap-1">
@@ -433,10 +480,24 @@ export function HeatmapAutoSwitch() {
                           {suggested.deribitIndexPrice != null && <> · index ${Math.round(suggested.deribitIndexPrice).toLocaleString()}</>}
                         </p>
                       )}
-                      {(suggested.bullOI ?? suggested.bullVolume) && (
+                      {(suggested.bullOI ?? suggested.bullVolume) != null && (
                         <p className="text-[9px] text-muted-foreground/40">
-                          {Math.round(suggested.bullOI ?? suggested.bullVolume ?? 0)}c put OI
+                          {Math.round(suggested.bullOI ?? suggested.bullVolume ?? 0)}c put OI (wtd)
                         </p>
+                      )}
+                      {suggested.bullTpTarget != null && (
+                        <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+                          <span className="text-[9px] text-muted-foreground/40">TP →</span>
+                          <span className="font-mono text-[10px] font-bold text-positive/80">${suggested.bullTpTarget.toLocaleString()}</span>
+                          <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${
+                            suggested.bullTpConfidence === "HIGH"   ? "bg-positive/20 text-positive/80" :
+                            suggested.bullTpConfidence === "MEDIUM" ? "bg-amber-400/20 text-amber-400/80" :
+                                                                      "bg-white/10 text-muted-foreground/50"
+                          }`}>{suggested.bullTpConfidence}</span>
+                          {suggested.bullTpExpiry && (
+                            <span className="text-[8px] text-muted-foreground/30">{suggested.bullTpExpiry}</span>
+                          )}
+                        </div>
                       )}
                     </div>
                     <div className="rounded-lg border border-negative/20 bg-negative/[0.04] px-3 py-2.5 space-y-1">
@@ -453,15 +514,29 @@ export function HeatmapAutoSwitch() {
                           {suggested.deribitIndexPrice != null && <> · index ${Math.round(suggested.deribitIndexPrice).toLocaleString()}</>}
                         </p>
                       )}
-                      {(suggested.bearOI ?? suggested.bearVolume) && (
+                      {(suggested.bearOI ?? suggested.bearVolume) != null && (
                         <p className="text-[9px] text-muted-foreground/40">
-                          {Math.round(suggested.bearOI ?? suggested.bearVolume ?? 0)}c call OI
+                          {Math.round(suggested.bearOI ?? suggested.bearVolume ?? 0)}c call OI (wtd)
                         </p>
+                      )}
+                      {suggested.bearTpTarget != null && (
+                        <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+                          <span className="text-[9px] text-muted-foreground/40">TP →</span>
+                          <span className="font-mono text-[10px] font-bold text-negative/80">${suggested.bearTpTarget.toLocaleString()}</span>
+                          <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${
+                            suggested.bearTpConfidence === "HIGH"   ? "bg-positive/20 text-positive/80" :
+                            suggested.bearTpConfidence === "MEDIUM" ? "bg-amber-400/20 text-amber-400/80" :
+                                                                      "bg-white/10 text-muted-foreground/50"
+                          }`}>{suggested.bearTpConfidence}</span>
+                          {suggested.bearTpExpiry && (
+                            <span className="text-[8px] text-muted-foreground/30">{suggested.bearTpExpiry}</span>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
                   <p className="text-[9px] text-muted-foreground/30 text-center">
-                    Zones auto-managed · refreshed every 4 h · last {new Date(suggested.computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    Zones auto-managed · refreshed hourly · last {new Date(suggested.computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </p>
                 </>
               ) : (

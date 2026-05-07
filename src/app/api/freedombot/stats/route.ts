@@ -10,13 +10,13 @@ export async function GET() {
     const [stateDoc, metricsSnap, closedSnap, openSnap] = await Promise.all([
       db.collection("config").doc("simulator_state").get(),
       db.collection("daily_metrics").orderBy("date", "asc").limit(1).get(),
-      db.collection("sim_trades")
+      db.collection("simulator_trades")
         .where("assetType", "==", "CRYPTO")
-        .where("status",    "==", "closed")
+        .where("status",    "==", "CLOSED")
         .get(),
-      db.collection("sim_trades")
+      db.collection("simulator_trades")
         .where("assetType", "==", "CRYPTO")
-        .where("status",    "==", "open")
+        .where("status",    "==", "OPEN")
         .get(),
     ]);
 

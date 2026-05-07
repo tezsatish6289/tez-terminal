@@ -23,6 +23,11 @@ export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   if (isFreedomBot(request)) {
+    // Serve the FreedomBot icon for favicon requests on this domain
+    if (pathname === "/favicon.ico") {
+      return NextResponse.rewrite(new URL("/freedombot/icon.png", request.url));
+    }
+
     // Always pass through Next.js internals, static files, and API routes
     if (
       pathname.startsWith("/_next") ||
@@ -47,5 +52,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image).*)"],
 };

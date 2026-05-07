@@ -472,7 +472,7 @@ export default function PerformancePage() {
   const yearlyIsProjected  = yearlyPnl.isProjected;
 
   return (
-    <div className="min-h-screen font-sans antialiased" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
+    <div className="min-h-screen font-sans antialiased overflow-x-hidden" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
 
       {/* ── Nav ── */}
       <nav
@@ -523,7 +523,8 @@ export default function PerformancePage() {
         </div>
 
         {/* ── Asset selector — same style as dashboard ── */}
-        <div className="flex items-center gap-0 rounded-xl p-1 w-fit mx-auto overflow-x-auto"
+        <div className="w-full overflow-x-auto pb-1">
+        <div className="flex items-center gap-0 rounded-xl p-1 w-fit mx-auto"
           style={{ backgroundColor: "rgba(255,255,255,0.03)", border: "1px solid rgba(90,140,220,0.1)" }}
         >
           {ASSETS.map((a) => {
@@ -556,6 +557,7 @@ export default function PerformancePage() {
               </button>
             );
           })}
+        </div>
         </div>
 
         {/* ── Coming soon state for non-live assets ── */}

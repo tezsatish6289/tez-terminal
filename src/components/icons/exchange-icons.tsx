@@ -31,6 +31,19 @@ export function BinanceIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** CoinDCX-inspired mark — distinctive shape, not an official logo */
+export function CoinDcxIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <rect width="40" height="40" rx="10" fill="#0B1224" />
+      <path
+        d="M11 12h18v4H11V12zm0 6h18v4H11v-4zm0 6h11v4H11v-4z"
+        fill="#26F0D5"
+      />
+    </svg>
+  );
+}
+
 export function MexcIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 37 22" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>

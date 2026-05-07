@@ -24,7 +24,7 @@ function computeFingerprint(
 
 const ALLOWED_BOTS = new Set(["CRYPTO", "INDIAN_STOCKS", "GOLD", "SILVER"]);
 const ALLOWED_EXCHANGES: Record<string, string[]> = {
-  CRYPTO:        ["BYBIT"],
+  CRYPTO:        ["BYBIT", "COINDCX"],
   INDIAN_STOCKS: ["ZERODHA", "UPSTOX", "ANGEL_ONE", "DHAN"],
 };
 
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Block if another user's active deployment already uses this Bybit account ─
+    // ── Block if another user's active deployment already uses this exchange account ─
     if (exchangeUid) {
       const uidDuplicateSnap = await db
         .collection("bot_deployments")
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             error:
-              "This Bybit account is already linked to an active FreedomBot deployment. Each Bybit account can only run one bot at a time. Please stop the existing deployment first.",
+              "This exchange account is already linked to an active FreedomBot deployment. Each account can only run one bot at a time. Stop the existing deployment first.",
           },
           { status: 409 },
         );

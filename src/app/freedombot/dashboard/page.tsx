@@ -81,6 +81,7 @@ const BOT_LABELS: Record<string, string> = {
 
 const EXCHANGE_LABELS: Record<string, string> = {
   BYBIT: "Bybit",
+  COINDCX: "CoinDCX",
   BINANCE: "Binance",
   ZERODHA: "Zerodha",
   UPSTOX: "Upstox",

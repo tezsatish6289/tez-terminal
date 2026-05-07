@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
   // 2. Get current price
   const priceDoc = await db.collection("config").doc("exchange_prices").get();
-  let allPrices: AllExchangePrices = { BINANCE: new Map(), BYBIT: new Map(), MEXC: new Map(), DHAN: new Map() };
+  let allPrices: AllExchangePrices = { BINANCE: new Map(), BYBIT: new Map(), MEXC: new Map(), COINDCX: new Map(), DHAN: new Map() };
   if (priceDoc.exists) {
     allPrices = deserializePrices(priceDoc.data() as Record<string, Record<string, number>>);
   }

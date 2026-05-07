@@ -38,6 +38,7 @@ export {
 export { BybitConnector } from "./bybit";
 export { BinanceConnector } from "./binance";
 export { MexcConnector } from "./mexc";
+export { CoinDcxConnector } from "./coindcx";
 export { DhanConnector } from "./dhan";
 
 export {

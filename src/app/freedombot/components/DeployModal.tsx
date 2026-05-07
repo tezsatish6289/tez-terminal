@@ -82,6 +82,20 @@ const HELP_GUIDES: Record<string, HelpGuide> = {
     ],
     warning: 'Never enable "Enable Withdrawals" — FreedomBot does not need it and your funds will be safe.',
   },
+  COINDCX: {
+    url: "https://coindcx.com/api-dashboard",
+    urlLabel: "Open CoinDCX API Dashboard",
+    steps: [
+      "Log in to CoinDCX and open the API Dashboard (link below).",
+      "Create a new API key with a clear label (e.g. FreedomBot).",
+      "Enable permissions required for futures trading (read balances, positions, and place/cancel orders).",
+      "Do not enable withdrawal or transfer permissions.",
+      "Complete any email or 2FA verification required by CoinDCX.",
+      "Copy the API Key and Secret immediately — the secret may be shown only once.",
+    ],
+    warning:
+      "Never enable withdrawals or universal transfers. FreedomBot only needs trading access — your funds stay in your CoinDCX account.",
+  },
   BYBIT: {
     url: "https://www.bybit.com/app/user/api-management",
     urlLabel: "Open Bybit API Management",
@@ -159,6 +173,13 @@ const EXCHANGES: Record<string, Exchange[]> = {
       fields: [
         { key: "apiKey",    label: "API Key",    type: "text",     placeholder: "Your Bybit API Key" },
         { key: "apiSecret", label: "API Secret", type: "password", placeholder: "Your Bybit API Secret" },
+      ],
+    },
+    {
+      key: "COINDCX", name: "CoinDCX", icon: "🇮🇳",
+      fields: [
+        { key: "apiKey",    label: "API Key",    type: "text",     placeholder: "Your CoinDCX API Key" },
+        { key: "apiSecret", label: "API Secret", type: "password", placeholder: "Your CoinDCX API Secret" },
       ],
     },
   ],
@@ -491,8 +512,8 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                   );
                 })}
               </div>
-              {/* Bybit referral prompt */}
-              {(EXCHANGES[selectedBot] ?? []).some((e) => e.key === "BYBIT") && (
+              {/* Exchange signup prompts */}
+              {selectedExchange === "BYBIT" && (
                 <div
                   className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 rounded-2xl"
                   style={{ backgroundColor: "rgba(10,22,40,0.6)", border: "1px solid rgba(90,140,220,0.1)" }}
@@ -502,6 +523,25 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                   </p>
                   <a
                     href="https://www.bybit.com/invite?ref=80NAZZM"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs font-bold transition-opacity hover:opacity-80 self-start sm:self-auto"
+                    style={{ color: "#60a5fa" }}
+                  >
+                    Create account <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              )}
+              {selectedExchange === "COINDCX" && (
+                <div
+                  className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 rounded-2xl"
+                  style={{ backgroundColor: "rgba(10,22,40,0.6)", border: "1px solid rgba(90,140,220,0.1)" }}
+                >
+                  <p className="text-xs" style={{ color: "#475569" }}>
+                    Don&apos;t have a CoinDCX account?
+                  </p>
+                  <a
+                    href="https://coindcx.com/"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 text-xs font-bold transition-opacity hover:opacity-80 self-start sm:self-auto"

@@ -514,7 +514,7 @@ export async function GET(request: NextRequest) {
   try {
     // ── 1. Read cached prices ───────────────────────────────
     const priceDoc = await db.collection("config").doc("exchange_prices").get();
-    let allPrices: AllExchangePrices = { BINANCE: new Map(), BYBIT: new Map(), MEXC: new Map(), DHAN: new Map() };
+    let allPrices: AllExchangePrices = { BINANCE: new Map(), BYBIT: new Map(), MEXC: new Map(), COINDCX: new Map(), DHAN: new Map() };
     if (priceDoc.exists) {
       allPrices = deserializePrices(priceDoc.data() as Record<string, Record<string, number>>);
     }
@@ -739,18 +739,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, message: "No active auto-trade users", pairs: 0 });
     }
 
-    // ── 3b. Lazy backfill: store exchangeUid for existing BYBIT deployments ────
+    // ── 3b. Lazy backfill: store exchangeUid for deployments that support it ───
     // Runs best-effort and never blocks trading. Each deployment only pays
     // this cost once — subsequent ticks skip if exchangeUid is already set.
-    const bybitPairs = pairs.filter((p) => p.exchange === "BYBIT");
-    if (bybitPairs.length > 0) {
+    const uidBackfillPairs = pairs.filter((p) => p.exchange === "BYBIT" || p.exchange === "COINDCX");
+    if (uidBackfillPairs.length > 0) {
       await Promise.allSettled(
-        bybitPairs.map(async (pair) => {
+        uidBackfillPairs.map(async (pair) => {
           try {
             const deploySnap = await db
               .collection("bot_deployments")
               .where("uid", "==", pair.userId)
-              .where("exchange", "==", "BYBIT")
+              .where("exchange", "==", pair.exchange)
               .where("status", "==", "active")
               .limit(1)
               .get();
@@ -759,7 +759,7 @@ export async function GET(request: NextRequest) {
             const deployDoc = deploySnap.docs[0];
             if (deployDoc.data().exchangeUid) return; // already stored
 
-            const connector = getConnector("BYBIT") as {
+            const connector = getConnector(pair.exchange) as {
               getAccountUid?: (c: Credentials) => Promise<string | null>;
             };
             if (!connector.getAccountUid) return;
@@ -767,7 +767,7 @@ export async function GET(request: NextRequest) {
             const exchangeUid = await connector.getAccountUid(pair.creds);
             if (exchangeUid) {
               await deployDoc.ref.update({ exchangeUid });
-              console.log(`[LiveSync] Backfilled exchangeUid for user ${pair.userId}`);
+              console.log(`[LiveSync] Backfilled exchangeUid for user ${pair.userId} (${pair.exchange})`);
             }
           } catch {
             // best-effort, do not interrupt trading

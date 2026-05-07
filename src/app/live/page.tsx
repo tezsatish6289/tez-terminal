@@ -102,9 +102,10 @@ export default function LiveTradingPage() {
   const bybit = useExchangeConfig(user?.uid, "BYBIT");
   const binance = useExchangeConfig(user?.uid, "BINANCE");
   const mexc = useExchangeConfig(user?.uid, "MEXC");
+  const coindcx = useExchangeConfig(user?.uid, "COINDCX");
   const dhan = useExchangeConfig(user?.uid, "DHAN");
 
-  const activeConfigs = assetType === "INDIAN_STOCKS" ? [dhan] : [bybit, binance, mexc];
+  const activeConfigs = assetType === "INDIAN_STOCKS" ? [dhan] : [bybit, binance, mexc, coindcx];
   const anyConfigured = activeConfigs.some((c) => c.config?.configured && !c.config.useTestnet);
   const anyAutoTradeOn = activeConfigs.some((c) => c.config?.configured && !c.config.useTestnet && c.config.autoTradeEnabled);
   const configLoading = activeConfigs.some((c) => c.isLoading);

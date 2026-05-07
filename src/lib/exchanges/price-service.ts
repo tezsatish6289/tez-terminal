@@ -29,6 +29,7 @@ export async function fetchAllExchangePrices(): Promise<AllExchangePrices> {
     BYBIT: new Map(),
     BINANCE: new Map(),
     MEXC: new Map(),
+    COINDCX: new Map(),
     DHAN: new Map(),
   };
 
@@ -63,6 +64,7 @@ export function deserializePrices(data: Record<string, Record<string, number>>):
     BYBIT: new Map(),
     BINANCE: new Map(),
     MEXC: new Map(),
+    COINDCX: new Map(),
     DHAN: new Map(),
   };
   for (const exchange of ALL_EXCHANGES) {
@@ -99,6 +101,14 @@ export function getPrice(
     const mexcSym = raw.endsWith("USDT") ? raw.slice(0, -4) + "_USDT" : raw + "_USDT";
     const mexcPrice = exchangeMap?.get(mexcSym);
     if (mexcPrice != null) return mexcPrice;
+  }
+
+  // CoinDCX futures: B-BASE_USDT and compact keys from public feed
+  if (exchange === "COINDCX") {
+    const base = raw.endsWith("USDT") ? raw.slice(0, -4) : raw;
+    const pairKey = `B-${base}_USDT`;
+    const cdPrice = exchangeMap?.get(pairKey) ?? exchangeMap?.get(raw);
+    if (cdPrice != null) return cdPrice;
   }
 
   // Dhan has no fallback — stock prices are exchange-specific

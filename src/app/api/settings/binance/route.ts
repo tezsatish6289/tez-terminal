@@ -19,6 +19,7 @@ import { generateTokenForUser } from "@/lib/dhan-token";
  *   - BYBIT   → secrets/bybit   (fallback: legacy secrets/binance)
  *   - BINANCE → secrets/binance_futures
  *   - MEXC    → secrets/mexc
+ *   - COINDCX → secrets/coindcx
  *
  * GET    — check if credentials are saved + auto-trade status
  * POST   — save (encrypted) API key + secret

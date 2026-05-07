@@ -15,11 +15,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { BinanceIcon, MexcIcon, BybitIcon, DhanIcon } from "@/components/icons/exchange-icons";
+import { BinanceIcon, MexcIcon, BybitIcon, CoinDcxIcon, DhanIcon } from "@/components/icons/exchange-icons";
 
 // ── Exchange Definitions ────────────────────────────────────────
 
-export type ExchangeId = "BYBIT" | "BINANCE" | "MEXC" | "DHAN";
+export type ExchangeId = "BYBIT" | "BINANCE" | "MEXC" | "COINDCX" | "DHAN";
 
 interface ExchangeMeta {
   id: ExchangeId;
@@ -69,6 +69,18 @@ const EXCHANGES: ExchangeMeta[] = [
     testnetUrl: "",
     prodUrl: "mexc.com",
     permissionNote: "Enable Contract trading permission only. Never enable withdrawals.",
+    noTestnet: true,
+  },
+  {
+    id: "COINDCX",
+    name: "CoinDCX",
+    icon: CoinDcxIcon,
+    color: "text-teal-400",
+    bgColor: "bg-teal-400/10",
+    borderColor: "border-teal-400/20",
+    testnetUrl: "",
+    prodUrl: "coindcx.com",
+    permissionNote: "USDT-m futures API access only. Never enable withdrawals.",
     noTestnet: true,
   },
   {
@@ -614,12 +626,14 @@ export function MultiExchangeStatusBadges({ uid, assetType }: { uid: string | un
   const bybit = useExchangeConfig(uid, "BYBIT");
   const binance = useExchangeConfig(uid, "BINANCE");
   const mexc = useExchangeConfig(uid, "MEXC");
+  const coindcx = useExchangeConfig(uid, "COINDCX");
   const dhan = useExchangeConfig(uid, "DHAN");
 
   const allConfigs = [
     { exchange: "BYBIT" as ExchangeId, config: bybit.config, loading: bybit.isLoading },
     { exchange: "BINANCE" as ExchangeId, config: binance.config, loading: binance.isLoading },
     { exchange: "MEXC" as ExchangeId, config: mexc.config, loading: mexc.isLoading },
+    { exchange: "COINDCX" as ExchangeId, config: coindcx.config, loading: coindcx.isLoading },
     { exchange: "DHAN" as ExchangeId, config: dhan.config, loading: dhan.isLoading },
   ];
 

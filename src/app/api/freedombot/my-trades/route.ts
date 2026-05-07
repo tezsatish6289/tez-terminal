@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
         if (t.testnet !== false) return null;
         return {
           id: d.id,
+          exchange: t.exchange ?? null,
           symbol: t.signalSymbol ?? t.symbol ?? "—",
           side: t.side === "BUY" ? "LONG" : t.side === "SELL" ? "SHORT" : (t.side ?? "—"),
           status: t.status === "OPEN" ? "open" : "closed",

@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     const authHeader = req.headers.get("Authorization") ?? "";
     const idToken = authHeader.replace("Bearer ", "").trim();
     if (!idToken) {
-      return NextResponse.json({ deployment: null }, { status: 200 });
+      return NextResponse.json({ deployment: null, deployments: [] }, { status: 200 });
     }
 
     const adminAuth = getAdminAuth();
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
       .get();
 
     if (snap.empty) {
-      return NextResponse.json({ deployment: null });
+      return NextResponse.json({ deployment: null, deployments: [] });
     }
 
     // Find the most recent active deployment
@@ -39,19 +39,24 @@ export async function GET(req: NextRequest) {
       });
 
     if (active.length === 0) {
-      return NextResponse.json({ deployment: null });
+      return NextResponse.json({ deployment: null, deployments: [] });
     }
 
+    const mapDep = (dep: (typeof active)[0]) => ({
+      id: dep.id,
+      bot: dep.bot,
+      exchange: dep.exchange,
+      status: dep.status,
+      createdAt: (dep.createdAt as { toDate?: () => Date })?.toDate?.()?.toISOString() ?? null,
+    });
+
+    const deployments = active.map(mapDep);
+    // Primary = most recent active (same as before) for backward compatibility
     const dep = active[0];
 
     return NextResponse.json({
-      deployment: {
-        id: dep.id,
-        bot: dep.bot,
-        exchange: dep.exchange,
-        status: dep.status,
-        createdAt: (dep.createdAt as { toDate?: () => Date })?.toDate?.()?.toISOString() ?? null,
-      },
+      deployment: mapDep(dep),
+      deployments,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unexpected error";

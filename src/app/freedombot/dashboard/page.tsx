@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import {
   Rocket,
@@ -44,6 +44,7 @@ interface BotStats {
 
 interface Trade {
   id: string;
+  exchange?: string | null;
   symbol: string;
   side: string;
   status: string;
@@ -72,12 +73,21 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+/** Live trades before `exchange` was denormalized are treated as Bybit. */
+function tradeMatchesDeployment(t: Trade, dep: Deployment): boolean {
+  if (t.exchange) return t.exchange === dep.exchange;
+  return dep.exchange === "BYBIT";
+}
+
 const BOT_LABELS: Record<string, string> = {
   CRYPTO: "Crypto Bot",
   INDIAN_STOCKS: "Indian Stock Bot",
   GOLD: "Gold Bot",
   SILVER: "Silver Bot",
 };
+
+/** Crypto exchanges supported for FreedomBot deploy (must match deploy route). */
+const FREEDOMBOT_CRYPTO_EXCHANGES = ["BYBIT", "COINDCX"] as const;
 
 const EXCHANGE_LABELS: Record<string, string> = {
   BYBIT: "Bybit",
@@ -91,7 +101,15 @@ const EXCHANGE_LABELS: Record<string, string> = {
 
 // ─── TopBar ──────────────────────────────────────────────────────────────────
 
-function DashTopBar({ onDeploy, hasDeployment = false }: { onDeploy: () => void; hasDeployment?: boolean }) {
+function DashTopBar({
+  onDeploy,
+  showDeployButton,
+  deployButtonLabel = "Deploy Bot",
+}: {
+  onDeploy: () => void;
+  showDeployButton: boolean;
+  deployButtonLabel?: string;
+}) {
   const { user } = useUser();
   const auth = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -130,7 +148,7 @@ function DashTopBar({ onDeploy, hasDeployment = false }: { onDeploy: () => void;
       </div>
 
       <div className="flex items-center gap-3">
-        {!hasDeployment && (
+        {showDeployButton && (
           <>
             {/* Desktop label */}
             <button
@@ -138,7 +156,7 @@ function DashTopBar({ onDeploy, hasDeployment = false }: { onDeploy: () => void;
               className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all hover:scale-105"
               style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
             >
-              <Rocket className="h-3.5 w-3.5" /> Deploy Bot
+              <Rocket className="h-3.5 w-3.5" /> {deployButtonLabel}
             </button>
             {/* Mobile icon-only */}
             <button
@@ -357,14 +375,21 @@ const BOTS_NAV = [
   { key: "SILVER",        emoji: "🥈", label: "Silver Bot",       live: false },
 ];
 
-function Connected({ deployment, trades, onStop }: {
+function Connected({ deployment, deployments, trades, onStop, onSelectDeployment }: {
   deployment: Deployment;
+  deployments: Deployment[];
   stats: BotStats | null;
   trades: Trade[];
   onStop: () => void;
+  onSelectDeployment: (id: string) => void;
 }) {
   const isPending = deployment.status === "pending";
   const exchangeLabel = EXCHANGE_LABELS[deployment.exchange] ?? deployment.exchange;
+
+  const cryptoActiveDeployments = deployments.filter(
+    (d) => d.bot === "CRYPTO" && d.status === "active",
+  );
+  const showExchangeSwitcher = cryptoActiveDeployments.length > 1;
 
   // Compute user-specific stats from their actual trades + deployment date
   const runningDays = deployment.createdAt
@@ -404,6 +429,36 @@ function Connected({ deployment, trades, onStop }: {
           );
         })}
       </div>
+
+      {/* ── Multi-exchange switch (e.g. Bybit + CoinDCX) ── */}
+      {showExchangeSwitcher && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#475569" }}>
+            Account
+          </span>
+          <div className="flex gap-1.5 flex-wrap">
+            {cryptoActiveDeployments.map((d) => {
+              const selected = d.id === deployment.id;
+              const label = EXCHANGE_LABELS[d.exchange] ?? d.exchange;
+              return (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => onSelectDeployment(d.id)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-black transition-all"
+                  style={{
+                    backgroundColor: selected ? "rgba(37,99,235,0.2)" : "rgba(10,22,40,0.6)",
+                    border: `1px solid ${selected ? "rgba(59,130,246,0.45)" : "rgba(90,140,220,0.1)"}`,
+                    color: selected ? "#f0f4ff" : "#64748b",
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Status + stats bar ── */}
       <div
@@ -621,11 +676,45 @@ export default function FreedomBotDashboard() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const [deployOpen, setDeployOpen] = useState(false);
-  const [deployment, setDeployment] = useState<Deployment | null | undefined>(undefined);
+  const [deployments, setDeployments] = useState<Deployment[] | undefined>(undefined);
+  const [selectedDeploymentId, setSelectedDeploymentId] = useState<string | null>(null);
   const [stats, setStats] = useState<BotStats | null>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [stopConfirm, setStopConfirm] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
+
+  const selectedDeployment = useMemo(() => {
+    if (!deployments?.length) return null;
+    const hit = selectedDeploymentId
+      ? deployments.find((d) => d.id === selectedDeploymentId)
+      : null;
+    return hit ?? deployments[0] ?? null;
+  }, [deployments, selectedDeploymentId]);
+
+  const activeCryptoDeployments = useMemo(
+    () => (deployments ?? []).filter((d) => d.bot === "CRYPTO" && d.status === "active"),
+    [deployments],
+  );
+
+  const usedCryptoExchanges = useMemo(
+    () => new Set(activeCryptoDeployments.map((d) => d.exchange)),
+    [activeCryptoDeployments],
+  );
+
+  const canDeployMoreCrypto = useMemo(
+    () => FREEDOMBOT_CRYPTO_EXCHANGES.some((ex) => !usedCryptoExchanges.has(ex)),
+    [usedCryptoExchanges],
+  );
+
+  const showDeployButton = (deployments?.length ?? 0) === 0 || canDeployMoreCrypto;
+
+  const deployButtonLabel =
+    deployments && deployments.length > 0 ? "Add exchange" : "Deploy Bot";
+
+  const filteredTrades = useMemo(() => {
+    if (!selectedDeployment) return trades;
+    return trades.filter((t) => tradeMatchesDeployment(t, selectedDeployment));
+  }, [trades, selectedDeployment]);
 
   // Redirect unauthenticated users back to landing (hard nav — reliable after sign-out)
   useEffect(() => {
@@ -642,9 +731,19 @@ export default function FreedomBotDashboard() {
         headers: { Authorization: `Bearer ${idToken}` },
       });
       const data = await res.json();
-      setDeployment(data.deployment ?? null);
+      const list: Deployment[] = Array.isArray(data.deployments)
+        ? data.deployments
+        : data.deployment
+          ? [data.deployment]
+          : [];
+      setDeployments(list);
+      setSelectedDeploymentId((prev) => {
+        if (prev && list.some((d) => d.id === prev)) return prev;
+        return list[0]?.id ?? null;
+      });
     } catch {
-      setDeployment(null);
+      setDeployments([]);
+      setSelectedDeploymentId(null);
     }
   }, [user]);
 
@@ -676,14 +775,14 @@ export default function FreedomBotDashboard() {
   }, [fetchDeployment, fetchUserTrades]);
 
   const handleStopBot = useCallback(async () => {
-    if (!user || !deployment) return;
+    if (!user || !selectedDeployment) return;
     setIsStopping(true);
     try {
       const idToken = await user.getIdToken();
       await fetch("/api/freedombot/stop-deployment", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ deploymentId: deployment.id }),
+        body: JSON.stringify({ deploymentId: selectedDeployment.id }),
       });
       setStopConfirm(false);
       fetchDeployment();
@@ -692,9 +791,9 @@ export default function FreedomBotDashboard() {
     } finally {
       setIsStopping(false);
     }
-  }, [user, deployment, fetchDeployment]);
+  }, [user, selectedDeployment, fetchDeployment]);
 
-  if (isUserLoading || deployment === undefined) {
+  if (isUserLoading || deployments === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#080f1e" }}>
         <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#3b82f6" }} />
@@ -710,16 +809,22 @@ export default function FreedomBotDashboard() {
 
   return (
     <div className="min-h-screen font-sans antialiased" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
-      <DashTopBar onDeploy={() => setDeployOpen(true)} hasDeployment={!!deployment} />
+      <DashTopBar
+        onDeploy={() => setDeployOpen(true)}
+        showDeployButton={showDeployButton}
+        deployButtonLabel={deployButtonLabel}
+      />
 
-      {deployment === null ? (
+      {!deployments?.length ? (
         <NotConnected stats={stats} onDeploy={() => setDeployOpen(true)} />
       ) : (
         <Connected
-          deployment={deployment}
+          deployment={selectedDeployment!}
+          deployments={deployments}
           stats={stats}
-          trades={trades}
+          trades={filteredTrades}
           onStop={() => setStopConfirm(true)}
+          onSelectDeployment={setSelectedDeploymentId}
         />
       )}
 
@@ -739,10 +844,16 @@ export default function FreedomBotDashboard() {
             >
               <Square className="h-7 w-7" style={{ color: "#f87171" }} />
             </div>
-            <h3 className="text-lg font-black text-white mb-2">Stop your bot?</h3>
+            <h3 className="text-lg font-black text-white mb-2">Stop this bot?</h3>
             <p className="text-sm mb-6 leading-relaxed" style={{ color: "#64748b" }}>
-              This will disable auto-trading immediately. No new trades will be placed.
-              You can deploy a new bot at any time after stopping.
+              This stops auto-trading for{" "}
+              <span className="text-white font-semibold">
+                {selectedDeployment
+                  ? EXCHANGE_LABELS[selectedDeployment.exchange] ?? selectedDeployment.exchange
+                  : "this account"}
+              </span>
+              . Other connected exchanges keep running. You can add an exchange again anytime from{" "}
+              <span className="text-white font-semibold">Add exchange</span>.
             </p>
             <div className="flex gap-3">
               <button

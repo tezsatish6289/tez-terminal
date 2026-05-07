@@ -471,33 +471,39 @@ export function HeatmapAutoSwitch() {
                         <TrendingUp className="w-3 h-3 text-positive/60" />
                         <p className="text-[9px] font-bold uppercase tracking-widest text-positive/70">Bull entry</p>
                       </div>
-                      <p className="text-[12px] font-mono font-bold text-positive">
-                        ${suggested.bullZoneLow?.toLocaleString()}–${suggested.bullZoneHigh?.toLocaleString()}
-                      </p>
-                      {suggested.bullStrike != null && (
-                        <p className="text-[9px] font-mono text-muted-foreground/45">
-                          Center ${suggested.bullStrike.toLocaleString()}
-                          {suggested.deribitIndexPrice != null && <> · index ${Math.round(suggested.deribitIndexPrice).toLocaleString()}</>}
-                        </p>
-                      )}
-                      {(suggested.bullOI ?? suggested.bullVolume) != null && (
-                        <p className="text-[9px] text-muted-foreground/40">
-                          {Math.round(suggested.bullOI ?? suggested.bullVolume ?? 0)}c put OI (wtd)
-                        </p>
-                      )}
-                      {suggested.bullTpTarget != null && (
-                        <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
-                          <span className="text-[9px] text-muted-foreground/40">TP →</span>
-                          <span className="font-mono text-[10px] font-bold text-positive/80">${suggested.bullTpTarget.toLocaleString()}</span>
-                          <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${
-                            suggested.bullTpConfidence === "HIGH"   ? "bg-positive/20 text-positive/80" :
-                            suggested.bullTpConfidence === "MEDIUM" ? "bg-amber-400/20 text-amber-400/80" :
-                                                                      "bg-white/10 text-muted-foreground/50"
-                          }`}>{suggested.bullTpConfidence}</span>
-                          {suggested.bullTpExpiry && (
-                            <span className="text-[8px] text-muted-foreground/30">{suggested.bullTpExpiry}</span>
+                      {suggested.bullStrike != null ? (
+                        <>
+                          <p className="text-[12px] font-mono font-bold text-positive">
+                            ${suggested.bullZoneLow?.toLocaleString()}–${suggested.bullZoneHigh?.toLocaleString()}
+                          </p>
+                          <p className="text-[9px] font-mono text-muted-foreground/45">
+                            Center ${suggested.bullStrike.toLocaleString()}
+                            {suggested.deribitIndexPrice != null && <> · index ${Math.round(suggested.deribitIndexPrice).toLocaleString()}</>}
+                          </p>
+                          {(suggested.bullOI ?? suggested.bullVolume) != null && (
+                            <p className="text-[9px] text-muted-foreground/40">
+                              {Math.round(suggested.bullOI ?? suggested.bullVolume ?? 0)}c put OI (wtd)
+                            </p>
                           )}
-                        </div>
+                          {suggested.bullTpTarget != null && (
+                            <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+                              <span className="text-[9px] text-muted-foreground/40">TP →</span>
+                              <span className="font-mono text-[10px] font-bold text-positive/80">${suggested.bullTpTarget.toLocaleString()}</span>
+                              <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${
+                                suggested.bullTpConfidence === "HIGH"   ? "bg-positive/20 text-positive/80" :
+                                suggested.bullTpConfidence === "MEDIUM" ? "bg-amber-400/20 text-amber-400/80" :
+                                                                          "bg-white/10 text-muted-foreground/50"
+                              }`}>{suggested.bullTpConfidence}</span>
+                              {suggested.bullTpExpiry && (
+                                <span className="text-[8px] text-muted-foreground/30">{suggested.bullTpExpiry}</span>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground/40 pt-1">
+                          {suggested.bullOI ? "Put support found — no upside max pain target. No bull trades." : "No put cluster found below price."}
+                        </p>
                       )}
                     </div>
                     <div className="rounded-lg border border-negative/20 bg-negative/[0.04] px-3 py-2.5 space-y-1">
@@ -505,33 +511,39 @@ export function HeatmapAutoSwitch() {
                         <TrendingDown className="w-3 h-3 text-negative/60" />
                         <p className="text-[9px] font-bold uppercase tracking-widest text-negative/70">Bear entry</p>
                       </div>
-                      <p className="text-[12px] font-mono font-bold text-negative">
-                        ${suggested.bearZoneLow?.toLocaleString()}–${suggested.bearZoneHigh?.toLocaleString()}
-                      </p>
-                      {suggested.bearStrike != null && (
-                        <p className="text-[9px] font-mono text-muted-foreground/45">
-                          Center ${suggested.bearStrike.toLocaleString()}
-                          {suggested.deribitIndexPrice != null && <> · index ${Math.round(suggested.deribitIndexPrice).toLocaleString()}</>}
-                        </p>
-                      )}
-                      {(suggested.bearOI ?? suggested.bearVolume) != null && (
-                        <p className="text-[9px] text-muted-foreground/40">
-                          {Math.round(suggested.bearOI ?? suggested.bearVolume ?? 0)}c call OI (wtd)
-                        </p>
-                      )}
-                      {suggested.bearTpTarget != null && (
-                        <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
-                          <span className="text-[9px] text-muted-foreground/40">TP →</span>
-                          <span className="font-mono text-[10px] font-bold text-negative/80">${suggested.bearTpTarget.toLocaleString()}</span>
-                          <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${
-                            suggested.bearTpConfidence === "HIGH"   ? "bg-positive/20 text-positive/80" :
-                            suggested.bearTpConfidence === "MEDIUM" ? "bg-amber-400/20 text-amber-400/80" :
-                                                                      "bg-white/10 text-muted-foreground/50"
-                          }`}>{suggested.bearTpConfidence}</span>
-                          {suggested.bearTpExpiry && (
-                            <span className="text-[8px] text-muted-foreground/30">{suggested.bearTpExpiry}</span>
+                      {suggested.bearStrike != null ? (
+                        <>
+                          <p className="text-[12px] font-mono font-bold text-negative">
+                            ${suggested.bearZoneLow?.toLocaleString()}–${suggested.bearZoneHigh?.toLocaleString()}
+                          </p>
+                          <p className="text-[9px] font-mono text-muted-foreground/45">
+                            Center ${suggested.bearStrike.toLocaleString()}
+                            {suggested.deribitIndexPrice != null && <> · index ${Math.round(suggested.deribitIndexPrice).toLocaleString()}</>}
+                          </p>
+                          {(suggested.bearOI ?? suggested.bearVolume) != null && (
+                            <p className="text-[9px] text-muted-foreground/40">
+                              {Math.round(suggested.bearOI ?? suggested.bearVolume ?? 0)}c call OI (wtd)
+                            </p>
                           )}
-                        </div>
+                          {suggested.bearTpTarget != null && (
+                            <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+                              <span className="text-[9px] text-muted-foreground/40">TP →</span>
+                              <span className="font-mono text-[10px] font-bold text-negative/80">${suggested.bearTpTarget.toLocaleString()}</span>
+                              <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${
+                                suggested.bearTpConfidence === "HIGH"   ? "bg-positive/20 text-positive/80" :
+                                suggested.bearTpConfidence === "MEDIUM" ? "bg-amber-400/20 text-amber-400/80" :
+                                                                          "bg-white/10 text-muted-foreground/50"
+                              }`}>{suggested.bearTpConfidence}</span>
+                              {suggested.bearTpExpiry && (
+                                <span className="text-[8px] text-muted-foreground/30">{suggested.bearTpExpiry}</span>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground/40 pt-1">
+                          {suggested.bearOI ? "Call resistance found — no downside max pain target. No bear trades." : "No call cluster found above price."}
+                        </p>
                       )}
                     </div>
                   </div>

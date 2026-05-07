@@ -7,9 +7,17 @@ export async function GET() {
   try {
     const db = getAdminFirestore();
 
-    const [stateDoc, metricsSnap] = await Promise.all([
+    const [stateDoc, metricsSnap, closedSnap, openSnap] = await Promise.all([
       db.collection("config").doc("simulator_state").get(),
       db.collection("daily_metrics").orderBy("date", "asc").limit(1).get(),
+      db.collection("sim_trades")
+        .where("assetType", "==", "CRYPTO")
+        .where("status",    "==", "closed")
+        .get(),
+      db.collection("sim_trades")
+        .where("assetType", "==", "CRYPTO")
+        .where("status",    "==", "open")
+        .get(),
     ]);
 
     const state = stateDoc.exists ? (stateDoc.data() as any) : null;
@@ -34,6 +42,8 @@ export async function GET() {
       return NextResponse.json({
         runningSince,
         runningDays,
+        startingCapital: null,
+        currentCapital: null,
         totalReturnPct: null,
         profitPerDay: null,
         profitPerMonth: null,
@@ -43,20 +53,35 @@ export async function GET() {
       });
     }
 
-    const {
-      capital,
-      startingCapital,
-      totalTradesTaken,
-      totalWins,
-    } = state;
+    const { startingCapital, totalTradesTaken, totalWins } = state;
 
-    // Use actual capital growth (includes open + closed positions) not just realized PnL
+    // Derive current capital from closed + open trade PnL — same logic as
+    // simulation/page.tsx to stay in sync with the equity curve chart.
+    let derivedCapital: number = startingCapital ?? 0;
+
+    for (const doc of closedSnap.docs) {
+      const t = doc.data() as any;
+      const evts: any[] = t.events ?? [];
+      const entryFee = evts[0]?.fee ?? 0;
+      const exitPnl  = evts.slice(1).reduce((s: number, e: any) => s + (e.pnl ?? 0), 0);
+      derivedCapital += exitPnl - entryFee;
+    }
+
+    for (const doc of openSnap.docs) {
+      const t = doc.data() as any;
+      derivedCapital += t.realizedPnl ?? 0;
+    }
+
+    derivedCapital = parseFloat(derivedCapital.toFixed(2));
+
     const totalReturnPct =
-      startingCapital > 0 ? ((capital - startingCapital) / startingCapital) * 100 : 0;
+      startingCapital > 0
+        ? ((derivedCapital - startingCapital) / startingCapital) * 100
+        : 0;
 
-    const avgDailyPct = runningDays > 0 ? totalReturnPct / runningDays : 0;
+    const avgDailyPct    = runningDays > 0 ? totalReturnPct / runningDays : 0;
     const profitPerMonth = avgDailyPct * 30;
-    const profitPerYear = avgDailyPct * 365;
+    const profitPerYear  = avgDailyPct * 365;
 
     const winRate =
       totalTradesTaken > 0
@@ -66,12 +91,12 @@ export async function GET() {
     return NextResponse.json({
       runningSince,
       runningDays,
-      currentCapital: capital,
       startingCapital,
-      totalReturnPct: Math.round(totalReturnPct * 100) / 100,
-      profitPerDay: Math.round(avgDailyPct * 100) / 100,
-      profitPerMonth: Math.round(profitPerMonth * 100) / 100,
-      profitPerYear: Math.round(profitPerYear * 100) / 100,
+      currentCapital: derivedCapital,
+      totalReturnPct:  Math.round(totalReturnPct  * 100) / 100,
+      profitPerDay:    Math.round(avgDailyPct      * 100) / 100,
+      profitPerMonth:  Math.round(profitPerMonth   * 100) / 100,
+      profitPerYear:   Math.round(profitPerYear    * 100) / 100,
       winRate,
       totalTrades: totalTradesTaken ?? 0,
     });

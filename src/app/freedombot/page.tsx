@@ -29,6 +29,8 @@ import { COUNTRIES, POPULAR_COUNTRY_CODES } from "@/lib/countries";
 interface BotStats {
   runningSince: string | null;
   runningDays: number;
+  startingCapital: number | null;
+  currentCapital: number | null;
   totalReturnPct: number | null;
   profitPerDay: number | null;
   profitPerMonth: number | null;

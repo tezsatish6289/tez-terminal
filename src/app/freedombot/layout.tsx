@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "FreedomBot.ai — Fastracking Financial Freedom",
+  title: "FreedomBot.ai — Trade with full transparency and control",
   description:
-    "FreedomBot trades financial markets 24/7 to fastrack your financial freedom. Deploy AI-powered crypto trading bots with one click.",
+    "FreedomBot is an algorithmic trading system where every trade is recorded on-chain. Deploy on Bybit in under 5 minutes. No upfront fees.",
+  icons: {
+    icon: "/freedombot/icon.png",
+    apple: "/freedombot/icon.png",
+  },
   openGraph: {
-    title: "FreedomBot.ai — Fastracking Financial Freedom",
+    title: "FreedomBot.ai — Trade with full transparency and control",
     description:
-      "FreedomBot trades financial markets 24/7 to fastrack your financial freedom.",
+      "Every trade recorded on-chain. Deploy on Bybit in under 5 minutes. No upfront fees.",
     siteName: "FreedomBot.ai",
   },
 };

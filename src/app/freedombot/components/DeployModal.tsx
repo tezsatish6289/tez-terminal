@@ -85,18 +85,20 @@ const HELP_GUIDES: Record<string, HelpGuide> = {
     warning: 'Never enable "Enable Withdrawals" — FreedomBot does not need it and your funds will be safe.',
   },
   COINDCX: {
-    url: "https://coindcx.com/api-dashboard",
-    urlLabel: "Open CoinDCX API Dashboard",
+    url: "https://coindcx.com/profile",
+    urlLabel: "Open CoinDCX Profile",
     steps: [
-      "Log in to CoinDCX and open the API Dashboard (link below).",
-      "Create a new API key with a clear label (e.g. FreedomBot).",
-      "Enable permissions required for futures trading (read balances, positions, and place/cancel orders).",
-      "Do not enable withdrawal or transfer permissions.",
-      "Complete any email or 2FA verification required by CoinDCX.",
-      "Copy the API Key and Secret immediately — the secret may be shown only once.",
+      "Log in to CoinDCX and go to your Profile.",
+      'Click on "API Dashboard" from the profile menu.',
+      'Click "Create New" to generate a new API key.',
+      'In the Label field, enter a name like "FreedomBot".',
+      'Leave "Bind IP Address to API key" unchecked.',
+      "Enter the OTP sent to you by CoinDCX and click Create.",
+      "Copy and paste the API Key and Secret Key into the fields above.",
+      "Make sure your Futures account is funded before starting the bot.",
     ],
     warning:
-      "Never enable withdrawals or universal transfers. FreedomBot only needs trading access — your funds stay in your CoinDCX account.",
+      "Keep your API Secret safe — it may only be shown once. FreedomBot only needs trading access; your funds stay in your CoinDCX account at all times.",
   },
   BYBIT: {
     url: "https://www.bybit.com/app/user/api-management",
@@ -564,16 +566,17 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                   style={{ backgroundColor: "rgba(10,22,40,0.6)", border: "1px solid rgba(90,140,220,0.1)" }}
                 >
                   <p className="text-xs" style={{ color: "#475569" }}>
-                    Don&apos;t have a CoinDCX account?
+                    Don&apos;t have a CoinDCX account?{" "}
+                    <span style={{ color: "#94a3b8" }}>Get up to ₹10,00,000 worth of benefits.</span>
                   </p>
                   <a
-                    href="https://coindcx.com/"
+                    href="https://invite.coindcx.com/04117062"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-xs font-bold transition-opacity hover:opacity-80 self-start sm:self-auto"
+                    className="flex items-center gap-1 text-xs font-bold transition-opacity hover:opacity-80 self-start sm:self-auto whitespace-nowrap"
                     style={{ color: "#60a5fa" }}
                   >
-                    Create account <ExternalLink className="h-3 w-3" />
+                    Create free account <ExternalLink className="h-3 w-3" />
                   </a>
                 </div>
               )}

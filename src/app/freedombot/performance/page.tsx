@@ -600,7 +600,7 @@ export default function PerformancePage() {
             className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap transition-colors hover:text-blue-300"
             style={{ color: "#60a5fa" }}
           >
-            How it works →
+            Methodology →
           </Link>
         </div>
 

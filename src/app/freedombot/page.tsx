@@ -747,7 +747,7 @@ export default function FreedomBotPage() {
               className="inline-flex items-center gap-1.5 text-sm font-bold transition-colors hover:opacity-80"
               style={{ color: "#3b82f6" }}
             >
-              How it works <ArrowRight className="h-3.5 w-3.5" />
+              Methodology <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
         </div>

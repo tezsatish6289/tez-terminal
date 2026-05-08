@@ -940,11 +940,16 @@ export default function FreedomBotPage() {
 
               {/* Zero profit = zero fee */}
               <div
-                className="rounded-lg px-3 py-2.5 mb-4 text-center text-sm font-semibold"
+                className="rounded-lg px-3 py-2.5 mb-3 text-center text-sm font-semibold"
                 style={{ backgroundColor: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.15)", color: "#34d399" }}
               >
                 You make $0 → you pay $0
               </div>
+
+              {/* Billing cycle */}
+              <p className="text-center text-xs mb-4" style={{ color: "#475569" }}>
+                Billed on the 1st &middot; Pay by the 15th
+              </p>
             </div>
           </div>
 

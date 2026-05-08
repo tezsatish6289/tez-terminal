@@ -959,9 +959,9 @@ export default function FreedomBotPage() {
                 style={{ backgroundColor: "rgba(30,41,59,0.8)", border: "1px solid rgba(90,140,220,0.1)", color: "#94a3b8" }}
               >
                 You make{" "}
-                <span className="font-bold text-white">$100 profit</span>
+                <span className="font-bold text-white">$500 profit</span>
                 {" → "}you pay us{" "}
-                <span className="font-bold" style={{ color: "#60a5fa" }}>$10</span>
+                <span className="font-bold" style={{ color: "#60a5fa" }}>$50</span>
               </div>
               {/* Earnings estimate table — live data */}
               {stats && stats.profitPerMonth !== null && stats.profitPerMonth > 0 && (

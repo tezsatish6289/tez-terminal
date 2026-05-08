@@ -745,16 +745,16 @@ export default function FreedomBotPage() {
               <span className="bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(135deg, #3b82f6, #60a5fa)" }}>risk</span>
             </h2>
             <p className="text-sm max-w-xl mx-auto" style={{ color: "#64748b" }}>
-              Trading is not guaranteed profit. Losses happen — and we want you to know that before you start.
+              We believe in being upfront. Trading has risk — here&apos;s what that looks like in practice.
             </p>
           </div>
 
           {/* 3 cards */}
           <div className="grid sm:grid-cols-3 gap-4 mb-6">
             {[
-              { icon: <AlertTriangle className="h-5 w-5" style={{ color: "#f59e0b" }} />, iconBg: "rgba(245,158,11,0.1)", title: "Losing periods are normal", desc: "The bot can have losing days or weeks. Markets aren't linear and neither are returns." },
-              { icon: <TrendingUp className="h-5 w-5" style={{ color: "#3b82f6" }} />, iconBg: "rgba(59,130,246,0.1)", title: "Volatility affects performance", desc: "Major macro events, flash moves and regime shifts all show up in equity curves." },
-              { icon: <ShieldCheck className="h-5 w-5" style={{ color: "#f59e0b" }} />, iconBg: "rgba(245,158,11,0.1)", title: "No future guarantees", desc: "Past performance — even verified on-chain — does not guarantee future results." },
+              { icon: <AlertTriangle className="h-5 w-5" style={{ color: "#f59e0b" }} />, iconBg: "rgba(245,158,11,0.1)", title: "Some weeks will be flat", desc: "Not every week is a winning week. The edge shows over time, not in every single trade." },
+              { icon: <TrendingUp className="h-5 w-5" style={{ color: "#3b82f6" }} />, iconBg: "rgba(59,130,246,0.1)", title: "Markets can be unpredictable", desc: "Big news events and sudden moves affect everyone. We manage risk on every trade to limit the impact." },
+              { icon: <ShieldCheck className="h-5 w-5" style={{ color: "#f59e0b" }} />, iconBg: "rgba(245,158,11,0.1)", title: "Past results guide, not guarantee", desc: "What you see is real, verified performance — but markets change and we think you should know that." },
             ].map((card) => (
               <div
                 key={card.title}

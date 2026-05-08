@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -367,11 +367,23 @@ function WaitlistModal({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+// Tiny component to watch for ?deploy=1 — must be in its own Suspense boundary
+function DeployParamWatcher({ onDeploy }: { onDeploy: () => void }) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  useEffect(() => {
+    if (searchParams.get("deploy") === "1") {
+      onDeploy();
+      router.replace("/");
+    }
+  }, [searchParams, router, onDeploy]);
+  return null;
+}
+
 export default function FreedomBotPage() {
   const { user } = useUser();
   const auth = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [deployOpen, setDeployOpen] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
 
@@ -379,14 +391,6 @@ export default function FreedomBotPage() {
   useEffect(() => {
     if (user && !deployOpen) router.replace("/dashboard");
   }, [user, deployOpen, router]);
-
-  // Auto-open deploy modal when nav "Deploy a Bot" is clicked from any page
-  useEffect(() => {
-    if (searchParams.get("deploy") === "1") {
-      setDeployOpen(true);
-      router.replace("/");
-    }
-  }, [searchParams, router]);
 
   const openDeploy = useCallback(() => setDeployOpen(true), []);
 
@@ -416,6 +420,11 @@ export default function FreedomBotPage() {
       className="min-h-screen font-sans antialiased"
       style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}
     >
+      {/* Auto-open deploy modal from ?deploy=1 query param */}
+      <Suspense fallback={null}>
+        <DeployParamWatcher onDeploy={openDeploy} />
+      </Suspense>
+
       {/* ── Waitlist Modal ── */}
       {waitlistBot && (
         <WaitlistModal bot={waitlistBot} onClose={() => setWaitlistBot(null)} />

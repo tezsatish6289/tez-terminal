@@ -40,10 +40,11 @@ export function FreedomBotNav() {
   };
 
   const navLinks = [
-    { label: "Home", href: "/" },
-    { label: "Performance", href: "/performance" },
-    { label: "Records", href: "/records" },
-    { label: "Pricing", href: "/#pricing" },
+    { label: "Home",        href: "/"             },
+    { label: "Performance", href: "/performance"  },
+    { label: "Methodology", href: "/methodology"  },
+    { label: "Records",     href: "/records"      },
+    { label: "Pricing",     href: "/#pricing"     },
   ];
 
   const isActive = (href: string) => {
@@ -60,7 +61,7 @@ export function FreedomBotNav() {
         backdropFilter: "blur(20px)",
       }}
     >
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+      <div className="w-full px-4 sm:px-8 h-16 flex items-center justify-between gap-4">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
           <Image

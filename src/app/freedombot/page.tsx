@@ -743,7 +743,7 @@ export default function FreedomBotPage() {
               Entry rules, stop-loss logic, position sizing — fully documented.
             </p>
             <Link
-              href="/performance"
+              href="/methodology"
               className="inline-flex items-center gap-1.5 text-sm font-bold transition-colors hover:opacity-80"
               style={{ color: "#3b82f6" }}
             >

@@ -54,7 +54,9 @@ interface Field {
 interface Exchange {
   key: string;
   name: string;
-  icon: string;
+  icon: string;       // emoji fallback
+  logo?: string;      // path to real logo image
+  access?: string;    // e.g. "Global", "India only"
   fields: Field[];
 }
 
@@ -170,6 +172,8 @@ const EXCHANGES: Record<string, Exchange[]> = {
   CRYPTO: [
     {
       key: "BYBIT", name: "Bybit", icon: "🟡",
+      logo: "/freedombot/exchanges/bybit.png",
+      access: "Global",
       fields: [
         { key: "apiKey",    label: "API Key",    type: "text",     placeholder: "Your Bybit API Key" },
         { key: "apiSecret", label: "API Secret", type: "password", placeholder: "Your Bybit API Secret" },
@@ -177,6 +181,8 @@ const EXCHANGES: Record<string, Exchange[]> = {
     },
     {
       key: "COINDCX", name: "CoinDCX", icon: "🇮🇳",
+      logo: "/freedombot/exchanges/coindcx.png",
+      access: "India only",
       fields: [
         { key: "apiKey",    label: "API Key",    type: "text",     placeholder: "Your CoinDCX API Key" },
         { key: "apiSecret", label: "API Secret", type: "password", placeholder: "Your CoinDCX API Secret" },
@@ -500,8 +506,28 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                       }}
                     >
                       <div className="flex items-center gap-3">
-                        <span className="text-2xl">{exchange.icon}</span>
-                        <p className="text-sm font-black text-white">{exchange.name}</p>
+                        {/* Logo — white rounded container so light-bg logos look clean on dark UI */}
+                        <div className="h-9 w-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0 overflow-hidden p-1">
+                          {exchange.logo ? (
+                            <Image
+                              src={exchange.logo}
+                              alt={exchange.name}
+                              width={28}
+                              height={28}
+                              className="object-contain"
+                            />
+                          ) : (
+                            <span className="text-xl leading-none">{exchange.icon}</span>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-black text-white leading-snug">{exchange.name}</p>
+                          {exchange.access && (
+                            <p className="text-[10px] font-medium mt-0.5" style={{ color: "#475569" }}>
+                              Access: {exchange.access}
+                            </p>
+                          )}
+                        </div>
                       </div>
                       {isSelected && (
                         <div className="h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#3b82f6" }}>

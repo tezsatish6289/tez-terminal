@@ -1106,19 +1106,17 @@ export default function FreedomBotPage() {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-10">
             {/* Bybit */}
-            <div className="flex items-center gap-2 opacity-40 hover:opacity-70 transition-opacity">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <rect width="24" height="24" rx="6" fill="#F7A600"/>
-                <text x="12" y="16" textAnchor="middle" fontSize="10" fontWeight="bold" fill="white">B</text>
-              </svg>
+            <div className="flex items-center gap-2 opacity-50 hover:opacity-80 transition-opacity">
+              <div className="h-6 w-6 rounded-md bg-white flex items-center justify-center overflow-hidden p-0.5 flex-shrink-0">
+                <Image src="/freedombot/exchanges/bybit.png" alt="Bybit" width={20} height={20} className="object-contain" />
+              </div>
               <span className="text-sm font-bold" style={{ color: "#94a3b8" }}>Bybit</span>
             </div>
             {/* CoinDCX */}
-            <div className="flex items-center gap-2 opacity-40 hover:opacity-70 transition-opacity">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <rect width="24" height="24" rx="6" fill="#0052FF"/>
-                <text x="12" y="16" textAnchor="middle" fontSize="9" fontWeight="bold" fill="white">DC</text>
-              </svg>
+            <div className="flex items-center gap-2 opacity-50 hover:opacity-80 transition-opacity">
+              <div className="h-6 w-6 rounded-md bg-white flex items-center justify-center overflow-hidden p-0.5 flex-shrink-0">
+                <Image src="/freedombot/exchanges/coindcx.png" alt="CoinDCX" width={20} height={20} className="object-contain" />
+              </div>
               <span className="text-sm font-bold" style={{ color: "#94a3b8" }}>CoinDCX</span>
             </div>
             {/* Solana */}

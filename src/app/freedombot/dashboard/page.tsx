@@ -723,6 +723,17 @@ export default function FreedomBotDashboard() {
     }
   }, [user, isUserLoading]);
 
+  // Set page title and favicon
+  useEffect(() => {
+    document.title = "FreedomBot.ai — Dashboard";
+    document.querySelectorAll("link[rel~='icon'], link[rel='shortcut icon']").forEach((el) => el.remove());
+    const link = document.createElement("link");
+    link.rel = "icon";
+    link.type = "image/png";
+    link.href = `/freedombot/icon.png?v=${Date.now()}`;
+    document.head.appendChild(link);
+  }, []);
+
   const fetchDeployment = useCallback(async () => {
     if (!user) return;
     try {
@@ -809,12 +820,6 @@ export default function FreedomBotDashboard() {
 
   return (
     <div className="min-h-screen font-sans antialiased" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
-      <DashTopBar
-        onDeploy={() => setDeployOpen(true)}
-        showDeployButton={showDeployButton}
-        deployButtonLabel={deployButtonLabel}
-      />
-
       {!deployments?.length ? (
         <NotConnected stats={stats} onDeploy={() => setDeployOpen(true)} />
       ) : (

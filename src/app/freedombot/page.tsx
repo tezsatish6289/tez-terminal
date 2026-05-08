@@ -1064,7 +1064,7 @@ export default function FreedomBotPage() {
               },
               {
                 q: "What exchange does it trade on? Is my capital with FreedomBot?",
-                a: "The Crypto Bot trades on Bybit. Your capital stays in your own Bybit account at all times — we never hold, touch, or custody your funds. You connect the bot via a read/trade-only API key; withdrawal permissions are neither required nor accepted.",
+                a: "FreedomBot connects to your exchange account — currently supporting Bybit and CoinDCX, with more coming. Your capital stays in your own exchange account at all times — we never hold, touch, or custody your funds. You connect via a read/trade-only API key; withdrawal permissions are neither required nor accepted.",
               },
               {
                 q: "How much capital do I need to get started?",

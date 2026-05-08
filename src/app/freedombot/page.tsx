@@ -911,69 +911,40 @@ export default function FreedomBotPage() {
               <div className="mb-1">
                 <span className="text-4xl font-black text-white">10%</span>
               </div>
-              <p className="text-xs mb-5" style={{ color: "#475569" }}>
-                of net profit, paid after you earn
+              <p className="text-xs mb-6" style={{ color: "#475569" }}>
+                of whatever you make. Nothing more.
               </p>
-              <div
-                className="rounded-lg px-3 py-2.5 mb-4 text-sm"
-                style={{ backgroundColor: "rgba(30,41,59,0.8)", border: "1px solid rgba(90,140,220,0.1)", color: "#94a3b8" }}
-              >
-                You make{" "}
-                <span className="font-bold text-white">$500 profit</span>
-                {" → "}you pay us{" "}
-                <span className="font-bold" style={{ color: "#60a5fa" }}>$50</span>
+
+              {/* Three clean examples */}
+              <div className="space-y-2 mb-6">
+                {[
+                  { profit: "$60",  fee: "$6"  },
+                  { profit: "$200", fee: "$20" },
+                  { profit: "$500", fee: "$50" },
+                ].map(({ profit, fee }) => (
+                  <div
+                    key={profit}
+                    className="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm"
+                    style={{ backgroundColor: "rgba(30,41,59,0.8)", border: "1px solid rgba(90,140,220,0.08)" }}
+                  >
+                    <span style={{ color: "#94a3b8" }}>
+                      You make <span className="font-bold text-white">{profit} profit</span>
+                    </span>
+                    <span>
+                      <span style={{ color: "#64748b" }}>→ you pay </span>
+                      <span className="font-bold" style={{ color: "#60a5fa" }}>{fee}</span>
+                    </span>
+                  </div>
+                ))}
               </div>
-              {/* Earnings estimate table — live data */}
-              {stats && stats.profitPerMonth !== null && stats.profitPerMonth > 0 && (
-                <div
-                  className="rounded-lg px-3 py-3"
-                  style={{ backgroundColor: "rgba(30,41,59,0.8)", border: "1px solid rgba(90,140,220,0.1)" }}
-                >
-                  <p className="text-[10px] font-semibold mb-2.5" style={{ color: "#e2e8f0" }}>
-                    Monthly earnings estimate — based on current performance
-                  </p>
-                  <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
-                    <thead>
-                      <tr style={{ color: "#475569", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                        <th className="text-left pb-1.5 font-medium uppercase tracking-wider">Account</th>
-                        <th className="text-right pb-1.5 font-medium uppercase tracking-wider">Earn/mo</th>
-                        <th className="text-right pb-1.5 font-medium uppercase tracking-wider">Our fee</th>
-                        <th className="text-right pb-1.5 font-medium uppercase tracking-wider" style={{ color: "#22c55e" }}>You keep</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[100, 500, 1000, 5000].map((size, i) => {
-                        const gross = size * (stats.profitPerMonth ?? 0) / 100;
-                        const fee   = gross < 50 ? 0 : Math.max(gross * 0.10, 10);
-                        const net   = Math.max(gross - fee, 0);
-                        const isFree = fee === 0;
-                        return (
-                          <tr key={size} style={{ borderBottom: i < 3 ? "1px solid rgba(255,255,255,0.04)" : "none", color: "#94a3b8" }}>
-                            <td className="py-1.5 font-mono">${size.toLocaleString()}</td>
-                            <td className="text-right py-1.5 font-mono">${gross.toFixed(0)}</td>
-                            <td className="text-right py-1.5">
-                              {isFree ? (
-                                <span
-                                  className="inline-flex items-center px-1.5 py-0.5 rounded font-bold text-[10px]"
-                                  style={{ backgroundColor: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.25)" }}
-                                >
-                                  FREE
-                                </span>
-                              ) : (
-                                <span className="font-mono" style={{ color: "#60a5fa" }}>${fee.toFixed(0)}</span>
-                              )}
-                            </td>
-                            <td className="text-right py-1.5 font-mono font-bold text-white">${net.toFixed(0)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                  <p className="text-[10px] mt-2" style={{ color: "#334155" }}>
-                    Projected · past returns ≠ future results
-                  </p>
-                </div>
-              )}
+
+              {/* Zero profit = zero fee */}
+              <div
+                className="rounded-lg px-3 py-2.5 mb-4 text-center text-sm font-semibold"
+                style={{ backgroundColor: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.15)", color: "#34d399" }}
+              >
+                You make $0 → you pay $0
+              </div>
             </div>
           </div>
 

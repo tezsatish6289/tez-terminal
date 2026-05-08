@@ -926,10 +926,10 @@ export default function FreedomBotPage() {
               {/* Earnings estimate table — live data */}
               {stats && stats.profitPerMonth !== null && stats.profitPerMonth > 0 && (
                 <div
-                  className="rounded-lg px-3 py-2.5"
+                  className="rounded-lg px-3 py-3"
                   style={{ backgroundColor: "rgba(30,41,59,0.8)", border: "1px solid rgba(90,140,220,0.1)" }}
                 >
-                  <p className="text-[10px] mb-2" style={{ color: "#475569" }}>
+                  <p className="text-[10px] font-semibold mb-2.5" style={{ color: "#e2e8f0" }}>
                     Monthly earnings estimate — based on current performance
                   </p>
                   <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
@@ -946,12 +946,24 @@ export default function FreedomBotPage() {
                         const gross = size * (stats.profitPerMonth ?? 0) / 100;
                         const fee   = gross < 50 ? 0 : Math.max(gross * 0.10, 10);
                         const net   = Math.max(gross - fee, 0);
+                        const isFree = fee === 0;
                         return (
                           <tr key={size} style={{ borderBottom: i < 3 ? "1px solid rgba(255,255,255,0.04)" : "none", color: "#94a3b8" }}>
-                            <td className="py-1 font-mono">${size.toLocaleString()}</td>
-                            <td className="text-right py-1 font-mono">${gross.toFixed(0)}</td>
-                            <td className="text-right py-1 font-mono" style={{ color: "#60a5fa" }}>${fee.toFixed(0)}</td>
-                            <td className="text-right py-1 font-mono font-bold text-white">${net.toFixed(0)}</td>
+                            <td className="py-1.5 font-mono">${size.toLocaleString()}</td>
+                            <td className="text-right py-1.5 font-mono">${gross.toFixed(0)}</td>
+                            <td className="text-right py-1.5">
+                              {isFree ? (
+                                <span
+                                  className="inline-flex items-center px-1.5 py-0.5 rounded font-bold text-[10px]"
+                                  style={{ backgroundColor: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.25)" }}
+                                >
+                                  FREE
+                                </span>
+                              ) : (
+                                <span className="font-mono" style={{ color: "#60a5fa" }}>${fee.toFixed(0)}</span>
+                              )}
+                            </td>
+                            <td className="text-right py-1.5 font-mono font-bold text-white">${net.toFixed(0)}</td>
                           </tr>
                         );
                       })}

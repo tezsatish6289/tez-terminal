@@ -496,19 +496,19 @@ export default function FreedomBotPage() {
           />
         </div>
 
-        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 pt-24 pb-20 sm:pt-36 sm:pb-28 text-center">
+        <div className="relative max-w-3xl mx-auto px-6 pt-28 pb-24 sm:pt-40 sm:pb-32 text-center">
           {/* Live badge */}
-          <div className="flex justify-center mb-8">
+          <div className="flex justify-center mb-7">
             <div
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium"
-              style={{ backgroundColor: "rgba(15,23,42,0.8)", border: "1px solid rgba(90,140,220,0.2)", color: "#94a3b8" }}
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium"
+              style={{ backgroundColor: "rgba(15,23,42,0.7)", border: "1px solid rgba(90,140,220,0.18)", color: "#64748b" }}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
               {stats ? `${stats.runningDays} days live` : "Live now"} · audit on-chain
             </div>
           </div>
 
-          <h1 className="text-5xl sm:text-7xl lg:text-8xl font-black tracking-tighter leading-[1.0] mb-6">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.08] mb-7">
             <span className="block text-white">Don&apos;t trust trading bots.</span>
             <span
               className="block bg-clip-text text-transparent"
@@ -518,13 +518,13 @@ export default function FreedomBotPage() {
             </span>
           </h1>
 
-          <p className="text-base sm:text-lg max-w-xl mx-auto leading-relaxed mb-8" style={{ color: "#64748b" }}>
+          <p className="text-sm sm:text-base max-w-md mx-auto leading-relaxed mb-7" style={{ color: "#64748b" }}>
             FreedomBot is an algorithmic trading system where every trade is recorded on-chain —
-            so you can <span className="font-semibold" style={{ color: "#e2e8f0" }}>audit performance yourself</span>, anytime.
+            so you can <span className="font-semibold" style={{ color: "#cbd5e1" }}>audit performance yourself</span>, anytime.
           </p>
 
           {/* Trust bullets — inline */}
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-10">
+          <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mb-9">
             {["Your capital stays in your account", "Stop anytime", "No upfront fees"].map((b) => (
               <div key={b} className="flex items-center gap-1.5 text-sm" style={{ color: "#64748b" }}>
                 <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "#34d399" }} />
@@ -536,20 +536,20 @@ export default function FreedomBotPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <button
               onClick={openDeploy}
-              className="h-12 px-8 rounded-full font-bold text-sm text-white flex items-center gap-2 transition-all hover:scale-105"
-              style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)", boxShadow: "0 8px 25px rgba(59,130,246,0.4)" }}
+              className="h-11 px-7 rounded-full font-bold text-sm text-white flex items-center gap-2 transition-all hover:scale-105"
+              style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)", boxShadow: "0 6px 20px rgba(59,130,246,0.4)" }}
             >
               <Rocket className="h-4 w-4" /> Start with $100 <ArrowRight className="h-4 w-4" />
             </button>
             <a
               href="/records"
-              className="h-12 px-8 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105"
-              style={{ border: "1px solid rgba(90,140,220,0.25)", color: "#93c5fd", backgroundColor: "rgba(37,99,235,0.06)" }}
+              className="h-11 px-7 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105"
+              style={{ border: "1px solid rgba(90,140,220,0.22)", color: "#93c5fd", backgroundColor: "rgba(37,99,235,0.05)" }}
             >
               <ExternalLink className="h-4 w-4" /> View Live Trades
             </a>
           </div>
-          <p className="text-xs mt-6" style={{ color: "#1e293b" }}>
+          <p className="text-xs mt-7" style={{ color: "#334155" }}>
             Trading involves risk. Past performance does not guarantee future results.
           </p>
         </div>

@@ -693,32 +693,41 @@ export default function FreedomBotPage() {
               </a>
             </div>
 
-            {/* Right — mock transaction card */}
+            {/* Right — real on-chain transaction */}
             <div
               className="rounded-2xl p-5 font-mono text-xs"
               style={{ backgroundColor: "#060e1a", border: "1px solid rgba(90,140,220,0.12)" }}
             >
-              <div className="flex items-center justify-between mb-4" style={{ borderBottom: "1px solid rgba(90,140,220,0.08)", paddingBottom: "10px" }}>
-                <span style={{ color: "#475569" }}>tx · solana</span>
-                <span className="flex items-center gap-1 text-xs font-bold" style={{ color: "#34d399" }}>
+              <div className="flex items-center justify-between mb-4 pb-3" style={{ borderBottom: "1px solid rgba(90,140,220,0.08)" }}>
+                <div>
+                  <span style={{ color: "#475569" }}>tx · solana</span>
+                  <span className="ml-3 text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(59,130,246,0.1)", color: "#60a5fa" }}>HPOS10IUSDT · SELL · 5×</span>
+                </div>
+                <span className="flex items-center gap-1 font-bold" style={{ color: "#34d399" }}>
                   verified <ShieldCheck className="h-3 w-3" />
                 </span>
               </div>
               {[
-                { label: "entry",   value: "$3.10",     color: "#e2e8f0" },
-                { label: "exit",    value: "$3.16",     color: "#e2e8f0" },
-                { label: "pnl",     value: "+$0.06",    color: "#34d399" },
-                { label: "size",    value: "$51.25",    color: "#e2e8f0" },
-                { label: "balance", value: stats?.currentCapital ? `$${stats.currentCapital.toFixed(2)}` : "$1,024.91", color: "#e2e8f0" },
+                { label: "entry",    value: "$0.02194",                color: "#e2e8f0" },
+                { label: "exit",     value: "$0.020274",               color: "#e2e8f0" },
+                { label: "pnl",      value: "+$17.32",                 color: "#34d399" },
+                { label: "size",     value: "$51.59",                  color: "#e2e8f0" },
+                { label: "exchange", value: "Bybit",                   color: "#e2e8f0" },
               ].map((row) => (
                 <div key={row.label} className="flex items-center justify-between py-1.5" style={{ borderBottom: "1px solid rgba(90,140,220,0.05)" }}>
                   <span style={{ color: "#475569" }}>{row.label}</span>
                   <span style={{ color: row.color }}>{row.value}</span>
                 </div>
               ))}
-              <p className="mt-4 break-all text-[10px]" style={{ color: "#1d4ed8" }}>
-                3ipprkAim8wjNd9AB7o9JAh6ndYKkxCjt852z2Q62xXsmo8eRN%1bnbcJs2piy76W0h8QwvrisVyOsR0eqgsNRU
-              </p>
+              <a
+                href="https://solscan.io/tx/d3JzBfLBm75fX57J8MVTjMFQrvYzNQAJ5dQghCFfmjLcoA3EXQmc32v245gsWQW51wvQQMirTqkNYjMMGnu8mCb"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 block break-all text-[10px] hover:opacity-80 transition-opacity"
+                style={{ color: "#1d4ed8" }}
+              >
+                d3JzBfLBm75fX57J8MVTjMFQrvYzNQAJ5dQghCFfmjLcoA3EXQmc32v245gsWQW51wvQQMirTqkNYjMMGnu8mCb
+              </a>
             </div>
           </div>
         </div>

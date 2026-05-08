@@ -826,12 +826,12 @@ export default function FreedomBotPage() {
       ══════════════════════════════════════════════════════════ */}
       <section
         id="pricing"
-        className="py-24 sm:py-32 px-4 sm:px-6"
+        className="py-16 sm:py-20 px-4 sm:px-6"
       >
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-16">
-            <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "#3b82f6" }}>Pricing</p>
-            <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4">
+        <div className="max-w-3xl mx-auto">
+          <div className="text-center mb-10">
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "#3b82f6" }}>Pricing</p>
+            <h2 className="text-2xl sm:text-4xl font-black tracking-tighter mb-3">
               We only make money{" "}
               <span
                 className="bg-clip-text text-transparent"
@@ -845,25 +845,25 @@ export default function FreedomBotPage() {
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-6">
+          <div className="grid sm:grid-cols-2 gap-4">
             {/* Self-deploy */}
             <div
-              className="rounded-2xl p-8 sm:p-10 flex flex-col"
+              className="rounded-xl p-6 flex flex-col"
               style={{
                 backgroundColor: "#0b1829",
                 border: "1px solid rgba(90,140,220,0.18)",
               }}
             >
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-6" style={{ color: "#475569" }}>
+              <p className="text-[9px] font-bold uppercase tracking-widest mb-4" style={{ color: "#475569" }}>
                 Self-Deploy
               </p>
-              <div className="mb-8">
-                <span className="text-6xl font-black text-white">Free</span>
-                <p className="text-sm mt-2" style={{ color: "#475569" }}>
+              <div className="mb-5">
+                <span className="text-4xl font-black text-white">Free</span>
+                <p className="text-xs mt-1" style={{ color: "#475569" }}>
                   for your first 30 days
                 </p>
               </div>
-              <ul className="space-y-3 text-sm mb-8 flex-1" style={{ color: "#94a3b8" }}>
+              <ul className="space-y-2 text-sm mb-5 flex-1" style={{ color: "#94a3b8" }}>
                 {[
                   "Your capital, always yours",
                   "Guided deployment flow",
@@ -871,14 +871,14 @@ export default function FreedomBotPage() {
                   "Disable anytime, instantly",
                   "No credit card required",
                 ].map((item) => (
-                  <li key={item} className="flex items-center gap-2.5">
-                    <CheckCircle2 className="h-4 w-4 flex-shrink-0" style={{ color: "#22c55e" }} />
+                  <li key={item} className="flex items-center gap-2">
+                    <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "#22c55e" }} />
                     {item}
                   </li>
                 ))}
               </ul>
               <div
-                className="rounded-xl px-4 py-3.5 mb-6 text-xs leading-relaxed"
+                className="rounded-lg px-3 py-2.5 mb-4 text-xs leading-relaxed"
                 style={{ backgroundColor: "rgba(30,41,59,0.8)", border: "1px solid rgba(90,140,220,0.1)", color: "#64748b" }}
               >
                 After 30 days, PostPay applies —{" "}
@@ -887,7 +887,7 @@ export default function FreedomBotPage() {
               </div>
               <button
                 onClick={openDeploy}
-                className="w-full py-3 rounded-2xl font-bold text-white text-sm transition-all hover:opacity-90 mt-auto"
+                className="w-full py-2.5 rounded-xl font-bold text-white text-sm transition-all hover:opacity-90 mt-auto"
                 style={{ background: "linear-gradient(90deg, #1d4ed8, #3b82f6)" }}
               >
                 Deploy Now
@@ -896,26 +896,26 @@ export default function FreedomBotPage() {
 
             {/* PostPay */}
             <div
-              className="rounded-2xl p-8 sm:p-10 relative overflow-hidden flex flex-col"
+              className="rounded-xl p-6 relative overflow-hidden flex flex-col"
               style={{
                 backgroundColor: "#0b1829",
                 border: "1px solid rgba(59,130,246,0.3)",
               }}
             >
-              <div className="flex items-center justify-between mb-6">
-                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#60a5fa" }}>PostPay</p>
-                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ backgroundColor: "rgba(59,130,246,0.15)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.3)" }}>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "#60a5fa" }}>PostPay</p>
+                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(59,130,246,0.15)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.3)" }}>
                   Pay only on profit
                 </span>
               </div>
-              <div className="mb-2">
-                <span className="text-6xl font-black text-white">10%</span>
+              <div className="mb-1">
+                <span className="text-4xl font-black text-white">10%</span>
               </div>
-              <p className="text-sm mb-8" style={{ color: "#475569" }}>
+              <p className="text-xs mb-5" style={{ color: "#475569" }}>
                 of net profit, paid after you earn
               </p>
               <div
-                className="rounded-xl px-4 py-3.5 mb-6 text-sm"
+                className="rounded-lg px-3 py-2.5 mb-4 text-sm"
                 style={{ backgroundColor: "rgba(30,41,59,0.8)", border: "1px solid rgba(90,140,220,0.1)", color: "#94a3b8" }}
               >
                 You make{" "}
@@ -926,19 +926,19 @@ export default function FreedomBotPage() {
               {/* Earnings estimate table — live data */}
               {stats && stats.profitPerMonth !== null && stats.profitPerMonth > 0 && (
                 <div
-                  className="rounded-xl px-4 py-3"
+                  className="rounded-lg px-3 py-2.5"
                   style={{ backgroundColor: "rgba(30,41,59,0.8)", border: "1px solid rgba(90,140,220,0.1)" }}
                 >
-                  <p className="text-xs mb-3" style={{ color: "#475569" }}>
+                  <p className="text-[10px] mb-2" style={{ color: "#475569" }}>
                     Monthly earnings estimate — based on current performance
                   </p>
                   <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
                     <thead>
                       <tr style={{ color: "#475569", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                        <th className="text-left pb-2 font-medium uppercase tracking-wider">Account</th>
-                        <th className="text-right pb-2 font-medium uppercase tracking-wider">Earn/mo</th>
-                        <th className="text-right pb-2 font-medium uppercase tracking-wider">Our fee</th>
-                        <th className="text-right pb-2 font-medium uppercase tracking-wider" style={{ color: "#22c55e" }}>You keep</th>
+                        <th className="text-left pb-1.5 font-medium uppercase tracking-wider">Account</th>
+                        <th className="text-right pb-1.5 font-medium uppercase tracking-wider">Earn/mo</th>
+                        <th className="text-right pb-1.5 font-medium uppercase tracking-wider">Our fee</th>
+                        <th className="text-right pb-1.5 font-medium uppercase tracking-wider" style={{ color: "#22c55e" }}>You keep</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -948,16 +948,16 @@ export default function FreedomBotPage() {
                         const net   = Math.max(gross - fee, 0);
                         return (
                           <tr key={size} style={{ borderBottom: i < 3 ? "1px solid rgba(255,255,255,0.04)" : "none", color: "#94a3b8" }}>
-                            <td className="py-1.5 font-mono">${size.toLocaleString()}</td>
-                            <td className="text-right py-1.5 font-mono">${gross.toFixed(0)}</td>
-                            <td className="text-right py-1.5 font-mono" style={{ color: "#60a5fa" }}>${fee.toFixed(0)}</td>
-                            <td className="text-right py-1.5 font-mono font-bold text-white">${net.toFixed(0)}</td>
+                            <td className="py-1 font-mono">${size.toLocaleString()}</td>
+                            <td className="text-right py-1 font-mono">${gross.toFixed(0)}</td>
+                            <td className="text-right py-1 font-mono" style={{ color: "#60a5fa" }}>${fee.toFixed(0)}</td>
+                            <td className="text-right py-1 font-mono font-bold text-white">${net.toFixed(0)}</td>
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
-                  <p className="text-xs mt-3" style={{ color: "#334155" }}>
+                  <p className="text-[10px] mt-2" style={{ color: "#334155" }}>
                     Projected · past returns ≠ future results
                   </p>
                 </div>

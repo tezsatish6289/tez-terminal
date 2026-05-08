@@ -830,8 +830,8 @@ export default function FreedomBotPage() {
       >
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-10">
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "#3b82f6" }}>Pricing</p>
-            <h2 className="text-2xl sm:text-4xl font-black tracking-tighter mb-3">
+            <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "#3b82f6" }}>Pricing</p>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-3">
               We only make money{" "}
               <span
                 className="bg-clip-text text-transparent"

@@ -984,7 +984,7 @@ export default function FreedomBotPage() {
                     <tbody>
                       {[100, 500, 1000, 5000].map((size, i) => {
                         const gross = size * (stats.profitPerMonth ?? 0) / 100;
-                        const fee   = Math.max(gross * 0.10, 10);
+                        const fee   = gross < 50 ? 0 : Math.max(gross * 0.10, 10);
                         const net   = Math.max(gross - fee, 0);
                         return (
                           <tr key={size} style={{ borderBottom: i < 3 ? "1px solid rgba(255,255,255,0.04)" : "none", color: "#94a3b8" }}>

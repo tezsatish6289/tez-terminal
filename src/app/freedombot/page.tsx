@@ -876,28 +876,25 @@ export default function FreedomBotPage() {
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
+          <div className="grid sm:grid-cols-2 gap-5">
             {/* Self-deploy */}
             <div
-              className="rounded-2xl p-8 flex flex-col"
+              className="rounded-2xl p-7 flex flex-col"
               style={{
                 backgroundColor: "#0b1829",
-                border: "1px solid rgba(90,140,220,0.2)",
+                border: "1px solid rgba(90,140,220,0.18)",
               }}
             >
-              <p
-                className="text-xs font-bold uppercase tracking-widest mb-5"
-                style={{ color: "#64748b" }}
-              >
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-5" style={{ color: "#475569" }}>
                 Self-Deploy
               </p>
               <div className="mb-6">
-                <span className="text-5xl font-black text-white">Free</span>
-                <p className="text-sm mt-2" style={{ color: "#64748b" }}>
+                <span className="text-6xl font-black text-white">Free</span>
+                <p className="text-sm mt-1.5" style={{ color: "#475569" }}>
                   for your first 30 days
                 </p>
               </div>
-              <ul className="space-y-3 text-sm mb-5 flex-1" style={{ color: "#94a3b8" }}>
+              <ul className="space-y-2.5 text-sm mb-6 flex-1" style={{ color: "#94a3b8" }}>
                 {[
                   "Your capital, always yours",
                   "Guided deployment flow",
@@ -912,17 +909,17 @@ export default function FreedomBotPage() {
                 ))}
               </ul>
               <div
-                className="rounded-xl px-4 py-3 mb-6 text-xs leading-relaxed"
-                style={{ backgroundColor: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.12)", color: "#64748b" }}
+                className="rounded-xl px-4 py-3 mb-5 text-xs leading-relaxed"
+                style={{ backgroundColor: "rgba(30,41,59,0.8)", border: "1px solid rgba(90,140,220,0.1)", color: "#64748b" }}
               >
                 After 30 days, PostPay applies —{" "}
-                <span style={{ color: "#94a3b8", fontWeight: 600 }}>10% of net profit, only when you earn.</span>
-                {" "}You pay nothing if you don&apos;t profit.
+                <span style={{ color: "#94a3b8", fontWeight: 600 }}>10% of net profit</span>
+                , only when you earn. You pay nothing if you don&apos;t profit.
               </div>
               <button
                 onClick={openDeploy}
-                className="w-full py-3 rounded-xl font-bold text-white text-sm transition-all hover:scale-105 mt-auto"
-                style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+                className="w-full py-3 rounded-2xl font-bold text-white text-sm transition-all hover:opacity-90 mt-auto"
+                style={{ background: "linear-gradient(90deg, #1d4ed8, #3b82f6)" }}
               >
                 Deploy Now
               </button>
@@ -930,66 +927,49 @@ export default function FreedomBotPage() {
 
             {/* PostPay */}
             <div
-              className="rounded-2xl p-8 relative overflow-hidden flex flex-col"
+              className="rounded-2xl p-7 relative overflow-hidden flex flex-col"
               style={{
                 backgroundColor: "#0b1829",
-                border: "1px solid rgba(59,130,246,0.25)",
+                border: "1px solid rgba(59,130,246,0.3)",
               }}
             >
               <div className="flex items-center justify-between mb-5">
-                <p className="text-xs font-bold uppercase tracking-widest" style={{ color: "#64748b" }}>PostPay</p>
-                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ backgroundColor: "rgba(59,130,246,0.15)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.3)" }}>
+                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#60a5fa" }}>PostPay</p>
+                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ backgroundColor: "rgba(59,130,246,0.15)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.3)" }}>
                   Pay only on profit
                 </span>
               </div>
-              <div className="mb-2">
-                <span className="text-5xl font-black text-white">10%</span>
+              <div className="mb-1">
+                <span className="text-6xl font-black text-white">10%</span>
               </div>
-              <p className="text-sm mb-6" style={{ color: "#64748b" }}>
+              <p className="text-sm mb-5" style={{ color: "#475569" }}>
                 of net profit, paid after you earn
               </p>
               <div
-                className="rounded-xl px-4 py-3 mb-6 text-sm"
-                style={{
-                  backgroundColor: "rgba(251,191,36,0.06)",
-                  border: "1px solid rgba(251,191,36,0.15)",
-                  color: "#94a3b8",
-                }}
+                className="rounded-xl px-4 py-3 mb-5 text-sm"
+                style={{ backgroundColor: "rgba(30,41,59,0.8)", border: "1px solid rgba(90,140,220,0.1)", color: "#94a3b8" }}
               >
                 You make{" "}
                 <span className="font-bold text-white">$100 profit</span>
                 {" → "}you pay us{" "}
-                <span className="font-bold" style={{ color: "#fbbf24" }}>$10</span>
+                <span className="font-bold" style={{ color: "#60a5fa" }}>$10</span>
               </div>
-              <ul className="space-y-3 text-sm mb-6 flex-1" style={{ color: "#94a3b8" }}>
-                {[
-                  "Pay only after you profit — zero risk to get started",
-                  "Calculated monthly on net profit",
-                  "Minimum billing $10/month — only when you're in profit",
-                ].map((item) => (
-                  <li key={item} className="flex items-center gap-2.5">
-                    <CheckCircle2 className="h-4 w-4 flex-shrink-0" style={{ color: "#fbbf24" }} />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-
               {/* Earnings estimate table — live data */}
               {stats && stats.profitPerMonth !== null && stats.profitPerMonth > 0 && (
                 <div
-                  className="rounded-xl px-4 py-3 mb-6"
-                  style={{ backgroundColor: "rgba(251,191,36,0.04)", border: "1px solid rgba(251,191,36,0.10)" }}
+                  className="rounded-xl px-4 py-3"
+                  style={{ backgroundColor: "rgba(30,41,59,0.8)", border: "1px solid rgba(90,140,220,0.1)" }}
                 >
-                  <p className="text-xs mb-3" style={{ color: "#64748b" }}>
+                  <p className="text-xs mb-3" style={{ color: "#475569" }}>
                     Monthly earnings estimate — based on current performance
                   </p>
                   <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
                     <thead>
-                      <tr style={{ color: "#64748b", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                        <th className="text-left pb-2 font-medium">Account</th>
-                        <th className="text-right pb-2 font-medium">Earn/mo</th>
-                        <th className="text-right pb-2 font-medium">Our fee</th>
-                        <th className="text-right pb-2 font-medium" style={{ color: "#34d399" }}>You keep</th>
+                      <tr style={{ color: "#475569", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                        <th className="text-left pb-2 font-medium uppercase tracking-wider">Account</th>
+                        <th className="text-right pb-2 font-medium uppercase tracking-wider">Earn/mo</th>
+                        <th className="text-right pb-2 font-medium uppercase tracking-wider">Our fee</th>
+                        <th className="text-right pb-2 font-medium uppercase tracking-wider" style={{ color: "#22c55e" }}>You keep</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -998,25 +978,18 @@ export default function FreedomBotPage() {
                         const fee   = Math.max(gross * 0.10, 10);
                         const net   = Math.max(gross - fee, 0);
                         return (
-                          <tr
-                            key={size}
-                            style={{
-                              borderBottom: i < 3 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                              color: "#94a3b8",
-                            }}
-                          >
+                          <tr key={size} style={{ borderBottom: i < 3 ? "1px solid rgba(255,255,255,0.04)" : "none", color: "#94a3b8" }}>
                             <td className="py-1.5 font-mono">${size.toLocaleString()}</td>
                             <td className="text-right py-1.5 font-mono">${gross.toFixed(0)}</td>
-                            <td className="text-right py-1.5 font-mono" style={{ color: "#fbbf24" }}>${fee.toFixed(0)}</td>
+                            <td className="text-right py-1.5 font-mono" style={{ color: "#60a5fa" }}>${fee.toFixed(0)}</td>
                             <td className="text-right py-1.5 font-mono font-bold text-white">${net.toFixed(0)}</td>
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
-                  <p className="text-xs mt-3" style={{ color: "#475569" }}>
-                    Projected · past returns ≠ future results ·{" "}
-                    <Link href="/performance" style={{ color: "#60a5fa" }}>view full data →</Link>
+                  <p className="text-xs mt-3" style={{ color: "#334155" }}>
+                    Projected · past returns ≠ future results
                   </p>
                 </div>
               )}

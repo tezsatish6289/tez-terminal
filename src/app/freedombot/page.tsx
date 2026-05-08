@@ -1060,35 +1060,35 @@ export default function FreedomBotPage() {
             {[
               {
                 q: "How does the bot decide when to enter a trade?",
-                a: "Every entry is rule-based — no discretion, no emotions. The bot identifies high-probability setups using order blocks (zones where institutional orders were previously filled) and filters signals using funding rate data and liquidation heatmaps. The specific indicator combinations are our core IP, but the full risk framework is documented on the Performance page.",
+                a: "Every entry is rule-based — no discretion, no emotions. The bot identifies high-probability setups using order flow signals and filters them using funding rate data and liquidation levels. The exact logic is our core IP, but the full risk framework is documented on the Performance page.",
               },
               {
                 q: "What exchange does it trade on? Is my capital with FreedomBot?",
-                a: "FreedomBot connects to your exchange account — currently supporting Bybit and CoinDCX, with more coming. Your capital stays in your own exchange account at all times — we never hold, touch, or custody your funds. You connect via a read/trade-only API key; withdrawal permissions are neither required nor accepted.",
+                a: "FreedomBot connects to your own exchange account — your capital stays there at all times. We never hold, touch, or custody your funds. You connect via a read/trade-only API key; withdrawal permissions are neither required nor accepted.",
               },
               {
                 q: "How much capital do I need to get started?",
-                a: "There is no hard minimum enforced by us, but we recommend at least 500 USDT (around ₹50,000) so position sizing stays meaningful and fees don't eat returns. The bot scales position sizes as a percentage of your balance, so it works across a wide range of account sizes.",
+                a: "There is no hard minimum, but we recommend at least $500 so position sizing stays meaningful. The bot scales trade sizes as a percentage of your balance, so it works across a wide range of account sizes.",
               },
               {
                 q: "What's the maximum I can lose on a single trade?",
-                a: "By default the bot risks 1% of your current balance per trade (1.5% during a confirmed win streak). With leverage capped at 10×, a stop-loss hit means a small, defined loss — never a wipeout. It would take roughly 460 consecutive losing trades to approach zero, a scenario that has never come close to occurring.",
+                a: "By default the bot risks 1% of your balance per trade. With a stop-loss set at entry, a loss on any single trade is small and defined — never a wipeout. The risk per trade is capped by design.",
               },
               {
                 q: "Am I at risk of liquidation?",
-                a: "No. We use isolated margin on every trade — set automatically before each order — so your full account balance is never at risk from a single position. The stop-loss is always triggered well before the liquidation price is reached, structurally eliminating liquidation risk under normal market conditions.",
+                a: "No. We use isolated margin on every trade, set automatically before each order, so your full account balance is never at risk from a single position. The stop-loss triggers well before any liquidation price is reached.",
               },
               {
                 q: "What happens during a flash crash or extreme volatility?",
-                a: "The stop-loss closes the position at the next available price. In extreme gaps, slippage may occur, but because we use isolated margin and small position sizes, the worst-case outcome on a single trade remains a fraction of your account — not a catastrophic loss.",
+                a: "The stop-loss closes the position at the next available price. Because we use isolated margin and small position sizes, even in extreme conditions the worst-case outcome on a single trade remains a small fraction of your account.",
               },
               {
                 q: "Can I withdraw my capital anytime?",
-                a: "Yes. Your capital stays in your own exchange account and is always accessible to you. You can withdraw or pause the bot at any time. If a trade is open when you pause, you can choose to let it run to completion or close it manually.",
+                a: "Yes. Your capital stays in your own exchange account and is always accessible to you. You can withdraw or pause the bot at any time. If a trade is open when you pause, you can let it run to completion or close it manually.",
               },
               {
                 q: "Does FreedomBot charge fees?",
-                a: "Self-deploy is completely free — no upfront fees, no subscription. A PostPay plan (10% of net profit, paid only after you earn) is coming soon. The bot incurs standard Bybit trading fees on each trade, which are already factored into the performance numbers shown on the Performance page.",
+                a: "Self-deploy is free — no upfront fees, no subscription. PostPay (10% of net profit, only after you earn) kicks in after your first 30 days. Standard exchange trading fees apply on each trade and are already reflected in the performance numbers shown on the Performance page.",
               },
             ].map((item, i) => {
               const isOpen = openFaq === i;

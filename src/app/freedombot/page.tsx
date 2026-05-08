@@ -34,6 +34,7 @@ interface BotStats {
   totalReturnPct: number | null;
   profitPerDay: number | null;
   profitPerMonth: number | null;
+  profitPerMonthIsActual: boolean;
   profitPerYear: number | null;
   winRate: number | null;
   totalTrades: number;
@@ -566,10 +567,15 @@ export default function FreedomBotPage() {
                   <p className="text-sm font-black" style={{ color: "#34d399" }}>{stats ? fmt(stats.totalReturnPct) : "…"}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>Monthly</p>
-                  <p className="text-sm font-black" style={{ color: "#60a5fa" }}>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>
+                    Monthly{stats && !stats.profitPerMonthIsActual ? " est." : ""}
+                  </p>
+                  <p className="text-sm font-black" style={{
+                    color: stats && stats.profitPerMonth !== null
+                      ? stats.profitPerMonth >= 0 ? "#34d399" : "#f87171"
+                      : "#60a5fa"
+                  }}>
                     {stats ? fmt(stats.profitPerMonth) : "…"}
-                    {stats && stats.runningDays < 30 && <span className="ml-1 text-[9px]" style={{ color: "#475569" }}>est.</span>}
                   </p>
                 </div>
                 <div>

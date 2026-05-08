@@ -79,9 +79,30 @@ export async function GET() {
         ? ((derivedCapital - startingCapital) / startingCapital) * 100
         : 0;
 
-    const avgDailyPct    = runningDays > 0 ? totalReturnPct / runningDays : 0;
-    const profitPerMonth = avgDailyPct * 30;
-    const profitPerYear  = avgDailyPct * 365;
+    const avgDailyPct = runningDays > 0 ? totalReturnPct / runningDays : 0;
+    const profitPerYear = avgDailyPct * 365;
+
+    // Monthly return: use actual calendar-month PnL when ≥30 days live
+    // (matches the performance page calculation exactly)
+    let profitPerMonth: number;
+    if (runningDays >= 30 && startingCapital > 0) {
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0, 0, 0, 0);
+      const monthNet = closedSnap.docs.reduce((sum, doc) => {
+        const t = doc.data() as any;
+        const closedAt = t.closedAt;
+        if (!closedAt || new Date(closedAt) < monthStart) return sum;
+        const evts: any[] = t.events ?? [];
+        const entryFee = evts[0]?.fee ?? 0;
+        const exitPnl  = evts.slice(1).reduce((s: number, e: any) => s + (e.pnl ?? 0), 0);
+        return sum + exitPnl - entryFee;
+      }, 0);
+      profitPerMonth = (monthNet / startingCapital) * 100;
+    } else {
+      // < 30 days — project from daily average
+      profitPerMonth = avgDailyPct * 30;
+    }
 
     const winRate =
       totalTradesTaken > 0
@@ -93,10 +114,11 @@ export async function GET() {
       runningDays,
       startingCapital,
       currentCapital: derivedCapital,
-      totalReturnPct:  Math.round(totalReturnPct  * 100) / 100,
-      profitPerDay:    Math.round(avgDailyPct      * 100) / 100,
-      profitPerMonth:  Math.round(profitPerMonth   * 100) / 100,
-      profitPerYear:   Math.round(profitPerYear    * 100) / 100,
+      totalReturnPct:       Math.round(totalReturnPct  * 100) / 100,
+      profitPerDay:         Math.round(avgDailyPct      * 100) / 100,
+      profitPerMonth:       Math.round(profitPerMonth   * 100) / 100,
+      profitPerMonthIsActual: runningDays >= 30,
+      profitPerYear:        Math.round(profitPerYear    * 100) / 100,
       winRate,
       totalTrades: totalTradesTaken ?? 0,
     });

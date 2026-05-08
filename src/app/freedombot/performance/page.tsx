@@ -377,16 +377,32 @@ export default function PerformancePage() {
     return Math.max(1, Math.ceil((Date.now() - new Date(earliest.openedAt ?? 0).getTime()) / 86_400_000));
   }, [openTrades, closedTrades]);
 
-  const startCap    = simState?.startingCapital ?? 1000;
-  const totalReturn = simState
-    ? ((simState.capital - simState.startingCapital) / simState.startingCapital) * 100
+  const startCap = simState?.startingCapital ?? 1000;
+
+  // Derive current capital from trade events — same logic as simulator & stats API.
+  // state.capital in Firestore can be stale; re-computing from trades is always accurate.
+  const derivedCapital = useMemo(() => {
+    let cap = startCap;
+    for (const t of closedTrades) {
+      const evts = t.events ?? [];
+      if (!evts.length) continue;
+      cap += evts.reduce((s, e) => s + e.pnl, 0) - evts[0].fee;
+    }
+    for (const t of openTrades) {
+      cap += t.realizedPnl ?? 0;
+    }
+    return parseFloat(cap.toFixed(2));
+  }, [closedTrades, openTrades, startCap]);
+
+  const totalReturn = startCap > 0
+    ? ((derivedCapital - startCap) / startCap) * 100
     : 0;
   const isPositive  = totalReturn >= 0;
 
   // Monthly — actual this-calendar-month if ≥30 days, else projected (identical to simulator)
   const monthlyPnl = useMemo(() => {
     if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
-    const netPnl = simState.capital - simState.startingCapital;
+    const netPnl = derivedCapital - startCap;
     if (runningDays >= 30) {
       const monthStart = new Date();
       monthStart.setDate(1);
@@ -399,15 +415,15 @@ export default function PerformancePage() {
       return { pct: (monthNet / simState.startingCapital) * 100, isProjected: false };
     }
     return { pct: ((netPnl / runningDays) * 30 / simState.startingCapital) * 100, isProjected: true };
-  }, [simState, runningDays, closedTrades]);
+  }, [simState, derivedCapital, startCap, runningDays, closedTrades]);
 
   // Yearly — projected if < 365 days (identical to simulator)
   const yearlyPnl = useMemo(() => {
     if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
-    const netPnl    = simState.capital - simState.startingCapital;
+    const netPnl    = derivedCapital - startCap;
     const annualPnl = runningDays >= 365 ? netPnl : (netPnl / runningDays) * 365;
-    return { pct: (annualPnl / simState.startingCapital) * 100, isProjected: runningDays < 365 };
-  }, [simState, runningDays]);
+    return { pct: (annualPnl / startCap) * 100, isProjected: runningDays < 365 };
+  }, [simState, derivedCapital, startCap, runningDays]);
 
   // Performance metrics — same function AND same args as simulator
   const metrics = useMemo(
@@ -538,8 +554,8 @@ export default function PerformancePage() {
             />
             <SummaryCard
               label="Current Capital"
-              value={fmtMoney(simState?.capital)}
-              sub={`${totalReturn >= 0 ? "+" : ""}${fmtMoney((simState?.capital ?? startCap) - startCap)} overall`}
+              value={fmtMoney(derivedCapital)}
+              sub={`${totalReturn >= 0 ? "+" : ""}${fmtMoney(derivedCapital - startCap)} overall`}
               icon={<DollarSign className="w-3.5 h-3.5" />}
               color={isPositive ? "#34d399" : "#f87171"}
             />

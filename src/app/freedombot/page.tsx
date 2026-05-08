@@ -826,10 +826,10 @@ export default function FreedomBotPage() {
       ══════════════════════════════════════════════════════════ */}
       <section
         id="pricing"
-        className="py-16 sm:py-24 px-4 sm:px-6"
+        className="py-24 sm:py-32 px-4 sm:px-6"
       >
         <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
+          <div className="text-center mb-16">
             <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "#3b82f6" }}>Pricing</p>
             <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4">
               We only make money{" "}
@@ -845,25 +845,25 @@ export default function FreedomBotPage() {
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-5">
+          <div className="grid sm:grid-cols-2 gap-6">
             {/* Self-deploy */}
             <div
-              className="rounded-2xl p-7 flex flex-col"
+              className="rounded-2xl p-8 sm:p-10 flex flex-col"
               style={{
                 backgroundColor: "#0b1829",
                 border: "1px solid rgba(90,140,220,0.18)",
               }}
             >
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-5" style={{ color: "#475569" }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-6" style={{ color: "#475569" }}>
                 Self-Deploy
               </p>
-              <div className="mb-6">
+              <div className="mb-8">
                 <span className="text-6xl font-black text-white">Free</span>
-                <p className="text-sm mt-1.5" style={{ color: "#475569" }}>
+                <p className="text-sm mt-2" style={{ color: "#475569" }}>
                   for your first 30 days
                 </p>
               </div>
-              <ul className="space-y-2.5 text-sm mb-6 flex-1" style={{ color: "#94a3b8" }}>
+              <ul className="space-y-3 text-sm mb-8 flex-1" style={{ color: "#94a3b8" }}>
                 {[
                   "Your capital, always yours",
                   "Guided deployment flow",
@@ -878,7 +878,7 @@ export default function FreedomBotPage() {
                 ))}
               </ul>
               <div
-                className="rounded-xl px-4 py-3 mb-5 text-xs leading-relaxed"
+                className="rounded-xl px-4 py-3.5 mb-6 text-xs leading-relaxed"
                 style={{ backgroundColor: "rgba(30,41,59,0.8)", border: "1px solid rgba(90,140,220,0.1)", color: "#64748b" }}
               >
                 After 30 days, PostPay applies —{" "}
@@ -896,26 +896,26 @@ export default function FreedomBotPage() {
 
             {/* PostPay */}
             <div
-              className="rounded-2xl p-7 relative overflow-hidden flex flex-col"
+              className="rounded-2xl p-8 sm:p-10 relative overflow-hidden flex flex-col"
               style={{
                 backgroundColor: "#0b1829",
                 border: "1px solid rgba(59,130,246,0.3)",
               }}
             >
-              <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center justify-between mb-6">
                 <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#60a5fa" }}>PostPay</p>
                 <span className="text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ backgroundColor: "rgba(59,130,246,0.15)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.3)" }}>
                   Pay only on profit
                 </span>
               </div>
-              <div className="mb-1">
+              <div className="mb-2">
                 <span className="text-6xl font-black text-white">10%</span>
               </div>
-              <p className="text-sm mb-5" style={{ color: "#475569" }}>
+              <p className="text-sm mb-8" style={{ color: "#475569" }}>
                 of net profit, paid after you earn
               </p>
               <div
-                className="rounded-xl px-4 py-3 mb-5 text-sm"
+                className="rounded-xl px-4 py-3.5 mb-6 text-sm"
                 style={{ backgroundColor: "rgba(30,41,59,0.8)", border: "1px solid rgba(90,140,220,0.1)", color: "#94a3b8" }}
               >
                 You make{" "}
@@ -965,31 +965,6 @@ export default function FreedomBotPage() {
             </div>
           </div>
 
-          {/* Concierge row */}
-          <div
-            className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 rounded-2xl"
-            style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.15)" }}
-          >
-            <div className="flex items-center gap-3 text-sm">
-              <span className="text-xl">🤝</span>
-              <span style={{ color: "#94a3b8" }}>
-                Need a hand?{" "}
-                <span style={{ color: "#e2e8f0", fontWeight: 600 }}>We'll set it up for you.</span>
-                {" "}One-time concierge setup —{" "}
-                <span style={{ color: "#60a5fa", fontWeight: 700 }}>$29</span>
-              </span>
-            </div>
-            <a
-              href="https://wa.me/message/YOUR_WHATSAPP_LINK"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105 whitespace-nowrap"
-              style={{ backgroundColor: "rgba(37,211,102,0.12)", color: "#22c55e", border: "1px solid rgba(37,211,102,0.25)" }}
-            >
-              <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.549 4.107 1.51 5.843L.057 23.486a.5.5 0 00.614.633l5.77-1.507A11.943 11.943 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22a9.944 9.944 0 01-5.072-1.38l-.362-.215-3.757.981.999-3.648-.236-.375A9.944 9.944 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
-              Chat with us
-            </a>
-          </div>
         </div>
       </section>
 

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   Rocket,
@@ -371,6 +371,7 @@ export default function FreedomBotPage() {
   const { user } = useUser();
   const auth = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [deployOpen, setDeployOpen] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
 
@@ -378,6 +379,14 @@ export default function FreedomBotPage() {
   useEffect(() => {
     if (user && !deployOpen) router.replace("/dashboard");
   }, [user, deployOpen, router]);
+
+  // Auto-open deploy modal when nav "Deploy a Bot" is clicked from any page
+  useEffect(() => {
+    if (searchParams.get("deploy") === "1") {
+      setDeployOpen(true);
+      router.replace("/");
+    }
+  }, [searchParams, router]);
 
   const openDeploy = useCallback(() => setDeployOpen(true), []);
 
@@ -411,64 +420,6 @@ export default function FreedomBotPage() {
       {waitlistBot && (
         <WaitlistModal bot={waitlistBot} onClose={() => setWaitlistBot(null)} />
       )}
-
-      {/* ── Nav ── */}
-      <nav
-        className="sticky top-0 z-40 border-b"
-        style={{
-          backgroundColor: "rgba(8,15,30,0.95)",
-          borderColor: "rgba(90,140,220,0.1)",
-          backdropFilter: "blur(20px)",
-        }}
-      >
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-          {/* Logo */}
-          <div className="flex items-center gap-2.5 flex-shrink-0">
-            <Image src="/freedombot/icon.png" alt="FreedomBot.ai" width={32} height={32} className="rounded-xl object-contain" priority />
-            <span className="font-black text-base tracking-tight" style={{ color: "#f0f4ff" }}>
-              FreedomBot<span style={{ color: "#60a5fa" }}>.ai</span>
-            </span>
-          </div>
-
-          {/* Centre nav links */}
-          <div className="hidden md:flex items-center gap-1">
-            {[
-              { label: "Home", href: "/" },
-              { label: "Performance", href: "/performance" },
-              { label: "Records", href: "/records" },
-              { label: "Pricing", href: "#pricing" },
-            ].map((l) => (
-              <a
-                key={l.label}
-                href={l.href}
-                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:text-white"
-                style={{ color: "#64748b" }}
-              >
-                {l.label}
-              </a>
-            ))}
-          </div>
-
-          {/* Right CTAs */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={handleSignIn}
-              disabled={isSigningIn}
-              className="hidden sm:flex items-center px-4 py-2 text-sm font-medium transition-colors hover:text-white disabled:opacity-70"
-              style={{ color: "#64748b" }}
-            >
-              {isSigningIn ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign In"}
-            </button>
-            <button
-              onClick={openDeploy}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105"
-              style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)", boxShadow: "0 4px 15px rgba(59,130,246,0.3)" }}
-            >
-              <Rocket className="h-3.5 w-3.5" /> Deploy a Bot
-            </button>
-          </div>
-        </div>
-      </nav>
 
       {/* ══════════════════════════════════════════════════════════
           SECTION 1 — HERO

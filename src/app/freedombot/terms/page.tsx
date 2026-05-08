@@ -67,23 +67,6 @@ export default function TermsPage() {
       className="min-h-screen font-sans antialiased"
       style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}
     >
-      {/* Nav */}
-      <nav
-        className="sticky top-0 z-40 border-b"
-        style={{
-          backgroundColor: "rgba(8,15,30,0.85)",
-          borderColor: "rgba(90,140,220,0.12)",
-          backdropFilter: "blur(16px)",
-        }}
-      >
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
-            <Image src="/freedombot/icon.png" alt="FreedomBot.ai" width={32} height={32} className="rounded-xl object-contain" />
-            <span className="font-black text-lg tracking-tight" style={{ color: "#60a5fa" }}>FreedomBot.ai</span>
-          </Link>
-        </div>
-      </nav>
-
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
         <Link
           href="/"

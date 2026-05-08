@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { FreedomBotNav } from "./components/FreedomBotNav";
 
 export const metadata: Metadata = {
   title: "FreedomBot.ai — Trade with full transparency and control",
@@ -21,5 +22,10 @@ export default function FreedomBotLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <>{children}</>;
+  return (
+    <>
+      <FreedomBotNav />
+      {children}
+    </>
+  );
 }

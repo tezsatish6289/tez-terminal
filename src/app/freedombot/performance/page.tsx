@@ -474,24 +474,6 @@ export default function PerformancePage() {
   return (
     <div className="min-h-screen font-sans antialiased overflow-x-hidden" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
 
-      {/* ── Nav ── */}
-      <nav
-        className="sticky top-0 z-40 border-b"
-        style={{ backgroundColor: "rgba(8,15,30,0.92)", borderColor: "rgba(90,140,220,0.12)", backdropFilter: "blur(16px)" }}
-      >
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-          <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
-            <Image src="/freedombot/icon.png" alt="FreedomBot.ai" width={32} height={32} className="rounded-xl object-contain" />
-            <span className="font-black text-lg tracking-tight" style={{ color: "#60a5fa" }}>FreedomBot.ai</span>
-          </Link>
-          <Link href="/" className="flex items-center gap-1.5 text-xs font-bold transition-colors hover:text-white flex-shrink-0" style={{ color: "#64748b" }}>
-            <ArrowLeft className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Back to Home</span>
-            <span className="sm:hidden">Home</span>
-          </Link>
-        </div>
-      </nav>
-
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
 
         {/* ── Hero header ── */}

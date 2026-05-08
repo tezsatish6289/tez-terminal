@@ -799,31 +799,6 @@ export default function FreedomBotPage() {
       <section className="py-16 sm:py-24 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
 
-          {/* Stats row */}
-          <div
-            className="grid grid-cols-2 sm:grid-cols-4 rounded-2xl overflow-hidden mb-16"
-            style={{ border: "1px solid rgba(90,140,220,0.12)", backgroundColor: "#0b1829" }}
-          >
-            {[
-              { value: "500+", label: "Waitlist Members" },
-              { value: "24/7", label: "Markets Monitored" },
-              { value: "4",    label: "Markets Launching" },
-              { value: "100%", label: "On-Chain Verified" },
-            ].map((s, i) => (
-              <div
-                key={s.label}
-                className="text-center py-6 px-4"
-                style={{
-                  borderRight: i < 3 ? "1px solid rgba(90,140,220,0.08)" : "none",
-                  borderBottom: i < 2 ? "1px solid rgba(90,140,220,0.08)" : "none",
-                }}
-              >
-                <p className="text-2xl sm:text-3xl font-black" style={{ color: "#60a5fa" }}>{s.value}</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: "#334155" }}>{s.label}</p>
-              </div>
-            ))}
-          </div>
-
           {/* Testimonials */}
           <div className="text-center mb-10">
             <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "#3b82f6" }}>Voices</p>
@@ -836,7 +811,7 @@ export default function FreedomBotPage() {
             <p className="text-sm" style={{ color: "#475569" }}>No paid reviews. No hype. Just what they said.</p>
           </div>
 
-          <div className="grid sm:grid-cols-3 gap-4">
+          <div className="grid sm:grid-cols-3 gap-4 mb-10">
             {[
               { quote: "I started with a small amount just to test — didn't want to commit big capital before seeing it work. Two weeks in, I'm comfortable adding more.", name: "Tharun K.", tag: "Early User", initial: "T" },
               { quote: "The on-chain verification is what convinced me. I checked a few trades against the records myself. Everything matched.", name: "Aakash S.", tag: "Crypto Trader", initial: "A" },
@@ -855,6 +830,31 @@ export default function FreedomBotPage() {
                     <p className="text-[11px]" style={{ color: "#475569" }}>{t.tag}</p>
                   </div>
                 </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Stats row — below reviews */}
+          <div
+            className="grid grid-cols-2 sm:grid-cols-4 rounded-2xl overflow-hidden"
+            style={{ border: "1px solid rgba(90,140,220,0.12)", backgroundColor: "#0b1829" }}
+          >
+            {[
+              { value: "500+", label: "Waitlist Members" },
+              { value: "24/7", label: "Markets Monitored" },
+              { value: "4",    label: "Markets Launching" },
+              { value: "100%", label: "On-Chain Verified" },
+            ].map((s, i) => (
+              <div
+                key={s.label}
+                className="text-center py-6 px-4"
+                style={{
+                  borderRight: i < 3 ? "1px solid rgba(90,140,220,0.08)" : "none",
+                  borderBottom: i < 2 ? "1px solid rgba(90,140,220,0.08)" : "none",
+                }}
+              >
+                <p className="text-2xl sm:text-3xl font-black" style={{ color: "#60a5fa" }}>{s.value}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: "#334155" }}>{s.label}</p>
               </div>
             ))}
           </div>

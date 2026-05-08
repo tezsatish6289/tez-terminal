@@ -1,32 +1,35 @@
 'use client';
-    
-import { useState, useEffect } from 'react';
+
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   DocumentReference,
-  onSnapshot,
   DocumentData,
   FirestoreError,
-  DocumentSnapshot,
+  getDoc,
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
-/** Utility type to add an 'id' field to a given type T. */
 type WithId<T> = T & { id: string };
 
 /**
  * Interface for the return value of the useDoc hook.
- * @template T Type of the document data.
+ *
+ * NOTE: this hook performs a one-shot `getDoc` on mount (and whenever the
+ * memoized ref changes). It does NOT subscribe to real-time updates —
+ * call `refetch()` from a refresh button or on focus to refresh the data.
+ *
+ * Real-time `onSnapshot` was removed to cut Firestore read costs: every
+ * listener × every cron write to a watched doc was being billed. Clients
+ * now refresh pages (or call `refetch`) to see new data.
  */
 export interface UseDocResult<T> {
-  data: WithId<T> | null; // Document data with ID, or null.
-  isLoading: boolean;       // True if loading.
-  error: FirestoreError | Error | null; // Error object, or null.
+  data: WithId<T> | null;
+  isLoading: boolean;
+  error: FirestoreError | Error | null;
+  refetch: () => Promise<void>;
 }
 
-/**
- * React hook to subscribe to a single Firestore document in real-time.
- */
 export function useDoc<T = any>(
   memoizedDocRef: DocumentReference<DocumentData> | null | undefined,
 ): UseDocResult<T> {
@@ -36,49 +39,50 @@ export function useDoc<T = any>(
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
-  useEffect(() => {
-    if (!memoizedDocRef) {
+  // Keep latest ref for refetch() so caller doesn't need to re-create it.
+  const refRef = useRef(memoizedDocRef);
+  refRef.current = memoizedDocRef;
+
+  const fetchOnce = useCallback(async () => {
+    const ref = refRef.current;
+    if (!ref) {
       setData(null);
       setIsLoading(false);
       setError(null);
       return;
     }
-
     setIsLoading(true);
     setError(null);
-
-    const unsubscribe = onSnapshot(
-      memoizedDocRef,
-      (snapshot: DocumentSnapshot<DocumentData>) => {
-        if (snapshot.exists()) {
-          setData({ ...(snapshot.data() as T), id: snapshot.id });
-        } else {
-          setData(null);
-        }
-        setError(null);
-        setIsLoading(false);
-      },
-      (serverError: FirestoreError) => {
-        if (serverError.code === 'permission-denied') {
-          const contextualError = new FirestorePermissionError({
-            operation: 'get',
-            path: memoizedDocRef.path,
-          });
-
-          setError(contextualError);
-          errorEmitter.emit('permission-error', contextualError);
-        } else {
-          setError(serverError);
-          console.error("Firestore useDoc error:", serverError);
-        }
-        
+    try {
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        setData({ ...(snap.data() as T), id: snap.id });
+      } else {
         setData(null);
-        setIsLoading(false);
       }
-    );
+    } catch (e) {
+      const fe = e as FirestoreError;
+      if (fe?.code === 'permission-denied') {
+        const contextualError = new FirestorePermissionError({
+          operation: 'get',
+          path: ref.path,
+        });
+        setError(contextualError);
+        errorEmitter.emit('permission-error', contextualError);
+      } else {
+        setError(fe ?? (e as Error));
+        // eslint-disable-next-line no-console
+        console.error('Firestore useDoc error:', e);
+      }
+      setData(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-    return () => unsubscribe();
-  }, [memoizedDocRef]);
+  useEffect(() => {
+    fetchOnce();
+  }, [memoizedDocRef, fetchOnce]);
 
-  return { data, isLoading, error };
+  return { data, isLoading, error, refetch: fetchOnce };
 }

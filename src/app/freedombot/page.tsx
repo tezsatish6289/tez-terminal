@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
-  Bot,
   Rocket,
   Loader2,
   CheckCircle2,
@@ -18,6 +17,7 @@ import {
   Plus,
   Minus,
   AlertTriangle,
+  TrendingUp,
 } from "lucide-react";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
@@ -416,45 +416,55 @@ export default function FreedomBotPage() {
       <nav
         className="sticky top-0 z-40 border-b"
         style={{
-          backgroundColor: "rgba(8,15,30,0.92)",
-          borderColor: "rgba(90,140,220,0.12)",
-          backdropFilter: "blur(16px)",
+          backgroundColor: "rgba(8,15,30,0.95)",
+          borderColor: "rgba(90,140,220,0.1)",
+          backdropFilter: "blur(20px)",
         }}
       >
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <Image
-              src="/freedombot/icon.png"
-              alt="FreedomBot.ai"
-              width={32}
-              height={32}
-              className="rounded-xl object-contain"
-              priority
-            />
-            <span className="font-black text-lg tracking-tight" style={{ color: "#60a5fa" }}>
-              FreedomBot.ai
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+          {/* Logo */}
+          <div className="flex items-center gap-2.5 flex-shrink-0">
+            <Image src="/freedombot/icon.png" alt="FreedomBot.ai" width={32} height={32} className="rounded-xl object-contain" priority />
+            <span className="font-black text-base tracking-tight" style={{ color: "#f0f4ff" }}>
+              FreedomBot<span style={{ color: "#60a5fa" }}>.ai</span>
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={openDeploy}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all hover:scale-105"
-              style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
-            >
-              <Rocket className="h-3.5 w-3.5" /> Deploy a Bot
-            </button>
+          {/* Centre nav links */}
+          <div className="hidden md:flex items-center gap-1">
+            {[
+              { label: "Home", href: "/" },
+              { label: "Performance", href: "/performance" },
+              { label: "Records", href: "/records" },
+              { label: "Pricing", href: "#pricing" },
+            ].map((l) => (
+              <a
+                key={l.label}
+                href={l.href}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:text-white"
+                style={{ color: "#64748b" }}
+              >
+                {l.label}
+              </a>
+            ))}
+          </div>
+
+          {/* Right CTAs */}
+          <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={handleSignIn}
               disabled={isSigningIn}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105 disabled:opacity-70"
-              style={{
-                border: "1px solid rgba(90,140,220,0.3)",
-                color: "#93c5fd",
-                backgroundColor: "rgba(37,99,235,0.08)",
-              }}
+              className="hidden sm:flex items-center px-4 py-2 text-sm font-medium transition-colors hover:text-white disabled:opacity-70"
+              style={{ color: "#64748b" }}
             >
-              {isSigningIn ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Sign In"}
+              {isSigningIn ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign In"}
+            </button>
+            <button
+              onClick={openDeploy}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-105"
+              style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)", boxShadow: "0 4px 15px rgba(59,130,246,0.3)" }}
+            >
+              <Rocket className="h-3.5 w-3.5" /> Deploy a Bot
             </button>
           </div>
         </div>
@@ -486,87 +496,60 @@ export default function FreedomBotPage() {
           />
         </div>
 
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-20 pb-16 sm:pt-32 sm:pb-24 text-center">
-          {/* Icon */}
+        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 pt-24 pb-20 sm:pt-36 sm:pb-28 text-center">
+          {/* Live badge */}
           <div className="flex justify-center mb-8">
             <div
-              className="relative p-1 rounded-3xl"
-              style={{ background: "linear-gradient(135deg, rgba(37,99,235,0.4), rgba(96,165,250,0.2))" }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium"
+              style={{ backgroundColor: "rgba(15,23,42,0.8)", border: "1px solid rgba(90,140,220,0.2)", color: "#94a3b8" }}
             >
-              <Image
-                src="/freedombot/icon.png"
-                alt="FreedomBot"
-                width={96}
-                height={96}
-                className="rounded-2xl object-contain h-24 w-24"
-                priority
-              />
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              {stats ? `${stats.runningDays} days live` : "Live now"} · audit on-chain
             </div>
           </div>
 
-          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tighter leading-[1.05] mb-6">
-            Don&apos;t trust trading bots.{" "}
+          <h1 className="text-5xl sm:text-7xl lg:text-8xl font-black tracking-tighter leading-[1.0] mb-6">
+            <span className="block text-white">Don&apos;t trust trading bots.</span>
             <span
-              className="bg-clip-text text-transparent"
-              style={{
-                backgroundImage:
-                  "linear-gradient(135deg, #3b82f6 0%, #60a5fa 50%, #93c5fd 100%)",
-              }}
+              className="block bg-clip-text text-transparent"
+              style={{ backgroundImage: "linear-gradient(135deg, #3b82f6 0%, #60a5fa 60%, #93c5fd 100%)" }}
             >
               Verify every trade.
             </span>
           </h1>
 
-          <p
-            className="text-lg sm:text-xl font-medium max-w-2xl mx-auto leading-relaxed mb-8"
-            style={{ color: "#94a3b8" }}
-          >
+          <p className="text-base sm:text-lg max-w-xl mx-auto leading-relaxed mb-8" style={{ color: "#64748b" }}>
             FreedomBot is an algorithmic trading system where every trade is recorded on-chain —
-            so you can{" "}
-            <span className="text-white font-semibold">audit performance yourself</span>,
-            anytime.
+            so you can <span className="font-semibold" style={{ color: "#e2e8f0" }}>audit performance yourself</span>, anytime.
           </p>
 
-          {/* Trust bullets */}
-          <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 mb-10">
-            {[
-              "Your capital stays in your account",
-              "Stop anytime",
-              "No upfront fees",
-            ].map((b) => (
-              <div key={b} className="flex items-center gap-2 text-sm" style={{ color: "#64748b" }}>
-                <CheckCircle2 className="h-4 w-4 flex-shrink-0" style={{ color: "#34d399" }} />
+          {/* Trust bullets — inline */}
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-10">
+            {["Your capital stays in your account", "Stop anytime", "No upfront fees"].map((b) => (
+              <div key={b} className="flex items-center gap-1.5 text-sm" style={{ color: "#64748b" }}>
+                <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "#34d399" }} />
                 {b}
               </div>
             ))}
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <button
               onClick={openDeploy}
-              className="h-14 px-10 rounded-2xl font-bold text-base text-white flex items-center justify-center gap-2 transition-all hover:scale-105 shadow-lg"
-              style={{
-                background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",
-                boxShadow: "0 8px 30px rgba(59,130,246,0.35)",
-              }}
+              className="h-12 px-8 rounded-full font-bold text-sm text-white flex items-center gap-2 transition-all hover:scale-105"
+              style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)", boxShadow: "0 8px 25px rgba(59,130,246,0.4)" }}
             >
-              <Rocket className="h-5 w-5" />
-              Start with $100
+              <Rocket className="h-4 w-4" /> Start with $100 <ArrowRight className="h-4 w-4" />
             </button>
             <a
-              href="/performance"
-              className="h-14 px-10 rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-all hover:scale-105"
-              style={{
-                border: "1px solid rgba(90,140,220,0.3)",
-                color: "#93c5fd",
-                backgroundColor: "rgba(37,99,235,0.08)",
-              }}
+              href="/records"
+              className="h-12 px-8 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105"
+              style={{ border: "1px solid rgba(90,140,220,0.25)", color: "#93c5fd", backgroundColor: "rgba(37,99,235,0.06)" }}
             >
-              <ExternalLink className="h-5 w-5" />
-              View Live Trades
+              <ExternalLink className="h-4 w-4" /> View Live Trades
             </a>
           </div>
-          <p className="text-xs mt-6" style={{ color: "#334155" }}>
+          <p className="text-xs mt-6" style={{ color: "#1e293b" }}>
             Trading involves risk. Past performance does not guarantee future results.
           </p>
         </div>
@@ -602,112 +585,71 @@ export default function FreedomBotPage() {
             </p>
           </div>
 
-          {/* ── Mobile: card layout (< sm) ── */}
-          <div className="sm:hidden space-y-3">
-            {/* Crypto Bot card */}
-            <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(90,140,220,0.15)", backgroundColor: "#0a1628" }}>
-              <div className="flex items-center justify-between px-4 py-3.5" style={{ background: "linear-gradient(90deg, rgba(37,99,235,0.08), transparent)", borderBottom: "1px solid rgba(90,140,220,0.1)" }}>
-                <div className="flex items-center gap-2.5">
-                  <span className="text-xl">₿</span>
-                  <p className="text-sm font-black text-white">Crypto Bot</p>
+          {/* ── 4-card grid (works on all screen sizes) ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+            {/* Crypto Bot — Live */}
+            <div className="rounded-2xl p-5 flex flex-col gap-4" style={{ backgroundColor: "#0d1b2e", border: "1px solid rgba(90,140,220,0.2)" }}>
+              <div className="flex items-start justify-between">
+                <span className="text-2xl">₿</span>
+                <span className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full" style={{ backgroundColor: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.25)" }}>
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live
+                </span>
+              </div>
+              <div>
+                <p className="text-base font-black text-white">Crypto Bot</p>
+                <p className="text-xs mt-0.5" style={{ color: "#475569" }}>Running · {stats ? `${stats.runningDays} days` : "…"}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>Total Return</p>
+                  <p className="text-sm font-black" style={{ color: "#34d399" }}>{stats ? fmt(stats.totalReturnPct) : "…"}</p>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="h-2 w-2 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-                  <span className="text-xs font-bold" style={{ color: "#22c55e" }}>Live</span>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>Monthly</p>
+                  <p className="text-sm font-black" style={{ color: "#60a5fa" }}>
+                    {stats ? fmt(stats.profitPerMonth) : "…"}
+                    {stats && stats.runningDays < 30 && <span className="ml-1 text-[9px]" style={{ color: "#475569" }}>est.</span>}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>Start</p>
+                  <p className="text-sm font-bold text-white">{stats?.startingCapital ? `$${stats.startingCapital.toFixed(0)}` : "…"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>Current</p>
+                  <p className="text-sm font-bold text-white">{stats?.currentCapital ? `$${stats.currentCapital.toFixed(2)}` : "…"}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-0 px-0" style={{ borderBottom: "1px solid rgba(90,140,220,0.08)" }}>
-                {[
-                  { label: "Running",        value: stats ? `${stats.runningDays} Days` : "…",  color: "#f0f4ff" },
-                  { label: "Total Return",   value: stats ? fmt(stats.totalReturnPct) : "…",    color: "#34d399" },
-                  { label: "Start Capital",  value: stats?.startingCapital ? `$${stats.startingCapital.toFixed(2)}` : "…", color: "#f0f4ff" },
-                  { label: "Current Capital",value: stats?.currentCapital ? `$${stats.currentCapital.toFixed(2)}` : "…",   color: "#60a5fa" },
-                ].map((s, i, arr) => (
-                  <div key={s.label} className="p-4" style={{ borderRight: i % 2 === 0 ? "1px solid rgba(90,140,220,0.06)" : "none", borderBottom: i < 2 ? "1px solid rgba(90,140,220,0.06)" : "none" }}>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>{s.label}</p>
-                    <p className="text-base font-black" style={{ color: s.color }}>{s.value}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="px-4 py-3 space-y-2">
-                <button onClick={openDeploy} className="w-full py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-1.5 transition-all" style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}>
-                  <Rocket className="h-4 w-4" /> Deploy Now
-                </button>
-                <a href="/performance" className="block text-center text-xs font-bold transition-colors hover:text-blue-300 py-1" style={{ color: "#475569" }}>
-                  See Performance Details →
-                </a>
-              </div>
+              <a href="/performance" className="text-xs font-bold mt-auto transition-colors hover:text-blue-300" style={{ color: "#3b82f6" }}>
+                See details →
+              </a>
             </div>
 
-            {/* Coming soon cards */}
-            {[{ emoji: "🇮🇳", name: "Indian Stock Bot" }, { emoji: "🥇", name: "Gold Bot" }, { emoji: "🥈", name: "Silver Bot" }].map((bot) => (
-              <div key={bot.name} className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(90,140,220,0.1)", backgroundColor: "#0a1628", opacity: 0.75 }}>
-                <div className="flex items-center justify-between px-4 py-3.5">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-xl">{bot.emoji}</span>
-                    <p className="text-sm font-black text-white">{bot.name}</p>
-                  </div>
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider" style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)" }}>Coming Soon</span>
+            {/* Coming Soon cards */}
+            {[
+              { emoji: "🇮🇳", name: "Indian Stock Bot" },
+              { emoji: "🥇", name: "Gold Bot" },
+              { emoji: "🥈", name: "Silver Bot" },
+            ].map((bot) => (
+              <div key={bot.name} className="rounded-2xl p-5 flex flex-col gap-4" style={{ backgroundColor: "#0d1b2e", border: "1px solid rgba(90,140,220,0.12)", opacity: 0.75 }}>
+                <div className="flex items-start justify-between">
+                  <span className="text-2xl">{bot.emoji}</span>
+                  <span className="text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider" style={{ backgroundColor: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>Coming Soon</span>
                 </div>
-                <div className="px-4 pb-3">
-                  <button onClick={() => setWaitlistBot(bot.name)} className="w-full py-2.5 rounded-xl text-sm font-bold transition-all" style={{ border: "1px solid rgba(90,140,220,0.25)", color: "#93c5fd", backgroundColor: "rgba(37,99,235,0.06)" }}>Join Waitlist</button>
+                <div>
+                  <p className="text-base font-black text-white">{bot.name}</p>
+                  <p className="text-xs mt-0.5" style={{ color: "#334155" }}>Launching soon</p>
                 </div>
-              </div>
-            ))}
-          </div>
-
-          {/* ── Desktop: table (sm+) ── */}
-          <div className="hidden sm:block overflow-x-auto rounded-2xl" style={{ border: "1px solid rgba(90,140,220,0.15)" }}>
-          <div className="min-w-[780px]">
-            {/* Header row */}
-            <div
-              className="grid grid-cols-9 gap-0 px-5 py-4"
-              style={{ backgroundColor: "#0a1628", borderBottom: "1px solid rgba(90,140,220,0.12)" }}
-            >
-              {[["Bot",""],["Status",""],["Running",""],["Start","Capital"],["Current","Capital"],["Total","Return"],["Monthly","Return"],["Annual","Return"],["",""]].map(([l1,l2],i) => (
-                <div key={i} className="flex flex-col gap-0.5">
-                  <span className="text-[10px] font-bold uppercase tracking-widest leading-tight" style={{ color: "#475569" }}>{l1}</span>
-                  {l2 && <span className="text-[10px] font-bold uppercase tracking-widest leading-tight" style={{ color: "#475569" }}>{l2}</span>}
-                </div>
-              ))}
-            </div>
-
-            {/* Crypto Bot row */}
-            <div
-              className="grid grid-cols-9 gap-0 px-5 py-4 items-center"
-              style={{ background: "linear-gradient(90deg, rgba(37,99,235,0.06) 0%, transparent 60%)", borderBottom: "1px solid rgba(90,140,220,0.1)" }}
-            >
-              <div className="flex items-center gap-2.5"><span className="text-2xl">₿</span><p className="text-sm font-black text-white">Crypto Bot</p></div>
-              <div className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} /><span className="text-xs font-bold" style={{ color: "#22c55e" }}>Live</span></div>
-              <div><span className="text-sm font-bold text-white">{stats ? `${stats.runningDays} Days` : "…"}</span></div>
-              <div><span className="text-sm font-bold text-white">{stats?.startingCapital ? `$${stats.startingCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…"}</span></div>
-              <div><span className="text-sm font-bold text-white">{stats?.currentCapital ? `$${stats.currentCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…"}</span></div>
-              <div><span className="text-sm font-black" style={{ color: "#34d399" }}>{stats ? fmt(stats.totalReturnPct) : "…"}</span></div>
-              <div className="flex flex-col gap-1">
-                <span className="text-sm font-bold" style={{ color: "#7aa0c4" }}>{stats ? fmt(stats.profitPerMonth) : "…"}</span>
-                {stats && stats.runningDays < 30 && <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded self-start" style={{ backgroundColor: "rgba(100,116,139,0.15)", color: "#64748b", border: "1px solid rgba(100,116,139,0.25)" }}>est.</span>}
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-sm font-bold" style={{ color: "#8f84c0" }}>{stats ? fmt(stats.profitPerYear) : "…"}</span>
-                {stats && stats.runningDays < 365 && <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded self-start" style={{ backgroundColor: "rgba(100,116,139,0.15)", color: "#64748b", border: "1px solid rgba(100,116,139,0.25)" }}>est.</span>}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <button onClick={openDeploy} className="px-4 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all hover:scale-105" style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}>
-                  <Rocket className="h-3.5 w-3.5" /> Deploy
+                <button
+                  onClick={() => setWaitlistBot(bot.name)}
+                  className="mt-auto w-full py-2 rounded-xl text-xs font-bold transition-all hover:scale-105"
+                  style={{ border: "1px solid rgba(90,140,220,0.2)", color: "#64748b", backgroundColor: "rgba(15,23,42,0.6)" }}
+                >
+                  Join waitlist
                 </button>
               </div>
-            </div>
-
-            {/* Coming soon rows */}
-            {[{ emoji: "🇮🇳", name: "Indian Stock Bot" }, { emoji: "🥇", name: "Gold Bot" }, { emoji: "🥈", name: "Silver Bot" }].map((bot, i) => (
-              <div key={bot.name} className="grid grid-cols-9 gap-0 px-5 py-4 items-center" style={{ borderBottom: i < 2 ? "1px solid rgba(90,140,220,0.08)" : "none", opacity: 0.7 }}>
-                <div className="flex items-center gap-2.5"><span className="text-2xl">{bot.emoji}</span><p className="text-sm font-black text-white">{bot.name}</p></div>
-                <div><span className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider" style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)" }}>Coming Soon</span></div>
-                {["—","—","—","—","—","—"].map((d,j) => <div key={j} className="text-sm font-medium" style={{ color: "#334155" }}>{d}</div>)}
-                <div><button onClick={() => setWaitlistBot(bot.name)} className="px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105" style={{ border: "1px solid rgba(90,140,220,0.25)", color: "#93c5fd", backgroundColor: "rgba(37,99,235,0.06)" }}>Join Waitlist</button></div>
-              </div>
             ))}
-          </div>
           </div>
 
         </div>
@@ -716,246 +658,193 @@ export default function FreedomBotPage() {
       {/* ══════════════════════════════════════════════════════════
           SECTION 3 — TRUST / BLOCKCHAIN
       ══════════════════════════════════════════════════════════ */}
-      <section
-        className="relative py-20 sm:py-28 overflow-hidden"
-      >
-        {/* Background glow */}
-        <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+      <section className="py-16 sm:py-20 px-4 sm:px-6">
+        <div className="max-w-6xl mx-auto">
           <div
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] rounded-full blur-[120px]"
-            style={{ backgroundColor: "rgba(16,185,129,0.05)" }}
-          />
-        </div>
-
-        <div className="relative max-w-3xl mx-auto px-4 sm:px-6 text-center">
-          {/* Badge */}
-          <div
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest mb-8"
-            style={{
-              backgroundColor: "rgba(16,185,129,0.08)",
-              border: "1px solid rgba(16,185,129,0.2)",
-              color: "#34d399",
-            }}
+            className="rounded-3xl p-8 sm:p-12 grid md:grid-cols-2 gap-10 items-center"
+            style={{ backgroundColor: "#0b1829", border: "1px solid rgba(90,140,220,0.15)" }}
           >
-            <ShieldCheck className="h-3.5 w-3.5" />
-            Fully Transparent
-          </div>
-
-          {/* Headline */}
-          <h2 className="text-4xl sm:text-6xl font-black tracking-tighter leading-[0.95] mb-6">
-            Don&apos;t trust us.{" "}
-            <span
-              className="bg-clip-text text-transparent"
-              style={{ backgroundImage: "linear-gradient(135deg, #34d399 0%, #6ee7b7 100%)" }}
-            >
-              Verify everything.
-            </span>
-          </h2>
-
-          {/* Subtext */}
-          <p className="text-base sm:text-lg leading-relaxed mb-6 max-w-xl mx-auto" style={{ color: "#94a3b8" }}>
-            Every trade is recorded on-chain — entry, exit, and result.
-            No edits. No deletions. Verifiable by anyone, anytime.
-          </p>
-
-          <p className="text-base sm:text-lg font-bold mb-10" style={{ color: "#e2e8f0" }}>
-            If you can&apos;t verify it, you shouldn&apos;t trust it.
-          </p>
-
-          {/* Decorative chain nodes */}
-          <div className="flex items-center justify-center gap-3 mb-10">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div
-                  className="h-3 w-3 rounded-full"
-                  style={{
-                    backgroundColor: i % 2 === 0 ? "rgba(52,211,153,0.5)" : "rgba(52,211,153,0.2)",
-                    boxShadow: i % 2 === 0 ? "0 0 10px rgba(52,211,153,0.4)" : "none",
-                  }}
-                />
-                {i < 4 && (
-                  <div
-                    className="h-px w-8"
-                    style={{ backgroundColor: "rgba(52,211,153,0.2)" }}
-                  />
-                )}
+            {/* Left — text */}
+            <div>
+              <div
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium mb-6"
+                style={{ backgroundColor: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", color: "#34d399" }}
+              >
+                <ShieldCheck className="h-3 w-3" /> Fully transparent
               </div>
-            ))}
-          </div>
+              <h2 className="text-3xl sm:text-5xl font-black tracking-tighter leading-[1.0] mb-5">
+                Don&apos;t trust us.{" "}
+                <span className="bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(135deg, #3b82f6, #60a5fa)" }}>
+                  Verify everything.
+                </span>
+              </h2>
+              <p className="text-sm leading-relaxed mb-4" style={{ color: "#64748b" }}>
+                Every trade is recorded on-chain — entry, exit, and result. No edits. No deletions. Verifiable by anyone, anytime.
+              </p>
+              <p className="text-sm font-semibold mb-8" style={{ color: "#e2e8f0" }}>
+                If you can&apos;t verify it, you shouldn&apos;t trust it.
+              </p>
+              <a
+                href="/records"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105"
+                style={{ backgroundColor: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.3)", color: "#60a5fa" }}
+              >
+                Verify Records <ArrowRight className="h-4 w-4" />
+              </a>
+            </div>
 
-          {/* CTA */}
-          <a
-            href="/records"
-            className="inline-flex items-center gap-2.5 h-14 px-10 rounded-2xl font-bold text-base transition-all hover:scale-105"
-            style={{
-              border: "1px solid rgba(52,211,153,0.35)",
-              color: "#34d399",
-              backgroundColor: "rgba(16,185,129,0.06)",
-              boxShadow: "0 0 30px rgba(16,185,129,0.08)",
-            }}
-          >
-            <ShieldCheck className="h-5 w-5" />
-            Verify Records
-            <ExternalLink className="h-4 w-4 opacity-60" />
-          </a>
+            {/* Right — mock transaction card */}
+            <div
+              className="rounded-2xl p-5 font-mono text-xs"
+              style={{ backgroundColor: "#060e1a", border: "1px solid rgba(90,140,220,0.12)" }}
+            >
+              <div className="flex items-center justify-between mb-4" style={{ borderBottom: "1px solid rgba(90,140,220,0.08)", paddingBottom: "10px" }}>
+                <span style={{ color: "#475569" }}>tx · solana</span>
+                <span className="flex items-center gap-1 text-xs font-bold" style={{ color: "#34d399" }}>
+                  verified <ShieldCheck className="h-3 w-3" />
+                </span>
+              </div>
+              {[
+                { label: "entry",   value: "$3.10",     color: "#e2e8f0" },
+                { label: "exit",    value: "$3.16",     color: "#e2e8f0" },
+                { label: "pnl",     value: "+$0.06",    color: "#34d399" },
+                { label: "size",    value: "$51.25",    color: "#e2e8f0" },
+                { label: "balance", value: stats?.currentCapital ? `$${stats.currentCapital.toFixed(2)}` : "$1,024.91", color: "#e2e8f0" },
+              ].map((row) => (
+                <div key={row.label} className="flex items-center justify-between py-1.5" style={{ borderBottom: "1px solid rgba(90,140,220,0.05)" }}>
+                  <span style={{ color: "#475569" }}>{row.label}</span>
+                  <span style={{ color: row.color }}>{row.value}</span>
+                </div>
+              ))}
+              <p className="mt-4 break-all text-[10px]" style={{ color: "#1d4ed8" }}>
+                3ipprkAim8wjNd9AB7o9JAh6ndYKkxCjt852z2Q62xXsmo8eRN%1bnbcJs2piy76W0h8QwvrisVyOsR0eqgsNRU
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* ══════════════════════════════════════════════════════════
           SECTION 3b — RISK DISCLOSURE
       ══════════════════════════════════════════════════════════ */}
-      <section
-        className="py-20 sm:py-24"
-        style={{ borderTop: "1px solid rgba(90,140,220,0.08)" }}
-      >
-        <div className="max-w-3xl mx-auto px-4 sm:px-6">
-          <div
-            className="rounded-2xl px-8 py-10"
-            style={{ backgroundColor: "#0a1628", border: "1px solid rgba(251,191,36,0.15)" }}
-          >
-            <div className="flex items-center gap-3 mb-6">
-              <div
-                className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor: "rgba(251,191,36,0.1)" }}
-              >
-                <AlertTriangle className="h-5 w-5" style={{ color: "#fbbf24" }} />
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-                Let&apos;s talk about risk
-              </h2>
-            </div>
-
-            <p className="text-base mb-6 leading-relaxed" style={{ color: "#94a3b8" }}>
+      <section className="py-16 sm:py-24 px-4 sm:px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "#3b82f6" }}>Honest about risk</p>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4">
+              Let&apos;s talk about{" "}
+              <span className="bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(135deg, #3b82f6, #60a5fa)" }}>risk</span>
+            </h2>
+            <p className="text-sm max-w-xl mx-auto" style={{ color: "#64748b" }}>
               Trading is not guaranteed profit. Losses happen — and we want you to know that before you start.
             </p>
+          </div>
 
-            <ul className="space-y-3 mb-8">
-              {[
-                "The bot can have losing days or weeks",
-                "Market volatility affects performance",
-                "Past returns do not guarantee future results",
-              ].map((r) => (
-                <li key={r} className="flex items-start gap-3 text-sm" style={{ color: "#94a3b8" }}>
-                  <span className="mt-0.5 flex-shrink-0 font-black" style={{ color: "#fbbf24" }}>—</span>
-                  {r}
-                </li>
-              ))}
-            </ul>
-
-            <p className="text-base font-semibold mb-8" style={{ color: "#e2e8f0" }}>
-              What we promise is not profit —{" "}
-              <span style={{ color: "#34d399" }}>we promise transparency and control.</span>
-            </p>
-
-            <div
-              className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-6"
-              style={{ borderTop: "1px solid rgba(251,191,36,0.1)" }}
-            >
-              <div>
-                <p className="text-sm font-bold text-white mb-0.5">See how we manage risk</p>
-                <p className="text-xs" style={{ color: "#64748b" }}>
-                  Entry rules, stop-loss logic, position sizing — fully documented
-                </p>
-              </div>
-              <Link
-                href="/performance"
-                className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105 whitespace-nowrap"
-                style={{
-                  backgroundColor: "rgba(251,191,36,0.08)",
-                  border: "1px solid rgba(251,191,36,0.2)",
-                  color: "#fbbf24",
-                }}
+          {/* 3 cards */}
+          <div className="grid sm:grid-cols-3 gap-4 mb-6">
+            {[
+              { icon: <AlertTriangle className="h-5 w-5" style={{ color: "#f59e0b" }} />, iconBg: "rgba(245,158,11,0.1)", title: "Losing periods are normal", desc: "The bot can have losing days or weeks. Markets aren't linear and neither are returns." },
+              { icon: <TrendingUp className="h-5 w-5" style={{ color: "#3b82f6" }} />, iconBg: "rgba(59,130,246,0.1)", title: "Volatility affects performance", desc: "Major macro events, flash moves and regime shifts all show up in equity curves." },
+              { icon: <ShieldCheck className="h-5 w-5" style={{ color: "#f59e0b" }} />, iconBg: "rgba(245,158,11,0.1)", title: "No future guarantees", desc: "Past performance — even verified on-chain — does not guarantee future results." },
+            ].map((card) => (
+              <div
+                key={card.title}
+                className="rounded-2xl p-6"
+                style={{ backgroundColor: "#0b1829", border: "1px solid rgba(90,140,220,0.12)" }}
               >
-                How it works
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
+                <div className="h-9 w-9 rounded-xl flex items-center justify-center mb-4" style={{ backgroundColor: card.iconBg }}>
+                  {card.icon}
+                </div>
+                <p className="text-sm font-bold text-white mb-2">{card.title}</p>
+                <p className="text-xs leading-relaxed" style={{ color: "#64748b" }}>{card.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Bottom banner */}
+          <div
+            className="rounded-2xl px-6 py-5"
+            style={{ backgroundColor: "#0b1829", border: "1px solid rgba(90,140,220,0.12)" }}
+          >
+            <p className="text-base font-semibold mb-1" style={{ color: "#e2e8f0" }}>
+              What we promise is not profit —{" "}
+              <span style={{ color: "#3b82f6" }}>we promise transparency and control.</span>
+            </p>
+            <p className="text-xs mb-3" style={{ color: "#475569" }}>
+              Entry rules, stop-loss logic, position sizing — fully documented.
+            </p>
+            <Link
+              href="/performance"
+              className="inline-flex items-center gap-1.5 text-sm font-bold transition-colors hover:opacity-80"
+              style={{ color: "#3b82f6" }}
+            >
+              How it works <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
         </div>
       </section>
 
       {/* ══════════════════════════════════════════════════════════
-          SECTION 4 — SOCIAL PROOF
+          SECTION 4 — STATS + SOCIAL PROOF
       ══════════════════════════════════════════════════════════ */}
-      <section
-        className="py-20 sm:py-28"
-        style={{ borderTop: "1px solid rgba(90,140,220,0.08)" }}
-      >
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4">
-              Early users.{" "}
-              <span
-                className="bg-clip-text text-transparent"
-                style={{ backgroundImage: "linear-gradient(135deg, #3b82f6, #93c5fd)" }}
-              >
-                Real feedback.
-              </span>
-            </h2>
-            <p className="text-base" style={{ color: "#64748b" }}>
-              No paid reviews. No hype. Just what they said.
-            </p>
-          </div>
+      <section className="py-16 sm:py-24 px-4 sm:px-6">
+        <div className="max-w-6xl mx-auto">
 
-          {/* Stat pills */}
-          <div className="flex flex-wrap justify-center gap-5 mb-14">
+          {/* Stats row */}
+          <div
+            className="grid grid-cols-2 sm:grid-cols-4 rounded-2xl overflow-hidden mb-16"
+            style={{ border: "1px solid rgba(90,140,220,0.12)", backgroundColor: "#0b1829" }}
+          >
             {[
-              { value: "500+", label: "Waitlist members" },
-              { value: "24/7", label: "Markets monitored" },
-              { value: "4", label: "Markets launching" },
-              { value: "100%", label: "On-chain verified" },
-            ].map((s) => (
+              { value: "500+", label: "Waitlist Members" },
+              { value: "24/7", label: "Markets Monitored" },
+              { value: "4",    label: "Markets Launching" },
+              { value: "100%", label: "On-Chain Verified" },
+            ].map((s, i) => (
               <div
                 key={s.label}
-                className="text-center px-8 py-5 rounded-2xl"
-                style={{ border: "1px solid rgba(90,140,220,0.12)", backgroundColor: "#0a1628" }}
+                className="text-center py-6 px-4"
+                style={{
+                  borderRight: i < 3 ? "1px solid rgba(90,140,220,0.08)" : "none",
+                  borderBottom: i < 2 ? "1px solid rgba(90,140,220,0.08)" : "none",
+                }}
               >
-                <p className="text-3xl font-black text-white">{s.value}</p>
-                <p
-                  className="text-[10px] font-bold uppercase tracking-widest mt-1"
-                  style={{ color: "#475569" }}
-                >
-                  {s.label}
-                </p>
+                <p className="text-2xl sm:text-3xl font-black" style={{ color: "#60a5fa" }}>{s.value}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: "#334155" }}>{s.label}</p>
               </div>
             ))}
           </div>
 
-          {/* Testimonial placeholder cards */}
-          <div className="grid sm:grid-cols-3 gap-4 max-w-4xl mx-auto">
+          {/* Testimonials */}
+          <div className="text-center mb-10">
+            <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "#3b82f6" }}>Voices</p>
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-3">
+              Early users.{" "}
+              <span className="bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(135deg, #3b82f6, #93c5fd)" }}>
+                Real feedback.
+              </span>
+            </h2>
+            <p className="text-sm" style={{ color: "#475569" }}>No paid reviews. No hype. Just what they said.</p>
+          </div>
+
+          <div className="grid sm:grid-cols-3 gap-4">
             {[
-              {
-                quote: "I started with a small amount just to test — didn't want to commit big capital before seeing it work. Two weeks in, I'm comfortable adding more.",
-                name: "Tharun K.",
-                tag: "Early User",
-              },
-              {
-                quote: "The on-chain verification is what convinced me. I checked a few trades against the records myself. Everything matched.",
-                name: "Aakash S.",
-                tag: "Crypto Trader",
-              },
-              {
-                quote: "Setup took about 4 minutes. The guided flow is straightforward — just followed the steps. No technical knowledge needed.",
-                name: "Abhijeet P.",
-                tag: "Crypto Trader",
-              },
+              { quote: "I started with a small amount just to test — didn't want to commit big capital before seeing it work. Two weeks in, I'm comfortable adding more.", name: "Tharun K.", tag: "Early User", initial: "T" },
+              { quote: "The on-chain verification is what convinced me. I checked a few trades against the records myself. Everything matched.", name: "Aakash S.", tag: "Crypto Trader", initial: "A" },
+              { quote: "Setup took about 4 minutes. The guided flow is straightforward — just followed the steps. No technical knowledge needed.", name: "Abhijeet P.", tag: "Crypto Trader", initial: "A" },
             ].map((t) => (
-              <div
-                key={t.name}
-                className="rounded-2xl p-6"
-                style={{
-                  backgroundColor: "#0a1628",
-                  border: "1px solid rgba(90,140,220,0.12)",
-                }}
-              >
-                <p className="text-sm leading-relaxed mb-5" style={{ color: "#94a3b8" }}>
+              <div key={t.name} className="rounded-2xl p-6 flex flex-col gap-4" style={{ backgroundColor: "#0b1829", border: "1px solid rgba(90,140,220,0.12)" }}>
+                <p className="text-sm leading-relaxed flex-1" style={{ color: "#94a3b8" }}>
                   &ldquo;{t.quote}&rdquo;
                 </p>
-                <div>
-                  <p className="text-sm font-bold text-white">{t.name}</p>
-                  <p className="text-[11px] mt-0.5" style={{ color: "#475569" }}>
-                    {t.tag}
-                  </p>
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-black text-white flex-shrink-0" style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}>
+                    {t.initial}
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-white">{t.name}</p>
+                    <p className="text-[11px]" style={{ color: "#475569" }}>{t.tag}</p>
+                  </div>
                 </div>
               </div>
             ))}
@@ -967,21 +856,12 @@ export default function FreedomBotPage() {
           SECTION 5 — PRICING
       ══════════════════════════════════════════════════════════ */}
       <section
-        className="py-20 sm:py-28"
-        style={{ borderTop: "1px solid rgba(90,140,220,0.08)" }}
+        id="pricing"
+        className="py-16 sm:py-24 px-4 sm:px-6"
       >
-        <div className="max-w-4xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-14">
-            <div
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest mb-6"
-              style={{
-                backgroundColor: "rgba(37,99,235,0.1)",
-                border: "1px solid rgba(96,165,250,0.2)",
-                color: "#93c5fd",
-              }}
-            >
-              Pricing
-            </div>
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "#3b82f6" }}>Pricing</p>
             <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4">
               We only make money{" "}
               <span
@@ -991,11 +871,8 @@ export default function FreedomBotPage() {
                 when you do
               </span>
             </h2>
-            <p className="text-base mb-3" style={{ color: "#64748b" }}>
+            <p className="text-sm" style={{ color: "#64748b" }}>
               No upfront fees, no monthly subscriptions, no hidden charges.
-            </p>
-            <p className="text-lg font-bold" style={{ color: "#e2e8f0" }}>
-              You make $0 → you pay $0
             </p>
           </div>
 
@@ -1004,7 +881,7 @@ export default function FreedomBotPage() {
             <div
               className="rounded-2xl p-8 flex flex-col"
               style={{
-                backgroundColor: "#0a1628",
+                backgroundColor: "#0b1829",
                 border: "1px solid rgba(90,140,220,0.2)",
               }}
             >
@@ -1029,7 +906,7 @@ export default function FreedomBotPage() {
                   "No credit card required",
                 ].map((item) => (
                   <li key={item} className="flex items-center gap-2.5">
-                    <CheckCircle2 className="h-4 w-4 flex-shrink-0" style={{ color: "#60a5fa" }} />
+                    <CheckCircle2 className="h-4 w-4 flex-shrink-0" style={{ color: "#22c55e" }} />
                     {item}
                   </li>
                 ))}
@@ -1051,20 +928,20 @@ export default function FreedomBotPage() {
               </button>
             </div>
 
-            {/* PostPay — coming soon */}
+            {/* PostPay */}
             <div
               className="rounded-2xl p-8 relative overflow-hidden flex flex-col"
               style={{
-                backgroundColor: "#0a1628",
-                border: "1px solid rgba(251,191,36,0.2)",
+                backgroundColor: "#0b1829",
+                border: "1px solid rgba(59,130,246,0.25)",
               }}
             >
-              <p
-                className="text-xs font-bold uppercase tracking-widest mb-5"
-                style={{ color: "#64748b" }}
-              >
-                PostPay
-              </p>
+              <div className="flex items-center justify-between mb-5">
+                <p className="text-xs font-bold uppercase tracking-widest" style={{ color: "#64748b" }}>PostPay</p>
+                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ backgroundColor: "rgba(59,130,246,0.15)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.3)" }}>
+                  Pay only on profit
+                </span>
+              </div>
               <div className="mb-2">
                 <span className="text-5xl font-black text-white">10%</span>
               </div>
@@ -1177,20 +1054,11 @@ export default function FreedomBotPage() {
       {/* ══════════════════════════════════════════════════════════
           SECTION 6 — FAQ
       ══════════════════════════════════════════════════════════ */}
-      <section id="faq" className="py-20 sm:py-28">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6">
+      <section id="faq" className="py-16 sm:py-24 px-4 sm:px-6">
+        <div className="max-w-3xl mx-auto">
           {/* Header */}
-          <div className="text-center mb-14">
-            <div
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-4"
-              style={{
-                backgroundColor: "rgba(37,99,235,0.1)",
-                border: "1px solid rgba(96,165,250,0.2)",
-                color: "#93c5fd",
-              }}
-            >
-              FAQ
-            </div>
+          <div className="text-center mb-10">
+            <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "#3b82f6" }}>FAQ</p>
             <h2 className="text-3xl sm:text-5xl font-black tracking-tighter">
               Common{" "}
               <span
@@ -1200,7 +1068,7 @@ export default function FreedomBotPage() {
                 questions
               </span>
             </h2>
-            <p className="mt-4 text-base" style={{ color: "#94a3b8" }}>
+            <p className="mt-4 text-sm" style={{ color: "#64748b" }}>
               Everything you need to know before you deploy.
             </p>
           </div>
@@ -1294,11 +1162,8 @@ export default function FreedomBotPage() {
       {/* ══════════════════════════════════════════════════════════
           FINAL CTA SECTION
       ══════════════════════════════════════════════════════════ */}
-      <section
-        className="py-20 sm:py-28"
-        style={{ borderTop: "1px solid rgba(90,140,220,0.08)" }}
-      >
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+      <section className="py-24 sm:py-32 px-4 sm:px-6">
+        <div className="max-w-2xl mx-auto text-center">
           <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-5">
             Start small.{" "}
             <span
@@ -1308,85 +1173,81 @@ export default function FreedomBotPage() {
               Verify everything.
             </span>
           </h2>
-          <p className="text-base sm:text-lg mb-10 max-w-xl mx-auto" style={{ color: "#64748b" }}>
+          <p className="text-sm sm:text-base mb-10 max-w-md mx-auto" style={{ color: "#475569" }}>
             You don&apos;t need to commit large capital. Start with $100, watch the trades,
             check the on-chain records — and scale only when you&apos;re confident.
           </p>
           <button
             onClick={openDeploy}
-            className="h-14 px-12 rounded-2xl font-bold text-base text-white inline-flex items-center gap-2 transition-all hover:scale-105 shadow-lg"
+            className="h-12 px-10 rounded-full font-bold text-sm text-white inline-flex items-center gap-2 transition-all hover:scale-105"
             style={{
               background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",
-              boxShadow: "0 8px 30px rgba(59,130,246,0.3)",
+              boxShadow: "0 8px 25px rgba(59,130,246,0.4)",
             }}
           >
-            <Rocket className="h-5 w-5" />
-            Deploy your bot
+            <Rocket className="h-4 w-4" />
+            Deploy your bot <ArrowRight className="h-4 w-4" />
           </button>
-          <p className="text-xs mt-5" style={{ color: "#334155" }}>
-            No credit card required · Stop anytime · Your capital stays in your account
-          </p>
         </div>
       </section>
 
       {/* ── Footer ─────────────────────────────────────────────── */}
-      <footer className="py-12">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-8">
+      <footer className="py-14 px-4 sm:px-6" style={{ borderTop: "1px solid rgba(90,140,220,0.08)" }}>
+        <div className="max-w-6xl mx-auto">
+          <div className="grid sm:grid-cols-3 gap-10 mb-12">
+            {/* Brand */}
             <div>
-              <Image
-                src="/freedombot/icon.png"
-                alt="FreedomBot.ai"
-                width={40}
-                height={40}
-                className="rounded-xl object-contain mb-3"
-              />
-              <p className="text-xs max-w-xs" style={{ color: "#475569" }}>
-                Transparent, auditable, and aligned with your success.
+              <div className="flex items-center gap-2.5 mb-3">
+                <Image src="/freedombot/icon.png" alt="FreedomBot.ai" width={32} height={32} className="rounded-xl object-contain" />
+                <span className="font-black text-base tracking-tight" style={{ color: "#f0f4ff" }}>
+                  FreedomBot<span style={{ color: "#60a5fa" }}>.ai</span>
+                </span>
+              </div>
+              <p className="text-xs leading-relaxed max-w-xs" style={{ color: "#334155" }}>
+                Algorithmic trading you can verify. Every trade recorded on-chain — audit performance yourself, anytime.
+              </p>
+              <p className="text-[10px] mt-3" style={{ color: "#1e293b" }}>
+                Trading involves risk. Past performance does not guarantee future results.
               </p>
             </div>
 
-            <nav className="flex flex-col sm:flex-row gap-4 sm:gap-8">
-              <Link
-                href="/about"
-                className="text-sm font-medium transition-colors hover:text-white"
-                style={{ color: "#64748b" }}
-              >
-                About Us
-              </Link>
-              <Link
-                href="/contact"
-                className="text-sm font-medium transition-colors hover:text-white"
-                style={{ color: "#64748b" }}
-              >
-                Contact
-              </Link>
-              <Link
-                href="/privacy"
-                className="text-sm font-medium transition-colors hover:text-white"
-                style={{ color: "#64748b" }}
-              >
-                Privacy Policy
-              </Link>
-              <Link
-                href="/terms"
-                className="text-sm font-medium transition-colors hover:text-white"
-                style={{ color: "#64748b" }}
-              >
-                Terms of Use
-              </Link>
-            </nav>
+            {/* Product */}
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "#334155" }}>Product</p>
+              <div className="flex flex-col gap-3">
+                {[
+                  { label: "Performance", href: "/performance" },
+                  { label: "On-chain Records", href: "/records" },
+                  { label: "Pricing", href: "#pricing" },
+                ].map((l) => (
+                  <a key={l.label} href={l.href} className="text-sm transition-colors hover:text-white" style={{ color: "#475569" }}>{l.label}</a>
+                ))}
+              </div>
+            </div>
+
+            {/* Company */}
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "#334155" }}>Company</p>
+              <div className="flex flex-col gap-3">
+                {[
+                  { label: "Home", href: "/" },
+                  { label: "About", href: "/about" },
+                  { label: "Contact", href: "/contact" },
+                  { label: "Privacy", href: "/privacy" },
+                  { label: "Terms", href: "/terms" },
+                ].map((l) => (
+                  <a key={l.label} href={l.href} className="text-sm transition-colors hover:text-white" style={{ color: "#475569" }}>{l.label}</a>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div
-            className="mt-10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3"
-            style={{ borderTop: "1px solid rgba(90,140,220,0.08)" }}
+            className="pt-6 text-center"
+            style={{ borderTop: "1px solid rgba(90,140,220,0.06)" }}
           >
-            <p className="text-[11px]" style={{ color: "#334155" }}>
+            <p className="text-[11px]" style={{ color: "#1e293b" }}>
               &copy; {new Date().getFullYear()} FreedomBot.ai. All rights reserved.
-            </p>
-            <p className="text-[11px]" style={{ color: "#334155" }}>
-              Trading involves risk. Past performance does not guarantee future results.
             </p>
           </div>
         </div>

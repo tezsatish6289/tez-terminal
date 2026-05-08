@@ -1173,6 +1173,51 @@ export default function FreedomBotPage() {
         </div>
       </section>
 
+      {/* ══════════════════════════════════════════════════════════
+          INTEGRATIONS STRIP
+      ══════════════════════════════════════════════════════════ */}
+      <section className="py-12 px-4 sm:px-6" style={{ borderTop: "1px solid rgba(90,140,220,0.06)" }}>
+        <div className="max-w-4xl mx-auto text-center">
+          <p className="text-[10px] font-bold uppercase tracking-widest mb-8" style={{ color: "#1e293b" }}>
+            Powered by
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-10">
+            {/* Bybit */}
+            <div className="flex items-center gap-2 opacity-40 hover:opacity-70 transition-opacity">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <rect width="24" height="24" rx="6" fill="#F7A600"/>
+                <text x="12" y="16" textAnchor="middle" fontSize="10" fontWeight="bold" fill="white">B</text>
+              </svg>
+              <span className="text-sm font-bold" style={{ color: "#94a3b8" }}>Bybit</span>
+            </div>
+            {/* CoinDCX */}
+            <div className="flex items-center gap-2 opacity-40 hover:opacity-70 transition-opacity">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <rect width="24" height="24" rx="6" fill="#0052FF"/>
+                <text x="12" y="16" textAnchor="middle" fontSize="9" fontWeight="bold" fill="white">DC</text>
+              </svg>
+              <span className="text-sm font-bold" style={{ color: "#94a3b8" }}>CoinDCX</span>
+            </div>
+            {/* Solana */}
+            <div className="flex items-center gap-2 opacity-40 hover:opacity-70 transition-opacity">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <rect width="24" height="24" rx="6" fill="#9945FF"/>
+                <text x="12" y="16" textAnchor="middle" fontSize="9" fontWeight="bold" fill="white">SOL</text>
+              </svg>
+              <span className="text-sm font-bold" style={{ color: "#94a3b8" }}>Solana</span>
+            </div>
+            {/* Firebase */}
+            <div className="flex items-center gap-2 opacity-40 hover:opacity-70 transition-opacity">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <rect width="24" height="24" rx="6" fill="#FF6D00"/>
+                <text x="12" y="16" textAnchor="middle" fontSize="9" fontWeight="bold" fill="white">FB</text>
+              </svg>
+              <span className="text-sm font-bold" style={{ color: "#94a3b8" }}>Firebase</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── Footer ─────────────────────────────────────────────── */}
       <footer className="py-14 px-4 sm:px-6" style={{ borderTop: "1px solid rgba(90,140,220,0.08)" }}>
         <div className="max-w-6xl mx-auto">

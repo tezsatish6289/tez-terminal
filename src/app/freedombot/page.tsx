@@ -1084,7 +1084,7 @@ export default function FreedomBotPage() {
               },
               {
                 q: "Can I withdraw my capital anytime?",
-                a: "Yes. Your capital is in your Bybit account and is always accessible to you. You can withdraw or pause the bot at any time. If a trade is open when you pause, you can choose to let it run to completion or close it manually.",
+                a: "Yes. Your capital stays in your own exchange account and is always accessible to you. You can withdraw or pause the bot at any time. If a trade is open when you pause, you can choose to let it run to completion or close it manually.",
               },
               {
                 q: "Does FreedomBot charge fees?",

@@ -14,7 +14,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-type ManualOverride = "AUTO" | "ZONES" | "BULL" | "BOTH" | "BEAR" | "OFF";
+type ManualOverride = "AUTO" | "OFF";
 
 interface HeatmapZones {
   bullZoneLow:         number | null;
@@ -239,21 +239,14 @@ export function HeatmapAutoSwitch() {
     }
   }, []);
 
-  const override = zones.manualOverride;
-  const isDirectionOverride = override === "BULL" || override === "BOTH" || override === "BEAR" || override === "OFF";
+  const override    = zones.manualOverride;
+  const isForcedOff = override === "OFF";
+  const effectiveOn = isForcedOff ? false : (status?.simEnabled ?? false);
+  const effectiveBull = !isForcedOff && status?.simEnabled && status?.directionBias === "BULL";
 
-  const OVERRIDE_META: Record<ManualOverride, { label: string; color: string; icon: React.ReactNode }> = {
-    AUTO:  { label: "Auto",      color: "bg-accent/15 text-accent border-accent/20",                    icon: <Zap className="w-2.5 h-2.5" /> },
-    ZONES: { label: "Zones",     color: "bg-white/[0.08] text-foreground/80 border-white/[0.12]",        icon: <Activity className="w-2.5 h-2.5" /> },
-    BULL:  { label: "Bull",      color: "bg-positive/15 text-positive border-positive/20",              icon: <TrendingUp className="w-2.5 h-2.5" /> },
-    BOTH:  { label: "Both",      color: "bg-accent/15 text-accent border-accent/20",                    icon: <Activity className="w-2.5 h-2.5" /> },
-    BEAR:  { label: "Bear",      color: "bg-negative/15 text-negative border-negative/20",              icon: <TrendingDown className="w-2.5 h-2.5" /> },
-    OFF:   { label: "Force Off", color: "bg-white/[0.04] text-muted-foreground/40 border-white/[0.06]", icon: <PowerOff className="w-2.5 h-2.5" /> },
-  };
-
-  const pillMeta   = OVERRIDE_META[override];
-  const effectiveOn   = isDirectionOverride ? override !== "OFF" : (status?.simEnabled ?? false);
-  const effectiveBull = isDirectionOverride ? (override === "BULL" || override === "BOTH") : (status?.simEnabled && status?.directionBias === "BULL");
+  const triggerColor = isForcedOff
+    ? "bg-white/[0.04] text-muted-foreground/40 border-white/[0.06]"
+    : "bg-accent/15 text-accent border-accent/20";
 
   return (
     <Sheet>
@@ -265,10 +258,10 @@ export function HeatmapAutoSwitch() {
           </span>
           <span className={cn(
             "flex items-center gap-1 px-2 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-widest",
-            pillMeta.color,
+            triggerColor,
           )}>
-            {pillMeta.icon}
-            {pillMeta.label}
+            {isForcedOff ? <PowerOff className="w-2.5 h-2.5" /> : <Zap className="w-2.5 h-2.5" />}
+            {isForcedOff ? "Off" : "Auto"}
           </span>
         </button>
       </SheetTrigger>
@@ -284,14 +277,14 @@ export function HeatmapAutoSwitch() {
             </div>
             <span className={cn(
               "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-widest",
-              pillMeta.color,
+              triggerColor,
             )}>
-              {pillMeta.icon}
-              {pillMeta.label}
+              {isForcedOff ? <PowerOff className="w-2.5 h-2.5" /> : <Zap className="w-2.5 h-2.5" />}
+              {isForcedOff ? "Force Off" : "Auto"}
             </span>
           </div>
           <SheetDescription className="text-[11px] text-muted-foreground/50 mt-1">
-            Simulator turns ON/OFF automatically based on where BTC trades relative to these zones.
+            Simulator turns ON/OFF automatically based on where BTC trades relative to Deribit OI zones.
           </SheetDescription>
         </SheetHeader>
 
@@ -304,14 +297,12 @@ export function HeatmapAutoSwitch() {
               ? effectiveBull ? "bg-positive/5 border-positive/20 text-positive/80" : "bg-negative/5 border-negative/20 text-negative/80"
               : "bg-white/[0.03] border-white/[0.05] text-muted-foreground/60",
           )}>
-            {isDirectionOverride ? (
+            {isForcedOff ? (
               <span>
                 BTC <span className="font-bold">${status?.btcPrice?.toLocaleString() ?? "—"}</span>
                 {" · "}
-                <span className="font-bold">
-                  {override === "BULL" ? "BULL ACTIVE" : override === "BEAR" ? "BEAR ACTIVE" : override === "BOTH" ? "BULL + BEAR ACTIVE" : "FORCED OFF"}
-                </span>
-                {" — direction override (takes effect next cron cycle)"}
+                <span className="font-bold">FORCED OFF</span>
+                {" — no new trades"}
               </span>
             ) : status?.reason ? (
               <span>
@@ -324,89 +315,51 @@ export function HeatmapAutoSwitch() {
             )}
           </div>
 
-          {/* ── Zone Mode row ── */}
-          <div className="space-y-1.5">
-            <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">
-              Zone Mode — zone-based price switching
-            </p>
-            <div className="flex items-center gap-1 p-1 rounded-xl border border-white/[0.08] bg-white/[0.02]">
-              {([
-                { key: "AUTO"  as ManualOverride, label: "Auto (Deribit)", color: "bg-accent text-accent-foreground" },
-                { key: "ZONES" as ManualOverride, label: "Manual Zones",   color: "bg-white/10 text-foreground" },
-              ]).map(({ key, label, color }) => (
-                <button
-                  key={key}
-                  onClick={() => handleOverride(key)}
-                  className={cn(
-                    "flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
-                    zones.manualOverride === key
-                      ? color
-                      : "text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.04]",
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* ── Direction Override row ── */}
-          <div className="space-y-1.5">
-            <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">
-              Direction Override — bypasses zone logic
-            </p>
-            <div className="flex items-center gap-1 p-1 rounded-xl border border-white/[0.08] bg-white/[0.02]">
-              {([
-                { key: "BULL" as ManualOverride, label: "Bull",      color: "bg-positive text-black" },
-                { key: "BOTH" as ManualOverride, label: "Both",      color: "bg-accent text-accent-foreground" },
-                { key: "BEAR" as ManualOverride, label: "Bear",      color: "bg-negative text-white" },
-                { key: "OFF"  as ManualOverride, label: "Force Off", color: "bg-white/10 text-foreground" },
-              ]).map(({ key, label, color }) => (
-                <button
-                  key={key}
-                  onClick={() => handleOverride(key)}
-                  className={cn(
-                    "flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
-                    zones.manualOverride === key
-                      ? color
-                      : "text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.04]",
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            {isDirectionOverride && (
-              <p className="text-[9px] text-amber-400/60">
-                Zone logic is bypassed. Switch to Auto or Manual Zones to re-enable zone-based switching.
-              </p>
-            )}
+          {/* ── AUTO / FORCE OFF toggle ── */}
+          <div className="flex items-center gap-1 p-1 rounded-xl border border-white/[0.08] bg-white/[0.02]">
+            <button
+              onClick={() => handleOverride("AUTO")}
+              className={cn(
+                "flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                !isForcedOff
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.04]",
+              )}
+            >
+              Auto (Deribit)
+            </button>
+            <button
+              onClick={() => handleOverride("OFF")}
+              className={cn(
+                "flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                isForcedOff
+                  ? "bg-white/10 text-foreground"
+                  : "text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.04]",
+              )}
+            >
+              Force Off
+            </button>
           </div>
 
           {loading ? (
             <div className="flex items-center justify-center h-32">
               <Loader2 className="w-4 h-4 animate-spin text-accent/40" />
             </div>
-          ) : isDirectionOverride ? (
-            /* ── Direction override active: clean status ── */
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-5 space-y-3 text-center">
-              <div className={cn(
-                "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-bold uppercase tracking-widest",
-                pillMeta.color,
-              )}>
-                {pillMeta.icon}
-                {override === "BULL" ? "Bull trades only" :
-                 override === "BEAR" ? "Bear trades only" :
-                 override === "BOTH" ? "Both directions" :
-                 "Simulator off"}
+          ) : isForcedOff ? (
+            /* ── FORCE OFF ── */
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-5 space-y-2 text-center">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                <PowerOff className="w-3 h-3" />
+                Simulator off
               </div>
-              <p className="text-[11px] text-muted-foreground/50">
-                {override === "OFF"
-                  ? "No new trades will open."
-                  : `Only ${override === "BOTH" ? "bull and bear" : override.toLowerCase()} trades will open, regardless of BTC price.`}
+              <p className="text-[11px] text-muted-foreground/40">
+                No new trades will open. Existing trades continue to run.
+              </p>
+              <p className="text-[9px] text-amber-400/50">
+                Switch back to Auto (Deribit) to resume zone-based switching.
               </p>
             </div>
-          ) : override === "AUTO" ? (
+          ) : (
             /* ── AUTO: Deribit smart zones (read-only) ── */
             <div className="space-y-3">
               {suggested ? (
@@ -548,7 +501,7 @@ export function HeatmapAutoSwitch() {
                     </div>
                   </div>
                   <p className="text-[9px] text-muted-foreground/30 text-center">
-                    Zones auto-managed · refreshed hourly · last {new Date(suggested.computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    Zones auto-managed · refreshed every 15 min · last {new Date(suggested.computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </p>
                 </>
               ) : (
@@ -572,79 +525,6 @@ export function HeatmapAutoSwitch() {
 
               <MomentumFilter value={zones.momentumLookbackMin} onChange={(v) => handleChange("momentumLookbackMin", v)} />
             </div>
-          ) : (
-            /* ── ZONES: manual editable zone inputs ── */
-            <div className="space-y-4">
-              <div className="rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2 text-[9px] text-muted-foreground/40">
-                Enter your own zones. The simulator will switch Bull/Bear/OFF based on where BTC trades within these price ranges.
-              </div>
-
-              {/* Bull zone */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between pb-1 border-b border-white/[0.05]">
-                  <div className="flex items-center gap-1.5">
-                    <TrendingUp className="w-3.5 h-3.5 text-positive/70" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-positive/80">Bull Zone</span>
-                  </div>
-                  {suggested?.bullZoneLow && suggested?.bullZoneHigh && (
-                    <button
-                      onClick={() => {
-                        setZones((p) => ({
-                          ...p,
-                          bullZoneLow:   suggested.bullZoneLow,
-                          bullZoneHigh:  suggested.bullZoneHigh,
-                          bullExitAbove: suggested.bullExitAbove,
-                        }));
-                        setDirty(true);
-                      }}
-                      className="flex items-center gap-1 px-2 py-0.5 rounded-md border border-positive/20 bg-positive/[0.06] text-[9px] font-mono font-bold text-positive/70 hover:text-positive hover:bg-positive/10 transition-all"
-                    >
-                      <RefreshCw className="w-2.5 h-2.5" />
-                      Fill from Deribit
-                    </button>
-                  )}
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <PriceInput label="Zone — Low"    description="BTC must be above this" value={zones.bullZoneLow}    onChange={(v) => handleChange("bullZoneLow", v)} />
-                  <PriceInput label="Zone — High"   description="BTC must be below this" value={zones.bullZoneHigh}   onChange={(v) => handleChange("bullZoneHigh", v)} />
-                  <PriceInput label="Exit Bull Above" description="Zone cleared — stop bull" value={zones.bullExitAbove} onChange={(v) => handleChange("bullExitAbove", v)} />
-                </div>
-              </div>
-
-              {/* Bear zone */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between pb-1 border-b border-white/[0.05]">
-                  <div className="flex items-center gap-1.5">
-                    <TrendingDown className="w-3.5 h-3.5 text-negative/70" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-negative/80">Bear Zone</span>
-                  </div>
-                  {suggested?.bearZoneLow && suggested?.bearZoneHigh && (
-                    <button
-                      onClick={() => {
-                        setZones((p) => ({
-                          ...p,
-                          bearZoneLow:   suggested.bearZoneLow,
-                          bearZoneHigh:  suggested.bearZoneHigh,
-                          bearExitBelow: suggested.bearExitBelow,
-                        }));
-                        setDirty(true);
-                      }}
-                      className="flex items-center gap-1 px-2 py-0.5 rounded-md border border-negative/20 bg-negative/[0.06] text-[9px] font-mono font-bold text-negative/70 hover:text-negative hover:bg-negative/10 transition-all"
-                    >
-                      <RefreshCw className="w-2.5 h-2.5" />
-                      Fill from Deribit
-                    </button>
-                  )}
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <PriceInput label="Zone — Low"    description="BTC must be above this" value={zones.bearZoneLow}    onChange={(v) => handleChange("bearZoneLow", v)} />
-                  <PriceInput label="Zone — High"   description="BTC must be below this" value={zones.bearZoneHigh}   onChange={(v) => handleChange("bearZoneHigh", v)} />
-                  <PriceInput label="Exit Bear Below" description="Zone cleared — stop bear" value={zones.bearExitBelow} onChange={(v) => handleChange("bearExitBelow", v)} />
-                </div>
-              </div>
-
-              <MomentumFilter value={zones.momentumLookbackMin} onChange={(v) => handleChange("momentumLookbackMin", v)} />
-            </div>
           )}
         </div>
 
@@ -662,7 +542,7 @@ export function HeatmapAutoSwitch() {
               </button>
               {suggested?.computedAt && (
                 <span className="text-[9px] text-muted-foreground/30 truncate">
-                  {suggested.source ?? "deribit"} · {new Date(suggested.computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  deribit · {new Date(suggested.computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </span>
               )}
             </div>

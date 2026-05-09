@@ -3,9 +3,8 @@ import type { Firestore } from "firebase-admin/firestore";
 export const HEATMAP_ZONES_DOC = "config/heatmap_zones";
 
 /** AUTO  = Deribit OI computed zones, price-based switching.
- *  ZONES = Manually-entered zones, still price-based switching (no Deribit merge).
- *  BULL/BEAR/BOTH/OFF = direction overrides that bypass zone logic entirely. */
-export type ManualOverride = "AUTO" | "ZONES" | "BULL" | "BOTH" | "BEAR" | "OFF";
+ *  OFF   = Emergency kill — no new trades regardless of price. */
+export type ManualOverride = "AUTO" | "OFF";
 
 export interface HeatmapZones {
   bullZoneLow:         number | null;
@@ -30,7 +29,7 @@ export const ZONE_KEYS: (keyof Omit<HeatmapZones, "manualOverride" | "momentumLo
   "bearZoneHigh", "bearZoneLow", "bearExitBelow",
 ];
 
-export const VALID_OVERRIDES: ManualOverride[] = ["AUTO", "ZONES", "BULL", "BOTH", "BEAR", "OFF"];
+export const VALID_OVERRIDES: ManualOverride[] = ["AUTO", "OFF"];
 
 export function parseZones(data: Record<string, unknown>): HeatmapZones {
   const zones: HeatmapZones = {
@@ -184,7 +183,7 @@ export function resolveHeatmapAutoStatusReason(
   computeReason: string,
   autoZoneClearReason: AutoZoneClearReason,
 ): string {
-  if (zones.manualOverride !== "AUTO" && zones.manualOverride !== "ZONES") return computeReason;
+  if (zones.manualOverride !== "AUTO") return computeReason;
   if (computeReason !== "OFF — no heatmap zones configured") return computeReason;
   if (autoZoneClearReason === "insufficient_gap") {
     return "OFF — strikes under $2,500 apart (Deribit clusters too close)";
@@ -235,11 +234,10 @@ export function computeAutoSwitch(
   zones:        HeatmapZones,
   priceHistory: PricePoint[] = [],
 ): { simEnabled: boolean; directionBias: "BULL" | "BEAR" | "BOTH"; reason: string } {
-  // Manual override takes full priority
-  if (zones.manualOverride === "BULL") return { simEnabled: true,  directionBias: "BULL", reason: "BULL ACTIVE — manual override" };
-  if (zones.manualOverride === "BOTH") return { simEnabled: true,  directionBias: "BOTH", reason: "BULL + BEAR ACTIVE — manual override" };
-  if (zones.manualOverride === "BEAR") return { simEnabled: true,  directionBias: "BEAR", reason: "BEAR ACTIVE — manual override" };
-  if (zones.manualOverride === "OFF")  return { simEnabled: false, directionBias: "BOTH", reason: "OFF — manual override" };
+  // Force Off — emergency kill switch
+  if (zones.manualOverride === "OFF") {
+    return { simEnabled: false, directionBias: "BOTH", reason: "OFF — manual override" };
+  }
 
   if (btcPrice === null) {
     return { simEnabled: false, directionBias: "BOTH", reason: "OFF — BTC price unavailable" };

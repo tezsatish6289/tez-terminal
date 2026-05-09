@@ -65,6 +65,7 @@ export default function AdminBotUsersPage() {
   const [search, setSearch] = useState("");
   const [botFilter, setBotFilter] = useState<string>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [reconcilingId, setReconcilingId] = useState<string | null>(null);
 
   const [tradeState, setTradeState] = useState<
     Record<
@@ -168,6 +169,29 @@ export default function AdminBotUsersPage() {
     setExpandedId(deploymentId);
     if (!tradeState[deploymentId]) {
       void fetchTradesPage(deploymentId, null, false);
+    }
+  };
+
+  const runReconcilePnl = async (deploymentId: string) => {
+    if (!user) return;
+    setReconcilingId(deploymentId);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/admin/bot-deployments/${deploymentId}/reconcile-pnl`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Reconcile failed");
+      await fetchDeployments();
+      if (expandedId === deploymentId) {
+        void fetchTradesPage(deploymentId, null, false);
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unexpected error";
+      setError(msg);
+    } finally {
+      setReconcilingId(null);
     }
   };
 
@@ -394,6 +418,27 @@ export default function AdminBotUsersPage() {
                                 PnL note
                               </span>
                               <p className="text-muted-foreground leading-snug">{d.pnlNote}</p>
+                            </div>
+                            <div className="sm:col-span-2 flex flex-wrap items-center gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void runReconcilePnl(d.deploymentId);
+                                }}
+                                disabled={reconcilingId === d.deploymentId}
+                                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-accent/30 bg-accent/10 text-xs font-bold uppercase tracking-wider text-accent hover:bg-accent/20 disabled:opacity-50"
+                              >
+                                {reconcilingId === d.deploymentId ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="h-3.5 w-3.5" />
+                                )}
+                                Sync PnL from exchange
+                              </button>
+                              <span className="text-[10px] text-muted-foreground">
+                                Refreshes closed-trade PnL from the venue API (Bybit / CoinDCX / others when available).
+                              </span>
                             </div>
                           </div>
 

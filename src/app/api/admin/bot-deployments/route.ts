@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Firestore, Query, QueryDocumentSnapshot, DocumentData } from "firebase-admin/firestore";
+import type { DocumentData } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
+import { sumLifetimeRealizedPnlForUserExchange } from "@/lib/freedombot/sum-lifetime-realized-pnl";
 
 export const dynamic = "force-dynamic";
 
@@ -13,45 +14,17 @@ const BOT_LABELS: Record<string, string> = {
 };
 
 function pnlCurrencyLabel(bot: string, exchange: string): string {
-  if (bot === "CRYPTO" || exchange === "BYBIT" || exchange === "BINANCE") return "USDT";
+  if (
+    bot === "CRYPTO" ||
+    exchange === "BYBIT" ||
+    exchange === "BINANCE" ||
+    exchange === "MEXC" ||
+    exchange === "COINDCX"
+  ) {
+    return "USDT";
+  }
   if (bot === "INDIAN_STOCKS" || exchange === "DHAN") return "INR";
   return "USDT";
-}
-
-async function sumLifetimeRealizedPnl(
-  db: Firestore,
-  userId: string,
-  exchange: string
-): Promise<number> {
-  let total = 0;
-  let lastDoc: QueryDocumentSnapshot | null = null;
-  const PAGE = 400;
-
-  while (true) {
-    let q: Query = db
-      .collection("live_trades")
-      .where("userId", "==", userId)
-      .where("exchange", "==", exchange)
-      .where("status", "==", "CLOSED")
-      .where("testnet", "==", false)
-      .orderBy("openedAt", "asc")
-      .limit(PAGE);
-
-    if (lastDoc) {
-      q = q.startAfter(lastDoc);
-    }
-
-    const snap = await q.get();
-    for (const doc of snap.docs) {
-      const t = doc.data();
-      const pnl = t.exchangeRealizedPnl ?? t.realizedPnl ?? 0;
-      total += typeof pnl === "number" && !Number.isNaN(pnl) ? pnl : 0;
-    }
-    if (snap.size < PAGE) break;
-    lastDoc = snap.docs[snap.docs.length - 1];
-  }
-
-  return Math.round(total * 10000) / 10000;
 }
 
 async function mapWithConcurrency<T, R>(
@@ -133,7 +106,7 @@ export async function GET(request: NextRequest) {
       const u = userByUid.get(dep.uid);
       const email = u?.email ?? dep.email ?? null;
       const displayName = u?.displayName ?? dep.displayName ?? null;
-      const lifetimeRealizedPnl = await sumLifetimeRealizedPnl(db, dep.uid, dep.exchange);
+      const lifetimeRealizedPnl = await sumLifetimeRealizedPnlForUserExchange(db, dep.uid, dep.exchange);
       const currency = pnlCurrencyLabel(dep.bot, dep.exchange);
       const createdIso = dep.createdAt?.toDate?.()?.toISOString() ?? null;
 

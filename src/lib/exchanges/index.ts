@@ -14,6 +14,7 @@ export {
   type FuturesPosition,
   type BatchOrderResult,
   type IndianExchangeSegment,
+  type ClosedPnlRecord,
   ExchangeApiError,
   SUPPORTED_EXCHANGES,
   STOCK_EXCHANGES,

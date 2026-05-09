@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore, getAdminAuth } from "@/firebase/admin";
+import {
+  loadCryptoCredentials,
+  reconcileUserExchangeClosedPnl,
+  exchangeSupportsClosedPnlReconciliation,
+} from "@/lib/freedombot/reconcile-exchange-pnl";
+import type { ExchangeName } from "@/lib/exchanges";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +22,37 @@ export async function GET(req: NextRequest) {
     const uid = decoded.uid;
 
     const db = getAdminFirestore();
+
+    const { searchParams } = new URL(req.url);
+    const wantReconcile =
+      searchParams.get("reconcile") === "1" || searchParams.get("reconcile") === "true";
+    const exchangeParam = searchParams.get("exchange")?.trim().toUpperCase() ?? "";
+
+    let reconciliation: {
+      reconciled: number;
+      errors: string[];
+      totalClosedExchangePnl: number;
+      skippedNoApi: number;
+    } | null = null;
+    let reconcileSkipped: string | null = null;
+
+    if (wantReconcile && exchangeParam) {
+      if (!exchangeSupportsClosedPnlReconciliation(exchangeParam)) {
+        reconcileSkipped = "exchange_no_closed_pnl_api";
+      } else {
+        const creds = await loadCryptoCredentials(db, uid, exchangeParam as ExchangeName);
+        if (!creds) {
+          reconcileSkipped = "no_credentials";
+        } else {
+          reconciliation = await reconcileUserExchangeClosedPnl(
+            db,
+            uid,
+            exchangeParam as ExchangeName,
+            creds,
+          );
+        }
+      }
+    }
 
     // Single equality filter — no composite index needed
     const snap = await db
@@ -49,7 +86,11 @@ export async function GET(req: NextRequest) {
       .filter(Boolean)
       .sort((a, b) => ((b!.openedAt ?? "") > (a!.openedAt ?? "") ? 1 : -1));
 
-    return NextResponse.json({ trades });
+    return NextResponse.json({
+      trades,
+      ...(reconciliation ? { reconciliation } : {}),
+      ...(reconcileSkipped ? { reconcileSkipped } : {}),
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unexpected error";
     return NextResponse.json({ error: message }, { status: 500 });

@@ -375,11 +375,13 @@ const BOTS_NAV = [
   { key: "SILVER",        emoji: "🥈", label: "Silver Bot",       live: false },
 ];
 
-function Connected({ deployment, deployments, trades, onStop, onSelectDeployment }: {
+function Connected({ deployment, deployments, stats, trades, tradesSyncing, onStop, onSelectDeployment }: {
   deployment: Deployment;
   deployments: Deployment[];
   stats: BotStats | null;
   trades: Trade[];
+  /** Exchange PnL reconcile in progress (dashboard refresh) */
+  tradesSyncing?: boolean;
   onStop: () => void;
   onSelectDeployment: (id: string) => void;
 }) {
@@ -514,7 +516,12 @@ function Connected({ deployment, deployments, trades, onStop, onSelectDeployment
               style={{ borderRight: i < 2 ? "1px solid rgba(90,140,220,0.08)" : "none" }}
             >
               <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>{s.label}</p>
-              <p className="text-2xl font-black" style={{ color: s.color }}>{s.value}</p>
+              <p className="text-2xl font-black flex items-center gap-2" style={{ color: s.color }}>
+                {i === 2 && tradesSyncing ? (
+                  <Loader2 className="h-6 w-6 animate-spin shrink-0" style={{ color: "#64748b" }} />
+                ) : null}
+                {s.value}
+              </p>
             </div>
           ))}
         </div>
@@ -680,6 +687,7 @@ export default function FreedomBotDashboard() {
   const [selectedDeploymentId, setSelectedDeploymentId] = useState<string | null>(null);
   const [stats, setStats] = useState<BotStats | null>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [tradesLoading, setTradesLoading] = useState(false);
   const [stopConfirm, setStopConfirm] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
 
@@ -758,32 +766,65 @@ export default function FreedomBotDashboard() {
     }
   }, [user]);
 
-  const fetchUserTrades = useCallback(async () => {
-    if (!user) return;
-    try {
-      const idToken = await user.getIdToken();
-      const res = await fetch("/api/freedombot/my-trades", {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      const data = await res.json();
-      setTrades(data.trades ?? []);
-    } catch {
-      setTrades([]);
-    }
-  }, [user]);
+  const fetchUserTrades = useCallback(
+    async (exchangeForReconcile: string | null) => {
+      if (!user) return;
+      setTradesLoading(true);
+      try {
+        const idToken = await user.getIdToken();
+        const params = new URLSearchParams();
+        if (
+          exchangeForReconcile &&
+          FREEDOMBOT_CRYPTO_EXCHANGES.includes(
+            exchangeForReconcile.toUpperCase() as (typeof FREEDOMBOT_CRYPTO_EXCHANGES)[number],
+          )
+        ) {
+          params.set("reconcile", "1");
+          params.set("exchange", exchangeForReconcile.toUpperCase());
+        }
+        const qs = params.toString();
+        const res = await fetch(`/api/freedombot/my-trades${qs ? `?${qs}` : ""}`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        const data = await res.json();
+        setTrades(data.trades ?? []);
+      } catch {
+        setTrades([]);
+      } finally {
+        setTradesLoading(false);
+      }
+    },
+    [user],
+  );
 
   useEffect(() => {
     fetchDeployment();
-    fetch("/api/freedombot/stats").then((r) => r.json()).then(setStats).catch(() => {});
-    fetchUserTrades();
-  }, [fetchDeployment, fetchUserTrades]);
+  }, [fetchDeployment]);
 
-  // After deploying, re-check deployment status and reload trades
+  useEffect(() => {
+    if (!user) return;
+    fetch("/api/freedombot/stats")
+      .then((r) => r.json())
+      .then(setStats)
+      .catch(() => {});
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (deployments === undefined) return;
+    if (!deployments.length) {
+      void fetchUserTrades(null);
+      return;
+    }
+    const ex = selectedDeployment?.exchange ?? null;
+    void fetchUserTrades(ex);
+  }, [user, deployments, selectedDeployment?.id, selectedDeployment?.exchange, fetchUserTrades]);
+
+  // After deploying, re-check deployment status (trades reload via effect)
   const handleDeployClose = useCallback(() => {
     setDeployOpen(false);
     fetchDeployment();
-    fetchUserTrades();
-  }, [fetchDeployment, fetchUserTrades]);
+  }, [fetchDeployment]);
 
   const handleStopBot = useCallback(async () => {
     if (!user || !selectedDeployment) return;
@@ -828,6 +869,7 @@ export default function FreedomBotDashboard() {
           deployments={deployments}
           stats={stats}
           trades={filteredTrades}
+          tradesSyncing={tradesLoading}
           onStop={() => setStopConfirm(true)}
           onSelectDeployment={setSelectedDeploymentId}
         />

@@ -716,13 +716,19 @@ export class CoinDcxConnector implements ExchangeConnector {
         (!startTime || (r.created_at != null && r.created_at >= startTime)),
     );
 
-    return filtered.map((r) => ({
-      symbol: internal,
-      closedPnl: r.amount ?? 0,
-      qty: 0,
-      avgEntryPrice: r.price_in_usdt ?? 0,
-      avgExitPrice: r.price_in_usdt ?? 0,
-      createdTime: r.created_at ?? 0,
-    }));
+    // CoinDCX Transaction History "Net PNL" = Gross PNL + Fees (fee_amount is signed).
+    // Summing `amount` alone inflates totals vs the app (fees omitted).
+    return filtered.map((r) => {
+      const gross = r.amount ?? 0;
+      const fees = r.fee_amount ?? 0;
+      return {
+        symbol: internal,
+        closedPnl: gross + fees,
+        qty: 0,
+        avgEntryPrice: r.price_in_usdt ?? 0,
+        avgExitPrice: r.price_in_usdt ?? 0,
+        createdTime: r.created_at ?? 0,
+      };
+    });
   }
 }

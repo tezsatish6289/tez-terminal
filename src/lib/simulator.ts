@@ -16,7 +16,7 @@ export const SIM_CONFIG = {
   TP3_CLOSE_PCT: 0.0,
   // Incubated signal selection
   INCUBATED_MIN_SCORE: 65,          // minimum confidence score to enter simulator
-  INCUBATED_MAX_SL_DISTANCE_PCT: 0.08, // max SL distance as % of entry price (8%)
+  INCUBATED_MAX_SL_DISTANCE_PCT: 0.03, // max SL distance as % of entry price (3%)
   INCUBATED_SL_CONSUMED_MAX: 0.50,
   INCUBATED_TP1_CONSUMED_MAX: 0.65,
   // Confidence thresholds for evaluateTrade (legacy, not used by sim sync)

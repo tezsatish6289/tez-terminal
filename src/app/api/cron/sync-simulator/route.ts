@@ -912,6 +912,16 @@ export async function GET(request: NextRequest) {
             continue;
           }
 
+          if (slDistancePct > simConfig.INCUBATED_MAX_SL_DISTANCE_PCT) {
+            await db.collection("simulator_logs").add({
+              timestamp: new Date().toISOString(),
+              action: "INCUBATED_REJECTED",
+              details: `${c.symbol} ${c.type}: SL too wide at entry — ${(slDistancePct * 100).toFixed(2)}% from current price (max ${(simConfig.INCUBATED_MAX_SL_DISTANCE_PCT * 100).toFixed(0)}%). Price may have drifted since signal.`,
+              assetType,
+            });
+            continue;
+          }
+
           const leverage = (await import("@/lib/leverage")).getLeverage(c.timeframe, assetType);
           const hasStreak = (simState3.consecutiveWins ?? 0) >= simConfig.STREAK_WINS_TO_SCALE;
           const riskPct = hasStreak ? simConfig.RISK_PER_TRADE_STREAK : simConfig.RISK_PER_TRADE_BASE;

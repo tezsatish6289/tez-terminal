@@ -130,6 +130,22 @@
         { "fieldPath": "testnet", "order": "ASCENDING" },
         { "fieldPath": "openedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "signals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "slHitAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "secrets",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "autoTradeEnabled", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

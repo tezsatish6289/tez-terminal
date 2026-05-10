@@ -259,7 +259,14 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Load signals for scoring context ────────────────────
-    const signalsSnap = await db.collection("signals").get();
+    // Only ACTIVE signals are needed: candidates / scoring / open-trade
+    // catch-up all key off ACTIVE rows. Resolved/INACTIVE history isn't used
+    // here and pulling the full collection every minute was the dominant
+    // Firestore-read cost driver.
+    const signalsSnap = await db
+      .collection("signals")
+      .where("status", "==", "ACTIVE")
+      .get();
     const postUpdateDocs: { id: string; [key: string]: any }[] = [];
     for (const signalDoc of signalsSnap.docs) {
       postUpdateDocs.push({ id: signalDoc.id, ...signalDoc.data() });

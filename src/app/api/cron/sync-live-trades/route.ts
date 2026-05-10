@@ -18,7 +18,6 @@ import {
   type ExchangeName,
   SUPPORTED_EXCHANGES,
   STOCK_EXCHANGES,
-  ALL_EXCHANGES,
   deserializePrices,
   getPrice,
   getSecretDocIds,
@@ -523,7 +522,13 @@ export async function GET(request: NextRequest) {
     // We compute scores the same way the sim sync does so that
     // currentScore + currentScorePattern on live trades always
     // reflect the latest pattern evaluation, not stale Firestore fields.
-    const signalsSnap = await db.collection("signals").get();
+    // Only ACTIVE signals — resolved signals don't need re-scoring and
+    // pulling the full signals collection every minute is the main cause
+    // of bloated Firestore read bills.
+    const signalsSnap = await db
+      .collection("signals")
+      .where("status", "==", "ACTIVE")
+      .get();
     const postUpdateDocs = signalsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
     const allSignalsForScoring = postUpdateDocs.map(mapFirestoreSignal);
@@ -643,97 +648,109 @@ export async function GET(request: NextRequest) {
 
     const pairs: UserExchangePair[] = [];
 
-    // Query all users
-    const usersSnap = await db.collection("users").get();
+    // Discover users with auto-trade enabled via a single collection-group
+    // query against the `secrets` subcollection, instead of fetching every
+    // user × every exchange × every legacy doc id (which costs ~6k reads/min).
+    //
+    // Each result contains both the credentials and the parent userId via
+    // `doc.ref.parent.parent.id`. Requires a Firestore single-field index
+    // exemption is not needed; collection-group + simple equality is supported
+    // out of the box.
+    const DOC_ID_TO_EXCHANGE: Record<string, ExchangeName> = {
+      bybit:           "BYBIT",
+      binance:         "BYBIT",   // legacy pre-migration doc
+      binance_futures: "BINANCE",
+      mexc:            "MEXC",
+      coindcx:         "COINDCX",
+      dhan:            "DHAN",
+    };
 
-    const userChecks = usersSnap.docs.map(async (userDoc) => {
-      const userId = userDoc.id;
+    const enabledSnap = await db
+      .collectionGroup("secrets")
+      .where("autoTradeEnabled", "==", true)
+      .get();
 
-      const exchangeChecks = ALL_EXCHANGES.map(async (exchangeName) => {
-        if (STOCK_EXCHANGES.includes(exchangeName) && !isIndianMarketOpen()) return;
-        const docIds = getSecretDocIds(exchangeName);
+    // Dedupe by (userId, exchange) — BYBIT can match both `bybit` and legacy
+    // `binance` docs; we only want one credential pair per exchange per user.
+    const seen = new Set<string>();
 
-        for (const id of docIds) {
-          try {
-            const secretDoc = await db.collection("users").doc(userId)
-              .collection("secrets").doc(id).get();
+    const enabledChecks = enabledSnap.docs.map(async (secretDoc) => {
+      const data = secretDoc.data() ?? {};
+      const userId = secretDoc.ref.parent.parent?.id;
+      if (!userId) return;
 
-            if (secretDoc.exists) {
-              const data = secretDoc.data()!;
-              if (!docMatchesExchange(data, exchangeName)) continue;
-              if (data.autoTradeEnabled === true) {
-                let apiKey: string;
-                let apiSecret: string;
+      const exchangeName = DOC_ID_TO_EXCHANGE[secretDoc.id];
+      if (!exchangeName) return;
+      if (!docMatchesExchange(data, exchangeName)) return;
+      if (STOCK_EXCHANGES.includes(exchangeName) && !isIndianMarketOpen()) return;
 
-                if (exchangeName === "DHAN") {
-                  // Dhan: stored as clientId (key) + totpSecret (secret) + pin.
-                  // Auto-generate a fresh JWT token; cache it for 24h so we
-                  // don't hit Dhan's auth API on every cron tick.
-                  const clientId = decrypt(data.encryptedKey);
-                  const totpSecret = data.encryptedSecret ? decrypt(data.encryptedSecret) : null;
-                  const pin = data.encryptedPin ? decrypt(data.encryptedPin) : null;
+      const dedupeKey = `${userId}::${exchangeName}`;
+      if (seen.has(dedupeKey)) return;
+      seen.add(dedupeKey);
 
-                  let accessToken: string | null = null;
+      try {
+        let apiKey: string;
+        let apiSecret: string;
 
-                  // Use cached token if still valid (5-min buffer)
-                  if (data.encryptedCachedToken && data.cachedTokenExpiresAt) {
-                    const expiresAt = new Date(data.cachedTokenExpiresAt as string).getTime();
-                    if (Date.now() < expiresAt - 5 * 60 * 1000) {
-                      try { accessToken = decrypt(data.encryptedCachedToken); } catch { /* stale */ }
-                    }
-                  }
+        if (exchangeName === "DHAN") {
+          // Dhan: stored as clientId (key) + totpSecret (secret) + pin.
+          // Auto-generate a fresh JWT token; cache it for 24h so we
+          // don't hit Dhan's auth API on every cron tick.
+          const clientId = decrypt(data.encryptedKey);
+          const totpSecret = data.encryptedSecret ? decrypt(data.encryptedSecret) : null;
+          const pin = data.encryptedPin ? decrypt(data.encryptedPin) : null;
 
-                  // Regenerate token if cache is stale / expired
-                  if (!accessToken && totpSecret && pin) {
-                    const { token } = await generateTokenForUser(clientId, totpSecret, pin);
-                    accessToken = token;
-                    if (accessToken) {
-                      const secretRef = db.collection("users").doc(userId).collection("secrets").doc(id);
-                      await secretRef.update({
-                        encryptedCachedToken: encrypt(accessToken),
-                        cachedTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-                      });
-                    }
-                  }
+          let accessToken: string | null = null;
 
-                  if (!accessToken) {
-                    console.error(`[LiveSync] Could not obtain Dhan token for user ${userId} — skipping.`);
-                    break;
-                  }
-
-                  // DhanConnector expects: apiKey = access token, apiSecret = clientId
-                  apiKey = accessToken;
-                  apiSecret = clientId;
-                } else {
-                  apiKey = decrypt(data.encryptedKey);
-                  apiSecret = decrypt(data.encryptedSecret);
-                }
-
-                pairs.push({
-                  userId,
-                  exchange: exchangeName,
-                  creds: {
-                    apiKey,
-                    apiSecret,
-                    testnet: data.useTestnet === true,
-                  },
-                  settings: {
-                    dailyLossLimit: data.dailyLossLimit ?? 5,
-                  },
-                });
-                break;
-              }
+          if (data.encryptedCachedToken && data.cachedTokenExpiresAt) {
+            const expiresAt = new Date(data.cachedTokenExpiresAt as string).getTime();
+            if (Date.now() < expiresAt - 5 * 60 * 1000) {
+              try { accessToken = decrypt(data.encryptedCachedToken); } catch { /* stale */ }
             }
-          } catch {
-            // skip this exchange for this user
           }
-        }
-      });
 
-      await Promise.all(exchangeChecks);
+          if (!accessToken && totpSecret && pin) {
+            const { token } = await generateTokenForUser(clientId, totpSecret, pin);
+            accessToken = token;
+            if (accessToken) {
+              await secretDoc.ref.update({
+                encryptedCachedToken: encrypt(accessToken),
+                cachedTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+              });
+            }
+          }
+
+          if (!accessToken) {
+            console.error(`[LiveSync] Could not obtain Dhan token for user ${userId} — skipping.`);
+            return;
+          }
+
+          // DhanConnector expects: apiKey = access token, apiSecret = clientId
+          apiKey = accessToken;
+          apiSecret = clientId;
+        } else {
+          apiKey = decrypt(data.encryptedKey);
+          apiSecret = decrypt(data.encryptedSecret);
+        }
+
+        pairs.push({
+          userId,
+          exchange: exchangeName,
+          creds: {
+            apiKey,
+            apiSecret,
+            testnet: data.useTestnet === true,
+          },
+          settings: {
+            dailyLossLimit: data.dailyLossLimit ?? 5,
+          },
+        });
+      } catch {
+        // skip this exchange for this user
+      }
     });
 
-    await Promise.all(userChecks);
+    await Promise.all(enabledChecks);
 
     if (pairs.length === 0) {
       return NextResponse.json({ success: true, message: "No active auto-trade users", pairs: 0 });

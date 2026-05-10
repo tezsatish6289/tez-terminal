@@ -142,7 +142,36 @@ export async function GET(request: NextRequest) {
     priceSyncRunCount++;
     const isCosmeticWriteRun = (priceSyncRunCount % COSMETIC_WRITE_EVERY_N_RUNS) === 0;
 
-    const signalsSnap = await db.collection("signals").get();
+    // Active signals — fully processed (price updates, TP/SL lifecycle, snapshots).
+    const signalsSnap = await db
+      .collection("signals")
+      .where("status", "==", "ACTIVE")
+      .get();
+
+    // Recently-resolved INACTIVE signals — needed only by market regime (SL-hit
+    // signals in the last few candles drive the "recent damage" metric). 5-day
+    // window covers up to the daily timeframe's SL_WINDOW_CANDLES.
+    // Query path: status == "INACTIVE" AND slHitAt >= cutoff. Requires a
+    // composite Firestore index — Firestore will surface a one-click link the
+    // first time this query runs without an index.
+    const inactiveCutoffISO = new Date(
+      Date.now() - 5 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    let recentInactiveDocs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
+    try {
+      const recentInactiveSnap = await db
+        .collection("signals")
+        .where("status", "==", "INACTIVE")
+        .where("slHitAt", ">=", inactiveCutoffISO)
+        .get();
+      recentInactiveDocs = recentInactiveSnap.docs;
+    } catch (e) {
+      console.warn(
+        "[Sync] Recent-INACTIVE query failed (likely missing composite index); regime will only use active signals.",
+        e instanceof Error ? e.message : e,
+      );
+    }
+
     let updateCount = 0;
     let skipCount = 0;
     let cosmeticSkipCount = 0;
@@ -382,11 +411,11 @@ export async function GET(request: NextRequest) {
       await priceBatch.commit();
     }
 
-    // Include non-active signals for historical stats
-    for (const signalDoc of signalsSnap.docs) {
-      const signal = signalDoc.data();
-      if (signal.status === "ACTIVE") continue;
-      postUpdateDocs.push({ id: signalDoc.id, ...signal });
+    // Include recently-resolved INACTIVE signals so market regime can still
+    // count "recent damage" SL hits. Older INACTIVE history is intentionally
+    // excluded — billing waste, not used downstream within this cron.
+    for (const signalDoc of recentInactiveDocs) {
+      postUpdateDocs.push({ id: signalDoc.id, ...signalDoc.data() });
     }
 
     if (signalEvents.length > 0) {

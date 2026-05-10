@@ -174,19 +174,13 @@ interface LandingPageProps {
 }
 
 export function LandingPage({ onLogin, isLoggingIn }: LandingPageProps) {
-  const [topWinners, setTopWinners] = useState<TopWinner[]>([]);
-  const [stats, setStats] = useState<PlatformStats | null>(null);
-  const [frequency, setFrequency] = useState<TfFrequency[]>([]);
+  // Top-winners API removed — full-collection signals scans were a major Firestore
+  // read-cost driver. Landing page now renders graceful fallbacks for these stats.
+  const [topWinners] = useState<TopWinner[]>([]);
+  const [stats] = useState<PlatformStats | null>(null);
+  const [frequency] = useState<TfFrequency[]>([]);
 
   useEffect(() => {
-    fetch("/api/top-winners")
-      .then((r) => r.json())
-      .then((data) => {
-        setTopWinners(data.winners || []);
-        setStats(data.stats || null);
-        setFrequency(data.frequency || []);
-      })
-      .catch(() => {});
     trackLandingPageView();
   }, []);
 

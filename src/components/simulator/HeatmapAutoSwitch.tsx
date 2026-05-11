@@ -26,6 +26,7 @@ interface HeatmapZones {
   manualOverride:      ManualOverride;
   momentumLookbackMin: number | null;
   zoneHalfWidthUsd:    number | null;
+  maxPainProximityUsd: number | null;
 }
 
 interface AutoStatus {
@@ -81,6 +82,7 @@ const EMPTY_ZONES: HeatmapZones = {
   manualOverride: "AUTO",
   momentumLookbackMin: 10,
   zoneHalfWidthUsd: null,
+  maxPainProximityUsd: null,
 };
 
 function PriceInput({
@@ -520,6 +522,18 @@ export function HeatmapAutoSwitch() {
                   description="Full entry band = 2× this value. Leave empty for default (500)."
                   value={zones.zoneHalfWidthUsd}
                   onChange={(v) => handleChange("zoneHalfWidthUsd", v)}
+                />
+              </div>
+
+              <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                  Max Pain exit proximity
+                </p>
+                <PriceInput
+                  label="± USD from today's max pain"
+                  description="One-sided zone only — closes open trades when BTC is this close to max pain. Leave empty for default (200)."
+                  value={zones.maxPainProximityUsd}
+                  onChange={(v) => handleChange("maxPainProximityUsd", v)}
                 />
               </div>
 

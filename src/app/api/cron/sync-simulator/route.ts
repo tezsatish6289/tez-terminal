@@ -435,6 +435,95 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ── Max pain exit: close matching trades when BTC is near today's max pain ──
+    // Only fires when exactly ONE zone side is active in AUTO mode.
+    // One-sided zone = MM has a single destination. Once BTC reaches max pain,
+    // their hedging pressure is resolved and reversal is likely.
+    // When both zones are active the price can pass through max pain toward the
+    // other side — so this block deliberately does NOT run in that case.
+    if (heatmapZones.manualOverride === "AUTO" && btcPrice !== null) {
+      try {
+        const sugZonesSnap = await db.doc("config/suggested_zones").get();
+        if (sugZonesSnap.exists) {
+          const sug = sugZonesSnap.data() as Record<string, unknown>;
+
+          // Determine which sides have active zones
+          const hasBullZone =
+            typeof heatmapZones.bullZoneLow  === "number" &&
+            typeof heatmapZones.bullZoneHigh === "number";
+          const hasBearZone =
+            typeof heatmapZones.bearZoneLow  === "number" &&
+            typeof heatmapZones.bearZoneHigh === "number";
+          const onlyOneSide = hasBullZone !== hasBearZone; // XOR: exactly one active
+
+          if (onlyOneSide) {
+            // Today's max pain (dayIndex === 0 from maxPainByExpiry, fallback to maxPain)
+            let todayMaxPain: number | null = null;
+            const mpByExpiry = sug.maxPainByExpiry as Array<{ dayIndex: number; maxPain: number }> | undefined;
+            if (Array.isArray(mpByExpiry)) {
+              const day0 = mpByExpiry.find((e) => e.dayIndex === 0);
+              todayMaxPain = day0?.maxPain ?? null;
+            }
+            if (todayMaxPain === null && typeof sug.maxPain === "number") {
+              todayMaxPain = sug.maxPain;
+            }
+
+            if (todayMaxPain !== null) {
+              const proximity = heatmapZones.maxPainProximityUsd ?? 200;
+              const nearMaxPain = Math.abs(btcPrice - todayMaxPain) <= proximity;
+
+              if (nearMaxPain) {
+                // Only close trades whose direction matches the active zone
+                const sideToClose = hasBullZone ? "BUY" : "SELL";
+
+                const mpSnap = await db.collection("simulator_trades")
+                  .where("status", "==", "OPEN")
+                  .where("assetType", "==", "CRYPTO")
+                  .where("side", "==", sideToClose)
+                  .get();
+
+                if (!mpSnap.empty) {
+                  for (const simDoc of mpSnap.docs) {
+                    const t = simDoc.data() as SimTrade;
+                    const closePrice = getSimPrice(t.symbol, t.exchange) ?? t.entryPrice;
+                    const simState = await loadSimState("CRYPTO");
+
+                    const result = processTradeExit({
+                      trade: { ...t, id: simDoc.id },
+                      state: simState,
+                      exitType: "TP1",
+                      exitPrice: closePrice,
+                      simConfig,
+                    });
+
+                    if (result) {
+                      const { id: _id, ...fields } = result.updatedTrade;
+                      await db.collection("simulator_trades").doc(simDoc.id).update({
+                        ...fields,
+                        closeReason: "MAX_PAIN_EXIT",
+                      });
+                      updateSimState("CRYPTO", result.updatedState);
+                      await db.collection("simulator_logs").add({
+                        ...result.log,
+                        action: "MAX_PAIN_EXIT",
+                        details: `[SIM] ${t.symbol} ${t.side} force-closed @ $${closePrice} — BTC $${btcPrice} within $${proximity} of max pain $${todayMaxPain} (one-sided ${sideToClose === "BUY" ? "bull" : "bear"} zone)`,
+                      });
+                      if (result.updatedTrade.status === "CLOSED") {
+                        await markTradeForBlockchain(db, simDoc.id);
+                      }
+                    }
+                  }
+                  await flushSimStates();
+                }
+              }
+            }
+          }
+        }
+      } catch (mpErr: any) {
+        console.error("[SimSync] Max-pain exit failed:", mpErr.message);
+      }
+    }
+
     // ── Zone flip: force-close opposite-direction Indian stocks trades ──
     // Mirror of the CRYPTO zone-flip block above, but for INDIAN_STOCKS.
     // Only runs in AUTO mode — manual overrides leave trade management to the user.

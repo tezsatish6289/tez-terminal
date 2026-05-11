@@ -17,6 +17,8 @@ export interface HeatmapZones {
   momentumLookbackMin: number | null; // null = momentum check disabled
   /** ±USD around each Deribit strike for AUTO zones; null → server default (500). */
   zoneHalfWidthUsd:    number | null;
+  /** Close open trades when BTC is within this many $ of today's max pain (one-sided zones only). null → default 200. */
+  maxPainProximityUsd: number | null;
 }
 
 export interface PricePoint {
@@ -51,6 +53,9 @@ export function parseZones(data: Record<string, unknown>): HeatmapZones {
   const zh = data.zoneHalfWidthUsd;
   zones.zoneHalfWidthUsd =
     typeof zh === "number" && zh >= 50 && zh <= 3000 ? zh : null;
+  const mp = data.maxPainProximityUsd;
+  zones.maxPainProximityUsd =
+    typeof mp === "number" && mp >= 50 && mp <= 2000 ? mp : null;
   return zones;
 }
 

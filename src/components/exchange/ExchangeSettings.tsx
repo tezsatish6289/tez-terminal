@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, type SVGProps, type ReactNode } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import {
   Loader2, Zap, Eye, EyeOff, Shield, Power, AlertTriangle, Settings, Check, X, Trash2,
 } from "lucide-react";
@@ -24,7 +24,7 @@ export type ExchangeId = "BYBIT" | "BINANCE" | "MEXC" | "COINDCX" | "HYPERLIQUID
 interface ExchangeMeta {
   id: ExchangeId;
   name: string;
-  icon: (props: SVGProps<SVGSVGElement>) => ReactNode;
+  icon: (props: { className?: string }) => ReactNode;
   color: string;
   bgColor: string;
   borderColor: string;

@@ -209,6 +209,7 @@ const EXCHANGES: Record<string, Exchange[]> = {
     },
     {
       key: "HYPERLIQUID", name: "Hyperliquid", icon: "◈",
+      logo: "/freedombot/exchanges/hyperliquid.png",
       access: "Global",
       fields: [
         {

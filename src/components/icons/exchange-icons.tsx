@@ -1,4 +1,5 @@
-import { SVGProps } from "react";
+import { SVGProps, type ImgHTMLAttributes } from "react";
+import { cn } from "@/lib/utils";
 
 export function TradingViewIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -44,16 +45,16 @@ export function CoinDcxIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-/** Stylized mark — not an official Hyperliquid logo */
-export function HyperliquidIcon(props: SVGProps<SVGSVGElement>) {
+/** Official Hyperliquid mark (asset: /public/freedombot/exchanges/hyperliquid.png). */
+export function HyperliquidIcon(props: ImgHTMLAttributes<HTMLImageElement>) {
+  const { className, alt = "Hyperliquid", ...rest } = props;
   return (
-    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
-      <rect width="40" height="40" rx="10" fill="#0a1628" />
-      <path
-        d="M11 28V12h4v6.5h10V12h4v16h-4v-6H15v6h-4z"
-        fill="#5EEAD4"
-      />
-    </svg>
+    <img
+      src="/freedombot/exchanges/hyperliquid.png"
+      alt={alt}
+      className={cn("object-contain", className)}
+      {...rest}
+    />
   );
 }
 

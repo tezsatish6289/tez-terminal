@@ -530,8 +530,8 @@ export function HeatmapAutoSwitch() {
                   Max Pain exit proximity
                 </p>
                 <PriceInput
-                  label="± USD from today's max pain"
-                  description="One-sided zone only — closes open trades when BTC is this close to max pain. Leave empty for default (200)."
+                  label="± USD from TP target (max pain)"
+                  description="One-sided zone only — closes open trades when BTC reaches the TP shown above (±this buffer). Default 200."
                   value={zones.maxPainProximityUsd}
                   onChange={(v) => handleChange("maxPainProximityUsd", v)}
                 />

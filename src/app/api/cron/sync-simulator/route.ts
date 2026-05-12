@@ -457,26 +457,23 @@ export async function GET(request: NextRequest) {
           const onlyOneSide = hasBullZone !== hasBearZone; // XOR: exactly one active
 
           if (onlyOneSide) {
-            // Today's max pain (dayIndex === 0 from maxPainByExpiry, fallback to maxPain)
-            let todayMaxPain: number | null = null;
-            const mpByExpiry = sug.maxPainByExpiry as Array<{ dayIndex: number; maxPain: number }> | undefined;
-            if (Array.isArray(mpByExpiry)) {
-              const day0 = mpByExpiry.find((e) => e.dayIndex === 0);
-              todayMaxPain = day0?.maxPain ?? null;
-            }
-            if (todayMaxPain === null && typeof sug.maxPain === "number") {
-              todayMaxPain = sug.maxPain;
-            }
+            // Use the TP target from suggested_zones — this is the max pain of the
+            // most relevant future expiry (the one the UI shows as "TP →").
+            // This is the actual price destination, NOT today's max pain which sits
+            // near the zone center and would close trades prematurely.
+            const exitTarget: number | null = hasBearZone
+              ? (typeof sug.bearTpTarget === "number" ? sug.bearTpTarget : null)
+              : (typeof sug.bullTpTarget === "number" ? sug.bullTpTarget : null);
 
-            if (todayMaxPain !== null) {
+            if (exitTarget !== null) {
               const proximity = heatmapZones.maxPainProximityUsd ?? 200;
 
-              // Directional check — fires even if BTC overshoots max pain between cycles.
-              // Bear-only: close when BTC has fallen to/past max pain (BTC <= maxPain + buffer)
-              // Bull-only: close when BTC has risen to/past max pain (BTC >= maxPain - buffer)
+              // Directional check — fires even if BTC overshoots between cron cycles.
+              // Bear-only: close when BTC has fallen to/past TP (BTC <= tp + buffer)
+              // Bull-only: close when BTC has risen to/past TP (BTC >= tp - buffer)
               const nearMaxPain = hasBearZone
-                ? btcPrice <= todayMaxPain + proximity
-                : btcPrice >= todayMaxPain - proximity;
+                ? btcPrice <= exitTarget + proximity
+                : btcPrice >= exitTarget - proximity;
 
               if (nearMaxPain) {
                 // Only close trades whose direction matches the active zone
@@ -512,7 +509,7 @@ export async function GET(request: NextRequest) {
                       await db.collection("simulator_logs").add({
                         ...result.log,
                         action: "MAX_PAIN_EXIT",
-                        details: `[SIM] ${t.symbol} ${t.side} force-closed @ $${closePrice} — BTC $${btcPrice} reached max pain $${todayMaxPain} ±$${proximity} (one-sided ${sideToClose === "BUY" ? "bull" : "bear"} zone)`,
+                        details: `[SIM] ${t.symbol} ${t.side} force-closed @ $${closePrice} — BTC $${btcPrice} reached TP target $${exitTarget} ±$${proximity} (one-sided ${sideToClose === "BUY" ? "bull" : "bear"} zone)`,
                       });
                       if (result.updatedTrade.status === "CLOSED") {
                         await markTradeForBlockchain(db, simDoc.id);

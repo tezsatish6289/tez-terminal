@@ -9,6 +9,7 @@ import { BybitConnector } from "./bybit";
 import { BinanceConnector } from "./binance";
 import { MexcConnector } from "./mexc";
 import { CoinDcxConnector } from "./coindcx";
+import { HyperliquidConnector } from "./hyperliquid";
 import { DhanConnector } from "./dhan";
 
 const connectors: Record<ExchangeName, ExchangeConnector> = {
@@ -16,6 +17,7 @@ const connectors: Record<ExchangeName, ExchangeConnector> = {
   BINANCE: new BinanceConnector(),
   MEXC: new MexcConnector(),
   COINDCX: new CoinDcxConnector(),
+  HYPERLIQUID: new HyperliquidConnector(),
   DHAN: new DhanConnector(),
 };
 
@@ -60,6 +62,7 @@ const SECRET_DOC_IDS: Record<ExchangeName, string> = {
   BINANCE: "binance_futures",
   MEXC: "mexc",
   COINDCX: "coindcx",
+  HYPERLIQUID: "hyperliquid",
   DHAN: "dhan",
 };
 

@@ -24,7 +24,7 @@ function computeFingerprint(
 
 const ALLOWED_BOTS = new Set(["CRYPTO", "INDIAN_STOCKS", "GOLD", "SILVER"]);
 const ALLOWED_EXCHANGES: Record<string, string[]> = {
-  CRYPTO:        ["BYBIT", "COINDCX"],
+  CRYPTO:        ["BYBIT", "COINDCX", "HYPERLIQUID"],
   INDIAN_STOCKS: ["ZERODHA", "UPSTOX", "ANGEL_ONE", "DHAN"],
 };
 

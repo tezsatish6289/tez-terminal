@@ -30,6 +30,7 @@ export async function fetchAllExchangePrices(): Promise<AllExchangePrices> {
     BINANCE: new Map(),
     MEXC: new Map(),
     COINDCX: new Map(),
+    HYPERLIQUID: new Map(),
     DHAN: new Map(),
   };
 
@@ -65,6 +66,7 @@ export function deserializePrices(data: Record<string, Record<string, number>>):
     BINANCE: new Map(),
     MEXC: new Map(),
     COINDCX: new Map(),
+    HYPERLIQUID: new Map(),
     DHAN: new Map(),
   };
   for (const exchange of ALL_EXCHANGES) {
@@ -109,6 +111,13 @@ export function getPrice(
     const pairKey = `B-${base}_USDT`;
     const cdPrice = exchangeMap?.get(pairKey) ?? exchangeMap?.get(raw);
     if (cdPrice != null) return cdPrice;
+  }
+
+  // Hyperliquid mids: keyed by coin (BTC) and BTCUSDT
+  if (exchange === "HYPERLIQUID") {
+    const base = raw.endsWith("USDT") ? raw.slice(0, -4) : raw;
+    const hlPrice = exchangeMap?.get(base) ?? exchangeMap?.get(raw);
+    if (hlPrice != null) return hlPrice;
   }
 
   // Dhan has no fallback — stock prices are exchange-specific

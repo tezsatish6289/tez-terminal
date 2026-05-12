@@ -13,21 +13,21 @@ export type AssetType = "CRYPTO" | "INDIAN_STOCKS" | "COMMODITIES";
 // ── Broker Names (entities that execute orders) ─────────────────
 // For crypto: broker = exchange. For stocks: broker ≠ exchange.
 
-export type BrokerName = "BYBIT" | "BINANCE" | "MEXC" | "COINDCX" | "DHAN";
+export type BrokerName = "BYBIT" | "BINANCE" | "MEXC" | "COINDCX" | "HYPERLIQUID" | "DHAN";
 
-export const CRYPTO_BROKERS: BrokerName[] = ["BYBIT", "BINANCE", "MEXC", "COINDCX"];
+export const CRYPTO_BROKERS: BrokerName[] = ["BYBIT", "BINANCE", "MEXC", "COINDCX", "HYPERLIQUID"];
 export const STOCK_BROKERS: BrokerName[] = ["DHAN"];
 export const ALL_BROKERS: BrokerName[] = [...CRYPTO_BROKERS, ...STOCK_BROKERS];
 
 // ── Signal Exchanges (where signals originate) ──────────────────
 
-export type SignalExchange = "BYBIT" | "BINANCE" | "MEXC" | "COINDCX" | "NSE" | "BSE" | "MCX";
+export type SignalExchange = "BYBIT" | "BINANCE" | "MEXC" | "COINDCX" | "HYPERLIQUID" | "NSE" | "BSE" | "MCX";
 
 // ── Exchange Names (backward compat — union of all broker names) ─
 
 export type ExchangeName = BrokerName;
 
-export const SUPPORTED_EXCHANGES: ExchangeName[] = ["BYBIT", "BINANCE", "MEXC", "COINDCX"];
+export const SUPPORTED_EXCHANGES: ExchangeName[] = ["BYBIT", "BINANCE", "MEXC", "COINDCX", "HYPERLIQUID"];
 export const STOCK_EXCHANGES: ExchangeName[] = ["DHAN"];
 export const ALL_EXCHANGES: ExchangeName[] = [...SUPPORTED_EXCHANGES, ...STOCK_EXCHANGES];
 

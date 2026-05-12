@@ -15,11 +15,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { BinanceIcon, MexcIcon, BybitIcon, CoinDcxIcon, DhanIcon } from "@/components/icons/exchange-icons";
+import { BinanceIcon, MexcIcon, BybitIcon, CoinDcxIcon, HyperliquidIcon, DhanIcon } from "@/components/icons/exchange-icons";
 
 // ── Exchange Definitions ────────────────────────────────────────
 
-export type ExchangeId = "BYBIT" | "BINANCE" | "MEXC" | "COINDCX" | "DHAN";
+export type ExchangeId = "BYBIT" | "BINANCE" | "MEXC" | "COINDCX" | "HYPERLIQUID" | "DHAN";
 
 interface ExchangeMeta {
   id: ExchangeId;
@@ -81,6 +81,21 @@ const EXCHANGES: ExchangeMeta[] = [
     testnetUrl: "",
     prodUrl: "coindcx.com",
     permissionNote: "USDT-m futures API access only. Never enable withdrawals.",
+    noTestnet: true,
+  },
+  {
+    id: "HYPERLIQUID",
+    name: "Hyperliquid",
+    icon: HyperliquidIcon,
+    color: "text-cyan-400",
+    bgColor: "bg-cyan-400/10",
+    borderColor: "border-cyan-400/20",
+    testnetUrl: "app.hyperliquid-testnet.xyz",
+    prodUrl: "app.hyperliquid.xyz",
+    permissionNote:
+      "Main wallet (0x) + agent private key. The HL API page lists the agent address — use the key you received when generating that agent, not that address.",
+    keyLabel: "Main wallet (0x…)",
+    secretLabel: "Agent private key",
     noTestnet: true,
   },
   {
@@ -627,6 +642,7 @@ export function MultiExchangeStatusBadges({ uid, assetType }: { uid: string | un
   const binance = useExchangeConfig(uid, "BINANCE");
   const mexc = useExchangeConfig(uid, "MEXC");
   const coindcx = useExchangeConfig(uid, "COINDCX");
+  const hyperliquid = useExchangeConfig(uid, "HYPERLIQUID");
   const dhan = useExchangeConfig(uid, "DHAN");
 
   const allConfigs = [
@@ -634,6 +650,7 @@ export function MultiExchangeStatusBadges({ uid, assetType }: { uid: string | un
     { exchange: "BINANCE" as ExchangeId, config: binance.config, loading: binance.isLoading },
     { exchange: "MEXC" as ExchangeId, config: mexc.config, loading: mexc.isLoading },
     { exchange: "COINDCX" as ExchangeId, config: coindcx.config, loading: coindcx.isLoading },
+    { exchange: "HYPERLIQUID" as ExchangeId, config: hyperliquid.config, loading: hyperliquid.isLoading },
     { exchange: "DHAN" as ExchangeId, config: dhan.config, loading: dhan.isLoading },
   ];
 

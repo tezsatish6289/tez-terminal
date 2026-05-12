@@ -513,7 +513,7 @@ export async function GET(request: NextRequest) {
   try {
     // ── 1. Read cached prices ───────────────────────────────
     const priceDoc = await db.collection("config").doc("exchange_prices").get();
-    let allPrices: AllExchangePrices = { BINANCE: new Map(), BYBIT: new Map(), MEXC: new Map(), COINDCX: new Map(), DHAN: new Map() };
+    let allPrices: AllExchangePrices = { BINANCE: new Map(), BYBIT: new Map(), MEXC: new Map(), COINDCX: new Map(), HYPERLIQUID: new Map(), DHAN: new Map() };
     if (priceDoc.exists) {
       allPrices = deserializePrices(priceDoc.data() as Record<string, Record<string, number>>);
     }
@@ -662,6 +662,7 @@ export async function GET(request: NextRequest) {
       binance_futures: "BINANCE",
       mexc:            "MEXC",
       coindcx:         "COINDCX",
+      hyperliquid:     "HYPERLIQUID",
       dhan:            "DHAN",
     };
 
@@ -759,7 +760,9 @@ export async function GET(request: NextRequest) {
     // ── 3b. Lazy backfill: store exchangeUid for deployments that support it ───
     // Runs best-effort and never blocks trading. Each deployment only pays
     // this cost once — subsequent ticks skip if exchangeUid is already set.
-    const uidBackfillPairs = pairs.filter((p) => p.exchange === "BYBIT" || p.exchange === "COINDCX");
+    const uidBackfillPairs = pairs.filter(
+      (p) => p.exchange === "BYBIT" || p.exchange === "COINDCX" || p.exchange === "HYPERLIQUID",
+    );
     if (uidBackfillPairs.length > 0) {
       await Promise.allSettled(
         uidBackfillPairs.map(async (pair) => {

@@ -20,6 +20,7 @@ import { generateTokenForUser } from "@/lib/dhan-token";
  *   - BINANCE → secrets/binance_futures
  *   - MEXC    → secrets/mexc
  *   - COINDCX → secrets/coindcx
+ *   - HYPERLIQUID → secrets/hyperliquid
  *
  * GET    — check if credentials are saved + auto-trade status
  * POST   — save (encrypted) API key + secret

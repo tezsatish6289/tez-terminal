@@ -44,6 +44,19 @@ export function CoinDcxIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** Stylized mark — not an official Hyperliquid logo */
+export function HyperliquidIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <rect width="40" height="40" rx="10" fill="#0a1628" />
+      <path
+        d="M11 28V12h4v6.5h10V12h4v16h-4v-6H15v6h-4z"
+        fill="#5EEAD4"
+      />
+    </svg>
+  );
+}
+
 export function MexcIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 37 22" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>

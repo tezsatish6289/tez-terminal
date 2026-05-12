@@ -87,11 +87,12 @@ const BOT_LABELS: Record<string, string> = {
 };
 
 /** Crypto exchanges supported for FreedomBot deploy (must match deploy route). */
-const FREEDOMBOT_CRYPTO_EXCHANGES = ["BYBIT", "COINDCX"] as const;
+const FREEDOMBOT_CRYPTO_EXCHANGES = ["BYBIT", "COINDCX", "HYPERLIQUID"] as const;
 
 const EXCHANGE_LABELS: Record<string, string> = {
   BYBIT: "Bybit",
   COINDCX: "CoinDCX",
+  HYPERLIQUID: "Hyperliquid",
   BINANCE: "Binance",
   ZERODHA: "Zerodha",
   UPSTOX: "Upstox",

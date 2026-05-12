@@ -1125,6 +1125,15 @@ export default function FreedomBotPage() {
               </div>
               <span className="text-sm font-bold" style={{ color: "#94a3b8" }}>CoinDCX</span>
             </div>
+            {/* Hyperliquid */}
+            <div className="flex items-center gap-2 opacity-50 hover:opacity-80 transition-opacity">
+              <div className="h-6 w-6 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0" style={{ backgroundColor: "#0a1628" }}>
+                <svg width="14" height="14" viewBox="0 0 40 40" fill="none" aria-hidden>
+                  <path d="M11 28V12h4v6.5h10V12h4v16h-4v-6H15v6h-4z" fill="#5EEAD4" />
+                </svg>
+              </div>
+              <span className="text-sm font-bold" style={{ color: "#94a3b8" }}>Hyperliquid</span>
+            </div>
             {/* Solana */}
             <div className="flex items-center gap-2 opacity-40 hover:opacity-70 transition-opacity">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">

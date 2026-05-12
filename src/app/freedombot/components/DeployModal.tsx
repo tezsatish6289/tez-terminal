@@ -118,6 +118,20 @@ const HELP_GUIDES: Record<string, HelpGuide> = {
     ],
     warning: 'Never enable any "Withdraw" or "Transfer" permissions. FreedomBot only needs Orders and Positions access — your funds cannot be moved.',
   },
+  HYPERLIQUID: {
+    url: "https://app.hyperliquid.xyz/API",
+    urlLabel: "Open Hyperliquid API (agent wallets)",
+    steps: [
+      "Log in to Hyperliquid and open the API page (link below).",
+      "Create an API wallet: enter a name (e.g. freedombot), use Generate if you want a new agent, then click Authorize API Wallet — your main wallet signs once in the browser.",
+      "Important: the table on that page shows the agent wallet public address only. FreedomBot needs the agent wallet private key (64 hex chars) you got when the key was created — not the 0x address from the list.",
+      "Paste your main account public address (0x…) as API Key — the same address Hyperliquid says to use for info requests.",
+      "Paste the agent private key (0x + 64 hex) as API Secret. It signs trades for your main account and cannot withdraw.",
+      "Fund your Hyperliquid perp balance (USDC) before starting the bot.",
+    ],
+    warning:
+      "Never share your main wallet seed phrase. Treat the agent private key like a password; it is not the short address shown in the API wallet table.",
+  },
   ZERODHA: {
     url: "https://kite.trade",
     urlLabel: "Open Kite.trade",
@@ -188,6 +202,14 @@ const EXCHANGES: Record<string, Exchange[]> = {
       fields: [
         { key: "apiKey",    label: "API Key",    type: "text",     placeholder: "Your CoinDCX API Key" },
         { key: "apiSecret", label: "API Secret", type: "password", placeholder: "Your CoinDCX API Secret" },
+      ],
+    },
+    {
+      key: "HYPERLIQUID", name: "Hyperliquid", icon: "◈",
+      access: "Global",
+      fields: [
+        { key: "apiKey", label: "Main wallet (0x…)", type: "text", placeholder: "Main 0x address (same as HL “info requests” address)" },
+        { key: "apiSecret", label: "Agent private key", type: "password", placeholder: "0x + 64 hex — not the agent address from the table" },
       ],
     },
   ],
@@ -577,6 +599,25 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                     style={{ color: "#60a5fa" }}
                   >
                     Create free account <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              )}
+              {selectedExchange === "HYPERLIQUID" && (
+                <div
+                  className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 rounded-2xl"
+                  style={{ backgroundColor: "rgba(10,22,40,0.6)", border: "1px solid rgba(90,140,220,0.1)" }}
+                >
+                  <p className="text-xs" style={{ color: "#475569" }}>
+                    New to Hyperliquid? Create a wallet and deposit USDC for perp trading.
+                  </p>
+                  <a
+                    href="https://app.hyperliquid.xyz"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs font-bold transition-opacity hover:opacity-80 self-start sm:self-auto"
+                    style={{ color: "#60a5fa" }}
+                  >
+                    Open Hyperliquid <ExternalLink className="h-3 w-3" />
                   </a>
                 </div>
               )}

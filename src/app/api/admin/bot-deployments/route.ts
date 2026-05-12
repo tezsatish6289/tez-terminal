@@ -14,6 +14,7 @@ const BOT_LABELS: Record<string, string> = {
 };
 
 function pnlCurrencyLabel(bot: string, exchange: string): string {
+  if (exchange === "HYPERLIQUID") return "USDC";
   if (
     bot === "CRYPTO" ||
     exchange === "BYBIT" ||

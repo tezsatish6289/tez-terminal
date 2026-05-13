@@ -692,43 +692,81 @@ export class CoinDcxConnector implements ExchangeConnector {
   async getClosedPnl(symbol: string, creds: ExchangeCredentials, startTime?: number): Promise<ClosedPnlRecord[]> {
     const pair = coinDcxPairFromInternal(symbol);
     const internal = internalSymbolFromCoinDcxPair(pair);
-    const rows = await signedPost<
-      Array<{
-        pair: string;
-        stage?: string;
-        amount?: number;
-        fee_amount?: number;
-        price_in_usdt?: number;
-        created_at?: number;
-        margin_currency_short_name?: string;
-      }>
-    >("/exchange/v1/derivatives/futures/positions/transactions", {
-      stage: "all",
-      page: "1",
-      size: "200",
-      margin_currency_short_name: [USDT_MARGIN],
-    }, creds);
+    const startMs = startTime != null && Number.isFinite(startTime) ? startTime : 0;
 
-    const filtered = rows.filter(
-      (r) =>
-        r.pair === pair &&
-        r.margin_currency_short_name === USDT_MARGIN &&
-        (!startTime || (r.created_at != null && r.created_at >= startTime)),
-    );
+    type CdCxPosTxn = {
+      pair: string;
+      stage?: string;
+      amount?: number;
+      fee_amount?: number;
+      price_in_usdt?: number;
+      created_at?: number;
+      margin_currency_short_name?: string;
+      position_id?: string;
+      side?: string;
+      order_side?: string;
+    };
 
-    // CoinDCX Transaction History "Net PNL" = Gross PNL + Fees (fee_amount is signed).
-    // Summing `amount` alone inflates totals vs the app (fees omitted).
-    return filtered.map((r) => {
-      const gross = r.amount ?? 0;
-      const fees = r.fee_amount ?? 0;
-      return {
-        symbol: internal,
-        closedPnl: gross + fees,
-        qty: 0,
-        avgEntryPrice: r.price_in_usdt ?? 0,
-        avgExitPrice: r.price_in_usdt ?? 0,
-        createdTime: r.created_at ?? 0,
-      };
-    });
+    const seen = new Set<string>();
+    const out: ClosedPnlRecord[] = [];
+
+    /** CoinDCX returns `created_at` in ms (13 digits); older rows may use seconds. */
+    const createdAtMs = (raw: number | undefined | null): number => {
+      if (raw == null || Number.isNaN(raw)) return 0;
+      return raw < 1e12 ? raw * 1000 : raw;
+    };
+
+    const maxPages = 40;
+    for (let page = 1; page <= maxPages; page++) {
+      const rows = await signedPost<CdCxPosTxn[]>(
+        "/exchange/v1/derivatives/futures/positions/transactions",
+        {
+          stage: "all",
+          page: String(page),
+          size: "200",
+          margin_currency_short_name: [USDT_MARGIN],
+        },
+        creds,
+      );
+
+      if (!rows?.length) break;
+
+      for (const r of rows) {
+        if (r.pair !== pair || r.margin_currency_short_name !== USDT_MARGIN) continue;
+        if (r.created_at == null) continue;
+
+        const cms = createdAtMs(r.created_at);
+        if (startMs > 0 && cms > 0 && cms < startMs) continue;
+
+        const dedupeKey =
+          r.position_id && r.created_at != null
+            ? `${r.position_id}:${r.created_at}`
+            : `${r.created_at}:${r.amount}:${r.fee_amount}:${r.price_in_usdt}`;
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+
+        const rawSide = r.side ?? r.order_side;
+        const sideNorm =
+          rawSide != null && String(rawSide).trim() !== ""
+            ? String(rawSide).toUpperCase()
+            : null;
+
+        const gross = r.amount ?? 0;
+        const fees = r.fee_amount ?? 0;
+        out.push({
+          symbol: internal,
+          closedPnl: gross + fees,
+          qty: 0,
+          avgEntryPrice: r.price_in_usdt ?? 0,
+          avgExitPrice: r.price_in_usdt ?? 0,
+          createdTime: cms > 0 ? cms : (r.created_at ?? 0),
+          side: sideNorm,
+        });
+      }
+
+      if (rows.length < 200) break;
+    }
+
+    return out;
   }
 }

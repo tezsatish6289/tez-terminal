@@ -14,6 +14,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore, getAdminAuth } from "@/firebase/admin";
 import {
   loadCryptoCredentials,
+  computeClosedTradeExchangePnlMetrics,
+  selectClosedPnlRecordsForTrade,
+  bybitReconcileOrderIdsFromLiveTrade,
+  EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS,
 } from "@/lib/freedombot/reconcile-exchange-pnl";
 import {
   getConnector,
@@ -56,6 +60,13 @@ export async function POST(req: NextRequest) {
     const connector = getConnector(exchange);
     const normalizedSymbol = connector.normalizeSymbol(symbol);
     const nowIso = new Date().toISOString();
+    const tradeWindowOpts = {
+      tradeSide: (String(t.side ?? "BUY").toUpperCase() === "SELL" ? "SELL" : "BUY") as "BUY" | "SELL",
+      matchAnyOrderId:
+        exchange === "BYBIT"
+          ? bybitReconcileOrderIdsFromLiveTrade(t as Record<string, unknown>)
+          : undefined,
+    };
 
     // ── Case 1: trade already CLOSED in Firestore — reconcile PnL only ──────
     if (t.status === "CLOSED") {
@@ -64,14 +75,41 @@ export async function POST(req: NextRequest) {
       }
       const openedAtMs = new Date(String(t.openedAt ?? 0)).getTime();
       const closedAtMs = t.closedAt ? new Date(String(t.closedAt)).getTime() : Date.now();
-      const records = await connector.getClosedPnl!(normalizedSymbol, creds, Math.max(0, openedAtMs - 120_000));
-      const bufferMs = 3 * 60 * 60 * 1000;
-      const exchangePnl = records.reduce((sum, r) => {
-        const ts = (r.createdTime ?? 0) < 1e12 ? (r.createdTime ?? 0) * 1000 : (r.createdTime ?? 0);
-        return ts >= openedAtMs && ts <= closedAtMs + bufferMs ? sum + r.closedPnl : sum;
-      }, 0);
-      await tradeDoc.ref.update({ exchangeRealizedPnl: Number(exchangePnl.toFixed(6)), exchangePnlReconciledAt: nowIso });
-      return NextResponse.json({ status: "closed", pnlReconciled: true, exchangeRealizedPnl: Number(exchangePnl.toFixed(6)) });
+      const records = await connector.getClosedPnl!(
+        normalizedSymbol,
+        creds,
+        Math.max(0, openedAtMs - EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS),
+      );
+      const metrics = computeClosedTradeExchangePnlMetrics(
+        records,
+        openedAtMs,
+        closedAtMs,
+        tradeWindowOpts,
+      );
+      if (metrics.recordCount === 0) {
+        return NextResponse.json({
+          status: "closed",
+          pnlReconciled: false,
+          reason: "no_closed_pnl_rows_in_window",
+        });
+      }
+      await tradeDoc.ref.update({
+        exchangeRealizedPnl: Number(metrics.exchangeRealizedPnl.toFixed(6)),
+        exchangePnlReconciledAt: nowIso,
+        exchangePnlSource: "exchange_closed_pnl_api",
+        ...(metrics.exchangeAvgEntryPrice != null
+          ? { exchangeAvgEntryPrice: metrics.exchangeAvgEntryPrice }
+          : {}),
+        ...(metrics.exchangeAvgExitPrice != null
+          ? { exchangeAvgExitPrice: metrics.exchangeAvgExitPrice }
+          : {}),
+        ...(metrics.exchangeQty != null ? { exchangeQty: metrics.exchangeQty } : {}),
+      });
+      return NextResponse.json({
+        status: "closed",
+        pnlReconciled: true,
+        exchangeRealizedPnl: Number(metrics.exchangeRealizedPnl.toFixed(6)),
+      });
     }
 
     // ── Case 2: trade is OPEN in Firestore — check live position ────────────
@@ -95,15 +133,30 @@ export async function POST(req: NextRequest) {
 
     if (typeof connector.getClosedPnl === "function") {
       const openedAtMs = new Date(String(t.openedAt ?? 0)).getTime();
-      const records = await connector.getClosedPnl!(normalizedSymbol, creds, Math.max(0, openedAtMs - 120_000));
-      const bufferMs = 3 * 60 * 60 * 1000;
-      const relevant = records.filter((r) => {
-        const ts = (r.createdTime ?? 0) < 1e12 ? (r.createdTime ?? 0) * 1000 : (r.createdTime ?? 0);
-        return ts >= openedAtMs && ts <= Date.now() + bufferMs;
-      });
-      exchangePnl = relevant.reduce((s, r) => s + r.closedPnl, 0);
-      const lastRecord = relevant.sort((a, b) => (b.createdTime ?? 0) - (a.createdTime ?? 0))[0];
-      avgExitPrice = lastRecord ? (parseFloat(String(lastRecord.avgExitPrice ?? lastRecord.exitPrice ?? 0)) || null) : null;
+      const closedAtMs = Date.now();
+      const records = await connector.getClosedPnl!(
+        normalizedSymbol,
+        creds,
+        Math.max(0, openedAtMs - EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS),
+      );
+      const metrics = computeClosedTradeExchangePnlMetrics(
+        records,
+        openedAtMs,
+        closedAtMs,
+        tradeWindowOpts,
+      );
+      exchangePnl = metrics.exchangeRealizedPnl;
+      const lastInWin = selectClosedPnlRecordsForTrade(
+        records,
+        openedAtMs,
+        closedAtMs,
+        tradeWindowOpts,
+      ).sort(
+        (a, b) => (b.createdTime ?? 0) - (a.createdTime ?? 0),
+      )[0];
+      avgExitPrice = lastInWin
+        ? (parseFloat(String(lastInWin.avgExitPrice ?? 0)) || null)
+        : null;
     }
 
     await tradeDoc.ref.update({
@@ -112,6 +165,7 @@ export async function POST(req: NextRequest) {
       closeReason: "SYNCED_FROM_EXCHANGE",
       exchangeRealizedPnl: Number(exchangePnl.toFixed(6)),
       exchangePnlReconciledAt: nowIso,
+      exchangePnlSource: "exchange_closed_pnl_api",
       ...(avgExitPrice ? { exchangeAvgExitPrice: avgExitPrice, currentPrice: avgExitPrice } : {}),
     });
 

@@ -170,6 +170,10 @@ export interface ClosedPnlRecord {
   avgEntryPrice: number;
   avgExitPrice: number;
   createdTime: number;    // ms timestamp
+  /** When present (e.g. CoinDCX), used with trade side to narrow rows in the time window. */
+  side?: string | null;
+  /** Bybit `/v5/position/closed-pnl` — prefer matching rows to the trade via this id. */
+  orderId?: string | null;
 }
 
 // ── Error ───────────────────────────────────────────────────────

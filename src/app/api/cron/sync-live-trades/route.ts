@@ -27,6 +27,11 @@ import {
   type AllExchangePrices,
 } from "@/lib/exchanges";
 import { isIndianMarketOpen, isIndianSquareOffTime } from "@/lib/market-hours";
+import {
+  computeClosedTradeExchangePnlMetrics,
+  bybitReconcileOrderIdsFromLiveTrade,
+  EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS,
+} from "@/lib/freedombot/reconcile-exchange-pnl";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -58,6 +63,7 @@ async function syncUserTrades(
     // Fetches real PnL, entry/exit prices, and qty from the exchange for
     // any closed trade missing exchangeRealizedPnl. Runs on ALL closed
     // trades (not just recent) so older trades are backfilled gradually.
+    // Bybit: match closed-PnL rows by stored order ids when the API returns them; else ±5m window.
     // Capped at 20 per cycle to avoid rate-limiting.
     // Best-effort: never blocks open-trade sync.
     if (getConnector(exchange).getClosedPnl) {
@@ -74,25 +80,41 @@ async function syncUserTrades(
         for (const doc of missingSnap.docs) {
           const lt = { id: doc.id, ...doc.data() } as LiveTrade;
           try {
-            const startTime = new Date(lt.openedAt).getTime();
-            const records = await connector.getClosedPnl!(lt.symbol, creds, startTime);
-            if (records.length === 0) continue;
+            const openedAtMs = new Date(lt.openedAt).getTime();
+            const closedAtMs = lt.closedAt ? new Date(lt.closedAt).getTime() : Date.now();
+            if (!Number.isFinite(openedAtMs) || !Number.isFinite(closedAtMs)) continue;
 
-            const totalPnl = records.reduce((sum, r) => sum + r.closedPnl, 0);
-            const totalQty = records.reduce((sum, r) => sum + r.qty, 0);
-            // Weighted average entry/exit prices across all fill records
-            const avgEntry = records.reduce((sum, r) => sum + r.avgEntryPrice * r.qty, 0) / totalQty;
-            const avgExit  = records.reduce((sum, r) => sum + r.avgExitPrice  * r.qty, 0) / totalQty;
+            const records = await connector.getClosedPnl!(
+              lt.symbol,
+              creds,
+              Math.max(0, openedAtMs - EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS),
+            );
+            const metrics = computeClosedTradeExchangePnlMetrics(records, openedAtMs, closedAtMs, {
+              tradeSide:
+                String(lt.side ?? "BUY").toUpperCase() === "SELL" ? "SELL" : "BUY",
+              matchAnyOrderId:
+                exchange === "BYBIT"
+                  ? bybitReconcileOrderIdsFromLiveTrade(lt as unknown as Record<string, unknown>)
+                  : undefined,
+            });
+            if (metrics.recordCount === 0) continue;
 
             const nowIso = new Date().toISOString();
-            await db.collection("live_trades").doc(doc.id).update({
-              exchangeRealizedPnl:   parseFloat(totalPnl.toFixed(4)),
-              exchangeAvgEntryPrice: parseFloat(avgEntry.toFixed(8)),
-              exchangeAvgExitPrice:  parseFloat(avgExit.toFixed(8)),
-              exchangeQty:           parseFloat(totalQty.toFixed(6)),
+            const patch: Record<string, unknown> = {
+              exchangeRealizedPnl: Number(metrics.exchangeRealizedPnl.toFixed(6)),
               exchangePnlReconciledAt: nowIso,
               exchangePnlSource: "exchange_closed_pnl_api",
-            });
+            };
+            if (metrics.exchangeAvgEntryPrice != null) {
+              patch.exchangeAvgEntryPrice = metrics.exchangeAvgEntryPrice;
+            }
+            if (metrics.exchangeAvgExitPrice != null) {
+              patch.exchangeAvgExitPrice = metrics.exchangeAvgExitPrice;
+            }
+            if (metrics.exchangeQty != null) {
+              patch.exchangeQty = metrics.exchangeQty;
+            }
+            await db.collection("live_trades").doc(doc.id).update(patch);
           } catch {
             // best effort per trade
           }

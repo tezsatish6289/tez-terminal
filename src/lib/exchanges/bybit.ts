@@ -672,7 +672,7 @@ export class BybitConnector implements ExchangeConnector {
     const params: Record<string, string | number> = {
       category: "linear",
       symbol,
-      limit: 50,
+      limit: 100,
     };
     if (startTime) params.startTime = startTime;
 
@@ -682,13 +682,22 @@ export class BybitConnector implements ExchangeConnector {
       creds
     );
 
-    return data.list.map((r) => ({
-      symbol: r.symbol,
-      closedPnl: parseFloat(r.closedPnl ?? "0"),
-      qty: parseFloat(r.qty ?? "0"),
-      avgEntryPrice: parseFloat(r.avgEntryPrice ?? "0"),
-      avgExitPrice: parseFloat(r.avgExitPrice ?? "0"),
-      createdTime: parseInt(r.createdTime ?? "0"),
-    }));
+    return data.list.map((r) => {
+      const oidRaw = r.orderId ?? (r as { order_id?: string }).order_id;
+      return {
+        symbol: r.symbol,
+        closedPnl: parseFloat(r.closedPnl ?? "0"),
+        qty: parseFloat(r.qty ?? "0"),
+        avgEntryPrice: parseFloat(r.avgEntryPrice ?? "0"),
+        avgExitPrice: parseFloat(r.avgExitPrice ?? "0"),
+        createdTime: parseInt(r.createdTime ?? "0"),
+        ...(oidRaw != null && String(oidRaw).trim() !== ""
+          ? { orderId: String(oidRaw).trim() }
+          : {}),
+        ...(r.side != null && String(r.side).trim() !== ""
+          ? { side: String(r.side).toUpperCase() }
+          : {}),
+      };
+    });
   }
 }

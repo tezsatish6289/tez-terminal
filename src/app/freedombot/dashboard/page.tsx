@@ -662,6 +662,21 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
         </div>
       </div>
 
+      {deployment.exchange === "COINDCX" &&
+        trades.some((t) => t.status === "closed" && exchangeBackedClosedPnl(t) == null) && (
+          <div
+            className="rounded-2xl px-4 py-3 text-xs font-semibold leading-relaxed"
+            style={{
+              backgroundColor: "rgba(251,191,36,0.06)",
+              border: "1px solid rgba(251,191,36,0.18)",
+              color: "#fcd34d",
+            }}
+          >
+            CoinDCX: some closed rows are still waiting on exchange-reported P&L. Realised totals and the
+            cumulative column update as sync runs (usually within a few minutes), or use the row resync control.
+          </div>
+        )}
+
       {/* ── Trades table ── */}
       <div
         className="rounded-2xl overflow-hidden"

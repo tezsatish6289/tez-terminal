@@ -1,6 +1,11 @@
 /**
  * Refresh exchange-reported realized PnL for closed live_trades (FreedomBot dashboard + admin).
  * Any crypto connector that implements getClosedPnl is supported (BYBIT, COINDCX; future BINANCE/MEXC).
+ *
+ * **Bybit:** rows are selected by `orderId` matching stored trade order ids when possible; otherwise
+ * a ±5m window around open/close plus optional `side`.
+ *
+ * **CoinDCX:** rows in [open − 5m, close + 5m] (incl. funding); optional `side` when the venue sends it.
  */
 import type { Firestore } from "firebase-admin/firestore";
 import { decrypt } from "@/lib/crypto";
@@ -39,11 +44,15 @@ export function exchangeSupportsClosedPnlReconciliation(exchange: string): boole
   }
 }
 
-/** Extra lookback before `openedAt` when querying exchange closed-PnL APIs. */
-export const EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS = 120_000;
+/** Rows from `openedAt − pre` through `closedAt + post` count toward this trade (incl. funding on CoinDCX). */
+export const EXCHANGE_PNL_TRADE_WINDOW_PRE_MS = 5 * 60 * 1000;
+export const EXCHANGE_PNL_TRADE_WINDOW_POST_MS = 5 * 60 * 1000;
 
-/** Post-close window so delayed venue rows (funding/settlement) still count. */
-export const EXCHANGE_PNL_POST_CLOSE_BUFFER_MS = 3 * 60 * 60 * 1000;
+/** Query venue APIs from this far before open so rows inside the pre-window are returned. */
+export const EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS = EXCHANGE_PNL_TRADE_WINDOW_PRE_MS;
+
+/** @deprecated Use EXCHANGE_PNL_TRADE_WINDOW_POST_MS — kept for imports that still reference the old name. */
+export const EXCHANGE_PNL_POST_CLOSE_BUFFER_MS = EXCHANGE_PNL_TRADE_WINDOW_POST_MS;
 
 /** CoinDCX sometimes returns unix seconds; Bybit uses ms. */
 export function recordTimeMs(r: ClosedPnlRecord): number {
@@ -52,24 +61,86 @@ export function recordTimeMs(r: ClosedPnlRecord): number {
   return t < 1e12 ? t * 1000 : t;
 }
 
+/** Order ids stored on `live_trades` that may appear on Bybit closed-PnL rows. */
+export function bybitReconcileOrderIdsFromLiveTrade(data: Record<string, unknown>): string[] {
+  const keys = ["entryOrderId", "slOrderId", "tp1OrderId", "tp2OrderId", "tp3OrderId"] as const;
+  const out: string[] = [];
+  for (const k of keys) {
+    const v = data[k];
+    if (typeof v === "string" && v.trim().length > 0) out.push(v.trim());
+  }
+  return out;
+}
+
+export interface ClosedPnlWindowOpts {
+  /** When set, only rows whose `side` matches (or row has no side) are included. Ignored when rows are selected by `orderId`. */
+  tradeSide?: "BUY" | "SELL";
+  /**
+   * Bybit: when non-empty, prefer rows whose `orderId` is in this set (exact match, case-insensitive).
+   * If at least one row matches, time/side window is not used for selection. If none match, falls back to the time window.
+   */
+  matchAnyOrderId?: string[];
+}
+
+function matchAnyOrderIdSet(opts?: ClosedPnlWindowOpts): Set<string> | null {
+  const raw = opts?.matchAnyOrderId;
+  if (!raw?.length) return null;
+  const set = new Set<string>();
+  for (const x of raw) {
+    const u = String(x).trim().toUpperCase();
+    if (u.length > 0) set.add(u);
+  }
+  return set.size > 0 ? set : null;
+}
+
 export function closedPnlRecordsForTradeWindow(
   records: ClosedPnlRecord[],
   openedAtMs: number,
   closedAtMs: number,
+  opts?: ClosedPnlWindowOpts,
 ): ClosedPnlRecord[] {
-  const hi = closedAtMs + EXCHANGE_PNL_POST_CLOSE_BUFFER_MS;
+  const lo = openedAtMs - EXCHANGE_PNL_TRADE_WINDOW_PRE_MS;
+  const hi = closedAtMs + EXCHANGE_PNL_TRADE_WINDOW_POST_MS;
+  const want = opts?.tradeSide?.toUpperCase() as "BUY" | "SELL" | undefined;
   return records.filter((r) => {
     const ts = recordTimeMs(r);
-    return ts >= openedAtMs && ts <= hi;
+    if (ts < lo || ts > hi) return false;
+    if (!want || r.side == null || String(r.side).trim() === "") return true;
+    const rs = String(r.side).toUpperCase();
+    if (rs === want) return true;
+    if (want === "BUY" && (rs === "LONG" || rs === "BUY_LONG")) return true;
+    if (want === "SELL" && (rs === "SHORT" || rs === "SELL_SHORT")) return true;
+    return false;
   });
+}
+
+/**
+ * Rows to aggregate for one trade: Bybit prefers `orderId` ∩ stored trade ids; otherwise time ±5m (+ side).
+ */
+export function selectClosedPnlRecordsForTrade(
+  records: ClosedPnlRecord[],
+  openedAtMs: number,
+  closedAtMs: number,
+  opts?: ClosedPnlWindowOpts,
+): ClosedPnlRecord[] {
+  const idSet = matchAnyOrderIdSet(opts);
+  if (idSet) {
+    const matched = records.filter((r) => {
+      const oid = r.orderId != null ? String(r.orderId).trim().toUpperCase() : "";
+      return oid.length > 0 && idSet.has(oid);
+    });
+    if (matched.length > 0) return matched;
+  }
+  return closedPnlRecordsForTradeWindow(records, openedAtMs, closedAtMs, opts);
 }
 
 export function sumPnlInWindow(
   records: ClosedPnlRecord[],
   openedAtMs: number,
   closedAtMs: number,
+  opts?: ClosedPnlWindowOpts,
 ): number {
-  return closedPnlRecordsForTradeWindow(records, openedAtMs, closedAtMs).reduce(
+  return selectClosedPnlRecordsForTrade(records, openedAtMs, closedAtMs, opts).reduce(
     (sum, r) => sum + r.closedPnl,
     0,
   );
@@ -83,13 +154,14 @@ export interface ClosedTradeExchangePnlMetrics {
   recordCount: number;
 }
 
-/** Sum closed-PnL rows that belong to this trade's open→close window (not the whole symbol history). */
+/** Prefer Bybit `orderId` match; else sum rows in [open − 5m, close + 5m] with optional `side`. */
 export function computeClosedTradeExchangePnlMetrics(
   records: ClosedPnlRecord[],
   openedAtMs: number,
   closedAtMs: number,
+  windowOpts?: ClosedPnlWindowOpts,
 ): ClosedTradeExchangePnlMetrics {
-  const inWin = closedPnlRecordsForTradeWindow(records, openedAtMs, closedAtMs);
+  const inWin = selectClosedPnlRecordsForTrade(records, openedAtMs, closedAtMs, windowOpts);
   const totalPnl = inWin.reduce((s, r) => s + r.closedPnl, 0);
   const totalQty = inWin.reduce((s, r) => s + r.qty, 0);
   if (inWin.length === 0) {
@@ -132,6 +204,12 @@ export async function applyBybitExchangeClosedPnlAfterClose(
     symbol: string;
     openedAt: string;
     closedAt: string | null;
+    side?: "BUY" | "SELL";
+    entryOrderId?: string;
+    slOrderId?: string | null;
+    tp1OrderId?: string | null;
+    tp2OrderId?: string | null;
+    tp3OrderId?: string | null;
   },
   creds: ExchangeCredentials,
 ): Promise<void> {
@@ -149,7 +227,10 @@ export async function applyBybitExchangeClosedPnlAfterClose(
       creds,
       Math.max(0, openedAtMs - EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS),
     );
-    return computeClosedTradeExchangePnlMetrics(records, openedAtMs, closedAtMs);
+    return computeClosedTradeExchangePnlMetrics(records, openedAtMs, closedAtMs, {
+      tradeSide: trade.side === "SELL" ? "SELL" : "BUY",
+      matchAnyOrderId: bybitReconcileOrderIdsFromLiveTrade(trade as Record<string, unknown>),
+    });
   };
 
   let metrics = await fetchMetrics();
@@ -210,9 +291,9 @@ export interface ReconcileExchangePnlResult {
 }
 
 /**
- * For each closed production trade on `exchange`, fetch closed PnL rows from the venue
- * and sum those falling between openedAt and closedAt. Writes back exchangeRealizedPnl
- * plus reconciliation metadata.
+ * For each closed production trade on `exchange`, fetch closed-PnL / position transaction rows
+ * from the venue and aggregate rows for that trade (Bybit: order id match when possible; else
+ * `[openedAt − 5m, closedAt + 5m]` and optional side). Writes back exchangeRealizedPnl plus reconciliation metadata.
  */
 export async function reconcileUserExchangeClosedPnl(
   db: Firestore,
@@ -257,15 +338,32 @@ export async function reconcileUserExchangeClosedPnl(
     const exchangeSymbol = connector.normalizeSymbol(signalSymbol);
 
     try {
-      const startArg = Math.max(0, openedAtMs - 120_000);
+      const startArg = Math.max(0, openedAtMs - EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS);
       const records = await connector.getClosedPnl!(exchangeSymbol, creds, startArg);
-      const exchangePnl = sumPnlInWindow(records, openedAtMs, closedAtMs);
+      const metrics = computeClosedTradeExchangePnlMetrics(records, openedAtMs, closedAtMs, {
+        tradeSide: String(lt.side ?? "BUY").toUpperCase() === "SELL" ? "SELL" : "BUY",
+        matchAnyOrderId:
+          exchange === "BYBIT"
+            ? bybitReconcileOrderIdsFromLiveTrade(lt as unknown as Record<string, unknown>)
+            : undefined,
+      });
+      if (metrics.recordCount === 0) continue;
 
-      await doc.ref.update({
-        exchangeRealizedPnl: Number(exchangePnl.toFixed(6)),
+      const patch: Record<string, unknown> = {
+        exchangeRealizedPnl: Number(metrics.exchangeRealizedPnl.toFixed(6)),
         exchangePnlReconciledAt: nowIso,
         exchangePnlSource: "exchange_closed_pnl_api",
-      });
+      };
+      if (metrics.exchangeAvgEntryPrice != null) {
+        patch.exchangeAvgEntryPrice = metrics.exchangeAvgEntryPrice;
+      }
+      if (metrics.exchangeAvgExitPrice != null) {
+        patch.exchangeAvgExitPrice = metrics.exchangeAvgExitPrice;
+      }
+      if (metrics.exchangeQty != null) {
+        patch.exchangeQty = metrics.exchangeQty;
+      }
+      await doc.ref.update(patch);
       result.reconciled++;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

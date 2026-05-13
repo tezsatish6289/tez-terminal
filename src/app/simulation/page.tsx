@@ -136,38 +136,51 @@ export default function SimulationPage() {
   );
   const lastRefreshedLabel = useRelativeTimeLabel(lastRefreshedAt);
 
-  // CLOSED trades — fetched once on mount (historical data, doesn't need real-time).
-  // getDocs instead of onSnapshot eliminates listener cost. Refresh page to see new closures.
+  // CLOSED trades — historical, fetched on mount / asset switch / manual refresh.
+  // getDocs (not onSnapshot) keeps listener cost at zero; explicit refetch
+  // covers the "force-close should reflect immediately" case.
   const [rawClosedTrades, setRawClosedTrades] = useState<any[] | null>(null);
   const [closedTradesLoading, setClosedTradesLoading] = useState(false);
-  useEffect(() => {
+  const refetchClosedTrades = useCallback(async () => {
     if (!firestore || !user) return;
     setClosedTradesLoading(true);
-    getDocs(query(
-      collection(firestore, "simulator_trades"),
-      where("status", "==", "CLOSED"),
-      where("assetType", "==", assetType),
-      orderBy("openedAt", "desc"),
-      limit(500),
-    )).then(snap => {
+    try {
+      const snap = await getDocs(query(
+        collection(firestore, "simulator_trades"),
+        where("status", "==", "CLOSED"),
+        where("assetType", "==", assetType),
+        orderBy("openedAt", "desc"),
+        limit(500),
+      ));
       setRawClosedTrades(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }).finally(() => setClosedTradesLoading(false));
+    } finally {
+      setClosedTradesLoading(false);
+    }
   }, [firestore, user, assetType]);
+  useEffect(() => {
+    refetchClosedTrades();
+  }, [refetchClosedTrades]);
 
-  // Logs — fetched once on mount (historical, no need for real-time).
+  // Logs — historical, fetched once on mount / manual refresh.
   const [rawLogs, setRawLogs] = useState<any[] | null>(null);
   const [logsLoading, setLogsLoading] = useState(false);
-  useEffect(() => {
+  const refetchLogs = useCallback(async () => {
     if (!firestore || !user) return;
     setLogsLoading(true);
-    getDocs(query(
-      collection(firestore, "simulator_logs"),
-      orderBy("timestamp", "desc"),
-      limit(200),
-    )).then(snap => {
+    try {
+      const snap = await getDocs(query(
+        collection(firestore, "simulator_logs"),
+        orderBy("timestamp", "desc"),
+        limit(200),
+      ));
       setRawLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }).finally(() => setLogsLoading(false));
+    } finally {
+      setLogsLoading(false);
+    }
   }, [firestore, user]);
+  useEffect(() => {
+    refetchLogs();
+  }, [refetchLogs]);
 
   const openTrades = useMemo(() => {
     return (rawOpenTrades ?? [])
@@ -264,13 +277,18 @@ export default function SimulationPage() {
       const data = await res.json();
       if (!res.ok) {
         alert(`Force close failed: ${data.error || "Unknown error"}`);
+        return;
       }
+      // Refresh live + history so the closed trade vanishes from OPEN,
+      // shows up in HISTORY, and the new log entry appears in LOGS.
+      refresh();
+      await Promise.all([refetchClosedTrades(), refetchLogs()]);
     } catch (err) {
       alert(`Force close failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setForceClosing(null);
     }
-  }, [user, forceClosing]);
+  }, [user, forceClosing, refresh, refetchClosedTrades, refetchLogs]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {

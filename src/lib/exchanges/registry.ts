@@ -82,10 +82,19 @@ export function getSecretDocIds(exchange: ExchangeName): string[] {
 /**
  * Check whether a Firestore secrets doc actually belongs to the requested exchange.
  * Legacy docs (pre-migration) have no `exchange` field — treat them as BYBIT.
+ * Hyperliquid rows on `secrets/hyperliquid` may omit `exchange`; pass `secretDocId` from the doc ref id when known.
  */
-export function docMatchesExchange(docData: Record<string, unknown>, exchange: ExchangeName): boolean {
+export function docMatchesExchange(
+  docData: Record<string, unknown>,
+  exchange: ExchangeName,
+  secretDocId?: string,
+): boolean {
   const storedExchange = docData.exchange as string | undefined;
-  if (!storedExchange) return exchange === "BYBIT";
+  if (!storedExchange) {
+    if (exchange === "BYBIT") return true;
+    if (exchange === "HYPERLIQUID" && secretDocId === SECRET_DOC_IDS.HYPERLIQUID) return true;
+    return false;
+  }
   return storedExchange.toUpperCase() === exchange;
 }
 

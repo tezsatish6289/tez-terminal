@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     let data: Record<string, unknown> | null = null;
     for (const id of docIds) {
       const doc = await db.collection("users").doc(uid).collection("secrets").doc(id).get();
-      if (doc.exists && docMatchesExchange(doc.data()!, exchangeName)) {
+      if (doc.exists && docMatchesExchange(doc.data()!, exchangeName, id)) {
         data = doc.data()!;
         break;
       }

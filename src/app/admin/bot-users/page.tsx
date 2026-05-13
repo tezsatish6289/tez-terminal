@@ -11,6 +11,7 @@ import {
   Search,
   RefreshCw,
   Bot,
+  ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -55,6 +56,17 @@ interface TradeRow {
   closedAt: string | null;
 }
 
+interface LogRow {
+  id: string;
+  timestamp: string;
+  action: string;
+  details: string;
+  symbol?: string;
+  signalId?: string;
+  exchange?: string;
+  assetType?: string;
+}
+
 export default function AdminBotUsersPage() {
   const { user, isUserLoading } = useUser();
   const isAdmin = user?.email === ADMIN_EMAIL;
@@ -72,6 +84,19 @@ export default function AdminBotUsersPage() {
       string,
       {
         trades: TradeRow[];
+        nextCursor: string | null;
+        hasMore: boolean;
+        loading: boolean;
+        error: string;
+      }
+    >
+  >({});
+
+  const [logState, setLogState] = useState<
+    Record<
+      string,
+      {
+        logs: LogRow[];
         nextCursor: string | null;
         hasMore: boolean;
         loading: boolean;
@@ -107,6 +132,7 @@ export default function AdminBotUsersPage() {
 
   useEffect(() => {
     setExpandedId(null);
+    setLogState({});
   }, [botFilter]);
 
   const fetchTradesPage = async (deploymentId: string, cursor: string | null, append: boolean) => {
@@ -161,6 +187,57 @@ export default function AdminBotUsersPage() {
     }
   };
 
+  const fetchLogsPage = async (deploymentId: string, cursor: string | null, append: boolean) => {
+    if (!user) return;
+    setLogState((prev) => ({
+      ...prev,
+      [deploymentId]: {
+        logs: append ? prev[deploymentId]?.logs ?? [] : [],
+        nextCursor: prev[deploymentId]?.nextCursor ?? null,
+        hasMore: prev[deploymentId]?.hasMore ?? false,
+        loading: true,
+        error: "",
+      },
+    }));
+    try {
+      const idToken = await user.getIdToken();
+      const qs = new URLSearchParams({ pageSize: "50" });
+      if (cursor) qs.set("cursor", cursor);
+      const res = await fetch(`/api/admin/bot-deployments/${deploymentId}/logs?${qs}`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to load logs");
+      const newLogs = (data.logs ?? []) as LogRow[];
+      setLogState((prev) => {
+        const prior = prev[deploymentId];
+        const merged = append ? [...(prior?.logs ?? []), ...newLogs] : newLogs;
+        return {
+          ...prev,
+          [deploymentId]: {
+            logs: merged,
+            nextCursor: data.nextCursor ?? null,
+            hasMore: !!data.hasMore,
+            loading: false,
+            error: "",
+          },
+        };
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unexpected error";
+      setLogState((prev) => ({
+        ...prev,
+        [deploymentId]: {
+          logs: prev[deploymentId]?.logs ?? [],
+          nextCursor: prev[deploymentId]?.nextCursor ?? null,
+          hasMore: prev[deploymentId]?.hasMore ?? false,
+          loading: false,
+          error: msg,
+        },
+      }));
+    }
+  };
+
   const toggleExpand = (deploymentId: string) => {
     if (expandedId === deploymentId) {
       setExpandedId(null);
@@ -169,6 +246,9 @@ export default function AdminBotUsersPage() {
     setExpandedId(deploymentId);
     if (!tradeState[deploymentId]) {
       void fetchTradesPage(deploymentId, null, false);
+    }
+    if (!logState[deploymentId]) {
+      void fetchLogsPage(deploymentId, null, false);
     }
   };
 
@@ -186,6 +266,7 @@ export default function AdminBotUsersPage() {
       await fetchDeployments();
       if (expandedId === deploymentId) {
         void fetchTradesPage(deploymentId, null, false);
+        void fetchLogsPage(deploymentId, null, false);
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Unexpected error";
@@ -335,6 +416,7 @@ export default function AdminBotUsersPage() {
                 filtered.map((d) => {
                   const isOpen = expandedId === d.deploymentId;
                   const ts = tradeState[d.deploymentId];
+                  const ls = logState[d.deploymentId];
                   const pnlColor =
                     d.lifetimeRealizedPnl > 0
                       ? "text-emerald-400"
@@ -440,6 +522,98 @@ export default function AdminBotUsersPage() {
                                 Refreshes closed-trade PnL from the venue API (Bybit / CoinDCX / others when available).
                               </span>
                             </div>
+                          </div>
+
+                          <div>
+                            <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 mb-1 flex items-center gap-2">
+                              <ScrollText className="h-3.5 w-3.5 text-accent/80" />
+                              Execution logs
+                            </h3>
+                            <p className="text-[10px] text-muted-foreground/80 mb-2 max-w-3xl">
+                              Live engine events for this user and venue (<span className="font-mono">{d.exchange}</span>
+                              ) from <span className="font-mono">live_trade_logs</span> — opens, closes, failures, and
+                              sync messages. Newest first.
+                            </p>
+                            {!ls?.loading && ls?.error && (
+                              <p className="text-sm text-rose-400 mb-2">{ls.error}</p>
+                            )}
+                            {ls?.loading && !ls.logs.length && (
+                              <div className="flex justify-center py-6">
+                                <Loader2 className="h-5 w-5 animate-spin text-accent" />
+                              </div>
+                            )}
+                            {ls && ls.logs.length > 0 && (
+                              <div className="overflow-x-auto rounded-lg border border-white/[0.06] max-h-[min(420px,50vh)] overflow-y-auto">
+                                <table className="w-full text-[11px]">
+                                  <thead className="sticky top-0 z-[1] bg-[#121214] border-b border-white/[0.06]">
+                                    <tr className="text-left text-[9px] font-black uppercase tracking-wider text-muted-foreground/60">
+                                      <th className="px-2 py-2 whitespace-nowrap">Time</th>
+                                      <th className="px-2 py-2">Action</th>
+                                      <th className="px-2 py-2">Symbol</th>
+                                      <th className="px-2 py-2 min-w-[200px]">Details</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {ls.logs.map((row) => {
+                                      const action = row.action.toUpperCase();
+                                      const actionClass =
+                                        action.includes("FAIL") || action.includes("REJECT")
+                                          ? "text-rose-400"
+                                          : action.includes("OPEN") || action.includes("TP") || action === "SL_HIT"
+                                            ? "text-emerald-400/90"
+                                            : action.includes("SKIP") || action.includes("EVAL")
+                                              ? "text-amber-400/80"
+                                              : "text-muted-foreground";
+                                      return (
+                                        <tr
+                                          key={row.id}
+                                          className="border-b border-white/[0.04] last:border-0 align-top hover:bg-white/[0.02]"
+                                        >
+                                          <td className="px-2 py-2 font-mono text-muted-foreground whitespace-nowrap">
+                                            {row.timestamp
+                                              ? format(new Date(row.timestamp), "MMM d HH:mm:ss")
+                                              : "—"}
+                                          </td>
+                                          <td className={cn("px-2 py-2 font-bold uppercase text-[10px]", actionClass)}>
+                                            {row.action}
+                                          </td>
+                                          <td className="px-2 py-2 font-mono text-white/80">
+                                            {row.symbol ?? "—"}
+                                          </td>
+                                          <td className="px-2 py-2 text-muted-foreground break-words max-w-xl">
+                                            {row.details}
+                                            {row.signalId ? (
+                                              <span className="block mt-0.5 text-[9px] font-mono text-muted-foreground/50">
+                                                signal: {row.signalId}
+                                              </span>
+                                            ) : null}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                            {ls && !ls.loading && !ls.error && ls.logs.length === 0 && (
+                              <p className="text-sm text-muted-foreground py-3">
+                                No log rows for this user and exchange yet (or index still deploying — check Firebase
+                                console).
+                              </p>
+                            )}
+                            {ls?.hasMore && (
+                              <button
+                                type="button"
+                                disabled={ls.loading}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void fetchLogsPage(d.deploymentId, ls.nextCursor, true);
+                                }}
+                                className="mt-2 w-full sm:w-auto px-4 py-2 rounded-lg border border-white/10 bg-white/[0.04] text-xs font-bold uppercase tracking-wider text-accent hover:bg-white/[0.08] disabled:opacity-50"
+                              >
+                                {ls.loading ? "Loading…" : "More logs (50)"}
+                              </button>
+                            )}
                           </div>
 
                           <div>

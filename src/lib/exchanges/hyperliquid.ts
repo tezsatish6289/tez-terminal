@@ -89,19 +89,26 @@ function clients(creds: ExchangeCredentials): HlClients {
   return { transport, info, exchange, master };
 }
 
-function extractOrderStatus(resp: unknown): { oid: number; avgPx?: string; totalSz?: string } | null {
+/** Parses {@link InfoClient.orderStatus} — HL nests details under `order.order`. */
+function extractOrderStatus(resp: unknown): {
+  oid: number;
+  avgPx?: string;
+  totalSz?: string;
+  processingStatus?: string;
+} | null {
   if (typeof resp !== "object" || resp === null) return null;
-  const r = resp as Record<string, unknown>;
+  const r = resp as { status?: string; order?: { status?: string; order?: Record<string, unknown> } };
   if (r.status === "unknownOid") return null;
-  const order = r.order as Record<string, unknown> | undefined;
-  if (order && typeof order.oid === "number") {
-    return {
-      oid: order.oid,
-      avgPx: typeof order.avgPx === "string" ? order.avgPx : undefined,
-      totalSz: typeof order.totalSz === "string" ? order.totalSz : undefined,
-    };
-  }
-  return null;
+  if (r.status !== "order" || !r.order?.order) return null;
+  const wrap = r.order;
+  const inner = wrap.order;
+  if (!inner || typeof inner.oid !== "number") return null;
+  const oid = inner.oid;
+  const processingStatus = typeof wrap.status === "string" ? wrap.status : undefined;
+  const origSz = typeof inner.origSz === "string" ? inner.origSz : undefined;
+  const sz = typeof inner.sz === "string" ? inner.sz : undefined;
+  const totalSz = processingStatus === "filled" ? origSz ?? sz : origSz ?? sz;
+  return { oid, processingStatus, totalSz, avgPx: undefined };
 }
 
 function mapPlaceStatuses(
@@ -113,9 +120,15 @@ function mapPlaceStatuses(
   const r = resp as {
     response?: { data?: { statuses?: unknown[] } };
   };
-  const st = r.response?.data?.statuses?.[0] as Record<string, unknown> | undefined;
-  if (!st) {
+  const st = r.response?.data?.statuses?.[0] as Record<string, unknown> | string | undefined;
+  if (st === undefined || st === null) {
     throw new ExchangeApiError("Empty order response", 500, "/exchange", "HYPERLIQUID");
+  }
+  if (typeof st === "string") {
+    if (st === "waitingForFill" || st === "waitingForTrigger") {
+      throw new ExchangeApiError(`Order pending: ${st}`, 500, "/exchange", "HYPERLIQUID");
+    }
+    throw new ExchangeApiError(`Unexpected order status: ${st}`, 500, "/exchange", "HYPERLIQUID");
   }
   if ("error" in st && typeof st.error === "string") {
     throw new ExchangeApiError(st.error, 400, "/exchange", "HYPERLIQUID");
@@ -241,6 +254,81 @@ export class HyperliquidConnector implements ExchangeConnector {
     const row = metaCache.byCoin.get(coin);
     if (!row) throw new Error(`Unknown Hyperliquid coin: ${coin}`);
     return { assetId: row.assetId, szDecimals: row.szDecimals, maxLev: row.maxLev, coin, internal };
+  }
+
+  /** VWAP for a single `oid` from recent user fills (orderStatus does not include avg fill price). */
+  private async vwapFromUserFills(
+    info: InfoClient,
+    master: `0x${string}`,
+    oid: number,
+    szDecimals: number,
+  ): Promise<{ avgPx: string; totalSz: string } | null> {
+    try {
+      const fills = await info.userFills({ user: master });
+      const rows = (fills as { oid?: number; px?: string; sz?: string }[]).filter((f) => Number(f.oid) === oid);
+      if (rows.length === 0) return null;
+      let sumPxSz = 0;
+      let sumSz = 0;
+      for (const f of rows) {
+        const px = parseFloat(String(f.px ?? "0"));
+        const sz = parseFloat(String(f.sz ?? "0"));
+        if (!Number.isFinite(px) || !Number.isFinite(sz) || sz <= 0) continue;
+        sumPxSz += px * sz;
+        sumSz += sz;
+      }
+      if (sumSz <= 1e-18) return null;
+      const avg = sumPxSz / sumSz;
+      return {
+        avgPx: formatPrice(String(avg), szDecimals, "perp"),
+        totalSz: formatSize(String(sumSz), szDecimals),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /** After a market-style limit, wait for fill + fills row (placement may return `resting` briefly). */
+  private async pollUntilMarketFilled(
+    info: InfoClient,
+    master: `0x${string}`,
+    oid: number,
+    szDecimals: number,
+    timeoutMs: number,
+  ): Promise<{ avgPx: string; totalSz: string }> {
+    const deadline = Date.now() + timeoutMs;
+    let lastProc: string | undefined;
+    while (Date.now() < deadline) {
+      const st = await info.orderStatus({ user: master, oid });
+      if (typeof st !== "object" || st === null) {
+        await new Promise((r) => setTimeout(r, 150));
+        continue;
+      }
+      const s = st as { status?: string };
+      if (s.status === "unknownOid") {
+        await new Promise((r) => setTimeout(r, 150));
+        continue;
+      }
+      if (s.status !== "order") {
+        await new Promise((r) => setTimeout(r, 150));
+        continue;
+      }
+      const wrap = (st as { order?: { status?: string } }).order;
+      const proc = wrap?.status;
+      lastProc = typeof proc === "string" ? proc : undefined;
+      if (proc === "filled") {
+        for (let i = 0; i < 25; i++) {
+          const ag = await this.vwapFromUserFills(info, master, oid, szDecimals);
+          if (ag) return ag;
+          await new Promise((r) => setTimeout(r, 120));
+        }
+        throw new ExchangeApiError(`Order ${oid} marked filled but fills not visible yet`, 500, "/info", "HYPERLIQUID");
+      }
+      if (proc && proc !== "open" && proc !== "triggered") {
+        throw new ExchangeApiError(`Order ${oid}: ${proc}`, 400, "/info", "HYPERLIQUID");
+      }
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    throw new ExchangeApiError(`Order ${oid} not filled (${lastProc ?? "timeout"})`, 408, "/info", "HYPERLIQUID");
   }
 
   async getBalance(creds: ExchangeCredentials): Promise<FuturesBalance[]> {
@@ -382,12 +470,28 @@ export class HyperliquidConnector implements ExchangeConnector {
             p: px,
             s: sz,
             r: false,
-            t: { limit: { tif: "Ioc" } },
+            t: { limit: { tif: "FrontendMarket" } },
           },
         ],
         grouping: "na",
       });
-      return mapPlaceStatuses(resp, internal, side, "MARKET");
+      let ord = mapPlaceStatuses(resp, internal, side, "MARKET");
+      if (ord.status === "NEW" && parseFloat(ord.executedQty) <= 0 && ord.orderId) {
+        const oid = Number(ord.orderId);
+        if (Number.isFinite(oid)) {
+          const { info, master } = clients(creds);
+          const fill = await this.pollUntilMarketFilled(info, master, oid, szDecimals, 12_000);
+          ord = {
+            ...ord,
+            status: "FILLED",
+            price: fill.avgPx,
+            avgPrice: fill.avgPx,
+            origQty: fill.totalSz,
+            executedQty: fill.totalSz,
+          };
+        }
+      }
+      return ord;
     } catch (e) {
       throw hlError(e, "/exchange");
     }
@@ -475,12 +579,28 @@ export class HyperliquidConnector implements ExchangeConnector {
             p: px,
             s: sz,
             r: true,
-            t: { limit: { tif: "Ioc" } },
+            t: { limit: { tif: "FrontendMarket" } },
           },
         ],
         grouping: "na",
       });
-      return mapPlaceStatuses(resp, internal, side, "MARKET");
+      let ord = mapPlaceStatuses(resp, internal, side, "MARKET");
+      if (ord.status === "NEW" && parseFloat(ord.executedQty) <= 0 && ord.orderId) {
+        const oid = Number(ord.orderId);
+        if (Number.isFinite(oid)) {
+          const { info, master } = clients(creds);
+          const fill = await this.pollUntilMarketFilled(info, master, oid, szDecimals, 12_000);
+          ord = {
+            ...ord,
+            status: "FILLED",
+            price: fill.avgPx,
+            avgPrice: fill.avgPx,
+            origQty: fill.totalSz,
+            executedQty: fill.totalSz,
+          };
+        }
+      }
+      return ord;
     } catch (e) {
       throw hlError(e, "/exchange");
     }
@@ -570,15 +690,26 @@ export class HyperliquidConnector implements ExchangeConnector {
       const st = await info.orderStatus({ user: master, oid });
       const parsed = extractOrderStatus(st);
       if (parsed) {
+        const { szDecimals } = await this.assetRow(symbol, creds.testnet);
+        const filled = parsed.processingStatus === "filled";
+        let avgPx = parsed.avgPx;
+        let totalSz = parsed.totalSz ?? "0";
+        if (filled) {
+          const fromFills = await this.vwapFromUserFills(info, master, oid, szDecimals);
+          if (fromFills) {
+            avgPx = fromFills.avgPx;
+            totalSz = fromFills.totalSz;
+          }
+        }
         return {
           orderId: String(parsed.oid),
           symbol: internal,
-          status: parsed.avgPx ? "FILLED" : "NEW",
+          status: filled ? "FILLED" : "NEW",
           clientOrderId: "",
-          price: parsed.avgPx ?? "0",
-          avgPrice: parsed.avgPx ?? "0",
-          origQty: parsed.totalSz ?? "0",
-          executedQty: parsed.totalSz ?? "0",
+          price: avgPx ?? "0",
+          avgPrice: avgPx ?? "0",
+          origQty: totalSz,
+          executedQty: filled ? totalSz : "0",
           cumQuote: "0",
           type: "",
           side: "",

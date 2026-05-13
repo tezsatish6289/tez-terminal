@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     for (const id of docIds) {
       const ref = db.collection("users").doc(uid).collection("secrets").doc(id);
       const doc = await ref.get();
-      if (doc.exists && docMatchesExchange(doc.data()!, exchangeName)) {
+      if (doc.exists && docMatchesExchange(doc.data()!, exchangeName, id)) {
         secretDoc = doc;
         secretDocRef = ref;
         break;

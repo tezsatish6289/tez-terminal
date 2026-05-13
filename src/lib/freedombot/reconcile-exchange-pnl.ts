@@ -71,7 +71,7 @@ export async function loadCryptoCredentials(
       const secretDoc = await db.collection("users").doc(uid).collection("secrets").doc(id).get();
       if (!secretDoc.exists) continue;
       const data = secretDoc.data()!;
-      if (!docMatchesExchange(data, exchange)) continue;
+      if (!docMatchesExchange(data, exchange, id)) continue;
       const apiKey = decrypt(data.encryptedKey);
       const apiSecret = decrypt(data.encryptedSecret);
       return {

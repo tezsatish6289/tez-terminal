@@ -76,7 +76,7 @@ export async function executeForAllUsers(
 
           if (secretDoc.exists) {
             const data = secretDoc.data()!;
-            if (!docMatchesExchange(data, brokerName)) continue;
+            if (!docMatchesExchange(data, brokerName, id)) continue;
             if (data.autoTradeEnabled === true) {
               let apiKey: string;
               let apiSecret: string;

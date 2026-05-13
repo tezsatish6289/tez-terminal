@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     const doc = await db.collection("users").doc(uid).collection("secrets").doc(id).get();
     if (doc.exists) {
       const docData = doc.data()!;
-      if (docMatchesExchange(docData, exchangeName)) {
+      if (docMatchesExchange(docData, exchangeName, id)) {
         data = docData;
         break;
       }
@@ -180,7 +180,7 @@ export async function PUT(request: NextRequest) {
   for (const id of docIds) {
     const docRef = db.collection("users").doc(uid).collection("secrets").doc(id);
     const doc = await docRef.get();
-    if (doc.exists && docMatchesExchange(doc.data()!, exchangeName)) {
+    if (doc.exists && docMatchesExchange(doc.data()!, exchangeName, id)) {
       ref = docRef;
       break;
     }
@@ -207,7 +207,7 @@ export async function DELETE(request: NextRequest) {
   for (const id of docIds) {
     const docRef = db.collection("users").doc(uid).collection("secrets").doc(id);
     const doc = await docRef.get();
-    if (doc.exists && docMatchesExchange(doc.data()!, exchangeName)) {
+    if (doc.exists && docMatchesExchange(doc.data()!, exchangeName, id)) {
       await docRef.delete();
       deleted = true;
       break;

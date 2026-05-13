@@ -446,7 +446,7 @@ async function syncUserTrades(
         for (const killId of killDocIds) {
           const killRef = db.collection("users").doc(userId).collection("secrets").doc(killId);
           const killDoc = await killRef.get();
-          if (killDoc.exists && docMatchesExchange(killDoc.data()!, exchange)) {
+          if (killDoc.exists && docMatchesExchange(killDoc.data()!, exchange, killId)) {
             await killRef.update({ autoTradeEnabled: false });
             break;
           }
@@ -682,7 +682,7 @@ export async function GET(request: NextRequest) {
 
       const exchangeName = DOC_ID_TO_EXCHANGE[secretDoc.id];
       if (!exchangeName) return;
-      if (!docMatchesExchange(data, exchangeName)) return;
+      if (!docMatchesExchange(data, exchangeName, secretDoc.id)) return;
       if (STOCK_EXCHANGES.includes(exchangeName) && !isIndianMarketOpen()) return;
 
       const dedupeKey = `${userId}::${exchangeName}`;

@@ -768,13 +768,14 @@ export default function FreedomBotDashboard() {
   }, [user]);
 
   const fetchUserTrades = useCallback(
-    async (exchangeForReconcile: string | null) => {
+    async (exchangeForReconcile: string | null, withReconcile = true) => {
       if (!user) return;
-      setTradesLoading(true);
+      if (withReconcile) setTradesLoading(true);
       try {
         const idToken = await user.getIdToken();
         const params = new URLSearchParams();
         if (
+          withReconcile &&
           exchangeForReconcile &&
           FREEDOMBOT_CRYPTO_EXCHANGES.includes(
             exchangeForReconcile.toUpperCase() as (typeof FREEDOMBOT_CRYPTO_EXCHANGES)[number],
@@ -792,7 +793,7 @@ export default function FreedomBotDashboard() {
       } catch {
         setTrades([]);
       } finally {
-        setTradesLoading(false);
+        if (withReconcile) setTradesLoading(false);
       }
     },
     [user],
@@ -814,11 +815,22 @@ export default function FreedomBotDashboard() {
     if (!user) return;
     if (deployments === undefined) return;
     if (!deployments.length) {
-      void fetchUserTrades(null);
+      void fetchUserTrades(null, false);
       return;
     }
     const ex = selectedDeployment?.exchange ?? null;
-    void fetchUserTrades(ex);
+    const crypto =
+      ex &&
+      FREEDOMBOT_CRYPTO_EXCHANGES.includes(
+        ex.toUpperCase() as (typeof FREEDOMBOT_CRYPTO_EXCHANGES)[number],
+      );
+    // Fast list from Firestore first; exchange reconcile hits APIs and can be slow.
+    void fetchUserTrades(ex, false);
+    if (!crypto) return;
+    const id = requestAnimationFrame(() => {
+      void fetchUserTrades(ex, true);
+    });
+    return () => cancelAnimationFrame(id);
   }, [user, deployments, selectedDeployment?.id, selectedDeployment?.exchange, fetchUserTrades]);
 
   // After deploying, re-check deployment status (trades reload via effect)

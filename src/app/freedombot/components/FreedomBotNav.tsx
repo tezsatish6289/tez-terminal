@@ -8,6 +8,11 @@ import { Rocket, Loader2 } from "lucide-react";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 
+/** App dashboard (no marketing site nav). */
+function isFreedomBotDashboardPath(pathname: string) {
+  return pathname === "/freedombot/dashboard" || pathname === "/dashboard";
+}
+
 export function FreedomBotNav() {
   const pathname = usePathname();
   const router = useRouter();
@@ -15,7 +20,9 @@ export function FreedomBotNav() {
   const auth = useAuth();
   const [isSigningIn, setIsSigningIn] = useState(false);
 
-  const isHome = pathname === "/" || pathname === "";
+  /** Local dev uses /freedombot/*; production host uses /… with rewrite. */
+  const pathBase = pathname.startsWith("/freedombot") ? "/freedombot" : "";
+  const isDashboard = isFreedomBotDashboardPath(pathname);
 
   const handleSignIn = async () => {
     if (user) {
@@ -31,25 +38,33 @@ export function FreedomBotNav() {
   };
 
   const handleDeploy = () => {
-    if (isHome) {
-      // Signal landing page to open the modal via URL
-      router.push("/?deploy=1");
-    } else {
-      router.push("/?deploy=1");
-    }
+    router.push("/?deploy=1");
   };
 
-  const navLinks = [
-    { label: "Home",        href: "/"             },
-    { label: "Performance", href: "/performance"  },
-    { label: "Methodology", href: "/methodology"  },
-    { label: "Records",     href: "/records"      },
-    { label: "Pricing",     href: "/#pricing"     },
-  ];
+  const navLinks = pathBase
+    ? ([
+        { label: "Home", href: "/freedombot" },
+        { label: "Performance", href: "/freedombot/performance" },
+        { label: "Methodology", href: "/freedombot/methodology" },
+        { label: "Records", href: "/freedombot/records" },
+        { label: "Pricing", href: "/freedombot#pricing" },
+      ] as const)
+    : ([
+        { label: "Home", href: "/" },
+        { label: "Performance", href: "/performance" },
+        { label: "Methodology", href: "/methodology" },
+        { label: "Records", href: "/records" },
+        { label: "Pricing", href: "/#pricing" },
+      ] as const);
 
   const isActive = (href: string) => {
-    if (href === "/") return pathname === "/";
-    return pathname.startsWith(href);
+    if (href === "/" || href === "/freedombot") {
+      return pathname === "/" || pathname === "/freedombot";
+    }
+    if (href.endsWith("#pricing")) {
+      return pathname === "/freedombot" || pathname === "/";
+    }
+    return pathname === href;
   };
 
   return (
@@ -63,7 +78,7 @@ export function FreedomBotNav() {
     >
       <div className="w-full px-4 sm:px-8 h-16 flex items-center justify-between gap-4">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
+        <Link href={pathBase || "/"} className="flex items-center gap-2.5 flex-shrink-0">
           <Image
             src="/freedombot/icon.png"
             alt="FreedomBot.ai"
@@ -77,26 +92,42 @@ export function FreedomBotNav() {
           </span>
         </Link>
 
-        {/* Centre nav links */}
-        <div className="hidden md:flex items-center gap-1">
-          {navLinks.map((l) => (
-            <a
-              key={l.label}
-              href={l.href}
-              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:text-white"
-              style={{ color: isActive(l.href) ? "#e2e8f0" : "#64748b" }}
-            >
-              {l.label}
-            </a>
-          ))}
-        </div>
+        {/* Centre nav — hidden on bot dashboard (logged-in app surface) */}
+        {!isDashboard && (
+          <div className="hidden md:flex items-center gap-1">
+            {navLinks.map((l) => (
+              <Link
+                key={l.label}
+                href={l.href}
+                prefetch
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:text-white"
+                style={{ color: isActive(l.href) ? "#e2e8f0" : "#64748b" }}
+              >
+                {l.label}
+              </Link>
+            ))}
+          </div>
+        )}
 
         {/* Right CTAs */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 min-w-0">
+          {user?.email && (
+            <span
+              className={
+                isDashboard
+                  ? "inline-block max-w-[min(100vw-12rem,280px)] sm:max-w-[280px] truncate text-xs font-medium px-2 py-1 rounded-lg"
+                  : "hidden sm:inline-block max-w-[200px] lg:max-w-[280px] truncate text-xs font-medium px-2 py-1 rounded-lg"
+              }
+              style={{ color: "#94a3b8", backgroundColor: "rgba(37,99,235,0.08)", border: "1px solid rgba(90,140,220,0.12)" }}
+              title={user.email}
+            >
+              {user.email}
+            </span>
+          )}
           <button
             onClick={handleSignIn}
             disabled={isSigningIn}
-            className="hidden sm:flex items-center px-4 py-2 text-sm font-medium transition-colors hover:text-white disabled:opacity-70"
+            className="flex items-center px-3 sm:px-4 py-2 text-sm font-medium transition-colors hover:text-white disabled:opacity-70"
             style={{ color: "#64748b" }}
           >
             {isSigningIn ? (

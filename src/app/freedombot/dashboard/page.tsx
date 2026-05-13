@@ -590,10 +590,26 @@ function Connected({ deployment, deployments, stats, trades, tradesSyncing, onSt
                   <span className="font-mono text-sm font-black" style={{ color: isWin ? "#34d399" : "#f87171" }}>
                     {pnl >= 0 ? "+" : ""}${Math.abs(pnl).toFixed(2)}
                   </span>
-                  <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded"
-                    style={isOpen ? { backgroundColor: "rgba(34,197,94,0.1)", color: "#22c55e" } : { backgroundColor: "rgba(255,255,255,0.04)", color: "#475569" }}>
-                    {isOpen ? "Open" : "Closed"}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded"
+                      style={isOpen ? { backgroundColor: "rgba(34,197,94,0.1)", color: "#22c55e" } : { backgroundColor: "rgba(255,255,255,0.04)", color: "#475569" }}>
+                      {isOpen ? "Open" : "Closed"}
+                    </span>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setRefreshingIds((prev) => new Set(prev).add(trade.id));
+                        try { await onRefreshTrade(trade.id); }
+                        finally { setRefreshingIds((prev) => { const s = new Set(prev); s.delete(trade.id); return s; }); }
+                      }}
+                      disabled={refreshingIds.has(trade.id)}
+                      title="Refresh"
+                      className="p-1 rounded"
+                      style={{ color: refreshingIds.has(trade.id) ? "#60a5fa" : "#334155" }}
+                    >
+                      <RefreshCw className={`h-3 w-3 ${refreshingIds.has(trade.id) ? "animate-spin" : ""}`} />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -661,7 +677,7 @@ function Connected({ deployment, deployments, stats, trades, tradesSyncing, onSt
                 </div>
 
                 {/* Status + per-trade refresh */}
-                <div className="flex items-center gap-1.5 group">
+                <div className="flex items-center gap-1.5">
                   <span
                     className="text-[9px] font-black px-2 py-1 rounded uppercase tracking-wide"
                     style={isOpen
@@ -683,10 +699,10 @@ function Connected({ deployment, deployments, stats, trades, tradesSyncing, onSt
                     }}
                     disabled={refreshingIds.has(trade.id)}
                     title="Refresh this trade"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded disabled:cursor-not-allowed"
-                    style={{ color: "#334155" }}
+                    className="p-1 rounded transition-all hover:bg-white/[0.06] disabled:cursor-not-allowed"
+                    style={{ color: refreshingIds.has(trade.id) ? "#60a5fa" : "#334155" }}
                   >
-                    <RefreshCw className={`h-3 w-3 ${refreshingIds.has(trade.id) ? "animate-spin !opacity-100" : ""}`} />
+                    <RefreshCw className={`h-3 w-3 ${refreshingIds.has(trade.id) ? "animate-spin" : ""}`} />
                   </button>
                 </div>
               </div>

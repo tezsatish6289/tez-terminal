@@ -921,9 +921,15 @@ export default function FreedomBotDashboard() {
           tradesSyncing={tradesLoading}
           onStop={() => setStopConfirm(true)}
           onSelectDeployment={setSelectedDeploymentId}
-          onRefreshTrade={async (_tradeId) => {
-            // Re-fetch all trades silently — updates the specific trade along with others.
-            // withReconcile=true hits the exchange API to get the latest status + PnL.
+          onRefreshTrade={async (tradeId) => {
+            const idToken = await user?.getIdToken();
+            if (!idToken) return;
+            await fetch("/api/freedombot/sync-trade", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+              body: JSON.stringify({ tradeId }),
+            });
+            // Re-read Firestore (now updated) to refresh the trade list
             const ex = selectedDeployment?.exchange ?? null;
             await fetchUserTrades(ex, false);
           }}

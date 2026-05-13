@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Activity,
   Square,
+  RefreshCw,
 } from "lucide-react";
 import { useUser, useAuth } from "@/firebase";
 import { initiateSignOut } from "@/firebase/non-blocking-login";
@@ -376,16 +377,17 @@ const BOTS_NAV = [
   { key: "SILVER",        emoji: "🥈", label: "Silver Bot",       live: false },
 ];
 
-function Connected({ deployment, deployments, stats, trades, tradesSyncing, onStop, onSelectDeployment }: {
+function Connected({ deployment, deployments, stats, trades, tradesSyncing, onStop, onSelectDeployment, onRefreshTrade }: {
   deployment: Deployment;
   deployments: Deployment[];
   stats: BotStats | null;
   trades: Trade[];
-  /** Exchange PnL reconcile in progress (dashboard refresh) */
   tradesSyncing?: boolean;
   onStop: () => void;
   onSelectDeployment: (id: string) => void;
+  onRefreshTrade: (tradeId: string) => Promise<void>;
 }) {
+  const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set());
   const isPending = deployment.status === "pending";
   const exchangeLabel = EXCHANGE_LABELS[deployment.exchange] ?? deployment.exchange;
 
@@ -483,14 +485,15 @@ function Connected({ deployment, deployments, stats, trades, tradesSyncing, onSt
             <span className="text-xs" style={{ color: "#334155" }}>·</span>
             <span className="text-xs font-medium" style={{ color: "#475569" }}>{exchangeLabel}</span>
           </div>
-          <button
-            onClick={onStop}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-105"
-            style={{ backgroundColor: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.15)" }}
-          >
-            <Square className="h-3 w-3" /> Stop Bot
-          </button>
-        </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onStop}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-105"
+              style={{ backgroundColor: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.15)" }}
+            >
+              <Square className="h-3 w-3" /> Stop Bot
+            </button>
+          </div>        </div>
 
         {/* 3-stat strip */}
         <div className="grid grid-cols-3">
@@ -657,8 +660,8 @@ function Connected({ deployment, deployments, stats, trades, tradesSyncing, onSt
                   {pnl >= 0 ? "+" : ""}${Math.abs(pnl).toFixed(2)}
                 </div>
 
-                {/* Status */}
-                <div>
+                {/* Status + per-trade refresh */}
+                <div className="flex items-center gap-1.5 group">
                   <span
                     className="text-[9px] font-black px-2 py-1 rounded uppercase tracking-wide"
                     style={isOpen
@@ -668,6 +671,23 @@ function Connected({ deployment, deployments, stats, trades, tradesSyncing, onSt
                   >
                     {isOpen ? "Open" : "Closed"}
                   </span>
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      setRefreshingIds((prev) => new Set(prev).add(trade.id));
+                      try {
+                        await onRefreshTrade(trade.id);
+                      } finally {
+                        setRefreshingIds((prev) => { const s = new Set(prev); s.delete(trade.id); return s; });
+                      }
+                    }}
+                    disabled={refreshingIds.has(trade.id)}
+                    title="Refresh this trade"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded disabled:cursor-not-allowed"
+                    style={{ color: "#334155" }}
+                  >
+                    <RefreshCw className={`h-3 w-3 ${refreshingIds.has(trade.id) ? "animate-spin !opacity-100" : ""}`} />
+                  </button>
                 </div>
               </div>
             </div>
@@ -885,6 +905,12 @@ export default function FreedomBotDashboard() {
           tradesSyncing={tradesLoading}
           onStop={() => setStopConfirm(true)}
           onSelectDeployment={setSelectedDeploymentId}
+          onRefreshTrade={async (_tradeId) => {
+            // Re-fetch all trades silently — updates the specific trade along with others.
+            // withReconcile=true hits the exchange API to get the latest status + PnL.
+            const ex = selectedDeployment?.exchange ?? null;
+            await fetchUserTrades(ex, false);
+          }}
         />
       )}
 

@@ -84,11 +84,14 @@ async function syncUserTrades(
             const avgEntry = records.reduce((sum, r) => sum + r.avgEntryPrice * r.qty, 0) / totalQty;
             const avgExit  = records.reduce((sum, r) => sum + r.avgExitPrice  * r.qty, 0) / totalQty;
 
+            const nowIso = new Date().toISOString();
             await db.collection("live_trades").doc(doc.id).update({
               exchangeRealizedPnl:   parseFloat(totalPnl.toFixed(4)),
               exchangeAvgEntryPrice: parseFloat(avgEntry.toFixed(8)),
               exchangeAvgExitPrice:  parseFloat(avgExit.toFixed(8)),
               exchangeQty:           parseFloat(totalQty.toFixed(6)),
+              exchangePnlReconciledAt: nowIso,
+              exchangePnlSource: "exchange_closed_pnl_api",
             });
           } catch {
             // best effort per trade

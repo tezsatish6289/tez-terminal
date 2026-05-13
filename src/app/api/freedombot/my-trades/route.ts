@@ -65,13 +65,29 @@ export async function GET(req: NextRequest) {
         const t = d.data();
         // Only production trades (not testnet)
         if (t.testnet !== false) return null;
+        const internal = Number(t.realizedPnl ?? 0);
+        const ex =
+          typeof t.exchangeRealizedPnl === "number" && !Number.isNaN(t.exchangeRealizedPnl)
+            ? Number(t.exchangeRealizedPnl)
+            : null;
+        const ov =
+          typeof t.exchangeRealizedPnlOverride === "number" &&
+          !Number.isNaN(t.exchangeRealizedPnlOverride)
+            ? Number(t.exchangeRealizedPnlOverride)
+            : null;
+        const effective = ov ?? ex ?? internal;
         return {
           id: d.id,
           exchange: t.exchange ?? null,
           symbol: t.signalSymbol ?? t.symbol ?? "—",
           side: t.side === "BUY" ? "LONG" : t.side === "SELL" ? "SHORT" : (t.side ?? "—"),
           status: t.status === "OPEN" ? "open" : "closed",
-          realizedPnl: t.exchangeRealizedPnl ?? t.realizedPnl ?? 0,
+          /** Best value for P&L display: manual override → exchange → bot model. */
+          realizedPnl: effective,
+          realizedPnlInternal: internal,
+          realizedPnlExchange: ex,
+          exchangeRealizedPnlOverride: ov,
+          exchangePnlReconciledAt: t.exchangePnlReconciledAt ?? null,
           unrealizedPnl: 0,
           positionSize: t.positionSize ?? null,
           leverage: t.leverage ?? 1,
@@ -84,7 +100,22 @@ export async function GET(req: NextRequest) {
         };
       })
       .filter(Boolean)
-      .sort((a, b) => ((b!.openedAt ?? "") > (a!.openedAt ?? "") ? 1 : -1));
+      .sort((a, b) => {
+        const A = a!;
+        const B = b!;
+        const aOpen = A.status === "open";
+        const bOpen = B.status === "open";
+        if (aOpen !== bOpen) return aOpen ? -1 : 1;
+        if (aOpen && bOpen) {
+          const ob = new Date(B.openedAt ?? 0).getTime();
+          const oa = new Date(A.openedAt ?? 0).getTime();
+          return ob - oa;
+        }
+        const cb = new Date(B.closedAt ?? 0).getTime();
+        const ca = new Date(A.closedAt ?? 0).getTime();
+        if (cb !== ca) return cb - ca;
+        return B.id.localeCompare(A.id);
+      });
 
     return NextResponse.json({
       trades,

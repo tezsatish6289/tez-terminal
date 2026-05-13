@@ -54,6 +54,8 @@ export interface LiveTrade {
   fees: number;
   closeReason: string | null;
   exchangeRealizedPnl: number | null;    // actual PnL reported by the exchange after close
+  /** Optional manual correction (USD). When set, dashboards should prefer this over exchange + model. */
+  exchangeRealizedPnlOverride?: number | null;
   exchangeAvgEntryPrice: number | null;  // actual average entry fill price from exchange
   exchangeAvgExitPrice: number | null;   // actual average exit fill price from exchange
   exchangeQty: number | null;            // actual filled quantity from exchange

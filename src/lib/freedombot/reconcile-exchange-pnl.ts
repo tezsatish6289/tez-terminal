@@ -39,25 +39,140 @@ export function exchangeSupportsClosedPnlReconciliation(exchange: string): boole
   }
 }
 
+/** Extra lookback before `openedAt` when querying exchange closed-PnL APIs. */
+export const EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS = 120_000;
+
+/** Post-close window so delayed venue rows (funding/settlement) still count. */
+export const EXCHANGE_PNL_POST_CLOSE_BUFFER_MS = 3 * 60 * 60 * 1000;
+
 /** CoinDCX sometimes returns unix seconds; Bybit uses ms. */
-function recordTimeMs(r: ClosedPnlRecord): number {
+export function recordTimeMs(r: ClosedPnlRecord): number {
   const t = r.createdTime;
   if (!t || Number.isNaN(t)) return 0;
   return t < 1e12 ? t * 1000 : t;
 }
 
-function sumPnlInWindow(
+export function closedPnlRecordsForTradeWindow(
+  records: ClosedPnlRecord[],
+  openedAtMs: number,
+  closedAtMs: number,
+): ClosedPnlRecord[] {
+  const hi = closedAtMs + EXCHANGE_PNL_POST_CLOSE_BUFFER_MS;
+  return records.filter((r) => {
+    const ts = recordTimeMs(r);
+    return ts >= openedAtMs && ts <= hi;
+  });
+}
+
+export function sumPnlInWindow(
   records: ClosedPnlRecord[],
   openedAtMs: number,
   closedAtMs: number,
 ): number {
-  const bufferAfterCloseMs = 3 * 60 * 60 * 1000; // funding/settlement lag
-  const hi = closedAtMs + bufferAfterCloseMs;
-  return records.reduce((sum, r) => {
-    const ts = recordTimeMs(r);
-    if (ts >= openedAtMs && ts <= hi) return sum + r.closedPnl;
-    return sum;
-  }, 0);
+  return closedPnlRecordsForTradeWindow(records, openedAtMs, closedAtMs).reduce(
+    (sum, r) => sum + r.closedPnl,
+    0,
+  );
+}
+
+export interface ClosedTradeExchangePnlMetrics {
+  exchangeRealizedPnl: number;
+  exchangeAvgEntryPrice: number | null;
+  exchangeAvgExitPrice: number | null;
+  exchangeQty: number | null;
+  recordCount: number;
+}
+
+/** Sum closed-PnL rows that belong to this trade's open→close window (not the whole symbol history). */
+export function computeClosedTradeExchangePnlMetrics(
+  records: ClosedPnlRecord[],
+  openedAtMs: number,
+  closedAtMs: number,
+): ClosedTradeExchangePnlMetrics {
+  const inWin = closedPnlRecordsForTradeWindow(records, openedAtMs, closedAtMs);
+  const totalPnl = inWin.reduce((s, r) => s + r.closedPnl, 0);
+  const totalQty = inWin.reduce((s, r) => s + r.qty, 0);
+  if (inWin.length === 0) {
+    return {
+      exchangeRealizedPnl: totalPnl,
+      exchangeAvgEntryPrice: null,
+      exchangeAvgExitPrice: null,
+      exchangeQty: null,
+      recordCount: 0,
+    };
+  }
+  const avgEntry =
+    totalQty > 0
+      ? inWin.reduce((s, r) => s + r.avgEntryPrice * r.qty, 0) / totalQty
+      : null;
+  const avgExit =
+    totalQty > 0
+      ? inWin.reduce((s, r) => s + r.avgExitPrice * r.qty, 0) / totalQty
+      : null;
+  return {
+    exchangeRealizedPnl: totalPnl,
+    exchangeAvgEntryPrice:
+      avgEntry != null && Number.isFinite(avgEntry) ? Number(avgEntry.toFixed(8)) : null,
+    exchangeAvgExitPrice:
+      avgExit != null && Number.isFinite(avgExit) ? Number(avgExit.toFixed(8)) : null,
+    exchangeQty:
+      totalQty > 0 && Number.isFinite(totalQty) ? Number(totalQty.toFixed(6)) : null,
+    recordCount: inWin.length,
+  };
+}
+
+/**
+ * After a Bybit live trade is marked CLOSED, pull `/v5/position/closed-pnl` and persist
+ * exchange-reported PnL (retries while the venue has not yet indexed the close).
+ */
+export async function applyBybitExchangeClosedPnlAfterClose(
+  db: Firestore,
+  tradeDocId: string,
+  trade: {
+    symbol: string;
+    openedAt: string;
+    closedAt: string | null;
+  },
+  creds: ExchangeCredentials,
+): Promise<void> {
+  if (!trade.closedAt) return;
+  const connector = getConnector("BYBIT");
+  if (typeof connector.getClosedPnl !== "function") return;
+
+  const openedAtMs = new Date(trade.openedAt).getTime();
+  const closedAtMs = new Date(trade.closedAt).getTime();
+  if (!Number.isFinite(openedAtMs) || !Number.isFinite(closedAtMs)) return;
+
+  const fetchMetrics = async () => {
+    const records = await connector.getClosedPnl!(
+      trade.symbol,
+      creds,
+      Math.max(0, openedAtMs - EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS),
+    );
+    return computeClosedTradeExchangePnlMetrics(records, openedAtMs, closedAtMs);
+  };
+
+  let metrics = await fetchMetrics();
+  for (let attempt = 0; attempt < 5 && metrics.recordCount === 0; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 900));
+    metrics = await fetchMetrics();
+  }
+
+  if (metrics.recordCount === 0) return;
+
+  const nowIso = new Date().toISOString();
+  await db.collection("live_trades").doc(tradeDocId).update({
+    exchangeRealizedPnl: Number(metrics.exchangeRealizedPnl.toFixed(6)),
+    ...(metrics.exchangeAvgEntryPrice != null
+      ? { exchangeAvgEntryPrice: metrics.exchangeAvgEntryPrice }
+      : {}),
+    ...(metrics.exchangeAvgExitPrice != null
+      ? { exchangeAvgExitPrice: metrics.exchangeAvgExitPrice }
+      : {}),
+    ...(metrics.exchangeQty != null ? { exchangeQty: metrics.exchangeQty } : {}),
+    exchangePnlReconciledAt: nowIso,
+    exchangePnlSource: "exchange_closed_pnl_api",
+  });
 }
 
 export async function loadCryptoCredentials(

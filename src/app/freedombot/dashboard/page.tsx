@@ -49,7 +49,15 @@ interface Trade {
   symbol: string;
   side: string;
   status: string;
+  /** Effective P&L: override ?? exchange ?? internal (see my-trades). */
   realizedPnl: number;
+  /** In-bot / TP–SL model PnL before venue sync (closed trades). */
+  realizedPnlInternal?: number;
+  /** Exchange-reported realised PnL when synced. */
+  realizedPnlExchange?: number | null;
+  /** Optional manual correction (USD); wins for display and passbook. */
+  exchangeRealizedPnlOverride?: number | null;
+  exchangePnlReconciledAt?: string | null;
   unrealizedPnl: number;
   positionSize: number | null;
   leverage: number;
@@ -368,6 +376,102 @@ function formatPrice(v: number | null | undefined): string {
   return v.toLocaleString(undefined, { minimumFractionDigits: 6, maximumFractionDigits: 6 });
 }
 
+/** Signed USD for P&L lines (uses Unicode minus for losses). */
+function formatSignedUsd(n: number): string {
+  const abs = Math.abs(n).toFixed(2);
+  if (n > 0) return `+$${abs}`;
+  if (n < 0) return `\u2212$${abs}`;
+  return `$${abs}`;
+}
+
+function closedAtMs(t: Trade): number {
+  if (!t.closedAt) return 0;
+  const ms = new Date(t.closedAt).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function openedAtMs(t: Trade): number {
+  if (!t.openedAt) return 0;
+  const ms = new Date(t.openedAt).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+/** When exchange (or override) PnL became authoritative — drives passbook order. */
+function pnlBookedAtMs(t: Trade): number {
+  if (t.exchangePnlReconciledAt) {
+    const ms = new Date(t.exchangePnlReconciledAt).getTime();
+    if (Number.isFinite(ms) && ms > 0) return ms;
+  }
+  return closedAtMs(t) || openedAtMs(t);
+}
+
+/**
+ * Open positions first (newest entry first), then closed rows with real PnL by **latest
+ * reconciliation first** (Bybit/cron sets `exchangePnlReconciledAt`), then pending rows
+ * (no venue PnL yet) by latest exit.
+ */
+function sortTradesForDashboard(list: Trade[]): Trade[] {
+  const closed = list.filter((t) => t.status === "closed");
+  const open = list.filter((t) => t.status === "open");
+  const closedBooked = closed.filter((t) => exchangeBackedClosedPnl(t) != null);
+  const closedPending = closed.filter((t) => exchangeBackedClosedPnl(t) == null);
+  const sortedBookedDesc = [...closedBooked].sort((a, b) => {
+    const d = pnlBookedAtMs(b) - pnlBookedAtMs(a);
+    if (d !== 0) return d;
+    return b.id.localeCompare(a.id);
+  });
+  const sortedPendingDesc = [...closedPending].sort((a, b) => {
+    const d = closedAtMs(b) - closedAtMs(a);
+    if (d !== 0) return d;
+    return b.id.localeCompare(a.id);
+  });
+  const sortedOpenDesc = [...open].sort((a, b) => openedAtMs(b) - openedAtMs(a));
+  return [...sortedOpenDesc, ...sortedBookedDesc, ...sortedPendingDesc];
+}
+
+/**
+ * Closed trades: exchange-reported or manual override only (never the in-bot TP/SL model).
+ */
+function exchangeBackedClosedPnl(t: Trade): number | null {
+  if (t.status !== "closed") return null;
+  const ov = t.exchangeRealizedPnlOverride;
+  if (typeof ov === "number" && !Number.isNaN(ov)) return ov;
+  const ex = t.realizedPnlExchange;
+  if (typeof ex === "number" && !Number.isNaN(ex)) return ex;
+  return null;
+}
+
+/** Open: live sync. Closed: only until exchange PnL exists (manual override counts as final). */
+function tradeShowsResyncControl(t: Trade): boolean {
+  if (t.status === "open") return true;
+  if (typeof t.exchangeRealizedPnlOverride === "number" && !Number.isNaN(t.exchangeRealizedPnlOverride)) return false;
+  return t.realizedPnlExchange == null;
+}
+
+/**
+ * Passbook cumulative: only exchange-backed (or override) closes, in **booking time** order
+ * (`exchangePnlReconciledAt` ascending, then trade id). Matches Bybit/cron when they set
+ * reconciledAt; falls back to `closedAt` if missing. Display order is the reverse (latest
+ * booking on top) via `sortTradesForDashboard`.
+ */
+function cumulativeExchangeBackedByTradeId(list: Trade[]): Map<string, number | null> {
+  const closed = list.filter((t) => t.status === "closed");
+  const chrono = [...closed].sort((a, b) => {
+    const ta = pnlBookedAtMs(a);
+    const tb = pnlBookedAtMs(b);
+    if (ta !== tb) return ta - tb;
+    return a.id.localeCompare(b.id);
+  });
+  const map = new Map<string, number | null>();
+  let sum = 0;
+  for (const t of chrono) {
+    const v = exchangeBackedClosedPnl(t);
+    if (v != null) sum += v;
+    map.set(t.id, v != null ? sum : null);
+  }
+  return map;
+}
+
 // ─── Connected State ──────────────────────────────────────────────────────────
 
 const BOTS_NAV = [
@@ -377,11 +481,13 @@ const BOTS_NAV = [
   { key: "SILVER",        emoji: "🥈", label: "Silver Bot",       live: false },
 ];
 
-function Connected({ deployment, deployments, stats, trades, tradesSyncing, onStop, onSelectDeployment, onRefreshTrade }: {
+function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId, tradesSyncing, onStop, onSelectDeployment, onRefreshTrade }: {
   deployment: Deployment;
   deployments: Deployment[];
   stats: BotStats | null;
   trades: Trade[];
+  /** Running total after each close (exchange-backed rows only); null until that close has a venue PnL. */
+  cumulativeByTradeId: Map<string, number | null>;
   tradesSyncing?: boolean;
   onStop: () => void;
   onSelectDeployment: (id: string) => void;
@@ -401,7 +507,10 @@ function Connected({ deployment, deployments, stats, trades, tradesSyncing, onSt
     ? Math.floor((Date.now() - new Date(deployment.createdAt).getTime()) / (1000 * 60 * 60 * 24))
     : 0;
   const closedTrades = trades.filter((t) => t.status === "closed");
-  const totalPnl = closedTrades.reduce((sum, t) => sum + (t.realizedPnl ?? 0), 0);
+  const totalPnl = closedTrades.reduce((sum, t) => {
+    const v = exchangeBackedClosedPnl(t);
+    return v != null ? sum + v : sum;
+  }, 0);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-4">
@@ -536,17 +645,33 @@ function Connected({ deployment, deployments, stats, trades, tradesSyncing, onSt
         className="rounded-2xl overflow-hidden"
         style={{ border: "1px solid rgba(90,140,220,0.12)" }}
       >
-        {/* Table header — 7 columns */}
+        {/* Table header — 8 columns */}
         <div
-          className="hidden sm:grid px-4 py-3"
+          className="hidden sm:grid px-4 py-3 gap-1"
           style={{
-            gridTemplateColumns: "1.4fr 1.8fr 1fr 1fr 1fr 1fr 0.8fr",
+            gridTemplateColumns: "1.35fr 1.55fr 0.9fr 0.9fr 0.9fr 0.85fr 1fr 0.75fr",
             backgroundColor: "#060d1a",
             borderBottom: "1px solid rgba(90,140,220,0.1)",
           }}
         >
-          {["Entry | Exit Time", "Side & Symbol", "Size & Leverage", "Entry Price", "Exit Price", "P&L", "Status"].map((h) => (
-            <div key={h} className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "#334155" }}>{h}</div>
+          {[
+            { label: "Entry | Exit Time", tip: "" },
+            { label: "Side & Symbol", tip: "" },
+            { label: "Size & Leverage", tip: "" },
+            { label: "Entry Price", tip: "" },
+            { label: "Exit Price", tip: "" },
+            { label: "P&L", tip: "" },
+            { label: "Cumulative", tip: "Running total after each **booked** realised P&L (oldest reconciliation first, using exchangePnlReconciledAt). Table is latest booking on top. Shows — until venue P&L exists." },
+            { label: "Status", tip: "" },
+          ].map(({ label, tip }) => (
+            <div
+              key={label}
+              className="text-[9px] font-bold uppercase tracking-widest min-w-0"
+              style={{ color: "#334155" }}
+              title={tip || undefined}
+            >
+              {label}
+            </div>
           ))}
         </div>
 
@@ -560,12 +685,17 @@ function Connected({ deployment, deployments, stats, trades, tradesSyncing, onSt
         )}
 
         {/* Rows */}
-        {trades.slice(0, 50).map((trade, i) => {
-          const pnl = trade.status === "open" ? trade.unrealizedPnl : trade.realizedPnl;
-          const isWin = pnl >= 0;
+        {trades.slice(0, 50).map((trade, i, arr) => {
           const isOpen = trade.status === "open";
+          const closedPnl = !isOpen ? exchangeBackedClosedPnl(trade) : null;
+          const openPnl = isOpen ? trade.unrealizedPnl : 0;
+          const pnlDisplay = isOpen ? formatSignedUsd(openPnl) : closedPnl != null ? formatSignedUsd(closedPnl) : "—";
+          const isWin = isOpen ? openPnl >= 0 : closedPnl != null && closedPnl >= 0;
           const isBuy = trade.side === "LONG" || trade.side === "BUY";
-          const rowStyle = { borderBottom: i < trades.length - 1 ? "1px solid rgba(90,140,220,0.06)" : "none" };
+          const cumulative = !isOpen ? cumulativeByTradeId.get(trade.id) : undefined;
+          const showResync = tradeShowsResyncControl(trade);
+          const rowStyle = { borderBottom: i < arr.length - 1 ? "1px solid rgba(90,140,220,0.06)" : "none" };
+          const pnlColor = !isOpen && closedPnl == null ? "#475569" : isWin ? "#34d399" : "#f87171";
 
           return (
             <div key={trade.id}>
@@ -587,14 +717,20 @@ function Connected({ deployment, deployments, stats, trades, tradesSyncing, onSt
                   </span>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <span className="font-mono text-sm font-black" style={{ color: isWin ? "#34d399" : "#f87171" }}>
-                    {pnl >= 0 ? "+" : ""}${Math.abs(pnl).toFixed(2)}
+                  <span className="font-mono text-sm font-black" style={{ color: pnlColor }}>
+                    {pnlDisplay}
                   </span>
+                  {!isOpen && cumulative != null && (
+                    <span className="font-mono text-[10px] font-bold" style={{ color: cumulative >= 0 ? "#34d399" : "#f87171" }}>
+                      Σ {formatSignedUsd(cumulative)}
+                    </span>
+                  )}
                   <div className="flex items-center gap-1.5">
                     <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded"
                       style={isOpen ? { backgroundColor: "rgba(34,197,94,0.1)", color: "#22c55e" } : { backgroundColor: "rgba(255,255,255,0.04)", color: "#475569" }}>
                       {isOpen ? "Open" : "Closed"}
                     </span>
+                    {showResync && (
                     <button
                       onClick={async (e) => {
                         e.stopPropagation();
@@ -603,20 +739,21 @@ function Connected({ deployment, deployments, stats, trades, tradesSyncing, onSt
                         finally { setRefreshingIds((prev) => { const s = new Set(prev); s.delete(trade.id); return s; }); }
                       }}
                       disabled={refreshingIds.has(trade.id)}
-                      title="Refresh"
+                      title={isOpen ? "Sync from exchange" : "Fetch exchange P&L for this close"}
                       className="p-1 rounded"
                       style={{ color: refreshingIds.has(trade.id) ? "#60a5fa" : "#334155" }}
                     >
                       <RefreshCw className={`h-3 w-3 ${refreshingIds.has(trade.id) ? "animate-spin" : ""}`} />
                     </button>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* Desktop */}
               <div
-                className="hidden sm:grid px-4 py-3.5 items-center hover:bg-white/[0.015] transition-colors"
-                style={{ gridTemplateColumns: "1.4fr 1.8fr 1fr 1fr 1fr 1fr 0.8fr", backgroundColor: "#0a1628", ...rowStyle }}
+                className="hidden sm:grid px-4 py-3.5 gap-1 items-center hover:bg-white/[0.015] transition-colors"
+                style={{ gridTemplateColumns: "1.35fr 1.55fr 0.9fr 0.9fr 0.9fr 0.85fr 1fr 0.75fr", backgroundColor: "#0a1628", ...rowStyle }}
               >
                 {/* Entry | Exit Time */}
                 <div className="flex flex-col gap-0.5">
@@ -672,11 +809,24 @@ function Connected({ deployment, deployments, stats, trades, tradesSyncing, onSt
                 </div>
 
                 {/* P&L */}
-                <div className="font-mono text-xs font-black" style={{ color: isWin ? "#34d399" : "#f87171" }}>
-                  {pnl >= 0 ? "+" : ""}${Math.abs(pnl).toFixed(2)}
+                <div className="font-mono text-xs font-black min-w-0 flex flex-col gap-0.5">
+                  <span style={{ color: pnlColor }}>{pnlDisplay}</span>
                 </div>
 
-                {/* Status + per-trade refresh */}
+                {/* Cumulative (passbook) */}
+                <div className="font-mono text-[11px] font-bold min-w-0" style={{ color: "#94a3b8" }}>
+                  {isOpen ? (
+                    <span style={{ color: "#334155" }} title="Cumulative applies after a trade is closed">—</span>
+                  ) : cumulative != null ? (
+                    <span style={{ color: cumulative >= 0 ? "#34d399" : "#f87171" }} title="Sum of exchange-reported realised P&L through this close">
+                      {formatSignedUsd(cumulative)}
+                    </span>
+                  ) : (
+                    <span style={{ color: "#334155" }}>—</span>
+                  )}
+                </div>
+
+                {/* Status + per-trade refresh (hidden once exchange PnL is stored, unless open) */}
                 <div className="flex items-center gap-1.5">
                   <span
                     className="text-[9px] font-black px-2 py-1 rounded uppercase tracking-wide"
@@ -687,6 +837,7 @@ function Connected({ deployment, deployments, stats, trades, tradesSyncing, onSt
                   >
                     {isOpen ? "Open" : "Closed"}
                   </span>
+                  {showResync && (
                   <button
                     onClick={async (e) => {
                       e.stopPropagation();
@@ -698,12 +849,13 @@ function Connected({ deployment, deployments, stats, trades, tradesSyncing, onSt
                       }
                     }}
                     disabled={refreshingIds.has(trade.id)}
-                    title="Refresh this trade"
+                    title={isOpen ? "Sync from exchange" : "Fetch exchange P&L for this close"}
                     className="p-1 rounded transition-all hover:bg-white/[0.06] disabled:cursor-not-allowed"
                     style={{ color: refreshingIds.has(trade.id) ? "#60a5fa" : "#334155" }}
                   >
                     <RefreshCw className={`h-3 w-3 ${refreshingIds.has(trade.id) ? "animate-spin" : ""}`} />
                   </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -756,9 +908,14 @@ export default function FreedomBotDashboard() {
   const deployButtonLabel =
     deployments && deployments.length > 0 ? "Add exchange" : "Deploy Bot";
 
-  const filteredTrades = useMemo(() => {
-    if (!selectedDeployment) return trades;
-    return trades.filter((t) => tradeMatchesDeployment(t, selectedDeployment));
+  const { dashboardTrades, cumulativeByTradeId } = useMemo(() => {
+    const list = !selectedDeployment
+      ? trades
+      : trades.filter((t) => tradeMatchesDeployment(t, selectedDeployment));
+    return {
+      dashboardTrades: sortTradesForDashboard(list),
+      cumulativeByTradeId: cumulativeExchangeBackedByTradeId(list),
+    };
   }, [trades, selectedDeployment]);
 
   // Redirect unauthenticated users back to landing (hard nav — reliable after sign-out)
@@ -917,7 +1074,8 @@ export default function FreedomBotDashboard() {
           deployment={selectedDeployment!}
           deployments={deployments}
           stats={stats}
-          trades={filteredTrades}
+          trades={dashboardTrades}
+          cumulativeByTradeId={cumulativeByTradeId}
           tradesSyncing={tradesLoading}
           onStop={() => setStopConfirm(true)}
           onSelectDeployment={setSelectedDeploymentId}

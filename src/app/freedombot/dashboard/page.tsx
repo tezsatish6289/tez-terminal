@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Image from "next/image";
 import {
   Rocket,
@@ -13,6 +13,7 @@ import {
   Zap,
   User,
   LogOut,
+  ChevronLeft,
   ChevronRight,
   Activity,
   Square,
@@ -493,7 +494,9 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
   onSelectDeployment: (id: string) => void;
   onRefreshTrade: (tradeId: string) => Promise<void>;
 }) {
+  const TRADES_PAGE_SIZE = 25;
   const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set());
+  const [tradePage, setTradePage] = useState(1);
   const isPending = deployment.status === "pending";
   const exchangeLabel = EXCHANGE_LABELS[deployment.exchange] ?? deployment.exchange;
 
@@ -511,6 +514,25 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
     const v = exchangeBackedClosedPnl(t);
     return v != null ? sum + v : sum;
   }, 0);
+
+  const tradePageCount = Math.max(1, Math.ceil(trades.length / TRADES_PAGE_SIZE));
+  const currentTradePage = Math.min(tradePage, tradePageCount);
+  const pagedTrades = trades.slice(
+    (currentTradePage - 1) * TRADES_PAGE_SIZE,
+    currentTradePage * TRADES_PAGE_SIZE,
+  );
+
+  const depIdRef = useRef(deployment.id);
+  useEffect(() => {
+    if (depIdRef.current !== deployment.id) {
+      depIdRef.current = deployment.id;
+      setTradePage(1);
+    }
+  }, [deployment.id]);
+
+  useEffect(() => {
+    setTradePage((p) => Math.min(Math.max(1, p), tradePageCount));
+  }, [tradePageCount]);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-4">
@@ -630,7 +652,7 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
             >
               <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>{s.label}</p>
               <p className="text-2xl font-black flex items-center gap-2" style={{ color: s.color }}>
-                {i === 2 && tradesSyncing ? (
+                {i === 2 && tradesSyncing && trades.length === 0 ? (
                   <Loader2 className="h-6 w-6 animate-spin shrink-0" style={{ color: "#64748b" }} />
                 ) : null}
                 {s.value}
@@ -685,7 +707,7 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
         )}
 
         {/* Rows */}
-        {trades.slice(0, 50).map((trade, i, arr) => {
+        {pagedTrades.map((trade, i, arr) => {
           const isOpen = trade.status === "open";
           const closedPnl = !isOpen ? exchangeBackedClosedPnl(trade) : null;
           const openPnl = isOpen ? trade.unrealizedPnl : 0;
@@ -861,6 +883,42 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
             </div>
           );
         })}
+
+        {trades.length > TRADES_PAGE_SIZE && (
+          <div
+            className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+            style={{ backgroundColor: "#060d1a", borderTop: "1px solid rgba(90,140,220,0.1)" }}
+          >
+            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#475569" }}>
+              Showing {(currentTradePage - 1) * TRADES_PAGE_SIZE + 1}
+              {"–"}
+              {Math.min(currentTradePage * TRADES_PAGE_SIZE, trades.length)} of {trades.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={currentTradePage <= 1}
+                onClick={() => setTradePage((p) => Math.max(1, p - 1))}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-opacity disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/[0.06]"
+                style={{ color: "#94a3b8", border: "1px solid rgba(90,140,220,0.15)" }}
+              >
+                <ChevronLeft className="h-4 w-4" /> Prev
+              </button>
+              <span className="text-xs font-mono font-bold tabular-nums" style={{ color: "#64748b" }}>
+                {currentTradePage} / {tradePageCount}
+              </span>
+              <button
+                type="button"
+                disabled={currentTradePage >= tradePageCount}
+                onClick={() => setTradePage((p) => Math.min(tradePageCount, p + 1))}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-opacity disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/[0.06]"
+                style={{ color: "#94a3b8", border: "1px solid rgba(90,140,220,0.15)" }}
+              >
+                Next <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

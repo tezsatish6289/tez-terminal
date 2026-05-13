@@ -1,18 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { useUser } from "@/firebase";
 import { useState, useEffect, useMemo, useCallback } from "react";
-import {
-  Loader2,
-  ShieldAlert,
-  ChevronDown,
-  ChevronRight,
-  Search,
-  RefreshCw,
-  Bot,
-  ScrollText,
-} from "lucide-react";
+import { Loader2, ShieldAlert, Search, RefreshCw, Bot, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -42,31 +34,6 @@ interface DeploymentRow {
   pnlNote: string;
 }
 
-interface TradeRow {
-  id: string;
-  symbol: string;
-  side: string;
-  status: string;
-  realizedPnl: number;
-  positionSize: number | null;
-  leverage: number;
-  entryPrice: number | null;
-  exitPrice: number | null;
-  openedAt: string | null;
-  closedAt: string | null;
-}
-
-interface LogRow {
-  id: string;
-  timestamp: string;
-  action: string;
-  details: string;
-  symbol?: string;
-  signalId?: string;
-  exchange?: string;
-  assetType?: string;
-}
-
 export default function AdminBotUsersPage() {
   const { user, isUserLoading } = useUser();
   const isAdmin = user?.email === ADMIN_EMAIL;
@@ -76,34 +43,6 @@ export default function AdminBotUsersPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [botFilter, setBotFilter] = useState<string>("all");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [reconcilingId, setReconcilingId] = useState<string | null>(null);
-
-  const [tradeState, setTradeState] = useState<
-    Record<
-      string,
-      {
-        trades: TradeRow[];
-        nextCursor: string | null;
-        hasMore: boolean;
-        loading: boolean;
-        error: string;
-      }
-    >
-  >({});
-
-  const [logState, setLogState] = useState<
-    Record<
-      string,
-      {
-        logs: LogRow[];
-        nextCursor: string | null;
-        hasMore: boolean;
-        loading: boolean;
-        error: string;
-      }
-    >
-  >({});
 
   const fetchDeployments = useCallback(async () => {
     if (!user) return;
@@ -130,152 +69,6 @@ export default function AdminBotUsersPage() {
     if (isAdmin) fetchDeployments();
   }, [isAdmin, fetchDeployments]);
 
-  useEffect(() => {
-    setExpandedId(null);
-    setLogState({});
-  }, [botFilter]);
-
-  const fetchTradesPage = async (deploymentId: string, cursor: string | null, append: boolean) => {
-    if (!user) return;
-    setTradeState((prev) => ({
-      ...prev,
-      [deploymentId]: {
-        trades: append ? prev[deploymentId]?.trades ?? [] : [],
-        nextCursor: prev[deploymentId]?.nextCursor ?? null,
-        hasMore: prev[deploymentId]?.hasMore ?? false,
-        loading: true,
-        error: "",
-      },
-    }));
-    try {
-      const idToken = await user.getIdToken();
-      const qs = new URLSearchParams({ pageSize: "50" });
-      if (cursor) qs.set("cursor", cursor);
-      const res = await fetch(
-        `/api/admin/bot-deployments/${deploymentId}/trades?${qs}`,
-        { headers: { Authorization: `Bearer ${idToken}` } }
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to load trades");
-      const newTrades = (data.trades ?? []) as TradeRow[];
-      setTradeState((prev) => {
-        const prior = prev[deploymentId];
-        const merged = append ? [...(prior?.trades ?? []), ...newTrades] : newTrades;
-        return {
-          ...prev,
-          [deploymentId]: {
-            trades: merged,
-            nextCursor: data.nextCursor ?? null,
-            hasMore: !!data.hasMore,
-            loading: false,
-            error: "",
-          },
-        };
-      });
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Unexpected error";
-      setTradeState((prev) => ({
-        ...prev,
-        [deploymentId]: {
-          trades: prev[deploymentId]?.trades ?? [],
-          nextCursor: prev[deploymentId]?.nextCursor ?? null,
-          hasMore: prev[deploymentId]?.hasMore ?? false,
-          loading: false,
-          error: msg,
-        },
-      }));
-    }
-  };
-
-  const fetchLogsPage = async (deploymentId: string, cursor: string | null, append: boolean) => {
-    if (!user) return;
-    setLogState((prev) => ({
-      ...prev,
-      [deploymentId]: {
-        logs: append ? prev[deploymentId]?.logs ?? [] : [],
-        nextCursor: prev[deploymentId]?.nextCursor ?? null,
-        hasMore: prev[deploymentId]?.hasMore ?? false,
-        loading: true,
-        error: "",
-      },
-    }));
-    try {
-      const idToken = await user.getIdToken();
-      const qs = new URLSearchParams({ pageSize: "50" });
-      if (cursor) qs.set("cursor", cursor);
-      const res = await fetch(`/api/admin/bot-deployments/${deploymentId}/logs?${qs}`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to load logs");
-      const newLogs = (data.logs ?? []) as LogRow[];
-      setLogState((prev) => {
-        const prior = prev[deploymentId];
-        const merged = append ? [...(prior?.logs ?? []), ...newLogs] : newLogs;
-        return {
-          ...prev,
-          [deploymentId]: {
-            logs: merged,
-            nextCursor: data.nextCursor ?? null,
-            hasMore: !!data.hasMore,
-            loading: false,
-            error: "",
-          },
-        };
-      });
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Unexpected error";
-      setLogState((prev) => ({
-        ...prev,
-        [deploymentId]: {
-          logs: prev[deploymentId]?.logs ?? [],
-          nextCursor: prev[deploymentId]?.nextCursor ?? null,
-          hasMore: prev[deploymentId]?.hasMore ?? false,
-          loading: false,
-          error: msg,
-        },
-      }));
-    }
-  };
-
-  const toggleExpand = (deploymentId: string) => {
-    if (expandedId === deploymentId) {
-      setExpandedId(null);
-      return;
-    }
-    setExpandedId(deploymentId);
-    if (!tradeState[deploymentId]) {
-      void fetchTradesPage(deploymentId, null, false);
-    }
-    if (!logState[deploymentId]) {
-      void fetchLogsPage(deploymentId, null, false);
-    }
-  };
-
-  const runReconcilePnl = async (deploymentId: string) => {
-    if (!user) return;
-    setReconcilingId(deploymentId);
-    try {
-      const idToken = await user.getIdToken();
-      const res = await fetch(`/api/admin/bot-deployments/${deploymentId}/reconcile-pnl`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Reconcile failed");
-      await fetchDeployments();
-      if (expandedId === deploymentId) {
-        void fetchTradesPage(deploymentId, null, false);
-        void fetchLogsPage(deploymentId, null, false);
-      }
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Unexpected error";
-      setError(msg);
-    } finally {
-      setReconcilingId(null);
-    }
-  };
-
   const filtered = useMemo(() => {
     if (!search.trim()) return deployments;
     const q = search.toLowerCase();
@@ -286,7 +79,7 @@ export default function AdminBotUsersPage() {
         d.userId.toLowerCase().includes(q) ||
         d.deploymentId.toLowerCase().includes(q) ||
         d.botLabel.toLowerCase().includes(q) ||
-        d.exchange.toLowerCase().includes(q)
+        d.exchange.toLowerCase().includes(q),
     );
   }, [deployments, search]);
 
@@ -329,8 +122,8 @@ export default function AdminBotUsersPage() {
               <h1 className="text-3xl font-black text-white tracking-tighter uppercase">Bot users</h1>
             </div>
             <p className="text-muted-foreground text-sm max-w-xl">
-              One row per deployment. Lifetime realized PnL uses closed live trades (exchange PnL when
-              available). Expand a row for trades (newest first, 50 per page).
+              One row per deployment. Lifetime realized PnL uses closed live trades (exchange PnL when available).
+              Open a row for trade details and execution logs.
             </p>
           </div>
           <button
@@ -414,9 +207,6 @@ export default function AdminBotUsersPage() {
                 </div>
               ) : (
                 filtered.map((d) => {
-                  const isOpen = expandedId === d.deploymentId;
-                  const ts = tradeState[d.deploymentId];
-                  const ls = logState[d.deploymentId];
                   const pnlColor =
                     d.lifetimeRealizedPnl > 0
                       ? "text-emerald-400"
@@ -426,22 +216,15 @@ export default function AdminBotUsersPage() {
 
                   return (
                     <div key={d.deploymentId} className="border-b border-white/[0.04] last:border-0">
-                      <button
-                        type="button"
-                        onClick={() => toggleExpand(d.deploymentId)}
-                        className="grid grid-cols-1 lg:grid-cols-[28px_1.2fr_1fr_100px_120px_100px_120px] gap-2 w-full px-4 py-3.5 items-start lg:items-center hover:bg-white/[0.03] transition-colors text-left"
+                      <Link
+                        href={`/admin/bot-users/${d.deploymentId}`}
+                        className="grid grid-cols-1 lg:grid-cols-[28px_1.2fr_1fr_100px_120px_100px_120px] gap-2 w-full px-4 py-3.5 items-start lg:items-center hover:bg-white/[0.03] transition-colors text-left group"
                       >
                         <span className="hidden lg:flex justify-center pt-0.5">
-                          {isOpen ? (
-                            <ChevronDown className="h-3.5 w-3.5 text-accent shrink-0" />
-                          ) : (
-                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
-                          )}
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-accent shrink-0 transition-colors" />
                         </span>
                         <div className="min-w-0 space-y-0.5">
-                          <div className="text-sm font-bold text-white truncate">
-                            {d.displayName || "—"}
-                          </div>
+                          <div className="text-sm font-bold text-white truncate">{d.displayName || "—"}</div>
                           <div className="text-[11px] text-muted-foreground truncate">{d.email ?? "—"}</div>
                           <div className="text-[10px] font-mono text-muted-foreground/50 truncate lg:hidden">
                             {d.userId}
@@ -453,9 +236,7 @@ export default function AdminBotUsersPage() {
                         </div>
                         <div className="text-xs font-mono text-muted-foreground">{d.exchange}</div>
                         <div className="text-xs text-muted-foreground">
-                          {d.firstDeployedAt
-                            ? format(new Date(d.firstDeployedAt), "MMM d, yyyy")
-                            : "—"}
+                          {d.firstDeployedAt ? format(new Date(d.firstDeployedAt), "MMM d, yyyy") : "—"}
                         </div>
                         <div>
                           <span
@@ -463,7 +244,7 @@ export default function AdminBotUsersPage() {
                               "inline-flex px-2 py-0.5 rounded text-[9px] font-black uppercase",
                               d.running
                                 ? "bg-emerald-500/15 text-emerald-400"
-                                : "bg-white/5 text-muted-foreground"
+                                : "bg-white/5 text-muted-foreground",
                             )}
                           >
                             {d.running ? "Running" : "Stopped"}
@@ -474,230 +255,9 @@ export default function AdminBotUsersPage() {
                           {d.lifetimeRealizedPnl.toLocaleString(undefined, {
                             maximumFractionDigits: 4,
                           })}{" "}
-                          <span className="text-[10px] font-semibold text-muted-foreground">
-                            {d.pnlCurrency}
-                          </span>
+                          <span className="text-[10px] font-semibold text-muted-foreground">{d.pnlCurrency}</span>
                         </div>
-                      </button>
-
-                      {isOpen && (
-                        <div className="px-4 pb-4 pl-4 lg:pl-12 space-y-4 bg-black/20 border-t border-white/[0.04]">
-                          <div className="grid sm:grid-cols-2 gap-2 text-[11px] pt-3">
-                            <div>
-                              <span className="text-muted-foreground/60 uppercase text-[9px] font-bold tracking-wider">
-                                User ID
-                              </span>
-                              <p className="font-mono text-white/90 break-all">{d.userId}</p>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground/60 uppercase text-[9px] font-bold tracking-wider">
-                                Deployment ID
-                              </span>
-                              <p className="font-mono text-white/90 break-all">{d.deploymentId}</p>
-                            </div>
-                            <div className="sm:col-span-2">
-                              <span className="text-muted-foreground/60 uppercase text-[9px] font-bold tracking-wider">
-                                PnL note
-                              </span>
-                              <p className="text-muted-foreground leading-snug">{d.pnlNote}</p>
-                            </div>
-                            <div className="sm:col-span-2 flex flex-wrap items-center gap-2 pt-1">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void runReconcilePnl(d.deploymentId);
-                                }}
-                                disabled={reconcilingId === d.deploymentId}
-                                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-accent/30 bg-accent/10 text-xs font-bold uppercase tracking-wider text-accent hover:bg-accent/20 disabled:opacity-50"
-                              >
-                                {reconcilingId === d.deploymentId ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <RefreshCw className="h-3.5 w-3.5" />
-                                )}
-                                Sync PnL from exchange
-                              </button>
-                              <span className="text-[10px] text-muted-foreground">
-                                Refreshes closed-trade PnL from the venue API (Bybit / CoinDCX / others when available).
-                              </span>
-                            </div>
-                          </div>
-
-                          <div>
-                            <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 mb-1 flex items-center gap-2">
-                              <ScrollText className="h-3.5 w-3.5 text-accent/80" />
-                              Execution logs
-                            </h3>
-                            <p className="text-[10px] text-muted-foreground/80 mb-2 max-w-3xl">
-                              Live engine events for this user and venue (<span className="font-mono">{d.exchange}</span>
-                              ) from <span className="font-mono">live_trade_logs</span> — opens, closes, failures, and
-                              sync messages. Newest first.
-                            </p>
-                            {!ls?.loading && ls?.error && (
-                              <p className="text-sm text-rose-400 mb-2">{ls.error}</p>
-                            )}
-                            {ls?.loading && !ls.logs.length && (
-                              <div className="flex justify-center py-6">
-                                <Loader2 className="h-5 w-5 animate-spin text-accent" />
-                              </div>
-                            )}
-                            {ls && ls.logs.length > 0 && (
-                              <div className="overflow-x-auto rounded-lg border border-white/[0.06] max-h-[min(420px,50vh)] overflow-y-auto">
-                                <table className="w-full text-[11px]">
-                                  <thead className="sticky top-0 z-[1] bg-[#121214] border-b border-white/[0.06]">
-                                    <tr className="text-left text-[9px] font-black uppercase tracking-wider text-muted-foreground/60">
-                                      <th className="px-2 py-2 whitespace-nowrap">Time</th>
-                                      <th className="px-2 py-2">Action</th>
-                                      <th className="px-2 py-2">Symbol</th>
-                                      <th className="px-2 py-2 min-w-[200px]">Details</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {ls.logs.map((row) => {
-                                      const action = row.action.toUpperCase();
-                                      const actionClass =
-                                        action.includes("FAIL") || action.includes("REJECT")
-                                          ? "text-rose-400"
-                                          : action.includes("OPEN") || action.includes("TP") || action === "SL_HIT"
-                                            ? "text-emerald-400/90"
-                                            : action.includes("SKIP") || action.includes("EVAL")
-                                              ? "text-amber-400/80"
-                                              : "text-muted-foreground";
-                                      return (
-                                        <tr
-                                          key={row.id}
-                                          className="border-b border-white/[0.04] last:border-0 align-top hover:bg-white/[0.02]"
-                                        >
-                                          <td className="px-2 py-2 font-mono text-muted-foreground whitespace-nowrap">
-                                            {row.timestamp
-                                              ? format(new Date(row.timestamp), "MMM d HH:mm:ss")
-                                              : "—"}
-                                          </td>
-                                          <td className={cn("px-2 py-2 font-bold uppercase text-[10px]", actionClass)}>
-                                            {row.action}
-                                          </td>
-                                          <td className="px-2 py-2 font-mono text-white/80">
-                                            {row.symbol ?? "—"}
-                                          </td>
-                                          <td className="px-2 py-2 text-muted-foreground break-words max-w-xl">
-                                            {row.details}
-                                            {row.signalId ? (
-                                              <span className="block mt-0.5 text-[9px] font-mono text-muted-foreground/50">
-                                                signal: {row.signalId}
-                                              </span>
-                                            ) : null}
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
-                            {ls && !ls.loading && !ls.error && ls.logs.length === 0 && (
-                              <p className="text-sm text-muted-foreground py-3">
-                                No log rows for this user and exchange yet (or index still deploying — check Firebase
-                                console).
-                              </p>
-                            )}
-                            {ls?.hasMore && (
-                              <button
-                                type="button"
-                                disabled={ls.loading}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void fetchLogsPage(d.deploymentId, ls.nextCursor, true);
-                                }}
-                                className="mt-2 w-full sm:w-auto px-4 py-2 rounded-lg border border-white/10 bg-white/[0.04] text-xs font-bold uppercase tracking-wider text-accent hover:bg-white/[0.08] disabled:opacity-50"
-                              >
-                                {ls.loading ? "Loading…" : "More logs (50)"}
-                              </button>
-                            )}
-                          </div>
-
-                          <div>
-                            <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 mb-2">
-                              Trades (live, newest first)
-                            </h3>
-                            {!ts?.loading && ts?.error && (
-                              <p className="text-sm text-rose-400 mb-2">{ts.error}</p>
-                            )}
-                            {ts?.loading && !ts.trades.length && (
-                              <div className="flex justify-center py-8">
-                                <Loader2 className="h-6 w-6 animate-spin text-accent" />
-                              </div>
-                            )}
-                            {ts && ts.trades.length > 0 && (
-                              <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
-                                <table className="w-full text-[11px]">
-                                  <thead>
-                                    <tr className="border-b border-white/[0.06] text-left text-[9px] font-black uppercase tracking-wider text-muted-foreground/60">
-                                      <th className="px-2 py-2">Symbol</th>
-                                      <th className="px-2 py-2">Side</th>
-                                      <th className="px-2 py-2">Status</th>
-                                      <th className="px-2 py-2 text-right">Realized</th>
-                                      <th className="px-2 py-2 text-right">Opened</th>
-                                      <th className="px-2 py-2 text-right">Closed</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {ts.trades.map((t) => (
-                                      <tr
-                                        key={t.id}
-                                        className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02]"
-                                      >
-                                        <td className="px-2 py-2 font-mono font-bold text-white">{t.symbol}</td>
-                                        <td className="px-2 py-2">{t.side}</td>
-                                        <td className="px-2 py-2 capitalize">{t.status}</td>
-                                        <td
-                                          className={cn(
-                                            "px-2 py-2 text-right font-mono",
-                                            t.realizedPnl > 0
-                                              ? "text-emerald-400"
-                                              : t.realizedPnl < 0
-                                                ? "text-rose-400"
-                                                : "text-muted-foreground"
-                                          )}
-                                        >
-                                          {t.realizedPnl >= 0 ? "+" : ""}
-                                          {t.realizedPnl.toFixed(4)}
-                                        </td>
-                                        <td className="px-2 py-2 text-right text-muted-foreground whitespace-nowrap">
-                                          {t.openedAt
-                                            ? format(new Date(t.openedAt), "MMM d HH:mm")
-                                            : "—"}
-                                        </td>
-                                        <td className="px-2 py-2 text-right text-muted-foreground whitespace-nowrap">
-                                          {t.closedAt
-                                            ? format(new Date(t.closedAt), "MMM d HH:mm")
-                                            : "—"}
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
-                            {ts && !ts.loading && !ts.error && ts.trades.length === 0 && (
-                              <p className="text-sm text-muted-foreground py-4">No trades yet.</p>
-                            )}
-                            {ts?.hasMore && (
-                              <button
-                                type="button"
-                                disabled={ts.loading}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void fetchTradesPage(d.deploymentId, ts.nextCursor, true);
-                                }}
-                                className="mt-3 w-full sm:w-auto px-4 py-2 rounded-lg border border-white/10 bg-white/[0.04] text-xs font-bold uppercase tracking-wider text-accent hover:bg-white/[0.08] disabled:opacity-50"
-                              >
-                                {ts.loading ? "Loading…" : "Load more (50)"}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
+                      </Link>
                     </div>
                   );
                 })

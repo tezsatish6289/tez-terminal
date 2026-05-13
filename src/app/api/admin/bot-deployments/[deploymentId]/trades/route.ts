@@ -72,17 +72,23 @@ export async function GET(
           : typeof t.realizedPnl === "number"
             ? t.realizedPnl
             : 0;
+      const isOpen = t.status === "OPEN";
+      const unrealized =
+        typeof t.unrealizedPnl === "number" && isOpen ? t.unrealizedPnl : 0;
+      const currentPrice = typeof t.currentPrice === "number" ? t.currentPrice : null;
       return {
         id: d.id,
         symbol: (t.signalSymbol ?? t.symbol ?? "—") as string,
         side:
           t.side === "BUY" ? "LONG" : t.side === "SELL" ? "SHORT" : String(t.side ?? "—"),
-        status: t.status === "OPEN" ? "open" : "closed",
+        status: isOpen ? "open" : "closed",
         realizedPnl: realized,
+        unrealizedPnl: unrealized,
         positionSize: t.positionSize ?? null,
         leverage: t.leverage ?? 1,
         entryPrice: t.entryPrice ?? null,
-        exitPrice: (t.exchangeAvgExitPrice ?? t.currentPrice ?? null) as number | null,
+        currentPrice,
+        exitPrice: (t.exchangeAvgExitPrice ?? currentPrice ?? null) as number | null,
         openedAt: (t.openedAt as string) ?? null,
         closedAt: (t.closedAt as string) ?? null,
       };

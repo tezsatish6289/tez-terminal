@@ -93,7 +93,7 @@ const EXCHANGES: ExchangeMeta[] = [
     testnetUrl: "app.hyperliquid-testnet.xyz",
     prodUrl: "app.hyperliquid.xyz",
     permissionNote:
-      "Hyperliquid uses a main wallet + API agent: (1) Authorize an agent on app.hyperliquid.xyz/API — main wallet signs once. (2) Save the agent private key (0x + 64 hex) when shown; the table only lists the agent public address. (3) Main 0x → API Key; agent private key → API Secret. (4) Fund USDC perps. Agents cannot withdraw.",
+      "Hyperliquid uses a main wallet + API agent: (1) Authorize an agent on app.hyperliquid.xyz/API — main wallet signs once. (2) Save the agent private key (0x + 64 hex) when shown; the table only lists the agent public address. (3) Main 0x → API Key; agent private key → API Secret. (4) Fund USDC perps. Agents cannot withdraw. Max leverage is per-asset on HL (often 3x–10x on smaller perps, higher on majors); the bot clamps to the venue limit.",
     keyLabel: "Main wallet (0x…)",
     secretLabel: "Agent private key",
     noTestnet: true,

@@ -1,6 +1,10 @@
 /**
  * Hyperliquid perp connector (main wallet + API agent wallet).
  *
+ * Perps are USDC-margined; the app UI shows pairs like `BTC-USDC`. The REST API
+ * identifies markets by **coin** (e.g. `BTC`). We normalize symbols to a canonical
+ * `COINUSDC` form (while still accepting Bybit-style `COINUSDT` / `COINUSDT.P` signals).
+ *
  * Credentials (same Firestore shape as other venues):
  *   - apiKey    → main wallet address (0x...) — Info API user scope (same as HL docs for “info requests”)
  *   - apiSecret → API agent wallet **private key** (0x + 64 hex) — signs exchange actions (not the agent’s public address from the HL API table)
@@ -62,12 +66,15 @@ function normalizeMasterAddress(key: string): `0x${string}` {
   return getAddress(t) as `0x${string}`;
 }
 
+/** Canonical perp symbol we store for HL (matches venue quote currency). */
 function internalFromCoin(coin: string): string {
-  return `${coin.toUpperCase()}USDT`;
+  return `${coin.toUpperCase()}USDC`;
 }
 
+/** Strip UI/API wrappers to get HL **coin** name for mids, orders, filters. */
 function coinFromInternal(symbol: string): string {
-  const s = symbol.replace(/\.P$/i, "").trim().toUpperCase();
+  let s = symbol.replace(/\.P$/i, "").trim().toUpperCase().replace(/-/g, "");
+  if (s.endsWith("USDC")) return s.slice(0, -4);
   if (s.endsWith("USDT")) return s.slice(0, -4);
   return s;
 }
@@ -178,7 +185,13 @@ export class HyperliquidConnector implements ExchangeConnector {
   readonly name = "HYPERLIQUID" as const;
 
   normalizeSymbol(signalSymbol: string): string {
-    return signalSymbol.replace(/\.P$/i, "").toUpperCase();
+    let s = signalSymbol.replace(/\.P$/i, "").trim().toUpperCase();
+    s = s.replace(/-/g, "");
+    if (s.endsWith("USDT")) s = `${s.slice(0, -4)}USDC`;
+    else if (!s.endsWith("USDC") && /^[A-Z0-9]+$/.test(s)) {
+      s = `${s}USDC`;
+    }
+    return s;
   }
 
   async getAllPrices(testnet?: boolean): Promise<Map<string, number>> {
@@ -191,6 +204,7 @@ export class HyperliquidConnector implements ExchangeConnector {
       if (!Number.isFinite(p) || p <= 0) continue;
       const u = coin.toUpperCase();
       map.set(u, p);
+      map.set(`${u}USDC`, p);
       map.set(`${u}USDT`, p);
     }
     return map;
@@ -210,16 +224,18 @@ export class HyperliquidConnector implements ExchangeConnector {
 
     meta.universe.forEach((asset, index) => {
       const coin = asset.name;
+      const coinU = coin.toUpperCase();
       const internal = internalFromCoin(coin);
+      const legacyUsdt = `${coinU}USDT`;
       const szDec = asset.szDecimals ?? 0;
       const stepSize = 10 ** -szDec;
       const maxDecimals = Math.max(0, 6 - szDec);
       const tickSize = 10 ** -maxDecimals;
       const maxLev = asset.maxLeverage ?? 20;
 
-      byCoin.set(coin.toUpperCase(), { assetId: index, szDecimals: szDec, maxLev });
+      byCoin.set(coinU, { assetId: index, szDecimals: szDec, maxLev });
 
-      map.set(internal, {
+      const sym: SymbolInfo = {
         symbol: internal,
         pricePrecision: Math.max(0, maxDecimals),
         quantityPrecision: szDec,
@@ -229,7 +245,9 @@ export class HyperliquidConnector implements ExchangeConnector {
         tickSize,
         minNotional: HL_MIN_NOTIONAL_USD,
         maxLeverage: maxLev,
-      });
+      };
+      map.set(internal, sym);
+      map.set(legacyUsdt, sym);
     });
 
     metaCache.map = map;
@@ -243,7 +261,12 @@ export class HyperliquidConnector implements ExchangeConnector {
     const m = await this.getExchangeInfo(false, testnet);
     const internal = this.normalizeSymbol(symbol);
     const info = m.get(internal);
-    if (!info) throw new Error(`Symbol ${symbol} not found on Hyperliquid`);
+    if (!info) {
+      const coin = coinFromInternal(internal);
+      throw new Error(
+        `No Hyperliquid perp for "${coin}" (from ${internal}). That coin is not in HL's perp universe — Bybit-style signals include many alts Hyperliquid does not list. HL quotes perps vs USDC (UI: e.g. ${coin}-USDC).`,
+      );
+    }
     return info;
   }
 

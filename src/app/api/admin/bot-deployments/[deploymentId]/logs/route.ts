@@ -47,8 +47,8 @@ export async function GET(
 
     let q = db
       .collection("live_trade_logs")
-      .where("userId", "==", uid)
       .where("exchange", "==", exchange)
+      .where("userId", "==", uid)
       .orderBy("timestamp", "desc")
       .limit(pageSize + 1);
 

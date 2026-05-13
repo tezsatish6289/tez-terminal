@@ -113,10 +113,15 @@ export function getPrice(
     if (cdPrice != null) return cdPrice;
   }
 
-  // Hyperliquid mids: keyed by coin (BTC) and BTCUSDT
+  // Hyperliquid mids: keyed by coin (BTC), BTCUSDC, and legacy BTCUSDT
   if (exchange === "HYPERLIQUID") {
-    const base = raw.endsWith("USDT") ? raw.slice(0, -4) : raw;
-    const hlPrice = exchangeMap?.get(base) ?? exchangeMap?.get(raw);
+    const base =
+      raw.endsWith("USDT") ? raw.slice(0, -4) : raw.endsWith("USDC") ? raw.slice(0, -4) : raw;
+    const hlPrice =
+      exchangeMap?.get(base) ??
+      exchangeMap?.get(raw) ??
+      exchangeMap?.get(`${base}USDC`) ??
+      exchangeMap?.get(`${base}USDT`);
     if (hlPrice != null) return hlPrice;
   }
 

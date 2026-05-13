@@ -147,6 +147,11 @@ export async function executeTrade(
     // 3. Set leverage (clamped to exchange max for this symbol)
     const desiredLeverage = simTrade.leverage;
     const leverage = Math.min(desiredLeverage, info.maxLeverage);
+    if (leverage < desiredLeverage) {
+      warnings.push(
+        `Leverage capped to ${leverage}x (this symbol's max on ${exchange} is ${info.maxLeverage}x; signal used ${desiredLeverage}x).`,
+      );
+    }
     await connector.setLeverage(exchangeSymbol, leverage, creds);
 
     // 4. Calculate position size from real exchange balance

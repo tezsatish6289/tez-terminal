@@ -24,7 +24,9 @@ import {
   X,
   XCircle,
   Link2,
+  RefreshCw,
 } from "lucide-react";
+import { useAutoRefresh, useRelativeTimeLabel } from "@/hooks/use-auto-refresh";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -109,7 +111,7 @@ export default function SimulationPage() {
     if (!firestore || !user) return null;
     return doc(firestore, "config", getSimStateDocId(assetType));
   }, [firestore, user, assetType]);
-  const { data: stateData, isLoading: stateLoading } = useDoc(stateRef);
+  const { data: stateData, isLoading: stateLoading, refetch: refetchState } = useDoc(stateRef);
   const simState = stateData as SimulatorState | null;
 
   // OPEN trades — small set (5–20 docs), updated every minute by the cron.
@@ -121,7 +123,18 @@ export default function SimulationPage() {
       where("status", "==", "OPEN"),
     );
   }, [firestore, user]);
-  const { data: rawOpenTrades, isLoading: openTradesLoading } = useCollection(openTradesQuery);
+  const { data: rawOpenTrades, isLoading: openTradesLoading, refetch: refetchOpenTrades } = useCollection(openTradesQuery);
+
+  // Auto-refresh: pulls fresh sim state + open trades every 60s while the tab
+  // is visible (zero reads while hidden) plus on visibility / focus change.
+  // Cost at 1 user / 1 hr usage ≈ a few hundred reads/day — well inside the
+  // free Firestore tier. Historical closed trades + logs are intentionally
+  // NOT refreshed — refresh the page if you need fresh history.
+  const { lastRefreshedAt, refresh } = useAutoRefresh(
+    [refetchState, refetchOpenTrades],
+    60_000,
+  );
+  const lastRefreshedLabel = useRelativeTimeLabel(lastRefreshedAt);
 
   // CLOSED trades — fetched once on mount (historical data, doesn't need real-time).
   // getDocs instead of onSnapshot eliminates listener cost. Refresh page to see new closures.
@@ -309,6 +322,15 @@ export default function SimulationPage() {
 
               {/* Simulator controls */}
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={refresh}
+                  title="Refresh sim state & open trades"
+                  className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.02] px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  <span className="hidden sm:inline">{lastRefreshedLabel}</span>
+                </button>
                 {assetType === "CRYPTO" && <HeatmapAutoSwitch />}
                 {assetType === "INDIAN_STOCKS" && <NiftyAutoSwitch />}
                 <SimulatorParamsDialog />

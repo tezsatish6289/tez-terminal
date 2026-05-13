@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Loader2, Save, Zap, TrendingUp, TrendingDown, PowerOff, Activity, RefreshCw, BarChart2 } from "lucide-react";
 import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import {
@@ -141,15 +142,18 @@ export function NiftyAutoSwitch() {
     if (!firestore) return null;
     return doc(firestore, "config", "nifty_auto_status");
   }, [firestore]);
-  const { data: statusData } = useDoc(statusRef);
+  const { data: statusData, refetch: refetchStatus } = useDoc(statusRef);
   const status = statusData as AutoStatus | null;
 
   const suggestedRef = useMemoFirebase(() => {
     if (!firestore) return null;
     return doc(firestore, "config", "suggested_nifty_zones");
   }, [firestore]);
-  const { data: suggestedData } = useDoc(suggestedRef);
+  const { data: suggestedData, refetch: refetchSuggested } = useDoc(suggestedRef);
   const suggested = suggestedData as SuggestedNiftyZones | null;
+
+  // Match the simulation page cadence — refresh while tab is visible.
+  useAutoRefresh([refetchStatus, refetchSuggested], 60_000);
 
   useEffect(() => {
     fetch("/api/settings/nifty-zones")

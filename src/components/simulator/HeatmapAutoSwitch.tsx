@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Loader2, Save, Zap, TrendingUp, TrendingDown, PowerOff, Activity, RefreshCw } from "lucide-react";
 import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
+import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import {
@@ -179,15 +180,20 @@ export function HeatmapAutoSwitch() {
     if (!firestore) return null;
     return doc(firestore, "config", "heatmap_auto_status");
   }, [firestore]);
-  const { data: statusData } = useDoc(statusRef);
+  const { data: statusData, refetch: refetchStatus } = useDoc(statusRef);
   const status = statusData as AutoStatus | null;
 
   const suggestedRef = useMemoFirebase(() => {
     if (!firestore) return null;
     return doc(firestore, "config", "suggested_zones");
   }, [firestore]);
-  const { data: suggestedData } = useDoc(suggestedRef);
+  const { data: suggestedData, refetch: refetchSuggested } = useDoc(suggestedRef);
   const suggested = suggestedData as SuggestedZones | null;
+
+  // Match the simulation page cadence: refresh status while the tab is
+  // visible (zero cost while hidden) so AUTO/Bull/Bear and Deribit zones
+  // stay current without listeners.
+  useAutoRefresh([refetchStatus, refetchSuggested], 60_000);
 
   useEffect(() => {
     fetch("/api/settings/heatmap-zones")

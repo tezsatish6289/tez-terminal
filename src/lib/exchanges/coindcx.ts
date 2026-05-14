@@ -710,27 +710,21 @@ export class CoinDcxConnector implements ExchangeConnector {
     const seen = new Set<string>();
     const out: ClosedPnlRecord[] = [];
 
+    /**
+     * CoinDCX "Get Transactions" rejects `stage: "all"` (422). Valid stages per docs:
+     * default, funding, exit, tpsl_exit, liquidation — fetch each and merge.
+     * @see https://docs.coindcx.com/#positions-transactions
+     */
+    const TRANSACTION_STAGES = ["default", "funding", "exit", "tpsl_exit", "liquidation"] as const;
+
     /** CoinDCX returns `created_at` in ms (13 digits); older rows may use seconds. */
     const createdAtMs = (raw: number | undefined | null): number => {
       if (raw == null || Number.isNaN(raw)) return 0;
       return raw < 1e12 ? raw * 1000 : raw;
     };
 
-    const maxPages = 40;
-    for (let page = 1; page <= maxPages; page++) {
-      const rows = await signedPost<CdCxPosTxn[]>(
-        "/exchange/v1/derivatives/futures/positions/transactions",
-        {
-          stage: "all",
-          page: String(page),
-          size: "200",
-          margin_currency_short_name: [USDT_MARGIN],
-        },
-        creds,
-      );
-
-      if (!rows?.length) break;
-
+    const ingestRows = (rows: CdCxPosTxn[] | null | undefined, stage: string) => {
+      if (!rows?.length) return;
       for (const r of rows) {
         if (r.pair !== pair || r.margin_currency_short_name !== USDT_MARGIN) continue;
         if (r.created_at == null) continue;
@@ -740,8 +734,8 @@ export class CoinDcxConnector implements ExchangeConnector {
 
         const dedupeKey =
           r.position_id && r.created_at != null
-            ? `${r.position_id}:${r.created_at}`
-            : `${r.created_at}:${r.amount}:${r.fee_amount}:${r.price_in_usdt}`;
+            ? `${r.position_id}:${r.created_at}:${stage}`
+            : `${stage}:${r.created_at}:${r.amount}:${r.fee_amount}:${r.price_in_usdt}`;
         if (seen.has(dedupeKey)) continue;
         seen.add(dedupeKey);
 
@@ -763,8 +757,33 @@ export class CoinDcxConnector implements ExchangeConnector {
           side: sideNorm,
         });
       }
+    };
 
-      if (rows.length < 200) break;
+    const maxPagesPerStage = 25;
+    const path = "/exchange/v1/derivatives/futures/positions/transactions";
+
+    for (const stage of TRANSACTION_STAGES) {
+      for (let page = 1; page <= maxPagesPerStage; page++) {
+        let rows: CdCxPosTxn[];
+        try {
+          rows = await signedPost<CdCxPosTxn[]>(
+            path,
+            {
+              stage,
+              page: String(page),
+              size: "200",
+              margin_currency_short_name: [USDT_MARGIN],
+            },
+            creds,
+          );
+        } catch (e) {
+          if (e instanceof ExchangeApiError && e.code === 422) break;
+          throw e;
+        }
+
+        ingestRows(rows, stage);
+        if (!rows?.length || rows.length < 200) break;
+      }
     }
 
     return out;

@@ -52,7 +52,7 @@ const MAX_DAYS_WINDOW  = 7;                 // ignore expiries > 7 days out
 const EXPIRY_WEIGHTS   = [3.0, 1.5, 1.0];  // day0, day1, day2 — recency urgency multipliers
 const PROXIMITY_BUFFER = 0.005;             // 0.5% — prevents division by zero at ATM
 const MAX_REACH_PCT    = 0.08;              // 8% max distance from spot; beyond is unreachable
-const MIN_TP_USD       = 1000;             // minimum TP room in USD (zone edge → max pain)
+const MIN_TP_USD       = 500;              // minimum TP room in USD (zone edge → max pain); reduced from 1000
 const MIN_STRIKE_GAP   = 2500;             // bearStrike − bullStrike must be ≥ $2,500
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -330,39 +330,16 @@ export async function computeOptionsZones(
   }
 
   // ── Select bull (put below spot) and bear (call above spot) strikes ──────
-  let bullStrike: number | null = null;
-  let bullUrgencyScore = 0;
-  let bullWeightedOI   = 0;
-
-  let bearStrike: number | null = null;
-  let bearUrgencyScore = 0;
-  let bearWeightedOI   = 0;
-
-  for (const [strike, urg] of putUrgency) {
-    if (strike < spot && urg > bullUrgencyScore) {
-      bullUrgencyScore = urg;
-      bullStrike       = strike;
-      bullWeightedOI   = weightedPutOI.get(strike) ?? 0;
-    }
-  }
-  for (const [strike, urg] of callUrgency) {
-    if (strike > spot && urg > bearUrgencyScore) {
-      bearUrgencyScore = urg;
-      bearStrike       = strike;
-      bearWeightedOI   = weightedCallOI.get(strike) ?? 0;
-    }
-  }
-
-  // ── TP target: nearest max pain in the correct direction ─────────────────
   //
-  // For bull: we need a max pain ABOVE the top of the bull zone (zoneHigh)
-  //   with at least MIN_TP_USD ($1,000) clearance.
-  //   Pick the closest qualifying max pain (= first price target price would reach).
+  // Minimum distance: require the ZONE (not just the strike) to be fully on the
+  // correct side of spot. This prevents near-ATM strikes winning on the proximity
+  // amplifier when the zone would sit essentially at current price.
+  //   Bull: bullStrike + halfWidth < spot  (entire bull zone below spot)
+  //   Bear: bearStrike - halfWidth > spot  (entire bear zone above spot)
   //
-  // For bear: we need a max pain BELOW the bottom of the bear zone (zoneLow)
-  //   with at least MIN_TP_USD ($1,000) clearance.
-  //
-  // If no qualifying max pain exists → zone is rejected (null strike).
+  // TP target: nearest max pain in the correct direction with MIN_TP_USD clearance
+  // from the zone edge.  If the highest urgency strike fails, we fall through to
+  // the next best (fallback iteration) instead of immediately returning null.
 
   const findTp = (
     zoneEdge: number,
@@ -374,41 +351,62 @@ export async function computeOptionsZones(
         : maxPain <= zoneEdge - MIN_TP_USD,
     );
     if (!candidates.length) return null;
-
-    // Pick nearest: for bull → lowest max pain above threshold (first TP to reach)
-    //               for bear → highest max pain below threshold (first TP to reach)
     const sorted = [...candidates].sort((a, b) =>
       direction === "bull"
-        ? a.maxPain - b.maxPain   // ascending  → pick lowest qualifying
+        ? a.maxPain - b.maxPain   // ascending  → pick lowest qualifying (first TP to reach)
         : b.maxPain - a.maxPain,  // descending → pick highest qualifying
     );
-
     const best = sorted[0];
     const tpConfidence: "HIGH" | "MEDIUM" | "LOW" =
       best.dayIndex === 0 ? "HIGH" : best.dayIndex === 1 ? "MEDIUM" : "LOW";
     return { tpPrice: best.maxPain, tpExpiry: best.expiry, tpConfidence };
   };
 
-  // Compute zone edges for TP check
-  const bullZoneHigh = bullStrike !== null ? bullStrike + halfWidth : null;
-  const bearZoneLow  = bearStrike !== null ? bearStrike - halfWidth : null;
+  // Sort candidates by urgency descending, filtered by minimum distance
+  const sortedPuts = [...putUrgency.entries()]
+    .filter(([strike]) => strike + halfWidth < spot)
+    .sort(([, a], [, b]) => b - a);
 
+  const sortedCalls = [...callUrgency.entries()]
+    .filter(([strike]) => strike - halfWidth > spot)
+    .sort(([, a], [, b]) => b - a);
+
+  let bullStrike: number | null = null;
+  let bullWeightedOI = 0;
   let bullTp: ReturnType<typeof findTp> = null;
-  if (bullStrike !== null && bullZoneHigh !== null) {
-    bullTp = findTp(bullZoneHigh, "bull");
-    if (!bullTp) bullStrike = null; // no TP destination → reject zone
+
+  for (const [strike] of sortedPuts) {
+    const tp = findTp(strike + halfWidth, "bull");
+    if (tp) {
+      bullStrike    = strike;
+      bullWeightedOI = weightedPutOI.get(strike) ?? 0;
+      bullTp        = tp;
+      break;
+    }
   }
 
+  let bearStrike: number | null = null;
+  let bearWeightedOI = 0;
   let bearTp: ReturnType<typeof findTp> = null;
-  if (bearStrike !== null && bearZoneLow !== null) {
-    bearTp = findTp(bearZoneLow, "bear");
-    if (!bearTp) bearStrike = null; // no TP destination → reject zone
+
+  for (const [strike] of sortedCalls) {
+    const tp = findTp(strike - halfWidth, "bear");
+    if (tp) {
+      bearStrike    = strike;
+      bearWeightedOI = weightedCallOI.get(strike) ?? 0;
+      bearTp        = tp;
+      break;
+    }
   }
 
   // ── Gap check ────────────────────────────────────────────────────────────
-  const gap = bullStrike !== null && bearStrike !== null
-    ? bearStrike - bullStrike : 0;
-  const insufficientGap = gap > 0 && gap < MIN_STRIKE_GAP;
+  // Require at least $500 between the top of the bull zone and bottom of bear zone.
+  // Using zone edges (not raw strikes) so the check reflects actual price overlap risk.
+  const bullZoneHighForGap = bullStrike !== null ? bullStrike + halfWidth : null;
+  const bearZoneLowForGap  = bearStrike !== null ? bearStrike - halfWidth : null;
+  const gap = bullZoneHighForGap !== null && bearZoneLowForGap !== null
+    ? bearZoneLowForGap - bullZoneHighForGap : 0;
+  const insufficientGap = gap > 0 && gap < 500; // min $500 between zone edges
 
   // ── Assemble result ──────────────────────────────────────────────────────
   const expiriesUsed    = days.map(([label]) => label);

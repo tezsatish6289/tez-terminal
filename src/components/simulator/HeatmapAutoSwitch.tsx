@@ -464,7 +464,7 @@ export function HeatmapAutoSwitch() {
                         </>
                       ) : (
                         <p className="text-[10px] text-muted-foreground/40 pt-1">
-                          {suggested.bullOI ? "Put support found — no upside max pain target. No bull trades." : "No put cluster found below price."}
+                          {suggested.bullOI ? "Put support found — max pain too close to TP zone. No bull trades." : "No put cluster found below price."}
                         </p>
                       )}
                     </div>
@@ -504,7 +504,7 @@ export function HeatmapAutoSwitch() {
                         </>
                       ) : (
                         <p className="text-[10px] text-muted-foreground/40 pt-1">
-                          {suggested.bearOI ? "Call resistance found — no downside max pain target. No bear trades." : "No call cluster found above price."}
+                          {suggested.bearOI ? "Call resistance found — max pain too close to TP zone. No bear trades." : "No call cluster found above price."}
                         </p>
                       )}
                     </div>

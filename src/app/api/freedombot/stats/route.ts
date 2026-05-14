@@ -59,31 +59,10 @@ export async function GET() {
     const avgDailyPct = runningDays > 0 ? totalReturnPct / runningDays : 0;
     const profitPerYear = avgDailyPct * 365;
 
-    // Monthly return: use actual calendar-month PnL when ≥30 days live.
-    // Requires one targeted query (closedAt this month only), still cheap.
-    let profitPerMonth: number;
-    let profitPerMonthIsActual = false;
-    if (runningDays >= 30 && startingCapital > 0) {
-      const monthStart = new Date();
-      monthStart.setDate(1);
-      monthStart.setHours(0, 0, 0, 0);
-      const monthSnap = await db.collection("simulator_trades")
-        .where("assetType", "==", "CRYPTO")
-        .where("status", "==", "CLOSED")
-        .where("closedAt", ">=", monthStart.toISOString())
-        .get();
-      const monthNet = monthSnap.docs.reduce((sum, doc) => {
-        const t = doc.data() as any;
-        const evts: any[] = t.events ?? [];
-        const entryFee = evts[0]?.fee ?? 0;
-        const exitPnl  = evts.slice(1).reduce((s: number, e: any) => s + (e.pnl ?? 0), 0);
-        return sum + exitPnl - entryFee;
-      }, 0);
-      profitPerMonth = (monthNet / startingCapital) * 100;
-      profitPerMonthIsActual = true;
-    } else {
-      profitPerMonth = avgDailyPct * 30;
-    }
+    // Monthly return: project from daily average rate (avoids composite index requirement).
+    // When daily_metrics accumulates enough data we can switch to exact calendar-month PnL.
+    const profitPerMonth = avgDailyPct * 30;
+    const profitPerMonthIsActual = false;
 
     const winRate =
       totalTradesTaken > 0

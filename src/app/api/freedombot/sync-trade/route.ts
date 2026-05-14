@@ -17,7 +17,8 @@ import {
   computeClosedTradeExchangePnlMetrics,
   selectClosedPnlRecordsForTrade,
   bybitReconcileOrderIdsFromLiveTrade,
-  EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS,
+  coindcxClosedPnlWindowOpts,
+  exchangeClosedPnlFetchStartMs,
 } from "@/lib/freedombot/reconcile-exchange-pnl";
 import {
   getConnector,
@@ -66,6 +67,7 @@ export async function POST(req: NextRequest) {
         exchange === "BYBIT"
           ? bybitReconcileOrderIdsFromLiveTrade(t as Record<string, unknown>)
           : undefined,
+      ...(exchange === "COINDCX" ? coindcxClosedPnlWindowOpts() : {}),
     };
 
     // ── Case 1: trade already CLOSED in Firestore — reconcile PnL only ──────
@@ -78,7 +80,7 @@ export async function POST(req: NextRequest) {
       const records = await connector.getClosedPnl!(
         normalizedSymbol,
         creds,
-        Math.max(0, openedAtMs - EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS),
+        exchangeClosedPnlFetchStartMs(exchange, openedAtMs),
       );
       const metrics = computeClosedTradeExchangePnlMetrics(
         records,
@@ -145,7 +147,7 @@ export async function POST(req: NextRequest) {
       const records = await connector.getClosedPnl!(
         normalizedSymbol,
         creds,
-        Math.max(0, openedAtMs - EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS),
+        exchangeClosedPnlFetchStartMs(exchange, openedAtMs),
       );
       const metrics = computeClosedTradeExchangePnlMetrics(
         records,

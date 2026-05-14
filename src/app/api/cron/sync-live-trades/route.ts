@@ -30,7 +30,8 @@ import { isIndianMarketOpen, isIndianSquareOffTime } from "@/lib/market-hours";
 import {
   computeClosedTradeExchangePnlMetrics,
   bybitReconcileOrderIdsFromLiveTrade,
-  EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS,
+  coindcxClosedPnlWindowOpts,
+  exchangeClosedPnlFetchStartMs,
 } from "@/lib/freedombot/reconcile-exchange-pnl";
 
 export const dynamic = 'force-dynamic';
@@ -87,7 +88,7 @@ async function syncUserTrades(
             const records = await connector.getClosedPnl!(
               lt.symbol,
               creds,
-              Math.max(0, openedAtMs - EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS),
+              exchangeClosedPnlFetchStartMs(exchange, openedAtMs),
             );
             const metrics = computeClosedTradeExchangePnlMetrics(records, openedAtMs, closedAtMs, {
               tradeSide:
@@ -96,6 +97,7 @@ async function syncUserTrades(
                 exchange === "BYBIT"
                   ? bybitReconcileOrderIdsFromLiveTrade(lt as unknown as Record<string, unknown>)
                   : undefined,
+              ...(exchange === "COINDCX" ? coindcxClosedPnlWindowOpts() : {}),
             });
             if (metrics.recordCount === 0) continue;
 

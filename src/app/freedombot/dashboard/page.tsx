@@ -407,27 +407,19 @@ function pnlBookedAtMs(t: Trade): number {
 }
 
 /**
- * Open positions first (newest entry first), then closed rows with real PnL by **latest
- * reconciliation first** (Bybit/cron sets `exchangePnlReconciledAt`), then pending rows
- * (no venue PnL yet) by latest exit.
+ * Open positions first (newest entry first), then all closed rows by **latest exit first**
+ * (`closedAt`). Pending venue PnL no longer sinks below older booked closes on page 1.
  */
 function sortTradesForDashboard(list: Trade[]): Trade[] {
   const closed = list.filter((t) => t.status === "closed");
   const open = list.filter((t) => t.status === "open");
-  const closedBooked = closed.filter((t) => exchangeBackedClosedPnl(t) != null);
-  const closedPending = closed.filter((t) => exchangeBackedClosedPnl(t) == null);
-  const sortedBookedDesc = [...closedBooked].sort((a, b) => {
-    const d = pnlBookedAtMs(b) - pnlBookedAtMs(a);
-    if (d !== 0) return d;
-    return b.id.localeCompare(a.id);
-  });
-  const sortedPendingDesc = [...closedPending].sort((a, b) => {
+  const sortedClosedDesc = [...closed].sort((a, b) => {
     const d = closedAtMs(b) - closedAtMs(a);
     if (d !== 0) return d;
     return b.id.localeCompare(a.id);
   });
   const sortedOpenDesc = [...open].sort((a, b) => openedAtMs(b) - openedAtMs(a));
-  return [...sortedOpenDesc, ...sortedBookedDesc, ...sortedPendingDesc];
+  return [...sortedOpenDesc, ...sortedClosedDesc];
 }
 
 /**
@@ -452,8 +444,8 @@ function tradeShowsResyncControl(t: Trade): boolean {
 /**
  * Passbook cumulative: only exchange-backed (or override) closes, in **booking time** order
  * (`exchangePnlReconciledAt` ascending, then trade id). Matches Bybit/cron when they set
- * reconciledAt; falls back to `closedAt` if missing. Display order is the reverse (latest
- * booking on top) via `sortTradesForDashboard`.
+ * reconciledAt; falls back to `closedAt` if missing. The table lists closes by exit time
+ * (newest first); cumulative values follow booking order, so they may not increase top-to-bottom.
  */
 function cumulativeExchangeBackedByTradeId(list: Trade[]): Map<string, number | null> {
   const closed = list.filter((t) => t.status === "closed");
@@ -698,7 +690,7 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
             { label: "Entry Price", tip: "" },
             { label: "Exit Price", tip: "" },
             { label: "P&L", tip: "" },
-            { label: "Cumulative", tip: "Running total after each **booked** realised P&L (oldest reconciliation first, using exchangePnlReconciledAt). Table is latest booking on top. Shows — until venue P&L exists." },
+            { label: "Cumulative", tip: "Running total after each **booked** realised P&L (oldest reconciliation first, using exchangePnlReconciledAt). The table sorts closes by latest exit; cumulative still follows booking order, so values may not increase top-to-bottom. Shows — until venue P&L exists." },
             { label: "Status", tip: "" },
           ].map(({ label, tip }) => (
             <div

@@ -54,6 +54,25 @@ export const EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS = EXCHANGE_PNL_TRADE_WINDOW_PRE_M
 /** @deprecated Use EXCHANGE_PNL_TRADE_WINDOW_POST_MS — kept for imports that still reference the old name. */
 export const EXCHANGE_PNL_POST_CLOSE_BUFFER_MS = EXCHANGE_PNL_TRADE_WINDOW_POST_MS;
 
+/** CoinDCX passbook rows often land after `closedAt`; widen window vs ±5m Bybit default. */
+export const EXCHANGE_PNL_COINDCX_WINDOW_PRE_MS = 15 * 60 * 1000;
+export const EXCHANGE_PNL_COINDCX_WINDOW_POST_MS = 6 * 60 * 60 * 1000;
+
+/** `getClosedPnl` startTime: fetch from far enough before open for the active window. */
+export function exchangeClosedPnlFetchStartMs(exchange: ExchangeName, openedAtMs: number): number {
+  const lookback =
+    exchange === "COINDCX" ? EXCHANGE_PNL_COINDCX_WINDOW_PRE_MS : EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS;
+  return Math.max(0, openedAtMs - lookback);
+}
+
+/** Window overrides for `computeClosedTradeExchangePnlMetrics` on CoinDCX. */
+export function coindcxClosedPnlWindowOpts(): Pick<ClosedPnlWindowOpts, "windowPreMs" | "windowPostMs"> {
+  return {
+    windowPreMs: EXCHANGE_PNL_COINDCX_WINDOW_PRE_MS,
+    windowPostMs: EXCHANGE_PNL_COINDCX_WINDOW_POST_MS,
+  };
+}
+
 /** CoinDCX sometimes returns unix seconds; Bybit uses ms. */
 export function recordTimeMs(r: ClosedPnlRecord): number {
   const t = r.createdTime;
@@ -80,6 +99,9 @@ export interface ClosedPnlWindowOpts {
    * If at least one row matches, time/side window is not used for selection. If none match, falls back to the time window.
    */
   matchAnyOrderId?: string[];
+  /** Optional window overrides (CoinDCX passbook rows can lag `closedAt`). */
+  windowPreMs?: number;
+  windowPostMs?: number;
 }
 
 function matchAnyOrderIdSet(opts?: ClosedPnlWindowOpts): Set<string> | null {
@@ -99,8 +121,10 @@ export function closedPnlRecordsForTradeWindow(
   closedAtMs: number,
   opts?: ClosedPnlWindowOpts,
 ): ClosedPnlRecord[] {
-  const lo = openedAtMs - EXCHANGE_PNL_TRADE_WINDOW_PRE_MS;
-  const hi = closedAtMs + EXCHANGE_PNL_TRADE_WINDOW_POST_MS;
+  const pre = opts?.windowPreMs ?? EXCHANGE_PNL_TRADE_WINDOW_PRE_MS;
+  const post = opts?.windowPostMs ?? EXCHANGE_PNL_TRADE_WINDOW_POST_MS;
+  const lo = openedAtMs - pre;
+  const hi = closedAtMs + post;
   const want = opts?.tradeSide?.toUpperCase() as "BUY" | "SELL" | undefined;
   return records.filter((r) => {
     const ts = recordTimeMs(r);
@@ -115,7 +139,8 @@ export function closedPnlRecordsForTradeWindow(
 }
 
 /**
- * Rows to aggregate for one trade: Bybit prefers `orderId` ∩ stored trade ids; otherwise time ±5m (+ side).
+ * Rows to aggregate for one trade: Bybit prefers `orderId` ∩ stored trade ids; otherwise time window (+ side).
+ * Window defaults to ±`EXCHANGE_PNL_TRADE_WINDOW_*`; CoinDCX often needs wider `windowPreMs` / `windowPostMs`.
  */
 export function selectClosedPnlRecordsForTrade(
   records: ClosedPnlRecord[],
@@ -225,7 +250,7 @@ export async function applyBybitExchangeClosedPnlAfterClose(
     const records = await connector.getClosedPnl!(
       trade.symbol,
       creds,
-      Math.max(0, openedAtMs - EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS),
+      Math.max(0, exchangeClosedPnlFetchStartMs("BYBIT", openedAtMs)),
     );
     return computeClosedTradeExchangePnlMetrics(records, openedAtMs, closedAtMs, {
       tradeSide: trade.side === "SELL" ? "SELL" : "BUY",
@@ -321,7 +346,10 @@ export async function reconcileUserExchangeClosedPnl(
     const t = d.data();
     if (t.testnet !== false) return false;
     if (t.status !== "CLOSED") return false;
-    return tradeBelongsToVenue(t.exchange as string | undefined, exchange);
+    if (!tradeBelongsToVenue(t.exchange as string | undefined, exchange)) return false;
+    const pnl = t.exchangeRealizedPnl;
+    if (typeof pnl === "number" && !Number.isNaN(pnl)) return false;
+    return true;
   });
 
   const nowIso = new Date().toISOString();
@@ -338,7 +366,7 @@ export async function reconcileUserExchangeClosedPnl(
     const exchangeSymbol = connector.normalizeSymbol(signalSymbol);
 
     try {
-      const startArg = Math.max(0, openedAtMs - EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS);
+      const startArg = exchangeClosedPnlFetchStartMs(exchange, openedAtMs);
       const records = await connector.getClosedPnl!(exchangeSymbol, creds, startArg);
       const metrics = computeClosedTradeExchangePnlMetrics(records, openedAtMs, closedAtMs, {
         tradeSide: String(lt.side ?? "BUY").toUpperCase() === "SELL" ? "SELL" : "BUY",
@@ -346,6 +374,7 @@ export async function reconcileUserExchangeClosedPnl(
           exchange === "BYBIT"
             ? bybitReconcileOrderIdsFromLiveTrade(lt as unknown as Record<string, unknown>)
             : undefined,
+        ...(exchange === "COINDCX" ? coindcxClosedPnlWindowOpts() : {}),
       });
       if (metrics.recordCount === 0) continue;
 

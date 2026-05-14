@@ -101,7 +101,10 @@ export async function GET(req: NextRequest) {
           realizedPnlExchange: ex,
           exchangeRealizedPnlOverride: ov,
           exchangePnlReconciledAt: t.exchangePnlReconciledAt ?? null,
-          unrealizedPnl: 0,
+          unrealizedPnl:
+            typeof t.unrealizedPnl === "number" && !Number.isNaN(t.unrealizedPnl)
+              ? Number(t.unrealizedPnl)
+              : 0,
           positionSize: t.positionSize ?? null,
           leverage: t.leverage ?? 1,
           entryPrice: t.entryPrice ?? null,

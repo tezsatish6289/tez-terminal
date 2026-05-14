@@ -29,9 +29,9 @@ export async function PUT(request: NextRequest) {
   if (VALID_OVERRIDES.includes(body.manualOverride)) {
     update.manualOverride = body.manualOverride;
   }
-  if ("momentumLookbackMin" in body) {
-    const v = body.momentumLookbackMin;
-    update.momentumLookbackMin = typeof v === "number" && v > 0 ? v : null;
+  if ("zoneConfirmMinutes" in body) {
+    const v = body.zoneConfirmMinutes;
+    update.zoneConfirmMinutes = typeof v === "number" && v >= 5 && v <= 60 ? v : 15;
   }
   if ("zoneHalfWidthUsd" in body) {
     const v = body.zoneHalfWidthUsd;

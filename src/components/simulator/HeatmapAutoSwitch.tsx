@@ -25,7 +25,8 @@ interface HeatmapZones {
   bearZoneLow:         number | null;
   bearExitBelow:       number | null;
   manualOverride:      ManualOverride;
-  momentumLookbackMin: number | null;
+  momentumLookbackMin: number | null; // legacy — removed, kept for type compat during migration
+  zoneConfirmMinutes:  number | null;
   zoneHalfWidthUsd:    number | null;
   maxPainProximityUsd: number | null;
 }
@@ -81,7 +82,8 @@ const EMPTY_ZONES: HeatmapZones = {
   bullZoneLow: null, bullZoneHigh: null, bullExitAbove: null,
   bearZoneHigh: null, bearZoneLow: null, bearExitBelow: null,
   manualOverride: "AUTO",
-  momentumLookbackMin: 10,
+  momentumLookbackMin: null,
+  zoneConfirmMinutes: 15,
   zoneHalfWidthUsd: null,
   maxPainProximityUsd: null,
 };
@@ -119,51 +121,37 @@ function PriceInput({
   );
 }
 
-function MomentumFilter({
+function ZoneConfirmationWindow({
   value, onChange,
 }: {
   value: number | null;
-  onChange: (v: number | null) => void;
+  onChange: (v: number) => void;
 }) {
+  const current = value ?? 15;
   return (
     <div className="space-y-3 pt-1">
-      <div className="flex items-center justify-between pb-1 border-b border-white/[0.05]">
-        <div className="flex items-center gap-1.5">
-          <Activity className="w-3.5 h-3.5 text-accent/60" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-accent/80">Momentum Filter</span>
-        </div>
-        <button
-          onClick={() => onChange(value !== null ? null : 10)}
-          className={cn(
-            "text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border transition-all",
-            value !== null
-              ? "bg-accent/15 text-accent border-accent/20"
-              : "bg-white/[0.03] text-muted-foreground/40 border-white/[0.06]",
-          )}
-        >
-          {value !== null ? "On" : "Off"}
-        </button>
+      <div className="flex items-center gap-1.5 pb-1 border-b border-white/[0.05]">
+        <Activity className="w-3.5 h-3.5 text-accent/60" />
+        <span className="text-[10px] font-bold uppercase tracking-widest text-accent/80">Zone Confirmation</span>
       </div>
-      {value !== null && (
-        <div className="space-y-1">
-          <div className="flex items-center justify-between">
-            <label className="text-[11px] font-bold text-foreground/80">Lookback Window</label>
-            <span className="text-[11px] font-mono font-bold text-accent">{value} min</span>
-          </div>
-          <input
-            type="range" min={3} max={30} step={1} value={value}
-            onChange={(e) => onChange(parseInt(e.target.value))}
-            className="w-full accent-accent"
-          />
-          <div className="flex justify-between text-[9px] text-muted-foreground/30">
-            <span>3 min</span><span>30 min</span>
-          </div>
-          <p className="text-[9px] text-muted-foreground/40 pt-0.5">
-            Simulator only activates when BTC is trending in the right direction over this window.
-            &ldquo;WAITING&rdquo; shows in the status line when price is in zone but momentum isn&apos;t confirmed yet.
-          </p>
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <label className="text-[11px] font-bold text-foreground/80">Confirmation Window</label>
+          <span className="text-[11px] font-mono font-bold text-accent">{current} min</span>
         </div>
-      )}
+        <input
+          type="range" min={5} max={60} step={5} value={current}
+          onChange={(e) => onChange(parseInt(e.target.value))}
+          className="w-full accent-accent"
+        />
+        <div className="flex justify-between text-[9px] text-muted-foreground/30">
+          <span>5 min</span><span>60 min</span>
+        </div>
+        <p className="text-[9px] text-muted-foreground/40 pt-0.5">
+          BTC must hold above the zone floor for this window without making new lows before any trades open.
+          Status shows &ldquo;CONFIRMING (X / {current} min)&rdquo; while waiting.
+        </p>
+      </div>
     </div>
   );
 }
@@ -543,7 +531,7 @@ export function HeatmapAutoSwitch() {
                 />
               </div>
 
-              <MomentumFilter value={zones.momentumLookbackMin} onChange={(v) => handleChange("momentumLookbackMin", v)} />
+              <ZoneConfirmationWindow value={zones.zoneConfirmMinutes} onChange={(v) => handleChange("zoneConfirmMinutes", v)} />
             </div>
           )}
         </div>

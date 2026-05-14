@@ -197,7 +197,7 @@ export async function GET(request: NextRequest) {
         directionBias: cryptoSwitch.directionBias,
         reason: heatmapReason,
         priceHistory,
-        momentumLookbackMin: heatmapZones.momentumLookbackMin ?? null,
+        momentumLookbackMin: heatmapZones.zoneConfirmMinutes ?? null,
         updatedAt: new Date().toISOString(),
       }).catch(() => {});
       await db.doc("config/nifty_auto_status").set(
@@ -799,7 +799,7 @@ export async function GET(request: NextRequest) {
       directionBias: cryptoSwitch.directionBias,
       reason: heatmapReason,
       priceHistory,
-      momentumLookbackMin: heatmapZones.momentumLookbackMin ?? null,
+      momentumLookbackMin: heatmapZones.zoneConfirmMinutes ?? null,
       updatedAt: new Date().toISOString(),
     }).catch(() => {});
 

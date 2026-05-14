@@ -14,7 +14,9 @@ export interface HeatmapZones {
   bearZoneLow:         number | null;
   bearExitBelow:       number | null;
   manualOverride:      ManualOverride;
-  momentumLookbackMin: number | null; // null = momentum check disabled
+  /** Minutes BTC must hold the zone floor/ceiling without new lows/highs before trades open.
+   *  null = no confirmation required (activate immediately on zone entry). */
+  zoneConfirmMinutes:  number | null;
   /** ±USD around each Deribit strike for AUTO zones; null → server default (500). */
   zoneHalfWidthUsd:    number | null;
   /** Close open trades when BTC is within this many $ of today's max pain (one-sided zones only). null → default 200. */
@@ -26,7 +28,7 @@ export interface PricePoint {
   ts:    number; // unix ms
 }
 
-export const ZONE_KEYS: (keyof Omit<HeatmapZones, "manualOverride" | "momentumLookbackMin">)[] = [
+export const ZONE_KEYS: (keyof Omit<HeatmapZones, "manualOverride" | "zoneConfirmMinutes">)[] = [
   "bullZoneLow", "bullZoneHigh", "bullExitAbove",
   "bearZoneHigh", "bearZoneLow", "bearExitBelow",
 ];
@@ -38,8 +40,9 @@ export function parseZones(data: Record<string, unknown>): HeatmapZones {
     bullZoneLow: null, bullZoneHigh: null, bullExitAbove: null,
     bearZoneHigh: null, bearZoneLow: null, bearExitBelow: null,
     manualOverride: "AUTO",
-    momentumLookbackMin: 10,
+    zoneConfirmMinutes: 15,
     zoneHalfWidthUsd: null,
+    maxPainProximityUsd: null,
   };
   for (const key of ZONE_KEYS) {
     const v = data[key];
@@ -48,8 +51,13 @@ export function parseZones(data: Record<string, unknown>): HeatmapZones {
   if (VALID_OVERRIDES.includes(data.manualOverride as ManualOverride)) {
     zones.manualOverride = data.manualOverride as ManualOverride;
   }
-  const mlb = data.momentumLookbackMin;
-  zones.momentumLookbackMin = typeof mlb === "number" && mlb > 0 ? mlb : null;
+  // zoneConfirmMinutes: 5–60 min range; null = no confirmation gate
+  const zcm = data.zoneConfirmMinutes;
+  zones.zoneConfirmMinutes = typeof zcm === "number" && zcm >= 5 && zcm <= 60 ? zcm : 15;
+  // Legacy: if old momentumLookbackMin exists and new field absent, migrate value
+  if (data.zoneConfirmMinutes === undefined && typeof data.momentumLookbackMin === "number") {
+    zones.zoneConfirmMinutes = 15; // reset to saner default rather than migrating raw minutes
+  }
   const zh = data.zoneHalfWidthUsd;
   zones.zoneHalfWidthUsd =
     typeof zh === "number" && zh >= 50 && zh <= 3000 ? zh : null;
@@ -203,35 +211,77 @@ export function resolveHeatmapAutoStatusReason(
 }
 
 /**
- * Check momentum direction over a price history window.
- * Splits the window in half: if avg(newer) > avg(older) → trending up.
- * Returns null if insufficient data (caller should skip the check, not block).
+ * Rolling zone confirmation check.
+ *
+ * Uses the last `confirmMinutes` minutes of BTC price history to verify:
+ *   1. Every price stayed on the right side of the zone floor/ceiling.
+ *   2. No new lows (BULL) / no new highs (BEAR) in the second half vs first half.
+ *
+ * Returns null when there is insufficient history — caller should NOT block trading
+ * (benefit of the doubt on early start / cold cache).
  */
-function checkMomentum(
-  history: PricePoint[],
-  lookbackMs: number,
-  direction: "BULL" | "BEAR",
-): { passed: boolean; detail: string } | null {
-  const now = Date.now();
+function checkZoneConfirmation(
+  history:        PricePoint[],
+  confirmMinutes: number,
+  floor:          number, // bullZoneLow for BULL, bearZoneHigh for BEAR
+  direction:      "BULL" | "BEAR",
+): { confirmed: boolean; minutesHeld: number; detail: string } | null {
+  const now       = Date.now();
+  const windowMs  = confirmMinutes * 60_000;
+  const fmt       = (n: number) => `$${Math.round(n).toLocaleString()}`;
+
   const window = history
-    .filter((p) => now - p.ts <= lookbackMs)
+    .filter((p) => now - p.ts <= windowMs)
     .sort((a, b) => a.ts - b.ts);
 
-  if (window.length < 3) return null; // not enough data — skip check
+  // Need at least half the expected points to make a meaningful call.
+  // If history is too thin (cold cache / first run), skip the gate.
+  const minRequired = Math.max(3, Math.floor(confirmMinutes / 2));
+  if (window.length < minRequired) return null; // not enough data — let it through
 
+  const minutesHeld = Math.round(window.length); // approx 1 point per minute
+
+  // ── Check 1: zone floor never broken ─────────────────────────────────────
+  const aboveFloor = direction === "BULL"
+    ? window.every((p) => p.price >= floor)
+    : window.every((p) => p.price <= floor);
+
+  if (!aboveFloor) {
+    const worst = direction === "BULL"
+      ? Math.min(...window.map((p) => p.price))
+      : Math.max(...window.map((p) => p.price));
+    return {
+      confirmed: false, minutesHeld,
+      detail: `zone ${direction === "BULL" ? "floor" : "ceiling"} broken — ${fmt(worst)} breached ${fmt(floor)}`,
+    };
+  }
+
+  // ── Check 2: no new lows (BULL) / no new highs (BEAR) ───────────────────
   const half      = Math.floor(window.length / 2);
-  const olderHalf = window.slice(0, half);
-  const newerHalf = window.slice(-half);
+  const firstHalf = window.slice(0, half);
+  const lastHalf  = window.slice(-half);
 
-  const avgOlder = olderHalf.reduce((s, p) => s + p.price, 0) / olderHalf.length;
-  const avgNewer = newerHalf.reduce((s, p) => s + p.price, 0) / newerHalf.length;
+  if (direction === "BULL") {
+    const minFirst = Math.min(...firstHalf.map((p) => p.price));
+    const minLast  = Math.min(...lastHalf.map((p) => p.price));
+    if (minLast < minFirst) {
+      return {
+        confirmed: false, minutesHeld,
+        detail: `still making lower lows (${fmt(minFirst)} → ${fmt(minLast)})`,
+      };
+    }
+  } else {
+    const maxFirst = Math.max(...firstHalf.map((p) => p.price));
+    const maxLast  = Math.max(...lastHalf.map((p) => p.price));
+    if (maxLast > maxFirst) {
+      return {
+        confirmed: false, minutesHeld,
+        detail: `still making higher highs (${fmt(maxFirst)} → ${fmt(maxLast)})`,
+      };
+    }
+  }
 
-  const fmt    = (n: number) => `$${Math.round(n).toLocaleString()}`;
-  const detail = `${fmt(avgOlder)} → ${fmt(avgNewer)} over ${Math.round(lookbackMs / 60000)}min`;
-
-  if (direction === "BULL") return { passed: avgNewer > avgOlder, detail };
-  if (direction === "BEAR") return { passed: avgNewer < avgOlder, detail };
-  return null;
+  return { confirmed: true, minutesHeld, detail: `held ${confirmMinutes} min, no new ${direction === "BULL" ? "lows" : "highs"}` };
 }
 
 export function computeAutoSwitch(
@@ -248,9 +298,8 @@ export function computeAutoSwitch(
     return { simEnabled: false, directionBias: "BOTH", reason: "OFF — BTC price unavailable" };
   }
 
-  const { bullZoneLow, bullZoneHigh, bullExitAbove, bearZoneHigh, bearZoneLow, bearExitBelow, momentumLookbackMin } = zones;
-  const fmt        = (n: number) => `$${n.toLocaleString()}`;
-  const lookbackMs = momentumLookbackMin ? momentumLookbackMin * 60_000 : null;
+  const { bullZoneLow, bullZoneHigh, bullExitAbove, bearZoneHigh, bearZoneLow, bearExitBelow, zoneConfirmMinutes } = zones;
+  const fmt = (n: number) => `$${n.toLocaleString()}`;
 
   // ── BULL ──────────────────────────────────────────────────────────────────
   const bullActive =
@@ -258,22 +307,24 @@ export function computeAutoSwitch(
     btcPrice >= bullZoneLow && btcPrice <= bullExitAbove;
 
   if (bullActive) {
-    const inZone = bullZoneHigh !== null && btcPrice <= bullZoneHigh;
+    const inZone   = bullZoneHigh !== null && btcPrice <= bullZoneHigh;
     const posLabel = inZone
       ? `BTC ${fmt(btcPrice)} in entry zone ${fmt(bullZoneLow!)}–${fmt(bullZoneHigh!)}`
       : `BTC ${fmt(btcPrice)} above zone, exit at ${fmt(bullExitAbove!)}`;
 
-    // Momentum check
-    if (lookbackMs) {
-      const mom = checkMomentum(priceHistory, lookbackMs, "BULL");
-      if (mom === null) {
-        // Not enough history yet — activate anyway (don't penalise early start)
-        return { simEnabled: true, directionBias: "BULL", reason: `BULL ACTIVE — ${posLabel} (momentum: building…)` };
+    if (zoneConfirmMinutes) {
+      const check = checkZoneConfirmation(priceHistory, zoneConfirmMinutes, bullZoneLow!, "BULL");
+      if (check === null) {
+        // Not enough history yet — activate anyway (cold cache / first run)
+        return { simEnabled: true, directionBias: "BULL", reason: `BULL ACTIVE — ${posLabel} (confirmation: building history…)` };
       }
-      if (!mom.passed) {
-        return { simEnabled: false, directionBias: "BOTH", reason: `BULL WAITING — ${posLabel} — momentum not confirmed yet (${mom.detail} ↓)` };
+      if (!check.confirmed) {
+        return {
+          simEnabled: false, directionBias: "BOTH",
+          reason: `BULL CONFIRMING (${check.minutesHeld} / ${zoneConfirmMinutes} min) — ${posLabel} — ${check.detail}`,
+        };
       }
-      return { simEnabled: true, directionBias: "BULL", reason: `BULL ACTIVE — ${posLabel} — momentum ↑ (${mom.detail})` };
+      return { simEnabled: true, directionBias: "BULL", reason: `BULL ACTIVE — zone confirmed (${zoneConfirmMinutes} min) — ${posLabel}` };
     }
 
     return { simEnabled: true, directionBias: "BULL", reason: `BULL ACTIVE — ${posLabel}` };
@@ -285,20 +336,23 @@ export function computeAutoSwitch(
     btcPrice >= bearExitBelow && btcPrice <= bearZoneHigh;
 
   if (bearActive) {
-    const inZone = bearZoneLow !== null && btcPrice >= bearZoneLow;
+    const inZone   = bearZoneLow !== null && btcPrice >= bearZoneLow;
     const posLabel = inZone
       ? `BTC ${fmt(btcPrice)} in entry zone ${fmt(bearZoneLow!)}–${fmt(bearZoneHigh!)}`
       : `BTC ${fmt(btcPrice)} below zone, exit at ${fmt(bearExitBelow!)}`;
 
-    if (lookbackMs) {
-      const mom = checkMomentum(priceHistory, lookbackMs, "BEAR");
-      if (mom === null) {
-        return { simEnabled: true, directionBias: "BEAR", reason: `BEAR ACTIVE — ${posLabel} (momentum: building…)` };
+    if (zoneConfirmMinutes) {
+      const check = checkZoneConfirmation(priceHistory, zoneConfirmMinutes, bearZoneHigh!, "BEAR");
+      if (check === null) {
+        return { simEnabled: true, directionBias: "BEAR", reason: `BEAR ACTIVE — ${posLabel} (confirmation: building history…)` };
       }
-      if (!mom.passed) {
-        return { simEnabled: false, directionBias: "BOTH", reason: `BEAR WAITING — ${posLabel} — momentum not confirmed yet (${mom.detail} ↑)` };
+      if (!check.confirmed) {
+        return {
+          simEnabled: false, directionBias: "BOTH",
+          reason: `BEAR CONFIRMING (${check.minutesHeld} / ${zoneConfirmMinutes} min) — ${posLabel} — ${check.detail}`,
+        };
       }
-      return { simEnabled: true, directionBias: "BEAR", reason: `BEAR ACTIVE — ${posLabel} — momentum ↓ (${mom.detail})` };
+      return { simEnabled: true, directionBias: "BEAR", reason: `BEAR ACTIVE — zone confirmed (${zoneConfirmMinutes} min) — ${posLabel}` };
     }
 
     return { simEnabled: true, directionBias: "BEAR", reason: `BEAR ACTIVE — ${posLabel}` };

@@ -150,6 +150,7 @@ export default function SimulationPage() {
         where("status", "==", "CLOSED"),
         where("assetType", "==", assetType),
         orderBy("openedAt", "desc"),
+        limit(200),
       ));
       setRawClosedTrades(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } finally {
@@ -200,10 +201,10 @@ export default function SimulationPage() {
       .filter((l) => (l.assetType || "CRYPTO") === assetType);
   }, [rawLogs, assetType]);
 
-  // Headline stats fetched from server — queries ALL closed trades (no limit).
-  // This ensures the simulation page and records page always show the same numbers.
-  // Client-side closed trades are capped at 500 for performance, so computing
-  // derivedCapital locally would miss older trades once > 500 trades exist.
+  // Headline stats: read directly from simState.capital which the cron keeps
+  // accurate incrementally on every trade exit. This is O(1) — no trade summing.
+  // The serverStats fetch is a lightweight cross-check and supplies monthly/yearly
+  // projections; the primary source of truth is the Firestore-subscribed simState.
   const [serverStats, setServerStats] = useState<{
     currentCapital: number;
     totalReturnPct: number;
@@ -214,20 +215,22 @@ export default function SimulationPage() {
   } | null>(null);
 
   useEffect(() => {
-    // Stats API currently covers CRYPTO only; skip for other asset types
     if (assetType !== "CRYPTO") { setServerStats(null); return; }
     fetch(`/api/freedombot/stats`)
       .then((r) => r.json())
-      .then((d) => {
-        if (d.startingCapital != null) setServerStats(d);
-      })
+      .then((d) => { if (d.startingCapital != null) setServerStats(d); })
       .catch(() => {});
   }, [assetType]);
 
-  // Fallback: derive capital client-side only while the server response is still loading.
-  // After serverStats arrives it takes over, keeping both pages in sync.
+  // derivedCapital: prefer simState.capital (live, maintained by cron) over
+  // events-based re-derivation. Fall back to event-summing only for Indian Stocks
+  // (which doesn't have a stats API yet) or when simState hasn't loaded.
   const derivedCapital = useMemo(() => {
-    if (serverStats?.currentCapital != null) return serverStats.currentCapital;
+    // For CRYPTO use the server stats response which reads simState.capital directly
+    if (assetType === "CRYPTO" && serverStats?.currentCapital != null) {
+      return serverStats.currentCapital;
+    }
+    // Fallback: re-derive from events (used for INDIAN_STOCKS or while API loads)
     if (!simState) return 0;
     let capital = simState.startingCapital;
     for (const t of closedTrades) {
@@ -240,7 +243,7 @@ export default function SimulationPage() {
       capital += t.realizedPnl ?? 0;
     }
     return parseFloat(capital.toFixed(2));
-  }, [serverStats, simState, closedTrades, openTrades]);
+  }, [assetType, serverStats, simState, closedTrades, openTrades]);
 
   const isLoading = stateLoading || openTradesLoading || closedTradesLoading || logsLoading;
 
@@ -655,9 +658,9 @@ type ChartView = "trade" | "day";
 function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; startingCapital: number; cs: string }) {
   const [view, setView] = useState<ChartView>("trade");
 
-  // Trade-by-trade: one point per closed trade
-  // Reconstructs capital by replaying each trade's events in time order.
-  // Entry fee is at events[0].fee; each exit event's pnl is already net of exit fee.
+  // Trade-by-trade: one point per closed trade.
+  // Uses trade.capitalAfter when present (stored since the ledger fix).
+  // Falls back to events-based reconstruction for older trades that predate the field.
   const tradeData = useMemo(() => {
     const sorted = [...trades]
       .filter((t) => t.closedAt)
@@ -669,11 +672,16 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
     ];
     let running = startingCapital;
     sorted.forEach((t, i) => {
-      const evts = t.events ?? [];
-      // Entry fee is in events[0].fee; subsequent events carry net PnL in .pnl
-      const entryFee = evts[0]?.fee ?? 0;
-      const exitPnl  = evts.slice(1).reduce((s, e) => s + e.pnl, 0);
-      running += exitPnl - entryFee;
+      if (t.capitalAfter != null) {
+        // Fast path: capital snapshot already stored on the trade
+        running = t.capitalAfter;
+      } else {
+        // Fallback for trades that predate capitalAfter
+        const evts = t.events ?? [];
+        const entryFee = evts[0]?.fee ?? 0;
+        const exitPnl  = evts.slice(1).reduce((s, e) => s + e.pnl, 0);
+        running += exitPnl - entryFee;
+      }
       points.push({
         x: i + 1,
         value: parseFloat(running.toFixed(2)),
@@ -693,10 +701,14 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
     const dayCapital = new Map<string, number>();
     let running = startingCapital;
     for (const t of sorted) {
-      const evts     = t.events ?? [];
-      const entryFee = evts[0]?.fee ?? 0;
-      const exitPnl  = evts.slice(1).reduce((s, e) => s + e.pnl, 0);
-      running += exitPnl - entryFee;
+      if (t.capitalAfter != null) {
+        running = t.capitalAfter;
+      } else {
+        const evts     = t.events ?? [];
+        const entryFee = evts[0]?.fee ?? 0;
+        const exitPnl  = evts.slice(1).reduce((s, e) => s + e.pnl, 0);
+        running += exitPnl - entryFee;
+      }
       dayCapital.set(t.closedAt!.slice(0, 10), parseFloat(running.toFixed(2)));
     }
 
@@ -1202,8 +1214,9 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
   const paginated = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
   const active    = simActiveCount(filters);
 
-  // Running fund balance after each closed trade (uses ALL trades, not just filtered).
-  // Sorted by closedAt asc so balances are cumulative in time order.
+  // Running fund balance after each closed trade.
+  // Uses trade.capitalAfter when present (stored since ledger fix).
+  // Falls back to events-based reconstruction for pre-fix trades.
   const balanceAfterMap = useMemo<Map<string, number> | null>(() => {
     if (!isHistory || startingCapital == null) return null;
     const sorted = [...trades]
@@ -1212,10 +1225,14 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
     let capital = startingCapital;
     const map = new Map<string, number>();
     for (const t of sorted) {
-      const evts = t.events ?? [];
-      const entryFee = evts[0]?.fee ?? 0;
-      const exitPnl  = evts.slice(1).reduce((s: number, e: { pnl: number }) => s + e.pnl, 0);
-      capital += exitPnl - entryFee;
+      if (t.capitalAfter != null) {
+        capital = t.capitalAfter;
+      } else {
+        const evts = t.events ?? [];
+        const entryFee = evts[0]?.fee ?? 0;
+        const exitPnl  = evts.slice(1).reduce((s: number, e: { pnl: number }) => s + e.pnl, 0);
+        capital += exitPnl - entryFee;
+      }
       const key = t.id ?? t.signalId;
       if (key) map.set(key, parseFloat(capital.toFixed(2)));
     }

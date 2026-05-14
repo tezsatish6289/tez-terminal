@@ -116,6 +116,7 @@ export interface SimTrade {
   liveWinRateAtEntry: number;
   algoWinRateAtEntry: number;
   capitalAtEntry: number;
+  capitalAfter: number | null;  // capital immediately after this trade fully closes; null while open
   openedAt: string;
   closedAt: string | null;
   closeReason: string | null;
@@ -720,6 +721,7 @@ export function openTrade(params: {
     liveWinRateAtEntry: liveWinRate,
     algoWinRateAtEntry: algoWinRate,
     capitalAtEntry: state.capital,
+    capitalAfter: null,
     openedAt: new Date().toISOString(),
     closedAt: null,
     closeReason: null,
@@ -929,6 +931,12 @@ export function processTradeExit(params: {
     currentMaxTrades,
     lastUpdated: new Date().toISOString(),
   };
+
+  // Stamp capital snapshot on the trade so equity curves can be built
+  // without re-summing all historical trades.
+  if (isClosed) {
+    updatedTrade.capitalAfter = parseFloat(updatedState.capital.toFixed(2));
+  }
 
   const streakInfo = isClosed && streakOutcome
     ? ` | ${streakOutcome} streak: ${consecutiveWins}${streakSide ? ` ${streakSide}` : ""} → max ${currentMaxTrades}`

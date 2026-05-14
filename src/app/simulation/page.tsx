@@ -30,7 +30,7 @@ import { useAutoRefresh, useRelativeTimeLabel } from "@/hooks/use-auto-refresh";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -1319,7 +1319,7 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
                     const key = trade.id ?? trade.signalId;
                     const balance = balanceAfterMap && key ? balanceAfterMap.get(key) : undefined;
                     return (
-                      <React.Fragment key={key}>
+                      <Fragment key={key}>
                         <DesktopTradeRow trade={trade} onSelect={onSelectTrade} onForceClose={onForceClose} cs={cs} />
                         {balance != null && (
                           <TableRow className="border-0 h-5 hover:bg-transparent">
@@ -1332,7 +1332,7 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
                             </TableCell>
                           </TableRow>
                         )}
-                      </React.Fragment>
+                      </Fragment>
                     );
                   })
                 ) : (

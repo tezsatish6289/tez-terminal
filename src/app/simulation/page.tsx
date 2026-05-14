@@ -480,7 +480,7 @@ export default function SimulationPage() {
                 )}
 
                 {tab === "trades" && (
-                  <TradeList trades={closedTrades} emptyIcon={<BarChart3 className="w-6 h-6" />} emptyLabel="No closed trades yet" onSelectTrade={setSelectedTrade} cs={cs} />
+                  <TradeList trades={closedTrades} emptyIcon={<BarChart3 className="w-6 h-6" />} emptyLabel="No closed trades yet" onSelectTrade={setSelectedTrade} cs={cs} startingCapital={simState?.startingCapital} />
                 )}
 
                 {tab === "logs" && (
@@ -1142,7 +1142,8 @@ function ForceCloseDialog({ trade, onForceClose, children }: { trade: SimTrade; 
 
 // ── TradeList with column filters + pagination ────────────────
 
-function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose, cs }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string; onSelectTrade: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string }) {
+function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose, cs, startingCapital }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string; onSelectTrade: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string; startingCapital?: number }) {
+  const isHistory = startingCapital != null;
   const [filters, setFilters] = useState<SimFilters>(DEFAULT_SIM_FILTERS);
   const [page, setPage] = useState(1);
   const setF = <K extends keyof SimFilters>(k: K, v: SimFilters[K]) => {
@@ -1155,9 +1156,42 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
   const uAlgos  = useMemo(() => [...new Set(trades.map((t) => t.algo || "—"))].sort(), [trades]);
   const uLevs   = useMemo(() => [...new Set(trades.map((t) => String(t.leverage)))].sort((a, b) => Number(a) - Number(b)), [trades]);
   const uStats  = useMemo(() => [...new Set(trades.map((t) => t.closeReason).filter(Boolean))].sort() as string[], [trades]);
-  const filtered  = useMemo(() => applySimFilters(trades, filters), [trades, filters]);
+
+  // History: sort by closedAt desc (latest close first). Open trades keep original order.
+  const filtered = useMemo(() => {
+    const f = applySimFilters(trades, filters);
+    if (isHistory) {
+      return [...f].sort((a, b) => {
+        const ta = a.closedAt ? new Date(a.closedAt).getTime() : 0;
+        const tb = b.closedAt ? new Date(b.closedAt).getTime() : 0;
+        return tb - ta;
+      });
+    }
+    return f;
+  }, [trades, filters, isHistory]);
+
   const paginated = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
   const active    = simActiveCount(filters);
+
+  // Running fund balance after each closed trade (uses ALL trades, not just filtered).
+  // Sorted by closedAt asc so balances are cumulative in time order.
+  const balanceAfterMap = useMemo<Map<string, number> | null>(() => {
+    if (!isHistory || startingCapital == null) return null;
+    const sorted = [...trades]
+      .filter((t) => t.closedAt)
+      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
+    let capital = startingCapital;
+    const map = new Map<string, number>();
+    for (const t of sorted) {
+      const evts = t.events ?? [];
+      const entryFee = evts[0]?.fee ?? 0;
+      const exitPnl  = evts.slice(1).reduce((s: number, e: { pnl: number }) => s + e.pnl, 0);
+      capital += exitPnl - entryFee;
+      const key = t.id ?? t.signalId;
+      if (key) map.set(key, parseFloat(capital.toFixed(2)));
+    }
+    return map;
+  }, [trades, startingCapital, isHistory]);
 
   const statusLabelMap = useMemo(() =>
     Object.fromEntries(Object.entries(CLOSE_REASON_MAP).map(([k, v]) => [k, v.label])), []);
@@ -1190,9 +1224,24 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
 
       {/* Mobile */}
       <div className="lg:hidden space-y-3">
-        {paginated.map((trade) => (
-          <MobileTradeCard key={trade.id ?? trade.signalId} trade={trade} onSelect={onSelectTrade} onForceClose={onForceClose} cs={cs} />
-        ))}
+        {paginated.map((trade) => {
+          const key = trade.id ?? trade.signalId;
+          const balance = balanceAfterMap && key ? balanceAfterMap.get(key) : undefined;
+          return (
+            <div key={key}>
+              <MobileTradeCard trade={trade} onSelect={onSelectTrade} onForceClose={onForceClose} cs={cs} />
+              {balance != null && (
+                <div className="flex justify-end px-1 pt-1">
+                  <span className={cn("text-[9px] font-mono font-bold",
+                    balance >= (startingCapital ?? 0) ? "text-emerald-500/60" : "text-rose-500/60"
+                  )}>
+                    Fund {cs}{balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })}
         {filtered.length === 0 && (
           <div className="text-center py-8 text-muted-foreground/30">
             <p className="text-xs font-bold">No trades match filters</p>
@@ -1266,9 +1315,26 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
               </TableHeader>
               <TableBody>
                 {paginated.length > 0 ? (
-                  paginated.map((trade) => (
-                    <DesktopTradeRow key={trade.id ?? trade.signalId} trade={trade} onSelect={onSelectTrade} onForceClose={onForceClose} cs={cs} />
-                  ))
+                  paginated.map((trade) => {
+                    const key = trade.id ?? trade.signalId;
+                    const balance = balanceAfterMap && key ? balanceAfterMap.get(key) : undefined;
+                    return (
+                      <React.Fragment key={key}>
+                        <DesktopTradeRow trade={trade} onSelect={onSelectTrade} onForceClose={onForceClose} cs={cs} />
+                        {balance != null && (
+                          <TableRow className="border-0 h-5 hover:bg-transparent">
+                            <TableCell colSpan={14} className="py-0 pr-4 text-right border-b border-white/[0.03]">
+                              <span className={cn("text-[9px] font-mono font-bold",
+                                balance >= (startingCapital ?? 0) ? "text-emerald-500/50" : "text-rose-500/50"
+                              )}>
+                                Fund {cs}{balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
                 ) : (
                   <TableRow>
                     <TableCell colSpan={14} className="text-center py-10 text-muted-foreground/30">

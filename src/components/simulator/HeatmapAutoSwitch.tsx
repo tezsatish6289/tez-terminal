@@ -540,7 +540,7 @@ export function HeatmapAutoSwitch() {
                   <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
                     Max Pain exit proximity
                   </p>
-                  <InfoTip text="Only applies when just one zone is active (bull OR bear, not both). When BTC reaches within this distance of the TP target (Deribit max pain), all open trades in that direction are force-closed to lock in profit before price reverses." />
+                  <InfoTip text="Only applies when just one zone is active (bull OR bear, not both). When BTC reaches within this distance of the TP target (Deribit max pain), all open trades in that direction are force-closed to lock in profit before price reverses. Has no effect when both zones are active or when no zones are configured." />
                 </div>
                 <PriceInput
                   label="± USD from TP target (max pain)"

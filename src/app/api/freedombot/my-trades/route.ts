@@ -4,11 +4,19 @@ import {
   loadCryptoCredentials,
   reconcileUserExchangeClosedPnl,
   exchangeSupportsClosedPnlReconciliation,
+  tradeBelongsToVenue,
 } from "@/lib/freedombot/reconcile-exchange-pnl";
-import type { ExchangeName } from "@/lib/exchanges";
+import { isExchangeSupported, type ExchangeName } from "@/lib/exchanges";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * GET /api/freedombot/my-trades
+ *
+ * Optional `exchange=BYBIT|COINDCX|...` (supported broker): response `trades` are limited to that venue
+ * (legacy rows with no `exchange` count as BYBIT). Omitted → all venues. `reconcile=1` still only runs
+ * for the given `exchange` when credentials exist.
+ */
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
@@ -60,6 +68,11 @@ export async function GET(req: NextRequest) {
       .where("userId", "==", uid)
       .get();
 
+    const scopeToVenue =
+      exchangeParam.length > 0 && isExchangeSupported(exchangeParam)
+        ? (exchangeParam as ExchangeName)
+        : null;
+
     const trades = snap.docs
       .map((d) => {
         const t = d.data();
@@ -100,6 +113,11 @@ export async function GET(req: NextRequest) {
         };
       })
       .filter(Boolean)
+      .filter((row) => {
+        if (!scopeToVenue) return true;
+        const t = row!;
+        return tradeBelongsToVenue(t.exchange as string | undefined | null, scopeToVenue);
+      })
       .sort((a, b) => {
         const A = a!;
         const B = b!;

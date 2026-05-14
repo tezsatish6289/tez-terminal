@@ -1040,15 +1040,17 @@ export default function FreedomBotDashboard() {
       try {
         const idToken = await user.getIdToken();
         const params = new URLSearchParams();
-        if (
-          withReconcile &&
-          exchangeForReconcile &&
+        const exU = exchangeForReconcile?.trim().toUpperCase() ?? "";
+        const isCryptoTab =
+          exU.length > 0 &&
           FREEDOMBOT_CRYPTO_EXCHANGES.includes(
-            exchangeForReconcile.toUpperCase() as (typeof FREEDOMBOT_CRYPTO_EXCHANGES)[number],
-          )
-        ) {
+            exU as (typeof FREEDOMBOT_CRYPTO_EXCHANGES)[number],
+          );
+        if (isCryptoTab) {
+          params.set("exchange", exU);
+        }
+        if (withReconcile && isCryptoTab) {
           params.set("reconcile", "1");
-          params.set("exchange", exchangeForReconcile.toUpperCase());
         }
         const qs = params.toString();
         const res = await fetch(`/api/freedombot/my-trades${qs ? `?${qs}` : ""}`, {

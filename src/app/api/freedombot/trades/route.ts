@@ -11,7 +11,6 @@ export async function GET() {
     const snap = await db
       .collection("simulator_trades")
       .orderBy("openedAt", "desc")
-      .limit(500)
       .get();
 
     const trades = snap.docs.map((doc) => {

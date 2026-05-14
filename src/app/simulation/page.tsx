@@ -150,7 +150,6 @@ export default function SimulationPage() {
         where("status", "==", "CLOSED"),
         where("assetType", "==", assetType),
         orderBy("openedAt", "desc"),
-        limit(500),
       ));
       setRawClosedTrades(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } finally {
@@ -201,9 +200,34 @@ export default function SimulationPage() {
       .filter((l) => (l.assetType || "CRYPTO") === assetType);
   }, [rawLogs, assetType]);
 
-  // Derive current capital from actual trade records — same formula the chart uses.
-  // This stays in sync with trade reality regardless of any drift in the simState document.
+  // Headline stats fetched from server — queries ALL closed trades (no limit).
+  // This ensures the simulation page and records page always show the same numbers.
+  // Client-side closed trades are capped at 500 for performance, so computing
+  // derivedCapital locally would miss older trades once > 500 trades exist.
+  const [serverStats, setServerStats] = useState<{
+    currentCapital: number;
+    totalReturnPct: number;
+    profitPerMonth: number | null;
+    profitPerMonthIsActual: boolean;
+    profitPerYear: number | null;
+    runningDays: number;
+  } | null>(null);
+
+  useEffect(() => {
+    // Stats API currently covers CRYPTO only; skip for other asset types
+    if (assetType !== "CRYPTO") { setServerStats(null); return; }
+    fetch(`/api/freedombot/stats`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.startingCapital != null) setServerStats(d);
+      })
+      .catch(() => {});
+  }, [assetType]);
+
+  // Fallback: derive capital client-side only while the server response is still loading.
+  // After serverStats arrives it takes over, keeping both pages in sync.
   const derivedCapital = useMemo(() => {
+    if (serverStats?.currentCapital != null) return serverStats.currentCapital;
     if (!simState) return 0;
     let capital = simState.startingCapital;
     for (const t of closedTrades) {
@@ -212,31 +236,34 @@ export default function SimulationPage() {
       const exitPnl  = evts.slice(1).reduce((s, e) => s + e.pnl, 0);
       capital += exitPnl - entryFee;
     }
-    // Include entry-fee deductions and any partial exits from still-open trades
     for (const t of openTrades) {
       capital += t.realizedPnl ?? 0;
     }
     return parseFloat(capital.toFixed(2));
-  }, [simState, closedTrades, openTrades]);
+  }, [serverStats, simState, closedTrades, openTrades]);
 
   const isLoading = stateLoading || openTradesLoading || closedTradesLoading || logsLoading;
 
-  const totalReturn = simState ? ((derivedCapital - simState.startingCapital) / simState.startingCapital) * 100 : 0;
+  const totalReturn = serverStats?.totalReturnPct
+    ?? (simState ? ((derivedCapital - simState.startingCapital) / simState.startingCapital) * 100 : 0);
 
-  // Running days — from first trade's openedAt to today
+  // Running days — prefer server stats (uses earliest daily_metrics date, i.e. true start),
+  // fall back to earliest loaded trade when server hasn't responded yet.
   const runningDays = useMemo(() => {
-    // Combine open + the 200 most-recent closed trades to find the earliest loaded trade.
-    // For projections this is accurate enough; simState.startingCapital anchors the P&L math.
+    if (serverStats?.runningDays) return serverStats.runningDays;
     const all = [...openTrades, ...closedTrades];
     if (!all.length) return 0;
     const earliest = all.reduce((a, b) =>
       new Date(a.openedAt).getTime() < new Date(b.openedAt).getTime() ? a : b
     );
     return Math.max(1, Math.ceil((Date.now() - new Date(earliest.openedAt).getTime()) / 86_400_000));
-  }, [openTrades, closedTrades]);
+  }, [serverStats, openTrades, closedTrades]);
 
-  // Monthly P&L % — actual this-calendar-month if running >= 30 days, else projected
+  // Monthly P&L % — use server value when available (computed from all trades)
   const monthlyPnl = useMemo(() => {
+    if (serverStats?.profitPerMonth != null) {
+      return { pct: serverStats.profitPerMonth, isProjected: !serverStats.profitPerMonthIsActual };
+    }
     if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
     const netPnl = derivedCapital - simState.startingCapital;
     if (runningDays >= 30) {
@@ -250,17 +277,19 @@ export default function SimulationPage() {
       }, 0);
       return { pct: (monthNet / simState.startingCapital) * 100, isProjected: false };
     }
-    // Project from actual daily rate to 30 days
     return { pct: ((netPnl / runningDays) * 30 / simState.startingCapital) * 100, isProjected: true };
-  }, [simState, runningDays, closedTrades, derivedCapital]);
+  }, [serverStats, simState, runningDays, closedTrades, derivedCapital]);
 
-  // Yearly P&L % — projected if running < 365 days, actual if >= 365
+  // Yearly P&L % — use server value when available
   const yearlyPnl = useMemo(() => {
+    if (serverStats?.profitPerYear != null) {
+      return { pct: serverStats.profitPerYear, isProjected: runningDays < 365 };
+    }
     if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
     const netPnl = derivedCapital - simState.startingCapital;
     const annualPnl = runningDays >= 365 ? netPnl : (netPnl / runningDays) * 365;
     return { pct: (annualPnl / simState.startingCapital) * 100, isProjected: runningDays < 365 };
-  }, [simState, runningDays, derivedCapital]);
+  }, [serverStats, simState, runningDays, derivedCapital]);
 
   const [forceClosing, setForceClosing] = useState<string | null>(null);
 

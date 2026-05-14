@@ -131,6 +131,14 @@ export async function POST(req: NextRequest) {
     let exchangePnl = 0;
     let avgExitPrice: number | null = null;
 
+    // Cancel any leftover SL/TP orders on the exchange. The position is already
+    // gone, so cancelAllOrders will use the getOpenOrders fallback internally.
+    try {
+      await connector.cancelAllOrders(normalizedSymbol, creds);
+    } catch {
+      // best effort — don't block the sync if cancel fails
+    }
+
     if (typeof connector.getClosedPnl === "function") {
       const openedAtMs = new Date(String(t.openedAt ?? 0)).getTime();
       const closedAtMs = Date.now();

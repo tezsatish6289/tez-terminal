@@ -603,20 +603,41 @@ export class CoinDcxConnector implements ExchangeConnector {
 
   async cancelAllOrders(symbol: string, creds: ExchangeCredentials): Promise<void> {
     const pair = coinDcxPairFromInternal(symbol);
-    const rows = await signedPost<Array<{ id: string; pair: string }>>("/exchange/v1/derivatives/futures/positions", {
-      page: "1",
-      size: "50",
-      pairs: pair,
-      margin_currency_short_name: [USDT_MARGIN],
-    }, creds);
 
-    const pos = rows.find((r) => r.pair === pair);
-    if (!pos) return;
-
+    // Fast path: cancel all orders via the position ID. This works when the
+    // position is still open (e.g. TP1 hit, cleaning up the old SL before
+    // replacing it with a tighter one).
+    let cancelledViaPosition = false;
     try {
-      await signedPost("/exchange/v1/derivatives/futures/positions/cancel_all_open_orders_for_position", { id: pos.id }, creds);
+      const rows = await signedPost<Array<{ id: string; pair: string }>>("/exchange/v1/derivatives/futures/positions", {
+        page: "1",
+        size: "50",
+        pairs: pair,
+        margin_currency_short_name: [USDT_MARGIN],
+      }, creds);
+
+      const pos = rows.find((r) => r.pair === pair);
+      if (pos) {
+        await signedPost("/exchange/v1/derivatives/futures/positions/cancel_all_open_orders_for_position", { id: pos.id }, creds);
+        cancelledViaPosition = true;
+      }
     } catch {
-      /* best effort */
+      // fall through to individual order cancellation below
+    }
+
+    if (cancelledViaPosition) return;
+
+    // Fallback: the position has already been fully closed on the exchange
+    // (SL or final TP filled it), so the position-based endpoint returns
+    // nothing. But orphaned stop / TP orders can still be sitting open.
+    // Fetch them and cancel individually.
+    try {
+      const openOrders = await this.getOpenOrders(symbol, creds);
+      await Promise.allSettled(
+        openOrders.map((o) => this.cancelOrder(symbol, o.orderId, creds))
+      );
+    } catch {
+      // best effort
     }
   }
 

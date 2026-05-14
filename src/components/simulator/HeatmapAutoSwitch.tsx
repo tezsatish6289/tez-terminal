@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, Save, Zap, TrendingUp, TrendingDown, PowerOff, Activity, RefreshCw } from "lucide-react";
+import { Loader2, Save, Zap, TrendingUp, TrendingDown, PowerOff, Activity, RefreshCw, Info } from "lucide-react";
 import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { doc } from "firebase/firestore";
@@ -121,6 +121,17 @@ function PriceInput({
   );
 }
 
+function InfoTip({ text }: { text: string }) {
+  return (
+    <span
+      title={text}
+      className="inline-flex items-center cursor-help text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
+    >
+      <Info className="w-3 h-3" />
+    </span>
+  );
+}
+
 function ZoneConfirmationWindow({
   value, onChange,
 }: {
@@ -133,6 +144,7 @@ function ZoneConfirmationWindow({
       <div className="flex items-center gap-1.5 pb-1 border-b border-white/[0.05]">
         <Activity className="w-3.5 h-3.5 text-accent/60" />
         <span className="text-[10px] font-bold uppercase tracking-widest text-accent/80">Zone Confirmation</span>
+        <InfoTip text="Before opening any trade, BTC must hold above the zone floor for this many minutes without making new lows (BULL) or new highs (BEAR). Prevents entering trades while BTC is still falling through the zone. Status shows 'CONFIRMING (X / N min)' while waiting." />
       </div>
       <div className="space-y-1">
         <div className="flex items-center justify-between">
@@ -508,9 +520,12 @@ export function HeatmapAutoSwitch() {
               )}
 
               <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                  Deribit zone half-width
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                    Deribit zone half-width
+                  </p>
+                  <InfoTip text="Controls the entry band width around each Deribit strike. E.g. ±300 = $600 wide band. Narrower = tighter zone, fewer but more precise entries. Default 500." />
+                </div>
                 <PriceInput
                   label="± USD around strike"
                   description="Full entry band = 2× this value. Leave empty for default (500)."
@@ -520,9 +535,12 @@ export function HeatmapAutoSwitch() {
               </div>
 
               <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                  Max Pain exit proximity
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                    Max Pain exit proximity
+                  </p>
+                  <InfoTip text="Only applies when just one zone is active (bull OR bear, not both). When BTC reaches within this distance of the TP target (Deribit max pain), all open trades in that direction are force-closed to lock in profit before price reverses." />
+                </div>
                 <PriceInput
                   label="± USD from TP target (max pain)"
                   description="One-sided zone only — closes open trades when BTC reaches the TP shown above (±this buffer). Default 200."

@@ -47,6 +47,7 @@ interface ApiTrade {
   realizedPnl: number;
   positionSize: number | null;
   capitalAtEntry: number | null;
+  capitalAfter: number | null;
   closeReason: string | null;
   openedAt: string;
   closedAt: string | null;
@@ -198,8 +199,11 @@ function EquityCurve({ trades, startingCapital }: { trades: ApiTrade[]; starting
     ];
     let running = startingCapital;
     closed.forEach((t, i) => {
-      // Use same trueNetPnl as simulator — events-based, not raw realizedPnl
-      running += trueNetPnl(t.events ?? []);
+      if (t.capitalAfter != null) {
+        running = t.capitalAfter;
+      } else {
+        running += trueNetPnl(t.events ?? []);
+      }
       pts.push({
         x: i + 1,
         value: parseFloat(running.toFixed(2)),
@@ -214,7 +218,11 @@ function EquityCurve({ trades, startingCapital }: { trades: ApiTrade[]; starting
     const dayCapital = new Map<string, number>();
     let running = startingCapital;
     for (const t of closed) {
-      running += trueNetPnl(t.events ?? []);
+      if (t.capitalAfter != null) {
+        running = t.capitalAfter;
+      } else {
+        running += trueNetPnl(t.events ?? []);
+      }
       dayCapital.set(t.closedAt!.slice(0, 10), parseFloat(running.toFixed(2)));
     }
     const pts: { x: string; value: number; tooltip: string }[] = [
@@ -334,6 +342,18 @@ interface SimState {
 
 type AssetKey = "CRYPTO" | "INDIAN_STOCKS" | "GOLD" | "SILVER";
 
+// Fallback running-days calc from trade openedAt (used when stats API is unavailable)
+function useFallbackRunningDays(openTrades: ApiTrade[], closedTrades: ApiTrade[]) {
+  return useMemo(() => {
+    const all = [...openTrades, ...closedTrades];
+    if (!all.length) return 0;
+    const earliest = all.reduce((a, b) =>
+      new Date(a.openedAt ?? 0).getTime() < new Date(b.openedAt ?? 0).getTime() ? a : b
+    );
+    return Math.max(1, Math.ceil((Date.now() - new Date(earliest.openedAt ?? 0).getTime()) / 86_400_000));
+  }, [openTrades, closedTrades]);
+}
+
 const ASSETS: { key: AssetKey; label: string; icon: string; live: boolean; cs: string }[] = [
   { key: "CRYPTO",        label: "Crypto Bot",       icon: "₿",  live: true,  cs: "$" },
   { key: "INDIAN_STOCKS", label: "Indian Stock Bot",  icon: "🇮🇳", live: false, cs: "₹" },
@@ -346,67 +366,71 @@ export default function PerformancePage() {
   const [simState,  setSimState]  = useState<SimState | null>(null);
   const [trades,    setTrades]    = useState<ApiTrade[]>([]);
   const [loading,   setLoading]   = useState(true);
+  const [statsData, setStatsData] = useState<{
+    currentCapital: number;
+    totalReturnPct: number;
+    profitPerMonth: number | null;
+    profitPerMonthIsActual: boolean;
+    profitPerYear: number | null;
+    runningDays: number;
+  } | null>(null);
 
   useEffect(() => {
     setLoading(true);
     setSimState(null);
     setTrades([]);
-    fetch(`/api/freedombot/perf-data?assetType=${assetType}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.state)  setSimState(d.state as SimState);
-        if (d.trades) setTrades(d.trades as ApiTrade[]);
+    setStatsData(null);
+    // Fetch chart/metrics data and headline stats in parallel
+    Promise.all([
+      fetch(`/api/freedombot/perf-data?assetType=${assetType}`).then((r) => r.json()),
+      assetType === "CRYPTO"
+        ? fetch(`/api/freedombot/stats`).then((r) => r.json())
+        : Promise.resolve(null),
+    ])
+      .then(([perfData, stats]) => {
+        if (perfData.state)  setSimState(perfData.state as SimState);
+        if (perfData.trades) setTrades(perfData.trades as ApiTrade[]);
+        if (stats?.startingCapital != null) setStatsData(stats);
       })
       .finally(() => setLoading(false));
   }, [assetType]);
 
   const cs = ASSETS.find((a) => a.key === assetType)?.cs ?? "$";
 
-  // ── Replicate simulator page calculations exactly ──────────────────────────
-
   const openTrades   = useMemo(() => trades.filter((t) => t.status === "OPEN"),   [trades]);
   const closedTrades = useMemo(() => trades.filter((t) => t.status === "CLOSED"), [trades]);
 
-  // Running days from earliest trade openedAt — identical to simulator page
-  const runningDays = useMemo(() => {
-    const all = [...openTrades, ...closedTrades];
-    if (!all.length) return 0;
-    const earliest = all.reduce((a, b) =>
-      new Date(a.openedAt ?? 0).getTime() < new Date(b.openedAt ?? 0).getTime() ? a : b
-    );
-    return Math.max(1, Math.ceil((Date.now() - new Date(earliest.openedAt ?? 0).getTime()) / 86_400_000));
-  }, [openTrades, closedTrades]);
-
   const startCap = simState?.startingCapital ?? 1000;
 
-  // Derive current capital from trade events — same logic as simulator & stats API.
-  // state.capital in Firestore can be stale; re-computing from trades is always accurate.
+  // ── All headline metrics from stats API (same source as /records and /simulation) ──
+  // Fall back to event-summing only while the stats API is loading or for non-CRYPTO.
+
   const derivedCapital = useMemo(() => {
+    if (statsData?.currentCapital != null) return statsData.currentCapital;
     let cap = startCap;
     for (const t of closedTrades) {
       const evts = t.events ?? [];
       if (!evts.length) continue;
       cap += evts.reduce((s, e) => s + e.pnl, 0) - evts[0].fee;
     }
-    for (const t of openTrades) {
-      cap += t.realizedPnl ?? 0;
-    }
+    for (const t of openTrades) cap += t.realizedPnl ?? 0;
     return parseFloat(cap.toFixed(2));
-  }, [closedTrades, openTrades, startCap]);
+  }, [statsData, closedTrades, openTrades, startCap]);
 
-  const totalReturn = startCap > 0
-    ? ((derivedCapital - startCap) / startCap) * 100
-    : 0;
-  const isPositive  = totalReturn >= 0;
+  const fallbackRunningDays = useFallbackRunningDays(openTrades, closedTrades);
+  const runningDays = statsData?.runningDays ?? fallbackRunningDays;
 
-  // Monthly — actual this-calendar-month if ≥30 days, else projected (identical to simulator)
+  const totalReturn = statsData?.totalReturnPct
+    ?? (startCap > 0 ? ((derivedCapital - startCap) / startCap) * 100 : 0);
+
   const monthlyPnl = useMemo(() => {
+    if (statsData?.profitPerMonth != null) {
+      return { pct: statsData.profitPerMonth, isProjected: !statsData.profitPerMonthIsActual };
+    }
     if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
     const netPnl = derivedCapital - startCap;
     if (runningDays >= 30) {
-      const monthStart = new Date();
-      monthStart.setDate(1);
-      monthStart.setHours(0, 0, 0, 0);
+      const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
       const monthNet = closedTrades.reduce((sum, t) => {
         if (!t.closedAt || new Date(t.closedAt) < monthStart) return sum;
         const evts = t.events ?? [];
@@ -415,15 +439,17 @@ export default function PerformancePage() {
       return { pct: (monthNet / simState.startingCapital) * 100, isProjected: false };
     }
     return { pct: ((netPnl / runningDays) * 30 / simState.startingCapital) * 100, isProjected: true };
-  }, [simState, derivedCapital, startCap, runningDays, closedTrades]);
+  }, [statsData, simState, derivedCapital, startCap, runningDays, closedTrades]);
 
-  // Yearly — projected if < 365 days (identical to simulator)
   const yearlyPnl = useMemo(() => {
+    if (statsData?.profitPerYear != null) {
+      return { pct: statsData.profitPerYear, isProjected: runningDays < 365 };
+    }
     if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
-    const netPnl    = derivedCapital - startCap;
+    const netPnl = derivedCapital - startCap;
     const annualPnl = runningDays >= 365 ? netPnl : (netPnl / runningDays) * 365;
     return { pct: (annualPnl / startCap) * 100, isProjected: runningDays < 365 };
-  }, [simState, derivedCapital, startCap, runningDays]);
+  }, [statsData, simState, derivedCapital, startCap, runningDays]);
 
   // Performance metrics — same function AND same args as simulator
   const metrics = useMemo(
@@ -557,14 +583,14 @@ export default function PerformancePage() {
               value={fmtMoney(derivedCapital)}
               sub={`${totalReturn >= 0 ? "+" : ""}${fmtMoney(derivedCapital - startCap)} overall`}
               icon={<DollarSign className="w-3.5 h-3.5" />}
-              color={isPositive ? "#34d399" : "#f87171"}
+              color={totalReturn >= 0 ? "#34d399" : "#f87171"}
             />
             <SummaryCard
               label="Total Return"
               value={fmtPct(totalReturn)}
               sub={`across ${runningDays} day${runningDays !== 1 ? "s" : ""}`}
-              icon={isPositive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-              color={isPositive ? "#34d399" : "#f87171"}
+              icon={totalReturn >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+              color={totalReturn >= 0 ? "#34d399" : "#f87171"}
             />
             <SummaryCard
               label="Monthly Return"

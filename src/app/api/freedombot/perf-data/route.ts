@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
           unrealizedPnl: d.unrealizedPnl ?? 0,
           positionSize: d.positionSize ?? null,
           capitalAtEntry: d.capitalAtEntry ?? null,
+          capitalAfter: d.capitalAfter ?? null,
           remainingPct: d.remainingPct ?? 1,
           closeReason: d.closeReason ?? null,
           openedAt: d.openedAt ?? null,

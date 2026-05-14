@@ -8,7 +8,7 @@ import {
   useDoc,
   useMemoFirebase,
 } from "@/firebase";
-import { collection, query, orderBy, limit, where, doc, getDocs } from "firebase/firestore";
+import { collection, query, orderBy, limit, where, doc, getDocs, startAfter, QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
 import {
   Loader2,
   TrendingUp,
@@ -30,7 +30,7 @@ import { useAutoRefresh, useRelativeTimeLabel } from "@/hooks/use-auto-refresh";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { useState, useMemo, useEffect, useCallback, Fragment } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -136,30 +136,56 @@ export default function SimulationPage() {
   );
   const lastRefreshedLabel = useRelativeTimeLabel(lastRefreshedAt);
 
-  // CLOSED trades — historical, fetched on mount / asset switch / manual refresh.
-  // getDocs (not onSnapshot) keeps listener cost at zero; explicit refetch
-  // covers the "force-close should reflect immediately" case.
-  const [rawClosedTrades, setRawClosedTrades] = useState<any[] | null>(null);
+  // CLOSED trades — server-side paginated (50 per page), cursor-based.
+  // getDocs (not onSnapshot) keeps listener cost at zero; fetchHistPage(0)
+  // resets to page 1 on asset switch or after a force-close.
+  const HIST_PAGE_SIZE = 50;
+  const [histTrades, setHistTrades] = useState<SimTrade[]>([]);
+  const [histPage, setHistPage] = useState(0); // 0-indexed
+  const [histHasMore, setHistHasMore] = useState(false);
   const [closedTradesLoading, setClosedTradesLoading] = useState(false);
-  const refetchClosedTrades = useCallback(async () => {
+  // pageCursorsRef[n] = cursor to startAfter when fetching page n.
+  // null means "no cursor" (start from the beginning of the collection).
+  const pageCursorsRef = useRef<Map<number, QueryDocumentSnapshot<DocumentData> | null>>(
+    new Map([[0, null]])
+  );
+
+  const fetchHistPage = useCallback(async (pageIdx: number) => {
     if (!firestore || !user) return;
     setClosedTradesLoading(true);
     try {
-      const snap = await getDocs(query(
-        collection(firestore, "simulator_trades"),
+      const cursor = pageCursorsRef.current.get(pageIdx) ?? null;
+      const baseConstraints = [
         where("status", "==", "CLOSED"),
         where("assetType", "==", assetType),
         orderBy("openedAt", "desc"),
-        limit(200),
-      ));
-      setRawClosedTrades(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        limit(HIST_PAGE_SIZE + 1), // +1 to detect if a next page exists
+      ] as const;
+      const q = cursor
+        ? query(collection(firestore, "simulator_trades"), ...baseConstraints, startAfter(cursor))
+        : query(collection(firestore, "simulator_trades"), ...baseConstraints);
+      const snap = await getDocs(q);
+      const docs = snap.docs;
+      const hasMore = docs.length > HIST_PAGE_SIZE;
+      const pageDocs = hasMore ? docs.slice(0, HIST_PAGE_SIZE) : docs;
+
+      // Store the last doc of this page as the cursor for the next page.
+      if (hasMore) {
+        pageCursorsRef.current.set(pageIdx + 1, pageDocs[pageDocs.length - 1]);
+      }
+      setHistTrades(pageDocs.map(d => ({ id: d.id, ...d.data() } as SimTrade)));
+      setHistHasMore(hasMore);
+      setHistPage(pageIdx);
     } finally {
       setClosedTradesLoading(false);
     }
   }, [firestore, user, assetType]);
+
   useEffect(() => {
-    refetchClosedTrades();
-  }, [refetchClosedTrades]);
+    // Reset cursors and jump to first page whenever the asset type changes.
+    pageCursorsRef.current = new Map([[0, null]]);
+    fetchHistPage(0);
+  }, [fetchHistPage]);
 
   // Logs — historical, fetched once on mount / manual refresh.
   const [rawLogs, setRawLogs] = useState<any[] | null>(null);
@@ -188,11 +214,28 @@ export default function SimulationPage() {
       .filter((t) => (t.assetType || "CRYPTO") === assetType);
   }, [rawOpenTrades, assetType]);
 
-  const closedTrades = useMemo(() => {
-    return (rawClosedTrades ?? [])
-      .map((d: any) => ({ id: d.id, ...d } as SimTrade))
-      .filter((t) => (t.assetType || "CRYPTO") === assetType);
-  }, [rawClosedTrades, assetType]);
+  // closedTrades — current page of history (up to HIST_PAGE_SIZE trades).
+  const closedTrades = histTrades;
+
+  // allClosedTrades — full history fetched from perf-data API (same source as
+  // /performance page). Used exclusively for the equity curve and performance
+  // metrics panel so both pages show identical charts and ratios.
+  const [allClosedTrades, setAllClosedTrades] = useState<SimTrade[]>([]);
+  const [allTradesLoading, setAllTradesLoading] = useState(true);
+  useEffect(() => {
+    setAllTradesLoading(true);
+    setAllClosedTrades([]);
+    fetch(`/api/freedombot/perf-data?assetType=${assetType}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const trades: SimTrade[] = (d.trades ?? []).filter(
+          (t: any) => t.status === "CLOSED"
+        );
+        setAllClosedTrades(trades);
+      })
+      .catch(() => {})
+      .finally(() => setAllTradesLoading(false));
+  }, [assetType]);
 
   const logs = useMemo(() => {
     if (!rawLogs) return [];
@@ -222,30 +265,28 @@ export default function SimulationPage() {
       .catch(() => {});
   }, [assetType]);
 
-  // derivedCapital: prefer simState.capital (live, maintained by cron) over
-  // events-based re-derivation. Fall back to event-summing only for Indian Stocks
-  // (which doesn't have a stats API yet) or when simState hasn't loaded.
+  // derivedCapital: prefer simState.capital (live, maintained by cron) which is
+  // the O(1) ledger value. Fall back only to event-summing for open trade pnl
+  // if simState.capital is somehow absent.
   const derivedCapital = useMemo(() => {
-    // For CRYPTO use the server stats response which reads simState.capital directly
+    // For CRYPTO use the server stats response (reads simState.capital directly)
     if (assetType === "CRYPTO" && serverStats?.currentCapital != null) {
       return serverStats.currentCapital;
     }
-    // Fallback: re-derive from events (used for INDIAN_STOCKS or while API loads)
+    // For all asset types: simState.capital is maintained by the cron and is accurate.
+    if (simState?.capital != null) {
+      return simState.capital;
+    }
+    // Legacy fallback: if capital field not yet written on this document, derive it.
     if (!simState) return 0;
     let capital = simState.startingCapital;
-    for (const t of closedTrades) {
-      const evts = t.events ?? [];
-      const entryFee = evts[0]?.fee ?? 0;
-      const exitPnl  = evts.slice(1).reduce((s, e) => s + e.pnl, 0);
-      capital += exitPnl - entryFee;
-    }
     for (const t of openTrades) {
       capital += t.realizedPnl ?? 0;
     }
     return parseFloat(capital.toFixed(2));
-  }, [assetType, serverStats, simState, closedTrades, openTrades]);
+  }, [assetType, serverStats, simState, openTrades]);
 
-  const isLoading = stateLoading || openTradesLoading || closedTradesLoading || logsLoading;
+  const isLoading = stateLoading || openTradesLoading || closedTradesLoading || logsLoading || allTradesLoading;
 
   const totalReturn = serverStats?.totalReturnPct
     ?? (simState ? ((derivedCapital - simState.startingCapital) / simState.startingCapital) * 100 : 0);
@@ -314,13 +355,13 @@ export default function SimulationPage() {
       // Refresh live + history so the closed trade vanishes from OPEN,
       // shows up in HISTORY, and the new log entry appears in LOGS.
       refresh();
-      await Promise.all([refetchClosedTrades(), refetchLogs()]);
+      await Promise.all([fetchHistPage(0), refetchLogs()]);
     } catch (err) {
       alert(`Force close failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setForceClosing(null);
     }
-  }, [user, forceClosing, refresh, refetchClosedTrades, refetchLogs]);
+  }, [user, forceClosing, refresh, fetchHistPage, refetchLogs]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -467,11 +508,11 @@ export default function SimulationPage() {
                 {/* Chart + Performance Metrics side by side */}
                 <div className="flex flex-col lg:flex-row gap-3 items-stretch">
                   <div className="flex-1 min-w-0">
-                    <EquityCurve trades={closedTrades} startingCapital={simState.startingCapital} cs={cs} />
+                    <EquityCurve trades={allClosedTrades} startingCapital={simState.startingCapital} cs={cs} />
                   </div>
                   <div className="lg:w-72 xl:w-80 shrink-0 flex flex-col">
                     <PerformanceMetricsPanel
-                      trades={closedTrades}
+                      trades={allClosedTrades}
                       startingCapital={simState.startingCapital}
                       assetType={assetType}
                     />
@@ -501,7 +542,7 @@ export default function SimulationPage() {
                           : "border-transparent text-muted-foreground/40 hover:text-muted-foreground"
                       )}
                     >
-                      {t === "overview" ? `Open (${openTrades.length})` : t === "trades" ? `History (${closedTrades.length})` : `Logs (${logs.length})`}
+                      {t === "overview" ? `Open (${openTrades.length})` : t === "trades" ? "History" : `Logs (${logs.length})`}
                     </button>
                   ))}
                 </div>
@@ -512,7 +553,31 @@ export default function SimulationPage() {
                 )}
 
                 {tab === "trades" && (
-                  <TradeList trades={closedTrades} emptyIcon={<BarChart3 className="w-6 h-6" />} emptyLabel="No closed trades yet" onSelectTrade={setSelectedTrade} cs={cs} startingCapital={simState?.startingCapital} />
+                  <div className="space-y-3">
+                    <TradeList trades={closedTrades} emptyIcon={<BarChart3 className="w-6 h-6" />} emptyLabel="No closed trades yet" onSelectTrade={setSelectedTrade} cs={cs} startingCapital={simState?.startingCapital} />
+                    {/* Server-side pagination controls */}
+                    {(histPage > 0 || histHasMore) && (
+                      <div className="flex items-center justify-between px-1 pt-1 border-t border-white/[0.06]">
+                        <button
+                          disabled={histPage === 0 || closedTradesLoading}
+                          onClick={() => fetchHistPage(histPage - 1)}
+                          className="text-[10px] font-medium px-3 py-1 rounded border border-white/[0.08] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/[0.05] transition-colors"
+                        >
+                          ← Prev
+                        </button>
+                        <span className="text-[10px] text-muted-foreground/40">
+                          Page {histPage + 1}{histHasMore ? "" : " · end"}
+                        </span>
+                        <button
+                          disabled={!histHasMore || closedTradesLoading}
+                          onClick={() => fetchHistPage(histPage + 1)}
+                          className="text-[10px] font-medium px-3 py-1 rounded border border-white/[0.08] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/[0.05] transition-colors"
+                        >
+                          Next →
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {tab === "logs" && (

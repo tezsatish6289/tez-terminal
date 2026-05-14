@@ -331,11 +331,9 @@ export async function computeOptionsZones(
 
   // ── Select bull (put below spot) and bear (call above spot) strikes ──────
   //
-  // Minimum distance: require the ZONE (not just the strike) to be fully on the
-  // correct side of spot. This prevents near-ATM strikes winning on the proximity
-  // amplifier when the zone would sit essentially at current price.
-  //   Bull: bullStrike + halfWidth < spot  (entire bull zone below spot)
-  //   Bear: bearStrike - halfWidth > spot  (entire bear zone above spot)
+  // Guard: the STRIKE itself (zone center) must be on the correct side of spot.
+  //   Bull: strike < spot  (put support below current price)
+  //   Bear: strike > spot  (call resistance above current price)
   //
   // TP target: nearest max pain in the correct direction with MIN_TP_USD clearance
   // from the zone edge.  If the highest urgency strike fails, we fall through to
@@ -362,13 +360,18 @@ export async function computeOptionsZones(
     return { tpPrice: best.maxPain, tpExpiry: best.expiry, tpConfidence };
   };
 
-  // Sort candidates by urgency descending, filtered by minimum distance
+  // Sort candidates by urgency descending.
+  // Filter: the STRIKE (zone center) must be on the correct side of spot.
+  // Requiring the full zone band (strike ± halfWidth) to clear spot was too
+  // aggressive — it excluded the $82k strike when spot was just $28 inside
+  // the zone bottom. The strike itself being above/below spot is the right
+  // guard; the band can partially straddle current price.
   const sortedPuts = [...putUrgency.entries()]
-    .filter(([strike]) => strike + halfWidth < spot)
+    .filter(([strike]) => strike < spot)
     .sort(([, a], [, b]) => b - a);
 
   const sortedCalls = [...callUrgency.entries()]
-    .filter(([strike]) => strike - halfWidth > spot)
+    .filter(([strike]) => strike > spot)
     .sort(([, a], [, b]) => b - a);
 
   let bullStrike: number | null = null;

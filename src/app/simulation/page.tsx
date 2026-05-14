@@ -1339,18 +1339,7 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
           const key = trade.id ?? trade.signalId;
           const balance = balanceAfterMap && key ? balanceAfterMap.get(key) : undefined;
           return (
-            <div key={key}>
-              <MobileTradeCard trade={trade} onSelect={onSelectTrade} onForceClose={onForceClose} cs={cs} />
-              {balance != null && (
-                <div className="flex justify-end px-1 pt-1">
-                  <span className={cn("text-[9px] font-mono font-bold",
-                    balance >= (startingCapital ?? 0) ? "text-emerald-500/60" : "text-rose-500/60"
-                  )}>
-                    Fund {cs}{balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-              )}
-            </div>
+            <MobileTradeCard key={key} trade={trade} onSelect={onSelectTrade} onForceClose={onForceClose} cs={cs} balance={balance} startingCapital={startingCapital} />
           );
         })}
         {filtered.length === 0 && (
@@ -1398,7 +1387,7 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
                     </ColFilter>
                   </TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">Entry</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">Current</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">{isHistory ? "Exit" : "Current"}</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">SL</TableHead>
                   <TableHead className="h-12 w-[80px]">
                     <ColFilter label="Targets" isActive={filters.tpLevel !== "any"} width="w-40">
@@ -1430,20 +1419,7 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
                     const key = trade.id ?? trade.signalId;
                     const balance = balanceAfterMap && key ? balanceAfterMap.get(key) : undefined;
                     return (
-                      <Fragment key={key}>
-                        <DesktopTradeRow trade={trade} onSelect={onSelectTrade} onForceClose={onForceClose} cs={cs} />
-                        {balance != null && (
-                          <TableRow className="border-0 h-5 hover:bg-transparent">
-                            <TableCell colSpan={14} className="py-0 pr-4 text-right border-b border-white/[0.03]">
-                              <span className={cn("text-[9px] font-mono font-bold",
-                                balance >= (startingCapital ?? 0) ? "text-emerald-500/50" : "text-rose-500/50"
-                              )}>
-                                Fund {cs}{balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </Fragment>
+                      <DesktopTradeRow key={key} trade={trade} onSelect={onSelectTrade} onForceClose={onForceClose} cs={cs} isHistory={isHistory} balance={balance} startingCapital={startingCapital} />
                     );
                   })
                 ) : (
@@ -1468,41 +1444,53 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
   );
 }
 
-function DesktopTradeRow({ trade, onSelect, onForceClose, cs }: { trade: SimTrade; onSelect: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string }) {
+function DesktopTradeRow({ trade, onSelect, onForceClose, cs, isHistory, balance, startingCapital }: { trade: SimTrade; onSelect: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string; isHistory?: boolean; balance?: number; startingCapital?: number }) {
   const isBuy = trade.side === "BUY";
   const isOpen = trade.status === "OPEN";
   const chartLabel = tfLabelMap[String(trade.timeframe).toUpperCase()] ?? `${trade.timeframe}m`;
   const sl = getSlDisplay(trade);
   const closeDisplay = getCloseDisplay(trade.closeReason ?? null);
+  // Exit price for closed trades: currentPrice is set to the last exit price by the cron.
+  const exitPrice = !isOpen ? (trade.currentPrice ?? trade.events?.[trade.events.length - 1]?.price ?? null) : null;
+  const cellPy = isHistory ? "py-2" : "py-4";
 
   return (
     <TableRow className="border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer" onClick={() => onSelect(trade)}>
-      <TableCell className="py-4">
+      <TableCell className={cellPy}>
         <Link href={`/chart/${trade.signalId}`} target="_blank" className="text-sm font-black text-white leading-none uppercase tracking-tighter hover:text-accent transition-colors" onClick={(e) => e.stopPropagation()}>
           {trade.symbol}
         </Link>
       </TableCell>
-      <TableCell>
+      <TableCell className={cellPy}>
         <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", isBuy ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400")}>
           {trade.side}
         </Badge>
       </TableCell>
-      <TableCell className="text-xs font-bold text-muted-foreground uppercase">{chartLabel}</TableCell>
-      <TableCell className="text-[10px] font-bold text-muted-foreground/50 uppercase max-w-[70px] truncate">{trade.algo || "—"}</TableCell>
-      <TableCell>
+      <TableCell className={cn(cellPy, "text-xs font-bold text-muted-foreground uppercase")}>{chartLabel}</TableCell>
+      <TableCell className={cn(cellPy, "text-[10px] font-bold text-muted-foreground/50 uppercase max-w-[70px] truncate")}>{trade.algo || "—"}</TableCell>
+      <TableCell className={cellPy}>
         <Badge variant="outline" className="text-[9px] font-black h-5 px-1.5 border-accent/20 text-accent">{trade.leverage}x</Badge>
       </TableCell>
-      <TableCell className="font-mono text-xs font-bold text-white/60">{cs}{formatPrice(trade.entryPrice)}</TableCell>
-      <TableCell className="font-mono text-xs font-bold text-white">
-        {isOpen && trade.currentPrice != null ? `${cs}${formatPrice(trade.currentPrice)}` : "—"}
+      <TableCell className={cn(cellPy, "font-mono text-xs font-bold text-white/60")}>{cs}{formatPrice(trade.entryPrice)}</TableCell>
+      {/* EXIT (history) or CURRENT (open trades) */}
+      <TableCell className={cellPy}>
+        {isHistory ? (
+          exitPrice != null
+            ? <span className="font-mono text-xs font-bold text-white/50">{cs}{formatPrice(exitPrice)}</span>
+            : <span className="text-muted-foreground/30">—</span>
+        ) : (
+          isOpen && trade.currentPrice != null
+            ? <span className="font-mono text-xs font-bold text-white">{cs}{formatPrice(trade.currentPrice)}</span>
+            : <span className="text-muted-foreground/30">—</span>
+        )}
       </TableCell>
-      <TableCell>
+      <TableCell className={cellPy}>
         <div className="flex flex-col">
           <span className="font-mono text-xs font-bold text-white">{cs}{formatPrice(sl.price)}</span>
           <span className="text-[9px] text-muted-foreground/60">{sl.label}</span>
         </div>
       </TableCell>
-      <TableCell>
+      <TableCell className={cellPy}>
         <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase">
           {[
             { num: 1, hit: trade.tp1Hit },
@@ -1528,7 +1516,7 @@ function DesktopTradeRow({ trade, onSelect, onForceClose, cs }: { trade: SimTrad
           })}
         </div>
       </TableCell>
-      <TableCell>
+      <TableCell className={cellPy}>
         <div className="flex flex-col gap-0.5">
           {isOpen ? (
             <>
@@ -1554,85 +1542,95 @@ function DesktopTradeRow({ trade, onSelect, onForceClose, cs }: { trade: SimTrad
           )}
         </div>
       </TableCell>
-      <TableCell className="font-mono text-xs font-bold text-white/60">{formatMoney(trade.positionSize, cs)}</TableCell>
-      <TableCell>
-        <div className="flex gap-3">
-          {/* Entry — click to see score breakdown */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <div className="flex flex-col gap-0.5 cursor-pointer hover:opacity-80 transition-opacity">
-                <span className="font-mono text-[10px] text-muted-foreground/40 uppercase tracking-wider">Entry</span>
-                <span className="font-mono text-xs font-bold text-accent underline decoration-dotted underline-offset-2">{trade.confidenceScore}</span>
-                {trade.scorePattern && (
-                  <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
+      <TableCell className={cn(cellPy, "font-mono text-xs font-bold text-white/60")}>{formatMoney(trade.positionSize, cs)}</TableCell>
+      <TableCell className={cellPy}>
+        {isHistory ? (
+          /* History: compact single score, no Entry/Last label overhead */
+          <div className="flex flex-col gap-0.5">
+            <span className="font-mono text-xs font-bold text-accent">{trade.confidenceScore}</span>
+            {trade.scorePattern && (
+              <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
+            )}
+          </div>
+        ) : (
+          <div className="flex gap-3">
+            {/* Entry — click to see score breakdown */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <div className="flex flex-col gap-0.5 cursor-pointer hover:opacity-80 transition-opacity">
+                  <span className="font-mono text-[10px] text-muted-foreground/40 uppercase tracking-wider">Entry</span>
+                  <span className="font-mono text-xs font-bold text-accent underline decoration-dotted underline-offset-2">{trade.confidenceScore}</span>
+                  {trade.scorePattern && (
+                    <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
+                  )}
+                </div>
+              </PopoverTrigger>
+              {trade.scoreBreakdownAtEntry && (
+                <PopoverContent className="w-72 p-3 text-xs space-y-2" side="right">
+                  <p className="font-black uppercase tracking-widest text-[10px] text-muted-foreground/50 mb-1">Score at Entry</p>
+                  {/* Price structure */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Price Structure</span>
+                    <span className="font-mono font-bold text-white">{trade.scoreBreakdownAtEntry.priceStructure} <span className="text-muted-foreground/50">/ 60</span></span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Pattern</span>
+                    <span className="font-mono font-bold text-accent uppercase">{trade.scoreBreakdownAtEntry.pattern}</span>
+                  </div>
+                  {trade.scoreBreakdownAtEntry.rrGateFailed && (
+                    <div className="text-rose-400 text-[10px]">⚠ RR gate failed</div>
+                  )}
+                  {/* Liquidity */}
+                  {trade.scoreBreakdownAtEntry.liquidityContext && (
+                    <>
+                      <div className="border-t border-white/[0.06] pt-2 mt-1">
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-muted-foreground">Liquidity</span>
+                          <span className="font-mono font-bold text-white">{trade.scoreBreakdownAtEntry.liquidityContext.score} <span className="text-muted-foreground/50">/ 40</span></span>
+                        </div>
+                        <div className="space-y-1">
+                          {trade.scoreBreakdownAtEntry.liquidityContext.reasons.map((r, i) => (
+                            <div key={i} className={cn(
+                              "text-[10px] flex items-start gap-1",
+                              r.startsWith("Sweep") || r.startsWith("Fresh") || r.startsWith("Strong") || r.startsWith("Moderate") || r.startsWith("OI rising") || r.startsWith("OI falling") || r.startsWith("Bid") || r.startsWith("Ask pressure") || r.startsWith("Clear") || r.startsWith("Protective") || r.startsWith("Neutral")
+                                ? "text-positive/80" : "text-rose-400/80"
+                            )}>
+                              <span>{r.startsWith("No ") || r.startsWith("Sweep AGAINST") || r.startsWith("Wall") || r.startsWith("Extreme") || r.startsWith("Ask heavy") || r.startsWith("Bid heavy") ? "↓" : "↑"}</span>
+                              <span>{r}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {/* Total */}
+                  <div className="border-t border-white/[0.06] pt-2 flex justify-between items-center">
+                    <span className="font-bold text-white/70">Total</span>
+                    <span className="font-mono font-black text-accent">{trade.confidenceScore} / 100</span>
+                  </div>
+                </PopoverContent>
+              )}
+            </Popover>
+            {/* Current / last */}
+            {trade.currentScore != null && (
+              <div className="flex flex-col gap-0.5 pl-3 border-l border-white/[0.06]">
+                <span className="font-mono text-[10px] text-muted-foreground/40 uppercase tracking-wider">{isOpen ? "Now" : "Last"}</span>
+                <span className={cn(
+                  "font-mono text-xs font-bold",
+                  trade.currentScore === 0 ? "text-rose-400" :
+                  trade.currentScore < trade.confidenceScore ? "text-amber-400" : "text-positive",
+                )}>
+                  {trade.currentScore}
+                </span>
+                {trade.currentScorePattern && (
+                  <PatternBadge pattern={trade.currentScorePattern as PatternType} score={null} />
                 )}
               </div>
-            </PopoverTrigger>
-            {trade.scoreBreakdownAtEntry && (
-              <PopoverContent className="w-72 p-3 text-xs space-y-2" side="right">
-                <p className="font-black uppercase tracking-widest text-[10px] text-muted-foreground/50 mb-1">Score at Entry</p>
-                {/* Price structure */}
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Price Structure</span>
-                  <span className="font-mono font-bold text-white">{trade.scoreBreakdownAtEntry.priceStructure} <span className="text-muted-foreground/50">/ 60</span></span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Pattern</span>
-                  <span className="font-mono font-bold text-accent uppercase">{trade.scoreBreakdownAtEntry.pattern}</span>
-                </div>
-                {trade.scoreBreakdownAtEntry.rrGateFailed && (
-                  <div className="text-rose-400 text-[10px]">⚠ RR gate failed</div>
-                )}
-                {/* Liquidity */}
-                {trade.scoreBreakdownAtEntry.liquidityContext && (
-                  <>
-                    <div className="border-t border-white/[0.06] pt-2 mt-1">
-                      <div className="flex justify-between items-center mb-1.5">
-                        <span className="text-muted-foreground">Liquidity</span>
-                        <span className="font-mono font-bold text-white">{trade.scoreBreakdownAtEntry.liquidityContext.score} <span className="text-muted-foreground/50">/ 40</span></span>
-                      </div>
-                      <div className="space-y-1">
-                        {trade.scoreBreakdownAtEntry.liquidityContext.reasons.map((r, i) => (
-                          <div key={i} className={cn(
-                            "text-[10px] flex items-start gap-1",
-                            r.startsWith("Sweep") || r.startsWith("Fresh") || r.startsWith("Strong") || r.startsWith("Moderate") || r.startsWith("OI rising") || r.startsWith("OI falling") || r.startsWith("Bid") || r.startsWith("Ask pressure") || r.startsWith("Clear") || r.startsWith("Protective") || r.startsWith("Neutral")
-                              ? "text-positive/80" : "text-rose-400/80"
-                          )}>
-                            <span>{r.startsWith("No ") || r.startsWith("Sweep AGAINST") || r.startsWith("Wall") || r.startsWith("Extreme") || r.startsWith("Ask heavy") || r.startsWith("Bid heavy") ? "↓" : "↑"}</span>
-                            <span>{r}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-                {/* Total */}
-                <div className="border-t border-white/[0.06] pt-2 flex justify-between items-center">
-                  <span className="font-bold text-white/70">Total</span>
-                  <span className="font-mono font-black text-accent">{trade.confidenceScore} / 100</span>
-                </div>
-              </PopoverContent>
             )}
-          </Popover>
-          {/* Current / last */}
-          {trade.currentScore != null && (
-            <div className="flex flex-col gap-0.5 pl-3 border-l border-white/[0.06]">
-              <span className="font-mono text-[10px] text-muted-foreground/40 uppercase tracking-wider">{isOpen ? "Now" : "Last"}</span>
-              <span className={cn(
-                "font-mono text-xs font-bold",
-                trade.currentScore === 0 ? "text-rose-400" :
-                trade.currentScore < trade.confidenceScore ? "text-amber-400" : "text-positive",
-              )}>
-                {trade.currentScore}
-              </span>
-              {trade.currentScorePattern && (
-                <PatternBadge pattern={trade.currentScorePattern as PatternType} score={null} />
-              )}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </TableCell>
-      <TableCell>
+      <TableCell className={cellPy}>
         {isOpen ? (
           <div className="flex items-center gap-1.5">
             <Badge className="text-[9px] font-black h-5 uppercase px-2 bg-accent/15 text-accent">Open</Badge>
@@ -1674,7 +1672,7 @@ function DesktopTradeRow({ trade, onSelect, onForceClose, cs }: { trade: SimTrad
           </div>
         )}
       </TableCell>
-      <TableCell className="text-right">
+      <TableCell className={cn(cellPy, "text-right")}>
         <div className="flex flex-col items-end gap-0.5">
           <div className="flex items-center gap-1 whitespace-nowrap">
             <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/30">In</span>
@@ -1688,19 +1686,29 @@ function DesktopTradeRow({ trade, onSelect, onForceClose, cs }: { trade: SimTrad
               <span className="text-[10px] font-mono font-bold text-muted-foreground/30">{format(new Date(trade.closedAt), "HH:mm")}</span>
             </div>
           )}
+          {/* Fund balance inline — no separate row needed */}
+          {balance != null && (
+            <span className={cn(
+              "text-[9px] font-mono font-bold mt-0.5",
+              balance >= (startingCapital ?? 0) ? "text-emerald-500/60" : "text-rose-500/60"
+            )}>
+              {cs}{balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          )}
         </div>
       </TableCell>
     </TableRow>
   );
 }
 
-function MobileTradeCard({ trade, onSelect, onForceClose, cs }: { trade: SimTrade; onSelect: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string }) {
+function MobileTradeCard({ trade, onSelect, onForceClose, cs, balance, startingCapital }: { trade: SimTrade; onSelect: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string; balance?: number; startingCapital?: number }) {
   const isBuy = trade.side === "BUY";
   const isOpen = trade.status === "OPEN";
   const isWin = trade.realizedPnl > 0;
   const chartLabel = tfLabelMap[String(trade.timeframe).toUpperCase()] ?? `${trade.timeframe}m`;
   const sl = getSlDisplay(trade);
   const closeDisplay = getCloseDisplay(trade.closeReason ?? null);
+  const exitPrice = !isOpen ? (trade.currentPrice ?? trade.events?.[trade.events.length - 1]?.price ?? null) : null;
 
   return (
     <div className="block cursor-pointer" onClick={() => onSelect(trade)}>
@@ -1826,16 +1834,24 @@ function MobileTradeCard({ trade, onSelect, onForceClose, cs }: { trade: SimTrad
                   <span className="text-[10px] font-mono text-muted-foreground/30">{format(new Date(trade.closedAt), "MMM dd, HH:mm")}</span>
                 </div>
               )}
+              {balance != null && (
+                <span className={cn(
+                  "text-[9px] font-mono font-bold mt-0.5",
+                  balance >= (startingCapital ?? 0) ? "text-emerald-500/60" : "text-rose-500/60"
+                )}>
+                  {cs}{balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              )}
             </div>
           </div>
 
-          {/* Entry / Current / SL */}
+          {/* Entry / Exit|Current / SL */}
           <div className="flex items-center gap-3 text-[11px] flex-wrap">
             <div>
               <span className="text-muted-foreground/40 mr-1.5">Entry</span>
               <span className="font-mono font-bold text-white/50">{cs}{formatPrice(trade.entryPrice)}</span>
             </div>
-            {isOpen && trade.currentPrice != null && (
+            {isOpen && trade.currentPrice != null ? (
               <>
                 <span className="text-white/10">→</span>
                 <div>
@@ -1843,7 +1859,15 @@ function MobileTradeCard({ trade, onSelect, onForceClose, cs }: { trade: SimTrad
                   <span className="font-mono font-bold text-white">{cs}{formatPrice(trade.currentPrice)}</span>
                 </div>
               </>
-            )}
+            ) : exitPrice != null ? (
+              <>
+                <span className="text-white/10">→</span>
+                <div>
+                  <span className="text-muted-foreground/40 mr-1.5">Exit</span>
+                  <span className="font-mono font-bold text-white/50">{cs}{formatPrice(exitPrice)}</span>
+                </div>
+              </>
+            ) : null}
             <span className="text-white/10">|</span>
             <div>
               <span className="text-muted-foreground/40 mr-1.5">SL</span>

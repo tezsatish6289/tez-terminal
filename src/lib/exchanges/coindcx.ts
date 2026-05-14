@@ -710,7 +710,12 @@ export class CoinDcxConnector implements ExchangeConnector {
     return out.slice(0, limit);
   }
 
-  async getClosedPnl(symbol: string, creds: ExchangeCredentials, startTime?: number): Promise<ClosedPnlRecord[]> {
+  async getClosedPnl(
+    symbol: string,
+    creds: ExchangeCredentials,
+    startTime?: number,
+    _endTime?: number,
+  ): Promise<ClosedPnlRecord[]> {
     const pair = coinDcxPairFromInternal(symbol);
     const internal = internalSymbolFromCoinDcxPair(pair);
     const startMs = startTime != null && Number.isFinite(startTime) ? startTime : 0;

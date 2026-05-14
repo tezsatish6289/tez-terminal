@@ -22,6 +22,7 @@ import {
 import { useUser, useAuth } from "@/firebase";
 import { initiateSignOut } from "@/firebase/non-blocking-login";
 import { DeployModal } from "../components/DeployModal";
+import { toast } from "@/hooks/use-toast";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1149,12 +1150,35 @@ export default function FreedomBotDashboard() {
           onRefreshTrade={async (tradeId) => {
             const idToken = await user?.getIdToken();
             if (!idToken) return;
-            await fetch("/api/freedombot/sync-trade", {
+            const res = await fetch("/api/freedombot/sync-trade", {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
               body: JSON.stringify({ tradeId }),
             });
-            // Re-read Firestore (now updated) to refresh the trade list
+            const data = (await res.json()) as {
+              error?: string;
+              pnlReconciled?: boolean;
+              reason?: string;
+              status?: string;
+            };
+            if (!res.ok) {
+              toast({
+                variant: "destructive",
+                title: "Sync failed",
+                description: data.error ?? `HTTP ${res.status}`,
+              });
+            } else if (data.pnlReconciled === false && data.reason) {
+              toast({
+                variant: "destructive",
+                title: "Exchange P&L not available yet",
+                description:
+                  data.reason === "no_closed_pnl_rows_in_window"
+                    ? "The exchange has not returned a closed-PnL row for this exit in the search window yet. Wait a few minutes and try again."
+                    : String(data.reason),
+              });
+            } else if (data.pnlReconciled === true) {
+              toast({ title: "P&L synced", description: "Updated from the exchange." });
+            }
             const ex = selectedDeployment?.exchange ?? null;
             await fetchUserTrades(ex, false);
           }}

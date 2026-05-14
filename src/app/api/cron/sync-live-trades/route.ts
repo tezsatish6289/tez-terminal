@@ -31,6 +31,8 @@ import {
   computeClosedTradeExchangePnlMetrics,
   bybitReconcileOrderIdsFromLiveTrade,
   coindcxClosedPnlWindowOpts,
+  bybitClosedPnlWindowOpts,
+  bybitClosedPnlApiEndMs,
   exchangeClosedPnlFetchStartMs,
 } from "@/lib/freedombot/reconcile-exchange-pnl";
 
@@ -85,10 +87,12 @@ async function syncUserTrades(
             const closedAtMs = lt.closedAt ? new Date(lt.closedAt).getTime() : Date.now();
             if (!Number.isFinite(openedAtMs) || !Number.isFinite(closedAtMs)) continue;
 
+            const endArg = exchange === "BYBIT" ? bybitClosedPnlApiEndMs(closedAtMs) : undefined;
             const records = await connector.getClosedPnl!(
               lt.symbol,
               creds,
               exchangeClosedPnlFetchStartMs(exchange, openedAtMs),
+              endArg,
             );
             const metrics = computeClosedTradeExchangePnlMetrics(records, openedAtMs, closedAtMs, {
               tradeSide:
@@ -98,6 +102,7 @@ async function syncUserTrades(
                   ? bybitReconcileOrderIdsFromLiveTrade(lt as unknown as Record<string, unknown>)
                   : undefined,
               ...(exchange === "COINDCX" ? coindcxClosedPnlWindowOpts() : {}),
+              ...(exchange === "BYBIT" ? bybitClosedPnlWindowOpts() : {}),
             });
             if (metrics.recordCount === 0) continue;
 

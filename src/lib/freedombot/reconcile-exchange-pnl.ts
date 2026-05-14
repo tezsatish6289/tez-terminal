@@ -3,7 +3,7 @@
  * Any crypto connector that implements getClosedPnl is supported (BYBIT, COINDCX; future BINANCE/MEXC).
  *
  * **Bybit:** rows are selected by `orderId` matching stored trade order ids when possible; otherwise
- * a ±5m window around open/close plus optional `side`.
+ * a widened window around open/close plus optional `side` (see `EXCHANGE_PNL_BYBIT_WINDOW_*`).
  *
  * **CoinDCX:** rows in [open − 5m, close + 5m] (incl. funding); optional `side` when the venue sends it.
  */
@@ -58,11 +58,24 @@ export const EXCHANGE_PNL_POST_CLOSE_BUFFER_MS = EXCHANGE_PNL_TRADE_WINDOW_POST_
 export const EXCHANGE_PNL_COINDCX_WINDOW_PRE_MS = 15 * 60 * 1000;
 export const EXCHANGE_PNL_COINDCX_WINDOW_POST_MS = 6 * 60 * 60 * 1000;
 
+/** Bybit closed-pnl `createdTime` can trail Firestore `closedAt` beyond ±5m; widen client window + API bounds. */
+export const EXCHANGE_PNL_BYBIT_WINDOW_PRE_MS = 30 * 60 * 1000;
+export const EXCHANGE_PNL_BYBIT_WINDOW_POST_MS = 6 * 60 * 60 * 1000;
+
 /** `getClosedPnl` startTime: fetch from far enough before open for the active window. */
 export function exchangeClosedPnlFetchStartMs(exchange: ExchangeName, openedAtMs: number): number {
   const lookback =
-    exchange === "COINDCX" ? EXCHANGE_PNL_COINDCX_WINDOW_PRE_MS : EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS;
+    exchange === "COINDCX"
+      ? EXCHANGE_PNL_COINDCX_WINDOW_PRE_MS
+      : exchange === "BYBIT"
+        ? EXCHANGE_PNL_BYBIT_WINDOW_PRE_MS
+        : EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS;
   return Math.max(0, openedAtMs - lookback);
+}
+
+/** Bybit `/v5/position/closed-pnl` `endTime` upper bound (ms) so the row is inside the query slice. */
+export function bybitClosedPnlApiEndMs(closedAtMs: number): number {
+  return closedAtMs + EXCHANGE_PNL_BYBIT_WINDOW_POST_MS;
 }
 
 /** Window overrides for `computeClosedTradeExchangePnlMetrics` on CoinDCX. */
@@ -73,9 +86,17 @@ export function coindcxClosedPnlWindowOpts(): Pick<ClosedPnlWindowOpts, "windowP
   };
 }
 
+export function bybitClosedPnlWindowOpts(): Pick<ClosedPnlWindowOpts, "windowPreMs" | "windowPostMs"> {
+  return {
+    windowPreMs: EXCHANGE_PNL_BYBIT_WINDOW_PRE_MS,
+    windowPostMs: EXCHANGE_PNL_BYBIT_WINDOW_POST_MS,
+  };
+}
+
 /** CoinDCX sometimes returns unix seconds; Bybit uses ms. */
 export function recordTimeMs(r: ClosedPnlRecord): number {
-  const t = r.createdTime;
+  let t = r.createdTime;
+  if (!t || Number.isNaN(t)) t = r.updatedTime ?? 0;
   if (!t || Number.isNaN(t)) return 0;
   return t < 1e12 ? t * 1000 : t;
 }
@@ -179,7 +200,7 @@ export interface ClosedTradeExchangePnlMetrics {
   recordCount: number;
 }
 
-/** Prefer Bybit `orderId` match; else sum rows in [open − 5m, close + 5m] with optional `side`. */
+/** Prefer Bybit `orderId` match; else sum rows in the trade time window (connector-specific width) with optional side. */
 export function computeClosedTradeExchangePnlMetrics(
   records: ClosedPnlRecord[],
   openedAtMs: number,
@@ -251,10 +272,12 @@ export async function applyBybitExchangeClosedPnlAfterClose(
       trade.symbol,
       creds,
       Math.max(0, exchangeClosedPnlFetchStartMs("BYBIT", openedAtMs)),
+      bybitClosedPnlApiEndMs(closedAtMs),
     );
     return computeClosedTradeExchangePnlMetrics(records, openedAtMs, closedAtMs, {
       tradeSide: trade.side === "SELL" ? "SELL" : "BUY",
       matchAnyOrderId: bybitReconcileOrderIdsFromLiveTrade(trade as Record<string, unknown>),
+      ...bybitClosedPnlWindowOpts(),
     });
   };
 
@@ -318,7 +341,7 @@ export interface ReconcileExchangePnlResult {
 /**
  * For each closed production trade on `exchange`, fetch closed-PnL / position transaction rows
  * from the venue and aggregate rows for that trade (Bybit: order id match when possible; else
- * `[openedAt − 5m, closedAt + 5m]` and optional side). Writes back exchangeRealizedPnl plus reconciliation metadata.
+ * widened time window + optional side). Writes back exchangeRealizedPnl plus reconciliation metadata.
  */
 export async function reconcileUserExchangeClosedPnl(
   db: Firestore,
@@ -367,7 +390,8 @@ export async function reconcileUserExchangeClosedPnl(
 
     try {
       const startArg = exchangeClosedPnlFetchStartMs(exchange, openedAtMs);
-      const records = await connector.getClosedPnl!(exchangeSymbol, creds, startArg);
+      const endArg = exchange === "BYBIT" ? bybitClosedPnlApiEndMs(closedAtMs) : undefined;
+      const records = await connector.getClosedPnl!(exchangeSymbol, creds, startArg, endArg);
       const metrics = computeClosedTradeExchangePnlMetrics(records, openedAtMs, closedAtMs, {
         tradeSide: String(lt.side ?? "BUY").toUpperCase() === "SELL" ? "SELL" : "BUY",
         matchAnyOrderId:
@@ -375,6 +399,7 @@ export async function reconcileUserExchangeClosedPnl(
             ? bybitReconcileOrderIdsFromLiveTrade(lt as unknown as Record<string, unknown>)
             : undefined,
         ...(exchange === "COINDCX" ? coindcxClosedPnlWindowOpts() : {}),
+        ...(exchange === "BYBIT" ? bybitClosedPnlWindowOpts() : {}),
       });
       if (metrics.recordCount === 0) continue;
 

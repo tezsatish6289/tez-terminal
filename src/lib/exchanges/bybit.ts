@@ -667,30 +667,26 @@ export class BybitConnector implements ExchangeConnector {
   }
 
   // Returns actual realized PnL records from Bybit for a symbol.
-  // Pass startTime (ms) to filter to records after the trade opened.
-  async getClosedPnl(symbol: string, creds: ExchangeCredentials, startTime?: number): Promise<ClosedPnlRecord[]> {
-    const params: Record<string, string | number> = {
-      category: "linear",
-      symbol,
-      limit: 100,
-    };
-    if (startTime) params.startTime = startTime;
-
-    const data = await signedGet<{ list: Array<Record<string, string>> }>(
-      "/v5/position/closed-pnl",
-      params,
-      creds
-    );
-
-    return data.list.map((r) => {
+  // Pass startTime / endTime (ms) to bound `/v5/position/closed-pnl` (≤7d slice per Bybit rules).
+  async getClosedPnl(
+    symbol: string,
+    creds: ExchangeCredentials,
+    startTime?: number,
+    endTime?: number,
+  ): Promise<ClosedPnlRecord[]> {
+    const mapOne = (r: Record<string, string>): ClosedPnlRecord => {
       const oidRaw = r.orderId ?? (r as { order_id?: string }).order_id;
+      const ct = parseInt(String(r.createdTime ?? "0"), 10);
+      const ut = parseInt(String(r.updatedTime ?? "0"), 10);
+      const primaryMs = ct > 0 ? ct : ut;
       return {
         symbol: r.symbol,
         closedPnl: parseFloat(r.closedPnl ?? "0"),
         qty: parseFloat(r.qty ?? "0"),
         avgEntryPrice: parseFloat(r.avgEntryPrice ?? "0"),
         avgExitPrice: parseFloat(r.avgExitPrice ?? "0"),
-        createdTime: parseInt(r.createdTime ?? "0"),
+        createdTime: primaryMs,
+        ...(ut > 0 && ut !== ct ? { updatedTime: ut } : {}),
         ...(oidRaw != null && String(oidRaw).trim() !== ""
           ? { orderId: String(oidRaw).trim() }
           : {}),
@@ -698,6 +694,43 @@ export class BybitConnector implements ExchangeConnector {
           ? { side: String(r.side).toUpperCase() }
           : {}),
       };
-    });
+    };
+
+    const out: ClosedPnlRecord[] = [];
+    const seen = new Set<string>();
+    let cursor: string | undefined;
+    const maxPages = 15;
+
+    for (let page = 0; page < maxPages; page++) {
+      const params: Record<string, string | number> = {
+        category: "linear",
+        symbol,
+        limit: 100,
+      };
+      if (startTime) params.startTime = startTime;
+      if (endTime) params.endTime = endTime;
+      if (cursor) params.cursor = cursor;
+
+      const data = await signedGet<{
+        list: Array<Record<string, string>>;
+        nextPageCursor?: string;
+      }>("/v5/position/closed-pnl", params, creds);
+
+      const list = data.list ?? [];
+      for (const r of list) {
+        const row = mapOne(r);
+        const dedupeKey = `${row.orderId ?? ""}|${row.createdTime}|${row.closedPnl}|${row.qty}`;
+        if (!seen.has(dedupeKey)) {
+          seen.add(dedupeKey);
+          out.push(row);
+        }
+      }
+
+      const next = data.nextPageCursor?.trim();
+      if (!next || list.length === 0) break;
+      cursor = next;
+    }
+
+    return out;
   }
 }

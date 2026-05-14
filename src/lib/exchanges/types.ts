@@ -170,6 +170,8 @@ export interface ClosedPnlRecord {
   avgEntryPrice: number;
   avgExitPrice: number;
   createdTime: number;    // ms timestamp
+  /** Bybit: when `createdTime` is missing, reconciliation uses this (see `recordTimeMs`). */
+  updatedTime?: number;
   /** When present (e.g. CoinDCX), used with trade side to narrow rows in the time window. */
   side?: string | null;
   /** Bybit `/v5/position/closed-pnl` — prefer matching rows to the trade via this id. */
@@ -231,7 +233,8 @@ export interface ExchangeConnector {
   getAllOrders(symbol: string, creds: ExchangeCredentials, limit?: number): Promise<Order[]>;
 
   // Closed PnL — optional, only implemented by exchanges that support it
-  getClosedPnl?(symbol: string, creds: ExchangeCredentials, startTime?: number): Promise<ClosedPnlRecord[]>;
+  /** Optional `endTime` (ms) is used by Bybit to bound `/v5/position/closed-pnl` queries. */
+  getClosedPnl?(symbol: string, creds: ExchangeCredentials, startTime?: number, endTime?: number): Promise<ClosedPnlRecord[]>;
 }
 
 // ── Shared Math Utilities (exchange-agnostic) ───────────────────

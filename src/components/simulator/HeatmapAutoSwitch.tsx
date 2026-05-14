@@ -123,11 +123,12 @@ function PriceInput({
 
 function InfoTip({ text }: { text: string }) {
   return (
-    <span
-      title={text}
-      className="inline-flex items-center cursor-help text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
-    >
-      <Info className="w-3 h-3" />
+    <span className="relative group inline-flex items-center cursor-help">
+      <Info className="w-3 h-3 text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors" />
+      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 rounded-lg border border-white/[0.10] bg-[#1a1a2e] px-3 py-2 text-[10px] leading-relaxed text-muted-foreground/80 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
+        {text}
+        <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#1a1a2e]" />
+      </span>
     </span>
   );
 }

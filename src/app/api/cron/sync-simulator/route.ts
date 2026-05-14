@@ -1058,13 +1058,15 @@ export async function GET(request: NextRequest) {
             bearScore,
             liveWinRate: 0,
             algoWinRate: 0,
+            directionBias: assetDirectionBias,
           });
 
           // Gate 1: write sim trade to Firestore with retries.
-          // Pre-generate the doc ID so retrying set() is idempotent —
-          // if the write succeeded but the ack was lost, retrying with the
-          // same ID simply overwrites with identical data, no duplicates.
-          const simTradeRef = db.collection("simulator_trades").doc();
+          // Use a deterministic doc ID derived from the signal ID so that two
+          // concurrent cron invocations processing the same signal are idempotent —
+          // the second set() simply overwrites with identical data, preventing
+          // race-condition duplicate trades for the same symbol.
+          const simTradeRef = db.collection("simulator_trades").doc(`sim-${c.id}`);
           let simWriteOk = false;
           for (let w = 1; w <= 3; w++) {
             try {

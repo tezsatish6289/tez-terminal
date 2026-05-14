@@ -671,6 +671,7 @@ export function openTrade(params: {
   bearScore: number;
   liveWinRate: number;
   algoWinRate: number;
+  directionBias?: DirectionBias;
 }): { trade: SimTrade; updatedState: SimulatorState; log: SimLog } {
   const { signal, positionSize, state, bullScore, bearScore, liveWinRate, algoWinRate } = params;
   const leverage = getLeverage(signal.timeframe, signal.assetType);
@@ -679,7 +680,10 @@ export function openTrade(params: {
   const entryFee = isIndianStock
     ? calcDhanFees(positionSize, signal.type === "BUY" ? "buy" : "sell")
     : positionSize * SIM_CONFIG.EXCHANGE_FEE;
-  const biasLabel = bullScore > bearScore ? "Go Bull" : "Go Bear";
+  // Show the actual auto-switch direction bias (BULL/BEAR/BOTH), not raw signal counts.
+  const biasLabel = params.directionBias
+    ? `Zone:${params.directionBias}`
+    : (bullScore > bearScore ? "Signals:Bull" : "Signals:Bear");
 
   const trade: SimTrade = {
     signalId: signal.id,

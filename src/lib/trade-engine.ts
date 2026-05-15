@@ -431,7 +431,10 @@ export async function handleTpFill(
   const priceDiff = trade.side === "BUY"
     ? fillPrice - trade.entryPrice
     : trade.entryPrice - fillPrice;
-  const pnl = priceDiff * fillQty * trade.leverage;
+  // Futures realised PnL = priceDiff * baseQty (in quote currency).
+  // `fillQty` is exchange-reported `cumExecQty` in the base coin, so the
+  // result is already in USDT — multiplying by leverage would inflate it.
+  const pnl = priceDiff * fillQty;
   const fee = fillPrice * fillQty * SIM_CONFIG.EXCHANGE_FEE;
 
   const event: LiveTradeEvent = {
@@ -518,7 +521,10 @@ export async function handleSlFill(
   const priceDiff = trade.side === "BUY"
     ? fillPrice - trade.entryPrice
     : trade.entryPrice - fillPrice;
-  const pnl = priceDiff * fillQty * trade.leverage;
+  // Futures realised PnL = priceDiff * baseQty (in quote currency).
+  // `fillQty` is exchange-reported `cumExecQty` in the base coin, so the
+  // result is already in USDT — no leverage multiplier required.
+  const pnl = priceDiff * fillQty;
   const fee = fillPrice * fillQty * SIM_CONFIG.EXCHANGE_FEE;
 
   const event: LiveTradeEvent = {
@@ -686,7 +692,10 @@ export async function protectiveClose(
   const priceDiff = trade.side === "BUY"
     ? fillPrice - trade.entryPrice
     : trade.entryPrice - fillPrice;
-  const pnl = priceDiff * fillQty * trade.leverage;
+  // Futures realised PnL = priceDiff * baseQty (in quote currency).
+  // `fillQty` is exchange-reported `cumExecQty` in the base coin, so the
+  // result is already in USDT — no leverage multiplier required.
+  const pnl = priceDiff * fillQty;
   const fee = fillPrice * fillQty * SIM_CONFIG.EXCHANGE_FEE;
 
   return {

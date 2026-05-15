@@ -45,13 +45,13 @@ export async function GET(
       return NextResponse.json({ error: "Invalid deployment data" }, { status: 400 });
     }
 
-    let q = db
+    const baseQuery = db
       .collection("live_trades")
       .where("userId", "==", uid)
       .where("exchange", "==", exchange)
-      .where("testnet", "==", false)
-      .orderBy("openedAt", "desc")
-      .limit(pageSize + 1);
+      .where("testnet", "==", false);
+
+    let q = baseQuery.orderBy("openedAt", "desc").limit(pageSize + 1);
 
     if (cursor) {
       const cur = await db.collection("live_trades").doc(cursor).get();
@@ -60,7 +60,18 @@ export async function GET(
       }
     }
 
-    const snap = await q.get();
+    // Count the full result set so the UI can show "50 of 77 loaded" instead
+    // of just the paged length (which used to be mistaken for the total).
+    // Only run on the first page to avoid burning a count query per scroll.
+    const totalCountPromise = cursor
+      ? Promise.resolve<number | null>(null)
+      : baseQuery
+          .count()
+          .get()
+          .then((snap) => snap.data().count)
+          .catch(() => null);
+
+    const [snap, totalCount] = await Promise.all([q.get(), totalCountPromise]);
     const hasMore = snap.size > pageSize;
     const docs = hasMore ? snap.docs.slice(0, pageSize) : snap.docs;
 
@@ -102,6 +113,7 @@ export async function GET(
       nextCursor,
       hasMore,
       pageSize,
+      totalCount,
       deploymentId,
       userId: uid,
       exchange,

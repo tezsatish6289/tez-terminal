@@ -343,7 +343,10 @@ async function syncUserTrades(
         if (livePrice != null) {
           const isBuy = lt.side === "BUY";
           const priceDiff = isBuy ? livePrice - lt.entryPrice : lt.entryPrice - livePrice;
-          const unrealizedPnl = (priceDiff / lt.entryPrice) * lt.positionSize * lt.leverage;
+          // Futures unrealised PnL = priceMove% * notional. `lt.positionSize`
+          // is already the notional value at entry (entryPrice * fillQty), so
+          // there is no leverage multiplier here.
+          const unrealizedPnl = (priceDiff / lt.entryPrice) * lt.positionSize;
 
           const liveScored = lt.signalId ? (liveScores.get(lt.signalId) ?? null) : null;
           await db.collection("live_trades").doc(lt.id!).update({
@@ -590,7 +593,9 @@ async function syncUserTrades(
         if (t.status !== "OPEN") continue;
         const lp = getPrice(allPrices, t.signalSymbol, exchange) ?? t.entryPrice;
         const priceDiff = t.side === "BUY" ? lp - t.entryPrice : t.entryPrice - lp;
-        unrealizedPnl += priceDiff * t.remainingQty * t.leverage;
+        // remainingQty is in base coin units → priceDiff * remainingQty is
+        // already in quote currency. No leverage multiplier needed.
+        unrealizedPnl += priceDiff * t.remainingQty;
       }
 
       const totalDailyPnl = dailyRealizedPnl + unrealizedPnl;
@@ -777,7 +782,9 @@ export async function GET(request: NextRequest) {
               const closePrice = getPrice(allPrices, lt.signalSymbol, "DHAN") ?? lt.entryPrice;
               const isBuy = lt.side === "BUY";
               const priceDiff = isBuy ? closePrice - lt.entryPrice : lt.entryPrice - closePrice;
-              const realizedPnl = (priceDiff / lt.entryPrice) * lt.positionSize * lt.leverage;
+              // Realised PnL = priceMove% * notional. `positionSize` is the
+              // notional value at entry, so no leverage multiplier required.
+              const realizedPnl = (priceDiff / lt.entryPrice) * lt.positionSize;
               const now = new Date().toISOString();
 
               await db.collection("live_trades").doc(lt.id!).update({

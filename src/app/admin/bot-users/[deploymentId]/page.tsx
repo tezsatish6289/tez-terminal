@@ -84,6 +84,7 @@ export default function AdminBotUserDetailPage() {
   const [trades, setTrades] = useState<TradeRow[]>([]);
   const [tradeCursor, setTradeCursor] = useState<string | null>(null);
   const [tradeHasMore, setTradeHasMore] = useState(false);
+  const [tradeTotalCount, setTradeTotalCount] = useState<number | null>(null);
   const [tradesLoading, setTradesLoading] = useState(false);
   const [tradesError, setTradesError] = useState("");
 
@@ -135,6 +136,11 @@ export default function AdminBotUserDetailPage() {
         setTrades((prev) => (append ? [...prev, ...newTrades] : newTrades));
         setTradeCursor(data.nextCursor ?? null);
         setTradeHasMore(!!data.hasMore);
+        // The API only returns totalCount on the first page (no cursor),
+        // so we only overwrite when we explicitly asked for that page.
+        if (!append && typeof data.totalCount === "number") {
+          setTradeTotalCount(data.totalCount);
+        }
       } catch (e: unknown) {
         setTradesError(e instanceof Error ? e.message : "Unexpected error");
       } finally {
@@ -418,7 +424,10 @@ export default function AdminBotUserDetailPage() {
                     },
                     {
                       label: "Trades",
-                      value: String(trades.length),
+                      value:
+                        tradeTotalCount != null && tradeTotalCount !== trades.length
+                          ? `${trades.length} / ${tradeTotalCount}`
+                          : String(tradeTotalCount ?? trades.length),
                       color: "#60a5fa",
                     },
                     {
@@ -653,7 +662,11 @@ export default function AdminBotUserDetailPage() {
                   onClick={() => void fetchTradesPage(tradeCursor, true)}
                   className="px-4 py-2 rounded-lg border border-white/10 bg-white/[0.04] text-xs font-bold uppercase tracking-wider text-accent hover:bg-white/[0.08] disabled:opacity-50"
                 >
-                  {tradesLoading ? "Loading…" : "Load more (50)"}
+                  {tradesLoading
+                    ? "Loading…"
+                    : tradeTotalCount != null
+                      ? `Load more (${Math.min(50, tradeTotalCount - trades.length)} of ${tradeTotalCount - trades.length} remaining)`
+                      : "Load more (50)"}
                 </button>
               )}
             </TabsContent>

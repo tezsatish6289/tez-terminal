@@ -567,6 +567,11 @@ export class BybitConnector implements ExchangeConnector {
   // ── Order Management ────────────────────────────────────────
 
   async cancelOrder(symbol: string, orderId: string, creds: ExchangeCredentials): Promise<Order> {
+    // Try StopOrder first (covers conditional SL / TP triggers), then regular.
+    // We always continue to the next filter on any error so a transient failure
+    // on the wrong bucket can't strand an order. Only after both buckets fail
+    // do we raise.
+    let lastErr: unknown = null;
     for (const orderFilter of ["StopOrder", "Order"]) {
       try {
         await signedPost(
@@ -591,14 +596,31 @@ export class BybitConnector implements ExchangeConnector {
           updateTime: Date.now(),
         };
       } catch (e) {
-        if (e instanceof ExchangeApiError && orderFilter === "StopOrder") continue;
-        throw e;
+        lastErr = e;
+        continue;
       }
     }
-    throw new ExchangeApiError("Order not found for cancellation", 110001, "/v5/order/cancel", "BYBIT");
+    if (lastErr instanceof ExchangeApiError) throw lastErr;
+    throw new ExchangeApiError(
+      lastErr instanceof Error ? lastErr.message : "Order not found for cancellation",
+      110001,
+      "/v5/order/cancel",
+      "BYBIT"
+    );
   }
 
+  /**
+   * Bulk-cancel all open orders for `symbol` across both regular and conditional
+   * (StopOrder / take-profit-market) buckets.
+   *
+   * Bybit's `/v5/order/cancel-all` requires `orderFilter` and only cancels one
+   * bucket per call. Bybit returns retCode 110001 ("order not exists or too late
+   * to cancel") for an empty bucket — that's expected and not a real failure.
+   * Anything else is rethrown so callers can either retry or fall back to a
+   * per-order cancel sweep.
+   */
   async cancelAllOrders(symbol: string, creds: ExchangeCredentials): Promise<void> {
+    const failures: string[] = [];
     for (const orderFilter of ["Order", "StopOrder"]) {
       try {
         await signedPost(
@@ -606,9 +628,23 @@ export class BybitConnector implements ExchangeConnector {
           { category: "linear", symbol, orderFilter },
           creds
         );
-      } catch {
-        // best effort
+      } catch (e) {
+        // 110001: nothing to cancel in this bucket — safe to ignore.
+        // Anything else (network, auth, rate-limit) is captured and surfaced
+        // so the caller can verify + retry instead of silently leaking orders.
+        if (e instanceof ExchangeApiError && e.code === 110001) continue;
+        failures.push(
+          `[${orderFilter}] ${e instanceof Error ? e.message : String(e)}`
+        );
       }
+    }
+    if (failures.length > 0) {
+      throw new ExchangeApiError(
+        `cancelAllOrders partial failure: ${failures.join("; ")}`,
+        -1,
+        "/v5/order/cancel-all",
+        "BYBIT"
+      );
     }
   }
 

@@ -56,6 +56,11 @@ export interface LiveTrade {
   exchangeRealizedPnl: number | null;    // actual PnL reported by the exchange after close
   /** Optional manual correction (USD). When set, dashboards should prefer this over exchange + model. */
   exchangeRealizedPnlOverride?: number | null;
+  /** True when a close path could not verify all residual SL/TP orders were cancelled.
+   *  The cron picks these up on its next pass and runs another cancel sweep. */
+  residualOrdersPendingCleanup?: boolean;
+  /** OrderId of the market-close order placed by `protectiveClose` (used for PnL reconciliation). */
+  closeOrderId?: string | null;
   exchangeAvgEntryPrice: number | null;  // actual average entry fill price from exchange
   exchangeAvgExitPrice: number | null;   // actual average exit fill price from exchange
   exchangeQty: number | null;            // actual filled quantity from exchange
@@ -104,6 +109,112 @@ export function decryptCredentials(encryptedKey: string, encryptedSecret: string
     apiKey: decrypt(encryptedKey),
     apiSecret: decrypt(encryptedSecret),
   };
+}
+
+// ── Residual Order Cleanup ──────────────────────────────────────
+
+export interface CancelResidualResult {
+  success: boolean;
+  cancelledCount: number;
+  remainingCount: number;
+  attempts: number;
+  errors: string[];
+}
+
+/**
+ * Robustly cancel every open exit order (SL / TP / trailing SL / any conditional)
+ * for a symbol. Used whenever a live trade transitions to CLOSED, so that no
+ * leftover reduce-only triggers can fire against a future position on the same
+ * symbol.
+ *
+ * Strategy:
+ *   1. Call connector.cancelAllOrders (one-shot bulk).
+ *   2. Verify with getOpenOrders. If any survive, cancel each individually.
+ *   3. Repeat up to `maxAttempts` if anything is still open (handles eventual
+ *      consistency on the venue side).
+ *
+ * Never throws — returns a structured result the caller can log / persist.
+ * Callers should treat `success === false` as "schedule another cleanup pass"
+ * (e.g. flag the trade for retry on the next cron tick).
+ */
+export async function cancelResidualExitOrders(
+  connector: ExchangeConnector,
+  symbol: string,
+  creds: Credentials,
+  maxAttempts = 3,
+): Promise<CancelResidualResult> {
+  const result: CancelResidualResult = {
+    success: false,
+    cancelledCount: 0,
+    remainingCount: 0,
+    attempts: 0,
+    errors: [],
+  };
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    result.attempts = attempt;
+
+    try {
+      await connector.cancelAllOrders(symbol, creds);
+    } catch (e) {
+      result.errors.push(
+        `attempt ${attempt} cancelAll: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+
+    let remaining: Order[] = [];
+    try {
+      remaining = await connector.getOpenOrders(symbol, creds);
+    } catch (e) {
+      result.errors.push(
+        `attempt ${attempt} getOpenOrders: ${e instanceof Error ? e.message : String(e)}`,
+      );
+      // Without verification we can't know — try again next cycle.
+      if (attempt === maxAttempts) {
+        result.remainingCount = -1;
+        return result;
+      }
+      await new Promise((r) => setTimeout(r, 350 * attempt));
+      continue;
+    }
+
+    if (remaining.length === 0) {
+      result.success = true;
+      result.remainingCount = 0;
+      return result;
+    }
+
+    // Bulk-cancel didn't clear everything — try per-order cancel as fallback.
+    const cancelOutcomes = await Promise.allSettled(
+      remaining.map((o) => connector.cancelOrder(symbol, o.orderId, creds)),
+    );
+    for (let i = 0; i < cancelOutcomes.length; i++) {
+      const out = cancelOutcomes[i];
+      if (out.status === "fulfilled") {
+        result.cancelledCount++;
+      } else {
+        const reason = out.reason instanceof Error ? out.reason.message : String(out.reason);
+        result.errors.push(`attempt ${attempt} cancel ${remaining[i].orderId}: ${reason}`);
+      }
+    }
+
+    if (attempt < maxAttempts) {
+      await new Promise((r) => setTimeout(r, 350 * attempt));
+    }
+  }
+
+  // Final verification after the last attempt
+  try {
+    const finalOpen = await connector.getOpenOrders(symbol, creds);
+    result.remainingCount = finalOpen.length;
+    result.success = finalOpen.length === 0;
+  } catch (e) {
+    result.errors.push(`final verify: ${e instanceof Error ? e.message : String(e)}`);
+    result.remainingCount = -1;
+    result.success = false;
+  }
+
+  return result;
 }
 
 // ── Core: Execute Trade ────────────────────────────────────────
@@ -368,10 +479,19 @@ export async function handleTpFill(
     updatedFields.status = "CLOSED";
     updatedFields.closedAt = new Date().toISOString();
     updatedFields.closeReason = `TP${tpLevel}`;
-    try {
-      await connector.cancelAllOrders(trade.symbol, creds);
-    } catch {
-      // best effort
+    updatedFields.slOrderId = null;
+    updatedFields.tp1OrderId = null;
+    updatedFields.tp2OrderId = null;
+    updatedFields.tp3OrderId = null;
+
+    const cleanup = await cancelResidualExitOrders(connector, trade.symbol, creds);
+    if (!cleanup.success) {
+      updatedFields.residualOrdersPendingCleanup = true;
+      warnings.push(
+        `Residual exit orders may remain on ${trade.exchange} for ${trade.symbol} (remaining=${cleanup.remainingCount}); will retry next cycle. Errors: ${cleanup.errors.join(" | ")}`,
+      );
+    } else {
+      updatedFields.residualOrdersPendingCleanup = false;
     }
   }
 
@@ -388,7 +508,9 @@ export async function handleSlFill(
 ): Promise<{
   updatedFields: Partial<LiveTrade>;
   newEvent: LiveTradeEvent;
+  warnings: string[];
 }> {
+  const warnings: string[] = [];
   const closePct = fillQty / trade.quantity;
   const priceDiff = trade.side === "BUY"
     ? fillPrice - trade.entryPrice
@@ -407,13 +529,11 @@ export async function handleSlFill(
     timestamp: new Date().toISOString(),
   };
 
-  // Cancel leftover orders (e.g. TP1) on the exchange
+  // Cancel leftover orders (e.g. TP1) on the exchange — verified.
+  // SL hit means the position is gone; any surviving reduce-only TP would
+  // attach itself to the next position on this symbol.
   const connector = getConnector(trade.exchange);
-  try {
-    await connector.cancelAllOrders(trade.symbol, creds);
-  } catch {
-    // best effort
-  }
+  const cleanup = await cancelResidualExitOrders(connector, trade.symbol, creds);
 
   const updatedFields: Partial<LiveTrade> = {
     slHit: true,
@@ -427,9 +547,16 @@ export async function handleSlFill(
     tp2OrderId: null,
     tp3OrderId: null,
     slOrderId: null,
+    residualOrdersPendingCleanup: !cleanup.success,
   };
 
-  return { updatedFields, newEvent: event };
+  if (!cleanup.success) {
+    warnings.push(
+      `Residual exit orders may remain on ${trade.exchange} for ${trade.symbol} (remaining=${cleanup.remainingCount}); will retry next cycle. Errors: ${cleanup.errors.join(" | ")}`,
+    );
+  }
+
+  return { updatedFields, newEvent: event, warnings };
 }
 
 // ── Trailing SL Handler ────────────────────────────────────────
@@ -509,21 +636,22 @@ export async function protectiveClose(
   updatedFields: Partial<LiveTrade>;
   newEvent: LiveTradeEvent;
   warning?: string;
+  closeOrderId?: string;
 }> {
   const connector = getConnector(trade.exchange);
 
-  try {
-    await connector.cancelAllOrders(trade.symbol, creds);
-  } catch {
-    // best effort
-  }
+  // Cancel residual SL/TP first so they don't fire concurrently with our market close.
+  // Best-effort here — failures are surfaced via residualOrdersPendingCleanup below.
+  const preCleanup = await cancelResidualExitOrders(connector, trade.symbol, creds, 2);
 
   let fillPrice = currentPrice;
   let fillQty = trade.remainingQty;
+  let closeOrderId: string | undefined;
   try {
     const closeOrder = await connector.placeMarketClose(trade.symbol, trade.side, trade.remainingQty, creds);
     fillPrice = parseFloat(closeOrder.avgPrice || closeOrder.price) || currentPrice;
     fillQty = parseFloat(closeOrder.executedQty) || trade.remainingQty;
+    closeOrderId = closeOrder.orderId;
   } catch (e) {
     return {
       updatedFields: {},
@@ -540,6 +668,12 @@ export async function protectiveClose(
       warning: `Protective close failed: ${e instanceof Error ? e.message : String(e)}`,
     };
   }
+
+  // Final cleanup pass — even if pre-cleanup succeeded, a stop could have been
+  // (re-)placed mid-flight by another cron iteration. Verify nothing remains.
+  const postCleanup = await cancelResidualExitOrders(connector, trade.symbol, creds);
+  const cleanupOk = preCleanup.success && postCleanup.success;
+  const cleanupErrors = [...preCleanup.errors, ...postCleanup.errors];
 
   const closePct = fillQty / trade.quantity;
   const priceDiff = trade.side === "BUY"
@@ -561,6 +695,8 @@ export async function protectiveClose(
       tp1OrderId: null,
       tp2OrderId: null,
       tp3OrderId: null,
+      residualOrdersPendingCleanup: !cleanupOk,
+      ...(closeOrderId ? { closeOrderId } : {}),
     },
     newEvent: {
       type: reason,
@@ -569,9 +705,13 @@ export async function protectiveClose(
       fee,
       closePct,
       quantity: fillQty,
-      orderId: null,
+      orderId: closeOrderId ?? null,
       timestamp: new Date().toISOString(),
     },
+    closeOrderId,
+    warning: cleanupOk
+      ? undefined
+      : `Residual exit orders may remain on ${trade.exchange} for ${trade.symbol} after protective close; will retry next cycle. Errors: ${cleanupErrors.join(" | ")}`,
   };
 }
 

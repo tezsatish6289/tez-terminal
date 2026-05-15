@@ -14,18 +14,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore, getAdminAuth } from "@/firebase/admin";
 import {
   loadCryptoCredentials,
-  computeClosedTradeExchangePnlMetrics,
-  selectClosedPnlRecordsForTrade,
-  bybitReconcileOrderIdsFromLiveTrade,
-  coindcxClosedPnlWindowOpts,
-  bybitClosedPnlWindowOpts,
-  bybitClosedPnlApiEndMs,
-  exchangeClosedPnlFetchStartMs,
+  reconcileTradeExchangePnl,
 } from "@/lib/freedombot/reconcile-exchange-pnl";
 import {
   getConnector,
   type ExchangeName,
 } from "@/lib/exchanges";
+import { cancelResidualExitOrders } from "@/lib/trade-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -63,59 +58,56 @@ export async function POST(req: NextRequest) {
     const connector = getConnector(exchange);
     const normalizedSymbol = connector.normalizeSymbol(symbol);
     const nowIso = new Date().toISOString();
-    const tradeWindowOpts = {
-      tradeSide: (String(t.side ?? "BUY").toUpperCase() === "SELL" ? "SELL" : "BUY") as "BUY" | "SELL",
-      matchAnyOrderId:
-        exchange === "BYBIT"
-          ? bybitReconcileOrderIdsFromLiveTrade(t as Record<string, unknown>)
-          : undefined,
-      ...(exchange === "COINDCX" ? coindcxClosedPnlWindowOpts() : {}),
-      ...(exchange === "BYBIT" ? bybitClosedPnlWindowOpts() : {}),
-    };
+
+    // Build the trade descriptor used by reconcileTradeExchangePnl. Includes
+    // every order id we've ever touched on this trade (entry / SL / TPs / close
+    // / historical SLs from trailing) so Bybit's order-id match has the best
+    // possible chance of finding the closed-PnL row.
+    const buildTradeDescriptor = (closedAt: string) => ({
+      symbol: normalizedSymbol,
+      openedAt: String(t.openedAt ?? new Date(0).toISOString()),
+      closedAt,
+      side: (String(t.side ?? "BUY").toUpperCase() === "SELL" ? "SELL" : "BUY") as "BUY" | "SELL",
+      entryOrderId: typeof t.entryOrderId === "string" ? t.entryOrderId : undefined,
+      slOrderId: typeof t.slOrderId === "string" ? t.slOrderId : null,
+      tp1OrderId: typeof t.tp1OrderId === "string" ? t.tp1OrderId : null,
+      tp2OrderId: typeof t.tp2OrderId === "string" ? t.tp2OrderId : null,
+      tp3OrderId: typeof t.tp3OrderId === "string" ? t.tp3OrderId : null,
+      closeOrderId: typeof t.closeOrderId === "string" ? t.closeOrderId : null,
+      historicalSlOrderIds: Array.isArray(t.historicalSlOrderIds)
+        ? (t.historicalSlOrderIds as string[])
+        : [],
+    });
 
     // ── Case 1: trade already CLOSED in Firestore — reconcile PnL only ──────
     if (t.status === "CLOSED") {
       if (typeof connector.getClosedPnl !== "function") {
         return NextResponse.json({ status: "closed", pnlReconciled: false, reason: "exchange_no_closed_pnl_api" });
       }
-      const openedAtMs = new Date(String(t.openedAt ?? 0)).getTime();
-      const closedAtMs = t.closedAt ? new Date(String(t.closedAt)).getTime() : Date.now();
-      const endArg = exchange === "BYBIT" ? bybitClosedPnlApiEndMs(closedAtMs) : undefined;
-      const records = await connector.getClosedPnl!(
-        normalizedSymbol,
+      const closedAtIso = String(t.closedAt ?? nowIso);
+      const recon = await reconcileTradeExchangePnl(
+        db,
+        tradeId,
+        buildTradeDescriptor(closedAtIso),
         creds,
-        exchangeClosedPnlFetchStartMs(exchange, openedAtMs),
-        endArg,
+        exchange,
+        // Slightly more retries than the cron's tick so a manual click is more
+        // likely to succeed when the venue is just lagging.
+        { maxAttempts: 6, delayMs: 800 },
       );
-      const metrics = computeClosedTradeExchangePnlMetrics(
-        records,
-        openedAtMs,
-        closedAtMs,
-        tradeWindowOpts,
-      );
-      if (metrics.recordCount === 0) {
+      if (!recon.reconciled) {
         return NextResponse.json({
           status: "closed",
           pnlReconciled: false,
-          reason: "no_closed_pnl_rows_in_window",
+          reason: recon.reason ?? "no_closed_pnl_rows_in_window",
+          attempts: recon.attempts,
         });
       }
-      await tradeDoc.ref.update({
-        exchangeRealizedPnl: Number(metrics.exchangeRealizedPnl.toFixed(6)),
-        exchangePnlReconciledAt: nowIso,
-        exchangePnlSource: "exchange_closed_pnl_api",
-        ...(metrics.exchangeAvgEntryPrice != null
-          ? { exchangeAvgEntryPrice: metrics.exchangeAvgEntryPrice }
-          : {}),
-        ...(metrics.exchangeAvgExitPrice != null
-          ? { exchangeAvgExitPrice: metrics.exchangeAvgExitPrice }
-          : {}),
-        ...(metrics.exchangeQty != null ? { exchangeQty: metrics.exchangeQty } : {}),
-      });
       return NextResponse.json({
         status: "closed",
         pnlReconciled: true,
-        exchangeRealizedPnl: Number(metrics.exchangeRealizedPnl.toFixed(6)),
+        exchangeRealizedPnl: recon.exchangeRealizedPnl,
+        attempts: recon.attempts,
       });
     }
 
@@ -134,62 +126,71 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: "open", unrealizedPnl });
     }
 
-    // Position is GONE on exchange but Firestore still says OPEN → close it
-    let exchangePnl = 0;
-    let avgExitPrice: number | null = null;
+    // ── Case 3: position GONE on exchange but Firestore still OPEN → close ──
+    // 1) Cancel any leftover SL/TP triggers (verified — see cancelResidualExitOrders).
+    //    Reduce-only conditional orders can outlive the position and fire against a
+    //    future position on the same symbol if we leave them behind.
+    const cleanup = await cancelResidualExitOrders(connector, normalizedSymbol, creds);
+    const residualPending = !cleanup.success;
 
-    // Cancel any leftover SL/TP orders on the exchange. The position is already
-    // gone, so cancelAllOrders will use the getOpenOrders fallback internally.
-    try {
-      await connector.cancelAllOrders(normalizedSymbol, creds);
-    } catch {
-      // best effort — don't block the sync if cancel fails
-    }
-
-    if (typeof connector.getClosedPnl === "function") {
-      const openedAtMs = new Date(String(t.openedAt ?? 0)).getTime();
-      const closedAtMs = Date.now();
-      const endArg = exchange === "BYBIT" ? bybitClosedPnlApiEndMs(closedAtMs) : undefined;
-      const records = await connector.getClosedPnl!(
-        normalizedSymbol,
-        creds,
-        exchangeClosedPnlFetchStartMs(exchange, openedAtMs),
-        endArg,
-      );
-      const metrics = computeClosedTradeExchangePnlMetrics(
-        records,
-        openedAtMs,
-        closedAtMs,
-        tradeWindowOpts,
-      );
-      exchangePnl = metrics.exchangeRealizedPnl;
-      const lastInWin = selectClosedPnlRecordsForTrade(
-        records,
-        openedAtMs,
-        closedAtMs,
-        tradeWindowOpts,
-      ).sort(
-        (a, b) => (b.createdTime ?? 0) - (a.createdTime ?? 0),
-      )[0];
-      avgExitPrice = lastInWin
-        ? (parseFloat(String(lastInWin.avgExitPrice ?? 0)) || null)
-        : null;
-    }
-
+    // 2) Mark the trade CLOSED first WITHOUT touching exchangeRealizedPnl. We do
+    //    this before reconciliation so the trade can never be left in OPEN state
+    //    if Bybit hasn't indexed the closed-pnl row yet — the cron's backfill
+    //    loop will fill it in within a minute.
     await tradeDoc.ref.update({
       status: "CLOSED",
       closedAt: nowIso,
       closeReason: "SYNCED_FROM_EXCHANGE",
-      exchangeRealizedPnl: Number(exchangePnl.toFixed(6)),
-      exchangePnlReconciledAt: nowIso,
-      exchangePnlSource: "exchange_closed_pnl_api",
-      ...(avgExitPrice ? { exchangeAvgExitPrice: avgExitPrice, currentPrice: avgExitPrice } : {}),
+      residualOrdersPendingCleanup: residualPending,
+      slOrderId: null,
+      tp1OrderId: null,
+      tp2OrderId: null,
+      tp3OrderId: null,
     });
+
+    // 3) Try to reconcile exchange PnL right away (with retries). If it fails,
+    //    we deliberately do NOT write `exchangeRealizedPnl: 0` — that would
+    //    poison the cron backfill (which only retries trades where the field
+    //    is null). The cron will pick this up on its next pass.
+    if (typeof connector.getClosedPnl !== "function") {
+      return NextResponse.json({
+        status: "closed_now",
+        pnlReconciled: false,
+        reason: "exchange_no_closed_pnl_api",
+        residualOrdersPendingCleanup: residualPending,
+      });
+    }
+
+    const recon = await reconcileTradeExchangePnl(
+      db,
+      tradeId,
+      buildTradeDescriptor(nowIso),
+      creds,
+      exchange,
+      { maxAttempts: 6, delayMs: 800 },
+    );
+
+    if (!recon.reconciled) {
+      return NextResponse.json({
+        status: "closed_now",
+        pnlReconciled: false,
+        reason: recon.reason ?? "no_closed_pnl_rows_in_window",
+        attempts: recon.attempts,
+        residualOrdersPendingCleanup: residualPending,
+      });
+    }
+
+    if (recon.exchangeAvgExitPrice != null && recon.exchangeAvgExitPrice > 0) {
+      await tradeDoc.ref.update({ currentPrice: recon.exchangeAvgExitPrice });
+    }
 
     return NextResponse.json({
       status: "closed_now",
-      exchangeRealizedPnl: Number(exchangePnl.toFixed(6)),
-      avgExitPrice,
+      pnlReconciled: true,
+      exchangeRealizedPnl: recon.exchangeRealizedPnl,
+      avgExitPrice: recon.exchangeAvgExitPrice ?? null,
+      attempts: recon.attempts,
+      residualOrdersPendingCleanup: residualPending,
     });
 
   } catch (err: unknown) {

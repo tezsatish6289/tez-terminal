@@ -1160,6 +1160,8 @@ export default function FreedomBotDashboard() {
               pnlReconciled?: boolean;
               reason?: string;
               status?: string;
+              exchangeRealizedPnl?: number;
+              residualOrdersPendingCleanup?: boolean;
             };
             if (!res.ok) {
               toast({
@@ -1167,13 +1169,23 @@ export default function FreedomBotDashboard() {
                 title: "Sync failed",
                 description: data.error ?? `HTTP ${res.status}`,
               });
+            } else if (data.status === "closed_now" && data.pnlReconciled === true) {
+              toast({
+                title: "Trade closed & P&L synced",
+                description: `The exchange position was already closed. We've cleaned up any leftover orders and pulled the realized P&L.${data.residualOrdersPendingCleanup ? " (Some leftover orders will be cleared on the next cycle.)" : ""}`,
+              });
+            } else if (data.status === "closed_now" && data.pnlReconciled === false) {
+              toast({
+                title: "Trade closed — P&L pending",
+                description: "The exchange position was closed and any leftover orders were cancelled. The realized P&L is not yet indexed by the exchange and will be filled in automatically within a minute.",
+              });
             } else if (data.pnlReconciled === false && data.reason) {
               toast({
                 variant: "destructive",
                 title: "Exchange P&L not available yet",
                 description:
                   data.reason === "no_closed_pnl_rows_in_window"
-                    ? "The exchange has not returned a closed-PnL row for this exit in the search window yet. Wait a few minutes and try again."
+                    ? "The exchange hasn't returned a realized-P&L row for this exit yet (typical lag is a few seconds, sometimes a minute). It will fill in automatically — or click refresh again shortly."
                     : String(data.reason),
               });
             } else if (data.pnlReconciled === true) {

@@ -310,6 +310,12 @@ export async function placeExitOrders(
 
 /**
  * Cancel existing SL and place a new one at a different price.
+ *
+ * Safety: if the old cancel fails with a non-API error (e.g. transient network),
+ * we DO NOT place the new stop, because doing so would leave both stops live
+ * on the exchange. The caller will retry on the next cycle. Only when the
+ * exchange explicitly reports "order not found / already filled" do we treat
+ * the cancel as effectively done and proceed.
  */
 export async function replaceSl(
   connector: ExchangeConnector,
@@ -322,13 +328,28 @@ export async function replaceSl(
   creds: ExchangeCredentials
 ): Promise<{ cancelled: boolean; newOrder: BatchOrderResult }> {
   let cancelled = false;
+  let cancelError: string | null = null;
   try {
     await connector.cancelOrder(symbol, oldSlOrderId, creds);
     cancelled = true;
   } catch (e) {
     if (e instanceof ExchangeApiError) {
-      cancelled = true; // already cancelled or filled
+      // Already cancelled / filled / unknown id — safe to proceed with replacement.
+      cancelled = true;
+    } else {
+      cancelError = e instanceof Error ? e.message : String(e);
     }
+  }
+
+  if (!cancelled) {
+    // Don't place a duplicate stop while the old one is still live.
+    return {
+      cancelled: false,
+      newOrder: {
+        success: false,
+        error: `cancel of old SL ${oldSlOrderId} failed: ${cancelError}`,
+      },
+    };
   }
 
   const exitSide = side === "BUY" ? "SELL" : "BUY";

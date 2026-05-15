@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/firebase/admin";
 import {
   checkOrderFills,
@@ -6,6 +7,7 @@ import {
   handleSlFill,
   moveSlToBreakeven,
   protectiveClose,
+  cancelResidualExitOrders,
   type LiveTrade,
   type Credentials,
 } from "@/lib/trade-engine";
@@ -34,10 +36,54 @@ import {
   bybitClosedPnlWindowOpts,
   bybitClosedPnlApiEndMs,
   exchangeClosedPnlFetchStartMs,
+  reconcileTradeExchangePnl,
+  exchangeSupportsClosedPnlReconciliation,
 } from "@/lib/freedombot/reconcile-exchange-pnl";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+/**
+ * Best-effort: as soon as a trade transitions to CLOSED, fetch the venue's
+ * realized PnL and persist it on the doc. Wrapped in try/catch so a stale row
+ * (Bybit hasn't indexed yet) never blocks the cron. The closed-PnL backfill
+ * loop runs every cycle as a fallback safety net.
+ */
+async function reconcileClosedTradePnlBestEffort(
+  db: FirebaseFirestore.Firestore,
+  tradeId: string,
+  trade: Partial<LiveTrade> & { symbol: string; openedAt: string },
+  exchange: ExchangeName,
+  creds: Credentials,
+): Promise<void> {
+  if (!exchangeSupportsClosedPnlReconciliation(exchange)) return;
+  try {
+    const closedAt = trade.closedAt ?? new Date().toISOString();
+    await reconcileTradeExchangePnl(
+      db,
+      tradeId,
+      {
+        symbol: trade.symbol,
+        openedAt: trade.openedAt,
+        closedAt,
+        side: trade.side as "BUY" | "SELL" | undefined,
+        entryOrderId: trade.entryOrderId,
+        slOrderId: trade.slOrderId ?? null,
+        tp1OrderId: trade.tp1OrderId ?? null,
+        tp2OrderId: trade.tp2OrderId ?? null,
+        tp3OrderId: trade.tp3OrderId ?? null,
+        closeOrderId: trade.closeOrderId ?? null,
+      },
+      creds,
+      exchange,
+      // Tight retry budget so we don't slow down the cron tick. The cron's own
+      // backfill loop will keep trying on subsequent ticks if we miss.
+      { maxAttempts: 3, delayMs: 600 },
+    );
+  } catch {
+    // Never let PnL reconciliation failures derail trade lifecycle.
+  }
+}
 
 /**
  * Per-user trade management. Isolated so one user's failure
@@ -62,6 +108,51 @@ async function syncUserTrades(
   const result = { fills: 0, updates: 0, protectiveCloses: 0, simSlSynced: 0, simCloseSynced: 0, errors: [] as string[] };
 
   try {
+    // ── 0a. Residual order cleanup for trades flagged on previous close ──
+    // When a close-path could not verify all SL/TP orders were cancelled, the
+    // trade is flagged with `residualOrdersPendingCleanup: true`. Retry here
+    // so leftover triggers can't fire against a future position on the same
+    // symbol. Capped at 20/cycle and best-effort — never blocks the rest of sync.
+    try {
+      const residualSnap = await db.collection("live_trades")
+        .where("userId", "==", userId)
+        .where("exchange", "==", exchange)
+        .where("residualOrdersPendingCleanup", "==", true)
+        .limit(20)
+        .get();
+
+      const connector = getConnector(exchange);
+      for (const doc of residualSnap.docs) {
+        const lt = { id: doc.id, ...doc.data() } as LiveTrade;
+        try {
+          const cleanup = await cancelResidualExitOrders(connector, lt.symbol, creds);
+          if (cleanup.success) {
+            await doc.ref.update({ residualOrdersPendingCleanup: false });
+            await db.collection("live_trade_logs").add({
+              timestamp: new Date().toISOString(),
+              action: "RESIDUAL_CLEANUP_OK",
+              details: `${lt.signalSymbol}: leftover exit orders cleared on retry (cancelled=${cleanup.cancelledCount}, attempts=${cleanup.attempts})`,
+              symbol: lt.signalSymbol,
+              userId,
+              exchange,
+              assetType: exchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
+            });
+          } else {
+            // Stay flagged for next cycle — don't spam logs every minute.
+            result.errors.push(
+              `${lt.signalSymbol}: residual cleanup retry still pending (remaining=${cleanup.remainingCount})`
+            );
+          }
+        } catch (err) {
+          result.errors.push(
+            `${lt.signalSymbol}: residual cleanup retry threw — ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+      }
+    } catch {
+      // best effort — never block main sync
+    }
+
     // ── 0. Backfill actual exchange data for closed trades ───────
     // Fetches real PnL, entry/exit prices, and qty from the exchange for
     // any closed trade missing exchangeRealizedPnl. Runs on ALL closed
@@ -158,6 +249,17 @@ async function syncUserTrades(
                 ...slFields,
                 events: [...(lt.events || []), slResult.newEvent],
               });
+              if (slResult.warnings.length) {
+                await db.collection("live_trade_logs").add({
+                  timestamp: new Date().toISOString(),
+                  action: "WARNING",
+                  details: `${lt.signalSymbol} SL warnings: ${slResult.warnings.join("; ")}`,
+                  symbol: lt.signalSymbol,
+                  userId,
+                  exchange,
+                  assetType: exchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
+                });
+              }
               await db.collection("live_trade_logs").add({
                 timestamp: new Date().toISOString(),
                 action: "SL_HIT",
@@ -168,7 +270,10 @@ async function syncUserTrades(
                 assetType: exchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
               });
               lt.status = "CLOSED";
+              Object.assign(lt, slResult.updatedFields);
               result.fills++;
+              // Pull realized PnL from the venue right now while we have creds in hand.
+              await reconcileClosedTradePnlBestEffort(db, lt.id!, lt, exchange, creds);
             } else {
               const tpLevel = fill.type === "TP1" ? 1 : fill.type === "TP2" ? 2 : 3;
               const tpResult = await handleTpFill(lt, tpLevel as 1 | 2 | 3, fill.price, fill.qty, creds);
@@ -200,6 +305,10 @@ async function syncUserTrades(
               Object.assign(lt, tpResult.updatedFields);
               lt.events = updatedEvents;
               result.fills++;
+              // If this TP brought us flat, immediately reconcile exchange PnL.
+              if (tpResult.updatedFields.status === "CLOSED") {
+                await reconcileClosedTradePnlBestEffort(db, lt.id!, lt, exchange, creds);
+              }
             }
           }
         } catch (fillErr: any) {
@@ -283,15 +392,20 @@ async function syncUserTrades(
 
                 if (lt.slOrderId) {
                   // Replace the existing SL order at the new price
+                  const oldSlOrderId = lt.slOrderId;
                   const slResult = await replaceSl(
                     connector, lt.symbol, lt.side, lt.slOrderId,
                     simTsl, lt.remainingQty, info, creds
                   );
                   if (slResult.newOrder.success) {
                     const newSlOrderId = slResult.newOrder.order!.orderId;
+                    // Append the previous SL order id to the doc's history so PnL
+                    // reconciliation can match a venue row referencing it (Bybit
+                    // returns the orderId that actually filled).
                     await db.collection("live_trades").doc(lt.id!).update({
                       trailingSl: simTsl,
                       slOrderId: newSlOrderId,
+                      historicalSlOrderIds: FieldValue.arrayUnion(oldSlOrderId),
                     });
                     Object.assign(lt, { trailingSl: simTsl, slOrderId: newSlOrderId });
                     await db.collection("live_trade_logs").add({
@@ -381,8 +495,10 @@ async function syncUserTrades(
               exchange,
               assetType: exchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
             });
+            Object.assign(lt, closeResult.updatedFields);
             lt.status = "CLOSED";
             result.simCloseSynced++;
+            await reconcileClosedTradePnlBestEffort(db, lt.id!, lt, exchange, creds);
           } else {
             result.errors.push(
               `${lt.signalSymbol}: orphaned close failed${closeResult.warning ? ` — ${closeResult.warning}` : ""} (will retry)`
@@ -416,8 +532,10 @@ async function syncUserTrades(
             exchange,
             assetType: exchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
           });
+          Object.assign(lt, closeResult.updatedFields);
           lt.status = "CLOSED";
           result.simCloseSynced++;
+          await reconcileClosedTradePnlBestEffort(db, lt.id!, lt, exchange, creds);
         } else {
           // Market close failed — Firestore not updated → will retry next cycle
           result.errors.push(
@@ -469,8 +587,10 @@ async function syncUserTrades(
             ...closeResult.updatedFields,
             events: [...(trade.events || []), closeResult.newEvent],
           });
+          Object.assign(trade, closeResult.updatedFields);
           trade.status = "CLOSED";
           result.protectiveCloses++;
+          await reconcileClosedTradePnlBestEffort(db, trade.id!, trade, exchange, creds);
         }
 
         // Disable auto-trade for this exchange

@@ -101,15 +101,31 @@ export function recordTimeMs(r: ClosedPnlRecord): number {
   return t < 1e12 ? t * 1000 : t;
 }
 
-/** Order ids stored on `live_trades` that may appear on Bybit closed-PnL rows. */
+/** Order ids stored on `live_trades` that may appear on Bybit closed-PnL rows.
+ *  Includes `closeOrderId` from protective closes and any historical SL ids
+ *  the trade has accumulated through trailing-stop replacements (see
+ *  `historicalSlOrderIds` populated in the cron). */
 export function bybitReconcileOrderIdsFromLiveTrade(data: Record<string, unknown>): string[] {
-  const keys = ["entryOrderId", "slOrderId", "tp1OrderId", "tp2OrderId", "tp3OrderId"] as const;
-  const out: string[] = [];
-  for (const k of keys) {
+  const out = new Set<string>();
+  const scalarKeys = [
+    "entryOrderId",
+    "slOrderId",
+    "tp1OrderId",
+    "tp2OrderId",
+    "tp3OrderId",
+    "closeOrderId",
+  ] as const;
+  for (const k of scalarKeys) {
     const v = data[k];
-    if (typeof v === "string" && v.trim().length > 0) out.push(v.trim());
+    if (typeof v === "string" && v.trim().length > 0) out.add(v.trim());
   }
-  return out;
+  const hist = data["historicalSlOrderIds"];
+  if (Array.isArray(hist)) {
+    for (const v of hist) {
+      if (typeof v === "string" && v.trim().length > 0) out.add(v.trim());
+    }
+  }
+  return Array.from(out);
 }
 
 export interface ClosedPnlWindowOpts {
@@ -239,9 +255,135 @@ export function computeClosedTradeExchangePnlMetrics(
   };
 }
 
+export interface ReconcileTradeExchangePnlResult {
+  reconciled: boolean;
+  recordCount: number;
+  exchangeRealizedPnl?: number;
+  exchangeAvgExitPrice?: number | null;
+  attempts: number;
+  reason?: string;
+}
+
 /**
- * After a Bybit live trade is marked CLOSED, pull `/v5/position/closed-pnl` and persist
- * exchange-reported PnL (retries while the venue has not yet indexed the close).
+ * After a live trade is marked CLOSED, pull the venue's closed-PnL rows and
+ * persist `exchangeRealizedPnl` (and entry/exit/qty when available).
+ *
+ * Retries up to `maxAttempts` while the venue hasn't yet indexed the close.
+ * Never writes a "0" placeholder when no rows are found — leaves the field
+ * untouched so a future tick can fill it in.
+ *
+ * Exchange-agnostic: works for any connector exposing `getClosedPnl`.
+ * Bybit-specific tuning (order id matching + 30m/6h window) is applied
+ * automatically when `exchange === "BYBIT"`.
+ */
+export async function reconcileTradeExchangePnl(
+  db: Firestore,
+  tradeDocId: string,
+  trade: {
+    symbol: string;
+    openedAt: string;
+    closedAt: string | null;
+    side?: "BUY" | "SELL";
+    entryOrderId?: string;
+    slOrderId?: string | null;
+    tp1OrderId?: string | null;
+    tp2OrderId?: string | null;
+    tp3OrderId?: string | null;
+    closeOrderId?: string | null;
+    historicalSlOrderIds?: string[];
+  },
+  creds: ExchangeCredentials,
+  exchange: ExchangeName,
+  opts?: { maxAttempts?: number; delayMs?: number },
+): Promise<ReconcileTradeExchangePnlResult> {
+  const maxAttempts = opts?.maxAttempts ?? 5;
+  const delayMs = opts?.delayMs ?? 900;
+
+  if (!trade.closedAt) return { reconciled: false, recordCount: 0, attempts: 0, reason: "trade_not_closed" };
+  const connector = getConnector(exchange);
+  if (typeof connector.getClosedPnl !== "function") {
+    return { reconciled: false, recordCount: 0, attempts: 0, reason: "exchange_no_closed_pnl_api" };
+  }
+
+  const openedAtMs = new Date(trade.openedAt).getTime();
+  const closedAtMs = new Date(trade.closedAt).getTime();
+  if (!Number.isFinite(openedAtMs) || !Number.isFinite(closedAtMs)) {
+    return { reconciled: false, recordCount: 0, attempts: 0, reason: "invalid_timestamps" };
+  }
+
+  const windowOpts = {
+    tradeSide: trade.side === "SELL" ? "SELL" : "BUY" as "BUY" | "SELL",
+    matchAnyOrderId:
+      exchange === "BYBIT"
+        ? bybitReconcileOrderIdsFromLiveTrade(trade as Record<string, unknown>)
+        : undefined,
+    ...(exchange === "COINDCX" ? coindcxClosedPnlWindowOpts() : {}),
+    ...(exchange === "BYBIT" ? bybitClosedPnlWindowOpts() : {}),
+  };
+
+  const fetchMetrics = async () => {
+    const records = await connector.getClosedPnl!(
+      trade.symbol,
+      creds,
+      Math.max(0, exchangeClosedPnlFetchStartMs(exchange, openedAtMs)),
+      exchange === "BYBIT" ? bybitClosedPnlApiEndMs(closedAtMs) : undefined,
+    );
+    const metrics = computeClosedTradeExchangePnlMetrics(records, openedAtMs, closedAtMs, windowOpts);
+    const inWin = selectClosedPnlRecordsForTrade(records, openedAtMs, closedAtMs, windowOpts).sort(
+      (a, b) => (b.createdTime ?? 0) - (a.createdTime ?? 0),
+    );
+    const lastExitPrice = inWin[0]
+      ? (parseFloat(String(inWin[0].avgExitPrice ?? 0)) || null)
+      : null;
+    return { metrics, lastExitPrice };
+  };
+
+  let attempts = 0;
+  let result = await fetchMetrics();
+  attempts++;
+
+  while (attempts < maxAttempts && result.metrics.recordCount === 0) {
+    await new Promise((r) => setTimeout(r, delayMs));
+    result = await fetchMetrics();
+    attempts++;
+  }
+
+  if (result.metrics.recordCount === 0) {
+    return {
+      reconciled: false,
+      recordCount: 0,
+      attempts,
+      reason: "no_closed_pnl_rows_in_window",
+    };
+  }
+
+  const { metrics, lastExitPrice } = result;
+  const nowIso = new Date().toISOString();
+  await db.collection("live_trades").doc(tradeDocId).update({
+    exchangeRealizedPnl: Number(metrics.exchangeRealizedPnl.toFixed(6)),
+    ...(metrics.exchangeAvgEntryPrice != null
+      ? { exchangeAvgEntryPrice: metrics.exchangeAvgEntryPrice }
+      : {}),
+    ...(metrics.exchangeAvgExitPrice != null
+      ? { exchangeAvgExitPrice: metrics.exchangeAvgExitPrice }
+      : {}),
+    ...(metrics.exchangeQty != null ? { exchangeQty: metrics.exchangeQty } : {}),
+    exchangePnlReconciledAt: nowIso,
+    exchangePnlSource: "exchange_closed_pnl_api",
+  });
+
+  return {
+    reconciled: true,
+    recordCount: metrics.recordCount,
+    exchangeRealizedPnl: Number(metrics.exchangeRealizedPnl.toFixed(6)),
+    exchangeAvgExitPrice: lastExitPrice,
+    attempts,
+  };
+}
+
+/**
+ * @deprecated Use `reconcileTradeExchangePnl(..., "BYBIT")` instead.
+ * Retained for callers in older code paths.
  */
 export async function applyBybitExchangeClosedPnlAfterClose(
   db: Firestore,
@@ -259,49 +401,7 @@ export async function applyBybitExchangeClosedPnlAfterClose(
   },
   creds: ExchangeCredentials,
 ): Promise<void> {
-  if (!trade.closedAt) return;
-  const connector = getConnector("BYBIT");
-  if (typeof connector.getClosedPnl !== "function") return;
-
-  const openedAtMs = new Date(trade.openedAt).getTime();
-  const closedAtMs = new Date(trade.closedAt).getTime();
-  if (!Number.isFinite(openedAtMs) || !Number.isFinite(closedAtMs)) return;
-
-  const fetchMetrics = async () => {
-    const records = await connector.getClosedPnl!(
-      trade.symbol,
-      creds,
-      Math.max(0, exchangeClosedPnlFetchStartMs("BYBIT", openedAtMs)),
-      bybitClosedPnlApiEndMs(closedAtMs),
-    );
-    return computeClosedTradeExchangePnlMetrics(records, openedAtMs, closedAtMs, {
-      tradeSide: trade.side === "SELL" ? "SELL" : "BUY",
-      matchAnyOrderId: bybitReconcileOrderIdsFromLiveTrade(trade as Record<string, unknown>),
-      ...bybitClosedPnlWindowOpts(),
-    });
-  };
-
-  let metrics = await fetchMetrics();
-  for (let attempt = 0; attempt < 5 && metrics.recordCount === 0; attempt++) {
-    if (attempt > 0) await new Promise((r) => setTimeout(r, 900));
-    metrics = await fetchMetrics();
-  }
-
-  if (metrics.recordCount === 0) return;
-
-  const nowIso = new Date().toISOString();
-  await db.collection("live_trades").doc(tradeDocId).update({
-    exchangeRealizedPnl: Number(metrics.exchangeRealizedPnl.toFixed(6)),
-    ...(metrics.exchangeAvgEntryPrice != null
-      ? { exchangeAvgEntryPrice: metrics.exchangeAvgEntryPrice }
-      : {}),
-    ...(metrics.exchangeAvgExitPrice != null
-      ? { exchangeAvgExitPrice: metrics.exchangeAvgExitPrice }
-      : {}),
-    ...(metrics.exchangeQty != null ? { exchangeQty: metrics.exchangeQty } : {}),
-    exchangePnlReconciledAt: nowIso,
-    exchangePnlSource: "exchange_closed_pnl_api",
-  });
+  await reconcileTradeExchangePnl(db, tradeDocId, trade, creds, "BYBIT");
 }
 
 export async function loadCryptoCredentials(

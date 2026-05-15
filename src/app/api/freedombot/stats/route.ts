@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+} as const;
 
 export async function GET() {
   try {
@@ -11,7 +16,10 @@ export async function GET() {
     // Open trades are normally only a handful, so this stays effectively O(1)
     // and lets us derive the closed-trade equity used by /simulation and
     // /freedombot/performance from the live ledger without re-summing the
-    // full trade history.
+    // full trade history. The open-trades query is wrapped in its own
+    // try/catch so that a transient failure (e.g. missing composite index)
+    // never breaks the headline endpoint — we just fall back to 0 and the
+    // result becomes simState.capital (live ledger).
     const [stateDoc, metricsSnap, openTradesSnap] = await Promise.all([
       db.collection("config").doc("simulator_state").get(),
       db.collection("daily_metrics").orderBy("date", "asc").limit(1).get(),
@@ -19,7 +27,11 @@ export async function GET() {
         .collection("simulator_trades")
         .where("assetType", "==", "CRYPTO")
         .where("status", "==", "OPEN")
-        .get(),
+        .get()
+        .catch((err) => {
+          console.error("[FreedomBot Stats] open-trades query failed:", err?.message ?? err);
+          return null;
+        }),
     ]);
 
     const state = stateDoc.exists ? (stateDoc.data() as any) : null;
@@ -52,7 +64,7 @@ export async function GET() {
         profitPerYear: null,
         winRate: null,
         totalTrades: 0,
-      });
+      }, { headers: NO_STORE_HEADERS });
     }
 
     const { startingCapital, capital: liveCapital, totalTradesTaken, totalWins } = state;
@@ -64,15 +76,16 @@ export async function GET() {
     // Subtracting the open trades' running realizedPnl strips out their
     // entry-fee deductions and any partial-close P&L that hasn't yet rolled
     // up into a fully closed trade.
-    const openRealizedPnlSum = openTradesSnap.docs.reduce((sum, doc) => {
+    const openRealizedPnlSum = openTradesSnap?.docs?.reduce((sum, doc) => {
       const data = doc.data() as { realizedPnl?: number };
       return sum + (data.realizedPnl ?? 0);
-    }, 0);
+    }, 0) ?? 0;
 
     const closedEquity = parseFloat(
       ((liveCapital ?? startingCapital ?? 0) - openRealizedPnlSum).toFixed(2)
     );
     const derivedCapital = closedEquity;
+    const openTradeCount = openTradesSnap?.size ?? 0;
 
     const totalReturnPct =
       startingCapital > 0
@@ -97,6 +110,10 @@ export async function GET() {
       runningDays,
       startingCapital,
       currentCapital: derivedCapital,
+      // Live ledger value (incl. open-trade entry fees) — useful for clients
+      // that want the raw simState figure without the open-trade stripping.
+      liveCapital: parseFloat((liveCapital ?? startingCapital ?? 0).toFixed(2)),
+      openTradeCount,
       totalReturnPct:       Math.round(totalReturnPct  * 100) / 100,
       profitPerDay:         Math.round(avgDailyPct      * 100) / 100,
       profitPerMonth:       Math.round(profitPerMonth   * 100) / 100,
@@ -104,7 +121,7 @@ export async function GET() {
       profitPerYear:        Math.round(profitPerYear    * 100) / 100,
       winRate,
       totalTrades: totalTradesTaken ?? 0,
-    });
+    }, { headers: NO_STORE_HEADERS });
   } catch (error: any) {
     console.error("[FreedomBot Stats]", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });

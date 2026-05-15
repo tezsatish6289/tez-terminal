@@ -1460,6 +1460,15 @@ function DesktopTradeRow({ trade, onSelect, onForceClose, cs, isHistory, balance
         <Link href={`/chart/${trade.signalId}`} target="_blank" className="text-sm font-black text-white leading-none uppercase tracking-tighter hover:text-accent transition-colors" onClick={(e) => e.stopPropagation()}>
           {trade.symbol}
         </Link>
+        {trade.id && (
+          <div
+            className="font-mono text-[8px] text-muted-foreground/30 hover:text-muted-foreground/60 cursor-pointer transition-colors mt-0.5 truncate max-w-[120px]"
+            title={`ID: ${trade.id} — click to copy`}
+            onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(trade.id!); }}
+          >
+            {trade.id}
+          </div>
+        )}
       </TableCell>
       <TableCell className={cellPy}>
         <Badge className={cn("text-[9px] font-black h-5 uppercase px-2", isBuy ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400")}>
@@ -1792,6 +1801,18 @@ function MobileTradeCard({ trade, onSelect, onForceClose, cs, balance, startingC
                   {isOpen ? "Now" : "Last"} {trade.currentScore}
                 </span>
                 {trade.currentScorePattern && <PatternBadge pattern={trade.currentScorePattern as PatternType} score={null} />}
+              </>
+            )}
+            {trade.id && (
+              <>
+                <span className="text-white/10 ml-auto">·</span>
+                <span
+                  className="font-mono text-[8px] text-muted-foreground/25 hover:text-muted-foreground/50 cursor-pointer transition-colors truncate max-w-[110px]"
+                  title={`ID: ${trade.id} — click to copy`}
+                  onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(trade.id!); }}
+                >
+                  {trade.id}
+                </span>
               </>
             )}
           </div>

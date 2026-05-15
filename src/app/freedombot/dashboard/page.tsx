@@ -696,14 +696,23 @@ export default function FreedomBotDashboard() {
     }
   }, [user]);
 
+  // Tracks the exchange the most recently dispatched fetch is for. Each
+  // in-flight fetch checks this on land — if it no longer matches the tab
+  // the user is currently looking at (because they switched), the response
+  // is silently discarded. Without this, a slow reconcile fetch from the
+  // previous tab can stomp the freshly-loaded data on the current tab,
+  // causing rows to flash in then disappear.
+  const lastFetchExchangeRef = useRef<string | null>(null);
+
   const fetchUserTrades = useCallback(
     async (exchangeForReconcile: string | null, withReconcile = true) => {
       if (!user) return;
+      const exU = exchangeForReconcile?.trim().toUpperCase() ?? "";
+      lastFetchExchangeRef.current = exU || null;
       if (withReconcile) setTradesLoading(true);
       try {
         const idToken = await user.getIdToken();
         const params = new URLSearchParams();
-        const exU = exchangeForReconcile?.trim().toUpperCase() ?? "";
         const isCryptoTab =
           exU.length > 0 &&
           FREEDOMBOT_CRYPTO_EXCHANGES.includes(
@@ -720,6 +729,8 @@ export default function FreedomBotDashboard() {
           headers: { Authorization: `Bearer ${idToken}` },
         });
         const data = await res.json();
+        // Drop stale responses — user has already moved to a different tab.
+        if (lastFetchExchangeRef.current !== (exU || null)) return;
         setTrades(data.trades ?? []);
         setTradesAggregates(
           data.aggregates && typeof data.aggregates.lifetimeRealizedPnl === "number"
@@ -731,10 +742,15 @@ export default function FreedomBotDashboard() {
             : null,
         );
       } catch {
-        setTrades([]);
-        setTradesAggregates(null);
+        // Preserve last known-good state on error — wiping `trades` here is
+        // what causes the table to suddenly empty out when a reconcile fetch
+        // fails (Bybit timeout, rate limit, etc.). Failing silently is the
+        // right UX: the next successful fetch refreshes the data.
+        if (lastFetchExchangeRef.current !== (exU || null)) return;
       } finally {
-        if (withReconcile) setTradesLoading(false);
+        if (withReconcile && lastFetchExchangeRef.current === (exU || null)) {
+          setTradesLoading(false);
+        }
       }
     },
     [user],

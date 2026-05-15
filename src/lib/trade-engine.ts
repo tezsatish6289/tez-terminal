@@ -138,6 +138,14 @@ export async function executeTrade(
     const balance = await connector.getUsdtBalance(creds);
     const exchangeCapital = balance.total;
     if (exchangeCapital <= 0) {
+      if (exchange === "HYPERLIQUID" && "describeZeroPerpBalance" in connector) {
+        const describe = (connector as { describeZeroPerpBalance: (c: Credentials) => Promise<string> })
+          .describeZeroPerpBalance;
+        const detail = await describe(creds).catch(() => null);
+        if (detail) {
+          return { success: false, error: detail, warnings };
+        }
+      }
       const currency =
         exchange === "DHAN" ? "INR" : exchange === "HYPERLIQUID" ? "USDC" : "USDT";
       return { success: false, error: `No ${currency} balance on ${exchange} (${creds.testnet ? "testnet" : "production"})`, warnings };

@@ -115,6 +115,18 @@ export async function POST(req: NextRequest) {
       const connector = getConnector(exchange);
       const balance = await connector.getUsdtBalance(liveCreds);
       if (balance.total < 0) throw new Error("Unexpected negative balance");
+      if (exchange === "HYPERLIQUID" && balance.total <= 0) {
+        const describe =
+          "describeZeroPerpBalance" in connector
+            ? (connector as { describeZeroPerpBalance: (c: ExchangeCredentials) => Promise<string> })
+                .describeZeroPerpBalance
+            : null;
+        throw new Error(
+          describe
+            ? await describe(liveCreds)
+            : "No USDC in your Hyperliquid perps account. Deposit or transfer USDC to perps on app.hyperliquid.xyz before deploying.",
+        );
+      }
 
       // Fetch the stable exchange account UID (Bybit userID survives key rotation)
       const connectorWithUid = connector as {

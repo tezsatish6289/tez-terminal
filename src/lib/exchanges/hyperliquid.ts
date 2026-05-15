@@ -354,32 +354,106 @@ export class HyperliquidConnector implements ExchangeConnector {
     throw new ExchangeApiError(`Order ${oid} not filled (${lastProc ?? "timeout"})`, 408, "/info", "HYPERLIQUID");
   }
 
-  async getBalance(creds: ExchangeCredentials): Promise<FuturesBalance[]> {
+  /**
+   * HL unified / portfolio-margin accounts report balances via spotClearinghouseState,
+   * not perp clearinghouseState (per HL docs). Classic perp accounts use clearinghouseState.
+   */
+  private async isUnifiedStyleAccount(info: InfoClient, master: `0x${string}`): Promise<boolean> {
+    try {
+      const mode = await info.userAbstraction({ user: master });
+      return mode === "unifiedAccount" || mode === "portfolioMargin";
+    } catch {
+      return false;
+    }
+  }
+
+  private async spotUsdcBalances(
+    info: InfoClient,
+    master: `0x${string}`,
+  ): Promise<{ total: number; available: number }> {
+    try {
+      const spot = await info.spotClearinghouseState({ user: master });
+      let total = 0;
+      let hold = 0;
+      for (const row of spot.balances ?? []) {
+        if (String(row.coin ?? "").toUpperCase() !== "USDC") continue;
+        const t = parseFloat(String(row.total ?? "0"));
+        const h = parseFloat(String(row.hold ?? "0"));
+        if (Number.isFinite(t)) total += t;
+        if (Number.isFinite(h)) hold += h;
+      }
+      return { total, available: Math.max(0, total - hold) };
+    } catch {
+      return { total: 0, available: 0 };
+    }
+  }
+
+  private async resolveUsdcBalance(creds: ExchangeCredentials): Promise<{ total: number; available: number }> {
     const { info, master } = clients(creds);
+    const spot = await this.spotUsdcBalances(info, master);
+    const unified = await this.isUnifiedStyleAccount(info, master);
+
+    if (unified) {
+      return spot;
+    }
+
     try {
       const st = await info.clearinghouseState({ user: master });
-      const v = parseFloat(String(st.marginSummary?.accountValue ?? "0"));
-      const w = parseFloat(String(st.withdrawable ?? "0"));
-      return [
-        {
-          asset: "USDC",
-          balance: String(v),
-          availableBalance: String(w),
-          crossUnPnl: "0",
-        },
-      ];
+      const perpTotal = parseFloat(String(st.marginSummary?.accountValue ?? "0"));
+      const perpAvail = parseFloat(String(st.withdrawable ?? "0"));
+      if (perpTotal > 0 || spot.total <= 0) {
+        return { total: perpTotal, available: perpAvail };
+      }
+      return spot;
     } catch (e) {
+      if (spot.total > 0) return spot;
       throw hlError(e, "/info");
     }
   }
 
+  async getBalance(creds: ExchangeCredentials): Promise<FuturesBalance[]> {
+    try {
+      const { total, available } = await this.resolveUsdcBalance(creds);
+      return [
+        {
+          asset: "USDC",
+          balance: String(total),
+          availableBalance: String(available),
+          crossUnPnl: "0",
+        },
+      ];
+    } catch (e) {
+      throw e instanceof ExchangeApiError ? e : hlError(e, "/info");
+    }
+  }
+
   async getUsdtBalance(creds: ExchangeCredentials): Promise<{ total: number; available: number }> {
-    const rows = await this.getBalance(creds);
-    const u = rows.find((b) => b.asset === "USDC") ?? rows[0];
-    return {
-      total: parseFloat(u?.balance ?? "0"),
-      available: parseFloat(u?.availableBalance ?? "0"),
-    };
+    return this.resolveUsdcBalance(creds);
+  }
+
+  /** Actionable copy when resolved USDC balance is zero (live logs / deploy). */
+  async describeZeroPerpBalance(creds: ExchangeCredentials): Promise<string> {
+    const master = normalizeMasterAddress(creds.apiKey);
+    const short = `${master.slice(0, 6)}…${master.slice(-4)}`;
+    const { info } = clients(creds);
+    const unified = await this.isUnifiedStyleAccount(info, master);
+    if (unified) {
+      return (
+        `No USDC balance detected for Hyperliquid wallet ${short} (unified account mode). ` +
+        `Deposit USDC on app.hyperliquid.xyz — you do not need Spot → Perps transfer in unified mode. Bybit balance is separate.`
+      );
+    }
+    const spot = await this.spotUsdcBalances(info, master);
+    if (spot.total > 0) {
+      return (
+        `No USDC in Hyperliquid perps for wallet ${short}, but ~$${spot.total.toFixed(2)} USDC is in HL spot. ` +
+        `Transfer Spot → Perps on app.hyperliquid.xyz, or enable unified account in HL settings.`
+      );
+    }
+    return (
+      `No USDC in Hyperliquid for wallet ${short} (production). ` +
+      `Deposit USDC on app.hyperliquid.xyz. Bybit or other exchanges do not fund this account.`
+    );
   }
 
   /** Stable id for dedupe — main wallet address. */

@@ -238,16 +238,16 @@ export default function SimulationPage() {
   }, [assetType]);
 
   // Sequential trade number AND running balance — both derived from the FULL
-  // `allClosedTrades` history walked oldest-first. The balance is the pure
-  // sum of each trade's net P&L (exit pnl − entry fee), NOT the live ledger
-  // snapshot from `capitalAfter`. This guarantees:
+  // `allClosedTrades` history walked oldest-first. The balance walk simply
+  // accumulates `trade.realizedPnl`, which is initialised to `-entryFee` at
+  // open and grows by `netPnl` (pnl − exitFee) on every exit — i.e. exactly
+  // the value shown in the "Net PNL" column. This guarantees:
   //   1. Chart point #N and history-row #N show the IDENTICAL number.
-  //   2. Consecutive history rows reconcile cleanly: row(N).balance −
-  //      row(N−1).balance equals trade N's net P&L.
-  // Side effects from open-trade entry fees / partial closes between two
-  // consecutive *fully-closed* trades are intentionally excluded so the math
-  // displayed in the table always adds up. The real ledger balance (incl.
-  // those side effects) remains visible in the headline `derivedCapital`.
+  //   2. Consecutive rows reconcile cleanly:
+  //         row(N).balance − row(N−1).balance === trade N's Net PNL.
+  // The headline `derivedCapital` still reflects the true live ledger
+  // (`simState.capital`), which can differ slightly because it also absorbs
+  // entry fees of currently-open trades that haven't closed yet.
   const { tradeNumberMap, balanceAfterMap } = useMemo(() => {
     const sorted = [...allClosedTrades]
       .filter((t) => t.closedAt)
@@ -259,13 +259,7 @@ export default function SimulationPage() {
     let capital = startCap;
 
     sorted.forEach((t, i) => {
-      const evts = t.events ?? [];
-      const entryFee = evts[0]?.fee ?? 0;
-      const exitPnl  = evts.length > 1
-        ? evts.slice(1).reduce((s: number, e: { pnl: number }) => s + (e.pnl ?? 0), 0)
-        : (t.realizedPnl ?? 0); // legacy trades without an events array
-      capital += exitPnl - entryFee;
-
+      capital += t.realizedPnl ?? 0;
       const key = t.id ?? t.signalId;
       if (key) {
         numberMap.set(key, i + 1);
@@ -781,12 +775,7 @@ function EquityCurve({ trades, startingCapital, cs, balanceAfterMap }: { trades:
         running = mapped;
       } else {
         // Fallback path (only hit when the page-level map is unavailable)
-        const evts = t.events ?? [];
-        const entryFee = evts[0]?.fee ?? 0;
-        const exitPnl  = evts.length > 1
-          ? evts.slice(1).reduce((s, e) => s + (e.pnl ?? 0), 0)
-          : (t.realizedPnl ?? 0);
-        running += exitPnl - entryFee;
+        running += t.realizedPnl ?? 0;
       }
       points.push({
         x: i + 1,
@@ -812,12 +801,7 @@ function EquityCurve({ trades, startingCapital, cs, balanceAfterMap }: { trades:
       if (mapped != null) {
         running = mapped;
       } else {
-        const evts     = t.events ?? [];
-        const entryFee = evts[0]?.fee ?? 0;
-        const exitPnl  = evts.length > 1
-          ? evts.slice(1).reduce((s, e) => s + (e.pnl ?? 0), 0)
-          : (t.realizedPnl ?? 0);
-        running += exitPnl - entryFee;
+        running += t.realizedPnl ?? 0;
       }
       dayCapital.set(t.closedAt!.slice(0, 10), parseFloat(running.toFixed(2)));
     }

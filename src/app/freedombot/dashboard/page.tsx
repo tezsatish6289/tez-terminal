@@ -10,19 +10,25 @@ import {
   CheckCircle2,
   Loader2,
   BarChart3,
-  Zap,
   User,
   LogOut,
   ChevronLeft,
   ChevronRight,
   Activity,
   Square,
-  RefreshCw,
 } from "lucide-react";
 import { useUser, useAuth } from "@/firebase";
 import { initiateSignOut } from "@/firebase/non-blocking-login";
 import { DeployModal } from "../components/DeployModal";
 import { toast } from "@/hooks/use-toast";
+import { TradesPanel } from "@/components/freedombot/TradesPanel";
+import {
+  type Trade,
+  anyTradeIsPreliminary,
+  cumulativeBestPnlByTradeId,
+  sortTradesForDashboard,
+  totalClosedPnl,
+} from "@/lib/freedombot/trade-display";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -43,49 +49,6 @@ interface BotStats {
   profitPerYear: number | null;
   winRate: number | null;
   totalTrades: number;
-}
-
-/**
- * Source label for `realizedPnl`, decided server-side in /api/freedombot/my-trades.
- *   - "override" / "exchange"   → verified, solid color
- *   - "events" / "prices" / "internal" → preliminary, muted color + tooltip
- */
-type RealizedPnlSource =
-  | "override"
-  | "exchange"
-  | "events"
-  | "prices"
-  | "internal";
-
-interface Trade {
-  id: string;
-  exchange?: string | null;
-  symbol: string;
-  side: string;
-  status: string;
-  /**
-   * Effective P&L resolved by the API in this priority:
-   *   override → exchange → events sum → prices estimate → internal.
-   */
-  realizedPnl: number;
-  /** Which input the API picked for `realizedPnl`. Null when the trade is open. */
-  realizedPnlSource?: RealizedPnlSource | null;
-  /** In-bot / TP–SL model PnL before venue sync (closed trades). */
-  realizedPnlInternal?: number;
-  /** Exchange-reported realised PnL when synced. */
-  realizedPnlExchange?: number | null;
-  /** Optional manual correction (USD); wins for display and passbook. */
-  exchangeRealizedPnlOverride?: number | null;
-  exchangePnlReconciledAt?: string | null;
-  unrealizedPnl: number;
-  positionSize: number | null;
-  leverage: number;
-  entryPrice: number | null;
-  currentPrice: number | null;
-  capitalAtEntry: number | null;
-  blockchainTxHash: string | null;
-  openedAt: string;
-  closedAt: string | null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -386,113 +349,6 @@ function NotConnected({ stats, onDeploy }: { stats: BotStats | null; onDeploy: (
   );
 }
 
-// ─── Price formatter ─────────────────────────────────────────────────────────
-
-function formatPrice(v: number | null | undefined): string {
-  if (v == null || v === 0) return "—";
-  if (v >= 100) return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (v >= 1)   return v.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 });
-  return v.toLocaleString(undefined, { minimumFractionDigits: 6, maximumFractionDigits: 6 });
-}
-
-/** Signed USD for P&L lines (uses Unicode minus for losses). */
-function formatSignedUsd(n: number): string {
-  const abs = Math.abs(n).toFixed(2);
-  if (n > 0) return `+$${abs}`;
-  if (n < 0) return `\u2212$${abs}`;
-  return `$${abs}`;
-}
-
-function closedAtMs(t: Trade): number {
-  if (!t.closedAt) return 0;
-  const ms = new Date(t.closedAt).getTime();
-  return Number.isFinite(ms) ? ms : 0;
-}
-
-function openedAtMs(t: Trade): number {
-  if (!t.openedAt) return 0;
-  const ms = new Date(t.openedAt).getTime();
-  return Number.isFinite(ms) ? ms : 0;
-}
-
-/** When exchange (or override) PnL became authoritative — drives passbook order. */
-function pnlBookedAtMs(t: Trade): number {
-  if (t.exchangePnlReconciledAt) {
-    const ms = new Date(t.exchangePnlReconciledAt).getTime();
-    if (Number.isFinite(ms) && ms > 0) return ms;
-  }
-  return closedAtMs(t) || openedAtMs(t);
-}
-
-/**
- * Open positions first (newest entry first), then all closed rows by **latest exit first**
- * (`closedAt`). Pending venue PnL no longer sinks below older booked closes on page 1.
- */
-function sortTradesForDashboard(list: Trade[]): Trade[] {
-  const closed = list.filter((t) => t.status === "closed");
-  const open = list.filter((t) => t.status === "open");
-  const sortedClosedDesc = [...closed].sort((a, b) => {
-    const d = closedAtMs(b) - closedAtMs(a);
-    if (d !== 0) return d;
-    return b.id.localeCompare(a.id);
-  });
-  const sortedOpenDesc = [...open].sort((a, b) => openedAtMs(b) - openedAtMs(a));
-  return [...sortedOpenDesc, ...sortedClosedDesc];
-}
-
-/**
- * Best available closed-trade P&L for display, with provenance.
- *
- * The actual resolution happens server-side in /api/freedombot/my-trades
- * via the shared `bestRealizedPnl` helper, which walks:
- *
- *   override → exchange → events sum → prices estimate → internal
- *
- * The dashboard just consumes the resolved value + source label, so the
- * row PnL, cumulative column, total header, and admin lifetime header are
- * guaranteed to use identical math.
- */
-function bestClosedPnl(
-  t: Trade,
-): { value: number; source: RealizedPnlSource } | null {
-  if (t.status !== "closed") return null;
-  if (!t.realizedPnlSource) return null;
-  if (typeof t.realizedPnl !== "number" || Number.isNaN(t.realizedPnl)) return null;
-  return { value: t.realizedPnl, source: t.realizedPnlSource };
-}
-
-/** Open: live sync. Closed: only until exchange PnL exists (manual override counts as final). */
-function tradeShowsResyncControl(t: Trade): boolean {
-  if (t.status === "open") return true;
-  if (typeof t.exchangeRealizedPnlOverride === "number" && !Number.isNaN(t.exchangeRealizedPnlOverride)) return false;
-  return t.realizedPnlExchange == null;
-}
-
-/**
- * Passbook cumulative: walks closes in **booking time** order
- * (`exchangePnlReconciledAt` ascending, then trade id) and sums the best
- * available P&L for each (override > exchange > estimated). The table lists
- * closes by exit time (newest first); cumulative values follow booking order,
- * so they may not increase top-to-bottom.
- */
-function cumulativeBestPnlByTradeId(list: Trade[]): Map<string, number | null> {
-  const closed = list.filter((t) => t.status === "closed");
-  const chrono = [...closed].sort((a, b) => {
-    const ta = pnlBookedAtMs(a);
-    const tb = pnlBookedAtMs(b);
-    if (ta !== tb) return ta - tb;
-    return a.id.localeCompare(b.id);
-  });
-  const map = new Map<string, number | null>();
-  let sum = 0;
-  for (const t of chrono) {
-    const best = bestClosedPnl(t);
-    if (best != null) sum += best.value;
-    map.set(t.id, best != null ? sum : null);
-  }
-  return map;
-}
-
 // ─── Connected State ──────────────────────────────────────────────────────────
 
 const BOTS_NAV = [
@@ -515,7 +371,6 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
   onRefreshTrade: (tradeId: string) => Promise<void>;
 }) {
   const TRADES_PAGE_SIZE = 25;
-  const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set());
   const [tradePage, setTradePage] = useState(1);
   const isPending = deployment.status === "pending";
   const exchangeLabel = EXCHANGE_LABELS[deployment.exchange] ?? deployment.exchange;
@@ -529,20 +384,8 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
   const runningDays = deployment.createdAt
     ? Math.floor((Date.now() - new Date(deployment.createdAt).getTime()) / (1000 * 60 * 60 * 24))
     : 0;
-  const closedTrades = trades.filter((t) => t.status === "closed");
-  const totalPnl = closedTrades.reduce((sum, t) => {
-    const best = bestClosedPnl(t);
-    return best != null ? sum + best.value : sum;
-  }, 0);
-  const hasUnverifiedPnl = closedTrades.some((t) => {
-    const best = bestClosedPnl(t);
-    if (best == null) return false;
-    return (
-      best.source === "events" ||
-      best.source === "prices" ||
-      best.source === "internal"
-    );
-  });
+  const totalPnl = totalClosedPnl(trades);
+  const hasUnverifiedPnl = anyTradeIsPreliminary(trades);
 
   const tradePageCount = Math.max(1, Math.ceil(trades.length / TRADES_PAGE_SIZE));
   const currentTradePage = Math.min(tradePage, tradePageCount);
@@ -691,354 +534,55 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
         </div>
       </div>
 
-      {hasUnverifiedPnl && (
+      <TradesPanel
+        trades={pagedTrades}
+        cumulativeByTradeId={cumulativeByTradeId}
+        showWarningBanner={hasUnverifiedPnl}
+        isInitiallyLoading={tradesSyncing}
+        onRefreshTrade={onRefreshTrade}
+        emptyTitle="No trades yet"
+        emptySubtitle="Trades will appear here once your bot starts placing orders"
+      />
+
+      {/* Client-side pagination — drives the slice fed into TradesPanel above. */}
+      {trades.length > TRADES_PAGE_SIZE && (
         <div
-          className="rounded-2xl px-4 py-3 text-xs font-semibold leading-relaxed flex items-start gap-2"
+          className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl"
           style={{
-            backgroundColor: "rgba(251,191,36,0.06)",
-            border: "1px solid rgba(251,191,36,0.18)",
-            color: "#fcd34d",
+            backgroundColor: "#060d1a",
+            border: "1px solid rgba(90,140,220,0.12)",
           }}
         >
-          <span className="inline-block h-1.5 w-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: "#fbbf24" }} />
-          <span>
-            Rows marked with a yellow dot show a preliminary P&L computed from each TP/SL
-            fill recorded for that trade (gross of fees). The exchange&apos;s verified
-            realised P&L replaces it as soon as the venue indexes those exits — usually
-            within a minute. Click the refresh icon on any row to force an immediate sync.
-          </span>
+          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#475569" }}>
+            Showing {(currentTradePage - 1) * TRADES_PAGE_SIZE + 1}
+            {"–"}
+            {Math.min(currentTradePage * TRADES_PAGE_SIZE, trades.length)} of {trades.length}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={currentTradePage <= 1}
+              onClick={() => setTradePage((p) => Math.max(1, p - 1))}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-opacity disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/[0.06]"
+              style={{ color: "#94a3b8", border: "1px solid rgba(90,140,220,0.15)" }}
+            >
+              <ChevronLeft className="h-4 w-4" /> Prev
+            </button>
+            <span className="text-xs font-mono font-bold tabular-nums" style={{ color: "#64748b" }}>
+              {currentTradePage} / {tradePageCount}
+            </span>
+            <button
+              type="button"
+              disabled={currentTradePage >= tradePageCount}
+              onClick={() => setTradePage((p) => Math.min(tradePageCount, p + 1))}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-opacity disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/[0.06]"
+              style={{ color: "#94a3b8", border: "1px solid rgba(90,140,220,0.15)" }}
+            >
+              Next <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       )}
-
-      {/* ── Trades table ── */}
-      <div
-        className="rounded-2xl overflow-hidden"
-        style={{ border: "1px solid rgba(90,140,220,0.12)" }}
-      >
-        {/* Table header — 8 columns */}
-        <div
-          className="hidden sm:grid px-4 py-3 gap-1"
-          style={{
-            gridTemplateColumns: "1.35fr 1.55fr 0.9fr 0.9fr 0.9fr 0.85fr 1fr 0.75fr",
-            backgroundColor: "#060d1a",
-            borderBottom: "1px solid rgba(90,140,220,0.1)",
-          }}
-        >
-          {[
-            { label: "Entry | Exit Time", tip: "" },
-            { label: "Side & Symbol", tip: "" },
-            { label: "Size & Leverage", tip: "" },
-            { label: "Entry Price", tip: "" },
-            { label: "Exit Price", tip: "" },
-            { label: "P&L", tip: "" },
-            { label: "Cumulative", tip: "Running total after each close (oldest first by booking time). Uses the exchange's realised P&L when available, otherwise the bot's preliminary calculation. The table sorts closes by latest exit; cumulative follows booking order, so values may not increase top-to-bottom." },
-            { label: "Status", tip: "" },
-          ].map(({ label, tip }) => (
-            <div
-              key={label}
-              className="text-[9px] font-bold uppercase tracking-widest min-w-0"
-              style={{ color: "#334155" }}
-              title={tip || undefined}
-            >
-              {label}
-            </div>
-          ))}
-        </div>
-
-        {/* Empty state */}
-        {trades.length === 0 && (
-          <div className="py-16 text-center" style={{ backgroundColor: "#0a1628" }}>
-            <Zap className="h-8 w-8 mx-auto mb-3 opacity-20" />
-            <p className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.2)" }}>No trades yet</p>
-            <p className="text-xs mt-1" style={{ color: "#334155" }}>Trades will appear here once your bot starts placing orders</p>
-          </div>
-        )}
-
-        {/* Rows */}
-        {pagedTrades.map((trade, i, arr) => {
-          const isOpen = trade.status === "open";
-          const closedBest = !isOpen ? bestClosedPnl(trade) : null;
-          const closedPnl = closedBest?.value ?? null;
-          // "events" / "prices" / "internal" are all pre-sync values — show
-          // the same muted styling so users know venue reconciliation hasn't
-          // completed yet for that row.
-          const isPreliminary =
-            closedBest?.source === "events" ||
-            closedBest?.source === "prices" ||
-            closedBest?.source === "internal";
-          const openPnl = isOpen ? trade.unrealizedPnl : 0;
-          const pnlDisplay = isOpen
-            ? formatSignedUsd(openPnl)
-            : closedPnl != null
-              ? formatSignedUsd(closedPnl)
-              : "—";
-          const isWin = isOpen ? openPnl >= 0 : closedPnl != null && closedPnl >= 0;
-          const isBuy = trade.side === "LONG" || trade.side === "BUY";
-          const cumulative = !isOpen ? cumulativeByTradeId.get(trade.id) : undefined;
-          const showResync = tradeShowsResyncControl(trade);
-          const rowStyle = { borderBottom: i < arr.length - 1 ? "1px solid rgba(90,140,220,0.06)" : "none" };
-          // Solid colors for verified PnL (override / exchange); muted versions
-          // for preliminary (events / prices / internal) so users can tell at
-          // a glance which numbers have been reconciled with the venue.
-          const winColor = isPreliminary ? "rgba(52,211,153,0.65)" : "#34d399";
-          const lossColor = isPreliminary ? "rgba(248,113,113,0.65)" : "#f87171";
-          const pnlColor = !isOpen && closedPnl == null
-            ? "#475569"
-            : isWin
-              ? winColor
-              : lossColor;
-          const pnlTooltip = (() => {
-            switch (closedBest?.source) {
-              case "override":
-                return "Manually corrected P&L.";
-              case "exchange":
-                return "Realised P&L reported by the exchange (net of fees).";
-              case "events":
-                return "Preliminary P&L computed from each TP/SL fill recorded for this trade (gross of fees). The exchange's realised P&L will replace this within a minute or so.";
-              case "prices":
-                return "Preliminary P&L computed from entry, exit, and position size (gross of fees). The exchange's realised P&L will replace this within a minute or so.";
-              case "internal":
-                return "Preliminary P&L from the bot's TP/SL model. The exchange's realised P&L will replace this once the venue indexes the close.";
-              default:
-                return undefined;
-            }
-          })();
-
-          return (
-            <div key={trade.id}>
-              {/* Mobile */}
-              <div
-                className="sm:hidden flex items-center justify-between gap-3 px-4 py-3"
-                style={{ backgroundColor: "#0a1628", ...rowStyle }}
-              >
-                <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded uppercase flex-shrink-0"
-                      style={isBuy ? { backgroundColor: "rgba(34,197,94,0.12)", color: "#34d399" } : { backgroundColor: "rgba(248,113,113,0.12)", color: "#f87171" }}>
-                      {isBuy ? "Buy" : "Sell"}
-                    </span>
-                    <span
-                      className="text-sm font-black text-white truncate min-w-0"
-                      title={trade.symbol}
-                    >
-                      {trade.symbol}
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-mono" style={{ color: "#475569" }}>
-                    {trade.openedAt ? new Date(trade.openedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
-                  </span>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span
-                    className="font-mono text-sm font-black inline-flex items-center gap-1"
-                    style={{ color: pnlColor }}
-                    title={pnlTooltip}
-                  >
-                    {isPreliminary && (
-                      <span
-                        className="inline-block h-1 w-1 rounded-full"
-                        style={{ backgroundColor: "#fbbf24" }}
-                        aria-label="Preliminary P&L"
-                      />
-                    )}
-                    {pnlDisplay}
-                  </span>
-                  {!isOpen && cumulative != null && (
-                    <span className="font-mono text-[10px] font-bold" style={{ color: cumulative >= 0 ? "#34d399" : "#f87171" }}>
-                      Σ {formatSignedUsd(cumulative)}
-                    </span>
-                  )}
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded"
-                      style={isOpen ? { backgroundColor: "rgba(34,197,94,0.1)", color: "#22c55e" } : { backgroundColor: "rgba(255,255,255,0.04)", color: "#475569" }}>
-                      {isOpen ? "Open" : "Closed"}
-                    </span>
-                    {showResync && (
-                    <button
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        setRefreshingIds((prev) => new Set(prev).add(trade.id));
-                        try { await onRefreshTrade(trade.id); }
-                        finally { setRefreshingIds((prev) => { const s = new Set(prev); s.delete(trade.id); return s; }); }
-                      }}
-                      disabled={refreshingIds.has(trade.id)}
-                      title={isOpen ? "Sync from exchange" : "Fetch exchange P&L for this close"}
-                      className="p-1 rounded"
-                      style={{ color: refreshingIds.has(trade.id) ? "#60a5fa" : "#334155" }}
-                    >
-                      <RefreshCw className={`h-3 w-3 ${refreshingIds.has(trade.id) ? "animate-spin" : ""}`} />
-                    </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Desktop */}
-              <div
-                className="hidden sm:grid px-4 py-3.5 gap-1 items-center hover:bg-white/[0.015] transition-colors"
-                style={{ gridTemplateColumns: "1.35fr 1.55fr 0.9fr 0.9fr 0.9fr 0.85fr 1fr 0.75fr", backgroundColor: "#0a1628", ...rowStyle }}
-              >
-                {/* Entry | Exit Time */}
-                <div className="flex flex-col gap-0.5">
-                  <div className="flex items-center gap-1">
-                    <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: "#334155" }}>In</span>
-                    <span className="text-[10px] font-mono font-bold" style={{ color: "#60a5fa" }}>
-                      {trade.openedAt ? new Date(trade.openedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
-                    </span>
-                  </div>
-                  {trade.closedAt && (
-                    <div className="flex items-center gap-1">
-                      <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: "#334155" }}>Out</span>
-                      <span className="text-[10px] font-mono" style={{ color: "#475569" }}>
-                        {new Date(trade.closedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Side & Symbol (merged) */}
-                <div className="flex items-center gap-2 min-w-0">
-                  <span
-                    className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wide flex-shrink-0"
-                    style={isBuy
-                      ? { backgroundColor: "rgba(34,197,94,0.12)", color: "#34d399" }
-                      : { backgroundColor: "rgba(248,113,113,0.12)", color: "#f87171" }
-                    }
-                  >
-                    {isBuy ? "Buy" : "Sell"}
-                  </span>
-                  <span
-                    className="text-sm font-black text-white leading-none truncate min-w-0"
-                    title={trade.symbol}
-                  >
-                    {trade.symbol}
-                  </span>
-                </div>
-
-                {/* Size & Leverage (merged) */}
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-mono text-xs font-bold" style={{ color: "#94a3b8" }}>
-                    {trade.positionSize ? `$${trade.positionSize.toFixed(2)}` : "—"}
-                  </span>
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded inline-flex w-fit"
-                    style={{ backgroundColor: "rgba(96,165,250,0.08)", color: "#60a5fa" }}>
-                    {trade.leverage}x
-                  </span>
-                </div>
-
-                {/* Entry Price */}
-                <div className="font-mono text-xs font-bold" style={{ color: "rgba(255,255,255,0.45)" }}>
-                  ${formatPrice(trade.entryPrice)}
-                </div>
-
-                {/* Exit Price */}
-                <div className="font-mono text-xs font-bold" style={{ color: "rgba(255,255,255,0.45)" }}>
-                  {isOpen ? <span style={{ color: "#334155" }}>—</span> : `$${formatPrice(trade.currentPrice)}`}
-                </div>
-
-                {/* P&L */}
-                <div className="font-mono text-xs font-black min-w-0 flex flex-col gap-0.5">
-                  <span
-                    className="inline-flex items-center gap-1"
-                    style={{ color: pnlColor }}
-                    title={pnlTooltip}
-                  >
-                    {isPreliminary && (
-                      <span
-                        className="inline-block h-1.5 w-1.5 rounded-full"
-                        style={{ backgroundColor: "#fbbf24" }}
-                        aria-label="Preliminary P&L"
-                      />
-                    )}
-                    {pnlDisplay}
-                  </span>
-                </div>
-
-                {/* Cumulative (passbook) */}
-                <div className="font-mono text-[11px] font-bold min-w-0" style={{ color: "#94a3b8" }}>
-                  {isOpen ? (
-                    <span style={{ color: "#334155" }} title="Cumulative applies after a trade is closed">—</span>
-                  ) : cumulative != null ? (
-                    <span style={{ color: cumulative >= 0 ? "#34d399" : "#f87171" }} title="Sum of exchange-reported realised P&L through this close">
-                      {formatSignedUsd(cumulative)}
-                    </span>
-                  ) : (
-                    <span style={{ color: "#334155" }}>—</span>
-                  )}
-                </div>
-
-                {/* Status + per-trade refresh (hidden once exchange PnL is stored, unless open) */}
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className="text-[9px] font-black px-2 py-1 rounded uppercase tracking-wide"
-                    style={isOpen
-                      ? { backgroundColor: "rgba(34,197,94,0.1)", color: "#22c55e" }
-                      : { backgroundColor: "rgba(255,255,255,0.04)", color: "#475569" }
-                    }
-                  >
-                    {isOpen ? "Open" : "Closed"}
-                  </span>
-                  {showResync && (
-                  <button
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      setRefreshingIds((prev) => new Set(prev).add(trade.id));
-                      try {
-                        await onRefreshTrade(trade.id);
-                      } finally {
-                        setRefreshingIds((prev) => { const s = new Set(prev); s.delete(trade.id); return s; });
-                      }
-                    }}
-                    disabled={refreshingIds.has(trade.id)}
-                    title={isOpen ? "Sync from exchange" : "Fetch exchange P&L for this close"}
-                    className="p-1 rounded transition-all hover:bg-white/[0.06] disabled:cursor-not-allowed"
-                    style={{ color: refreshingIds.has(trade.id) ? "#60a5fa" : "#334155" }}
-                  >
-                    <RefreshCw className={`h-3 w-3 ${refreshingIds.has(trade.id) ? "animate-spin" : ""}`} />
-                  </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-
-        {trades.length > TRADES_PAGE_SIZE && (
-          <div
-            className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-            style={{ backgroundColor: "#060d1a", borderTop: "1px solid rgba(90,140,220,0.1)" }}
-          >
-            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#475569" }}>
-              Showing {(currentTradePage - 1) * TRADES_PAGE_SIZE + 1}
-              {"–"}
-              {Math.min(currentTradePage * TRADES_PAGE_SIZE, trades.length)} of {trades.length}
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={currentTradePage <= 1}
-                onClick={() => setTradePage((p) => Math.max(1, p - 1))}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-opacity disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/[0.06]"
-                style={{ color: "#94a3b8", border: "1px solid rgba(90,140,220,0.15)" }}
-              >
-                <ChevronLeft className="h-4 w-4" /> Prev
-              </button>
-              <span className="text-xs font-mono font-bold tabular-nums" style={{ color: "#64748b" }}>
-                {currentTradePage} / {tradePageCount}
-              </span>
-              <button
-                type="button"
-                disabled={currentTradePage >= tradePageCount}
-                onClick={() => setTradePage((p) => Math.min(tradePageCount, p + 1))}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-opacity disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/[0.06]"
-                style={{ color: "#94a3b8", border: "1px solid rgba(90,140,220,0.15)" }}
-              >
-                Next <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

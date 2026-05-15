@@ -18,6 +18,14 @@ import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
+import { TradesPanel } from "@/components/freedombot/TradesPanel";
+import {
+  type Trade,
+  anyTradeIsPreliminary,
+  cumulativeBestPnlByTradeId,
+  sortTradesForDashboard,
+  totalClosedPnl,
+} from "@/lib/freedombot/trade-display";
 
 const ADMIN_EMAIL = "hello@tezterminal.com";
 
@@ -37,22 +45,6 @@ interface DeploymentRow {
   pnlNote: string;
 }
 
-interface TradeRow {
-  id: string;
-  symbol: string;
-  side: string;
-  status: string;
-  realizedPnl: number;
-  unrealizedPnl: number;
-  positionSize: number | null;
-  leverage: number;
-  entryPrice: number | null;
-  currentPrice: number | null;
-  exitPrice: number | null;
-  openedAt: string | null;
-  closedAt: string | null;
-}
-
 interface LogRow {
   id: string;
   timestamp: string;
@@ -62,13 +54,6 @@ interface LogRow {
   signalId?: string;
   exchange?: string;
   assetType?: string;
-}
-
-function formatPrice(v: number | null | undefined): string {
-  if (v == null || v === 0) return "—";
-  if (v >= 100) return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (v >= 1) return v.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 });
-  return v.toLocaleString(undefined, { minimumFractionDigits: 6, maximumFractionDigits: 6 });
 }
 
 export default function AdminBotUserDetailPage() {
@@ -81,7 +66,7 @@ export default function AdminBotUserDetailPage() {
   const [depLoading, setDepLoading] = useState(true);
   const [depError, setDepError] = useState("");
 
-  const [trades, setTrades] = useState<TradeRow[]>([]);
+  const [trades, setTrades] = useState<Trade[]>([]);
   const [tradeCursor, setTradeCursor] = useState<string | null>(null);
   const [tradeHasMore, setTradeHasMore] = useState(false);
   const [tradeTotalCount, setTradeTotalCount] = useState<number | null>(null);
@@ -132,7 +117,7 @@ export default function AdminBotUserDetailPage() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Failed to load trades");
-        const newTrades = (data.trades ?? []) as TradeRow[];
+        const newTrades = (data.trades ?? []) as Trade[];
         setTrades((prev) => (append ? [...prev, ...newTrades] : newTrades));
         setTradeCursor(data.nextCursor ?? null);
         setTradeHasMore(!!data.hasMore);
@@ -209,10 +194,43 @@ export default function AdminBotUserDetailPage() {
     }
   };
 
-  const closedTrades = useMemo(() => trades.filter((t) => t.status === "closed"), [trades]);
-  const totalRealizedClosed = useMemo(
-    () => closedTrades.reduce((sum, t) => sum + (t.realizedPnl ?? 0), 0),
-    [closedTrades],
+  // Re-use the shared resolver (same as user dashboard) so the per-row PnL,
+  // cumulative column, header total, and the warning banner all agree.
+  const sortedTrades = useMemo(() => sortTradesForDashboard(trades), [trades]);
+  const cumulativeByTradeId = useMemo(
+    () => cumulativeBestPnlByTradeId(trades),
+    [trades],
+  );
+  const totalRealizedClosed = useMemo(() => totalClosedPnl(trades), [trades]);
+  const showWarningBanner = useMemo(() => anyTradeIsPreliminary(trades), [trades]);
+
+  const handleRefreshTrade = useCallback(
+    async (tradeId: string) => {
+      if (!user || !deploymentId) return;
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch(
+          `/api/admin/bot-deployments/${deploymentId}/sync-trade`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${idToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ tradeId }),
+          },
+        );
+        // Always refresh so failed reconciles still show updated status.
+        await fetchTradesPage(null, false);
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error((data && data.error) ?? `Sync failed (${res.status})`);
+        }
+      } catch (e: unknown) {
+        setTradesError(e instanceof Error ? e.message : "Unexpected error");
+      }
+    },
+    [user, deploymentId, fetchTradesPage],
   );
 
   const runningDays = useMemo(() => {
@@ -459,226 +477,23 @@ export default function AdminBotUserDetailPage() {
                 <p className="text-sm text-rose-400">{tradesError}</p>
               )}
 
-              <div
-                className="rounded-2xl overflow-hidden"
-                style={{ border: "1px solid rgba(90,140,220,0.12)" }}
-              >
-                <div
-                  className="hidden sm:grid px-4 py-3"
-                  style={{
-                    gridTemplateColumns: "1.4fr 1.8fr 1fr 1fr 1fr 1fr 0.8fr",
-                    backgroundColor: "#060d1a",
-                    borderBottom: "1px solid rgba(90,140,220,0.1)",
-                  }}
-                >
-                  {["Entry | Exit Time", "Side & Symbol", "Size & Leverage", "Entry Price", "Exit Price", "P&L", "Status"].map(
-                    (h) => (
-                      <div key={h} className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "#334155" }}>
-                        {h}
-                      </div>
-                    ),
-                  )}
-                </div>
-
-                {tradesLoading && trades.length === 0 && (
-                  <div className="flex justify-center py-16" style={{ backgroundColor: "#0a1628" }}>
-                    <Loader2 className="h-8 w-8 animate-spin text-accent" />
-                  </div>
-                )}
-
-                {!tradesLoading && !tradesError && trades.length === 0 && (
-                  <div className="py-16 text-center" style={{ backgroundColor: "#0a1628" }}>
-                    <p className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.2)" }}>
-                      No trades yet
-                    </p>
-                  </div>
-                )}
-
-                {trades.map((trade, i) => {
-                  const isOpen = trade.status === "open";
-                  const pnl = isOpen ? trade.unrealizedPnl : trade.realizedPnl;
-                  const isWin = pnl >= 0;
-                  const isBuy = trade.side === "LONG" || trade.side === "BUY";
-                  const rowStyle = {
-                    borderBottom: i < trades.length - 1 ? "1px solid rgba(90,140,220,0.06)" : "none",
-                  };
-                  const exitDisplay = isOpen
-                    ? trade.currentPrice
-                    : trade.exitPrice ?? trade.currentPrice;
-
-                  return (
-                    <div key={trade.id}>
-                      <div
-                        className="sm:hidden flex items-center justify-between px-4 py-3"
-                        style={{ backgroundColor: "#0a1628", ...rowStyle }}
-                      >
-                        <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span
-                              className="text-[9px] font-black px-1.5 py-0.5 rounded uppercase flex-shrink-0"
-                              style={
-                                isBuy
-                                  ? { backgroundColor: "rgba(34,197,94,0.12)", color: "#34d399" }
-                                  : { backgroundColor: "rgba(248,113,113,0.12)", color: "#f87171" }
-                              }
-                            >
-                              {isBuy ? "Buy" : "Sell"}
-                            </span>
-                            <span
-                              className="text-sm font-black text-white truncate min-w-0"
-                              title={trade.symbol}
-                            >
-                              {trade.symbol}
-                            </span>
-                          </div>
-                          <span className="text-[10px] font-mono" style={{ color: "#475569" }}>
-                            {trade.openedAt
-                              ? new Date(trade.openedAt).toLocaleString("en-US", {
-                                  month: "short",
-                                  day: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                              : "—"}
-                          </span>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <span className="font-mono text-sm font-black" style={{ color: isWin ? "#34d399" : "#f87171" }}>
-                            {pnl >= 0 ? "+" : ""}${Math.abs(pnl).toFixed(2)}
-                          </span>
-                          <span
-                            className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded"
-                            style={
-                              isOpen
-                                ? { backgroundColor: "rgba(34,197,94,0.1)", color: "#22c55e" }
-                                : { backgroundColor: "rgba(255,255,255,0.04)", color: "#475569" }
-                            }
-                          >
-                            {isOpen ? "Open" : "Closed"}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div
-                        className="hidden sm:grid px-4 py-3.5 items-center hover:bg-white/[0.015] transition-colors"
-                        style={{
-                          gridTemplateColumns: "1.4fr 1.8fr 1fr 1fr 1fr 1fr 0.8fr",
-                          backgroundColor: "#0a1628",
-                          ...rowStyle,
-                        }}
-                      >
-                        <div className="flex flex-col gap-0.5">
-                          <div className="flex items-center gap-1">
-                            <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: "#334155" }}>
-                              In
-                            </span>
-                            <span className="text-[10px] font-mono font-bold" style={{ color: "#60a5fa" }}>
-                              {trade.openedAt
-                                ? new Date(trade.openedAt).toLocaleString("en-US", {
-                                    month: "short",
-                                    day: "numeric",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })
-                                : "—"}
-                            </span>
-                          </div>
-                          {trade.closedAt && (
-                            <div className="flex items-center gap-1">
-                              <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: "#334155" }}>
-                                Out
-                              </span>
-                              <span className="text-[10px] font-mono" style={{ color: "#475569" }}>
-                                {new Date(trade.closedAt).toLocaleString("en-US", {
-                                  month: "short",
-                                  day: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span
-                            className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wide flex-shrink-0"
-                            style={
-                              isBuy
-                                ? { backgroundColor: "rgba(34,197,94,0.12)", color: "#34d399" }
-                                : { backgroundColor: "rgba(248,113,113,0.12)", color: "#f87171" }
-                            }
-                          >
-                            {isBuy ? "Buy" : "Sell"}
-                          </span>
-                          <span
-                            className="text-sm font-black text-white leading-none truncate min-w-0"
-                            title={trade.symbol}
-                          >
-                            {trade.symbol}
-                          </span>
-                        </div>
-
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-mono text-xs font-bold" style={{ color: "#94a3b8" }}>
-                            {trade.positionSize != null ? `$${trade.positionSize.toFixed(2)}` : "—"}
-                          </span>
-                          <span
-                            className="text-[9px] font-bold px-1.5 py-0.5 rounded inline-flex w-fit"
-                            style={{ backgroundColor: "rgba(96,165,250,0.08)", color: "#60a5fa" }}
-                          >
-                            {trade.leverage}x
-                          </span>
-                        </div>
-
-                        <div className="font-mono text-xs font-bold" style={{ color: "rgba(255,255,255,0.45)" }}>
-                          ${formatPrice(trade.entryPrice)}
-                        </div>
-
-                        <div className="font-mono text-xs font-bold" style={{ color: "rgba(255,255,255,0.45)" }}>
-                          {exitDisplay == null ? (
-                            <span style={{ color: "#334155" }}>—</span>
-                          ) : (
-                            `$${formatPrice(exitDisplay)}`
-                          )}
-                        </div>
-
-                        <div className="font-mono text-xs font-black" style={{ color: isWin ? "#34d399" : "#f87171" }}>
-                          {pnl >= 0 ? "+" : ""}${Math.abs(pnl).toFixed(2)}
-                        </div>
-
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className="text-[9px] font-black px-2 py-1 rounded uppercase tracking-wide"
-                            style={
-                              isOpen
-                                ? { backgroundColor: "rgba(34,197,94,0.1)", color: "#22c55e" }
-                                : { backgroundColor: "rgba(255,255,255,0.04)", color: "#475569" }
-                            }
-                          >
-                            {isOpen ? "Open" : "Closed"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {tradeHasMore && (
-                <button
-                  type="button"
-                  disabled={tradesLoading}
-                  onClick={() => void fetchTradesPage(tradeCursor, true)}
-                  className="px-4 py-2 rounded-lg border border-white/10 bg-white/[0.04] text-xs font-bold uppercase tracking-wider text-accent hover:bg-white/[0.08] disabled:opacity-50"
-                >
-                  {tradesLoading
-                    ? "Loading…"
-                    : tradeTotalCount != null
-                      ? `Load more (${Math.min(50, tradeTotalCount - trades.length)} of ${tradeTotalCount - trades.length} remaining)`
-                      : "Load more (50)"}
-                </button>
-              )}
+              <TradesPanel
+                trades={sortedTrades}
+                cumulativeByTradeId={cumulativeByTradeId}
+                showWarningBanner={showWarningBanner}
+                isInitiallyLoading={tradesLoading}
+                onRefreshTrade={handleRefreshTrade}
+                onLoadMore={() => void fetchTradesPage(tradeCursor, true)}
+                hasMore={tradeHasMore}
+                loadingMore={tradesLoading}
+                loadMoreLabel={
+                  tradeTotalCount != null
+                    ? `Load more (${Math.min(50, tradeTotalCount - trades.length)} of ${tradeTotalCount - trades.length} remaining)`
+                    : "Load more (50)"
+                }
+                emptyTitle="No trades yet"
+                emptySubtitle="Trades will appear here once this user's bot starts placing orders"
+              />
             </TabsContent>
 
             <TabsContent value="logs" className="mt-4 space-y-3">

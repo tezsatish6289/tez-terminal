@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
+import { bestRealizedPnl } from "@/lib/freedombot/compute-best-pnl";
 
 export const dynamic = "force-dynamic";
 
@@ -75,31 +76,46 @@ export async function GET(
     const hasMore = snap.size > pageSize;
     const docs = hasMore ? snap.docs.slice(0, pageSize) : snap.docs;
 
+    // Mirror /api/freedombot/my-trades exactly so the admin trade table can
+    // share rendering logic with the user dashboard. The shared
+    // `bestRealizedPnl` resolver picks the most-trustworthy PnL value (and a
+    // source label) so per-row, cumulative, and lifetime figures all agree.
     const trades = docs.map((d) => {
       const t = d.data();
-      const realized =
-        typeof t.exchangeRealizedPnl === "number"
-          ? t.exchangeRealizedPnl
-          : typeof t.realizedPnl === "number"
-            ? t.realizedPnl
-            : 0;
       const isOpen = t.status === "OPEN";
+      const internal = Number(t.realizedPnl ?? 0);
+      const ex =
+        typeof t.exchangeRealizedPnl === "number" && !Number.isNaN(t.exchangeRealizedPnl)
+          ? Number(t.exchangeRealizedPnl)
+          : null;
+      const ov =
+        typeof t.exchangeRealizedPnlOverride === "number" &&
+        !Number.isNaN(t.exchangeRealizedPnlOverride)
+          ? Number(t.exchangeRealizedPnlOverride)
+          : null;
+      const best = !isOpen ? bestRealizedPnl(t) : null;
       const unrealized =
-        typeof t.unrealizedPnl === "number" && isOpen ? t.unrealizedPnl : 0;
-      const currentPrice = typeof t.currentPrice === "number" ? t.currentPrice : null;
+        typeof t.unrealizedPnl === "number" && isOpen ? Number(t.unrealizedPnl) : 0;
       return {
         id: d.id,
+        exchange: t.exchange ?? null,
         symbol: (t.signalSymbol ?? t.symbol ?? "—") as string,
         side:
           t.side === "BUY" ? "LONG" : t.side === "SELL" ? "SHORT" : String(t.side ?? "—"),
         status: isOpen ? "open" : "closed",
-        realizedPnl: realized,
+        realizedPnl: best?.value ?? internal,
+        realizedPnlSource: best?.source ?? null,
+        realizedPnlInternal: internal,
+        realizedPnlExchange: ex,
+        exchangeRealizedPnlOverride: ov,
+        exchangePnlReconciledAt: t.exchangePnlReconciledAt ?? null,
         unrealizedPnl: unrealized,
         positionSize: t.positionSize ?? null,
         leverage: t.leverage ?? 1,
         entryPrice: t.entryPrice ?? null,
-        currentPrice,
-        exitPrice: (t.exchangeAvgExitPrice ?? currentPrice ?? null) as number | null,
+        currentPrice: t.exchangeAvgExitPrice ?? t.currentPrice ?? null,
+        capitalAtEntry: t.capitalAtEntry ?? null,
+        blockchainTxHash: t.blockchainTxHash ?? null,
         openedAt: (t.openedAt as string) ?? null,
         closedAt: (t.closedAt as string) ?? null,
       };

@@ -42,15 +42,21 @@ async function run() {
 
   if (!btcPrice) throw new Error("BTC price unavailable");
 
-  let zoneHalfWidthUsd: number | null = null;
+  let zoneHalfWidthUsd:      number | null = null;
+  let maxPainMinDistanceUsd: number | null = null;
   try {
     const hzSnap = await db.doc("config/heatmap_zones").get();
     if (hzSnap.exists) {
-      zoneHalfWidthUsd = parseZones(hzSnap.data() ?? {}).zoneHalfWidthUsd;
+      const parsed = parseZones(hzSnap.data() ?? {});
+      zoneHalfWidthUsd      = parsed.zoneHalfWidthUsd;
+      maxPainMinDistanceUsd = parsed.maxPainMinDistanceUsd;
     }
   } catch {}
 
-  const result = await computeOptionsZones(btcPrice, { zoneHalfWidthUsd });
+  const result = await computeOptionsZones(btcPrice, {
+    zoneHalfWidthUsd,
+    maxPainMinDistanceUsd,
+  });
 
   const suggested = {
     bullStrike:        result.bullStrike,

@@ -55,6 +55,14 @@ const MAX_REACH_PCT    = 0.08;              // 8% max distance from spot; beyond
 const MIN_TP_USD       = 500;              // minimum TP room in USD (zone edge → max pain); reduced from 1000
 const MIN_STRIKE_GAP   = 2500;             // bearStrike − bullStrike must be ≥ $2,500
 
+/** Default minimum distance between any candidate strike price and today's
+ *  (day-0) max pain price. Strikes inside this band are skipped at selection
+ *  time because price action around max pain is typically erratic (MM
+ *  hedging pulls price back and forth across the strike). Override per-call
+ *  via opts.maxPainMinDistanceUsd; pass 0 to disable. */
+export const DEFAULT_MAX_PAIN_MIN_DISTANCE_USD = 1000;
+const MAX_MAX_PAIN_MIN_DISTANCE_USD = 3000;
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface MaxPainEntry {
@@ -207,13 +215,27 @@ function clampZoneHalfWidth(raw: number | null | undefined): number {
   return Math.min(MAX_ZONE_HALF_WIDTH_USD, Math.max(MIN_ZONE_HALF_WIDTH_USD, v));
 }
 
+function clampMaxPainMinDistance(raw: number | null | undefined): number {
+  const v = raw ?? DEFAULT_MAX_PAIN_MIN_DISTANCE_USD;
+  if (v <= 0) return 0; // explicit opt-out
+  return Math.min(MAX_MAX_PAIN_MIN_DISTANCE_USD, v);
+}
+
 // ── Main export ────────────────────────────────────────────────────────────
 
 export async function computeOptionsZones(
   currentBtcPrice: number,
-  opts?: { zoneHalfWidthUsd?: number | null },
+  opts?: {
+    zoneHalfWidthUsd?:      number | null;
+    /** Minimum USD distance every candidate STRIKE PRICE must keep from
+     *  TODAY's (day-0) max pain price. Strikes inside the band are skipped;
+     *  the next best urgency candidate is picked instead. 0 disables the
+     *  filter. Defaults to DEFAULT_MAX_PAIN_MIN_DISTANCE_USD ($1,000). */
+    maxPainMinDistanceUsd?: number | null;
+  },
 ): Promise<OptionsZones> {
-  const halfWidth = clampZoneHalfWidth(opts?.zoneHalfWidthUsd ?? null);
+  const halfWidth         = clampZoneHalfWidth(opts?.zoneHalfWidthUsd ?? null);
+  const maxPainMinDistUsd = clampMaxPainMinDistance(opts?.maxPainMinDistanceUsd ?? null);
 
   // Use Deribit index for above/below-strike comparisons — exchange BTCUSDT
   // can sit a few hundred dollars away from true BTC index price.
@@ -361,17 +383,29 @@ export async function computeOptionsZones(
   };
 
   // Sort candidates by urgency descending.
-  // Filter: the STRIKE (zone center) must be on the correct side of spot.
-  // Requiring the full zone band (strike ± halfWidth) to clear spot was too
-  // aggressive — it excluded the $82k strike when spot was just $28 inside
-  // the zone bottom. The strike itself being above/below spot is the right
-  // guard; the band can partially straddle current price.
+  // Filter 1: the STRIKE (zone center) must be on the correct side of spot.
+  //   Requiring the full zone band (strike ± halfWidth) to clear spot was too
+  //   aggressive — it excluded the $82k strike when spot was just $28 inside
+  //   the zone bottom. The strike itself being above/below spot is the right
+  //   guard; the band can partially straddle current price.
+  // Filter 2: |strike − today's max pain| must be > maxPainMinDistUsd.
+  //   Both are real Deribit numbers (a put/call strike vs the day-0 max pain
+  //   price). Strikes inside the band are skipped because price action around
+  //   max pain is typically erratic (MM hedging back and forth across the
+  //   strike); we let the next-best urgency candidate take over instead.
+  //   Day-1/day-2 max pains are NOT considered — only today's expiry drives
+  //   intraday volatility.
+  const nearDay0MaxPain = (strike: number): boolean =>
+    maxPainMinDistUsd > 0 &&
+    day0MaxPain !== null &&
+    Math.abs(strike - day0MaxPain) <= maxPainMinDistUsd;
+
   const sortedPuts = [...putUrgency.entries()]
-    .filter(([strike]) => strike < spot)
+    .filter(([strike]) => strike < spot && !nearDay0MaxPain(strike))
     .sort(([, a], [, b]) => b - a);
 
   const sortedCalls = [...callUrgency.entries()]
-    .filter(([strike]) => strike > spot)
+    .filter(([strike]) => strike > spot && !nearDay0MaxPain(strike))
     .sort(([, a], [, b]) => b - a);
 
   let bullStrike: number | null = null;

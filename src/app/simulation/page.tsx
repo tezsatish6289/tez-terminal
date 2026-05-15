@@ -237,12 +237,17 @@ export default function SimulationPage() {
       .finally(() => setAllTradesLoading(false));
   }, [assetType]);
 
-  // Sequential trade number map AND running balance map — both derived from
-  // the FULL `allClosedTrades` history (same source as the equity curve), so
-  // history rows show #N and "balance after trade" identical to the chart.
-  // Computing from the paginated page would be wrong: any trade missing
-  // `capitalAfter` would fall back to a delta-from-start walk that's only
-  // accurate within the page's 50-trade window.
+  // Sequential trade number AND running balance — both derived from the FULL
+  // `allClosedTrades` history walked oldest-first. The balance is the pure
+  // sum of each trade's net P&L (exit pnl − entry fee), NOT the live ledger
+  // snapshot from `capitalAfter`. This guarantees:
+  //   1. Chart point #N and history-row #N show the IDENTICAL number.
+  //   2. Consecutive history rows reconcile cleanly: row(N).balance −
+  //      row(N−1).balance equals trade N's net P&L.
+  // Side effects from open-trade entry fees / partial closes between two
+  // consecutive *fully-closed* trades are intentionally excluded so the math
+  // displayed in the table always adds up. The real ledger balance (incl.
+  // those side effects) remains visible in the headline `derivedCapital`.
   const { tradeNumberMap, balanceAfterMap } = useMemo(() => {
     const sorted = [...allClosedTrades]
       .filter((t) => t.closedAt)
@@ -254,14 +259,13 @@ export default function SimulationPage() {
     let capital = startCap;
 
     sorted.forEach((t, i) => {
-      if (t.capitalAfter != null) {
-        capital = t.capitalAfter;
-      } else {
-        const evts = t.events ?? [];
-        const entryFee = evts[0]?.fee ?? 0;
-        const exitPnl  = evts.slice(1).reduce((s: number, e: { pnl: number }) => s + e.pnl, 0);
-        capital += exitPnl - entryFee;
-      }
+      const evts = t.events ?? [];
+      const entryFee = evts[0]?.fee ?? 0;
+      const exitPnl  = evts.length > 1
+        ? evts.slice(1).reduce((s: number, e: { pnl: number }) => s + (e.pnl ?? 0), 0)
+        : (t.realizedPnl ?? 0); // legacy trades without an events array
+      capital += exitPnl - entryFee;
+
       const key = t.id ?? t.signalId;
       if (key) {
         numberMap.set(key, i + 1);
@@ -542,7 +546,7 @@ export default function SimulationPage() {
                 {/* Chart + Performance Metrics side by side */}
                 <div className="flex flex-col lg:flex-row gap-3 items-stretch">
                   <div className="flex-1 min-w-0">
-                    <EquityCurve trades={allClosedTrades} startingCapital={simState.startingCapital} cs={cs} />
+                    <EquityCurve trades={allClosedTrades} startingCapital={simState.startingCapital} cs={cs} balanceAfterMap={balanceAfterMap} />
                   </div>
                   <div className="lg:w-72 xl:w-80 shrink-0 flex flex-col">
                     <PerformanceMetricsPanel
@@ -754,12 +758,12 @@ function PerformanceMetricsPanel({
 
 type ChartView = "trade" | "day";
 
-function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; startingCapital: number; cs: string }) {
+function EquityCurve({ trades, startingCapital, cs, balanceAfterMap }: { trades: SimTrade[]; startingCapital: number; cs: string; balanceAfterMap?: Map<string, number> }) {
   const [view, setView] = useState<ChartView>("trade");
 
   // Trade-by-trade: one point per closed trade.
-  // Uses trade.capitalAfter when present (stored since the ledger fix).
-  // Falls back to events-based reconstruction for older trades that predate the field.
+  // Uses the page-level balanceAfterMap (pure sum-of-net-PnL walk) so the
+  // chart values are guaranteed identical to the history-row balances.
   const tradeData = useMemo(() => {
     const sorted = [...trades]
       .filter((t) => t.closedAt)
@@ -771,14 +775,17 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
     ];
     let running = startingCapital;
     sorted.forEach((t, i) => {
-      if (t.capitalAfter != null) {
-        // Fast path: capital snapshot already stored on the trade
-        running = t.capitalAfter;
+      const key = t.id ?? t.signalId;
+      const mapped = key && balanceAfterMap ? balanceAfterMap.get(key) : undefined;
+      if (mapped != null) {
+        running = mapped;
       } else {
-        // Fallback for trades that predate capitalAfter
+        // Fallback path (only hit when the page-level map is unavailable)
         const evts = t.events ?? [];
         const entryFee = evts[0]?.fee ?? 0;
-        const exitPnl  = evts.slice(1).reduce((s, e) => s + e.pnl, 0);
+        const exitPnl  = evts.length > 1
+          ? evts.slice(1).reduce((s, e) => s + (e.pnl ?? 0), 0)
+          : (t.realizedPnl ?? 0);
         running += exitPnl - entryFee;
       }
       points.push({
@@ -788,9 +795,9 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
       });
     });
     return points;
-  }, [trades, startingCapital]);
+  }, [trades, startingCapital, balanceAfterMap]);
 
-  // Day-by-day: one point per calendar day
+  // Day-by-day: one point per calendar day, last balance of the day.
   const dayData = useMemo(() => {
     const sorted = [...trades]
       .filter((t) => t.closedAt)
@@ -800,12 +807,16 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
     const dayCapital = new Map<string, number>();
     let running = startingCapital;
     for (const t of sorted) {
-      if (t.capitalAfter != null) {
-        running = t.capitalAfter;
+      const key = t.id ?? t.signalId;
+      const mapped = key && balanceAfterMap ? balanceAfterMap.get(key) : undefined;
+      if (mapped != null) {
+        running = mapped;
       } else {
         const evts     = t.events ?? [];
         const entryFee = evts[0]?.fee ?? 0;
-        const exitPnl  = evts.slice(1).reduce((s, e) => s + e.pnl, 0);
+        const exitPnl  = evts.length > 1
+          ? evts.slice(1).reduce((s, e) => s + (e.pnl ?? 0), 0)
+          : (t.realizedPnl ?? 0);
         running += exitPnl - entryFee;
       }
       dayCapital.set(t.closedAt!.slice(0, 10), parseFloat(running.toFixed(2)));
@@ -818,7 +829,7 @@ function EquityCurve({ trades, startingCapital, cs }: { trades: SimTrade[]; star
       points.push({ x: format(new Date(day), "MMM dd"), value: capital, tooltip: day });
     }
     return points;
-  }, [trades, startingCapital]);
+  }, [trades, startingCapital, balanceAfterMap]);
 
   if (trades.filter((t) => t.closedAt).length < 2) return null;
 

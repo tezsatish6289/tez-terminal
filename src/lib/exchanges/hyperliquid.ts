@@ -663,16 +663,24 @@ export class HyperliquidConnector implements ExchangeConnector {
   }
 
   async placeMarketClose(symbol: string, side: "BUY" | "SELL", quantity: number, creds: ExchangeCredentials): Promise<Order> {
+    // `side` is the ORIGINAL trade side (the position we want to flatten).
+    // To actually close the position we need to send the OPPOSITE side —
+    // matches the convention every other connector uses (Bybit, CoinDCX,
+    // Binance, MEXC, Dhan all flip internally). Without the flip a long
+    // position got a reduce-only BUY order, which Hyperliquid silently
+    // no-ops (reduce-only can't increase a position) and the trade was
+    // marked CLOSED in Firestore while the actual position kept running.
+    const closeSide: "BUY" | "SELL" = side === "BUY" ? "SELL" : "BUY";
     const { exchange } = clients(creds);
     const { assetId, coin, internal, szDecimals } = await this.assetRow(symbol, creds.testnet);
-    const px = await this.iocMarketPrice(coin, side, szDecimals, creds);
+    const px = await this.iocMarketPrice(coin, closeSide, szDecimals, creds);
     const sz = formatSize(String(quantity), szDecimals);
     try {
       const resp = await exchange.order({
         orders: [
           {
             a: assetId,
-            b: side === "BUY",
+            b: closeSide === "BUY",
             p: px,
             s: sz,
             r: true,
@@ -681,7 +689,7 @@ export class HyperliquidConnector implements ExchangeConnector {
         ],
         grouping: "na",
       });
-      let ord = mapPlaceStatuses(resp, internal, side, "MARKET");
+      let ord = mapPlaceStatuses(resp, internal, closeSide, "MARKET");
       if (ord.status === "NEW" && parseFloat(ord.executedQty) <= 0 && ord.orderId) {
         const oid = Number(ord.orderId);
         if (Number.isFinite(oid)) {

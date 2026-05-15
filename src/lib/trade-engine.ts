@@ -662,8 +662,36 @@ export async function protectiveClose(
   let closeOrderId: string | undefined;
   try {
     const closeOrder = await connector.placeMarketClose(trade.symbol, trade.side, trade.remainingQty, creds);
+    const reportedQty = parseFloat(closeOrder.executedQty);
+    // Defensive: if the venue accepted the order (no throw) but the response
+    // says zero qty filled, treat the close as FAILED. The previous
+    // `parseFloat(qty) || trade.remainingQty` fallback silently lied — a
+    // literal "0" filled would fall through to the original trade qty and
+    // mark Firestore CLOSED while the position kept running on the venue
+    // (this is exactly how the Hyperliquid wrong-side bug stranded a
+    // position before it was fixed). Keeping the trade OPEN means the cron
+    // sees status=OPEN next tick and retries the close.
+    if (!Number.isFinite(reportedQty) || reportedQty <= 0) {
+      return {
+        updatedFields: {},
+        newEvent: {
+          type: reason,
+          price: currentPrice,
+          pnl: 0,
+          fee: 0,
+          closePct: 0,
+          quantity: 0,
+          orderId: closeOrder.orderId ?? null,
+          timestamp: new Date().toISOString(),
+        },
+        warning:
+          `Protective close on ${trade.exchange} for ${trade.symbol} returned zero filled qty ` +
+          `(orderId=${closeOrder.orderId ?? "?"}, status=${closeOrder.status ?? "?"}); ` +
+          `position likely still open — leaving trade OPEN so the cron retries on the next cycle.`,
+      };
+    }
     fillPrice = parseFloat(closeOrder.avgPrice || closeOrder.price) || currentPrice;
-    fillQty = parseFloat(closeOrder.executedQty) || trade.remainingQty;
+    fillQty = reportedQty;
     closeOrderId = closeOrder.orderId;
   } catch (e) {
     return {

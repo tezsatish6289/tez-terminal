@@ -237,19 +237,39 @@ export default function SimulationPage() {
       .finally(() => setAllTradesLoading(false));
   }, [assetType]);
 
-  // Sequential trade number map — same ordering as the equity curve chart
-  // (oldest-first). Lets the history tab show #1, #2 … #501 matching the chart.
-  const tradeNumberMap = useMemo<Map<string, number>>(() => {
+  // Sequential trade number map AND running balance map — both derived from
+  // the FULL `allClosedTrades` history (same source as the equity curve), so
+  // history rows show #N and "balance after trade" identical to the chart.
+  // Computing from the paginated page would be wrong: any trade missing
+  // `capitalAfter` would fall back to a delta-from-start walk that's only
+  // accurate within the page's 50-trade window.
+  const { tradeNumberMap, balanceAfterMap } = useMemo(() => {
     const sorted = [...allClosedTrades]
       .filter((t) => t.closedAt)
       .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
-    const map = new Map<string, number>();
+
+    const numberMap = new Map<string, number>();
+    const balanceMap = new Map<string, number>();
+    const startCap = simState?.startingCapital ?? 0;
+    let capital = startCap;
+
     sorted.forEach((t, i) => {
+      if (t.capitalAfter != null) {
+        capital = t.capitalAfter;
+      } else {
+        const evts = t.events ?? [];
+        const entryFee = evts[0]?.fee ?? 0;
+        const exitPnl  = evts.slice(1).reduce((s: number, e: { pnl: number }) => s + e.pnl, 0);
+        capital += exitPnl - entryFee;
+      }
       const key = t.id ?? t.signalId;
-      if (key) map.set(key, i + 1);
+      if (key) {
+        numberMap.set(key, i + 1);
+        balanceMap.set(key, parseFloat(capital.toFixed(2)));
+      }
     });
-    return map;
-  }, [allClosedTrades]);
+    return { tradeNumberMap: numberMap, balanceAfterMap: balanceMap };
+  }, [allClosedTrades, simState?.startingCapital]);
 
   const logs = useMemo(() => {
     if (!rawLogs) return [];
@@ -568,7 +588,7 @@ export default function SimulationPage() {
 
                 {tab === "trades" && (
                   <div className="space-y-3">
-                    <TradeList trades={closedTrades} emptyIcon={<BarChart3 className="w-6 h-6" />} emptyLabel="No closed trades yet" onSelectTrade={setSelectedTrade} cs={cs} startingCapital={simState?.startingCapital} tradeNumberMap={tradeNumberMap} />
+                    <TradeList trades={closedTrades} emptyIcon={<BarChart3 className="w-6 h-6" />} emptyLabel="No closed trades yet" onSelectTrade={setSelectedTrade} cs={cs} startingCapital={simState?.startingCapital} tradeNumberMap={tradeNumberMap} balanceAfterMap={balanceAfterMap} />
                     {/* Server-side pagination controls */}
                     {(histPage > 0 || histHasMore) && (
                       <div className="flex items-center justify-between px-1 pt-1 border-t border-white/[0.06]">
@@ -1262,7 +1282,7 @@ function ForceCloseDialog({ trade, onForceClose, children }: { trade: SimTrade; 
 
 // ── TradeList with column filters + pagination ────────────────
 
-function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose, cs, startingCapital, tradeNumberMap }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string; onSelectTrade: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string; startingCapital?: number; tradeNumberMap?: Map<string, number> }) {
+function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose, cs, startingCapital, tradeNumberMap, balanceAfterMap: balanceAfterMapProp }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string; onSelectTrade: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string; startingCapital?: number; tradeNumberMap?: Map<string, number>; balanceAfterMap?: Map<string, number> }) {
   const isHistory = startingCapital != null;
   const [filters, setFilters] = useState<SimFilters>(DEFAULT_SIM_FILTERS);
   const [page, setPage] = useState(1);
@@ -1293,30 +1313,10 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
   const paginated = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
   const active    = simActiveCount(filters);
 
-  // Running fund balance after each closed trade.
-  // Uses trade.capitalAfter when present (stored since ledger fix).
-  // Falls back to events-based reconstruction for pre-fix trades.
-  const balanceAfterMap = useMemo<Map<string, number> | null>(() => {
-    if (!isHistory || startingCapital == null) return null;
-    const sorted = [...trades]
-      .filter((t) => t.closedAt)
-      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
-    let capital = startingCapital;
-    const map = new Map<string, number>();
-    for (const t of sorted) {
-      if (t.capitalAfter != null) {
-        capital = t.capitalAfter;
-      } else {
-        const evts = t.events ?? [];
-        const entryFee = evts[0]?.fee ?? 0;
-        const exitPnl  = evts.slice(1).reduce((s: number, e: { pnl: number }) => s + e.pnl, 0);
-        capital += exitPnl - entryFee;
-      }
-      const key = t.id ?? t.signalId;
-      if (key) map.set(key, parseFloat(capital.toFixed(2)));
-    }
-    return map;
-  }, [trades, startingCapital, isHistory]);
+  // Running fund balance after each closed trade — supplied by the page
+  // and computed from the FULL history (allClosedTrades), so balances stay
+  // consistent with the equity-curve chart even on later pages.
+  const balanceAfterMap = isHistory ? (balanceAfterMapProp ?? null) : null;
 
   const statusLabelMap = useMemo(() =>
     Object.fromEntries(Object.entries(CLOSE_REASON_MAP).map(([k, v]) => [k, v.label])), []);

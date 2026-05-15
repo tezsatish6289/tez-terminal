@@ -172,6 +172,25 @@ export default function AdminBotUserDetailPage() {
     }
   }, [isAdmin, deploymentId, deployment, fetchTradesPage]);
 
+  // Auto-load every remaining page so cumulative + total reflect ALL trades
+  // (matches user dashboard behaviour, which fetches the full set in one go).
+  // We chain pages instead of yanking pagination because the API is paginated
+  // — keeping it lets callers with very large histories opt out via the
+  // existing "Load more" button if we ever expose it again.
+  useEffect(() => {
+    if (!isAdmin || !deployment) return;
+    if (tradesLoading) return;
+    if (!tradeHasMore || !tradeCursor) return;
+    void fetchTradesPage(tradeCursor, true);
+  }, [
+    isAdmin,
+    deployment,
+    tradesLoading,
+    tradeHasMore,
+    tradeCursor,
+    fetchTradesPage,
+  ]);
+
   const runReconcilePnl = async () => {
     if (!user || !deploymentId) return;
     setReconciling(true);
@@ -195,14 +214,23 @@ export default function AdminBotUserDetailPage() {
   };
 
   // Re-use the shared resolver (same as user dashboard) so the per-row PnL,
-  // cumulative column, header total, and the warning banner all agree.
+  // cumulative column, and the warning banner all agree.
   const sortedTrades = useMemo(() => sortTradesForDashboard(trades), [trades]);
   const cumulativeByTradeId = useMemo(
     () => cumulativeBestPnlByTradeId(trades),
     [trades],
   );
-  const totalRealizedClosed = useMemo(() => totalClosedPnl(trades), [trades]);
   const showWarningBanner = useMemo(() => anyTradeIsPreliminary(trades), [trades]);
+
+  // Header "Realised P&L" must reflect ALL trades, not just the loaded page.
+  // Until every page is in memory we can't sum locally, so trust the
+  // persisted lifetime number that the deployment doc already stores
+  // (computed server-side via sumLifetimeRealizedPnlForUserExchange across
+  // every trade — same code path as the user-dashboard total).
+  const allTradesLoaded = trades.length > 0 && !tradeHasMore;
+  const totalRealizedClosed = allTradesLoaded
+    ? totalClosedPnl(trades)
+    : (deployment?.lifetimeRealizedPnl ?? 0);
 
   const handleRefreshTrade = useCallback(
     async (tradeId: string) => {

@@ -51,11 +51,11 @@ function fmt(n: number | null, suffix = "%") {
 // ─── Waitlist Modal ───────────────────────────────────────────────────────────
 
 const ASSET_TYPES = [
-  { id: "Crypto",        label: "Crypto",         emoji: "₿" },
-  { id: "IndianStock",   label: "Indian Stock",    emoji: "🇮🇳" },
-  { id: "Gold",          label: "Gold",            emoji: "🥇" },
-  { id: "Silver",        label: "Silver",          emoji: "🥈" },
-  { id: "Commodities",   label: "Commodities",     emoji: "🛢️" },
+  { id: "Crypto",  label: "Crypto", emoji: "₿" },
+  { id: "BTC",     label: "BTC",    emoji: "₿" },
+  { id: "ETH",     label: "ETH",    emoji: "Ξ" },
+  { id: "SOL",     label: "SOL",    emoji: "◎" },
+  { id: "XRP",     label: "XRP",    emoji: "✕" },
 ];
 
 const popularCountries = COUNTRIES.filter((c) => POPULAR_COUNTRY_CODES.includes(c.code));
@@ -602,13 +602,16 @@ export default function FreedomBotPage() {
 
             {/* Coming Soon cards */}
             {[
-              { emoji: "🇮🇳", name: "Indian Stock Bot" },
-              { emoji: "🥇", name: "Gold Bot" },
-              { emoji: "🥈", name: "Silver Bot" },
+              { logo: "/freedombot/coins/btc.png", ticker: "BTC", name: "Bitcoin Bot" },
+              { logo: "/freedombot/coins/eth.png", ticker: "ETH", name: "Ethereum Bot" },
+              { logo: "/freedombot/coins/sol.png", ticker: "SOL", name: "Solana Bot" },
+              { logo: "/freedombot/coins/xrp.png", ticker: "XRP", name: "XRP Bot" },
             ].map((bot) => (
-              <div key={bot.name} className="rounded-2xl p-5 flex flex-col gap-4" style={{ backgroundColor: "#0d1b2e", border: "1px solid rgba(90,140,220,0.12)", opacity: 0.75 }}>
+              <div key={bot.ticker} className="rounded-2xl p-5 flex flex-col gap-4" style={{ backgroundColor: "#0d1b2e", border: "1px solid rgba(90,140,220,0.12)", opacity: 0.75 }}>
                 <div className="flex items-start justify-between">
-                  <span className="text-2xl">{bot.emoji}</span>
+                  <div className="h-9 w-9 rounded-full bg-white/5 flex items-center justify-center overflow-hidden p-0.5 flex-shrink-0">
+                    <Image src={bot.logo} alt={bot.ticker} width={32} height={32} className="object-contain rounded-full" />
+                  </div>
                   <span className="text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider" style={{ backgroundColor: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>Coming Soon</span>
                 </div>
                 <div>

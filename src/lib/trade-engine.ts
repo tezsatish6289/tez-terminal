@@ -483,6 +483,9 @@ export async function handleTpFill(
     updatedFields.tp1OrderId = null;
     updatedFields.tp2OrderId = null;
     updatedFields.tp3OrderId = null;
+    // Persist the real exit price so dashboards can compute deterministic
+    // P&L from (entry, exit, positionSize) without waiting for venue sync.
+    updatedFields.currentPrice = fillPrice;
 
     const cleanup = await cancelResidualExitOrders(connector, trade.symbol, creds);
     if (!cleanup.success) {
@@ -548,6 +551,10 @@ export async function handleSlFill(
     tp3OrderId: null,
     slOrderId: null,
     residualOrdersPendingCleanup: !cleanup.success,
+    // Persist the actual SL fill price so the dashboard can compute
+    // deterministic P&L from (entry, exit, positionSize) without waiting for
+    // venue PnL reconciliation.
+    currentPrice: fillPrice,
   };
 
   if (!cleanup.success) {
@@ -696,6 +703,9 @@ export async function protectiveClose(
       tp2OrderId: null,
       tp3OrderId: null,
       residualOrdersPendingCleanup: !cleanupOk,
+      // Persist the protective-close fill price so deterministic P&L from
+      // (entry, exit, positionSize) is correct without venue reconciliation.
+      currentPrice: fillPrice,
       ...(closeOrderId ? { closeOrderId } : {}),
     },
     newEvent: {

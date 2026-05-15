@@ -155,10 +155,11 @@ async function syncUserTrades(
 
     // ── 0. Backfill actual exchange data for closed trades ───────
     // Fetches real PnL, entry/exit prices, and qty from the exchange for
-    // any closed trade missing exchangeRealizedPnl. Runs on ALL closed
-    // trades (not just recent) so older trades are backfilled gradually.
-    // Bybit: match closed-PnL rows by stored order ids when the API returns them; else ±5m window.
-    // Capped at 20 per cycle to avoid rate-limiting.
+    // any closed trade missing exchangeRealizedPnl.
+    //
+    // For each attempted trade we bump `exchangePnlReconcileAttempts` so we can
+    // see in Firestore which trades have been retrying without success. Capped
+    // at 50/cycle to balance freshness vs. rate-limiting (Bybit ~120 req/sec).
     // Best-effort: never blocks open-trade sync.
     if (getConnector(exchange).getClosedPnl) {
       try {
@@ -167,12 +168,13 @@ async function syncUserTrades(
           .where("userId", "==", userId)
           .where("exchange", "==", exchange)
           .where("exchangeRealizedPnl", "==", null)
-          .limit(20)
+          .limit(50)
           .get();
 
         const connector = getConnector(exchange);
         for (const doc of missingSnap.docs) {
           const lt = { id: doc.id, ...doc.data() } as LiveTrade;
+          const nowIso = new Date().toISOString();
           try {
             const openedAtMs = new Date(lt.openedAt).getTime();
             const closedAtMs = lt.closedAt ? new Date(lt.closedAt).getTime() : Date.now();
@@ -195,13 +197,21 @@ async function syncUserTrades(
               ...(exchange === "COINDCX" ? coindcxClosedPnlWindowOpts() : {}),
               ...(exchange === "BYBIT" ? bybitClosedPnlWindowOpts() : {}),
             });
-            if (metrics.recordCount === 0) continue;
 
-            const nowIso = new Date().toISOString();
+            if (metrics.recordCount === 0) {
+              // Track that we tried — useful for debugging perma-stuck trades.
+              await doc.ref.update({
+                exchangePnlReconcileAttempts: FieldValue.increment(1),
+                exchangePnlReconcileLastAttemptAt: nowIso,
+              });
+              continue;
+            }
+
             const patch: Record<string, unknown> = {
               exchangeRealizedPnl: Number(metrics.exchangeRealizedPnl.toFixed(6)),
               exchangePnlReconciledAt: nowIso,
               exchangePnlSource: "exchange_closed_pnl_api",
+              exchangePnlReconcileLastAttemptAt: nowIso,
             };
             if (metrics.exchangeAvgEntryPrice != null) {
               patch.exchangeAvgEntryPrice = metrics.exchangeAvgEntryPrice;
@@ -212,9 +222,18 @@ async function syncUserTrades(
             if (metrics.exchangeQty != null) {
               patch.exchangeQty = metrics.exchangeQty;
             }
-            await db.collection("live_trades").doc(doc.id).update(patch);
-          } catch {
-            // best effort per trade
+            await doc.ref.update(patch);
+          } catch (reconErr) {
+            try {
+              await doc.ref.update({
+                exchangePnlReconcileAttempts: FieldValue.increment(1),
+                exchangePnlReconcileLastAttemptAt: nowIso,
+                exchangePnlReconcileLastError:
+                  reconErr instanceof Error ? reconErr.message : String(reconErr),
+              });
+            } catch {
+              // best effort
+            }
           }
         }
       } catch {

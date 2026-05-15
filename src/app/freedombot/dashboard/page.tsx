@@ -424,14 +424,68 @@ function sortTradesForDashboard(list: Trade[]): Trade[] {
 }
 
 /**
- * Closed trades: exchange-reported or manual override only (never the in-bot TP/SL model).
+ * Compute realised P&L purely from displayed numbers — entry price, exit
+ * price, and position size — using the standard futures formula:
+ *
+ *   long:  pnl = positionSize × (exit / entry − 1)
+ *   short: pnl = positionSize × (1 − exit / entry)
+ *
+ * This is exactly how the exchange itself calculates closedPnl (gross of
+ * fees), so it stays accurate regardless of leverage handling or wallet-
+ * balance assumptions. Returns null only if any of the three inputs are
+ * missing / invalid.
  */
-function exchangeBackedClosedPnl(t: Trade): number | null {
+function computePnlFromPrices(t: Trade): number | null {
+  const entry = t.entryPrice;
+  const exit = t.currentPrice;
+  const size = t.positionSize;
+  if (entry == null || exit == null || size == null) return null;
+  if (!Number.isFinite(entry) || !Number.isFinite(exit) || !Number.isFinite(size)) return null;
+  if (entry <= 0 || size <= 0) return null;
+  const isLong = t.side === "LONG" || t.side === "BUY";
+  return isLong
+    ? size * (exit / entry - 1)
+    : size * (1 - exit / entry);
+}
+
+/**
+ * Best available closed-trade P&L for display, with provenance.
+ *
+ *  - "override":  manual admin correction (most authoritative).
+ *  - "exchange":  realised PnL pulled from the venue API (verified, net of fees).
+ *  - "computed":  derived from (entry, exit, positionSize) using the standard
+ *                 futures formula. Uses only exchange-reported fills, no
+ *                 wallet-balance assumptions. Gross of fees, so will differ
+ *                 from "exchange" by ~0.1% × positionSize once synced.
+ *  - "estimated": bot's internal TP/SL model — used only when entry/exit/size
+ *                 isn't present (defensive last resort).
+ *
+ * Returns `null` only when the trade has none of the above.
+ */
+type ClosedPnlSource = "override" | "exchange" | "computed" | "estimated";
+function bestClosedPnl(
+  t: Trade,
+): { value: number; source: ClosedPnlSource } | null {
   if (t.status !== "closed") return null;
   const ov = t.exchangeRealizedPnlOverride;
-  if (typeof ov === "number" && !Number.isNaN(ov)) return ov;
+  if (typeof ov === "number" && !Number.isNaN(ov)) {
+    return { value: ov, source: "override" };
+  }
   const ex = t.realizedPnlExchange;
-  if (typeof ex === "number" && !Number.isNaN(ex)) return ex;
+  if (typeof ex === "number" && !Number.isNaN(ex)) {
+    return { value: ex, source: "exchange" };
+  }
+  const computed = computePnlFromPrices(t);
+  if (computed != null) {
+    return { value: computed, source: "computed" };
+  }
+  const internal = t.realizedPnlInternal;
+  if (typeof internal === "number" && !Number.isNaN(internal)) {
+    return { value: internal, source: "estimated" };
+  }
+  if (typeof t.realizedPnl === "number" && !Number.isNaN(t.realizedPnl)) {
+    return { value: t.realizedPnl, source: "estimated" };
+  }
   return null;
 }
 
@@ -443,12 +497,13 @@ function tradeShowsResyncControl(t: Trade): boolean {
 }
 
 /**
- * Passbook cumulative: only exchange-backed (or override) closes, in **booking time** order
- * (`exchangePnlReconciledAt` ascending, then trade id). Matches Bybit/cron when they set
- * reconciledAt; falls back to `closedAt` if missing. The table lists closes by exit time
- * (newest first); cumulative values follow booking order, so they may not increase top-to-bottom.
+ * Passbook cumulative: walks closes in **booking time** order
+ * (`exchangePnlReconciledAt` ascending, then trade id) and sums the best
+ * available P&L for each (override > exchange > estimated). The table lists
+ * closes by exit time (newest first); cumulative values follow booking order,
+ * so they may not increase top-to-bottom.
  */
-function cumulativeExchangeBackedByTradeId(list: Trade[]): Map<string, number | null> {
+function cumulativeBestPnlByTradeId(list: Trade[]): Map<string, number | null> {
   const closed = list.filter((t) => t.status === "closed");
   const chrono = [...closed].sort((a, b) => {
     const ta = pnlBookedAtMs(a);
@@ -459,9 +514,9 @@ function cumulativeExchangeBackedByTradeId(list: Trade[]): Map<string, number | 
   const map = new Map<string, number | null>();
   let sum = 0;
   for (const t of chrono) {
-    const v = exchangeBackedClosedPnl(t);
-    if (v != null) sum += v;
-    map.set(t.id, v != null ? sum : null);
+    const best = bestClosedPnl(t);
+    if (best != null) sum += best.value;
+    map.set(t.id, best != null ? sum : null);
   }
   return map;
 }
@@ -504,9 +559,13 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
     : 0;
   const closedTrades = trades.filter((t) => t.status === "closed");
   const totalPnl = closedTrades.reduce((sum, t) => {
-    const v = exchangeBackedClosedPnl(t);
-    return v != null ? sum + v : sum;
+    const best = bestClosedPnl(t);
+    return best != null ? sum + best.value : sum;
   }, 0);
+  const hasUnverifiedPnl = closedTrades.some((t) => {
+    const best = bestClosedPnl(t);
+    return best != null && best.source === "estimated";
+  });
 
   const tradePageCount = Math.max(1, Math.ceil(trades.length / TRADES_PAGE_SIZE));
   const currentTradePage = Math.min(tradePage, tradePageCount);
@@ -655,20 +714,24 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
         </div>
       </div>
 
-      {deployment.exchange === "COINDCX" &&
-        trades.some((t) => t.status === "closed" && exchangeBackedClosedPnl(t) == null) && (
-          <div
-            className="rounded-2xl px-4 py-3 text-xs font-semibold leading-relaxed"
-            style={{
-              backgroundColor: "rgba(251,191,36,0.06)",
-              border: "1px solid rgba(251,191,36,0.18)",
-              color: "#fcd34d",
-            }}
-          >
-            CoinDCX: some closed rows are still waiting on exchange-reported P&L. Realised totals and the
-            cumulative column update as sync runs (usually within a few minutes), or use the row resync control.
-          </div>
-        )}
+      {hasUnverifiedPnl && (
+        <div
+          className="rounded-2xl px-4 py-3 text-xs font-semibold leading-relaxed flex items-start gap-2"
+          style={{
+            backgroundColor: "rgba(251,191,36,0.06)",
+            border: "1px solid rgba(251,191,36,0.18)",
+            color: "#fcd34d",
+          }}
+        >
+          <span className="inline-block h-1.5 w-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: "#fbbf24" }} />
+          <span>
+            Rows marked with a yellow dot show a preliminary P&L computed from entry, exit
+            and position size (gross of fees). The exchange&apos;s verified realised P&L
+            replaces it as soon as the venue indexes those exits — usually within a minute.
+            Click the refresh icon on any row to force an immediate sync.
+          </span>
+        </div>
+      )}
 
       {/* ── Trades table ── */}
       <div
@@ -691,7 +754,7 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
             { label: "Entry Price", tip: "" },
             { label: "Exit Price", tip: "" },
             { label: "P&L", tip: "" },
-            { label: "Cumulative", tip: "Running total after each **booked** realised P&L (oldest reconciliation first, using exchangePnlReconciledAt). The table sorts closes by latest exit; cumulative still follows booking order, so values may not increase top-to-bottom. Shows — until venue P&L exists." },
+            { label: "Cumulative", tip: "Running total after each close (oldest first by booking time). Uses the exchange's realised P&L when available, otherwise the bot's preliminary calculation. The table sorts closes by latest exit; cumulative follows booking order, so values may not increase top-to-bottom." },
             { label: "Status", tip: "" },
           ].map(({ label, tip }) => (
             <div
@@ -717,15 +780,43 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
         {/* Rows */}
         {pagedTrades.map((trade, i, arr) => {
           const isOpen = trade.status === "open";
-          const closedPnl = !isOpen ? exchangeBackedClosedPnl(trade) : null;
+          const closedBest = !isOpen ? bestClosedPnl(trade) : null;
+          const closedPnl = closedBest?.value ?? null;
+          // "computed" + "estimated" are both pre-sync values — show the same
+          // visual cue so users know venue reconciliation hasn't completed yet.
+          const isPreliminary =
+            closedBest?.source === "computed" || closedBest?.source === "estimated";
           const openPnl = isOpen ? trade.unrealizedPnl : 0;
-          const pnlDisplay = isOpen ? formatSignedUsd(openPnl) : closedPnl != null ? formatSignedUsd(closedPnl) : "—";
+          const pnlDisplay = isOpen
+            ? formatSignedUsd(openPnl)
+            : closedPnl != null
+              ? formatSignedUsd(closedPnl)
+              : "—";
           const isWin = isOpen ? openPnl >= 0 : closedPnl != null && closedPnl >= 0;
           const isBuy = trade.side === "LONG" || trade.side === "BUY";
           const cumulative = !isOpen ? cumulativeByTradeId.get(trade.id) : undefined;
           const showResync = tradeShowsResyncControl(trade);
           const rowStyle = { borderBottom: i < arr.length - 1 ? "1px solid rgba(90,140,220,0.06)" : "none" };
-          const pnlColor = !isOpen && closedPnl == null ? "#475569" : isWin ? "#34d399" : "#f87171";
+          // Solid colors for verified PnL; muted versions for preliminary
+          // (computed-from-prices or internal model) so users can tell at a
+          // glance which numbers have been reconciled with the venue.
+          const winColor = isPreliminary ? "rgba(52,211,153,0.65)" : "#34d399";
+          const lossColor = isPreliminary ? "rgba(248,113,113,0.65)" : "#f87171";
+          const pnlColor = !isOpen && closedPnl == null
+            ? "#475569"
+            : isWin
+              ? winColor
+              : lossColor;
+          const pnlTooltip =
+            closedBest?.source === "computed"
+              ? "Preliminary P&L computed from entry, exit, and position size (gross of fees). The exchange's realised P&L will replace this within a minute or so."
+              : closedBest?.source === "estimated"
+                ? "Preliminary P&L from the bot's TP/SL model. The exchange's realised P&L will replace this once the venue indexes the close."
+                : closedBest?.source === "exchange"
+                  ? "Realised P&L reported by the exchange (net of fees)."
+                  : closedBest?.source === "override"
+                    ? "Manually corrected P&L."
+                    : undefined;
 
           return (
             <div key={trade.id}>
@@ -747,7 +838,18 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
                   </span>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <span className="font-mono text-sm font-black" style={{ color: pnlColor }}>
+                  <span
+                    className="font-mono text-sm font-black inline-flex items-center gap-1"
+                    style={{ color: pnlColor }}
+                    title={pnlTooltip}
+                  >
+                    {isPreliminary && (
+                      <span
+                        className="inline-block h-1 w-1 rounded-full"
+                        style={{ backgroundColor: "#fbbf24" }}
+                        aria-label="Preliminary P&L"
+                      />
+                    )}
                     {pnlDisplay}
                   </span>
                   {!isOpen && cumulative != null && (
@@ -840,7 +942,20 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
 
                 {/* P&L */}
                 <div className="font-mono text-xs font-black min-w-0 flex flex-col gap-0.5">
-                  <span style={{ color: pnlColor }}>{pnlDisplay}</span>
+                  <span
+                    className="inline-flex items-center gap-1"
+                    style={{ color: pnlColor }}
+                    title={pnlTooltip}
+                  >
+                    {isPreliminary && (
+                      <span
+                        className="inline-block h-1.5 w-1.5 rounded-full"
+                        style={{ backgroundColor: "#fbbf24" }}
+                        aria-label="Preliminary P&L"
+                      />
+                    )}
+                    {pnlDisplay}
+                  </span>
                 </div>
 
                 {/* Cumulative (passbook) */}
@@ -980,7 +1095,7 @@ export default function FreedomBotDashboard() {
       : trades.filter((t) => tradeMatchesDeployment(t, selectedDeployment));
     return {
       dashboardTrades: sortTradesForDashboard(list),
-      cumulativeByTradeId: cumulativeExchangeBackedByTradeId(list),
+      cumulativeByTradeId: cumulativeBestPnlByTradeId(list),
     };
   }, [trades, selectedDeployment]);
 

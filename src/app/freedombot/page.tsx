@@ -38,6 +38,7 @@ interface BotStats {
   profitPerYear: number | null;
   winRate: number | null;
   totalTrades: number;
+  waitlistCount: number;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -817,7 +818,7 @@ export default function FreedomBotPage() {
             style={{ border: "1px solid rgba(90,140,220,0.12)", backgroundColor: "#0b1829" }}
           >
             {[
-              { value: "500+",                                           label: "Waitlist Members"  },
+              { value: stats ? `${stats.waitlistCount}` : "…",           label: "Waitlist Members"  },
               { value: "24/7",                                           label: "Markets Monitored" },
               { value: stats ? `${stats.totalTrades}` : "…",            label: "Trades Executed"   },
               { value: "100%",                                           label: "On-Chain Verified" },

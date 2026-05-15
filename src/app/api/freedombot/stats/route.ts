@@ -69,10 +69,11 @@ export async function GET() {
   try {
     const db = getAdminFirestore();
 
-    const [stateDoc, metricsSnap, closedSum] = await Promise.all([
+    const [stateDoc, metricsSnap, closedSum, waitlistSnap] = await Promise.all([
       db.collection("config").doc("simulator_state").get(),
       db.collection("daily_metrics").orderBy("date", "asc").limit(1).get(),
       computeClosedRealizedSum(db),
+      db.collection("waitlist").count().get(),
     ]);
 
     const state = stateDoc.exists ? (stateDoc.data() as any) : null;
@@ -93,6 +94,8 @@ export async function GET() {
       );
     }
 
+    const waitlistCount = waitlistSnap.data().count ?? 0;
+
     if (!state) {
       return NextResponse.json({
         runningSince,
@@ -105,6 +108,7 @@ export async function GET() {
         profitPerYear: null,
         winRate: null,
         totalTrades: 0,
+        waitlistCount,
       }, { headers: NO_STORE_HEADERS });
     }
 
@@ -155,6 +159,7 @@ export async function GET() {
       profitPerYear:        Math.round(profitPerYear    * 100) / 100,
       winRate,
       totalTrades: totalTradesTaken ?? 0,
+      waitlistCount,
     }, { headers: NO_STORE_HEADERS });
   } catch (error: any) {
     console.error("[FreedomBot Stats]", error.message);

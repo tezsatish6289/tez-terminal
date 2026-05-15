@@ -65,6 +65,7 @@ import { HeatmapAutoSwitch } from "@/components/simulator/HeatmapAutoSwitch";
 import { NiftyAutoSwitch } from "@/components/simulator/NiftyAutoSwitch";
 import { format, startOfDay, startOfWeek, startOfMonth, isAfter } from "date-fns";
 import { calcPerformanceMetrics } from "@/lib/performance-metrics";
+import { buildEquityCurve } from "@/lib/equity-curve";
 
 function formatMoney(val: number, cs = "$"): string {
   if (cs === "₹") {
@@ -237,37 +238,14 @@ export default function SimulationPage() {
       .finally(() => setAllTradesLoading(false));
   }, [assetType]);
 
-  // Sequential trade number AND running balance — both derived from the FULL
-  // `allClosedTrades` history walked oldest-first. The balance walk simply
-  // accumulates `trade.realizedPnl`, which is initialised to `-entryFee` at
-  // open and grows by `netPnl` (pnl − exitFee) on every exit — i.e. exactly
-  // the value shown in the "Net PNL" column. This guarantees:
-  //   1. Chart point #N and history-row #N show the IDENTICAL number.
-  //   2. Consecutive rows reconcile cleanly:
-  //         row(N).balance − row(N−1).balance === trade N's Net PNL.
-  // The headline `derivedCapital` still reflects the true live ledger
-  // (`simState.capital`), which can differ slightly because it also absorbs
-  // entry fees of currently-open trades that haven't closed yet.
-  const { tradeNumberMap, balanceAfterMap } = useMemo(() => {
-    const sorted = [...allClosedTrades]
-      .filter((t) => t.closedAt)
-      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
-
-    const numberMap = new Map<string, number>();
-    const balanceMap = new Map<string, number>();
-    const startCap = simState?.startingCapital ?? 0;
-    let capital = startCap;
-
-    sorted.forEach((t, i) => {
-      capital += t.realizedPnl ?? 0;
-      const key = t.id ?? t.signalId;
-      if (key) {
-        numberMap.set(key, i + 1);
-        balanceMap.set(key, parseFloat(capital.toFixed(2)));
-      }
-    });
-    return { tradeNumberMap: numberMap, balanceAfterMap: balanceMap };
-  }, [allClosedTrades, simState?.startingCapital]);
+  // All "fund value" math (chart, history balance, headline) derives from
+  // the same shared helper so /simulation, /freedombot/performance and
+  // anywhere else stay perfectly in sync.
+  const equityCurve = useMemo(
+    () => buildEquityCurve(allClosedTrades, simState?.startingCapital ?? 0),
+    [allClosedTrades, simState?.startingCapital],
+  );
+  const { tradeNumberMap, balanceAfterMap, finalCapital: closedEquity } = equityCurve;
 
   const logs = useMemo(() => {
     if (!rawLogs) return [];
@@ -297,26 +275,16 @@ export default function SimulationPage() {
       .catch(() => {});
   }, [assetType]);
 
-  // derivedCapital = startingCapital + sum(realizedPnl of all closed trades).
-  // This is identical to the equity-curve chart's last point and to the
-  // running balance shown next to the most recent history row, so all three
-  // headline / chart / history numbers always agree.
-  //
-  // It intentionally excludes the entry fees of currently-open trades and
-  // any partial-close P&L that hasn't yet rolled up into a fully closed
-  // trade — those will appear once those trades close. Until then they
-  // show under "OPEN" trades' unrealized P&L.
-  //
-  // While the full history is still loading we fall back to simState.capital
-  // (live ledger) to avoid showing 0.
+  // derivedCapital comes from the shared equity-curve helper — same value
+  // rendered as the chart's last point and the latest history row's balance.
+  // While the full history is still loading we fall back to simState.capital.
   const derivedCapital = useMemo(() => {
     if (!simState) return 0;
     if (allTradesLoading || allClosedTrades.length === 0) {
       return simState.capital ?? simState.startingCapital;
     }
-    const sum = allClosedTrades.reduce((s, t) => s + (t.realizedPnl ?? 0), 0);
-    return parseFloat((simState.startingCapital + sum).toFixed(2));
-  }, [simState, allClosedTrades, allTradesLoading]);
+    return closedEquity;
+  }, [simState, allClosedTrades.length, allTradesLoading, closedEquity]);
 
   const isLoading = stateLoading || openTradesLoading || closedTradesLoading || logsLoading || allTradesLoading;
 

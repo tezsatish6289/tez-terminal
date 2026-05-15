@@ -25,6 +25,7 @@ import {
 import { format } from "date-fns";
 import { calcPerformanceMetrics } from "@/lib/performance-metrics";
 import type { PerformanceMetrics } from "@/lib/performance-metrics";
+import { buildEquityCurve } from "@/lib/equity-curve";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,13 +54,6 @@ interface ApiTrade {
   closedAt: string | null;
   // Same structure the simulator uses — required for accurate PnL
   events: TradeEvent[];
-}
-
-// ─── trueNetPnl — identical to performance-metrics.ts ────────────────────────
-// sum(event.pnl) - events[0].fee  = price PnL - all fees
-function trueNetPnl(events: TradeEvent[]): number {
-  if (!events.length) return 0;
-  return events.reduce((s, e) => s + e.pnl, 0) - events[0].fee;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -185,45 +179,29 @@ type ChartView = "trade" | "day";
 function EquityCurve({ trades, startingCapital }: { trades: ApiTrade[]; startingCapital: number }) {
   const [view, setView] = useState<ChartView>("trade");
 
-  const closed = useMemo(
-    () => trades
-      .filter((t) => t.status === "CLOSED" && t.closedAt)
-      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime()),
-    [trades]
+  // One canonical walk — same helper used by /simulation.
+  const curve = useMemo(
+    () => buildEquityCurve(trades.filter((t) => t.status === "CLOSED"), startingCapital),
+    [trades, startingCapital],
   );
 
   const tradeData = useMemo(() => {
-    if (!closed.length) return [];
-    const pts: { x: number | string; value: number; tooltip: string }[] = [
-      { x: 0, value: startingCapital, tooltip: "Start" },
+    if (!curve.points.length) return [];
+    return [
+      { x: 0 as number | string, value: startingCapital, tooltip: "Start" },
+      ...curve.points.map((p) => ({
+        x: p.tradeNumber,
+        value: p.value,
+        tooltip: `${p.symbol} · ${format(new Date(p.closedAt), "MMM dd HH:mm")}`,
+      })),
     ];
-    let running = startingCapital;
-    closed.forEach((t, i) => {
-      if (t.capitalAfter != null) {
-        running = t.capitalAfter;
-      } else {
-        running += trueNetPnl(t.events ?? []);
-      }
-      pts.push({
-        x: i + 1,
-        value: parseFloat(running.toFixed(2)),
-        tooltip: `${t.symbol} · ${format(new Date(t.closedAt!), "MMM dd HH:mm")}`,
-      });
-    });
-    return pts;
-  }, [closed, startingCapital]);
+  }, [curve, startingCapital]);
 
   const dayData = useMemo(() => {
-    if (!closed.length) return [];
+    if (!curve.points.length) return [];
     const dayCapital = new Map<string, number>();
-    let running = startingCapital;
-    for (const t of closed) {
-      if (t.capitalAfter != null) {
-        running = t.capitalAfter;
-      } else {
-        running += trueNetPnl(t.events ?? []);
-      }
-      dayCapital.set(t.closedAt!.slice(0, 10), parseFloat(running.toFixed(2)));
+    for (const p of curve.points) {
+      dayCapital.set(p.closedAt.slice(0, 10), p.value);
     }
     const pts: { x: string; value: number; tooltip: string }[] = [
       { x: "Start", value: startingCapital, tooltip: "Starting capital" },
@@ -232,9 +210,9 @@ function EquityCurve({ trades, startingCapital }: { trades: ApiTrade[]; starting
       pts.push({ x: format(new Date(day), "MMM dd"), value: capital, tooltip: day });
     }
     return pts;
-  }, [closed, startingCapital]);
+  }, [curve, startingCapital]);
 
-  if (closed.length < 2) return null;
+  if (curve.points.length < 2) return null;
 
   const chartData  = view === "trade" ? tradeData : dayData;
   const lastVal    = chartData[chartData.length - 1]?.value ?? startingCapital;
@@ -402,54 +380,47 @@ export default function PerformancePage() {
 
   const startCap = simState?.startingCapital ?? 1000;
 
-  // ── All headline metrics from stats API (same source as /records and /simulation) ──
-  // Fall back to event-summing only while the stats API is loading or for non-CRYPTO.
+  // ── Headline metrics — derived from the SAME shared equity-curve helper
+  // as /simulation. derivedCapital === chart's last point === latest history
+  // row's balance, by construction.
+  const equityCurve = useMemo(
+    () => buildEquityCurve(closedTrades, startCap),
+    [closedTrades, startCap],
+  );
+  const closedEquity = equityCurve.finalCapital;
 
   const derivedCapital = useMemo(() => {
-    if (statsData?.currentCapital != null) return statsData.currentCapital;
-    let cap = startCap;
-    for (const t of closedTrades) {
-      const evts = t.events ?? [];
-      if (!evts.length) continue;
-      cap += evts.reduce((s, e) => s + e.pnl, 0) - evts[0].fee;
+    if (closedTrades.length === 0) {
+      return statsData?.currentCapital ?? simState?.capital ?? startCap;
     }
-    for (const t of openTrades) cap += t.realizedPnl ?? 0;
-    return parseFloat(cap.toFixed(2));
-  }, [statsData, closedTrades, openTrades, startCap]);
+    return closedEquity;
+  }, [closedTrades.length, closedEquity, statsData, simState, startCap]);
 
   const fallbackRunningDays = useFallbackRunningDays(openTrades, closedTrades);
   const runningDays = statsData?.runningDays ?? fallbackRunningDays;
 
-  const totalReturn = statsData?.totalReturnPct
-    ?? (startCap > 0 ? ((derivedCapital - startCap) / startCap) * 100 : 0);
+  const totalReturn = startCap > 0 ? ((derivedCapital - startCap) / startCap) * 100 : 0;
 
   const monthlyPnl = useMemo(() => {
-    if (statsData?.profitPerMonth != null) {
-      return { pct: statsData.profitPerMonth, isProjected: !statsData.profitPerMonthIsActual };
-    }
     if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
     const netPnl = derivedCapital - startCap;
-    if (runningDays >= 30) {
+    if (runningDays >= 30 && closedTrades.length > 0) {
       const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
       const monthNet = closedTrades.reduce((sum, t) => {
         if (!t.closedAt || new Date(t.closedAt) < monthStart) return sum;
-        const evts = t.events ?? [];
-        return sum + evts.reduce((s, e) => s + e.pnl, 0) - (evts[0]?.fee ?? 0);
+        return sum + (t.realizedPnl ?? 0);
       }, 0);
       return { pct: (monthNet / simState.startingCapital) * 100, isProjected: false };
     }
     return { pct: ((netPnl / runningDays) * 30 / simState.startingCapital) * 100, isProjected: true };
-  }, [statsData, simState, derivedCapital, startCap, runningDays, closedTrades]);
+  }, [simState, derivedCapital, startCap, runningDays, closedTrades]);
 
   const yearlyPnl = useMemo(() => {
-    if (statsData?.profitPerYear != null) {
-      return { pct: statsData.profitPerYear, isProjected: runningDays < 365 };
-    }
     if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
     const netPnl = derivedCapital - startCap;
     const annualPnl = runningDays >= 365 ? netPnl : (netPnl / runningDays) * 365;
     return { pct: (annualPnl / startCap) * 100, isProjected: runningDays < 365 };
-  }, [statsData, simState, derivedCapital, startCap, runningDays]);
+  }, [simState, derivedCapital, startCap, runningDays]);
 
   // Performance metrics — same function AND same args as simulator
   const metrics = useMemo(

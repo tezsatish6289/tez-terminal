@@ -16,6 +16,7 @@ import type { SimTrade, SimConfigType } from "./simulator";
 import { isIndianMarketEntryAllowed } from "./market-hours";
 import { getDhanLeverage } from "./exchanges/dhan";
 import { generateTokenForUser } from "./dhan-token";
+import { applyTradeChangeToAggregates } from "./freedombot/aggregates";
 
 /**
  * Execute a trade for ALL users who have autoTradeEnabled on any supported exchange.
@@ -259,6 +260,31 @@ export async function executeForAllUsers(
             break;
           } catch {
             if (w < 3) await new Promise((r) => setTimeout(r, 400 * w));
+          }
+        }
+
+        // Bump the per-deployment open-trade counter as soon as the trade
+        // doc lands. Failures here never block the trade itself — the
+        // cold-path rebuild (admin "Sync PNL" / read-time bootstrap) heals
+        // any drift.
+        if (writeOk) {
+          try {
+            await applyTradeChangeToAggregates(db, null, {
+              userId: liveResult.trade.userId,
+              exchange: liveResult.trade.exchange,
+              status: liveResult.trade.status,
+              testnet: liveResult.trade.testnet,
+              side: liveResult.trade.side,
+              entryPrice: liveResult.trade.entryPrice,
+              currentPrice: liveResult.trade.currentPrice,
+              positionSize: liveResult.trade.positionSize,
+              realizedPnl: liveResult.trade.realizedPnl,
+              exchangeRealizedPnl: liveResult.trade.exchangeRealizedPnl,
+              exchangeRealizedPnlOverride: liveResult.trade.exchangeRealizedPnlOverride,
+              events: liveResult.trade.events,
+            });
+          } catch (e) {
+            console.warn(`[live-execution] aggregate bump on open failed: ${e instanceof Error ? e.message : String(e)}`);
           }
         }
 

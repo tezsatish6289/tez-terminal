@@ -39,6 +39,10 @@ import {
   reconcileTradeExchangePnl,
   exchangeSupportsClosedPnlReconciliation,
 } from "@/lib/freedombot/reconcile-exchange-pnl";
+import {
+  applyTradeChangeToAggregates,
+  type TradeAggregateSnapshot,
+} from "@/lib/freedombot/aggregates";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -266,9 +270,16 @@ async function syncUserTrades(
             if (fill.type === "SL") {
               const slResult = await handleSlFill(lt, fill.price, fill.qty, creds);
               const { id: _slId, ...slFields } = { id: lt.id, ...slResult.updatedFields };
+              const slEvents = [...(lt.events || []), slResult.newEvent];
+              const aggBefore: TradeAggregateSnapshot = { ...lt };
               await db.collection("live_trades").doc(lt.id!).update({
                 ...slFields,
-                events: [...(lt.events || []), slResult.newEvent],
+                events: slEvents,
+              });
+              await applyTradeChangeToAggregates(db, aggBefore, {
+                ...aggBefore,
+                ...slResult.updatedFields,
+                events: slEvents,
               });
               if (slResult.warnings.length) {
                 await db.collection("live_trade_logs").add({
@@ -299,7 +310,13 @@ async function syncUserTrades(
               const tpLevel = fill.type === "TP1" ? 1 : fill.type === "TP2" ? 2 : 3;
               const tpResult = await handleTpFill(lt, tpLevel as 1 | 2 | 3, fill.price, fill.qty, creds);
               const updatedEvents = [...(lt.events || []), tpResult.newEvent];
+              const tpAggBefore: TradeAggregateSnapshot = { ...lt };
               await db.collection("live_trades").doc(lt.id!).update({
+                ...tpResult.updatedFields,
+                events: updatedEvents,
+              });
+              await applyTradeChangeToAggregates(db, tpAggBefore, {
+                ...tpAggBefore,
                 ...tpResult.updatedFields,
                 events: updatedEvents,
               });
@@ -506,9 +523,16 @@ async function syncUserTrades(
           const curPrice = getPrice(allPrices, lt.signalSymbol, exchange) ?? lt.entryPrice;
           const closeResult = await protectiveClose(lt, "MARKET_TURN", curPrice, creds);
           if (closeResult.updatedFields.status === "CLOSED") {
+            const orphanEvents = [...(lt.events || []), closeResult.newEvent];
+            const orphanAggBefore: TradeAggregateSnapshot = { ...lt };
             await db.collection("live_trades").doc(lt.id!).update({
               ...closeResult.updatedFields,
-              events: [...(lt.events || []), closeResult.newEvent],
+              events: orphanEvents,
+            });
+            await applyTradeChangeToAggregates(db, orphanAggBefore, {
+              ...orphanAggBefore,
+              ...closeResult.updatedFields,
+              events: orphanEvents,
             });
             await db.collection("live_trade_logs").add({
               timestamp: new Date().toISOString(),
@@ -543,9 +567,16 @@ async function syncUserTrades(
         const closeResult = await protectiveClose(lt, closeReason, curPrice, creds);
 
         if (closeResult.updatedFields.status === "CLOSED") {
+          const trailEvents = [...(lt.events || []), closeResult.newEvent];
+          const trailAggBefore: TradeAggregateSnapshot = { ...lt };
           await db.collection("live_trades").doc(lt.id!).update({
             ...closeResult.updatedFields,
-            events: [...(lt.events || []), closeResult.newEvent],
+            events: trailEvents,
+          });
+          await applyTradeChangeToAggregates(db, trailAggBefore, {
+            ...trailAggBefore,
+            ...closeResult.updatedFields,
+            events: trailEvents,
           });
           await db.collection("live_trade_logs").add({
             timestamp: new Date().toISOString(),
@@ -609,9 +640,16 @@ async function syncUserTrades(
         for (const trade of stillOpen) {
           const curPrice = getPrice(allPrices, trade.signalSymbol, exchange) ?? trade.entryPrice;
           const closeResult = await protectiveClose(trade, "KILL_SWITCH", curPrice, creds);
+          const ksEvents = [...(trade.events || []), closeResult.newEvent];
+          const ksAggBefore: TradeAggregateSnapshot = { ...trade };
           await db.collection("live_trades").doc(trade.id!).update({
             ...closeResult.updatedFields,
-            events: [...(trade.events || []), closeResult.newEvent],
+            events: ksEvents,
+          });
+          await applyTradeChangeToAggregates(db, ksAggBefore, {
+            ...ksAggBefore,
+            ...closeResult.updatedFields,
+            events: ksEvents,
           });
           Object.assign(trade, closeResult.updatedFields);
           trade.status = "CLOSED";
@@ -789,12 +827,18 @@ export async function GET(request: NextRequest) {
               const realizedPnl = (priceDiff / lt.entryPrice) * lt.positionSize;
               const now = new Date().toISOString();
 
-              await db.collection("live_trades").doc(lt.id!).update({
-                status: "CLOSED",
+              const eodPatch = {
+                status: "CLOSED" as const,
                 closeReason: "EOD_SQUARE_OFF",
                 closedAt: now,
                 exitPrice: closePrice,
                 realizedPnl: Math.round(realizedPnl * 100) / 100,
+              };
+              const eodAggBefore: TradeAggregateSnapshot = { ...lt };
+              await db.collection("live_trades").doc(lt.id!).update(eodPatch);
+              await applyTradeChangeToAggregates(db, eodAggBefore, {
+                ...eodAggBefore,
+                ...eodPatch,
               });
 
               await db.collection("live_trade_logs").add({

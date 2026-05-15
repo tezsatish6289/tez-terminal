@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
 import { bestRealizedPnl } from "@/lib/freedombot/compute-best-pnl";
+import { getDeploymentAggregates } from "@/lib/freedombot/aggregates";
 
 export const dynamic = "force-dynamic";
 
@@ -61,20 +62,32 @@ export async function GET(
       }
     }
 
-    // Count the full result set so the UI can show "50 of 77 loaded" instead
-    // of just the paged length (which used to be mistaken for the total).
-    // Only run on the first page to avoid burning a count query per scroll.
-    const totalCountPromise = cursor
-      ? Promise.resolve<number | null>(null)
-      : baseQuery
-          .count()
-          .get()
-          .then((snap) => snap.data().count)
-          .catch(() => null);
+    // Cached aggregates carry the open + closed trade counts and the lifetime
+    // realised PnL. They live on the deployment doc — O(1) read — and are
+    // bootstrapped (rebuilt + persisted) on first read if missing. We use
+    // these for the UI's "X / Y loaded" line and the PnL stat card so it no
+    // longer depends on how many pages the user has scrolled.
+    const aggregatesPromise = cursor
+      ? Promise.resolve(null)
+      : getDeploymentAggregates(db, {
+          uid,
+          exchange,
+          openTradeCount: dep.openTradeCount as number | undefined,
+          closedTradeCount: dep.closedTradeCount as number | undefined,
+          lifetimeRealizedPnl: dep.lifetimeRealizedPnl as number | undefined,
+        }).catch((err) => {
+          console.warn(
+            `[admin trades] aggregate resolve failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          return null;
+        });
 
-    const [snap, totalCount] = await Promise.all([q.get(), totalCountPromise]);
+    const [snap, aggregates] = await Promise.all([q.get(), aggregatesPromise]);
     const hasMore = snap.size > pageSize;
     const docs = hasMore ? snap.docs.slice(0, pageSize) : snap.docs;
+    const totalCount = aggregates
+      ? aggregates.openTradeCount + aggregates.closedTradeCount
+      : null;
 
     // Mirror /api/freedombot/my-trades exactly so the admin trade table can
     // share rendering logic with the user dashboard. The shared
@@ -130,6 +143,16 @@ export async function GET(
       hasMore,
       pageSize,
       totalCount,
+      ...(aggregates
+        ? {
+            aggregates: {
+              lifetimeRealizedPnl: aggregates.lifetimeRealizedPnl,
+              openTradeCount: aggregates.openTradeCount,
+              closedTradeCount: aggregates.closedTradeCount,
+              source: aggregates.source,
+            },
+          }
+        : {}),
       deploymentId,
       userId: uid,
       exchange,

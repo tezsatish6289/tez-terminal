@@ -24,6 +24,11 @@ import {
   type ExchangeCredentials,
   type ExchangeName,
 } from "@/lib/exchanges";
+import {
+  applyTradeChangeToAggregates,
+  rebuildDeploymentAggregates,
+  type TradeAggregateSnapshot,
+} from "@/lib/freedombot/aggregates";
 
 /** Legacy rows without `exchange` field are treated as Bybit. */
 export function tradeBelongsToVenue(
@@ -378,7 +383,15 @@ export async function reconcileTradeExchangePnl(
 
   const { metrics, lastExitPrice } = result;
   const nowIso = new Date().toISOString();
-  await db.collection("live_trades").doc(tradeDocId).update({
+  // Snapshot the doc BEFORE we patch in the new exchange PnL so the aggregate
+  // delta sees old vs new bestRealizedPnl. Best-effort: if the doc has been
+  // deleted in flight we just skip the aggregate side effect.
+  const tradeRef = db.collection("live_trades").doc(tradeDocId);
+  const beforeSnap = await tradeRef.get();
+  const beforeData = beforeSnap.exists
+    ? (beforeSnap.data() as TradeAggregateSnapshot)
+    : null;
+  const patch: Record<string, unknown> = {
     exchangeRealizedPnl: Number(metrics.exchangeRealizedPnl.toFixed(6)),
     ...(metrics.exchangeAvgEntryPrice != null
       ? { exchangeAvgEntryPrice: metrics.exchangeAvgEntryPrice }
@@ -389,7 +402,20 @@ export async function reconcileTradeExchangePnl(
     ...(metrics.exchangeQty != null ? { exchangeQty: metrics.exchangeQty } : {}),
     exchangePnlReconciledAt: nowIso,
     exchangePnlSource: "exchange_closed_pnl_api",
-  });
+  };
+  await tradeRef.update(patch);
+  if (beforeData) {
+    try {
+      await applyTradeChangeToAggregates(db, beforeData, {
+        ...beforeData,
+        ...patch,
+      } as TradeAggregateSnapshot);
+    } catch (e) {
+      console.warn(
+        `[reconcile-exchange-pnl] aggregate delta failed for ${tradeDocId}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
 
   return {
     reconciled: true,
@@ -564,5 +590,17 @@ export async function reconcileUserExchangeClosedPnl(
   }
 
   result.totalClosedExchangePnl = Number(result.totalClosedExchangePnl.toFixed(4));
+
+  // Cold-path rebuild: bulk reconcile is the natural place to refresh the
+  // cached deployment aggregates from the (now up-to-date) live_trades. This
+  // heals any drift from missed deltas, manual overrides, or legacy rows.
+  try {
+    await rebuildDeploymentAggregates(db, uid, exchange);
+  } catch (e) {
+    result.errors.push(
+      `aggregate-rebuild: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+
   return result;
 }

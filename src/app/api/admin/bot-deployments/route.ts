@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { DocumentData } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
-import { sumLifetimeRealizedPnlForUserExchange } from "@/lib/freedombot/sum-lifetime-realized-pnl";
+import { getDeploymentAggregates } from "@/lib/freedombot/aggregates";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +74,10 @@ export async function GET(request: NextRequest) {
       exchange: string;
       status: string;
       createdAt: { toDate?: () => Date } | null;
+      // Cached aggregates (may be missing on legacy rows — bootstrap on read).
+      cachedOpenTradeCount?: number;
+      cachedClosedTradeCount?: number;
+      cachedLifetimeRealizedPnl?: number;
     };
 
     let deployments: DepDoc[] = depSnap.docs.map((d) => {
@@ -87,6 +91,9 @@ export async function GET(request: NextRequest) {
         exchange: String(x.exchange ?? ""),
         status: String(x.status ?? ""),
         createdAt: (x.createdAt as DepDoc["createdAt"]) ?? null,
+        cachedOpenTradeCount: x.openTradeCount as number | undefined,
+        cachedClosedTradeCount: x.closedTradeCount as number | undefined,
+        cachedLifetimeRealizedPnl: x.lifetimeRealizedPnl as number | undefined,
       };
     });
 
@@ -107,7 +114,15 @@ export async function GET(request: NextRequest) {
       const u = userByUid.get(dep.uid);
       const email = u?.email ?? dep.email ?? null;
       const displayName = u?.displayName ?? dep.displayName ?? null;
-      const lifetimeRealizedPnl = await sumLifetimeRealizedPnlForUserExchange(db, dep.uid, dep.exchange);
+      // Cached on the deployment doc; bootstraps with a full rebuild on the
+      // very first read after this PR ships and any time the cache is missing.
+      const aggregates = await getDeploymentAggregates(db, {
+        uid: dep.uid,
+        exchange: dep.exchange,
+        openTradeCount: dep.cachedOpenTradeCount,
+        closedTradeCount: dep.cachedClosedTradeCount,
+        lifetimeRealizedPnl: dep.cachedLifetimeRealizedPnl,
+      });
       const currency = pnlCurrencyLabel(dep.bot, dep.exchange);
       const createdIso = dep.createdAt?.toDate?.()?.toISOString() ?? null;
 
@@ -122,7 +137,10 @@ export async function GET(request: NextRequest) {
         firstDeployedAt: createdIso,
         deploymentStatus: dep.status,
         running: dep.status === "active",
-        lifetimeRealizedPnl,
+        lifetimeRealizedPnl: aggregates.lifetimeRealizedPnl,
+        openTradeCount: aggregates.openTradeCount,
+        closedTradeCount: aggregates.closedTradeCount,
+        aggregatesSource: aggregates.source,
         pnlCurrency: currency,
         pnlNote:
           "Lifetime realized PnL (closed trades only). Uses exchange-reported PnL when available; includes trading fees as reported by the exchange.",

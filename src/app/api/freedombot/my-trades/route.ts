@@ -8,6 +8,7 @@ import {
 } from "@/lib/freedombot/reconcile-exchange-pnl";
 import { isExchangeSupported, type ExchangeName } from "@/lib/exchanges";
 import { bestRealizedPnl } from "@/lib/freedombot/compute-best-pnl";
+import { getDeploymentAggregates } from "@/lib/freedombot/aggregates";
 
 export const dynamic = "force-dynamic";
 
@@ -145,8 +146,68 @@ export async function GET(req: NextRequest) {
         return B.id.localeCompare(A.id);
       });
 
+    // Server-cached aggregates for the dashboard's stat cards.
+    //   - If a single venue is scoped, prefer that deployment's cache.
+    //   - If unscoped, sum cached aggregates across the user's deployments.
+    //   - Bootstrap (full rebuild) on the very first request that lands
+    //     post-deploy when the cache fields are missing on the doc.
+    let aggregates: {
+      lifetimeRealizedPnl: number;
+      openTradeCount: number;
+      closedTradeCount: number;
+      source: "cache" | "rebuilt" | "mixed";
+    } | null = null;
+    try {
+      let depQuery: FirebaseFirestore.Query = db
+        .collection("bot_deployments")
+        .where("uid", "==", uid);
+      if (scopeToVenue) {
+        depQuery = depQuery.where("exchange", "==", scopeToVenue);
+      }
+      const depSnap = await depQuery.get();
+      if (!depSnap.empty) {
+        const seen = new Set<string>();
+        let lifetime = 0;
+        let openCount = 0;
+        let closedCount = 0;
+        let anyRebuilt = false;
+        for (const d of depSnap.docs) {
+          const data = d.data();
+          const exch = String(data.exchange ?? "");
+          if (!exch) continue;
+          // Only the first deployment per (uid, exchange) — aggregates are
+          // mirrored across siblings, summing them would double-count.
+          const key = `${uid}::${exch}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const agg = await getDeploymentAggregates(db, {
+            uid,
+            exchange: exch,
+            openTradeCount: data.openTradeCount as number | undefined,
+            closedTradeCount: data.closedTradeCount as number | undefined,
+            lifetimeRealizedPnl: data.lifetimeRealizedPnl as number | undefined,
+          });
+          lifetime += agg.lifetimeRealizedPnl;
+          openCount += agg.openTradeCount;
+          closedCount += agg.closedTradeCount;
+          if (agg.source === "rebuilt") anyRebuilt = true;
+        }
+        aggregates = {
+          lifetimeRealizedPnl: Number(lifetime.toFixed(6)),
+          openTradeCount: openCount,
+          closedTradeCount: closedCount,
+          source: anyRebuilt ? (seen.size > 1 ? "mixed" : "rebuilt") : "cache",
+        };
+      }
+    } catch (e) {
+      console.warn(
+        `[my-trades] aggregate resolve failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+
     return NextResponse.json({
       trades,
+      ...(aggregates ? { aggregates } : {}),
       ...(reconciliation ? { reconciliation } : {}),
       ...(reconcileSkipped ? { reconcileSkipped } : {}),
     });

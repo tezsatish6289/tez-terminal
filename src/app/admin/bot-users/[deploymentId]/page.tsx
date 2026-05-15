@@ -41,8 +41,19 @@ interface DeploymentRow {
   deploymentStatus: string;
   running: boolean;
   lifetimeRealizedPnl: number;
+  /** Server-cached aggregates (may be undefined on legacy deployment docs). */
+  openTradeCount?: number;
+  closedTradeCount?: number;
+  aggregatesSource?: "cache" | "rebuilt";
   pnlCurrency: string;
   pnlNote: string;
+}
+
+interface TradesAggregates {
+  lifetimeRealizedPnl: number;
+  openTradeCount: number;
+  closedTradeCount: number;
+  source?: "cache" | "rebuilt";
 }
 
 interface LogRow {
@@ -69,7 +80,7 @@ export default function AdminBotUserDetailPage() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [tradeCursor, setTradeCursor] = useState<string | null>(null);
   const [tradeHasMore, setTradeHasMore] = useState(false);
-  const [tradeTotalCount, setTradeTotalCount] = useState<number | null>(null);
+  const [tradesAggregates, setTradesAggregates] = useState<TradesAggregates | null>(null);
   const [tradesLoading, setTradesLoading] = useState(false);
   const [tradesError, setTradesError] = useState("");
 
@@ -121,10 +132,15 @@ export default function AdminBotUserDetailPage() {
         setTrades((prev) => (append ? [...prev, ...newTrades] : newTrades));
         setTradeCursor(data.nextCursor ?? null);
         setTradeHasMore(!!data.hasMore);
-        // The API only returns totalCount on the first page (no cursor),
-        // so we only overwrite when we explicitly asked for that page.
-        if (!append && typeof data.totalCount === "number") {
-          setTradeTotalCount(data.totalCount);
+        // The API only returns aggregates on the first page (no cursor) — that
+        // single read covers totals + counts for the whole deployment.
+        if (!append && data.aggregates && typeof data.aggregates.lifetimeRealizedPnl === "number") {
+          setTradesAggregates({
+            lifetimeRealizedPnl: data.aggregates.lifetimeRealizedPnl,
+            openTradeCount: data.aggregates.openTradeCount ?? 0,
+            closedTradeCount: data.aggregates.closedTradeCount ?? 0,
+            source: data.aggregates.source,
+          });
         }
       } catch (e: unknown) {
         setTradesError(e instanceof Error ? e.message : "Unexpected error");
@@ -172,25 +188,6 @@ export default function AdminBotUserDetailPage() {
     }
   }, [isAdmin, deploymentId, deployment, fetchTradesPage]);
 
-  // Auto-load every remaining page so cumulative + total reflect ALL trades
-  // (matches user dashboard behaviour, which fetches the full set in one go).
-  // We chain pages instead of yanking pagination because the API is paginated
-  // — keeping it lets callers with very large histories opt out via the
-  // existing "Load more" button if we ever expose it again.
-  useEffect(() => {
-    if (!isAdmin || !deployment) return;
-    if (tradesLoading) return;
-    if (!tradeHasMore || !tradeCursor) return;
-    void fetchTradesPage(tradeCursor, true);
-  }, [
-    isAdmin,
-    deployment,
-    tradesLoading,
-    tradeHasMore,
-    tradeCursor,
-    fetchTradesPage,
-  ]);
-
   const runReconcilePnl = async () => {
     if (!user || !deploymentId) return;
     setReconciling(true);
@@ -214,23 +211,36 @@ export default function AdminBotUserDetailPage() {
   };
 
   // Re-use the shared resolver (same as user dashboard) so the per-row PnL,
-  // cumulative column, and the warning banner all agree.
+  // cumulative column, and the warning banner all agree. Pass the cached
+  // lifetime as the cumulative anchor so per-row running totals stay correct
+  // even when only the first page is loaded.
   const sortedTrades = useMemo(() => sortTradesForDashboard(trades), [trades]);
   const cumulativeByTradeId = useMemo(
-    () => cumulativeBestPnlByTradeId(trades),
-    [trades],
+    () =>
+      cumulativeBestPnlByTradeId(
+        trades,
+        tradesAggregates
+          ? { lifetimeRealizedPnl: tradesAggregates.lifetimeRealizedPnl }
+          : undefined,
+      ),
+    [trades, tradesAggregates],
   );
   const showWarningBanner = useMemo(() => anyTradeIsPreliminary(trades), [trades]);
 
-  // Header "Realised P&L" must reflect ALL trades, not just the loaded page.
-  // Until every page is in memory we can't sum locally, so trust the
-  // persisted lifetime number that the deployment doc already stores
-  // (computed server-side via sumLifetimeRealizedPnlForUserExchange across
-  // every trade — same code path as the user-dashboard total).
-  const allTradesLoaded = trades.length > 0 && !tradeHasMore;
-  const totalRealizedClosed = allTradesLoaded
-    ? totalClosedPnl(trades)
-    : (deployment?.lifetimeRealizedPnl ?? 0);
+  // Header "Realised P&L" reflects ALL trades for this (uid, exchange). The
+  // server returns the cached lifetime alongside the trades page; we fall
+  // back to the deployment doc's cached value (same field) and finally to a
+  // local sum if the API didn't bootstrap yet.
+  const totalRealizedClosed =
+    tradesAggregates?.lifetimeRealizedPnl
+    ?? deployment?.lifetimeRealizedPnl
+    ?? totalClosedPnl(trades);
+  const tradeTotalCount =
+    tradesAggregates
+      ? tradesAggregates.openTradeCount + tradesAggregates.closedTradeCount
+      : (deployment?.openTradeCount != null && deployment?.closedTradeCount != null
+          ? deployment.openTradeCount + deployment.closedTradeCount
+          : null);
 
   const handleRefreshTrade = useCallback(
     async (tradeId: string) => {

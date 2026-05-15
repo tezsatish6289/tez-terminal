@@ -21,6 +21,10 @@ import {
   type ExchangeName,
 } from "@/lib/exchanges";
 import { cancelResidualExitOrders } from "@/lib/trade-engine";
+import {
+  applyTradeChangeToAggregates,
+  type TradeAggregateSnapshot,
+} from "@/lib/freedombot/aggregates";
 
 export const dynamic = "force-dynamic";
 
@@ -137,8 +141,8 @@ export async function POST(req: NextRequest) {
     //    this before reconciliation so the trade can never be left in OPEN state
     //    if Bybit hasn't indexed the closed-pnl row yet — the cron's backfill
     //    loop will fill it in within a minute.
-    await tradeDoc.ref.update({
-      status: "CLOSED",
+    const syncedClosePatch = {
+      status: "CLOSED" as const,
       closedAt: nowIso,
       closeReason: "SYNCED_FROM_EXCHANGE",
       residualOrdersPendingCleanup: residualPending,
@@ -146,7 +150,17 @@ export async function POST(req: NextRequest) {
       tp1OrderId: null,
       tp2OrderId: null,
       tp3OrderId: null,
-    });
+    };
+    const syncedAggBefore = t as TradeAggregateSnapshot;
+    await tradeDoc.ref.update(syncedClosePatch);
+    try {
+      await applyTradeChangeToAggregates(db, syncedAggBefore, {
+        ...syncedAggBefore,
+        ...syncedClosePatch,
+      });
+    } catch (e) {
+      console.warn(`[sync-trade] aggregate bump failed for ${tradeId}: ${e instanceof Error ? e.message : String(e)}`);
+    }
 
     // 3) Try to reconcile exchange PnL right away (with retries). If it fails,
     //    we deliberately do NOT write `exchangeRealizedPnl: 0` — that would

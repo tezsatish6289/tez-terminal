@@ -358,11 +358,13 @@ const BOTS_NAV = [
   { key: "SILVER",        emoji: "🥈", label: "Silver Bot",       live: false },
 ];
 
-function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId, tradesSyncing, onStop, onSelectDeployment, onRefreshTrade }: {
+function Connected({ deployment, deployments, stats, trades, aggregates, cumulativeByTradeId, tradesSyncing, onStop, onSelectDeployment, onRefreshTrade }: {
   deployment: Deployment;
   deployments: Deployment[];
   stats: BotStats | null;
   trades: Trade[];
+  /** Server-cached aggregates for the selected exchange (null until first my-trades response). */
+  aggregates: { lifetimeRealizedPnl: number; openTradeCount: number; closedTradeCount: number } | null;
   /** Running total after each close (exchange-backed rows only); null until that close has a venue PnL. */
   cumulativeByTradeId: Map<string, number | null>;
   tradesSyncing?: boolean;
@@ -380,11 +382,13 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
   );
   const showExchangeSwitcher = cryptoActiveDeployments.length > 1;
 
-  // Compute user-specific stats from their actual trades + deployment date
+  // Compute user-specific stats from their actual trades + deployment date.
+  // Prefer the server-cached lifetime PnL (covers EVERY trade for this
+  // exchange, regardless of pagination); fall back to a local sum.
   const runningDays = deployment.createdAt
     ? Math.floor((Date.now() - new Date(deployment.createdAt).getTime()) / (1000 * 60 * 60 * 24))
     : 0;
-  const totalPnl = totalClosedPnl(trades);
+  const totalPnl = aggregates?.lifetimeRealizedPnl ?? totalClosedPnl(trades);
   const hasUnverifiedPnl = anyTradeIsPreliminary(trades);
 
   const tradePageCount = Math.max(1, Math.ceil(trades.length / TRADES_PAGE_SIZE));
@@ -597,6 +601,11 @@ export default function FreedomBotDashboard() {
   const [selectedDeploymentId, setSelectedDeploymentId] = useState<string | null>(null);
   const [stats, setStats] = useState<BotStats | null>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [tradesAggregates, setTradesAggregates] = useState<{
+    lifetimeRealizedPnl: number;
+    openTradeCount: number;
+    closedTradeCount: number;
+  } | null>(null);
   const [tradesLoading, setTradesLoading] = useState(false);
   const [stopConfirm, setStopConfirm] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
@@ -633,11 +642,17 @@ export default function FreedomBotDashboard() {
     const list = !selectedDeployment
       ? trades
       : trades.filter((t) => tradeMatchesDeployment(t, selectedDeployment));
+    // Anchor the cumulative sum at the server-cached lifetime so it stays
+    // correct when the user has only loaded a subset of pages. Falls back to
+    // the local forward sum when the server didn't return aggregates.
+    const anchor = tradesAggregates
+      ? { lifetimeRealizedPnl: tradesAggregates.lifetimeRealizedPnl }
+      : undefined;
     return {
       dashboardTrades: sortTradesForDashboard(list),
-      cumulativeByTradeId: cumulativeBestPnlByTradeId(list),
+      cumulativeByTradeId: cumulativeBestPnlByTradeId(list, anchor),
     };
-  }, [trades, selectedDeployment]);
+  }, [trades, selectedDeployment, tradesAggregates]);
 
   // Redirect unauthenticated users back to landing (hard nav — reliable after sign-out)
   useEffect(() => {
@@ -706,8 +721,18 @@ export default function FreedomBotDashboard() {
         });
         const data = await res.json();
         setTrades(data.trades ?? []);
+        setTradesAggregates(
+          data.aggregates && typeof data.aggregates.lifetimeRealizedPnl === "number"
+            ? {
+                lifetimeRealizedPnl: data.aggregates.lifetimeRealizedPnl,
+                openTradeCount: data.aggregates.openTradeCount ?? 0,
+                closedTradeCount: data.aggregates.closedTradeCount ?? 0,
+              }
+            : null,
+        );
       } catch {
         setTrades([]);
+        setTradesAggregates(null);
       } finally {
         if (withReconcile) setTradesLoading(false);
       }
@@ -798,6 +823,7 @@ export default function FreedomBotDashboard() {
           deployments={deployments}
           stats={stats}
           trades={dashboardTrades}
+          aggregates={tradesAggregates}
           cumulativeByTradeId={cumulativeByTradeId}
           tradesSyncing={tradesLoading}
           onStop={() => setStopConfirm(true)}

@@ -132,21 +132,48 @@ export function tradeShowsResyncControl(t: Trade): boolean {
 }
 
 /**
- * Passbook cumulative: walks closes in booking time order
- * (`exchangePnlReconciledAt` ascending, then trade id) and sums the best
- * available P&L for each. The table sorts closes by exit time (newest
- * first); cumulative values follow booking order, so they may not increase
- * top-to-bottom.
+ * Passbook cumulative: assigns a running-total P&L to each closed trade.
+ *
+ * Two modes:
+ *   1. **Forward sum** (default, used when the caller has every closed trade
+ *      in memory). Walk closes in booking time ascending; cumulative[t] is
+ *      the running sum up to and including t.
+ *   2. **Anchored backward** (used when `anchor.lifetimeRealizedPnl` is
+ *      provided — typical with pagination). The lifetime is known from the
+ *      server-cached aggregate; we walk the loaded closes in booking time
+ *      descending, starting at lifetime, subtracting one row's value on each
+ *      step. This gives the correct cumulative for whatever subset the
+ *      client happens to have loaded — pages no longer underreport totals.
  */
-export function cumulativeBestPnlByTradeId(list: Trade[]): Map<string, number | null> {
+export function cumulativeBestPnlByTradeId(
+  list: Trade[],
+  anchor?: { lifetimeRealizedPnl: number },
+): Map<string, number | null> {
   const closed = list.filter((t) => t.status === "closed");
+  const map = new Map<string, number | null>();
+
+  if (anchor && Number.isFinite(anchor.lifetimeRealizedPnl)) {
+    const desc = [...closed].sort((a, b) => {
+      const ta = pnlBookedAtMs(a);
+      const tb = pnlBookedAtMs(b);
+      if (ta !== tb) return tb - ta;
+      return b.id.localeCompare(a.id);
+    });
+    let running = anchor.lifetimeRealizedPnl;
+    for (const t of desc) {
+      const best = bestClosedPnl(t);
+      map.set(t.id, best != null ? running : null);
+      if (best != null) running -= best.value;
+    }
+    return map;
+  }
+
   const chrono = [...closed].sort((a, b) => {
     const ta = pnlBookedAtMs(a);
     const tb = pnlBookedAtMs(b);
     if (ta !== tb) return ta - tb;
     return a.id.localeCompare(b.id);
   });
-  const map = new Map<string, number | null>();
   let sum = 0;
   for (const t of chrono) {
     const best = bestClosedPnl(t);

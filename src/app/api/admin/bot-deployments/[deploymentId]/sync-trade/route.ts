@@ -21,6 +21,10 @@ import {
   type ExchangeName,
 } from "@/lib/exchanges";
 import { cancelResidualExitOrders } from "@/lib/trade-engine";
+import {
+  applyTradeChangeToAggregates,
+  type TradeAggregateSnapshot,
+} from "@/lib/freedombot/aggregates";
 
 export const dynamic = "force-dynamic";
 
@@ -149,8 +153,8 @@ export async function POST(
     const cleanup = await cancelResidualExitOrders(connector, normalizedSymbol, creds);
     const residualPending = !cleanup.success;
 
-    await tradeDoc.ref.update({
-      status: "CLOSED",
+    const adminClosePatch = {
+      status: "CLOSED" as const,
       closedAt: nowIso,
       closeReason: "SYNCED_FROM_EXCHANGE",
       residualOrdersPendingCleanup: residualPending,
@@ -158,7 +162,17 @@ export async function POST(
       tp1OrderId: null,
       tp2OrderId: null,
       tp3OrderId: null,
-    });
+    };
+    const adminAggBefore = t as TradeAggregateSnapshot;
+    await tradeDoc.ref.update(adminClosePatch);
+    try {
+      await applyTradeChangeToAggregates(db, adminAggBefore, {
+        ...adminAggBefore,
+        ...adminClosePatch,
+      });
+    } catch (e) {
+      console.warn(`[admin sync-trade] aggregate bump failed for ${tradeId}: ${e instanceof Error ? e.message : String(e)}`);
+    }
 
     if (typeof connector.getClosedPnl !== "function") {
       return NextResponse.json({

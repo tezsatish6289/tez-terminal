@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { DocumentData, Firestore } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
-import { sumLifetimeRealizedPnlForUserExchange } from "@/lib/freedombot/sum-lifetime-realized-pnl";
+import { getDeploymentAggregates } from "@/lib/freedombot/aggregates";
 import { getSecretDocIds, docMatchesExchange } from "@/lib/exchanges";
 import type { ExchangeName } from "@/lib/exchanges";
 
@@ -67,7 +67,14 @@ export async function GET(
     const u: DocumentData | undefined = userSnap.exists ? userSnap.data() : undefined;
     const email = (u?.email as string) ?? (x.email as string) ?? null;
     const displayName = (u?.displayName as string) ?? (x.displayName as string) ?? null;
-    const lifetimeRealizedPnl = await sumLifetimeRealizedPnlForUserExchange(db, uid, exchange);
+    // Cached on the deployment doc; bootstraps with a full rebuild if missing.
+    const aggregates = await getDeploymentAggregates(db, {
+      uid,
+      exchange,
+      openTradeCount: x.openTradeCount as number | undefined,
+      closedTradeCount: x.closedTradeCount as number | undefined,
+      lifetimeRealizedPnl: x.lifetimeRealizedPnl as number | undefined,
+    });
     const currency = pnlCurrencyLabel(bot, exchange);
     const createdAt = (x.createdAt as { toDate?: () => Date } | null) ?? null;
     const createdIso = createdAt?.toDate?.()?.toISOString() ?? null;
@@ -84,7 +91,10 @@ export async function GET(
       firstDeployedAt: createdIso,
       deploymentStatus: status,
       running: status === "active",
-      lifetimeRealizedPnl,
+      lifetimeRealizedPnl: aggregates.lifetimeRealizedPnl,
+      openTradeCount: aggregates.openTradeCount,
+      closedTradeCount: aggregates.closedTradeCount,
+      aggregatesSource: aggregates.source,
       pnlCurrency: currency,
       pnlNote:
         "Lifetime realized PnL (closed trades only). Uses exchange-reported PnL when available; includes trading fees as reported by the exchange.",

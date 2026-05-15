@@ -6,7 +6,7 @@ import {
   reconcileUserExchangeClosedPnl,
   exchangeSupportsClosedPnlReconciliation,
 } from "@/lib/freedombot/reconcile-exchange-pnl";
-import { sumLifetimeRealizedPnlForUserExchange } from "@/lib/freedombot/sum-lifetime-realized-pnl";
+import { getDeploymentAggregates } from "@/lib/freedombot/aggregates";
 import type { ExchangeName } from "@/lib/exchanges";
 
 export const dynamic = "force-dynamic";
@@ -44,12 +44,22 @@ export async function POST(
     }
 
     if (!exchangeSupportsClosedPnlReconciliation(exchange)) {
+      // Cache may be missing on legacy rows — bootstrap on read.
+      const agg = await getDeploymentAggregates(db, {
+        uid,
+        exchange,
+        openTradeCount: dep.openTradeCount as number | undefined,
+        closedTradeCount: dep.closedTradeCount as number | undefined,
+        lifetimeRealizedPnl: dep.lifetimeRealizedPnl as number | undefined,
+      });
       return NextResponse.json({
         ok: true,
         skipped: true,
         reason: "connector_has_no_closed_pnl_api",
         exchange,
-        lifetimeRealizedPnl: await sumLifetimeRealizedPnlForUserExchange(db, uid, exchange),
+        lifetimeRealizedPnl: agg.lifetimeRealizedPnl,
+        openTradeCount: agg.openTradeCount,
+        closedTradeCount: agg.closedTradeCount,
       });
     }
 
@@ -66,7 +76,18 @@ export async function POST(
     }
 
     const result = await reconcileUserExchangeClosedPnl(db, uid, exchange, creds);
-    const lifetimeRealizedPnl = await sumLifetimeRealizedPnlForUserExchange(db, uid, exchange);
+    // reconcileUserExchangeClosedPnl already triggered a full aggregate
+    // rebuild as part of its tail. Re-read so the response carries the
+    // freshly-persisted numbers (cheap O(1) read).
+    const refreshedDoc = await db.collection("bot_deployments").doc(deploymentId).get();
+    const refreshed = refreshedDoc.data() ?? {};
+    const agg = await getDeploymentAggregates(db, {
+      uid,
+      exchange,
+      openTradeCount: refreshed.openTradeCount as number | undefined,
+      closedTradeCount: refreshed.closedTradeCount as number | undefined,
+      lifetimeRealizedPnl: refreshed.lifetimeRealizedPnl as number | undefined,
+    });
 
     return NextResponse.json({
       ok: true,
@@ -76,7 +97,9 @@ export async function POST(
       reconciled: result.reconciled,
       errors: result.errors,
       totalClosedExchangePnl: result.totalClosedExchangePnl,
-      lifetimeRealizedPnl,
+      lifetimeRealizedPnl: agg.lifetimeRealizedPnl,
+      openTradeCount: agg.openTradeCount,
+      closedTradeCount: agg.closedTradeCount,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Unexpected error";

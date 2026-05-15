@@ -15,6 +15,7 @@ import {
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { useRouter } from "next/navigation";
+import { buildEquityCurve } from "@/lib/equity-curve";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -90,10 +91,9 @@ function fmtAbsolutePnl(trade: Trade, assetType: string): { display: string; pos
   return { display, positive };
 }
 
-function fmtBalance(trade: Trade, assetType: string): string {
+function fmtBalance(balance: number | undefined, assetType: string): string {
   const curr = assetType === "INDIAN_STOCKS" ? "₹" : "$";
-  if (trade.capitalAtEntry == null) return "—";
-  const balance = trade.capitalAtEntry + (trade.realizedPnl ?? 0);
+  if (balance == null) return "—";
   return `${curr}${balance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
@@ -130,7 +130,7 @@ function MetricCard({ label, value, sub, color }: {
 
 const PAGE_SIZE = 50;
 
-function TradeTable({ trades, assetType }: { trades: Trade[]; assetType: string }) {
+function TradeTable({ trades, assetType, balanceAfterMap }: { trades: Trade[]; assetType: string; balanceAfterMap: Map<string, number> }) {
   const [page, setPage] = useState(0);
 
   // Only closed trades, sorted latest closure first
@@ -207,7 +207,7 @@ function TradeTable({ trades, assetType }: { trades: Trade[]; assetType: string 
                 </div>
                 <div>
                   <span className="text-[9px] uppercase tracking-wider block mb-0.5" style={{ color: "#334155" }}>Fund Balance</span>
-                  <span className="font-mono" style={{ color: "#94a3b8" }}>{fmtBalance(trade, assetType)}</span>
+                  <span className="font-mono" style={{ color: "#94a3b8" }}>{fmtBalance(balanceAfterMap.get(trade.id), assetType)}</span>
                 </div>
               </div>
               {/* Blockchain */}
@@ -330,7 +330,7 @@ function TradeTable({ trades, assetType }: { trades: Trade[]; assetType: string 
                     {/* Fund Balance after trade */}
                     <td className="px-4 py-4">
                       <span className="text-xs font-mono font-bold" style={{ color: "#94a3b8" }}>
-                        {fmtBalance(trade, assetType)}
+                        {fmtBalance(balanceAfterMap.get(trade.id), assetType)}
                       </span>
                     </td>
 
@@ -451,6 +451,14 @@ export default function RecordsPage() {
     () => trades.filter((t) => t.assetType === activeBot),
     [trades, activeBot]
   );
+
+  // Per-trade running balance (same shared helper as /simulation, /performance,
+  // and the headline stats API) — guarantees the Fund Balance column matches
+  // the chart and the Current Capital tile.
+  const balanceAfterMap = useMemo(() => {
+    const startCap = stats?.startingCapital ?? 0;
+    return buildEquityCurve(activeTrades, startCap).balanceAfterMap;
+  }, [activeTrades, stats?.startingCapital]);
 
   const activeIsLive = BOTS.find((b) => b.key === activeBot)?.live ?? false;
   const isLoading = statsLoading || tradesLoading;
@@ -605,7 +613,7 @@ export default function RecordsPage() {
               {/* Trade table — sits inside the card panel */}
               {activeIsLive && (
                 <div style={{ backgroundColor: "#080f1e", borderTop: `1px solid ${CARD_BORDER}` }}>
-                  <TradeTable trades={activeTrades} assetType={activeBot} />
+                  <TradeTable trades={activeTrades} assetType={activeBot} balanceAfterMap={balanceAfterMap} />
                 </div>
               )}
             </div>

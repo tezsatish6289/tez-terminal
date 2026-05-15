@@ -7,9 +7,19 @@ export async function GET() {
   try {
     const db = getAdminFirestore();
 
-    const [stateDoc, metricsSnap] = await Promise.all([
+    // Fetch state, earliest metric, and currently OPEN trades in parallel.
+    // Open trades are normally only a handful, so this stays effectively O(1)
+    // and lets us derive the closed-trade equity used by /simulation and
+    // /freedombot/performance from the live ledger without re-summing the
+    // full trade history.
+    const [stateDoc, metricsSnap, openTradesSnap] = await Promise.all([
       db.collection("config").doc("simulator_state").get(),
       db.collection("daily_metrics").orderBy("date", "asc").limit(1).get(),
+      db
+        .collection("simulator_trades")
+        .where("assetType", "==", "CRYPTO")
+        .where("status", "==", "OPEN")
+        .get(),
     ]);
 
     const state = stateDoc.exists ? (stateDoc.data() as any) : null;
@@ -45,11 +55,24 @@ export async function GET() {
       });
     }
 
-    const { startingCapital, capital: currentCapital, totalTradesTaken, totalWins } = state;
+    const { startingCapital, capital: liveCapital, totalTradesTaken, totalWins } = state;
 
-    // capital is maintained incrementally by the cron on every trade exit —
-    // no need to re-sum all trades. This makes the endpoint O(1) forever.
-    const derivedCapital = parseFloat((currentCapital ?? startingCapital ?? 0).toFixed(2));
+    // Closed-trade equity (matches /simulation chart, /performance chart, and
+    // every history-row balance):
+    //   simState.capital = startingCapital + Σ ALL trades' realizedPnl
+    //   closedEquity     = simState.capital − Σ OPEN trades' realizedPnl
+    // Subtracting the open trades' running realizedPnl strips out their
+    // entry-fee deductions and any partial-close P&L that hasn't yet rolled
+    // up into a fully closed trade.
+    const openRealizedPnlSum = openTradesSnap.docs.reduce((sum, doc) => {
+      const data = doc.data() as { realizedPnl?: number };
+      return sum + (data.realizedPnl ?? 0);
+    }, 0);
+
+    const closedEquity = parseFloat(
+      ((liveCapital ?? startingCapital ?? 0) - openRealizedPnlSum).toFixed(2)
+    );
+    const derivedCapital = closedEquity;
 
     const totalReturnPct =
       startingCapital > 0

@@ -318,7 +318,7 @@ interface SimState {
   startingCapital: number;
 }
 
-type AssetKey = "CRYPTO" | "INDIAN_STOCKS" | "GOLD" | "SILVER";
+type AssetKey = "CRYPTO" | "BTC" | "ETH" | "SOL" | "XRP";
 
 // Fallback running-days calc from trade openedAt (used when stats API is unavailable)
 function useFallbackRunningDays(openTrades: ApiTrade[], closedTrades: ApiTrade[]) {
@@ -332,11 +332,12 @@ function useFallbackRunningDays(openTrades: ApiTrade[], closedTrades: ApiTrade[]
   }, [openTrades, closedTrades]);
 }
 
-const ASSETS: { key: AssetKey; label: string; icon: string; live: boolean; cs: string }[] = [
-  { key: "CRYPTO",        label: "Crypto Bot",       icon: "₿",  live: true,  cs: "$" },
-  { key: "INDIAN_STOCKS", label: "Indian Stock Bot",  icon: "🇮🇳", live: false, cs: "₹" },
-  { key: "GOLD",          label: "Gold Bot",          icon: "🥇", live: false, cs: "$" },
-  { key: "SILVER",        label: "Silver Bot",        icon: "🥈", live: false, cs: "$" },
+const ASSETS: { key: AssetKey; label: string; icon: string; logo?: string; live: boolean; cs: string }[] = [
+  { key: "CRYPTO", label: "Crypto Bot",   icon: "₿",  live: true,  cs: "$" },
+  { key: "BTC",    label: "Bitcoin Bot",  icon: "BTC", logo: "/freedombot/coins/btc.png", live: false, cs: "$" },
+  { key: "ETH",    label: "Ethereum Bot", icon: "ETH", logo: "/freedombot/coins/eth.png", live: false, cs: "$" },
+  { key: "SOL",    label: "Solana Bot",   icon: "SOL", logo: "/freedombot/coins/sol.png", live: false, cs: "$" },
+  { key: "XRP",    label: "XRP Bot",      icon: "XRP", logo: "/freedombot/coins/xrp.png", live: false, cs: "$" },
 ];
 
 export default function PerformancePage() {
@@ -484,7 +485,13 @@ export default function PerformancePage() {
                   : { color: "#475569", border: "1px solid transparent", cursor: a.live ? "pointer" : "default" }
                 }
               >
-                <span>{a.icon}</span>
+                {a.logo ? (
+                  <div className="h-4 w-4 rounded-full bg-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
+                    <Image src={a.logo} alt={a.icon} width={14} height={14} className="object-contain rounded-full" />
+                  </div>
+                ) : (
+                  <span>{a.icon}</span>
+                )}
                 <span className="hidden sm:inline">{a.label}</span>
                 <span className="sm:hidden">{a.label.split(" ")[0]}</span>
                 {a.live && isActive && (
@@ -510,7 +517,16 @@ export default function PerformancePage() {
             className="rounded-2xl p-12 text-center"
             style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.1)" }}
           >
-            <div className="text-4xl mb-4">{ASSETS.find((a) => a.key === assetType)?.icon}</div>
+            {(() => {
+              const asset = ASSETS.find((a) => a.key === assetType);
+              return asset?.logo ? (
+                <div className="h-14 w-14 rounded-full bg-white/5 flex items-center justify-center overflow-hidden mx-auto mb-4">
+                  <Image src={asset.logo} alt={asset.icon} width={48} height={48} className="object-contain rounded-full" />
+                </div>
+              ) : (
+                <div className="text-4xl mb-4">{asset?.icon}</div>
+              );
+            })()}
             <h3 className="text-lg font-black text-white mb-2">
               {ASSETS.find((a) => a.key === assetType)?.label} — Coming Soon
             </h3>

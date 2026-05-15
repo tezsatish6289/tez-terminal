@@ -582,7 +582,27 @@ export class CoinDcxConnector implements ExchangeConnector {
   }
 
   async cancelOrder(symbol: string, orderId: string, creds: ExchangeCredentials): Promise<Order> {
-    await signedPost("/exchange/v1/derivatives/futures/orders/cancel", { id: orderId }, creds);
+    try {
+      await signedPost("/exchange/v1/derivatives/futures/orders/cancel", { id: orderId }, creds);
+    } catch (e) {
+      // Treat "already cancelled / filled / not found" as success — it's the
+      // state we wanted regardless. Rethrow everything else so the verified
+      // cancel-and-check loop in `cancelResidualExitOrders` can retry.
+      if (e instanceof ExchangeApiError) {
+        const m = e.message.toLowerCase();
+        const benign =
+          m.includes("not found") ||
+          m.includes("does not exist") ||
+          m.includes("already") ||
+          m.includes("invalid order id") ||
+          m.includes("filled") ||
+          m.includes("cancelled") ||
+          m.includes("canceled");
+        if (!benign) throw e;
+      } else {
+        throw e;
+      }
+    }
     return {
       orderId,
       symbol: internalSymbolFromCoinDcxPair(coinDcxPairFromInternal(symbol)),
@@ -603,10 +623,10 @@ export class CoinDcxConnector implements ExchangeConnector {
 
   async cancelAllOrders(symbol: string, creds: ExchangeCredentials): Promise<void> {
     const pair = coinDcxPairFromInternal(symbol);
+    const errors: string[] = [];
 
-    // Fast path: cancel all orders via the position ID. This works when the
-    // position is still open (e.g. TP1 hit, cleaning up the old SL before
-    // replacing it with a tighter one).
+    // Fast path: cancel all orders attached to the open position. Works when
+    // the position is still open (e.g. TP1 hit, cleaning up the old SL).
     let cancelledViaPosition = false;
     try {
       const rows = await signedPost<Array<{ id: string; pair: string }>>("/exchange/v1/derivatives/futures/positions", {
@@ -618,26 +638,71 @@ export class CoinDcxConnector implements ExchangeConnector {
 
       const pos = rows.find((r) => r.pair === pair);
       if (pos) {
-        await signedPost("/exchange/v1/derivatives/futures/positions/cancel_all_open_orders_for_position", { id: pos.id }, creds);
-        cancelledViaPosition = true;
+        try {
+          await signedPost("/exchange/v1/derivatives/futures/positions/cancel_all_open_orders_for_position", { id: pos.id }, creds);
+          cancelledViaPosition = true;
+        } catch (e) {
+          // The position-cancel endpoint can fail if the position closed
+          // mid-flight; the per-order fallback below will still verify and
+          // retry. Record the error so the caller can surface it.
+          if (e instanceof ExchangeApiError) {
+            errors.push(`positions/cancel_all_open_orders_for_position: ${e.message}`);
+          } else {
+            throw e;
+          }
+        }
       }
-    } catch {
-      // fall through to individual order cancellation below
+    } catch (e) {
+      // Fetching the position itself failed (different from "no position"):
+      // surface it. The per-order fallback below still runs as a safety net.
+      if (e instanceof ExchangeApiError) {
+        errors.push(`positions lookup: ${e.message}`);
+      } else {
+        throw e;
+      }
     }
 
-    if (cancelledViaPosition) return;
-
-    // Fallback: the position has already been fully closed on the exchange
-    // (SL or final TP filled it), so the position-based endpoint returns
-    // nothing. But orphaned stop / TP orders can still be sitting open.
-    // Fetch them and cancel individually.
+    // Fallback: the position is fully closed (SL or final TP filled it), so
+    // the position endpoint returns nothing — but orphaned stop / TP orders
+    // can still be sitting open and must be cancelled individually. We also
+    // run this when position-cancel succeeded, as a verification pass for
+    // anything the venue indexed slightly later.
+    let openOrders: Order[] = [];
     try {
-      const openOrders = await this.getOpenOrders(symbol, creds);
-      await Promise.allSettled(
-        openOrders.map((o) => this.cancelOrder(symbol, o.orderId, creds))
+      openOrders = await this.getOpenOrders(symbol, creds);
+    } catch (e) {
+      if (e instanceof ExchangeApiError) {
+        errors.push(`getOpenOrders: ${e.message}`);
+      } else {
+        throw e;
+      }
+    }
+
+    if (openOrders.length > 0) {
+      const outcomes = await Promise.allSettled(
+        openOrders.map((o) => this.cancelOrder(symbol, o.orderId, creds)),
       );
-    } catch {
-      // best effort
+      for (let i = 0; i < outcomes.length; i++) {
+        const r = outcomes[i];
+        if (r.status === "rejected") {
+          const reason = r.reason instanceof Error ? r.reason.message : String(r.reason);
+          errors.push(`cancel ${openOrders[i].orderId}: ${reason}`);
+        }
+      }
+    }
+
+    // Surface any non-benign errors so the verification loop in
+    // `cancelResidualExitOrders` knows to retry. If the per-order pass
+    // succeeded for everything we found, this short-circuits at the
+    // verification step (re-reading getOpenOrders). When position-cancel
+    // succeeded and no orphans surfaced, errors is empty.
+    if (!cancelledViaPosition && openOrders.length === 0 && errors.length > 0) {
+      throw new ExchangeApiError(
+        `cancelAllOrders failed for ${symbol}: ${errors.join(" | ")}`,
+        500,
+        "/positions/cancel_all_open_orders_for_position",
+        "COINDCX",
+      );
     }
   }
 
@@ -729,6 +794,8 @@ export class CoinDcxConnector implements ExchangeConnector {
       created_at?: number;
       margin_currency_short_name?: string;
       position_id?: string;
+      parent_id?: string;
+      parent_type?: string;
       side?: string;
       order_side?: string;
     };
@@ -738,10 +805,17 @@ export class CoinDcxConnector implements ExchangeConnector {
 
     /**
      * CoinDCX "Get Transactions" rejects `stage: "all"` (422). Valid stages per docs:
-     * default, funding, exit, tpsl_exit, liquidation — fetch each and merge.
+     *   default, funding, exit, tpsl_exit, liquidation
+     *
+     * We deliberately skip `funding` here — funding payments are an ongoing
+     * position-holding cost, not a trade outcome, and should not be folded
+     * into realised PnL. (Bybit's `closedPnl` excludes funding for the same
+     * reason; we want parity.) If we ever need to surface funding paid per
+     * trade we'll fetch it through a dedicated method.
+     *
      * @see https://docs.coindcx.com/#positions-transactions
      */
-    const TRANSACTION_STAGES = ["default", "funding", "exit", "tpsl_exit", "liquidation"] as const;
+    const TRANSACTION_STAGES = ["default", "exit", "tpsl_exit", "liquidation"] as const;
 
     /** CoinDCX returns `created_at` in ms (13 digits); older rows may use seconds. */
     const createdAtMs = (raw: number | undefined | null): number => {
@@ -771,16 +845,27 @@ export class CoinDcxConnector implements ExchangeConnector {
             ? String(rawSide).toUpperCase()
             : null;
 
-        const gross = r.amount ?? 0;
-        const fees = r.fee_amount ?? 0;
+        // CoinDCX `amount` is the per-transaction gross PnL (with `fee_amount`
+        // listed separately). We surface it as-is to match Bybit's `closedPnl`
+        // convention (also gross). The previous implementation added fees back
+        // into the value (`gross + fees`) which inflated profits / understated
+        // losses by the fee amount on every reconciliation.
         out.push({
           symbol: internal,
-          closedPnl: gross + fees,
+          closedPnl: r.amount ?? 0,
           qty: 0,
           avgEntryPrice: r.price_in_usdt ?? 0,
           avgExitPrice: r.price_in_usdt ?? 0,
           createdTime: cms > 0 ? cms : (r.created_at ?? 0),
           side: sideNorm,
+          // `parent_id` on a CoinDCX transaction == the order ID that produced
+          // the fill (entry, SL, TP, market close, trailing-SL replacement).
+          // Surfacing it as `orderId` lets the shared reconciler match by
+          // exact order id (same path Bybit uses) instead of falling back to
+          // a wide time window.
+          ...(r.parent_id && String(r.parent_id).trim() !== ""
+            ? { orderId: String(r.parent_id).trim() }
+            : {}),
         });
       }
     };

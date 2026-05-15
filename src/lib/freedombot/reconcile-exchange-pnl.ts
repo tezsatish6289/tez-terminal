@@ -2,10 +2,14 @@
  * Refresh exchange-reported realized PnL for closed live_trades (FreedomBot dashboard + admin).
  * Any crypto connector that implements getClosedPnl is supported (BYBIT, COINDCX; future BINANCE/MEXC).
  *
- * **Bybit:** rows are selected by `orderId` matching stored trade order ids when possible; otherwise
- * a widened window around open/close plus optional `side` (see `EXCHANGE_PNL_BYBIT_WINDOW_*`).
- *
- * **CoinDCX:** rows in [open − 5m, close + 5m] (incl. funding); optional `side` when the venue sends it.
+ * Selection strategy is shared across venues:
+ *   1. Try exact order-id match (Bybit `orderId`, CoinDCX `parent_id`) against
+ *      the trade's stored entry / SL / TP / close / historical-SL ids. This
+ *      is the high-confidence path and never mis-attributes PnL between
+ *      adjacent trades on the same symbol.
+ *   2. Fall back to a venue-tuned time window around open/close + optional
+ *      `side` filter. Bybit uses ±30m / +6h, CoinDCX uses ±15m / +6h
+ *      (passbook rows on CoinDCX can lag `closedAt` by several hours).
  */
 import type { Firestore } from "firebase-admin/firestore";
 import { decrypt } from "@/lib/crypto";
@@ -101,11 +105,18 @@ export function recordTimeMs(r: ClosedPnlRecord): number {
   return t < 1e12 ? t * 1000 : t;
 }
 
-/** Order ids stored on `live_trades` that may appear on Bybit closed-PnL rows.
- *  Includes `closeOrderId` from protective closes and any historical SL ids
- *  the trade has accumulated through trailing-stop replacements (see
- *  `historicalSlOrderIds` populated in the cron). */
-export function bybitReconcileOrderIdsFromLiveTrade(data: Record<string, unknown>): string[] {
+/** Order ids stored on `live_trades` that may appear on the venue's
+ *  closed-PnL / position-transaction rows. Both Bybit (`closedPnl.orderId`)
+ *  and CoinDCX (`positions/transactions.parent_id`) carry the order id that
+ *  produced each fill, so the same set of ids works for both. Includes
+ *  `closeOrderId` from protective closes and any historical SL ids the
+ *  trade has accumulated through trailing-stop replacements (see
+ *  `historicalSlOrderIds` populated in the cron).
+ *
+ *  `entryOrderId` is intentionally included even though entry produces a
+ *  zero-PnL transaction — keeping it in the set lets reconciliation pull
+ *  the entry row for fee accounting in future enhancements. */
+export function exchangeReconcileOrderIdsFromLiveTrade(data: Record<string, unknown>): string[] {
   const out = new Set<string>();
   const scalarKeys = [
     "entryOrderId",
@@ -126,6 +137,12 @@ export function bybitReconcileOrderIdsFromLiveTrade(data: Record<string, unknown
     }
   }
   return Array.from(out);
+}
+
+/** @deprecated Use `exchangeReconcileOrderIdsFromLiveTrade` — same set of ids,
+ *  works for any venue that surfaces order id on its PnL rows. */
+export function bybitReconcileOrderIdsFromLiveTrade(data: Record<string, unknown>): string[] {
+  return exchangeReconcileOrderIdsFromLiveTrade(data);
 }
 
 export interface ClosedPnlWindowOpts {
@@ -313,9 +330,11 @@ export async function reconcileTradeExchangePnl(
 
   const windowOpts = {
     tradeSide: trade.side === "SELL" ? "SELL" : "BUY" as "BUY" | "SELL",
+    // Both Bybit and CoinDCX carry the order id on their PnL rows now —
+    // exact id match is far more reliable than the time-window fallback.
     matchAnyOrderId:
-      exchange === "BYBIT"
-        ? bybitReconcileOrderIdsFromLiveTrade(trade as Record<string, unknown>)
+      exchange === "BYBIT" || exchange === "COINDCX"
+        ? exchangeReconcileOrderIdsFromLiveTrade(trade as Record<string, unknown>)
         : undefined,
     ...(exchange === "COINDCX" ? coindcxClosedPnlWindowOpts() : {}),
     ...(exchange === "BYBIT" ? bybitClosedPnlWindowOpts() : {}),
@@ -494,9 +513,12 @@ export async function reconcileUserExchangeClosedPnl(
       const records = await connector.getClosedPnl!(exchangeSymbol, creds, startArg, endArg);
       const metrics = computeClosedTradeExchangePnlMetrics(records, openedAtMs, closedAtMs, {
         tradeSide: String(lt.side ?? "BUY").toUpperCase() === "SELL" ? "SELL" : "BUY",
+        // Both Bybit and CoinDCX carry the order id on their PnL rows; prefer
+        // exact id match over the wide CoinDCX time window so PnL never gets
+        // attributed to the wrong trade when several closes land near each other.
         matchAnyOrderId:
-          exchange === "BYBIT"
-            ? bybitReconcileOrderIdsFromLiveTrade(lt as unknown as Record<string, unknown>)
+          exchange === "BYBIT" || exchange === "COINDCX"
+            ? exchangeReconcileOrderIdsFromLiveTrade(lt as unknown as Record<string, unknown>)
             : undefined,
         ...(exchange === "COINDCX" ? coindcxClosedPnlWindowOpts() : {}),
         ...(exchange === "BYBIT" ? bybitClosedPnlWindowOpts() : {}),

@@ -31,7 +31,7 @@ import {
 import { isIndianMarketOpen, isIndianSquareOffTime } from "@/lib/market-hours";
 import {
   computeClosedTradeExchangePnlMetrics,
-  bybitReconcileOrderIdsFromLiveTrade,
+  exchangeReconcileOrderIdsFromLiveTrade,
   coindcxClosedPnlWindowOpts,
   bybitClosedPnlWindowOpts,
   bybitClosedPnlApiEndMs,
@@ -190,9 +190,11 @@ async function syncUserTrades(
             const metrics = computeClosedTradeExchangePnlMetrics(records, openedAtMs, closedAtMs, {
               tradeSide:
                 String(lt.side ?? "BUY").toUpperCase() === "SELL" ? "SELL" : "BUY",
+              // Both Bybit and CoinDCX expose the order id on their PnL rows now,
+              // so prefer exact id match for either venue.
               matchAnyOrderId:
-                exchange === "BYBIT"
-                  ? bybitReconcileOrderIdsFromLiveTrade(lt as unknown as Record<string, unknown>)
+                exchange === "BYBIT" || exchange === "COINDCX"
+                  ? exchangeReconcileOrderIdsFromLiveTrade(lt as unknown as Record<string, unknown>)
                   : undefined,
               ...(exchange === "COINDCX" ? coindcxClosedPnlWindowOpts() : {}),
               ...(exchange === "BYBIT" ? bybitClosedPnlWindowOpts() : {}),

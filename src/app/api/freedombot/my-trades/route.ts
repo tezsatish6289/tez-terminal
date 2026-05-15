@@ -7,6 +7,7 @@ import {
   tradeBelongsToVenue,
 } from "@/lib/freedombot/reconcile-exchange-pnl";
 import { isExchangeSupported, type ExchangeName } from "@/lib/exchanges";
+import { bestRealizedPnl } from "@/lib/freedombot/compute-best-pnl";
 
 export const dynamic = "force-dynamic";
 
@@ -88,15 +89,21 @@ export async function GET(req: NextRequest) {
           !Number.isNaN(t.exchangeRealizedPnlOverride)
             ? Number(t.exchangeRealizedPnlOverride)
             : null;
-        const effective = ov ?? ex ?? internal;
+        // Resolve once on the server using the same helper as the lifetime
+        // aggregator. Order: override → exchange → events sum → price-based
+        // estimate → stored internal. `source` drives the dashboard's
+        // preliminary/verified styling.
+        const isOpen = t.status === "OPEN";
+        const best = !isOpen ? bestRealizedPnl(t) : null;
         return {
           id: d.id,
           exchange: t.exchange ?? null,
           symbol: t.signalSymbol ?? t.symbol ?? "—",
           side: t.side === "BUY" ? "LONG" : t.side === "SELL" ? "SHORT" : (t.side ?? "—"),
-          status: t.status === "OPEN" ? "open" : "closed",
-          /** Best value for P&L display: manual override → exchange → bot model. */
-          realizedPnl: effective,
+          status: isOpen ? "open" : "closed",
+          /** Best value for P&L display (see realizedPnlSource). */
+          realizedPnl: best?.value ?? internal,
+          realizedPnlSource: best?.source ?? null,
           realizedPnlInternal: internal,
           realizedPnlExchange: ex,
           exchangeRealizedPnlOverride: ov,

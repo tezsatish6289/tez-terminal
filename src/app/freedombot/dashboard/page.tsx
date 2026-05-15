@@ -45,14 +45,31 @@ interface BotStats {
   totalTrades: number;
 }
 
+/**
+ * Source label for `realizedPnl`, decided server-side in /api/freedombot/my-trades.
+ *   - "override" / "exchange"   → verified, solid color
+ *   - "events" / "prices" / "internal" → preliminary, muted color + tooltip
+ */
+type RealizedPnlSource =
+  | "override"
+  | "exchange"
+  | "events"
+  | "prices"
+  | "internal";
+
 interface Trade {
   id: string;
   exchange?: string | null;
   symbol: string;
   side: string;
   status: string;
-  /** Effective P&L: override ?? exchange ?? internal (see my-trades). */
+  /**
+   * Effective P&L resolved by the API in this priority:
+   *   override → exchange → events sum → prices estimate → internal.
+   */
   realizedPnl: number;
+  /** Which input the API picked for `realizedPnl`. Null when the trade is open. */
+  realizedPnlSource?: RealizedPnlSource | null;
   /** In-bot / TP–SL model PnL before venue sync (closed trades). */
   realizedPnlInternal?: number;
   /** Exchange-reported realised PnL when synced. */
@@ -424,69 +441,24 @@ function sortTradesForDashboard(list: Trade[]): Trade[] {
 }
 
 /**
- * Compute realised P&L purely from displayed numbers — entry price, exit
- * price, and position size — using the standard futures formula:
- *
- *   long:  pnl = positionSize × (exit / entry − 1)
- *   short: pnl = positionSize × (1 − exit / entry)
- *
- * This is exactly how the exchange itself calculates closedPnl (gross of
- * fees), so it stays accurate regardless of leverage handling or wallet-
- * balance assumptions. Returns null only if any of the three inputs are
- * missing / invalid.
- */
-function computePnlFromPrices(t: Trade): number | null {
-  const entry = t.entryPrice;
-  const exit = t.currentPrice;
-  const size = t.positionSize;
-  if (entry == null || exit == null || size == null) return null;
-  if (!Number.isFinite(entry) || !Number.isFinite(exit) || !Number.isFinite(size)) return null;
-  if (entry <= 0 || size <= 0) return null;
-  const isLong = t.side === "LONG" || t.side === "BUY";
-  return isLong
-    ? size * (exit / entry - 1)
-    : size * (1 - exit / entry);
-}
-
-/**
  * Best available closed-trade P&L for display, with provenance.
  *
- *  - "override":  manual admin correction (most authoritative).
- *  - "exchange":  realised PnL pulled from the venue API (verified, net of fees).
- *  - "computed":  derived from (entry, exit, positionSize) using the standard
- *                 futures formula. Uses only exchange-reported fills, no
- *                 wallet-balance assumptions. Gross of fees, so will differ
- *                 from "exchange" by ~0.1% × positionSize once synced.
- *  - "estimated": bot's internal TP/SL model — used only when entry/exit/size
- *                 isn't present (defensive last resort).
+ * The actual resolution happens server-side in /api/freedombot/my-trades
+ * via the shared `bestRealizedPnl` helper, which walks:
  *
- * Returns `null` only when the trade has none of the above.
+ *   override → exchange → events sum → prices estimate → internal
+ *
+ * The dashboard just consumes the resolved value + source label, so the
+ * row PnL, cumulative column, total header, and admin lifetime header are
+ * guaranteed to use identical math.
  */
-type ClosedPnlSource = "override" | "exchange" | "computed" | "estimated";
 function bestClosedPnl(
   t: Trade,
-): { value: number; source: ClosedPnlSource } | null {
+): { value: number; source: RealizedPnlSource } | null {
   if (t.status !== "closed") return null;
-  const ov = t.exchangeRealizedPnlOverride;
-  if (typeof ov === "number" && !Number.isNaN(ov)) {
-    return { value: ov, source: "override" };
-  }
-  const ex = t.realizedPnlExchange;
-  if (typeof ex === "number" && !Number.isNaN(ex)) {
-    return { value: ex, source: "exchange" };
-  }
-  const computed = computePnlFromPrices(t);
-  if (computed != null) {
-    return { value: computed, source: "computed" };
-  }
-  const internal = t.realizedPnlInternal;
-  if (typeof internal === "number" && !Number.isNaN(internal)) {
-    return { value: internal, source: "estimated" };
-  }
-  if (typeof t.realizedPnl === "number" && !Number.isNaN(t.realizedPnl)) {
-    return { value: t.realizedPnl, source: "estimated" };
-  }
-  return null;
+  if (!t.realizedPnlSource) return null;
+  if (typeof t.realizedPnl !== "number" || Number.isNaN(t.realizedPnl)) return null;
+  return { value: t.realizedPnl, source: t.realizedPnlSource };
 }
 
 /** Open: live sync. Closed: only until exchange PnL exists (manual override counts as final). */
@@ -564,7 +536,12 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
   }, 0);
   const hasUnverifiedPnl = closedTrades.some((t) => {
     const best = bestClosedPnl(t);
-    return best != null && best.source === "estimated";
+    if (best == null) return false;
+    return (
+      best.source === "events" ||
+      best.source === "prices" ||
+      best.source === "internal"
+    );
   });
 
   const tradePageCount = Math.max(1, Math.ceil(trades.length / TRADES_PAGE_SIZE));
@@ -725,10 +702,10 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
         >
           <span className="inline-block h-1.5 w-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: "#fbbf24" }} />
           <span>
-            Rows marked with a yellow dot show a preliminary P&L computed from entry, exit
-            and position size (gross of fees). The exchange&apos;s verified realised P&L
-            replaces it as soon as the venue indexes those exits — usually within a minute.
-            Click the refresh icon on any row to force an immediate sync.
+            Rows marked with a yellow dot show a preliminary P&L computed from each TP/SL
+            fill recorded for that trade (gross of fees). The exchange&apos;s verified
+            realised P&L replaces it as soon as the venue indexes those exits — usually
+            within a minute. Click the refresh icon on any row to force an immediate sync.
           </span>
         </div>
       )}
@@ -782,10 +759,13 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
           const isOpen = trade.status === "open";
           const closedBest = !isOpen ? bestClosedPnl(trade) : null;
           const closedPnl = closedBest?.value ?? null;
-          // "computed" + "estimated" are both pre-sync values — show the same
-          // visual cue so users know venue reconciliation hasn't completed yet.
+          // "events" / "prices" / "internal" are all pre-sync values — show
+          // the same muted styling so users know venue reconciliation hasn't
+          // completed yet for that row.
           const isPreliminary =
-            closedBest?.source === "computed" || closedBest?.source === "estimated";
+            closedBest?.source === "events" ||
+            closedBest?.source === "prices" ||
+            closedBest?.source === "internal";
           const openPnl = isOpen ? trade.unrealizedPnl : 0;
           const pnlDisplay = isOpen
             ? formatSignedUsd(openPnl)
@@ -797,9 +777,9 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
           const cumulative = !isOpen ? cumulativeByTradeId.get(trade.id) : undefined;
           const showResync = tradeShowsResyncControl(trade);
           const rowStyle = { borderBottom: i < arr.length - 1 ? "1px solid rgba(90,140,220,0.06)" : "none" };
-          // Solid colors for verified PnL; muted versions for preliminary
-          // (computed-from-prices or internal model) so users can tell at a
-          // glance which numbers have been reconciled with the venue.
+          // Solid colors for verified PnL (override / exchange); muted versions
+          // for preliminary (events / prices / internal) so users can tell at
+          // a glance which numbers have been reconciled with the venue.
           const winColor = isPreliminary ? "rgba(52,211,153,0.65)" : "#34d399";
           const lossColor = isPreliminary ? "rgba(248,113,113,0.65)" : "#f87171";
           const pnlColor = !isOpen && closedPnl == null
@@ -807,16 +787,22 @@ function Connected({ deployment, deployments, stats, trades, cumulativeByTradeId
             : isWin
               ? winColor
               : lossColor;
-          const pnlTooltip =
-            closedBest?.source === "computed"
-              ? "Preliminary P&L computed from entry, exit, and position size (gross of fees). The exchange's realised P&L will replace this within a minute or so."
-              : closedBest?.source === "estimated"
-                ? "Preliminary P&L from the bot's TP/SL model. The exchange's realised P&L will replace this once the venue indexes the close."
-                : closedBest?.source === "exchange"
-                  ? "Realised P&L reported by the exchange (net of fees)."
-                  : closedBest?.source === "override"
-                    ? "Manually corrected P&L."
-                    : undefined;
+          const pnlTooltip = (() => {
+            switch (closedBest?.source) {
+              case "override":
+                return "Manually corrected P&L.";
+              case "exchange":
+                return "Realised P&L reported by the exchange (net of fees).";
+              case "events":
+                return "Preliminary P&L computed from each TP/SL fill recorded for this trade (gross of fees). The exchange's realised P&L will replace this within a minute or so.";
+              case "prices":
+                return "Preliminary P&L computed from entry, exit, and position size (gross of fees). The exchange's realised P&L will replace this within a minute or so.";
+              case "internal":
+                return "Preliminary P&L from the bot's TP/SL model. The exchange's realised P&L will replace this once the venue indexes the close.";
+              default:
+                return undefined;
+            }
+          })();
 
           return (
             <div key={trade.id}>

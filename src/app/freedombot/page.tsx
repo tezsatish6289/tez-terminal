@@ -465,7 +465,15 @@ export default function FreedomBotPage() {
               style={{ backgroundColor: "rgba(15,23,42,0.7)", border: "1px solid rgba(90,140,220,0.18)", color: "#64748b" }}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              {stats ? `${stats.runningDays} days live` : "Live now"} · audit on-chain
+              {stats ? `${stats.runningDays} days live` : "Live now"}
+              {stats && stats.totalReturnPct !== null && (
+                <>
+                  {" · "}
+                  <span style={{ color: stats.totalReturnPct >= 0 ? "#34d399" : "#f87171", fontWeight: 700 }}>
+                    {stats.totalReturnPct >= 0 ? "+" : ""}{stats.totalReturnPct.toFixed(2)}%
+                  </span>
+                </>
+              )}
             </div>
           </div>
 

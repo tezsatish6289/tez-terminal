@@ -4,9 +4,19 @@ import Link from "next/link";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { useUser } from "@/firebase";
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Loader2, ShieldAlert, Search, RefreshCw, Bot, ChevronRight } from "lucide-react";
+import { Loader2, ShieldAlert, Search, RefreshCw, Bot, ChevronRight, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -43,6 +53,8 @@ export default function AdminBotUsersPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [botFilter, setBotFilter] = useState<string>("all");
+  const [deleteTarget, setDeleteTarget] = useState<DeploymentRow | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchDeployments = useCallback(async () => {
     if (!user) return;
@@ -68,6 +80,28 @@ export default function AdminBotUsersPage() {
   useEffect(() => {
     if (isAdmin) fetchDeployments();
   }, [isAdmin, fetchDeployments]);
+
+  const confirmDelete = async () => {
+    if (!user || !deleteTarget) return;
+    const id = deleteTarget.deploymentId;
+    setDeletingId(id);
+    setError("");
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/admin/bot-deployments/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Delete failed");
+      setDeployments((prev) => prev.filter((d) => d.deploymentId !== id));
+      setDeleteTarget(null);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Unexpected error");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const filtered = useMemo(() => {
     if (!search.trim()) return deployments;
@@ -123,7 +157,7 @@ export default function AdminBotUsersPage() {
             </div>
             <p className="text-muted-foreground text-sm max-w-xl">
               One row per deployment. Lifetime realized PnL uses closed live trades (exchange PnL when available).
-              Open a row for trade details and execution logs.
+              Open a row for trade details and execution logs, or delete to require a fresh deploy.
             </p>
           </div>
           <button
@@ -190,7 +224,7 @@ export default function AdminBotUsersPage() {
             </div>
 
             <div className="rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 overflow-hidden">
-              <div className="hidden lg:grid grid-cols-[28px_1.2fr_1fr_100px_120px_100px_120px] gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-black uppercase tracking-wider text-muted-foreground/50">
+              <div className="hidden lg:grid grid-cols-[28px_1.2fr_1fr_100px_120px_100px_120px_56px] gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-black uppercase tracking-wider text-muted-foreground/50">
                 <span />
                 <span>User</span>
                 <span>Bot</span>
@@ -198,6 +232,7 @@ export default function AdminBotUsersPage() {
                 <span>First deploy</span>
                 <span>Status</span>
                 <span className="text-right">Lifetime PnL</span>
+                <span />
               </div>
 
               {filtered.length === 0 ? (
@@ -215,10 +250,13 @@ export default function AdminBotUsersPage() {
                         : "text-muted-foreground";
 
                   return (
-                    <div key={d.deploymentId} className="border-b border-white/[0.04] last:border-0">
+                    <div
+                      key={d.deploymentId}
+                      className="flex items-stretch border-b border-white/[0.04] last:border-0"
+                    >
                       <Link
                         href={`/admin/bot-users/${d.deploymentId}`}
-                        className="grid grid-cols-1 lg:grid-cols-[28px_1.2fr_1fr_100px_120px_100px_120px] gap-2 w-full px-4 py-3.5 items-start lg:items-center hover:bg-white/[0.03] transition-colors text-left group"
+                        className="grid flex-1 min-w-0 grid-cols-1 lg:grid-cols-[28px_1.2fr_1fr_100px_120px_100px_120px] gap-2 px-4 py-3.5 items-start lg:items-center hover:bg-white/[0.03] transition-colors text-left group"
                       >
                         <span className="hidden lg:flex justify-center pt-0.5">
                           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-accent shrink-0 transition-colors" />
@@ -258,6 +296,21 @@ export default function AdminBotUsersPage() {
                           <span className="text-[10px] font-semibold text-muted-foreground">{d.pnlCurrency}</span>
                         </div>
                       </Link>
+                      <div className="flex items-center justify-center px-3 lg:px-2 shrink-0 border-l border-white/[0.04]">
+                        <button
+                          type="button"
+                          title="Delete deployment"
+                          disabled={deletingId === d.deploymentId}
+                          onClick={() => setDeleteTarget(d)}
+                          className="p-2 rounded-lg text-muted-foreground/50 hover:text-rose-400 hover:bg-rose-500/10 disabled:opacity-40 transition-colors"
+                        >
+                          {deletingId === d.deploymentId ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   );
                 })
@@ -266,6 +319,35 @@ export default function AdminBotUsersPage() {
           </>
         )}
       </main>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent className="border-white/10 bg-[#141416] text-foreground">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete bot deployment?</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              This removes the deployment for{" "}
+              <span className="font-semibold text-white">
+                {deleteTarget?.displayName || deleteTarget?.email || "this user"}
+              </span>{" "}
+              on <span className="font-mono">{deleteTarget?.exchange}</span>. Stored API keys for this exchange will be
+              cleared if they have no other deployment on it. The user must deploy the bot again from FreedomBot.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-white/10 bg-white/[0.04]">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmDelete();
+              }}
+              disabled={!!deletingId}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {deletingId ? "Deleting…" : "Delete deployment"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

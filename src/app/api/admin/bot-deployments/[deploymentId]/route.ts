@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { DocumentData } from "firebase-admin/firestore";
+import type { DocumentData, Firestore } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
 import { sumLifetimeRealizedPnlForUserExchange } from "@/lib/freedombot/sum-lifetime-realized-pnl";
+import { getSecretDocIds, docMatchesExchange } from "@/lib/exchanges";
+import type { ExchangeName } from "@/lib/exchanges";
 
 export const dynamic = "force-dynamic";
 
@@ -92,6 +94,78 @@ export async function GET(
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Unexpected error";
     console.error("[Admin Bot Deployment]", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+async function clearUserExchangeSecretsIfNoDeployments(
+  db: Firestore,
+  uid: string,
+  exchange: string,
+): Promise<boolean> {
+  const remaining = await db
+    .collection("bot_deployments")
+    .where("uid", "==", uid)
+    .where("exchange", "==", exchange)
+    .limit(1)
+    .get();
+
+  if (!remaining.empty) return false;
+
+  const exchangeName = exchange as ExchangeName;
+  const docIds = getSecretDocIds(exchangeName);
+  for (const docId of docIds) {
+    const secretRef = db.collection("users").doc(uid).collection("secrets").doc(docId);
+    const secretDoc = await secretRef.get();
+    if (secretDoc.exists && docMatchesExchange(secretDoc.data()!, exchangeName, docId)) {
+      await secretRef.delete();
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * DELETE /api/admin/bot-deployments/:deploymentId
+ * Removes the deployment record. Clears stored exchange credentials when this was
+ * the user's last deployment on that exchange so they must deploy again.
+ */
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ deploymentId: string }> },
+) {
+  const auth = await requireAdmin(request);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  const { deploymentId } = await context.params;
+  if (!deploymentId) {
+    return NextResponse.json({ error: "Missing deploymentId" }, { status: 400 });
+  }
+
+  try {
+    const db = getAdminFirestore();
+    const deployRef = db.collection("bot_deployments").doc(deploymentId);
+    const deployDoc = await deployRef.get();
+    if (!deployDoc.exists) {
+      return NextResponse.json({ error: "Deployment not found" }, { status: 404 });
+    }
+
+    const data = deployDoc.data()!;
+    const uid = String(data.uid ?? "");
+    const exchange = String(data.exchange ?? "");
+    if (!uid || !exchange) {
+      return NextResponse.json({ error: "Invalid deployment data" }, { status: 400 });
+    }
+
+    await deployRef.delete();
+    const secretsCleared = await clearUserExchangeSecretsIfNoDeployments(db, uid, exchange);
+
+    return NextResponse.json({ success: true, secretsCleared });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Unexpected error";
+    console.error("[Admin Bot Deployment Delete]", msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

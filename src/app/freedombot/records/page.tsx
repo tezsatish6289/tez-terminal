@@ -396,10 +396,11 @@ function TradeTable({ trades, assetType, balanceAfterMap }: { trades: Trade[]; a
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const BOTS = [
-  { key: "CRYPTO",        emoji: "₿",  label: "Crypto Bot",        live: true  },
-  { key: "INDIAN_STOCKS", emoji: "🇮🇳", label: "Indian Stock Bot",  live: false },
-  { key: "GOLD",          emoji: "🥇", label: "Gold Bot",           live: false },
-  { key: "SILVER",        emoji: "🥈", label: "Silver Bot",         live: false },
+  { key: "CRYPTO", logo: null,                              label: "Crypto Bot",   ticker: "₿",  live: true  },
+  { key: "BTC",    logo: "/freedombot/coins/btc.png",      label: "Bitcoin Bot",  ticker: "BTC", live: false },
+  { key: "ETH",    logo: "/freedombot/coins/eth.png",      label: "Ethereum Bot", ticker: "ETH", live: false },
+  { key: "SOL",    logo: "/freedombot/coins/sol.png",      label: "Solana Bot",   ticker: "SOL", live: false },
+  { key: "XRP",    logo: "/freedombot/coins/xrp.png",      label: "XRP Bot",      ticker: "XRP", live: false },
 ] as const;
 
 const CARD_BG = "#0a1628";
@@ -514,7 +515,13 @@ export default function RecordsPage() {
                       zIndex: isActive ? 1 : 0,
                     }}
                   >
-                    <span className="text-base">{bot.emoji}</span>
+                    {bot.logo ? (
+                      <div className="h-5 w-5 rounded-full bg-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <Image src={bot.logo} alt={bot.ticker} width={18} height={18} className="object-contain rounded-full" />
+                      </div>
+                    ) : (
+                      <span className="text-base">{bot.ticker}</span>
+                    )}
                     <span>{bot.label}</span>
                     {bot.live ? (
                       <span className="flex items-center gap-1">

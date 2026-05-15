@@ -237,6 +237,20 @@ export default function SimulationPage() {
       .finally(() => setAllTradesLoading(false));
   }, [assetType]);
 
+  // Sequential trade number map — same ordering as the equity curve chart
+  // (oldest-first). Lets the history tab show #1, #2 … #501 matching the chart.
+  const tradeNumberMap = useMemo<Map<string, number>>(() => {
+    const sorted = [...allClosedTrades]
+      .filter((t) => t.closedAt)
+      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
+    const map = new Map<string, number>();
+    sorted.forEach((t, i) => {
+      const key = t.id ?? t.signalId;
+      if (key) map.set(key, i + 1);
+    });
+    return map;
+  }, [allClosedTrades]);
+
   const logs = useMemo(() => {
     if (!rawLogs) return [];
     return rawLogs
@@ -554,7 +568,7 @@ export default function SimulationPage() {
 
                 {tab === "trades" && (
                   <div className="space-y-3">
-                    <TradeList trades={closedTrades} emptyIcon={<BarChart3 className="w-6 h-6" />} emptyLabel="No closed trades yet" onSelectTrade={setSelectedTrade} cs={cs} startingCapital={simState?.startingCapital} />
+                    <TradeList trades={closedTrades} emptyIcon={<BarChart3 className="w-6 h-6" />} emptyLabel="No closed trades yet" onSelectTrade={setSelectedTrade} cs={cs} startingCapital={simState?.startingCapital} tradeNumberMap={tradeNumberMap} />
                     {/* Server-side pagination controls */}
                     {(histPage > 0 || histHasMore) && (
                       <div className="flex items-center justify-between px-1 pt-1 border-t border-white/[0.06]">
@@ -1248,7 +1262,7 @@ function ForceCloseDialog({ trade, onForceClose, children }: { trade: SimTrade; 
 
 // ── TradeList with column filters + pagination ────────────────
 
-function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose, cs, startingCapital }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string; onSelectTrade: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string; startingCapital?: number }) {
+function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose, cs, startingCapital, tradeNumberMap }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string; onSelectTrade: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string; startingCapital?: number; tradeNumberMap?: Map<string, number> }) {
   const isHistory = startingCapital != null;
   const [filters, setFilters] = useState<SimFilters>(DEFAULT_SIM_FILTERS);
   const [page, setPage] = useState(1);
@@ -1338,8 +1352,9 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
         {paginated.map((trade) => {
           const key = trade.id ?? trade.signalId;
           const balance = balanceAfterMap && key ? balanceAfterMap.get(key) : undefined;
+          const tradeNumber = tradeNumberMap && key ? tradeNumberMap.get(key) : undefined;
           return (
-            <MobileTradeCard key={key} trade={trade} onSelect={onSelectTrade} onForceClose={onForceClose} cs={cs} balance={balance} startingCapital={startingCapital} />
+            <MobileTradeCard key={key} trade={trade} onSelect={onSelectTrade} onForceClose={onForceClose} cs={cs} balance={balance} startingCapital={startingCapital} tradeNumber={tradeNumber} />
           );
         })}
         {filtered.length === 0 && (
@@ -1418,8 +1433,9 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
                   paginated.map((trade) => {
                     const key = trade.id ?? trade.signalId;
                     const balance = balanceAfterMap && key ? balanceAfterMap.get(key) : undefined;
+                    const tradeNumber = tradeNumberMap && key ? tradeNumberMap.get(key) : undefined;
                     return (
-                      <DesktopTradeRow key={key} trade={trade} onSelect={onSelectTrade} onForceClose={onForceClose} cs={cs} isHistory={isHistory} balance={balance} startingCapital={startingCapital} />
+                      <DesktopTradeRow key={key} trade={trade} onSelect={onSelectTrade} onForceClose={onForceClose} cs={cs} isHistory={isHistory} balance={balance} startingCapital={startingCapital} tradeNumber={tradeNumber} />
                     );
                   })
                 ) : (
@@ -1444,7 +1460,7 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
   );
 }
 
-function DesktopTradeRow({ trade, onSelect, onForceClose, cs, isHistory, balance, startingCapital }: { trade: SimTrade; onSelect: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string; isHistory?: boolean; balance?: number; startingCapital?: number }) {
+function DesktopTradeRow({ trade, onSelect, onForceClose, cs, isHistory, balance, startingCapital, tradeNumber }: { trade: SimTrade; onSelect: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string; isHistory?: boolean; balance?: number; startingCapital?: number; tradeNumber?: number }) {
   const isBuy = trade.side === "BUY";
   const isOpen = trade.status === "OPEN";
   const chartLabel = tfLabelMap[String(trade.timeframe).toUpperCase()] ?? `${trade.timeframe}m`;
@@ -1460,13 +1476,13 @@ function DesktopTradeRow({ trade, onSelect, onForceClose, cs, isHistory, balance
         <Link href={`/chart/${trade.signalId}`} target="_blank" className="text-sm font-black text-white leading-none uppercase tracking-tighter hover:text-accent transition-colors" onClick={(e) => e.stopPropagation()}>
           {trade.symbol}
         </Link>
-        {trade.id && (
+        {tradeNumber != null && (
           <div
-            className="font-mono text-[8px] text-muted-foreground/30 hover:text-muted-foreground/60 cursor-pointer transition-colors mt-0.5 truncate max-w-[120px]"
-            title={`ID: ${trade.id} — click to copy`}
-            onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(trade.id!); }}
+            className="font-mono text-[9px] text-muted-foreground/40 hover:text-muted-foreground/70 cursor-pointer transition-colors mt-0.5"
+            title={`Trade #${tradeNumber} — click to copy`}
+            onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(`#${tradeNumber}`); }}
           >
-            {trade.id}
+            #{tradeNumber}
           </div>
         )}
       </TableCell>
@@ -1710,7 +1726,7 @@ function DesktopTradeRow({ trade, onSelect, onForceClose, cs, isHistory, balance
   );
 }
 
-function MobileTradeCard({ trade, onSelect, onForceClose, cs, balance, startingCapital }: { trade: SimTrade; onSelect: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string; balance?: number; startingCapital?: number }) {
+function MobileTradeCard({ trade, onSelect, onForceClose, cs, balance, startingCapital, tradeNumber }: { trade: SimTrade; onSelect: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string; balance?: number; startingCapital?: number; tradeNumber?: number }) {
   const isBuy = trade.side === "BUY";
   const isOpen = trade.status === "OPEN";
   const isWin = trade.realizedPnl > 0;
@@ -1803,15 +1819,15 @@ function MobileTradeCard({ trade, onSelect, onForceClose, cs, balance, startingC
                 {trade.currentScorePattern && <PatternBadge pattern={trade.currentScorePattern as PatternType} score={null} />}
               </>
             )}
-            {trade.id && (
+            {tradeNumber != null && (
               <>
                 <span className="text-white/10 ml-auto">·</span>
                 <span
-                  className="font-mono text-[8px] text-muted-foreground/25 hover:text-muted-foreground/50 cursor-pointer transition-colors truncate max-w-[110px]"
-                  title={`ID: ${trade.id} — click to copy`}
-                  onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(trade.id!); }}
+                  className="font-mono text-[9px] text-muted-foreground/40 hover:text-muted-foreground/70 cursor-pointer transition-colors"
+                  title={`Trade #${tradeNumber} — click to copy`}
+                  onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(`#${tradeNumber}`); }}
                 >
-                  {trade.id}
+                  #{tradeNumber}
                 </span>
               </>
             )}

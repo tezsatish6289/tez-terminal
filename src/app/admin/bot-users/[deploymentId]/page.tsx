@@ -512,10 +512,10 @@ export default function AdminBotUserDetailPage() {
                         className="sm:hidden flex items-center justify-between px-4 py-3"
                         style={{ backgroundColor: "#0a1628", ...rowStyle }}
                       >
-                        <div className="flex flex-col gap-0.5">
-                          <div className="flex items-center gap-1.5">
+                        <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 min-w-0">
                             <span
-                              className="text-[9px] font-black px-1.5 py-0.5 rounded uppercase"
+                              className="text-[9px] font-black px-1.5 py-0.5 rounded uppercase flex-shrink-0"
                               style={
                                 isBuy
                                   ? { backgroundColor: "rgba(34,197,94,0.12)", color: "#34d399" }
@@ -524,7 +524,12 @@ export default function AdminBotUserDetailPage() {
                             >
                               {isBuy ? "Buy" : "Sell"}
                             </span>
-                            <span className="text-sm font-black text-white">{trade.symbol}</span>
+                            <span
+                              className="text-sm font-black text-white truncate min-w-0"
+                              title={trade.symbol}
+                            >
+                              {trade.symbol}
+                            </span>
                           </div>
                           <span className="text-[10px] font-mono" style={{ color: "#475569" }}>
                             {trade.openedAt
@@ -595,7 +600,7 @@ export default function AdminBotUserDetailPage() {
                           )}
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
                           <span
                             className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wide flex-shrink-0"
                             style={
@@ -606,7 +611,12 @@ export default function AdminBotUserDetailPage() {
                           >
                             {isBuy ? "Buy" : "Sell"}
                           </span>
-                          <span className="text-sm font-black text-white leading-none truncate">{trade.symbol}</span>
+                          <span
+                            className="text-sm font-black text-white leading-none truncate min-w-0"
+                            title={trade.symbol}
+                          >
+                            {trade.symbol}
+                          </span>
                         </div>
 
                         <div className="flex flex-col gap-0.5">

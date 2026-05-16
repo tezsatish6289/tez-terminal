@@ -57,7 +57,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { EquityChart } from "@/components/charts/EquityChart";
 import type { SimulatorState, SimTrade, SimLog, SimTradeEvent } from "@/lib/simulator";
 import { getSimStateDocId } from "@/lib/simulator";
 import { SimulatorParamsDialog } from "@/components/simulator/SimulatorParamsDialog";
@@ -504,7 +504,7 @@ export default function SimulationPage() {
                 {/* Chart + Performance Metrics side by side */}
                 <div className="flex flex-col lg:flex-row gap-3 items-stretch">
                   <div className="flex-1 min-w-0">
-                    <EquityCurve trades={allClosedTrades} startingCapital={simState.startingCapital} cs={cs} balanceAfterMap={balanceAfterMap} />
+                    <EquityChart trades={allClosedTrades} startingCapital={simState.startingCapital} cs={cs} theme="white" />
                   </div>
                   <div className="lg:w-72 xl:w-80 shrink-0 flex flex-col">
                     <PerformanceMetricsPanel
@@ -714,184 +714,7 @@ function PerformanceMetricsPanel({
 
 // ── Equity Curve ──────────────────────────
 
-type ChartView = "trade" | "day";
-
-function EquityCurve({ trades, startingCapital, cs, balanceAfterMap }: { trades: SimTrade[]; startingCapital: number; cs: string; balanceAfterMap?: Map<string, number> }) {
-  const [view, setView] = useState<ChartView>("trade");
-
-  // Trade-by-trade: one point per closed trade.
-  // Uses the page-level balanceAfterMap (pure sum-of-net-PnL walk) so the
-  // chart values are guaranteed identical to the history-row balances.
-  const tradeData = useMemo(() => {
-    const sorted = [...trades]
-      .filter((t) => t.closedAt)
-      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
-    if (!sorted.length) return [];
-
-    const points: { x: string | number; value: number; tooltip: string }[] = [
-      { x: 0, value: startingCapital, tooltip: "Start" },
-    ];
-    let running = startingCapital;
-    sorted.forEach((t, i) => {
-      const key = t.id ?? t.signalId;
-      const mapped = key && balanceAfterMap ? balanceAfterMap.get(key) : undefined;
-      if (mapped != null) {
-        running = mapped;
-      } else {
-        // Fallback path (only hit when the page-level map is unavailable)
-        running += t.realizedPnl ?? 0;
-      }
-      points.push({
-        x: i + 1,
-        value: parseFloat(running.toFixed(2)),
-        tooltip: `${t.symbol} · ${format(new Date(t.closedAt!), "MMM dd HH:mm")}`,
-      });
-    });
-    return points;
-  }, [trades, startingCapital, balanceAfterMap]);
-
-  // Day-by-day: one point per calendar day, last balance of the day.
-  const dayData = useMemo(() => {
-    const sorted = [...trades]
-      .filter((t) => t.closedAt)
-      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
-    if (!sorted.length) return [];
-
-    const dayCapital = new Map<string, number>();
-    let running = startingCapital;
-    for (const t of sorted) {
-      const key = t.id ?? t.signalId;
-      const mapped = key && balanceAfterMap ? balanceAfterMap.get(key) : undefined;
-      if (mapped != null) {
-        running = mapped;
-      } else {
-        running += t.realizedPnl ?? 0;
-      }
-      dayCapital.set(t.closedAt!.slice(0, 10), parseFloat(running.toFixed(2)));
-    }
-
-    const points: { x: string; value: number; tooltip: string }[] = [
-      { x: "Start", value: startingCapital, tooltip: "Starting capital" },
-    ];
-    for (const [day, capital] of dayCapital) {
-      points.push({ x: format(new Date(day), "MMM dd"), value: capital, tooltip: day });
-    }
-    return points;
-  }, [trades, startingCapital, balanceAfterMap]);
-
-  if (trades.filter((t) => t.closedAt).length < 2) return null;
-
-  const chartData  = view === "trade" ? tradeData : dayData;
-  const allValues  = chartData.map((d) => d.value);
-  const yMin       = Math.floor(Math.min(...allValues) * 0.995);
-  const yMax       = Math.ceil(Math.max(...allValues) * 1.005);
-
-  // Percentage from the TOP of the chart where startingCapital sits.
-  // Used to split the gradient: green above the baseline, red below it.
-  const splitPct = Math.max(0, Math.min(100,
-    yMax === yMin ? 50 : ((yMax - startingCapital) / (yMax - yMin)) * 100,
-  ));
-
-  return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="w-4 h-4 text-accent" />
-          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/75">Fund Value</span>
-        </div>
-        {/* View toggle */}
-        <div className="flex items-center gap-0.5 rounded-md bg-white/[0.04] p-0.5">
-          {(["trade", "day"] as ChartView[]).map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={cn(
-                "px-2.5 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all",
-                view === v
-                  ? "bg-accent/20 text-accent"
-                  : "text-muted-foreground/55 hover:text-muted-foreground/80"
-              )}
-            >
-              {v === "trade" ? "Tradewise" : "Daywise"}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Chart */}
-      {chartData.length < 2 ? (
-        <div className="text-center py-6 text-muted-foreground/30">
-          <p className="text-[10px] font-bold">Not enough data</p>
-        </div>
-      ) : (
-        <div className="h-[340px] sm:h-[440px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-              <defs>
-                {/* Stroke: green above baseline, red below */}
-                <linearGradient id="equityStroke" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset={`${splitPct}%`} stopColor="#34d399" />
-                  <stop offset={`${splitPct}%`} stopColor="#f87171" />
-                </linearGradient>
-                {/* Fill: green fade above, red fade below */}
-                <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%"              stopColor="#34d399" stopOpacity={0.28} />
-                  <stop offset={`${splitPct}%`}  stopColor="#34d399" stopOpacity={0.06} />
-                  <stop offset={`${splitPct}%`}  stopColor="#f87171" stopOpacity={0.06} />
-                  <stop offset="100%"            stopColor="#f87171" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-              <XAxis
-                dataKey="x"
-                tick={{ fontSize: 9, fill: "rgba(255,255,255,0.45)" }}
-                tickLine={false}
-                axisLine={{ stroke: "rgba(255,255,255,0.08)" }}
-              />
-              <YAxis
-                domain={[yMin, yMax]}
-                tick={{ fontSize: 9, fill: "rgba(255,255,255,0.45)" }}
-                tickLine={false}
-                axisLine={{ stroke: "rgba(255,255,255,0.08)" }}
-                tickFormatter={(v: number) => `${cs}${cs === "₹" ? Math.round(v).toLocaleString("en-IN") : v.toFixed(0)}`}
-                width={cs === "₹" ? 75 : 55}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#1a1a1d",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: "8px",
-                  fontSize: "11px",
-                }}
-                labelFormatter={(v) => view === "trade" ? (v === 0 ? "Start" : `Trade #${v}`) : String(v)}
-                formatter={(value: number, _name: string, props: any) => [
-                  formatMoney(value, cs),
-                  props.payload.tooltip,
-                ]}
-              />
-              <ReferenceLine
-                y={startingCapital}
-                stroke="rgba(255,255,255,0.1)"
-                strokeDasharray="4 4"
-                label={{ value: formatMoney(startingCapital, cs), position: "right", fontSize: 9, fill: "rgba(255,255,255,0.35)" }}
-              />
-              <Area
-                type="monotone"
-                dataKey="value"
-                stroke="url(#equityStroke)"
-                strokeWidth={2}
-                fill="url(#equityFill)"
-                dot={false}
-                activeDot={{ r: 4, fill: "#ffffff", stroke: "#0f0f11", strokeWidth: 2 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </div>
-  );
-}
+// EquityCurve → replaced by shared <EquityChart> component from @/components/charts/EquityChart
 
 // ── Shared Components ──────────────────────────
 

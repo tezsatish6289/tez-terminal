@@ -12,16 +12,7 @@ import {
   Shield,
   CheckCircle2,
 } from "lucide-react";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-} from "recharts";
+import { EquityChart } from "@/components/charts/EquityChart";
 import { format } from "date-fns";
 import { calcPerformanceMetrics } from "@/lib/performance-metrics";
 import type { PerformanceMetrics } from "@/lib/performance-metrics";
@@ -172,142 +163,7 @@ function PerformanceMetricsPanel({ metrics }: { metrics: PerformanceMetrics | nu
   );
 }
 
-// ─── EquityCurve — identical layout to simulator ──────────────────────────────
-
-type ChartView = "trade" | "day";
-
-function EquityCurve({ trades, startingCapital }: { trades: ApiTrade[]; startingCapital: number }) {
-  const [view, setView] = useState<ChartView>("trade");
-
-  // One canonical walk — same helper used by /simulation.
-  const curve = useMemo(
-    () => buildEquityCurve(trades.filter((t) => t.status === "CLOSED"), startingCapital),
-    [trades, startingCapital],
-  );
-
-  const tradeData = useMemo(() => {
-    if (!curve.points.length) return [];
-    return [
-      { x: 0 as number | string, value: startingCapital, tooltip: "Start" },
-      ...curve.points.map((p) => ({
-        x: p.tradeNumber,
-        value: p.value,
-        tooltip: `${p.symbol} · ${format(new Date(p.closedAt), "MMM dd HH:mm")}`,
-      })),
-    ];
-  }, [curve, startingCapital]);
-
-  const dayData = useMemo(() => {
-    if (!curve.points.length) return [];
-    const dayCapital = new Map<string, number>();
-    for (const p of curve.points) {
-      dayCapital.set(p.closedAt.slice(0, 10), p.value);
-    }
-    const pts: { x: string; value: number; tooltip: string }[] = [
-      { x: "Start", value: startingCapital, tooltip: "Starting capital" },
-    ];
-    for (const [day, capital] of dayCapital) {
-      pts.push({ x: format(new Date(day), "MMM dd"), value: capital, tooltip: day });
-    }
-    return pts;
-  }, [curve, startingCapital]);
-
-  if (curve.points.length < 2) return null;
-
-  const chartData  = view === "trade" ? tradeData : dayData;
-  const lastVal    = chartData[chartData.length - 1]?.value ?? startingCapital;
-  const isPositive = lastVal >= startingCapital;
-  const chartColor = isPositive ? "#34d399" : "#f87171";
-  const yMin = Math.floor(Math.min(...chartData.map((d) => d.value)) * 0.995);
-  const yMax = Math.ceil(Math.max(...chartData.map((d) => d.value)) * 1.005);
-
-  return (
-    <div
-      className="rounded-lg p-4 space-y-3"
-      style={{ backgroundColor: "rgba(255,255,255,0.02)", border: "1px solid rgba(90,140,220,0.08)" }}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="w-4 h-4" style={{ color: "#60a5fa" }} />
-          <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "#475569" }}>Fund Value</span>
-        </div>
-        <div className="flex items-center gap-0.5 rounded-md p-0.5" style={{ backgroundColor: "rgba(255,255,255,0.04)" }}>
-          {(["trade", "day"] as ChartView[]).map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className="px-2.5 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all"
-              style={view === v
-                ? { backgroundColor: "rgba(96,165,250,0.2)", color: "#60a5fa" }
-                : { color: "#334155" }
-              }
-            >
-              {v === "trade" ? "Tradewise" : "Daywise"}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Chart */}
-      <div className="h-[340px] sm:h-[440px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="fbEquityGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor={chartColor} stopOpacity={0.3} />
-                <stop offset="95%" stopColor={chartColor} stopOpacity={0}   />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(90,140,220,0.06)" />
-            <XAxis
-              dataKey="x"
-              tick={{ fontSize: 9, fill: "rgba(90,140,220,0.45)" }}
-              tickLine={false}
-              axisLine={{ stroke: "rgba(90,140,220,0.08)" }}
-            />
-            <YAxis
-              domain={[yMin, yMax]}
-              tick={{ fontSize: 9, fill: "rgba(90,140,220,0.45)" }}
-              tickLine={false}
-              axisLine={{ stroke: "rgba(90,140,220,0.08)" }}
-              tickFormatter={(v: number) => `$${v.toFixed(0)}`}
-              width={55}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "#0a1628",
-                border: "1px solid rgba(90,140,220,0.2)",
-                borderRadius: "8px",
-                fontSize: "11px",
-              }}
-              labelFormatter={(v) => view === "trade" ? (v === 0 ? "Start" : `Trade #${v}`) : String(v)}
-              formatter={(value: number, _name: string, props: any) => [
-                fmtMoney(value),
-                props.payload.tooltip,
-              ]}
-            />
-            <ReferenceLine
-              y={startingCapital}
-              stroke="rgba(90,140,220,0.15)"
-              strokeDasharray="4 4"
-              label={{ value: fmtMoney(startingCapital), position: "right", fontSize: 9, fill: "rgba(90,140,220,0.35)" }}
-            />
-            <Area
-              type="monotone"
-              dataKey="value"
-              stroke={chartColor}
-              strokeWidth={2}
-              fill="url(#fbEquityGradient)"
-              dot={false}
-              activeDot={{ r: 4, fill: chartColor, stroke: "#080f1e", strokeWidth: 2 }}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  );
-}
+// ─── EquityCurve — delegates to shared EquityChart component ─────────────────
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -602,7 +458,12 @@ export default function PerformancePage() {
         {ASSETS.find((a) => a.key === assetType)?.live && !loading && closedTrades.length >= 2 && (
           <div className="flex flex-col lg:flex-row gap-3 items-stretch">
             <div className="flex-1 min-w-0">
-              <EquityCurve trades={trades} startingCapital={startCap} />
+              <EquityChart
+                trades={closedTrades}
+                startingCapital={startCap}
+                cs="$"
+                theme="blue"
+              />
             </div>
             <div className="lg:w-72 xl:w-80 shrink-0 flex flex-col">
               <PerformanceMetricsPanel metrics={metrics} />

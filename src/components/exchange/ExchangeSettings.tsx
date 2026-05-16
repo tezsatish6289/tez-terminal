@@ -547,15 +547,15 @@ function ExchangeSettingsPanel({
         />
       </div>
 
-      {/* BTC Zone Bot Opt-In (additional bot, independent of pattern signals) */}
+      {/* BTC Zone Bot Opt-In (separate bot from Crypto Bot, opt-in only) */}
       {supportsZoneBots && (
         <div className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-white/5">
           <div className="pr-3">
             <p className="text-sm font-medium text-foreground">BTC Zone Bot</p>
             <p className="text-[10px] text-muted-foreground leading-relaxed">
               {btcZoneBotEnabled
-                ? `BTCUSDT.P trades from the zone-bot will mirror to ${meta.name} (requires Auto-Trade ON above).`
-                : "Opt in to also receive BTC Zone Bot trades. Uses Deribit-OI bull/bear zones, independent of pattern signals. Default off."}
+                ? `BTCUSDT.P trades from the BTC Zone Bot will mirror to ${meta.name} (requires Auto-Trade ON above).`
+                : "Opt in to also receive BTC Zone Bot trades. Uses Deribit-OI bull/bear zones, separate from Crypto Bot. Default off."}
             </p>
           </div>
           <Switch
@@ -563,7 +563,7 @@ function ExchangeSettingsPanel({
             disabled={!config.autoTradeEnabled}
             onCheckedChange={(checked) => {
               if (checked && !isTestnet) {
-                if (!confirm(`Subscribe to BTC Zone Bot on ${meta.name} (real money)? This bot trades BTCUSDT.P based on Deribit OI zones, separately from pattern signals.`)) return;
+                if (!confirm(`Subscribe to BTC Zone Bot on ${meta.name} (real money)? This bot trades BTCUSDT.P based on Deribit OI zones, separately from Crypto Bot.`)) return;
               }
               updateSetting("zoneBotsEnabled.btc", checked);
             }}

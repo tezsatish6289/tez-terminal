@@ -33,10 +33,15 @@ export interface BotSourcePillOption {
   short?: string;
 }
 
+// Note: `id: "PATTERN"` is the internal discriminator (matches the
+// SimTrade.botSource string used everywhere — Firestore docs, cron
+// guards, opt-in helper, etc.) and is kept stable on purpose. Only
+// the UI labels track the product brand ("Crypto Bot"), so renames
+// here are display-only and don't touch the data model.
 export const BOT_SOURCE_PILLS: BotSourcePillOption[] = [
-  { id: "ALL",       label: "All Bots",   short: "All" },
-  { id: "PATTERN",   label: "Pattern",    short: "Pattern" },
-  { id: "BTC_ZONE",  label: "BTC Zone",   short: "BTC" },
+  { id: "ALL",       label: "All Bots",    short: "All" },
+  { id: "PATTERN",   label: "Crypto Bot",  short: "Crypto" },
+  { id: "BTC_ZONE",  label: "BTC Zone",    short: "BTC" },
 ];
 
 /** Normalise an optional `botSource` field to a canonical bucket so the
@@ -57,7 +62,7 @@ export function matchesBotSource(filter: BotSourceFilter) {
   return (t: { botSource?: string | null }) => classifyBotSource(t.botSource) === filter;
 }
 
-/** Lookup helper for inline labels (e.g. "vs Pattern" tooltip text). */
+/** Lookup helper for inline labels (e.g. "vs Crypto Bot" tooltip text). */
 export function botSourceLabel(filter: BotSourceFilter): string {
   const found = BOT_SOURCE_PILLS.find((p) => p.id === filter);
   return found?.label ?? filter;

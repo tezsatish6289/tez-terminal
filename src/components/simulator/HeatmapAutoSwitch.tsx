@@ -374,7 +374,7 @@ export function HeatmapAutoSwitch() {
           {/* ── BTC Zone Bot status (separate sub-system) ──
               Reads from config/zone_bot_btc_state, written by the
               /api/cron/sync-zone-bots route every 15 min. Shares the
-              same heatmap_zones settings doc as the pattern bot (see
+              same heatmap_zones settings doc as Crypto Bot (see
               zoneBotSettingsDoc in src/lib/zone-bot-config.ts), so all
               the sliders below configure BOTH systems. */}
           <div className="rounded-lg border border-white/[0.06] bg-white/[0.02]">
@@ -398,7 +398,7 @@ export function HeatmapAutoSwitch() {
                     {zoneBotState.confirming.side} {zoneBotState.confirming.minutesHeld}/{zones.zoneConfirmMinutes ?? 15}m
                   </span>
                 )}
-                <InfoTip text="BTC Zone Bot trades the BTCUSDT.P perp based purely on Deribit OI zones + a rolling confirmation window. SIM-ONLY for now (no live orders). Same settings as the pattern bot — adjust below to tune both." />
+                <InfoTip text="BTC Zone Bot trades the BTCUSDT.P perp based purely on Deribit OI zones + a rolling confirmation window. Shares the same heatmap settings as Crypto Bot — adjust below to tune both. Live mirroring requires the per-exchange opt-in toggle in your settings." />
               </div>
               <button
                 onClick={handleRefreshZoneBot}

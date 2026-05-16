@@ -16,6 +16,8 @@ import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { useRouter } from "next/navigation";
 import { buildEquityCurve } from "@/lib/equity-curve";
+import { BotSourceFilter } from "@/components/dashboard/BotSourceFilter";
+import { matchesBotSource, type BotSourceFilter as BotSourceFilterValue } from "@/lib/bot-source-filter";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,6 +51,7 @@ interface Trade {
   openedAt: string;
   closedAt: string | null;
   blockchainTxHash: string | null;
+  botSource?: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -448,18 +451,57 @@ export default function RecordsPage() {
     }
   }, [auth, isLoggingIn]);
 
+  // Bot-source filter (PR #6). "ALL" = the actual shared-capital
+  // numbers reported by /api/freedombot/stats. Per-bot filters render
+  // a counterfactual ("if only this bot ran from start") so visitors
+  // can race bots head-to-head before signing up.
+  const [botSourceFilter, setBotSourceFilter] = useState<BotSourceFilterValue>("ALL");
+  const botSourcePredicate = useMemo(() => matchesBotSource(botSourceFilter), [botSourceFilter]);
+  const isBotFiltered = botSourceFilter !== "ALL";
+
   const activeTrades = useMemo(
-    () => trades.filter((t) => t.assetType === activeBot),
-    [trades, activeBot]
+    () => trades.filter((t) => t.assetType === activeBot).filter(botSourcePredicate),
+    [trades, activeBot, botSourcePredicate]
   );
 
   // Per-trade running balance (same shared helper as /simulation, /performance,
   // and the headline stats API) — guarantees the Fund Balance column matches
   // the chart and the Current Capital tile.
-  const balanceAfterMap = useMemo(() => {
-    const startCap = stats?.startingCapital ?? 0;
-    return buildEquityCurve(activeTrades, startCap).balanceAfterMap;
-  }, [activeTrades, stats?.startingCapital]);
+  const equityCurve = useMemo(
+    () => buildEquityCurve(activeTrades, stats?.startingCapital ?? 0),
+    [activeTrades, stats?.startingCapital],
+  );
+  const balanceAfterMap = equityCurve.balanceAfterMap;
+
+  // For per-bot views the headline tiles must reflect the counterfactual,
+  // not the shared-pool reality coming back from /api/freedombot/stats.
+  // We derive the four % / $ figures from the filtered equity curve and
+  // the *true* runningDays so the projection math still uses simulator
+  // age (a 2-day-old bot in a 60-day-old simulator extrapolates "what
+  // would 60 days of this bot have produced", not "2 days").
+  const filteredStats = useMemo(() => {
+    if (!isBotFiltered || !stats) return null;
+    const startCap = stats.startingCapital;
+    const currentCapital = equityCurve.finalCapital;
+    const totalReturnPct = startCap > 0
+      ? ((currentCapital - startCap) / startCap) * 100
+      : 0;
+    const runningDays = Math.max(1, stats.runningDays);
+    const netPnl = currentCapital - startCap;
+    const profitPerMonth = ((netPnl / runningDays) * 30 / startCap) * 100;
+    const profitPerYear  = stats.runningDays >= 365
+      ? totalReturnPct
+      : ((netPnl / runningDays) * 365 / startCap) * 100;
+    return {
+      ...stats,
+      currentCapital,
+      totalReturnPct,
+      profitPerMonth,
+      profitPerYear,
+    } as BotStats;
+  }, [isBotFiltered, stats, equityCurve.finalCapital]);
+
+  const displayStats = filteredStats ?? stats;
 
   const activeIsLive = BOTS.find((b) => b.key === activeBot)?.live ?? false;
   const isLoading = statsLoading || tradesLoading;
@@ -578,24 +620,24 @@ export default function RecordsPage() {
                     className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 p-5"
                     style={{ backgroundColor: CARD_BG }}
                   >
-                    <MetricCard label="Start Capital" value={fmtCapital(stats?.startingCapital)} />
-                    <MetricCard label="Current Capital" value={fmtCapital(stats?.currentCapital)} color="#60a5fa" />
+                    <MetricCard label="Start Capital" value={fmtCapital(displayStats?.startingCapital)} />
+                    <MetricCard label="Current Capital" value={fmtCapital(displayStats?.currentCapital)} color="#60a5fa" />
                     <MetricCard
                       label="Total Return"
-                      value={fmt(stats?.totalReturnPct ?? null)}
-                      color={(stats?.totalReturnPct ?? 0) >= 0 ? "#34d399" : "#f87171"}
+                      value={fmt(displayStats?.totalReturnPct ?? null)}
+                      color={(displayStats?.totalReturnPct ?? 0) >= 0 ? "#34d399" : "#f87171"}
                     />
                     <MetricCard
                       label="Monthly Return"
-                      value={fmt(stats?.profitPerMonth ?? null)}
+                      value={fmt(displayStats?.profitPerMonth ?? null)}
                       color="#60a5fa"
-                      sub={stats && stats.runningDays < 30 ? "Projected" : undefined}
+                      sub={displayStats && displayStats.runningDays < 30 ? "Projected" : undefined}
                     />
                     <MetricCard
                       label="Annual Return"
-                      value={fmt(stats?.profitPerYear ?? null)}
+                      value={fmt(displayStats?.profitPerYear ?? null)}
                       color="#a78bfa"
-                      sub={stats && stats.runningDays < 365 ? "Projected" : undefined}
+                      sub={displayStats && displayStats.runningDays < 365 ? "Projected" : undefined}
                     />
                   </div>
                 </>
@@ -614,6 +656,22 @@ export default function RecordsPage() {
                       Coming Soon — No trades yet
                     </span>
                   </div>
+                </div>
+              )}
+
+              {/* Bot-source filter — controls headline tiles + trade
+                  table + per-row Fund Balance simultaneously. */}
+              {activeIsLive && (
+                <div
+                  className="flex items-center justify-between gap-3 flex-wrap px-5 py-3"
+                  style={{ backgroundColor: "#080f1e", borderTop: `1px solid ${CARD_BORDER}` }}
+                >
+                  <BotSourceFilter value={botSourceFilter} onChange={setBotSourceFilter} size="sm" />
+                  {isBotFiltered && (
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border" style={{ color: "#fbbf24", borderColor: "rgba(251,191,36,0.25)", backgroundColor: "rgba(251,191,36,0.06)" }}>
+                      Counterfactual — &ldquo;if only this bot ran from start&rdquo;
+                    </span>
+                  )}
                 </div>
               )}
 

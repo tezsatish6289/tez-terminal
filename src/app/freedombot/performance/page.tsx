@@ -17,6 +17,8 @@ import { format } from "date-fns";
 import { calcPerformanceMetrics } from "@/lib/performance-metrics";
 import type { PerformanceMetrics } from "@/lib/performance-metrics";
 import { buildEquityCurve } from "@/lib/equity-curve";
+import { BotSourceFilter } from "@/components/dashboard/BotSourceFilter";
+import { matchesBotSource, type BotSourceFilter as BotSourceFilterValue } from "@/lib/bot-source-filter";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,6 +47,9 @@ interface ApiTrade {
   closedAt: string | null;
   // Same structure the simulator uses — required for accurate PnL
   events: TradeEvent[];
+  /** Bot origin tag — null/missing on legacy + pattern trades, non-null
+   *  on zone-bot trades. Drives the bot-source filter pills below. */
+  botSource?: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -232,8 +237,22 @@ export default function PerformancePage() {
 
   const cs = ASSETS.find((a) => a.key === assetType)?.cs ?? "$";
 
-  const openTrades   = useMemo(() => trades.filter((t) => t.status === "OPEN"),   [trades]);
-  const closedTrades = useMemo(() => trades.filter((t) => t.status === "CLOSED"), [trades]);
+  // Bot-source filter (PR #6). "ALL" mirrors the actual shared-capital
+  // numbers we get from /api/freedombot/stats. Per-bot filters render
+  // a counterfactual ("if only this bot ran from start") so the user can
+  // race bots head-to-head.
+  const [botSourceFilter, setBotSourceFilter] = useState<BotSourceFilterValue>("ALL");
+  const botSourcePredicate = useMemo(() => matchesBotSource(botSourceFilter), [botSourceFilter]);
+  const isBotFiltered = botSourceFilter !== "ALL";
+
+  const openTrades   = useMemo(
+    () => trades.filter((t) => t.status === "OPEN").filter(botSourcePredicate),
+    [trades, botSourcePredicate],
+  );
+  const closedTrades = useMemo(
+    () => trades.filter((t) => t.status === "CLOSED").filter(botSourcePredicate),
+    [trades, botSourcePredicate],
+  );
 
   const startCap = simState?.startingCapital ?? 1000;
 
@@ -248,10 +267,14 @@ export default function PerformancePage() {
 
   const derivedCapital = useMemo(() => {
     if (closedTrades.length === 0) {
+      // Per-bot view with no trades yet → starting capital (the
+      // counterfactual baseline). For "All" with no trades, fall back
+      // to the live ledger so the headline still reads sensibly.
+      if (isBotFiltered) return startCap;
       return statsData?.currentCapital ?? simState?.capital ?? startCap;
     }
     return closedEquity;
-  }, [closedTrades.length, closedEquity, statsData, simState, startCap]);
+  }, [closedTrades.length, closedEquity, statsData, simState, startCap, isBotFiltered]);
 
   const fallbackRunningDays = useFallbackRunningDays(openTrades, closedTrades);
   const runningDays = statsData?.runningDays ?? fallbackRunningDays;
@@ -451,6 +474,18 @@ export default function PerformancePage() {
               color={yearlyPnl.pct >= 0 ? "#34d399" : "#f87171"}
               badge={yearlyIsProjected ? { text: "Projected", variant: "projected" } : { text: "Actual", variant: "actual" }}
             />
+          </div>
+        )}
+
+        {/* ── Bot-source filter — only meaningful on live assets ── */}
+        {ASSETS.find((a) => a.key === assetType)?.live && !loading && (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <BotSourceFilter value={botSourceFilter} onChange={setBotSourceFilter} />
+            {isBotFiltered && (
+              <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border" style={{ color: "#fbbf24", borderColor: "rgba(251,191,36,0.25)", backgroundColor: "rgba(251,191,36,0.06)" }}>
+                Counterfactual — &ldquo;if only this bot ran from start&rdquo;
+              </span>
+            )}
           </div>
         )}
 

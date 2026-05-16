@@ -66,6 +66,8 @@ import { NiftyAutoSwitch } from "@/components/simulator/NiftyAutoSwitch";
 import { format, startOfDay, startOfWeek, startOfMonth, isAfter } from "date-fns";
 import { calcPerformanceMetrics } from "@/lib/performance-metrics";
 import { buildEquityCurve } from "@/lib/equity-curve";
+import { BotSourceFilter } from "@/components/dashboard/BotSourceFilter";
+import { matchesBotSource, type BotSourceFilter as BotSourceFilterValue } from "@/lib/bot-source-filter";
 
 function formatMoney(val: number, cs = "$"): string {
   if (cs === "₹") {
@@ -209,13 +211,32 @@ export default function SimulationPage() {
     refetchLogs();
   }, [refetchLogs]);
 
-  const openTrades = useMemo(() => {
+  // Bot-source filter (PR #6). "ALL" = shared-capital reality.
+  // Per-bot values render a counterfactual view: equity curve, headline
+  // stats, and history are recomputed as if only that bot ran starting
+  // from simState.startingCapital. Pattern bot + zone bot share the
+  // same capital ledger in reality, so this is the only way to compare
+  // them head-to-head.
+  const [botSourceFilter, setBotSourceFilter] = useState<BotSourceFilterValue>("ALL");
+  const botSourcePredicate = useMemo(() => matchesBotSource(botSourceFilter), [botSourceFilter]);
+  const isBotFiltered = botSourceFilter !== "ALL";
+
+  const openTradesAll = useMemo(() => {
     return (rawOpenTrades ?? [])
       .map((d: any) => ({ id: d.id, ...d } as SimTrade))
       .filter((t) => (t.assetType || "CRYPTO") === assetType);
   }, [rawOpenTrades, assetType]);
 
-  // closedTrades — current page of history (up to HIST_PAGE_SIZE trades).
+  const openTrades = useMemo(
+    () => openTradesAll.filter(botSourcePredicate),
+    [openTradesAll, botSourcePredicate],
+  );
+
+  // closedTrades — current page of server-side history when filter is
+  // ALL. For per-bot filters we render the full filtered list client-
+  // side (zone-bot trade counts are small, and Firestore can't index
+  // by botSource without composite indexes — keep the API surface
+  // simple until volumes demand otherwise).
   const closedTrades = histTrades;
 
   // allClosedTrades — full history fetched from perf-data API (same source as
@@ -238,12 +259,21 @@ export default function SimulationPage() {
       .finally(() => setAllTradesLoading(false));
   }, [assetType]);
 
+  // Bot-source-aware filtered closed trades — drives the equity curve,
+  // metric panel, chart and history table so all four numbers reconcile
+  // exactly for whatever bot the user has selected.
+  const filteredClosedTrades = useMemo(
+    () => allClosedTrades.filter(botSourcePredicate),
+    [allClosedTrades, botSourcePredicate],
+  );
+
   // All "fund value" math (chart, history balance, headline) derives from
   // the same shared helper so /simulation, /freedombot/performance and
-  // anywhere else stay perfectly in sync.
+  // anywhere else stay perfectly in sync. For per-bot filters this is
+  // the counterfactual "starting capital → +Σ this bot's PnL" curve.
   const equityCurve = useMemo(
-    () => buildEquityCurve(allClosedTrades, simState?.startingCapital ?? 0),
-    [allClosedTrades, simState?.startingCapital],
+    () => buildEquityCurve(filteredClosedTrades, simState?.startingCapital ?? 0),
+    [filteredClosedTrades, simState?.startingCapital],
   );
   const { tradeNumberMap, balanceAfterMap, finalCapital: closedEquity } = equityCurve;
 
@@ -310,18 +340,18 @@ export default function SimulationPage() {
   const monthlyPnl = useMemo(() => {
     if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
     const netPnl = derivedCapital - simState.startingCapital;
-    if (runningDays >= 30 && allClosedTrades.length > 0) {
+    if (runningDays >= 30 && filteredClosedTrades.length > 0) {
       const monthStart = new Date();
       monthStart.setDate(1);
       monthStart.setHours(0, 0, 0, 0);
-      const monthNet = allClosedTrades.reduce((sum, t) => {
+      const monthNet = filteredClosedTrades.reduce((sum, t) => {
         if (!t.closedAt || new Date(t.closedAt) < monthStart) return sum;
         return sum + (t.realizedPnl ?? 0);
       }, 0);
       return { pct: (monthNet / simState.startingCapital) * 100, isProjected: false };
     }
     return { pct: ((netPnl / runningDays) * 30 / simState.startingCapital) * 100, isProjected: true };
-  }, [simState, runningDays, allClosedTrades, derivedCapital]);
+  }, [simState, runningDays, filteredClosedTrades, derivedCapital]);
 
   // Yearly P&L % — projected from total realized return per day × 365.
   const yearlyPnl = useMemo(() => {
@@ -501,14 +531,24 @@ export default function SimulationPage() {
                   />
                 </div>
 
+                {/* Bot-source filter — drives all downstream metrics. */}
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <BotSourceFilter value={botSourceFilter} onChange={setBotSourceFilter} />
+                  {isBotFiltered && (
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400/70 px-2 py-1 rounded-md border border-amber-400/20 bg-amber-400/[0.06]">
+                      Counterfactual — &ldquo;if only this bot ran from start&rdquo;
+                    </span>
+                  )}
+                </div>
+
                 {/* Chart + Performance Metrics side by side */}
                 <div className="flex flex-col lg:flex-row gap-3 items-stretch">
                   <div className="flex-1 min-w-0">
-                    <EquityChart trades={allClosedTrades} startingCapital={simState.startingCapital} cs={cs} theme="white" />
+                    <EquityChart trades={filteredClosedTrades} startingCapital={simState.startingCapital} cs={cs} theme="white" />
                   </div>
                   <div className="lg:w-72 xl:w-80 shrink-0 flex flex-col">
                     <PerformanceMetricsPanel
-                      trades={allClosedTrades}
+                      trades={filteredClosedTrades}
                       startingCapital={simState.startingCapital}
                       assetType={assetType}
                     />
@@ -550,9 +590,23 @@ export default function SimulationPage() {
 
                 {tab === "trades" && (
                   <div className="space-y-3">
-                    <TradeList trades={closedTrades} emptyIcon={<BarChart3 className="w-6 h-6" />} emptyLabel="No closed trades yet" onSelectTrade={setSelectedTrade} cs={cs} startingCapital={simState?.startingCapital} tradeNumberMap={tradeNumberMap} balanceAfterMap={balanceAfterMap} />
-                    {/* Server-side pagination controls */}
-                    {(histPage > 0 || histHasMore) && (
+                    {/* When a bot filter is active, render the full filtered
+                        history client-side (zone-bot volumes are small and
+                        the server pagination doesn't know about botSource).
+                        For "All" keep the existing server-paginated path. */}
+                    <TradeList
+                      trades={isBotFiltered ? filteredClosedTrades : closedTrades}
+                      emptyIcon={<BarChart3 className="w-6 h-6" />}
+                      emptyLabel={isBotFiltered ? "No trades from this bot yet" : "No closed trades yet"}
+                      onSelectTrade={setSelectedTrade}
+                      cs={cs}
+                      startingCapital={simState?.startingCapital}
+                      tradeNumberMap={tradeNumberMap}
+                      balanceAfterMap={balanceAfterMap}
+                    />
+                    {/* Server-side pagination controls — only meaningful for
+                        the unfiltered ("All Bots") view. */}
+                    {!isBotFiltered && (histPage > 0 || histHasMore) && (
                       <div className="flex items-center justify-between px-1 pt-1 border-t border-white/[0.06]">
                         <button
                           disabled={histPage === 0 || closedTradesLoading}

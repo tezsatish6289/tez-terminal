@@ -59,6 +59,10 @@ export async function GET(req: NextRequest) {
           openedAt: d.openedAt ?? null,
           closedAt: d.closedAt ?? null,
           events: d.events ?? [],
+          // Origin tag — legacy trades have no botSource field; the UI
+          // normalises missing/undefined to "PATTERN" so the filter pills
+          // always classify every trade into exactly one bucket.
+          botSource: typeof d.botSource === "string" ? d.botSource : null,
         };
       })
       .filter((t) => (t.assetType || "CRYPTO") === assetType);

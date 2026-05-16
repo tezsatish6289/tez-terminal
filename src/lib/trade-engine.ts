@@ -75,6 +75,11 @@ export interface LiveTrade {
   timeframe: string;
   algo: string;
   testnet: boolean;
+  /** Origin of the trade. Missing/undefined = legacy pattern-signal trade
+   *  (treated as "PATTERN" everywhere). Non-PATTERN values (e.g. "BTC_ZONE")
+   *  are written by zone bots; pattern-bot side-effect branches skip them
+   *  so zone bots fully own their own lifecycle. */
+  botSource?: string;
 }
 
 export interface LiveTradeEvent {

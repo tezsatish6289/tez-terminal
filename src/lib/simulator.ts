@@ -121,6 +121,13 @@ export interface SimTrade {
   closedAt: string | null;
   closeReason: string | null;
   events: SimTradeEvent[];
+  /** Origin of the trade. Missing/undefined = legacy pattern-signal trade
+   *  (treated as "PATTERN" everywhere). Non-PATTERN values (e.g. "BTC_ZONE")
+   *  are written by zone bots; sync-simulator's pattern-bot side-effect
+   *  branches (zone-flip force-close, max-pain proximity exit) skip them so
+   *  zone bots fully control their own lifecycle. SL/TP fill detection still
+   *  applies — that's the same engine and is asset-agnostic. */
+  botSource?: string;
 }
 
 export interface SimTradeEvent {

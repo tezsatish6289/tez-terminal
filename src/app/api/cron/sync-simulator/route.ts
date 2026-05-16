@@ -396,6 +396,12 @@ export async function GET(request: NextRequest) {
           for (const simDoc of flipSnap.docs) {
             const t = simDoc.data() as SimTrade;
 
+            // Zone-bot trades are managed by the zone-bot cron's own state
+            // machine — they decide flip timing per their per-asset rolling
+            // confirmation window. Skip them here so the pattern-bot heatmap
+            // direction never force-closes a zone trade.
+            if (typeof t.botSource === "string" && t.botSource !== "PATTERN") continue;
+
             // Option B: trades that already hit TP1 have their SL at breakeven —
             // no net downside remaining. Let them run to TP2/TP3/trailing-SL.
             if (t.tp1Hit) continue;
@@ -488,6 +494,12 @@ export async function GET(request: NextRequest) {
                 if (!mpSnap.empty) {
                   for (const simDoc of mpSnap.docs) {
                     const t = simDoc.data() as SimTrade;
+
+                    // Zone-bot trades manage their own max-pain exit via the
+                    // zone-bot engine (which honours per-asset
+                    // maxPainProximityUsd). Skip them so we don't double-close.
+                    if (typeof t.botSource === "string" && t.botSource !== "PATTERN") continue;
+
                     const closePrice = getSimPrice(t.symbol, t.exchange) ?? t.entryPrice;
                     const simState = await loadSimState("CRYPTO");
 
@@ -549,6 +561,12 @@ export async function GET(request: NextRequest) {
         if (!flipSnap.empty) {
           for (const simDoc of flipSnap.docs) {
             const t = simDoc.data() as SimTrade;
+
+            // Zone-bot trades are managed by the zone-bot cron's own state
+            // machine — they decide flip timing per their per-asset rolling
+            // confirmation window. Skip them here so the pattern-bot heatmap
+            // direction never force-closes a zone trade.
+            if (typeof t.botSource === "string" && t.botSource !== "PATTERN") continue;
 
             // Option B: trades that already hit TP1 have their SL at breakeven —
             // no net downside remaining. Let them run to TP2/TP3/trailing-SL.

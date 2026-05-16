@@ -28,6 +28,7 @@ import {
   type Order,
   type FuturesBalance,
   type FuturesPosition,
+  type ClosedPnlRecord,
   ExchangeApiError,
   roundToTick,
 } from "./types";
@@ -843,6 +844,110 @@ export class HyperliquidConnector implements ExchangeConnector {
     return (rows as Record<string, unknown>[])
       .filter((o) => String(o.coin ?? "").toUpperCase() === coin.toUpperCase())
       .map((o) => this.mapFrontendOrder(o, internal));
+  }
+
+  /**
+   * Realised PnL records for one coin, sourced from `userFillsByTime`. Each
+   * Hyperliquid fill carries a `closedPnl` field (in USDC) that is non-zero
+   * only when the fill REDUCED a position — entry fills always report 0 and
+   * are skipped here. The shared reconciler (see `reconcile-exchange-pnl`)
+   * sums these rows by `orderId` (preferred) or by time window, exactly the
+   * same path used for Bybit/CoinDCX, so dashboards see venue-verified P&L
+   * for Hyperliquid trades alongside the other crypto venues.
+   *
+   * `dir` on a fill is one of "Open Long" / "Close Long" / "Open Short" /
+   * "Close Short" / "Add ...". We map closing fills to the ORIGINAL trade
+   * side (Close Long → BUY, Close Short → SELL) so the side-narrow filter
+   * on `selectClosedPnlRecordsForTrade` still works.
+   */
+  async getClosedPnl(
+    symbol: string,
+    creds: ExchangeCredentials,
+    startTime?: number,
+    endTime?: number,
+  ): Promise<ClosedPnlRecord[]> {
+    const internal = this.normalizeSymbol(symbol);
+    const coin = coinFromInternal(internal).toUpperCase();
+    const { info, master } = clients(creds);
+
+    // userFillsByTime requires a startTime. Cap it to the last 7 days when
+    // not provided so we don't accidentally pull the whole history.
+    const startMs =
+      typeof startTime === "number" && Number.isFinite(startTime) && startTime > 0
+        ? Math.floor(startTime)
+        : Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const endMs =
+      typeof endTime === "number" && Number.isFinite(endTime) && endTime > 0
+        ? Math.floor(endTime)
+        : undefined;
+
+    type HlFill = {
+      coin?: string;
+      px?: string;
+      sz?: string;
+      side?: "A" | "B";
+      time?: number;
+      dir?: string;
+      closedPnl?: string;
+      oid?: number;
+      tid?: number;
+    };
+
+    let fills: HlFill[];
+    try {
+      fills = (await info.userFillsByTime({
+        user: master,
+        startTime: startMs,
+        ...(endMs != null ? { endTime: endMs } : {}),
+      })) as HlFill[];
+    } catch (e) {
+      throw hlError(e, "/info");
+    }
+
+    const out: ClosedPnlRecord[] = [];
+    const seen = new Set<string>();
+
+    for (const f of fills) {
+      if (String(f.coin ?? "").toUpperCase() !== coin) continue;
+      const closed = parseFloat(String(f.closedPnl ?? "0"));
+      // Entries land with closedPnl = 0; only count rows that actually
+      // realised something. (Funding payments aren't surfaced here — they
+      // arrive via a separate `userFunding` endpoint, intentionally excluded
+      // to match Bybit's `closedPnl` semantics, which are gross of funding.)
+      if (!Number.isFinite(closed) || closed === 0) continue;
+
+      const sz = parseFloat(String(f.sz ?? "0"));
+      const px = parseFloat(String(f.px ?? "0"));
+      const ts = typeof f.time === "number" && Number.isFinite(f.time) ? f.time : 0;
+
+      const dir = String(f.dir ?? "").toLowerCase();
+      const side: "BUY" | "SELL" | null = dir.includes("long")
+        ? "BUY"
+        : dir.includes("short")
+          ? "SELL"
+          : null;
+
+      // tid is unique per-fill on Hyperliquid; oid is the parent order. The
+      // reconciler matches by oid, so dedupe on tid keeps one row per fill.
+      const dedupeKey = `${f.tid ?? ""}|${f.oid ?? ""}|${ts}|${closed}|${sz}`;
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+
+      out.push({
+        symbol: internal,
+        closedPnl: closed,
+        qty: Number.isFinite(sz) ? sz : 0,
+        avgEntryPrice: 0,
+        avgExitPrice: Number.isFinite(px) ? px : 0,
+        createdTime: ts,
+        ...(side ? { side } : {}),
+        ...(typeof f.oid === "number" && Number.isFinite(f.oid)
+          ? { orderId: String(f.oid) }
+          : {}),
+      });
+    }
+
+    return out;
   }
 
   async getAllOrders(symbol: string, creds: ExchangeCredentials, limit = 50): Promise<Order[]> {

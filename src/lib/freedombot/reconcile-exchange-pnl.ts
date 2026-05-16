@@ -335,10 +335,11 @@ export async function reconcileTradeExchangePnl(
 
   const windowOpts = {
     tradeSide: trade.side === "SELL" ? "SELL" : "BUY" as "BUY" | "SELL",
-    // Both Bybit and CoinDCX carry the order id on their PnL rows now —
-    // exact id match is far more reliable than the time-window fallback.
+    // Bybit, CoinDCX and Hyperliquid all carry the order id on their PnL
+    // rows (Hyperliquid uses `oid`, surfaced via userFillsByTime). Exact id
+    // match is far more reliable than the time-window fallback.
     matchAnyOrderId:
-      exchange === "BYBIT" || exchange === "COINDCX"
+      exchange === "BYBIT" || exchange === "COINDCX" || exchange === "HYPERLIQUID"
         ? exchangeReconcileOrderIdsFromLiveTrade(trade as Record<string, unknown>)
         : undefined,
     ...(exchange === "COINDCX" ? coindcxClosedPnlWindowOpts() : {}),
@@ -539,11 +540,12 @@ export async function reconcileUserExchangeClosedPnl(
       const records = await connector.getClosedPnl!(exchangeSymbol, creds, startArg, endArg);
       const metrics = computeClosedTradeExchangePnlMetrics(records, openedAtMs, closedAtMs, {
         tradeSide: String(lt.side ?? "BUY").toUpperCase() === "SELL" ? "SELL" : "BUY",
-        // Both Bybit and CoinDCX carry the order id on their PnL rows; prefer
-        // exact id match over the wide CoinDCX time window so PnL never gets
-        // attributed to the wrong trade when several closes land near each other.
+        // Bybit, CoinDCX and Hyperliquid all carry the order id on their
+        // PnL rows; prefer exact id match over the wide CoinDCX/Bybit time
+        // window so PnL never gets attributed to the wrong trade when
+        // several closes land near each other.
         matchAnyOrderId:
-          exchange === "BYBIT" || exchange === "COINDCX"
+          exchange === "BYBIT" || exchange === "COINDCX" || exchange === "HYPERLIQUID"
             ? exchangeReconcileOrderIdsFromLiveTrade(lt as unknown as Record<string, unknown>)
             : undefined,
         ...(exchange === "COINDCX" ? coindcxClosedPnlWindowOpts() : {}),

@@ -161,7 +161,10 @@ export function EquityChart({
       border: `1px solid ${ttBdr}`,
       borderRadius: "8px",
       fontSize: "11px",
+      color: "#e2e8f0",
     },
+    labelStyle: { color: "#94a3b8", marginBottom: "2px" },
+    itemStyle: { color: "#e2e8f0" },
   };
 
   return (
@@ -282,10 +285,12 @@ export function EquityChart({
                   tickLine={false}
                   axisLine={{ stroke: axisLn }}
                   tickFormatter={(v: number) => {
-                    const sign = v > 0 ? "+" : "";
+                    if (v === 0) return cs === "₹" ? "₹0" : "$0";
+                    const sign = v > 0 ? "+" : "-";
+                    const abs = Math.abs(v);
                     return cs === "₹"
-                      ? `${sign}₹${Math.round(v).toLocaleString("en-IN")}`
-                      : `${sign}$${v.toFixed(0)}`;
+                      ? `${sign}₹${Math.round(abs).toLocaleString("en-IN")}`
+                      : `${sign}$${abs.toFixed(0)}`;
                   }}
                   width={pnlYWidth}
                 />
@@ -293,16 +298,22 @@ export function EquityChart({
                   {...tooltipStyle}
                   labelFormatter={(v) => String(v)}
                   formatter={(value: number) => {
-                    const sign = value >= 0 ? "+" : "";
+                    const sign = value > 0 ? "+" : "";
                     return [`${sign}${fmtMoney(value, cs)}`, "Daily P&L"];
                   }}
                 />
                 <ReferenceLine y={0} stroke={refCol} />
-                <Bar dataKey="dailyPnl" maxBarSize={24} radius={[3, 3, 0, 0]}>
+                <Bar
+                  dataKey="dailyPnl"
+                  maxBarSize={20}
+                  radius={[2, 2, 0, 0]}
+                  activeBar={false}
+                >
                   {pnlData.map((entry, i) => (
                     <Cell
                       key={i}
-                      fill={entry.dailyPnl >= 0 ? "rgba(52,211,153,0.7)" : "rgba(248,113,113,0.7)"}
+                      fill={entry.dailyPnl >= 0 ? "#34d399" : "#f87171"}
+                      fillOpacity={0.75}
                     />
                   ))}
                 </Bar>

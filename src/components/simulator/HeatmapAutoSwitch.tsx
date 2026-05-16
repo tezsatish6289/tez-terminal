@@ -40,6 +40,23 @@ interface AutoStatus {
   updatedAt:     string;
 }
 
+interface ZoneBotConfirmation {
+  side:        "BULL" | "BEAR";
+  minutesHeld: number;
+  startedAt:   string;
+}
+
+/** Live state of the BTC zone bot (separate sub-system, sim-only for now).
+ *  Written by /api/cron/sync-zone-bots, read here to render the status row. */
+interface ZoneBotState {
+  direction:        "BULL" | "BEAR" | "IDLE";
+  confirming:       ZoneBotConfirmation | null;
+  openTradeId:      string | null;
+  lastFlipAt:       string | null;
+  reason:           string;
+  updatedAt:        string;
+}
+
 interface MaxPainEntry {
   expiry:   string;
   maxPain:  number;
@@ -193,10 +210,22 @@ export function HeatmapAutoSwitch() {
   const { data: suggestedData, refetch: refetchSuggested } = useDoc(suggestedRef);
   const suggested = suggestedData as SuggestedZones | null;
 
+  // Live state of the BTC zone bot. Optional — when the new cron
+  // (sync-zone-bots) hasn't been wired up yet on cron-job.org, this doc
+  // simply doesn't exist and the panel renders a "not running" hint.
+  const zoneBotStateRef = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return doc(firestore, "config", "zone_bot_btc_state");
+  }, [firestore]);
+  const { data: zoneBotStateData, refetch: refetchZoneBotState } = useDoc(zoneBotStateRef);
+  const zoneBotState = zoneBotStateData as ZoneBotState | null;
+
+  const [zoneBotRefreshing, setZoneBotRefreshing] = useState(false);
+
   // Match the simulation page cadence: refresh status while the tab is
   // visible (zero cost while hidden) so AUTO/Bull/Bear and Deribit zones
   // stay current without listeners.
-  useAutoRefresh([refetchStatus, refetchSuggested], 60_000);
+  useAutoRefresh([refetchStatus, refetchSuggested, refetchZoneBotState], 60_000);
 
   useEffect(() => {
     fetch("/api/settings/heatmap-zones")
@@ -249,6 +278,22 @@ export function HeatmapAutoSwitch() {
       setRefreshing(false);
     }
   }, []);
+
+  // Triggers the zone-bot cron immediately rather than waiting for the
+  // 15-min cadence. Useful for verifying settings changes take effect
+  // and for debugging the bot's reaction to fresh zones.
+  const handleRefreshZoneBot = useCallback(async () => {
+    setZoneBotRefreshing(true);
+    try {
+      await fetch("/api/cron/sync-zone-bots", { method: "POST" });
+      // Re-pull state immediately so the panel reflects the new tick.
+      await refetchZoneBotState();
+    } catch (err) {
+      console.error("Failed to refresh zone bot:", err);
+    } finally {
+      setZoneBotRefreshing(false);
+    }
+  }, [refetchZoneBotState]);
 
   const override    = zones.manualOverride;
   const isForcedOff = override === "OFF";
@@ -323,6 +368,55 @@ export function HeatmapAutoSwitch() {
               </span>
             ) : (
               <span className="text-muted-foreground/40">Waiting for first cron cycle…</span>
+            )}
+          </div>
+
+          {/* ── BTC Zone Bot status (separate sub-system) ──
+              Reads from config/zone_bot_btc_state, written by the
+              /api/cron/sync-zone-bots route every 15 min. Shares the
+              same heatmap_zones settings doc as the pattern bot (see
+              zoneBotSettingsDoc in src/lib/zone-bot-config.ts), so all
+              the sliders below configure BOTH systems. */}
+          <div className="rounded-lg border border-white/[0.06] bg-white/[0.02]">
+            <div className="px-3 py-2 flex items-center justify-between border-b border-white/[0.04]">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-foreground/70 shrink-0">
+                  BTC Zone Bot
+                </span>
+                <span className={cn(
+                  "text-[9px] px-1.5 py-0.5 rounded border font-bold uppercase tracking-wider shrink-0",
+                  zoneBotState?.direction === "BULL"
+                    ? "bg-positive/10 border-positive/30 text-positive/80"
+                    : zoneBotState?.direction === "BEAR"
+                      ? "bg-negative/10 border-negative/30 text-negative/80"
+                      : "bg-white/[0.04] border-white/[0.08] text-muted-foreground/60",
+                )}>
+                  {zoneBotState?.direction ?? "IDLE"}
+                </span>
+                {zoneBotState?.confirming && (
+                  <span className="text-[9px] font-mono text-amber-400/80 truncate">
+                    {zoneBotState.confirming.side} {zoneBotState.confirming.minutesHeld}/{zones.zoneConfirmMinutes ?? 15}m
+                  </span>
+                )}
+                <InfoTip text="BTC Zone Bot trades the BTCUSDT.P perp based purely on Deribit OI zones + a rolling confirmation window. SIM-ONLY for now (no live orders). Same settings as the pattern bot — adjust below to tune both." />
+              </div>
+              <button
+                onClick={handleRefreshZoneBot}
+                disabled={zoneBotRefreshing}
+                title="Trigger sync-zone-bots cron now"
+                className="flex items-center gap-1 px-2 py-0.5 rounded border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] disabled:opacity-40 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/70 shrink-0"
+              >
+                <RefreshCw className={cn("w-2.5 h-2.5", zoneBotRefreshing && "animate-spin")} />
+                Tick
+              </button>
+            </div>
+            <div className="px-3 py-2 text-[10px] text-muted-foreground/70 font-mono">
+              {zoneBotState?.reason ?? "Not running yet — wire up the cron at cron-job.org → /api/cron/sync-zone-bots"}
+            </div>
+            {zoneBotState?.openTradeId && (
+              <div className="px-3 py-1.5 border-t border-white/[0.04] text-[9px] text-muted-foreground/50 font-mono truncate">
+                open: <span className="text-accent/70">{zoneBotState.openTradeId}</span>
+              </div>
             )}
           </div>
 

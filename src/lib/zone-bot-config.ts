@@ -102,7 +102,23 @@ function clamp(v: number, lo: number, hi: number): number {
 
 // ── Firestore paths ──────────────────────────────────────────────────────
 
+/**
+ * Settings doc path per asset.
+ *
+ * BTC is special: the BTC tab in the existing HeatmapAutoSwitch UI drives
+ * BOTH the pattern-bot macro gate AND the BTC zone bot, so the BTC zone
+ * bot reads from the pattern-bot's `config/heatmap_zones` doc rather
+ * than a parallel `config/zone_bot_btc_settings` doc. HeatmapZones is a
+ * superset of ZoneBotSettings — all the fields ZoneBotSettings cares
+ * about (manualOverride / zoneHalfWidthUsd / zoneConfirmMinutes /
+ * maxPainMinDistanceUsd / maxPainProximityUsd) live there with the same
+ * names and value ranges, so `parseZoneBotSettings` just works.
+ *
+ * Future assets (ETH/SOL/XRP) get their own per-asset docs since there's
+ * no existing pattern-bot heatmap UI for them.
+ */
 export function zoneBotSettingsDoc(asset: ZoneBotAsset): string {
+  if (asset === "btc") return "config/heatmap_zones";
   return `config/zone_bot_${asset}_settings`;
 }
 

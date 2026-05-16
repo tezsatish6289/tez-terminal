@@ -38,10 +38,11 @@ const STEP_LABELS: Record<Step, string> = {
 };
 
 const BOTS = [
-  { key: "CRYPTO",        emoji: "₿",  name: "Crypto Bot",        description: "24/7 crypto market automation",  live: true  },
-  { key: "INDIAN_STOCKS", emoji: "🇮🇳", name: "Indian Stock Bot",  description: "NSE / BSE automated trading",    live: false },
-  { key: "GOLD",          emoji: "🥇", name: "Gold Bot",          description: "Precious metals trading",        live: false },
-  { key: "SILVER",        emoji: "🥈", name: "Silver Bot",        description: "Precious metals trading",        live: false },
+  { key: "CRYPTO", emoji: "₿",  logo: null,                             name: "Crypto Bot",   description: "24/7 crypto market automation", live: true  },
+  { key: "BTC",    emoji: "BTC", logo: "/freedombot/coins/btc.png",     name: "Bitcoin Bot",  description: "BTC perpetual futures trading", live: false },
+  { key: "ETH",    emoji: "ETH", logo: "/freedombot/coins/eth.png",     name: "Ethereum Bot", description: "ETH perpetual futures trading", live: false },
+  { key: "SOL",    emoji: "SOL", logo: "/freedombot/coins/sol.png",     name: "Solana Bot",   description: "SOL perpetual futures trading", live: false },
+  { key: "XRP",    emoji: "XRP", logo: "/freedombot/coins/xrp.png",     name: "XRP Bot",      description: "XRP perpetual futures trading", live: false },
 ] as const;
 
 interface Field {
@@ -489,7 +490,13 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                       }}
                     >
                       <div className="flex items-center gap-3">
-                        <span className="text-2xl">{bot.emoji}</span>
+                        {bot.logo ? (
+                          <div className="h-9 w-9 rounded-full bg-white/5 flex items-center justify-center overflow-hidden flex-shrink-0">
+                            <Image src={bot.logo} alt={bot.emoji} width={32} height={32} className="object-contain rounded-full" />
+                          </div>
+                        ) : (
+                          <span className="text-2xl">{bot.emoji}</span>
+                        )}
                         <div className="text-left">
                           <p className="text-sm font-black text-white">{bot.name}</p>
                           <p className="text-[11px]" style={{ color: "#475569" }}>{bot.description}</p>

@@ -1206,109 +1206,20 @@ export async function GET(request: NextRequest) {
         }
 
         // ── BTC zone trade ──────────────────────────────────────────────────
-        // When the BTC zone is confirmed (simEnabled + single direction),
-        // open a BTCUSDT.P trade directly — independent of the signal queue.
-        // This lets BTC itself be traded the moment zone confirmation fires,
-        // even while other altcoin signals are waiting.
-        if (
-          assetType === "CRYPTO" &&
-          assetSimEnabled &&
-          (assetDirectionBias === "BULL" || assetDirectionBias === "BEAR") &&
-          btcPrice !== null
-        ) {
-          try {
-            const zoneIsBull = assetDirectionBias === "BULL";
-            const zoneSide   = zoneIsBull ? "BUY" as const : "SELL" as const;
-            const zoneSl     = zoneIsBull ? heatmapZones.bullZoneLow : heatmapZones.bearZoneHigh;
-
-            if (zoneSl !== null) {
-              const sugSnap = await db.doc("config/suggested_zones").get();
-              const sug = sugSnap.exists ? (sugSnap.data() as Record<string, unknown>) : null;
-              const tpTarget: number | null = sug
-                ? (zoneIsBull
-                    ? (typeof sug.bullTpTarget === "number" ? sug.bullTpTarget : null)
-                    : (typeof sug.bearTpTarget === "number" ? sug.bearTpTarget : null))
-                : null;
-
-              if (tpTarget !== null) {
-                // TP must be on the correct side of current price
-                const diff = zoneIsBull ? tpTarget - btcPrice : btcPrice - tpTarget;
-
-                if (diff > 0) {
-                  const slDist = zoneIsBull
-                    ? (btcPrice - zoneSl) / btcPrice
-                    : (zoneSl  - btcPrice) / btcPrice;
-
-                  if (slDist > 0 && slDist <= simConfig.INCUBATED_MAX_SL_DISTANCE_PCT) {
-                    // Deterministic hourly doc ID — prevents re-opening the same zone
-                    // trade across multiple cron runs within the same hour.
-                    const hourTag      = new Date().toISOString().slice(0, 13).replace("T", "").replace(":", "");
-                    const zoneSignalId = `btc-zone-${assetDirectionBias.toLowerCase()}-${hourTag}`;
-                    const zoneDocId    = `sim-${zoneSignalId}`;
-
-                    const existingDoc = await db.collection("simulator_trades").doc(zoneDocId).get();
-                    if (!existingDoc.exists) {
-                      // TP levels evenly spaced to the max-pain target
-                      const tp1 = Math.round(zoneIsBull ? btcPrice + diff * 0.33 : btcPrice - diff * 0.33);
-                      const tp2 = Math.round(zoneIsBull ? btcPrice + diff * 0.66 : btcPrice - diff * 0.66);
-                      const tp3 = Math.round(tpTarget);
-
-                      const zoneLev    = (await import("@/lib/leverage")).getLeverage("60", "CRYPTO");
-                      const hasStreakZ  = (simState3.consecutiveWins ?? 0) >= simConfig.STREAK_WINS_TO_SCALE;
-                      const riskPctZ   = hasStreakZ ? simConfig.RISK_PER_TRADE_STREAK : simConfig.RISK_PER_TRADE_BASE;
-                      let   zonePos    = (simState3.capital * riskPctZ) / (slDist * zoneLev);
-                      if (zonePos > simState3.capital * 0.05) zonePos = simState3.capital * 0.05;
-                      zonePos = Math.round(zonePos * 100) / 100;
-
-                      if (zonePos >= 1) {
-                        const zoneResult = openTrade({
-                          signal: {
-                            id:              zoneSignalId,
-                            symbol:          "BTCUSDT.P",
-                            exchange:        "BYBIT",
-                            assetType:       "CRYPTO",
-                            type:            zoneSide,
-                            timeframe:       "60",
-                            algo:            "ZONE",
-                            price:           btcPrice,
-                            stopLoss:        Math.round(zoneSl),
-                            tp1, tp2, tp3,
-                            confidenceScore: 75,
-                            scorePattern:    "none",
-                            scoreBreakdown:  undefined,
-                          },
-                          positionSize:  zonePos,
-                          state:         simState3,
-                          bullScore,
-                          bearScore,
-                          liveWinRate:   0,
-                          algoWinRate:   0,
-                          directionBias: assetDirectionBias,
-                        });
-
-                        await db.collection("simulator_trades").doc(zoneDocId).set(zoneResult.trade);
-                        simState3 = zoneResult.updatedState;
-                        updateSimState(assetType, simState3);
-                        zoneResult.log.details = `[BTC ZONE] ${zoneResult.log.details}`;
-                        await db.collection("simulator_logs").add(zoneResult.log);
-                        incubatedCount++;
-
-                        try {
-                          await executeForAllUsers(
-                            db, zoneResult.trade, zoneDocId, simState3.capital,
-                            zoneSignalId, "BTCUSDT.P", zoneSide, "BYBIT", simConfig,
-                          );
-                        } catch { /* live execution is best-effort */ }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          } catch (zoneTradeErr) {
-            console.error("[SimSync] BTC zone trade error:", zoneTradeErr);
-          }
-        }
+        // Retired in PR #7.1. The BTC zone bot now lives entirely in
+        // `/api/cron/sync-zone-bots` (15-min cadence), which:
+        //   • runs its own rolling 15-min confirmation window before opening
+        //   • stamps `botSource: "BTC_ZONE"` so dashboards/sync-simulator
+        //     guards/the per-user opt-in gate all see it correctly
+        //   • mirrors to live only for users who explicitly toggled the
+        //     "BTC Zone Bot" switch in ExchangeSettings (zoneBotsEnabled.btc)
+        //
+        // Leaving the old inline block here would double-fire on the same
+        // BTC zone confirmation (sync-simulator runs every minute; sync-
+        // zone-bots every 15 min) AND bypass PR #7's opt-in safety, because
+        // the legacy block called executeForAllUsers with the default
+        // botSource = "PATTERN" — silently mirroring zone trades to every
+        // autoTradeEnabled user. See docs/zone-bots.md §8 PR #7.1.
       }
 
       await flushSimStates();

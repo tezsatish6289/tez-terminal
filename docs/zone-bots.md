@@ -300,6 +300,7 @@ defaults from real data.
 | 5 | `feat(ui): bot-filter tabs on simulation + counterfactual equity` | `[All] [Pattern] [BTC Zone]` filter on `/simulation`. Equity curve `mode` prop. |
 | 6 | `feat(ui): mirror bot-filter on /freedombot/performance + /records` | Public dashboards consistency. |
 | 7 | `feat(zone-bot): live deployment (BitcoinBot)` | Per-user opt-in (`secrets.zoneBotsEnabled.btc`), `executeForAllUsers(botSource: "BTC_ZONE")`, ExchangeSettings UI toggle, `sync-live-trades` close-mirror whitelist extended with `ZONE_BOT_FLIP` and `ZONE_BOT_MAX_PAIN_EXIT`. |
+| 7.1 | `chore(zone-bot): retire legacy BTC zone block in sync-simulator` | Removes the in-line BTC zone trade opener inside `/api/cron/sync-simulator`. With sync-zone-bots live, that block would (a) double-fire on the same confirmation (1-min vs 15-min cadence) and (b) bypass PR #7's opt-in safety because it never stamped `botSource: "BTC_ZONE"`. Pattern-bot pipeline unchanged. |
 
 After PR #7, BitcoinBot is fully live and observable. Pause here to watch real
 performance and tune defaults.

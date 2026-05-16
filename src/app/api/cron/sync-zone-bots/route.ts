@@ -32,14 +32,21 @@
  * ───────────────────────────────────────────────────────────────────────
  * Safety
  * ───────────────────────────────────────────────────────────────────────
- *   - SIM-ONLY in this PR. No call to executeForAllUsers — zero risk of
- *     live trades on user exchanges (that's PR #6).
+ *   - Live mirroring is OPT-IN per user, per bot. executeForAllUsers
+ *     receives `botSource: ZONE_BOT_SOURCE[asset]`; users only receive
+ *     mirrored trades if their secrets doc has
+ *     `zoneBotsEnabled.<asset> === true`. Default false → zero existing
+ *     pattern-bot users get auto-enrolled.
  *   - Trades are stamped botSource = ZONE_BOT_SOURCE[asset] so the
  *     existing sync-simulator force-close branches (added in PR #3) skip
  *     them. Pattern-bot trades are completely unaffected.
+ *   - sync-live-trades (1-min cron) mirrors the eventual zone-bot SIM
+ *     close to live by extending its closeReason whitelist
+ *     (`ZONE_BOT_FLIP`, `ZONE_BOT_MAX_PAIN_EXIT`) — same protective-
+ *     close path used for TRAILING_SL.
  *   - Default settings = AUTO, but ZONE_BOT_REGISTRY only contains "btc"
  *     and nothing fires until cron-job.org actually starts hitting the
- *     endpoint.
+ *     endpoint AND at least one user has opted in.
  *
  * See `docs/zone-bots.md` for the full design.
  */
@@ -49,6 +56,7 @@ import { getAdminFirestore } from "@/firebase/admin";
 import { deserializePrices } from "@/lib/exchanges";
 import { getLeverage } from "@/lib/leverage";
 import { computeOptionsZones } from "@/lib/options-zones";
+import { executeForAllUsers } from "@/lib/live-execution";
 import {
   SIM_CONFIG,
   type SimConfigType,
@@ -353,6 +361,41 @@ async function openZoneBotTrade(args: {
   };
   await db.collection("simulator_logs").add(decoratedLog);
 
+  // Mirror to live exchanges for any user who has explicitly opted into
+  // this specific zone bot (zoneBotsEnabled.<asset> === true).
+  // executeForAllUsers internally:
+  //   • skips users whose secrets doc lacks the opt-in
+  //   • runs per-user with Promise.allSettled (one failure doesn't bleed)
+  //   • emergency-closes exchange positions whose Firestore write fails
+  //
+  // Best-effort: any throw here is swallowed so the sim trade record
+  // stays consistent (the live side has its own per-user error logs
+  // under live_trade_logs, and sync-live-trades will reconcile state on
+  // the next 1-min tick).
+  try {
+    await executeForAllUsers(
+      db,
+      tradeWithSource,
+      docId,
+      result.updatedState.capital,
+      signalId,
+      tradeWithSource.symbol,
+      side,
+      "BYBIT",
+      simConfig,
+      ZONE_BOT_SOURCE[asset], // gates which users mirror this trade
+    );
+  } catch (e) {
+    await db.collection("simulator_logs").add({
+      timestamp: new Date(now).toISOString(),
+      action: "ZONE_BOT_LIVE_MIRROR_FAILED",
+      details: `[${ZONE_BOT_SOURCE[asset]}] live mirror call threw: ${e instanceof Error ? e.message : String(e)}. Sim trade ${docId} unaffected.`,
+      symbol: tradeWithSource.symbol,
+      capital: result.updatedState.capital,
+      assetType: "CRYPTO",
+    }).catch(() => {});
+  }
+
   return { tradeId: docId, updatedState: result.updatedState, log: decoratedLog, sizing };
 }
 
@@ -364,7 +407,9 @@ async function closeZoneBotTrade(args: {
   simConfig:  SimConfigType;
   spot:       number;
   reason:     string;
-  /** "SL" for forced exits (FLIP), "TP1" for max-pain proximity exits. */
+  /** "SL" for forced exits (FLIP and max-pain proximity — both intend
+   *  a full position exit, not a TP1-style partial). Kept as a union
+   *  for forward compat with possible future partial-exit reasons. */
   exitType:   "SL" | "TP1";
 }): Promise<{ updatedState: SimulatorState; log: SimLog | null }> {
   const { db, asset, tradeId, state, simConfig, spot, reason, exitType } = args;
@@ -512,9 +557,12 @@ async function tickAsset(
 
       case "CLOSE": {
         if (prevState.openTradeId) {
+          // Max-pain-proximity exit: zone bot wants the position FULLY
+          // out, so use SL (100% close), not TP1 (20%). The closeReason
+          // tag tells humans/downstream what actually triggered it.
           const closed = await closeZoneBotTrade({
             db, asset, tradeId: prevState.openTradeId, state: workingSimState, simConfig, spot,
-            reason: "ZONE_BOT_MAX_PAIN_EXIT", exitType: "TP1",
+            reason: "ZONE_BOT_MAX_PAIN_EXIT", exitType: "SL",
           });
           workingSimState = closed.updatedState;
           if (closed.log) await saveCryptoSimState(db, workingSimState);

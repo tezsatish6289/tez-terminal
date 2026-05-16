@@ -557,12 +557,23 @@ async function syncUserTrades(
 
         const sim = simDoc.data() as SimTrade;
 
-        // Only mirror trailing-SL closes from the simulator.
-        // Market-turn and pattern-break exits have been removed — let the
-        // actual SL do its job rather than booking premature small losses.
-        if (sim.status !== "CLOSED" || sim.closeReason !== "TRAILING_SL") continue;
+        // Reasons that should cascade a market close into the live
+        // mirror. Pattern bot: TRAILING_SL only (market-turn and
+        // pattern-break exits were removed — let the actual SL do its
+        // job rather than booking premature small losses). Zone bots
+        // own their entire lifecycle so their explicit exit reasons
+        // must also propagate: ZONE_BOT_FLIP (direction reversed,
+        // close immediately) and ZONE_BOT_MAX_PAIN_EXIT (one-sided
+        // zone reached max-pain proximity, exit before chop).
+        const MIRRORED_SIM_CLOSE_REASONS = new Set([
+          "TRAILING_SL",
+          "ZONE_BOT_FLIP",
+          "ZONE_BOT_MAX_PAIN_EXIT",
+        ]);
+        if (sim.status !== "CLOSED") continue;
+        if (!sim.closeReason || !MIRRORED_SIM_CLOSE_REASONS.has(sim.closeReason)) continue;
 
-        const closeReason = "TRAILING_SL" as const;
+        const closeReason = sim.closeReason as "TRAILING_SL" | "ZONE_BOT_FLIP" | "ZONE_BOT_MAX_PAIN_EXIT";
         const curPrice = getPrice(allPrices, lt.signalSymbol, exchange) ?? lt.entryPrice;
         const closeResult = await protectiveClose(lt, closeReason, curPrice, creds);
 

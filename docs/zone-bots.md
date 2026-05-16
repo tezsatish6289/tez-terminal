@@ -298,11 +298,37 @@ defaults from real data.
 | 3 | `feat(zone-bot): rename heatmap docs + botSource field + backfill` | Schema rename with compat shim, backfill `simulator_trades` + `live_trades` with `botSource = "PATTERN"`. |
 | 4 | `feat(zone-bot): cron sync-zone-bots (BTC sim only)` | New cron, opens/closes sim trades for BTC zone bot only. Pattern bot unchanged. |
 | 5 | `feat(ui): bot-filter tabs on simulation + counterfactual equity` | `[All] [Pattern] [BTC Zone]` filter on `/simulation`. Equity curve `mode` prop. |
-| 6 | `feat(zone-bot): live deployment (BitcoinBot)` | Per-user toggle, `executeForAllUsers` integration for BTC zone trades. |
-| 7 | `feat(ui): mirror bot-filter on /freedombot/performance + /records` | Public dashboards consistency. |
+| 6 | `feat(ui): mirror bot-filter on /freedombot/performance + /records` | Public dashboards consistency. |
+| 7 | `feat(zone-bot): live deployment (BitcoinBot)` | Per-user opt-in (`secrets.zoneBotsEnabled.btc`), `executeForAllUsers(botSource: "BTC_ZONE")`, ExchangeSettings UI toggle, `sync-live-trades` close-mirror whitelist extended with `ZONE_BOT_FLIP` and `ZONE_BOT_MAX_PAIN_EXIT`. |
 
 After PR #7, BitcoinBot is fully live and observable. Pause here to watch real
 performance and tune defaults.
+
+#### PR #7 — what shipped (live mirroring)
+
+- **Opt-in by default-off**: existing pattern-bot users are NOT auto-
+  enrolled. Each user must toggle `BTC Zone Bot` ON in
+  `ExchangeSettings` per crypto exchange. Stored as
+  `users/{uid}/secrets/{exchangeId}.zoneBotsEnabled.btc = true`.
+- **executeForAllUsers** gained a `botSource` param (default
+  `"PATTERN"` for legacy callers). The per-user discovery loop calls
+  `userOptedIntoBot(secretData, botSource)` AFTER the existing
+  `autoTradeEnabled === true` check. PATTERN always passes; zone-bot
+  values require the explicit opt-in. Unknown botSource is REFUSED
+  (defensive: future bots can't silently mirror to pattern users).
+- **executeTrade** stamps `botSource` on the new `LiveTrade`, so
+  dashboards and downstream cron logic can route by it.
+- **`sync-zone-bots` openZoneBotTrade** now calls `executeForAllUsers`
+  with `botSource: ZONE_BOT_SOURCE[asset]` immediately after writing
+  the sim trade. Best-effort: a thrown live-mirror call is logged but
+  doesn't unwind the sim trade.
+- **Close mirroring** rides the existing `sync-live-trades` cron. Its
+  sim-driven close-reason whitelist was extended from `{TRAILING_SL}`
+  to `{TRAILING_SL, ZONE_BOT_FLIP, ZONE_BOT_MAX_PAIN_EXIT}`. Pattern-
+  bot mirror behaviour is unchanged.
+- **`closeZoneBotTrade` exitType** for CLOSE (max-pain proximity) was
+  fixed from `"TP1"` (20% close) to `"SL"` (100% close) — engine
+  intent is full exit.
 
 ### Phase 2 — Clone for ETH / SOL / XRP
 

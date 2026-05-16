@@ -17,6 +17,7 @@ import { isIndianMarketEntryAllowed } from "./market-hours";
 import { getDhanLeverage } from "./exchanges/dhan";
 import { generateTokenForUser } from "./dhan-token";
 import { applyTradeChangeToAggregates } from "./freedombot/aggregates";
+import { userOptedIntoBot } from "./freedombot/zone-bot-subscription";
 
 /**
  * Execute a trade for ALL users who have autoTradeEnabled on any supported exchange.
@@ -25,6 +26,7 @@ import { applyTradeChangeToAggregates } from "./freedombot/aggregates";
  * Shared across:
  *   - webhook/route.ts  (immediate signal → live)
  *   - sync-simulator/route.ts  (incubated signal → live)
+ *   - sync-zone-bots/route.ts  (zone-bot signal → live, gated by per-bot opt-in)
  */
 export async function executeForAllUsers(
   db: FirebaseFirestore.Firestore,
@@ -36,6 +38,12 @@ export async function executeForAllUsers(
   signalType: string,
   signalExchange: string,
   simConfig?: SimConfigType,
+  /** Origin bot. "PATTERN" (default) → existing autoTradeEnabled users
+   *  receive the mirror, matching legacy behaviour. Non-PATTERN values
+   *  (e.g. "BTC_ZONE") additionally require an explicit per-bot opt-in
+   *  on the user's secrets doc (see userOptedIntoBot). Existing pattern-
+   *  bot users are NOT auto-enrolled into any zone bot. */
+  botSource: string = "PATTERN",
 ) {
   const usersSnap = await db.collection("users").get();
 
@@ -79,6 +87,12 @@ export async function executeForAllUsers(
             const data = secretDoc.data()!;
             if (!docMatchesExchange(data, brokerName, id)) continue;
             if (data.autoTradeEnabled === true) {
+              // Per-bot opt-in gate. PATTERN trades always pass (legacy
+              // behaviour for existing autoTradeEnabled users). Zone-
+              // bot trades require the user to explicitly enable that
+              // specific bot via `zoneBotsEnabled.<bot> === true` in
+              // their settings — opt-in by design, never opt-out.
+              if (!userOptedIntoBot(data, botSource)) continue;
               let apiKey: string;
               let apiSecret: string;
 
@@ -198,6 +212,7 @@ export async function executeForAllUsers(
         task.creds,
         task.exchange,
         simConfig,
+        botSource,
       );
 
       if (!liveResult.success) {
@@ -231,6 +246,7 @@ export async function executeForAllUsers(
             task.creds,
             task.exchange,
             simConfig,
+            botSource,
           );
           if (!liveResult.success) {
             await db.collection("live_trade_logs").add({

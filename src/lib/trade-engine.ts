@@ -83,7 +83,20 @@ export interface LiveTrade {
 }
 
 export interface LiveTradeEvent {
-  type: "OPEN" | "TP1" | "TP2" | "TP3" | "SL" | "SL_TO_BE" | "MARKET_TURN" | "SCORE_DEGRADED" | "KILL_SWITCH" | "TRAILING_SL" | "PATTERN_BREAK";
+  type:
+    | "OPEN"
+    | "TP1"
+    | "TP2"
+    | "TP3"
+    | "SL"
+    | "SL_TO_BE"
+    | "MARKET_TURN"
+    | "SCORE_DEGRADED"
+    | "KILL_SWITCH"
+    | "TRAILING_SL"
+    | "PATTERN_BREAK"
+    | "ZONE_BOT_FLIP"
+    | "ZONE_BOT_MAX_PAIN_EXIT";
   price: number;
   pnl: number;
   fee: number;
@@ -242,6 +255,11 @@ export async function executeTrade(
   creds: Credentials,
   exchange: ExchangeName = "BYBIT",
   simConfig?: SimConfigType,
+  /** Origin bot — stamped on the resulting LiveTrade so
+   *  reconciliation / dashboards / cron close-routing can tell pattern
+   *  trades apart from zone-bot trades. Defaults to "PATTERN" for
+   *  backward compatibility with every existing call site. */
+  botSource: string = "PATTERN",
 ): Promise<TradeExecutionResult> {
   const warnings: string[] = [];
   const connector = getConnector(exchange);
@@ -401,6 +419,7 @@ export async function executeTrade(
       timeframe: simTrade.timeframe,
       algo: simTrade.algo,
       testnet: creds.testnet === true,
+      botSource,
     };
 
     return { success: true, trade: liveTrade, warnings };
@@ -647,7 +666,13 @@ export async function moveSlToBreakeven(
 
 export async function protectiveClose(
   trade: LiveTrade,
-  reason: "MARKET_TURN" | "KILL_SWITCH" | "TRAILING_SL" | "PATTERN_BREAK",
+  reason:
+    | "MARKET_TURN"
+    | "KILL_SWITCH"
+    | "TRAILING_SL"
+    | "PATTERN_BREAK"
+    | "ZONE_BOT_FLIP"
+    | "ZONE_BOT_MAX_PAIN_EXIT",
   currentPrice: number,
   creds: Credentials
 ): Promise<{

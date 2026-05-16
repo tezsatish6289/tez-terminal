@@ -131,6 +131,15 @@ export interface ExchangeConfig {
   savedAt: string | null;
   exchange?: ExchangeId;
   totpConfigured?: boolean;
+  /** Per-bot opt-in for live mirroring of zone-bot trades. Default
+   *  empty / all false — existing pattern-bot users are NOT auto-
+   *  enrolled when a new zone bot ships. */
+  zoneBotsEnabled?: {
+    btc?: boolean;
+    eth?: boolean;
+    sol?: boolean;
+    xrp?: boolean;
+  };
 }
 
 interface ExchangeSettingsProps {
@@ -172,7 +181,26 @@ export function useExchangeConfig(uid: string | undefined, exchange: ExchangeId 
       });
       const data = await res.json();
       if (data.success) {
-        setConfig((prev) => prev ? { ...prev, [field]: value } : null);
+        setConfig((prev) => {
+          if (!prev) return null;
+          // Dotted-path fields (e.g. "zoneBotsEnabled.btc") need a
+          // nested merge so toggling one sub-flag doesn't drop the
+          // others, matching what the server is doing in Firestore.
+          if (field.includes(".")) {
+            const [parent, leaf] = field.split(".", 2) as ["zoneBotsEnabled", "btc" | "eth" | "sol" | "xrp"];
+            if (parent === "zoneBotsEnabled") {
+              return {
+                ...prev,
+                zoneBotsEnabled: {
+                  ...(prev.zoneBotsEnabled ?? {}),
+                  [leaf]: value as boolean,
+                },
+              };
+            }
+            return prev;
+          }
+          return { ...prev, [field]: value };
+        });
       } else {
         toast({ title: "Error", description: data.error, variant: "destructive" });
       }
@@ -488,6 +516,11 @@ function ExchangeSettingsPanel({
     );
   }
 
+  const btcZoneBotEnabled = config.zoneBotsEnabled?.btc === true;
+  // Zone bots only make sense for crypto exchanges (BTCUSDT.P / etc).
+  // Dhan trades Indian equities → no zone-bot exposure path possible.
+  const supportsZoneBots = !isDhan;
+
   return (
     <div className="space-y-4">
       {/* Auto-Trade Toggle */}
@@ -513,6 +546,33 @@ function ExchangeSettingsPanel({
           )}
         />
       </div>
+
+      {/* BTC Zone Bot Opt-In (additional bot, independent of pattern signals) */}
+      {supportsZoneBots && (
+        <div className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-white/5">
+          <div className="pr-3">
+            <p className="text-sm font-medium text-foreground">BTC Zone Bot</p>
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              {btcZoneBotEnabled
+                ? `BTCUSDT.P trades from the zone-bot will mirror to ${meta.name} (requires Auto-Trade ON above).`
+                : "Opt in to also receive BTC Zone Bot trades. Uses Deribit-OI bull/bear zones, independent of pattern signals. Default off."}
+            </p>
+          </div>
+          <Switch
+            checked={btcZoneBotEnabled}
+            disabled={!config.autoTradeEnabled}
+            onCheckedChange={(checked) => {
+              if (checked && !isTestnet) {
+                if (!confirm(`Subscribe to BTC Zone Bot on ${meta.name} (real money)? This bot trades BTCUSDT.P based on Deribit OI zones, separately from pattern signals.`)) return;
+              }
+              updateSetting("zoneBotsEnabled.btc", checked);
+            }}
+            className={cn(
+              isTestnet ? "data-[state=checked]:bg-blue-500" : "data-[state=checked]:bg-amber-500",
+            )}
+          />
+        </div>
+      )}
 
       {/* Credentials summary */}
       <div className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-white/5">

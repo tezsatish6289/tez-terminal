@@ -70,6 +70,11 @@ export async function GET(request: NextRequest) {
     dailyLossLimit: data.dailyLossLimit ?? 3,
     useTestnet: data.useTestnet ?? true,
     savedAt: data.savedAt ?? null,
+    // Per-bot opt-in map for zone bots (default false). Pattern-bot
+    // mirroring is governed by autoTradeEnabled alone — these flags are
+    // ADDITIONAL gates that only apply when the cron passes a non-
+    // PATTERN botSource into executeForAllUsers.
+    zoneBotsEnabled: data.zoneBotsEnabled ?? {},
     // Dhan-specific: indicate TOTP is configured (without exposing secrets)
     totpConfigured: exchangeName === "DHAN" ? !!(data.encryptedSecret && data.encryptedPin) : undefined,
   });
@@ -163,10 +168,29 @@ export async function PUT(request: NextRequest) {
   if (!uid) return NextResponse.json({ error: "Missing uid" }, { status: 400 });
 
   const exchangeName = resolveExchangeName(body.exchange);
-  const allowed = ["autoTradeEnabled", "riskPerTrade", "maxConcurrentTrades", "dailyLossLimit", "useTestnet"];
+  // Plain field names update the whole field; dotted-path keys
+  // (e.g. "zoneBotsEnabled.btc") update one nested property without
+  // clobbering siblings, so users can toggle one zone bot without
+  // accidentally disabling others.
+  const allowed = [
+    "autoTradeEnabled",
+    "riskPerTrade",
+    "maxConcurrentTrades",
+    "dailyLossLimit",
+    "useTestnet",
+    "zoneBotsEnabled.btc",
+    "zoneBotsEnabled.eth",
+    "zoneBotsEnabled.sol",
+    "zoneBotsEnabled.xrp",
+  ];
   const filtered: Record<string, unknown> = {};
   for (const key of allowed) {
-    if (key in updates) filtered[key] = updates[key];
+    if (key in updates) {
+      // Coerce zoneBots flags to plain booleans defensively so a
+      // misbehaving client can't write a truthy string ("false") that
+      // would pass the gate.
+      filtered[key] = key.startsWith("zoneBotsEnabled.") ? updates[key] === true : updates[key];
+    }
   }
 
   if (Object.keys(filtered).length === 0) {

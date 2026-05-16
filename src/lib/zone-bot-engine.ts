@@ -1,0 +1,630 @@
+/**
+ * Zone Bot — pure decision engine.
+ *
+ * Given the latest spot, suggested zones, settings, and prior state,
+ * decides whether to OPEN / CLOSE / FLIP / NONE. Has zero side effects
+ * (no Firestore, no Date.now, no fetch) — caller injects everything.
+ *
+ * The cron consumes the returned `action` to actually create / close
+ * `simulator_trades` and `live_trades` rows.
+ *
+ * See `docs/zone-bots.md` §1, §3 for the full state-machine spec.
+ *
+ * ──────────────────────────────────────────────────────────────────────
+ * State machine summary
+ * ──────────────────────────────────────────────────────────────────────
+ * IDLE
+ *   └─ price enters bull zone → CONFIRMING(BULL) (no trade)
+ *   └─ price enters bear zone → CONFIRMING(BEAR) (no trade)
+ *
+ * CONFIRMING(side)
+ *   └─ window passes → ACTIVE(side) + action=OPEN
+ *   └─ window fails  → revert to IDLE
+ *
+ * ACTIVE(BULL) (trade open)
+ *   └─ opposite (BEAR) confirms → action=FLIP (close BULL, open BEAR)
+ *   └─ price exits zone (above bullExitAbove OR between zones)
+ *      → action=NONE, trade keeps running on its trailing SL / TPs
+ *   └─ one-sided zone + spot near day-0 max pain
+ *      → action=CLOSE (take profit at max-pain target)
+ *
+ * SL hits / TP3 hits etc. are managed by the existing sync-simulator
+ * (or sync-live-trades) — the engine just tracks whether a trade is
+ * open via `state.openTradeId`.
+ */
+
+import type { ZoneBotAsset, ZoneBotSettings } from "./zone-bot-config";
+import type { PricePoint, ZoneBotState } from "./zone-bot-state";
+
+// ── Inputs and outputs ───────────────────────────────────────────────────
+
+/** Minimal slice of `OptionsZones` (from `options-zones.ts`) that the
+ *  engine actually needs. Keeping this narrow decouples the engine from
+ *  the full suggester schema and makes it trivially mock-able in tests. */
+export interface ZoneBotSuggestedZones {
+  bullZoneLow:   number | null;
+  bullZoneHigh:  number | null;
+  bullExitAbove: number | null;
+  bearZoneHigh:  number | null;
+  bearZoneLow:   number | null;
+  bearExitBelow: number | null;
+  /** Day-0 (today's) max pain price, used for one-sided exit logic. */
+  maxPain:       number | null;
+  /** ISO timestamp when the suggester computed these zones. */
+  computedAt:    string;
+}
+
+export type ZoneBotAction =
+  | { type: "NONE"; reason: string }
+  | {
+      type: "OPEN";
+      side: "BUY" | "SELL";
+      entryPrice: number;
+      stopLoss:   number;
+      tp1:        number;
+      tp2:        number;
+      tp3:        number;
+      rDistance:  number;
+      reason:     string;
+    }
+  | { type: "CLOSE"; reason: string }
+  | {
+      type: "FLIP";
+      closeReason: string;
+      openSide:    "BUY" | "SELL";
+      entryPrice:  number;
+      stopLoss:    number;
+      tp1:         number;
+      tp2:         number;
+      tp3:         number;
+      rDistance:   number;
+      reason:      string;
+    };
+
+export interface EvaluateZoneBotInput {
+  asset:     ZoneBotAsset;
+  /** Latest spot price; null if the price feed failed. */
+  spot:      number | null;
+  /** Latest suggested zones (from `config/suggested_zones_${asset}`); null
+   *  when the cron hasn't written any yet. */
+  suggested: ZoneBotSuggestedZones | null;
+  /** Per-asset user settings. */
+  settings:  ZoneBotSettings;
+  /** Previous state from `config/zone_bot_${asset}_state`. */
+  state:     ZoneBotState;
+  /** Rolling price-history window. Caller should have already appended
+   *  the current spot before calling — engine treats this as the source
+   *  of truth for confirmation checks. */
+  history:   PricePoint[];
+  /** Dep-injected clock so tests are deterministic. */
+  now:       number;
+}
+
+export interface EvaluateZoneBotResult {
+  nextState: ZoneBotState;
+  action:    ZoneBotAction;
+}
+
+// ── Constants ────────────────────────────────────────────────────────────
+
+/** Suggested zones older than this are treated as missing.
+ *  Matches the existing `loadEffectiveHeatmapZones` staleness window. */
+const SUGGESTED_STALE_MS = 12 * 60 * 60 * 1000; // 12h
+
+/** Hard upper bound on SL distance as a fraction of entry price.
+ *  Mirrors the `INCUBATED_MAX_SL_DISTANCE_PCT = 0.03` gate the existing
+ *  pattern bot uses — anything wider produces a tiny position that
+ *  doesn't justify the venue fees. */
+const MAX_SL_DISTANCE_PCT = 0.03;
+
+/** SL anchor multipliers. SL = zoneLow × 0.99 for BULL,
+ *  zoneHigh × 1.01 for BEAR. Pulled out as constants so a tuning change
+ *  is a one-line edit. */
+const BULL_SL_MULT = 0.99;
+const BEAR_SL_MULT = 1.01;
+
+// ── Trade-parameter math ─────────────────────────────────────────────────
+
+export interface ZoneTradeParams {
+  side:           "BUY" | "SELL";
+  entryPrice:     number;
+  stopLoss:       number;
+  tp1:            number;
+  tp2:            number;
+  tp3:            number;
+  rDistance:      number;
+  slDistancePct:  number;
+}
+
+/**
+ * Compute SL / TP1 / TP2 / TP3 for a zone-bot trade entry. Pure helper —
+ * also exported so the live-execution layer can reuse the exact same math
+ * (avoiding any chance of drift between sim and live).
+ */
+export function computeZoneTradeParams(
+  side:          "BUY" | "SELL",
+  entryPrice:    number,
+  bullZoneLow:   number | null,
+  bearZoneHigh:  number | null,
+): ZoneTradeParams | null {
+  if (!Number.isFinite(entryPrice) || entryPrice <= 0) return null;
+
+  if (side === "BUY") {
+    if (bullZoneLow == null) return null;
+    const stopLoss  = bullZoneLow * BULL_SL_MULT;
+    const rDistance = entryPrice - stopLoss;
+    if (rDistance <= 0) return null; // SL not actually below entry — bail
+    return {
+      side,
+      entryPrice,
+      stopLoss,
+      tp1: entryPrice + rDistance,
+      tp2: entryPrice + 2 * rDistance,
+      tp3: entryPrice + 3 * rDistance,
+      rDistance,
+      slDistancePct: rDistance / entryPrice,
+    };
+  } else {
+    if (bearZoneHigh == null) return null;
+    const stopLoss  = bearZoneHigh * BEAR_SL_MULT;
+    const rDistance = stopLoss - entryPrice;
+    if (rDistance <= 0) return null; // SL not above entry — bail
+    return {
+      side,
+      entryPrice,
+      stopLoss,
+      tp1: entryPrice - rDistance,
+      tp2: entryPrice - 2 * rDistance,
+      tp3: entryPrice - 3 * rDistance,
+      rDistance,
+      slDistancePct: rDistance / entryPrice,
+    };
+  }
+}
+
+// ── Rolling-window confirmation (pure) ───────────────────────────────────
+
+export interface ZoneConfirmationCheck {
+  /** True when both gates pass: in-window AND no new lows/highs in 2nd half. */
+  confirmed:   boolean;
+  /** Approx minutes of in-window history evaluated (one sample ≈ one minute). */
+  minutesHeld: number;
+  /** Human-readable detail surfaced into `state.reason`. */
+  detail:      string;
+}
+
+/**
+ * Returns null when there isn't enough history to make a meaningful call
+ * (cold start / first cron tick) — caller treats null as "still building
+ * history, don't fire OPEN yet but don't reset the timer either".
+ *
+ * Mirrors the local `checkZoneConfirmation` in `heatmap-zones-settings.ts`
+ * but takes `now` as an argument and lives in a shared module so the zone
+ * bot doesn't pull in the pattern-bot module.
+ */
+export function checkZoneConfirmation(
+  history:        PricePoint[],
+  confirmMinutes: number,
+  floor:          number,
+  direction:      "BULL" | "BEAR",
+  now:            number,
+): ZoneConfirmationCheck | null {
+  const windowMs = confirmMinutes * 60_000;
+  const window   = history
+    .filter((p) => now - p.ts <= windowMs)
+    .sort((a, b) => a.ts - b.ts);
+
+  // Need at least half the expected samples to make a meaningful call.
+  // Below that we return null and the caller treats it as "not enough
+  // data yet" rather than "failed confirmation".
+  const minRequired = Math.max(3, Math.floor(confirmMinutes / 2));
+  if (window.length < minRequired) return null;
+
+  const fmt = (n: number) => `$${Math.round(n).toLocaleString()}`;
+  const minutesHeld = Math.round(window.length); // ≈ 1 sample / minute
+
+  // Gate 1: zone floor / ceiling never broken anywhere in the window.
+  const heldFloor = direction === "BULL"
+    ? window.every((p) => p.price >= floor)
+    : window.every((p) => p.price <= floor);
+
+  if (!heldFloor) {
+    const worst = direction === "BULL"
+      ? Math.min(...window.map((p) => p.price))
+      : Math.max(...window.map((p) => p.price));
+    return {
+      confirmed: false,
+      minutesHeld,
+      detail: `zone ${direction === "BULL" ? "floor" : "ceiling"} broken — ${fmt(worst)} breached ${fmt(floor)}`,
+    };
+  }
+
+  // Gate 2: no new lows (BULL) / no new highs (BEAR) in 2nd half vs 1st half.
+  // Catches the case where price sits above the floor but is still drifting
+  // weaker — i.e., the bottom hasn't actually been put in yet.
+  const half      = Math.floor(window.length / 2);
+  const firstHalf = window.slice(0, half);
+  const lastHalf  = window.slice(-half);
+
+  if (direction === "BULL") {
+    const minFirst = Math.min(...firstHalf.map((p) => p.price));
+    const minLast  = Math.min(...lastHalf.map((p) => p.price));
+    if (minLast < minFirst) {
+      return {
+        confirmed: false,
+        minutesHeld,
+        detail: `still making lower lows (${fmt(minFirst)} → ${fmt(minLast)})`,
+      };
+    }
+  } else {
+    const maxFirst = Math.max(...firstHalf.map((p) => p.price));
+    const maxLast  = Math.max(...lastHalf.map((p) => p.price));
+    if (maxLast > maxFirst) {
+      return {
+        confirmed: false,
+        minutesHeld,
+        detail: `still making higher highs (${fmt(maxFirst)} → ${fmt(maxLast)})`,
+      };
+    }
+  }
+
+  return {
+    confirmed: true,
+    minutesHeld,
+    detail: `held ${confirmMinutes} min, no new ${direction === "BULL" ? "lows" : "highs"}`,
+  };
+}
+
+// ── Helpers (pure, internal) ─────────────────────────────────────────────
+
+function isStale(computedAt: string, now: number): boolean {
+  const t = new Date(computedAt).getTime();
+  if (!Number.isFinite(t) || t <= 0) return true;
+  return now - t > SUGGESTED_STALE_MS;
+}
+
+function fmtUsd(n: number): string {
+  return `$${Math.round(n).toLocaleString()}`;
+}
+
+interface ZonesView {
+  hasBull:        boolean;
+  hasBear:        boolean;
+  priceInBull:    boolean;
+  priceInBear:    boolean;
+  bullZoneLow:    number | null;
+  bullExitAbove:  number | null;
+  bearZoneHigh:   number | null;
+  bearExitBelow:  number | null;
+  maxPain:        number | null;
+}
+
+function deriveZones(spot: number, s: ZoneBotSuggestedZones): ZonesView {
+  const hasBull = s.bullZoneLow != null && s.bullExitAbove != null;
+  const hasBear = s.bearZoneHigh != null && s.bearExitBelow != null;
+
+  return {
+    hasBull,
+    hasBear,
+    priceInBull: hasBull &&
+      spot >= (s.bullZoneLow   as number) &&
+      spot <= (s.bullExitAbove as number),
+    priceInBear: hasBear &&
+      spot <= (s.bearZoneHigh  as number) &&
+      spot >= (s.bearExitBelow as number),
+    bullZoneLow:   s.bullZoneLow,
+    bullExitAbove: s.bullExitAbove,
+    bearZoneHigh:  s.bearZoneHigh,
+    bearExitBelow: s.bearExitBelow,
+    maxPain:       s.maxPain,
+  };
+}
+
+/** Returns a base copy of state with `updatedAt` left untouched (the
+ *  save layer stamps it). Use this as the starting point for all mutations
+ *  inside the engine so we never accidentally mutate the input. */
+function cloneState(s: ZoneBotState): ZoneBotState {
+  return {
+    direction:        s.direction,
+    confirming:       s.confirming ? { ...s.confirming } : null,
+    openTradeId:      s.openTradeId,
+    openLiveTradeIds: { ...s.openLiveTradeIds },
+    lastFlipAt:       s.lastFlipAt,
+    reason:           s.reason,
+    priceHistory:     s.priceHistory.slice(),
+    updatedAt:        s.updatedAt,
+  };
+}
+
+// ── Main engine ──────────────────────────────────────────────────────────
+
+export function evaluateZoneBot(input: EvaluateZoneBotInput): EvaluateZoneBotResult {
+  const { spot, suggested, settings, state, history, now } = input;
+  const next = cloneState(state);
+  // The cron is responsible for appending the latest sample; we just store
+  // the same history back so it round-trips cleanly.
+  next.priceHistory = history;
+
+  // ── 0. Master kill switch ──────────────────────────────────────────────
+  if (settings.manualOverride === "OFF") {
+    // Hold any open trade — its SL/TPs continue running. Just stop
+    // initiating anything new and clear pending confirmation.
+    next.direction  = state.openTradeId ? state.direction : "IDLE";
+    next.confirming = null;
+    next.reason     = "OFF — manual override";
+    return { nextState: next, action: { type: "NONE", reason: next.reason } };
+  }
+
+  // ── 1. No price feed ───────────────────────────────────────────────────
+  if (spot == null || !Number.isFinite(spot)) {
+    next.reason = "OFF — price feed unavailable";
+    return { nextState: next, action: { type: "NONE", reason: next.reason } };
+  }
+
+  // ── 2. No suggested zones (cold start / stale) ─────────────────────────
+  if (suggested == null || isStale(suggested.computedAt, now)) {
+    next.direction  = state.openTradeId ? state.direction : "IDLE";
+    next.confirming = null;
+    next.reason = suggested == null
+      ? "OFF — no zones suggested yet (waiting for cron)"
+      : "OFF — suggested zones stale (>12h), tap Refresh";
+    return { nextState: next, action: { type: "NONE", reason: next.reason } };
+  }
+
+  const zones = deriveZones(spot, suggested);
+
+  // ── 3. State has an open trade — manage it ─────────────────────────────
+  if (state.openTradeId != null) {
+    const openSide   = state.direction === "BEAR" ? "SELL" : "BUY";
+    const openSideLabel = state.direction === "BEAR" ? "BEAR" : "BULL";
+
+    // 3a. One-sided zone + max-pain exit. Mirrors the existing
+    //     `maxPainProximityUsd` behaviour on the BTC heatmap.
+    const oneSidedBull = zones.hasBull && !zones.hasBear;
+    const oneSidedBear = !zones.hasBull && zones.hasBear;
+    const sideAlignsWithSoleZone =
+      (openSide === "BUY"  && oneSidedBull) ||
+      (openSide === "SELL" && oneSidedBear);
+
+    if (
+      sideAlignsWithSoleZone &&
+      zones.maxPain != null &&
+      Math.abs(spot - zones.maxPain) <= settings.maxPainProximityUsd
+    ) {
+      next.direction   = "IDLE";
+      next.confirming  = null;
+      next.openTradeId = null; // caller will perform the close
+      next.reason = `${openSideLabel} — closing near max pain target ${fmtUsd(zones.maxPain)} (one-sided zone)`;
+      return {
+        nextState: next,
+        action: { type: "CLOSE", reason: next.reason },
+      };
+    }
+
+    // 3b. Opposite side may be priming for a flip.
+    const oppositeInZone = openSide === "BUY" ? zones.priceInBear : zones.priceInBull;
+    if (oppositeInZone) {
+      const oppositeDir: "BULL" | "BEAR" = openSide === "BUY" ? "BEAR" : "BULL";
+      const oppositeFloor =
+        oppositeDir === "BEAR" ? (zones.bearZoneHigh as number) : (zones.bullZoneLow as number);
+
+      const check = checkZoneConfirmation(
+        history,
+        settings.zoneConfirmMinutes,
+        oppositeFloor,
+        oppositeDir,
+        now,
+      );
+
+      // Cold cache — hold both: trade stays open, confirmation primes.
+      if (check == null) {
+        next.confirming = {
+          side:        oppositeDir,
+          minutesHeld: 0,
+          startedAt:   state.confirming?.side === oppositeDir
+            ? state.confirming.startedAt
+            : new Date(now).toISOString(),
+        };
+        next.reason = `${openSideLabel} ACTIVE — opposite ${oppositeDir} confirming, building history`;
+        return { nextState: next, action: { type: "NONE", reason: next.reason } };
+      }
+
+      if (check.confirmed) {
+        // FLIP: caller closes old trade, opens new one on opposite side.
+        const newSide: "BUY" | "SELL" = oppositeDir === "BEAR" ? "SELL" : "BUY";
+        const params = computeZoneTradeParams(
+          newSide,
+          spot,
+          zones.bullZoneLow,
+          zones.bearZoneHigh,
+        );
+        if (params && params.slDistancePct <= MAX_SL_DISTANCE_PCT) {
+          next.direction     = oppositeDir;
+          next.confirming    = null;
+          next.openTradeId   = null; // caller assigns the new trade id after creation
+          next.lastFlipAt    = new Date(now).toISOString();
+          next.reason = `FLIP ${openSideLabel}→${oppositeDir} — opposite zone confirmed`;
+          return {
+            nextState: next,
+            action: {
+              type:        "FLIP",
+              closeReason: `flip to ${oppositeDir}`,
+              openSide:    newSide,
+              entryPrice:  params.entryPrice,
+              stopLoss:    params.stopLoss,
+              tp1:         params.tp1,
+              tp2:         params.tp2,
+              tp3:         params.tp3,
+              rDistance:   params.rDistance,
+              reason:      next.reason,
+            },
+          };
+        }
+
+        // SL too far for the new trade — just close the old one; don't
+        // immediately re-open in a bad shape.
+        next.direction   = "IDLE";
+        next.confirming  = null;
+        next.openTradeId = null;
+        next.lastFlipAt  = new Date(now).toISOString();
+        next.reason = `CLOSE ${openSideLabel} — opposite confirmed but SL distance ${
+          params ? (params.slDistancePct * 100).toFixed(2) + "%" : "n/a"
+        } > ${(MAX_SL_DISTANCE_PCT * 100).toFixed(1)}%`;
+        return {
+          nextState: next,
+          action: { type: "CLOSE", reason: next.reason },
+        };
+      }
+
+      // Opposite confirming but not yet confirmed — trade stays open.
+      next.confirming = {
+        side:        oppositeDir,
+        minutesHeld: check.minutesHeld,
+        startedAt:   state.confirming?.side === oppositeDir
+          ? state.confirming.startedAt
+          : new Date(now).toISOString(),
+      };
+      next.reason = `${openSideLabel} ACTIVE — opposite ${oppositeDir} confirming ` +
+        `(${check.minutesHeld}/${settings.zoneConfirmMinutes} min) — ${check.detail}`;
+      return { nextState: next, action: { type: "NONE", reason: next.reason } };
+    }
+
+    // 3c. Price is back inside the active side's zone, or somewhere
+    //     between zones, or above bullExitAbove (happy trail). Trade keeps
+    //     running on its trailing SL / TPs.
+    next.confirming = null; // cancel any pending opposite confirmation
+    if (zones.priceInBull && openSide === "BUY") {
+      next.reason = `BULL ACTIVE — price ${fmtUsd(spot)} inside entry band`;
+    } else if (zones.priceInBear && openSide === "SELL") {
+      next.reason = `BEAR ACTIVE — price ${fmtUsd(spot)} inside entry band`;
+    } else if (
+      openSide === "BUY" &&
+      zones.bullExitAbove != null && spot > zones.bullExitAbove
+    ) {
+      next.reason = `BULL ACTIVE — price ${fmtUsd(spot)} above zone, trailing SL handles exit`;
+    } else if (
+      openSide === "SELL" &&
+      zones.bearExitBelow != null && spot < zones.bearExitBelow
+    ) {
+      next.reason = `BEAR ACTIVE — price ${fmtUsd(spot)} below zone, trailing SL handles exit`;
+    } else {
+      next.reason = `${openSideLabel} ACTIVE — price ${fmtUsd(spot)} between zones, trade holds`;
+    }
+    return { nextState: next, action: { type: "NONE", reason: next.reason } };
+  }
+
+  // ── 4. No open trade — look for a fresh entry ──────────────────────────
+  // BULL has priority arbitrarily when both sides are in entry (which
+  // shouldn't happen with a >$2,500 gap, but be defensive).
+  if (zones.priceInBull) {
+    return tryOpen("BULL", spot, zones, settings, state, history, next, now);
+  }
+  if (zones.priceInBear) {
+    return tryOpen("BEAR", spot, zones, settings, state, history, next, now);
+  }
+
+  // 5. Price outside every zone, no trade — fully idle.
+  next.direction  = "IDLE";
+  next.confirming = null;
+  next.reason     = `IDLE — price ${fmtUsd(spot)} between zones`;
+  return { nextState: next, action: { type: "NONE", reason: next.reason } };
+}
+
+// ── Fresh-entry helper ───────────────────────────────────────────────────
+
+function tryOpen(
+  side:     "BULL" | "BEAR",
+  spot:     number,
+  zones:    ZonesView,
+  settings: ZoneBotSettings,
+  state:    ZoneBotState,
+  history:  PricePoint[],
+  next:     ZoneBotState,
+  now:      number,
+): EvaluateZoneBotResult {
+  const floor = side === "BULL"
+    ? (zones.bullZoneLow as number)
+    : (zones.bearZoneHigh as number);
+
+  const check = checkZoneConfirmation(
+    history,
+    settings.zoneConfirmMinutes,
+    floor,
+    side,
+    now,
+  );
+
+  // Cold cache — start the confirmation timer, no trade yet.
+  if (check == null) {
+    next.direction  = "IDLE";
+    next.confirming = {
+      side,
+      minutesHeld: 0,
+      startedAt:   state.confirming?.side === side
+        ? state.confirming.startedAt
+        : new Date(now).toISOString(),
+    };
+    next.reason = `${side} confirming — building history`;
+    return { nextState: next, action: { type: "NONE", reason: next.reason } };
+  }
+
+  if (!check.confirmed) {
+    next.direction  = "IDLE";
+    next.confirming = {
+      side,
+      minutesHeld: check.minutesHeld,
+      startedAt:   state.confirming?.side === side
+        ? state.confirming.startedAt
+        : new Date(now).toISOString(),
+    };
+    next.reason = `${side} confirming (${check.minutesHeld}/${settings.zoneConfirmMinutes} min) — ${check.detail}`;
+    return { nextState: next, action: { type: "NONE", reason: next.reason } };
+  }
+
+  // Confirmed — try to OPEN.
+  const tradeSide: "BUY" | "SELL" = side === "BULL" ? "BUY" : "SELL";
+  const params = computeZoneTradeParams(
+    tradeSide,
+    spot,
+    zones.bullZoneLow,
+    zones.bearZoneHigh,
+  );
+
+  if (!params) {
+    // Defensive — shouldn't happen if priceInBull/priceInBear was true,
+    // but bail cleanly rather than throwing.
+    next.direction  = "IDLE";
+    next.confirming = null;
+    next.reason = `${side} confirmed but trade params could not be computed`;
+    return { nextState: next, action: { type: "NONE", reason: next.reason } };
+  }
+
+  if (params.slDistancePct > MAX_SL_DISTANCE_PCT) {
+    // Stay IDLE so we re-evaluate every tick — if spot moves closer to
+    // the zone floor, SL distance shrinks and we'll fire next tick.
+    next.direction  = "IDLE";
+    next.confirming = { side, minutesHeld: check.minutesHeld, startedAt: state.confirming?.startedAt ?? new Date(now).toISOString() };
+    next.reason = `${side} confirmed but SL distance ${(params.slDistancePct * 100).toFixed(2)}% > ${(MAX_SL_DISTANCE_PCT * 100).toFixed(1)}% — skipping entry`;
+    return { nextState: next, action: { type: "NONE", reason: next.reason } };
+  }
+
+  next.direction     = side;
+  next.confirming    = null;
+  next.openTradeId   = null; // caller assigns after creating the trade
+  next.lastFlipAt    = state.lastFlipAt;
+  next.reason = `${side} ACTIVE — zone confirmed (${settings.zoneConfirmMinutes} min), opening trade`;
+  return {
+    nextState: next,
+    action: {
+      type:       "OPEN",
+      side:       tradeSide,
+      entryPrice: params.entryPrice,
+      stopLoss:   params.stopLoss,
+      tp1:        params.tp1,
+      tp2:        params.tp2,
+      tp3:        params.tp3,
+      rDistance:  params.rDistance,
+      reason:     next.reason,
+    },
+  };
+}

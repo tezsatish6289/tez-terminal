@@ -38,7 +38,7 @@ const STEP_LABELS: Record<Step, string> = {
 };
 
 const BOTS = [
-  { key: "CRYPTO", emoji: "₿",  logo: null,                             name: "Crypto Bot",   description: "24/7 crypto market automation", live: true  },
+  { key: "CRYPTO", emoji: "₿",  logo: null,                             name: "Crypto Bot",   description: "Trade BTC, ETH, SOL, XRP & more with one bot", live: true  },
   { key: "BTC",    emoji: "BTC", logo: "/freedombot/coins/btc.png",     name: "Bitcoin Bot",  description: "BTC perpetual futures trading", live: false },
   { key: "ETH",    emoji: "ETH", logo: "/freedombot/coins/eth.png",     name: "Ethereum Bot", description: "ETH perpetual futures trading", live: false },
   { key: "SOL",    emoji: "SOL", logo: "/freedombot/coins/sol.png",     name: "Solana Bot",   description: "SOL perpetual futures trading", live: false },

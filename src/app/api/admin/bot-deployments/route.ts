@@ -78,6 +78,14 @@ export async function GET(request: NextRequest) {
       cachedOpenTradeCount?: number;
       cachedClosedTradeCount?: number;
       cachedLifetimeRealizedPnl?: number;
+      // Cached wallet snapshot — set by deploy/cron/manual-refresh. Optional
+      // because legacy rows predate this field; UI must tolerate undefined.
+      walletTotal?: number;
+      walletAvailable?: number;
+      walletCurrency?: string;
+      walletStatus?: "valid" | "invalid";
+      walletError?: string | null;
+      walletCheckedAt?: string;
     };
 
     let deployments: DepDoc[] = depSnap.docs.map((d) => {
@@ -94,6 +102,13 @@ export async function GET(request: NextRequest) {
         cachedOpenTradeCount: x.openTradeCount as number | undefined,
         cachedClosedTradeCount: x.closedTradeCount as number | undefined,
         cachedLifetimeRealizedPnl: x.lifetimeRealizedPnl as number | undefined,
+        walletTotal: typeof x.walletTotal === "number" ? x.walletTotal : undefined,
+        walletAvailable: typeof x.walletAvailable === "number" ? x.walletAvailable : undefined,
+        walletCurrency: typeof x.walletCurrency === "string" ? x.walletCurrency : undefined,
+        walletStatus:
+          x.walletStatus === "valid" || x.walletStatus === "invalid" ? x.walletStatus : undefined,
+        walletError: typeof x.walletError === "string" ? x.walletError : null,
+        walletCheckedAt: typeof x.walletCheckedAt === "string" ? x.walletCheckedAt : undefined,
       };
     });
 
@@ -144,6 +159,20 @@ export async function GET(request: NextRequest) {
         pnlCurrency: currency,
         pnlNote:
           "Lifetime realized PnL (closed trades only). Uses exchange-reported PnL when available; includes trading fees as reported by the exchange.",
+        // Wallet / connection-health snapshot. `null` for legacy rows that
+        // haven't been refreshed yet — the cron will fill them on its next
+        // tick (or the admin can click "Refresh" on the detail page).
+        wallet:
+          dep.walletStatus
+            ? {
+                total: dep.walletTotal ?? null,
+                available: dep.walletAvailable ?? null,
+                currency: dep.walletCurrency ?? currency,
+                status: dep.walletStatus,
+                error: dep.walletError ?? null,
+                checkedAt: dep.walletCheckedAt ?? null,
+              }
+            : null,
       };
     });
 

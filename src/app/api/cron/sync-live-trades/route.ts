@@ -43,6 +43,7 @@ import {
   applyTradeChangeToAggregates,
   type TradeAggregateSnapshot,
 } from "@/lib/freedombot/aggregates";
+import { refreshDeploymentWalletBalance } from "@/lib/freedombot/wallet-balance";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -992,44 +993,82 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, message: "No active auto-trade users", pairs: 0 });
     }
 
-    // ── 3b. Lazy backfill: store exchangeUid for deployments that support it ───
-    // Runs best-effort and never blocks trading. Each deployment only pays
-    // this cost once — subsequent ticks skip if exchangeUid is already set.
-    const uidBackfillPairs = pairs.filter(
-      (p) => p.exchange === "BYBIT" || p.exchange === "COINDCX" || p.exchange === "HYPERLIQUID",
-    );
-    if (uidBackfillPairs.length > 0) {
-      await Promise.allSettled(
-        uidBackfillPairs.map(async (pair) => {
-          try {
-            const deploySnap = await db
-              .collection("bot_deployments")
-              .where("uid", "==", pair.userId)
-              .where("exchange", "==", pair.exchange)
-              .where("status", "==", "active")
-              .limit(1)
-              .get();
+    // ── 3b. Per-deployment background refresh ─────────────────────────────────
+    // Runs best-effort against the deployment doc for each user×exchange we
+    // discovered. Two responsibilities, batched into a single Firestore
+    // lookup per pair:
+    //   1. Lazy backfill of `exchangeUid` for venues that expose a stable
+    //      account id (Bybit/CoinDCX/Hyperliquid) — only done once per
+    //      deployment; subsequent ticks short-circuit.
+    //   2. Wallet-balance heartbeat. Calls `connector.getUsdtBalance(creds)`
+    //      every ~5 minutes per deployment and persists the result onto the
+    //      `bot_deployments` doc so the admin dashboard can show live
+    //      connection health (`walletStatus: "valid" | "invalid"`,
+    //      `walletTotal`, `walletAvailable`, `walletError`, `walletCheckedAt`).
+    //      Throttled by `skipIfCheckedWithinMs` so we don't pound the
+    //      venue on every minute-tick of the cron.
+    // Nothing in here can fail in a way that blocks trade processing.
+    const WALLET_REFRESH_THROTTLE_MS = 5 * 60 * 1000;
+    await Promise.allSettled(
+      pairs.map(async (pair) => {
+        try {
+          const deploySnap = await db
+            .collection("bot_deployments")
+            .where("uid", "==", pair.userId)
+            .where("exchange", "==", pair.exchange)
+            .where("status", "==", "active")
+            .limit(1)
+            .get();
 
-            if (deploySnap.empty) return;
-            const deployDoc = deploySnap.docs[0];
-            if (deployDoc.data().exchangeUid) return; // already stored
+          if (deploySnap.empty) return;
+          const deployDoc = deploySnap.docs[0];
+          const deployData = deployDoc.data();
 
-            const connector = getConnector(pair.exchange) as {
-              getAccountUid?: (c: Credentials) => Promise<string | null>;
-            };
-            if (!connector.getAccountUid) return;
-
-            const exchangeUid = await connector.getAccountUid(pair.creds);
-            if (exchangeUid) {
-              await deployDoc.ref.update({ exchangeUid });
-              console.log(`[LiveSync] Backfilled exchangeUid for user ${pair.userId} (${pair.exchange})`);
+          // (1) exchangeUid backfill — only for venues that expose it.
+          if (
+            (pair.exchange === "BYBIT" ||
+              pair.exchange === "COINDCX" ||
+              pair.exchange === "HYPERLIQUID") &&
+            !deployData.exchangeUid
+          ) {
+            try {
+              const connector = getConnector(pair.exchange) as {
+                getAccountUid?: (c: Credentials) => Promise<string | null>;
+              };
+              if (connector.getAccountUid) {
+                const exchangeUid = await connector.getAccountUid(pair.creds);
+                if (exchangeUid) {
+                  await deployDoc.ref.update({ exchangeUid });
+                  console.log(
+                    `[LiveSync] Backfilled exchangeUid for user ${pair.userId} (${pair.exchange})`,
+                  );
+                }
+              }
+            } catch {
+              // best-effort
             }
-          } catch {
-            // best-effort, do not interrupt trading
           }
-        })
-      );
-    }
+
+          // (2) Wallet-balance heartbeat — throttled per deployment.
+          const lastCheckedAt =
+            typeof deployData.walletCheckedAt === "string"
+              ? deployData.walletCheckedAt
+              : null;
+          await refreshDeploymentWalletBalance(
+            db,
+            deployDoc.ref,
+            pair.exchange,
+            pair.creds,
+            {
+              skipIfCheckedWithinMs: WALLET_REFRESH_THROTTLE_MS,
+              existingCheckedAt: lastCheckedAt,
+            },
+          );
+        } catch {
+          // best-effort, do not interrupt trading
+        }
+      }),
+    );
 
     // ── 4. Process all user×exchange pairs in parallel ──────
     const results = await Promise.allSettled(

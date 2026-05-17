@@ -29,6 +29,15 @@ import {
 
 const ADMIN_EMAIL = "hello@tezterminal.com";
 
+interface DeploymentWallet {
+  total: number | null;
+  available: number | null;
+  currency: string;
+  status: "valid" | "invalid";
+  error: string | null;
+  checkedAt: string | null;
+}
+
 interface DeploymentRow {
   deploymentId: string;
   userId: string;
@@ -47,6 +56,10 @@ interface DeploymentRow {
   aggregatesSource?: "cache" | "rebuilt";
   pnlCurrency: string;
   pnlNote: string;
+  /** Exchange wallet snapshot — `null` for legacy deployments that haven't
+   *  been refreshed yet. Cron refreshes every 5 minutes; admin can force a
+   *  refresh from the detail page. */
+  wallet: DeploymentWallet | null;
 }
 
 interface TradesAggregates {
@@ -271,6 +284,41 @@ export default function AdminBotUserDetailPage() {
     [user, deploymentId, fetchTradesPage],
   );
 
+  const [walletRefreshing, setWalletRefreshing] = useState(false);
+  const [walletRefreshError, setWalletRefreshError] = useState("");
+
+  const handleRefreshWallet = useCallback(async () => {
+    if (!user || !deploymentId) return;
+    setWalletRefreshing(true);
+    setWalletRefreshError("");
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(
+        `/api/admin/bot-deployments/${deploymentId}/refresh-wallet`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${idToken}` },
+        },
+      );
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error((data && data.error) ?? `Refresh failed (${res.status})`);
+      }
+      // The route already persists onto bot_deployments; re-fetch the
+      // deployment so the rendered wallet card reflects the new snapshot.
+      await fetchDeployment();
+      // Invalid-status responses come back with HTTP 200 but ok=false; we
+      // surface the error so the admin sees it inline next to the button.
+      if (data && data.ok === false && data.error) {
+        setWalletRefreshError(String(data.error));
+      }
+    } catch (e: unknown) {
+      setWalletRefreshError(e instanceof Error ? e.message : "Unexpected error");
+    } finally {
+      setWalletRefreshing(false);
+    }
+  }, [user, deploymentId, fetchDeployment]);
+
   const runningDays = useMemo(() => {
     if (!deployment?.firstDeployedAt) return 0;
     return Math.floor(
@@ -440,6 +488,140 @@ export default function AdminBotUserDetailPage() {
             </TabsList>
 
             <TabsContent value="details" className="mt-4 space-y-4">
+              {/* Exchange connection panel — proves the deployment's API
+                  keys still work and shows the wallet's live balance.
+                  Cron refreshes every ~5 minutes; the button forces an
+                  immediate refresh via the admin refresh-wallet route. */}
+              <div
+                className="rounded-2xl overflow-hidden"
+                style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.12)" }}
+              >
+                <div
+                  className="flex items-center justify-between px-5 py-3"
+                  style={{ borderBottom: "1px solid rgba(90,140,220,0.08)" }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="h-2 w-2 rounded-full"
+                      style={{
+                        backgroundColor:
+                          deployment.wallet?.status === "valid"
+                            ? "#22c55e"
+                            : deployment.wallet?.status === "invalid"
+                              ? "#ef4444"
+                              : "#64748b",
+                        boxShadow:
+                          deployment.wallet?.status === "valid"
+                            ? "0 0 6px #22c55e"
+                            : deployment.wallet?.status === "invalid"
+                              ? "0 0 6px #ef4444"
+                              : "none",
+                      }}
+                    />
+                    <span
+                      className="text-sm font-black"
+                      style={{
+                        color:
+                          deployment.wallet?.status === "valid"
+                            ? "#22c55e"
+                            : deployment.wallet?.status === "invalid"
+                              ? "#f87171"
+                              : "#94a3b8",
+                      }}
+                    >
+                      {deployment.wallet?.status === "valid"
+                        ? "Connection valid"
+                        : deployment.wallet?.status === "invalid"
+                          ? "Connection invalid"
+                          : "Connection not checked"}
+                    </span>
+                    <span className="text-xs" style={{ color: "#334155" }}>
+                      ·
+                    </span>
+                    <span className="text-xs font-medium" style={{ color: "#475569" }}>
+                      {deployment.wallet?.checkedAt
+                        ? `Checked ${format(new Date(deployment.wallet.checkedAt), "MMM d, h:mm a")}`
+                        : "Never checked"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleRefreshWallet()}
+                    disabled={walletRefreshing}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+                    style={{
+                      borderColor: "rgba(90,140,220,0.18)",
+                      color: "#cbd5e1",
+                      backgroundColor: "rgba(255,255,255,0.02)",
+                    }}
+                  >
+                    {walletRefreshing ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3 w-3" />
+                    )}
+                    Refresh
+                  </button>
+                </div>
+                <div className="grid grid-cols-2">
+                  {[
+                    {
+                      label: "Wallet balance",
+                      value:
+                        deployment.wallet?.status === "valid" && deployment.wallet.total != null
+                          ? `${deployment.wallet.total.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${deployment.wallet.currency}`
+                          : deployment.wallet?.status === "invalid"
+                            ? "—"
+                            : "—",
+                      color:
+                        deployment.wallet?.status === "valid"
+                          ? "#34d399"
+                          : deployment.wallet?.status === "invalid"
+                            ? "#f87171"
+                            : "#94a3b8",
+                    },
+                    {
+                      label: "Available",
+                      value:
+                        deployment.wallet?.status === "valid" && deployment.wallet.available != null
+                          ? `${deployment.wallet.available.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${deployment.wallet.currency}`
+                          : "—",
+                      color: "#cbd5e1",
+                    },
+                  ].map((s, i) => (
+                    <div
+                      key={s.label}
+                      className="px-5 py-4"
+                      style={{ borderRight: i < 1 ? "1px solid rgba(90,140,220,0.08)" : "none" }}
+                    >
+                      <p
+                        className="text-[10px] font-bold uppercase tracking-widest mb-1"
+                        style={{ color: "#334155" }}
+                      >
+                        {s.label}
+                      </p>
+                      <p className="text-2xl font-black" style={{ color: s.color }}>
+                        {s.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                {(deployment.wallet?.status === "invalid" || walletRefreshError) && (
+                  <div
+                    className="px-5 py-3 text-xs"
+                    style={{
+                      borderTop: "1px solid rgba(90,140,220,0.08)",
+                      color: "#fda4af",
+                      backgroundColor: "rgba(244,63,94,0.04)",
+                    }}
+                  >
+                    {walletRefreshError ||
+                      deployment.wallet?.error ||
+                      "Exchange rejected the credentials. Check that the API key, secret and IP allowlist are still valid."}
+                  </div>
+                )}
+              </div>
+
               <div
                 className="rounded-2xl overflow-hidden"
                 style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.12)" }}

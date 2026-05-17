@@ -3,6 +3,7 @@ import { getAdminFirestore, getAdminAuth } from "@/firebase/admin";
 import { encrypt } from "@/lib/crypto";
 import { getConnector, getSecretDocId } from "@/lib/exchanges";
 import type { ExchangeName, ExchangeCredentials } from "@/lib/exchanges";
+import { persistWalletBalanceSnapshot } from "@/lib/freedombot/wallet-balance";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -111,10 +112,14 @@ export async function POST(req: NextRequest) {
     };
 
     let exchangeUid: string | null = null;
+    // Reuse the validation balance below to seed the deployment's wallet
+    // snapshot — saves an extra venue round-trip on the deploy POST.
+    let validatedBalance: { total: number; available: number } | null = null;
     try {
       const connector = getConnector(exchange);
       const balance = await connector.getUsdtBalance(liveCreds);
       if (balance.total < 0) throw new Error("Unexpected negative balance");
+      validatedBalance = { total: balance.total, available: balance.available };
       if (exchange === "HYPERLIQUID" && balance.total <= 0) {
         const describe =
           "describeZeroPerpBalance" in connector
@@ -216,6 +221,17 @@ export async function POST(req: NextRequest) {
       createdAt: new Date(),
     });
     const deploymentId = docRef.id;
+
+    // ── Seed wallet snapshot from the balance we fetched during validation ────
+    // Lets the admin dashboard show the live wallet balance the moment the
+    // deployment appears, without waiting for the next cron tick.
+    if (validatedBalance) {
+      await persistWalletBalanceSnapshot(docRef, exchange as ExchangeName, {
+        ok: true,
+        total: validatedBalance.total,
+        available: validatedBalance.available,
+      });
+    }
 
     return NextResponse.json({ success: true, deploymentId });
   } catch (err: unknown) {

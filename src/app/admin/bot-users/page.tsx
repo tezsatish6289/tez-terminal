@@ -28,6 +28,35 @@ import { format } from "date-fns";
 
 const ADMIN_EMAIL = "hello@tezterminal.com";
 
+/** Hover-tooltip text for the wallet column. Surfaces freshness and (for
+ *  invalid links) the exact error returned by the venue API so the admin
+ *  doesn't have to dig into logs. */
+function walletTooltip(
+  wallet: { status: "valid" | "invalid"; error: string | null; checkedAt: string | null; available: number | null; currency: string } | null,
+): string {
+  if (!wallet) return "Wallet balance has not been refreshed yet.";
+  const when = wallet.checkedAt
+    ? `Last checked ${format(new Date(wallet.checkedAt), "MMM d, h:mm a")}`
+    : "Last checked: unknown";
+  if (wallet.status === "invalid") {
+    return `${wallet.error ?? "Connection invalid"} — ${when}`;
+  }
+  const available =
+    wallet.available != null
+      ? `Available ${wallet.available.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${wallet.currency}`
+      : null;
+  return [available, when].filter(Boolean).join(" — ");
+}
+
+interface DeploymentWallet {
+  total: number | null;
+  available: number | null;
+  currency: string;
+  status: "valid" | "invalid";
+  error: string | null;
+  checkedAt: string | null;
+}
+
 interface DeploymentRow {
   deploymentId: string;
   userId: string;
@@ -42,6 +71,7 @@ interface DeploymentRow {
   lifetimeRealizedPnl: number;
   pnlCurrency: string;
   pnlNote: string;
+  wallet: DeploymentWallet | null;
 }
 
 export default function AdminBotUsersPage() {
@@ -224,13 +254,14 @@ export default function AdminBotUsersPage() {
             </div>
 
             <div className="rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 overflow-hidden">
-              <div className="hidden lg:grid grid-cols-[28px_1.2fr_1fr_100px_120px_100px_120px_56px] gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-black uppercase tracking-wider text-muted-foreground/50">
+              <div className="hidden lg:grid grid-cols-[28px_1.2fr_1fr_100px_120px_100px_140px_120px_56px] gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-black uppercase tracking-wider text-muted-foreground/50">
                 <span />
                 <span>User</span>
                 <span>Bot</span>
                 <span>Exchange</span>
                 <span>First deploy</span>
                 <span>Status</span>
+                <span className="text-right">Wallet</span>
                 <span className="text-right">Lifetime PnL</span>
                 <span />
               </div>
@@ -256,7 +287,7 @@ export default function AdminBotUsersPage() {
                     >
                       <Link
                         href={`/admin/bot-users/${d.deploymentId}`}
-                        className="grid flex-1 min-w-0 grid-cols-1 lg:grid-cols-[28px_1.2fr_1fr_100px_120px_100px_120px] gap-2 px-4 py-3.5 items-start lg:items-center hover:bg-white/[0.03] transition-colors text-left group"
+                        className="grid flex-1 min-w-0 grid-cols-1 lg:grid-cols-[28px_1.2fr_1fr_100px_120px_100px_140px_120px] gap-2 px-4 py-3.5 items-start lg:items-center hover:bg-white/[0.03] transition-colors text-left group"
                       >
                         <span className="hidden lg:flex justify-center pt-0.5">
                           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-accent shrink-0 transition-colors" />
@@ -287,6 +318,27 @@ export default function AdminBotUsersPage() {
                           >
                             {d.running ? "Running" : "Stopped"}
                           </span>
+                        </div>
+                        <div className="text-right" title={walletTooltip(d.wallet)}>
+                          {d.wallet == null ? (
+                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">
+                              Pending
+                            </span>
+                          ) : d.wallet.status === "invalid" ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-400">
+                              <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
+                              Invalid
+                            </span>
+                          ) : (
+                            <div className="font-mono text-sm font-bold text-emerald-400">
+                              {(d.wallet.total ?? 0).toLocaleString(undefined, {
+                                maximumFractionDigits: 2,
+                              })}{" "}
+                              <span className="text-[10px] font-semibold text-muted-foreground">
+                                {d.wallet.currency}
+                              </span>
+                            </div>
+                          )}
                         </div>
                         <div className={cn("text-right font-mono text-sm font-bold", pnlColor)}>
                           {d.lifetimeRealizedPnl >= 0 ? "+" : ""}

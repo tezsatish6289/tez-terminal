@@ -80,6 +80,10 @@ export async function GET(
     const createdIso = createdAt?.toDate?.()?.toISOString() ?? null;
     const status = String(x.status ?? "");
 
+    const walletStatusRaw = x.walletStatus;
+    const walletStatus: "valid" | "invalid" | null =
+      walletStatusRaw === "valid" || walletStatusRaw === "invalid" ? walletStatusRaw : null;
+
     const deployment = {
       deploymentId: deployDoc.id,
       userId: uid,
@@ -98,6 +102,19 @@ export async function GET(
       pnlCurrency: currency,
       pnlNote:
         "Lifetime realized PnL (closed trades only). Uses exchange-reported PnL when available; includes trading fees as reported by the exchange.",
+      // Wallet / connection-health snapshot. `null` when the deployment
+      // pre-dates wallet tracking — the cron fills these in on its next
+      // tick or the admin can hit the manual refresh button.
+      wallet: walletStatus
+        ? {
+            total: typeof x.walletTotal === "number" ? x.walletTotal : null,
+            available: typeof x.walletAvailable === "number" ? x.walletAvailable : null,
+            currency: typeof x.walletCurrency === "string" ? x.walletCurrency : currency,
+            status: walletStatus,
+            error: typeof x.walletError === "string" ? x.walletError : null,
+            checkedAt: typeof x.walletCheckedAt === "string" ? x.walletCheckedAt : null,
+          }
+        : null,
     };
 
     return NextResponse.json({ deployment });

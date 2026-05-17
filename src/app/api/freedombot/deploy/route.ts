@@ -166,6 +166,27 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Ensure the parent `users/{uid}` doc exists ────────────────────────────
+    // Writing to a subcollection (`users/{uid}/secrets/...`) does NOT create
+    // the parent document in Firestore — it becomes a "missing" doc that
+    // `collection("users").get()` will silently skip. The live-execution
+    // path historically iterated `users` with `.get()`, so FreedomBot-only
+    // users (who never went through the TezTerminal subscription flow that
+    // writes the parent doc) were invisible to the signal dispatcher and
+    // their bots never traded. We now also use a collection-group query in
+    // `live-execution`, but writing the parent doc here is cheap belt-and-
+    // braces insurance for anything else that scans `users`.
+    await db.collection("users").doc(uid).set(
+      {
+        email: decoded.email ?? null,
+        displayName: decoded.name ?? null,
+        photoURL: decoded.picture ?? null,
+        lastSeenAt: new Date().toISOString(),
+        freedombotDeployedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+
     // ── Write credentials into the trading engine's secrets collection ─────────
     const docId = getSecretDocId(exchange as ExchangeName);
     await db.collection("users").doc(uid).collection("secrets").doc(docId).set({

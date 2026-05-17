@@ -7,7 +7,6 @@ import {
   CRYPTO_BROKERS,
   isStockExchange,
   getExchangeSegment,
-  getSecretDocIds,
   docMatchesExchange,
   getConnector,
   type ExchangeCredentials,
@@ -45,8 +44,6 @@ export async function executeForAllUsers(
    *  bot users are NOT auto-enrolled into any zone bot. */
   botSource: string = "PATTERN",
 ) {
-  const usersSnap = await db.collection("users").get();
-
   const isStock = isStockExchange(signalExchange);
 
   // Block new Indian stock entries after 2:30 PM IST
@@ -71,107 +68,174 @@ export async function executeForAllUsers(
 
   const tasks: UserExecutionTask[] = [];
 
-  for (const userDoc of usersSnap.docs) {
-    const userId = userDoc.id;
+  // Discover auto-trade users via a single collection-group query on the
+  // `secrets` subcollection. Iterating `collection("users").get()` and then
+  // walking each user's secrets would MISS any user whose parent
+  // `users/{uid}` document was never written (Firestore does not return
+  // those from `.get()`). FreedomBot deploy writes only the secrets
+  // subdoc, so those users would otherwise be silently skipped here while
+  // still showing up in admin views and `sync-live-trades` (which already
+  // uses the same collection-group pattern). See:
+  //   src/app/api/cron/sync-live-trades/route.ts (mirror implementation)
+  //   src/app/api/freedombot/deploy/route.ts     (only writes secrets)
+  //
+  // Mapping mirrors `getSecretDocIds()` and `docMatchesExchange()` so
+  // legacy migrated docs (e.g. `secrets/binance` holding Bybit keys
+  // pre-migration) keep working.
+  const DOC_ID_TO_EXCHANGE: Record<string, ExchangeName> = {
+    bybit:           "BYBIT",
+    binance:         "BYBIT",   // legacy pre-migration doc
+    binance_futures: "BINANCE",
+    mexc:            "MEXC",
+    coindcx:         "COINDCX",
+    hyperliquid:     "HYPERLIQUID",
+    dhan:            "DHAN",
+  };
 
-    const brokerList = isStock ? STOCK_BROKERS : CRYPTO_BROKERS;
-    for (const brokerName of brokerList) {
-      const docIds = getSecretDocIds(brokerName);
+  let scannedSecrets = 0;
+  try {
+    const enabledSnap = await db
+      .collectionGroup("secrets")
+      .where("autoTradeEnabled", "==", true)
+      .get();
+    scannedSecrets = enabledSnap.size;
 
-      for (const id of docIds) {
-        try {
-          const secretDoc = await db.collection("users").doc(userId)
-            .collection("secrets").doc(id).get();
+    const seen = new Set<string>();
+    const brokerList: readonly ExchangeName[] = isStock ? STOCK_BROKERS : CRYPTO_BROKERS;
+    const allowedExchanges = new Set<ExchangeName>(brokerList);
 
-          if (secretDoc.exists) {
-            const data = secretDoc.data()!;
-            if (!docMatchesExchange(data, brokerName, id)) continue;
-            if (data.autoTradeEnabled === true) {
-              // Per-bot opt-in gate. PATTERN trades always pass (legacy
-              // behaviour for existing autoTradeEnabled users). Zone-
-              // bot trades require the user to explicitly enable that
-              // specific bot via `zoneBotsEnabled.<bot> === true` in
-              // their settings — opt-in by design, never opt-out.
-              if (!userOptedIntoBot(data, botSource)) continue;
-              let apiKey: string;
-              let apiSecret: string;
+    // Prefer canonical doc ids (e.g. `bybit` over legacy `binance`) when both
+    // exist for the same user × exchange. `getSecretDocIds(exchange)[0]` is
+    // the canonical one. We process canonical secrets first by sorting.
+    const orderedDocs = [...enabledSnap.docs].sort((a, b) => {
+      const aLegacy = a.id === "binance" ? 1 : 0;
+      const bLegacy = b.id === "binance" ? 1 : 0;
+      return aLegacy - bLegacy;
+    });
 
-              if (brokerName === "DHAN") {
-                // TOTP-based: encryptedKey = clientId, encryptedSecret = TOTP secret
-                const clientId = decrypt(data.encryptedKey);
+    for (const secretDoc of orderedDocs) {
+      const userId = secretDoc.ref.parent.parent?.id;
+      if (!userId) continue;
 
-                if (data.encryptedPin) {
-                  // New TOTP setup — get or generate access token
-                  const totpSecret = decrypt(data.encryptedSecret);
-                  const pin = decrypt(data.encryptedPin);
-                  let accessToken: string | null = null;
+      const exchangeName = DOC_ID_TO_EXCHANGE[secretDoc.id];
+      if (!exchangeName) continue;
+      if (!allowedExchanges.has(exchangeName)) continue;
 
-                  if (data.encryptedCachedToken && data.cachedTokenExpiresAt) {
-                    const expiresAt = new Date(data.cachedTokenExpiresAt as string).getTime();
-                    if (Date.now() < expiresAt - 5 * 60 * 1000) {
-                      try { accessToken = decrypt(data.encryptedCachedToken); } catch { /* stale */ }
-                    }
-                  }
+      const data = secretDoc.data() ?? {};
+      if (!docMatchesExchange(data, exchangeName, secretDoc.id)) continue;
+      // Per-bot opt-in gate. PATTERN trades always pass (legacy behaviour
+      // for existing autoTradeEnabled users). Zone-bot trades require the
+      // user to explicitly enable that specific bot via
+      // `zoneBotsEnabled.<bot> === true` in their settings — opt-in by
+      // design, never opt-out.
+      if (!userOptedIntoBot(data, botSource)) continue;
 
-                  if (!accessToken) {
-                    const { token } = await generateTokenForUser(clientId, totpSecret, pin);
-                    accessToken = token;
-                    if (accessToken) {
-                      const secretRef = db.collection("users").doc(userId).collection("secrets").doc(id);
-                      await secretRef.update({
-                        encryptedCachedToken: encrypt(accessToken),
-                        cachedTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-                      });
-                    }
-                  }
+      const dedupeKey = `${userId}::${exchangeName}`;
+      if (seen.has(dedupeKey)) continue;
 
-                  if (!accessToken) {
-                    console.error(`[LiveExec] Could not obtain Dhan token for user ${userId} — skipping.`);
-                    break;
-                  }
-                  apiKey = accessToken;
-                  apiSecret = clientId;
-                } else {
-                  // Legacy: direct access token stored
-                  apiKey = decrypt(data.encryptedKey);
-                  apiSecret = decrypt(data.encryptedSecret);
-                }
-              } else {
-                apiKey = decrypt(data.encryptedKey);
-                apiSecret = decrypt(data.encryptedSecret);
+      try {
+        let apiKey: string;
+        let apiSecret: string;
+
+        if (exchangeName === "DHAN") {
+          // TOTP-based: encryptedKey = clientId, encryptedSecret = TOTP secret
+          const clientId = decrypt(data.encryptedKey);
+
+          if (data.encryptedPin) {
+            // New TOTP setup — get or generate access token
+            const totpSecret = decrypt(data.encryptedSecret);
+            const pin = decrypt(data.encryptedPin);
+            let accessToken: string | null = null;
+
+            if (data.encryptedCachedToken && data.cachedTokenExpiresAt) {
+              const expiresAt = new Date(data.cachedTokenExpiresAt as string).getTime();
+              if (Date.now() < expiresAt - 5 * 60 * 1000) {
+                try { accessToken = decrypt(data.encryptedCachedToken); } catch { /* stale */ }
               }
-
-              // For Dhan: override leverage based on signal timeframe
-              const effectiveSimTrade = brokerName === "DHAN"
-                ? { ...simTrade, leverage: getDhanLeverage(simTrade.timeframe) }
-                : simTrade;
-
-              tasks.push({
-                userId,
-                exchange: brokerName,
-                effectiveSimTrade,
-                creds: {
-                  apiKey,
-                  apiSecret,
-                  testnet: data.useTestnet === true,
-                  exchangeSegment: isStock ? getExchangeSegment(signalExchange) : undefined,
-                },
-              });
-              break;
             }
+
+            if (!accessToken) {
+              const { token } = await generateTokenForUser(clientId, totpSecret, pin);
+              accessToken = token;
+              if (accessToken) {
+                await secretDoc.ref.update({
+                  encryptedCachedToken: encrypt(accessToken),
+                  cachedTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                });
+              }
+            }
+
+            if (!accessToken) {
+              console.error(`[LiveExec] Could not obtain Dhan token for user ${userId} — skipping.`);
+              continue;
+            }
+            apiKey = accessToken;
+            apiSecret = clientId;
+          } else {
+            // Legacy: direct access token stored
+            apiKey = decrypt(data.encryptedKey);
+            apiSecret = decrypt(data.encryptedSecret);
           }
-        } catch {
-          continue;
+        } else {
+          apiKey = decrypt(data.encryptedKey);
+          apiSecret = decrypt(data.encryptedSecret);
         }
+
+        // For Dhan: override leverage based on signal timeframe
+        const effectiveSimTrade = exchangeName === "DHAN"
+          ? { ...simTrade, leverage: getDhanLeverage(simTrade.timeframe) }
+          : simTrade;
+
+        tasks.push({
+          userId,
+          exchange: exchangeName,
+          effectiveSimTrade,
+          creds: {
+            apiKey,
+            apiSecret,
+            testnet: data.useTestnet === true,
+            exchangeSegment: isStock ? getExchangeSegment(signalExchange) : undefined,
+          },
+        });
+        seen.add(dedupeKey);
+      } catch (e) {
+        // Decrypt / Dhan-token / unexpected error — surface to live_trade_logs
+        // so an operator can see why a user got silently dropped. Previously
+        // this was swallowed with `catch { continue }` which is exactly how
+        // the FreedomBot-only users became invisible after deploy.
+        console.error(
+          `[LiveExec] Skipping ${exchangeName} for user ${userId}: ${e instanceof Error ? e.message : String(e)}`,
+        );
+        await db.collection("live_trade_logs").add({
+          timestamp: new Date().toISOString(),
+          action: "SKIPPED",
+          details: `${symbol} ${signalType} — failed to load ${exchangeName} credentials for user ${userId}: ${e instanceof Error ? e.message : String(e)}`,
+          signalId,
+          symbol,
+          userId,
+          exchange: exchangeName,
+          assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
+        }).catch(() => {});
       }
     }
+  } catch (e) {
+    console.error(`[LiveExec] collectionGroup(secrets) query failed: ${e instanceof Error ? e.message : String(e)}`);
+    await db.collection("live_trade_logs").add({
+      timestamp: new Date().toISOString(),
+      action: "ERROR",
+      details: `${symbol} ${signalType} — failed to discover auto-trade users: ${e instanceof Error ? e.message : String(e)}`,
+      signalId,
+      symbol,
+      assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
+    }).catch(() => {});
+    return;
   }
 
   if (tasks.length === 0) {
     await db.collection("live_trade_logs").add({
       timestamp: new Date().toISOString(),
       action: "SKIPPED",
-      details: `${symbol} ${signalType} — no users with auto-trade enabled on any exchange. (${usersSnap.size} users scanned)`,
+      details: `${symbol} ${signalType} — no users with auto-trade enabled on any exchange. (${scannedSecrets} secret(s) scanned)`,
       signalId,
       symbol,
       assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",

@@ -22,6 +22,10 @@ import {
 } from "lucide-react";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import type { Auth, User } from "firebase/auth";
+// NOTE: DeployModal keeps its own local EXCHANGES / HELP_GUIDES tables
+// for now (richer copy + non-crypto bots). The shared `exchange-fields.ts`
+// is consumed by `BotSettings` (Update API key form). When DeployModal
+// gets refactored to use shared defs, swap to the import from there.
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 

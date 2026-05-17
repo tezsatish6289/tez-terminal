@@ -15,11 +15,16 @@ import {
   ChevronLeft,
   ChevronRight,
   Activity,
-  Square,
+  Settings,
 } from "lucide-react";
 import { useUser, useAuth } from "@/firebase";
 import { initiateSignOut } from "@/firebase/non-blocking-login";
 import { DeployModal } from "../components/DeployModal";
+import {
+  BotSettings,
+  type DeploymentWallet,
+  type SettingsDeployment,
+} from "../components/BotSettings";
 import { toast } from "@/hooks/use-toast";
 import { TradesPanel } from "@/components/freedombot/TradesPanel";
 import {
@@ -36,8 +41,16 @@ interface Deployment {
   id: string;
   bot: string;
   exchange: string;
-  status: string;
+  /** "active" or "paused" — legacy "stopped" rows are normalized to "paused"
+   *  server-side. The dashboard only sees these two values now. */
+  status: "active" | "paused";
+  keyLastFour?: string | null;
   createdAt: string | null;
+  pausedAt?: string | null;
+  /** Cached wallet snapshot from the last successful balance fetch. Null
+   *  while we're waiting for the first test-connection call to land or
+   *  when the deployment pre-dates wallet tracking. */
+  wallet?: DeploymentWallet | null;
 }
 
 interface BotStats {
@@ -358,7 +371,7 @@ const BOTS_NAV = [
   { key: "SILVER",        emoji: "🥈", label: "Silver Bot",       live: false },
 ];
 
-function Connected({ deployment, deployments, stats, trades, aggregates, cumulativeByTradeId, tradesSyncing, onStop, onSelectDeployment, onRefreshTrade }: {
+function Connected({ deployment, deployments, stats, trades, aggregates, cumulativeByTradeId, tradesSyncing, onOpenSettings, onSelectDeployment, onRefreshTrade }: {
   deployment: Deployment;
   deployments: Deployment[];
   stats: BotStats | null;
@@ -368,13 +381,13 @@ function Connected({ deployment, deployments, stats, trades, aggregates, cumulat
   /** Running total after each close (exchange-backed rows only); null until that close has a venue PnL. */
   cumulativeByTradeId: Map<string, number | null>;
   tradesSyncing?: boolean;
-  onStop: () => void;
+  onOpenSettings: () => void;
   onSelectDeployment: (id: string) => void;
   onRefreshTrade: (tradeId: string) => Promise<void>;
 }) {
   const TRADES_PAGE_SIZE = 25;
   const [tradePage, setTradePage] = useState(1);
-  const isPending = deployment.status === "pending";
+  const isPaused = deployment.status === "paused";
   const exchangeLabel = EXCHANGE_LABELS[deployment.exchange] ?? deployment.exchange;
 
   const cryptoActiveDeployments = deployments.filter(
@@ -484,9 +497,18 @@ function Connected({ deployment, deployments, stats, trades, aggregates, cumulat
         >
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full animate-pulse" style={{ backgroundColor: isPending ? "#fbbf24" : "#22c55e", boxShadow: `0 0 6px ${isPending ? "#fbbf24" : "#22c55e"}` }} />
-              <span className="text-sm font-black" style={{ color: isPending ? "#fbbf24" : "#22c55e" }}>
-                {isPending ? "Setting up" : "Live"}
+              <div
+                className="h-2 w-2 rounded-full animate-pulse"
+                style={{
+                  backgroundColor: isPaused ? "#fbbf24" : "#22c55e",
+                  boxShadow: `0 0 6px ${isPaused ? "#fbbf24" : "#22c55e"}`,
+                }}
+              />
+              <span
+                className="text-sm font-black"
+                style={{ color: isPaused ? "#fbbf24" : "#22c55e" }}
+              >
+                {isPaused ? "Paused" : "Live"}
               </span>
             </div>
             <span className="text-xs" style={{ color: "#334155" }}>·</span>
@@ -494,13 +516,21 @@ function Connected({ deployment, deployments, stats, trades, aggregates, cumulat
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={onStop}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-105"
-              style={{ backgroundColor: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.15)" }}
+              onClick={onOpenSettings}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-105"
+              style={{
+                backgroundColor: "rgba(90,140,220,0.08)",
+                color: "#94a3b8",
+                border: "1px solid rgba(90,140,220,0.18)",
+              }}
+              title="Bot settings — wallet, pause, update keys, delete"
+              aria-label="Open bot settings"
             >
-              <Square className="h-3 w-3" /> Stop Bot
+              <Settings className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Settings</span>
             </button>
-          </div>        </div>
+          </div>
+        </div>
 
         {/* 3-stat strip */}
         <div className="grid grid-cols-3">
@@ -607,8 +637,7 @@ export default function FreedomBotDashboard() {
     closedTradeCount: number;
   } | null>(null);
   const [tradesLoading, setTradesLoading] = useState(false);
-  const [stopConfirm, setStopConfirm] = useState(false);
-  const [isStopping, setIsStopping] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const selectedDeployment = useMemo(() => {
     if (!deployments?.length) return null;
@@ -618,8 +647,14 @@ export default function FreedomBotDashboard() {
     return hit ?? deployments[0] ?? null;
   }, [deployments, selectedDeploymentId]);
 
+  // Includes paused — a paused deployment still occupies its exchange
+  // slot (the user can resume from Settings), so "Add exchange" must
+  // not offer it as available.
   const activeCryptoDeployments = useMemo(
-    () => (deployments ?? []).filter((d) => d.bot === "CRYPTO" && d.status === "active"),
+    () =>
+      (deployments ?? []).filter(
+        (d) => d.bot === "CRYPTO" && (d.status === "active" || d.status === "paused"),
+      ),
     [deployments],
   );
 
@@ -695,6 +730,67 @@ export default function FreedomBotDashboard() {
       setSelectedDeploymentId(null);
     }
   }, [user]);
+
+  // Tracks deployments we've already fired an auto test-connection for in
+  // this session. Without this, every re-fetch of deployments (e.g. after
+  // pause/resume) would trigger another round of venue API calls. The
+  // server's 60s throttle would short-circuit them but it's still wasteful
+  // network. Manual Test (inside Settings) ignores this ref and always
+  // forces a fresh fetch.
+  const autoTestedDeploymentsRef = useRef<Set<string>>(new Set());
+
+  const applyWalletPatch = useCallback(
+    (deploymentId: string, wallet: DeploymentWallet | null) => {
+      setDeployments((prev) =>
+        prev?.map((d) => (d.id === deploymentId ? { ...d, wallet } : d)),
+      );
+    },
+    [],
+  );
+
+  const refreshWalletForDeployment = useCallback(
+    async (deploymentId: string, force: boolean) => {
+      if (!user) return;
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch("/api/freedombot/test-connection", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ deploymentId, force }),
+        });
+        const data = await res.json();
+        if (typeof data.status === "string") {
+          applyWalletPatch(deploymentId, {
+            total: typeof data.total === "number" ? data.total : null,
+            available: typeof data.available === "number" ? data.available : null,
+            currency: typeof data.currency === "string" ? data.currency : null,
+            status: data.status === "valid" ? "valid" : "invalid",
+            error: typeof data.error === "string" ? data.error : null,
+            checkedAt: typeof data.checkedAt === "string" ? data.checkedAt : null,
+          });
+        }
+      } catch {
+        // Network errors are non-fatal — the cached wallet stays visible.
+      }
+    },
+    [user, applyWalletPatch],
+  );
+
+  // Fire one background test-connection per deployment on dashboard load.
+  // Server-side 60s throttle prevents hammering the venue if the cron
+  // checked recently. The session-level ref prevents firing twice for the
+  // same deployment within one dashboard mount.
+  useEffect(() => {
+    if (!user || !deployments?.length) return;
+    for (const dep of deployments) {
+      if (autoTestedDeploymentsRef.current.has(dep.id)) continue;
+      autoTestedDeploymentsRef.current.add(dep.id);
+      void refreshWalletForDeployment(dep.id, false);
+    }
+  }, [user, deployments, refreshWalletForDeployment]);
 
   // Tracks the exchange the most recently dispatched fetch is for. Each
   // in-flight fetch checks this on land — if it no longer matches the tab
@@ -796,24 +892,19 @@ export default function FreedomBotDashboard() {
     fetchDeployment();
   }, [fetchDeployment]);
 
-  const handleStopBot = useCallback(async () => {
-    if (!user || !selectedDeployment) return;
-    setIsStopping(true);
-    try {
-      const idToken = await user.getIdToken();
-      await fetch("/api/freedombot/stop-deployment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ deploymentId: selectedDeployment.id }),
-      });
-      setStopConfirm(false);
-      fetchDeployment();
-    } catch {
-      // silently retry on next refresh
-    } finally {
-      setIsStopping(false);
-    }
-  }, [user, selectedDeployment, fetchDeployment]);
+  const handleSettingsMutated = useCallback(() => {
+    // Allow the auto-test effect to re-fire for the mutated deployment
+    // (e.g. after Update API key the wallet snapshot is fresh server-side
+    // but we want to ensure local state reflects it). The set is keyed
+    // on deploymentId, so clearing it forces every visible row to be
+    // re-checked on the next render cycle.
+    autoTestedDeploymentsRef.current.clear();
+    fetchDeployment();
+    // Trades panel may have been mutated by delete (positions closed),
+    // re-pull on the currently-selected exchange.
+    const ex = selectedDeployment?.exchange ?? null;
+    void fetchUserTrades(ex, false);
+  }, [fetchDeployment, fetchUserTrades, selectedDeployment?.exchange]);
 
   if (isUserLoading || deployments === undefined) {
     return (
@@ -842,7 +933,7 @@ export default function FreedomBotDashboard() {
           aggregates={tradesAggregates}
           cumulativeByTradeId={cumulativeByTradeId}
           tradesSyncing={tradesLoading}
-          onStop={() => setStopConfirm(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
           onSelectDeployment={setSelectedDeploymentId}
           onRefreshTrade={async (tradeId) => {
             const idToken = await user?.getIdToken();
@@ -894,52 +985,33 @@ export default function FreedomBotDashboard() {
         />
       )}
 
-      {/* Stop Bot confirmation dialog */}
-      {stopConfirm && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ backgroundColor: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)" }}
-        >
-          <div
-            className="w-full max-w-sm rounded-3xl p-6 text-center"
-            style={{ backgroundColor: "#0a1628", border: "1px solid rgba(239,68,68,0.25)" }}
-          >
-            <div
-              className="h-14 w-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-              style={{ backgroundColor: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}
-            >
-              <Square className="h-7 w-7" style={{ color: "#f87171" }} />
-            </div>
-            <h3 className="text-lg font-black text-white mb-2">Stop this bot?</h3>
-            <p className="text-sm mb-6 leading-relaxed" style={{ color: "#64748b" }}>
-              This stops auto-trading for{" "}
-              <span className="text-white font-semibold">
-                {selectedDeployment
-                  ? EXCHANGE_LABELS[selectedDeployment.exchange] ?? selectedDeployment.exchange
-                  : "this account"}
-              </span>
-              . Other connected exchanges keep running. You can add an exchange again anytime from{" "}
-              <span className="text-white font-semibold">Add exchange</span>.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setStopConfirm(false)}
-                className="flex-1 py-3 rounded-2xl text-sm font-bold transition-colors"
-                style={{ backgroundColor: "rgba(90,140,220,0.08)", color: "#64748b", border: "1px solid rgba(90,140,220,0.12)" }}
-              >
-                Keep running
-              </button>
-              <button
-                onClick={handleStopBot}
-                disabled={isStopping}
-                className="flex-1 py-3 rounded-2xl text-sm font-bold text-white transition-all disabled:opacity-50"
-                style={{ backgroundColor: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171" }}
-              >
-                {isStopping ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Yes, stop it"}
-              </button>
-            </div>
-          </div>
-        </div>
+      {selectedDeployment && (
+        <BotSettings
+          isOpen={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          user={user}
+          deployment={
+            {
+              id: selectedDeployment.id,
+              exchange: selectedDeployment.exchange,
+              status: selectedDeployment.status,
+              keyLastFour: selectedDeployment.keyLastFour ?? null,
+              wallet: selectedDeployment.wallet ?? null,
+            } satisfies SettingsDeployment
+          }
+          exchangeLabel={
+            EXCHANGE_LABELS[selectedDeployment.exchange] ?? selectedDeployment.exchange
+          }
+          openTradesCount={
+            tradesAggregates?.openTradeCount ??
+            trades.filter(
+              (t) =>
+                tradeMatchesDeployment(t, selectedDeployment) &&
+                (t.status === "OPEN" || t.status === "open"),
+            ).length
+          }
+          onMutated={handleSettingsMutated}
+        />
       )}
 
       <DeployModal

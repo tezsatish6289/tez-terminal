@@ -85,6 +85,8 @@ export default function AdminBotUsersPage() {
   const [botFilter, setBotFilter] = useState<string>("all");
   const [deleteTarget, setDeleteTarget] = useState<DeploymentRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [walletRefreshAllBusy, setWalletRefreshAllBusy] = useState(false);
+  const [walletRefreshAllSummary, setWalletRefreshAllSummary] = useState<string | null>(null);
 
   const fetchDeployments = useCallback(async () => {
     if (!user) return;
@@ -110,6 +112,36 @@ export default function AdminBotUsersPage() {
   useEffect(() => {
     if (isAdmin) fetchDeployments();
   }, [isAdmin, fetchDeployments]);
+
+  const refreshAllWallets = useCallback(async () => {
+    if (!user) return;
+    setWalletRefreshAllBusy(true);
+    setWalletRefreshAllSummary(null);
+    setError("");
+    try {
+      const idToken = await user.getIdToken();
+      const q = botFilter !== "all" ? `?bot=${encodeURIComponent(botFilter)}` : "";
+      const res = await fetch(`/api/admin/bot-deployments/refresh-wallets${q}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Refresh failed");
+      const s = data.summary ?? {};
+      const summary = `${s.valid ?? 0} valid · ${s.invalid ?? 0} invalid · ${s["no-credentials"] ?? 0} no-credentials · ${s.error ?? 0} errored (of ${data.refreshed ?? 0})`;
+      setWalletRefreshAllSummary(summary);
+      // Log per-deployment outcomes to the console so the admin can dig in
+      // when something looks off without us having to render a giant table.
+      if (Array.isArray(data.outcomes)) {
+        console.log("[Admin] Wallet refresh outcomes:", data.outcomes);
+      }
+      await fetchDeployments();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Unexpected error");
+    } finally {
+      setWalletRefreshAllBusy(false);
+    }
+  }, [user, botFilter, fetchDeployments]);
 
   const confirmDelete = async () => {
     if (!user || !deleteTarget) return;
@@ -190,16 +222,40 @@ export default function AdminBotUsersPage() {
               Open a row for trade details and execution logs, or delete to require a fresh deploy.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => fetchDeployments()}
-            disabled={loading}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03] text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-white/[0.06] disabled:opacity-50"
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void refreshAllWallets()}
+              disabled={walletRefreshAllBusy || loading}
+              title="Force a fresh wallet-balance fetch from each exchange for every deployment. Bypasses the cron's 30-min throttle."
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 text-xs font-bold uppercase tracking-wider text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-50"
+            >
+              <RefreshCw
+                className={cn("h-3.5 w-3.5", walletRefreshAllBusy && "animate-spin")}
+              />
+              {walletRefreshAllBusy ? "Refreshing wallets…" : "Refresh wallets"}
+            </button>
+            <button
+              type="button"
+              onClick={() => fetchDeployments()}
+              disabled={loading}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03] text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-white/[0.06] disabled:opacity-50"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+              Refresh
+            </button>
+          </div>
         </header>
+
+        {walletRefreshAllSummary && (
+          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.04] px-4 py-2 text-xs text-emerald-200">
+            <span className="font-bold uppercase tracking-wider mr-2">Wallet refresh:</span>
+            {walletRefreshAllSummary}
+            <span className="ml-2 text-muted-foreground/70">
+              (see browser console for per-deployment outcomes)
+            </span>
+          </div>
+        )}
 
         {error && (
           <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">

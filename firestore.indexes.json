@@ -155,6 +155,60 @@
         { "fieldPath": "autoTradeEnabled", "order": "ASCENDING" },
         { "fieldPath": "__name__", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "live_trades",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "exchange", "order": "ASCENDING" },
+        { "fieldPath": "closedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "live_trades",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "exchange", "order": "ASCENDING" },
+        { "fieldPath": "exchangeRealizedPnl", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "live_trades",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "exchange", "order": "ASCENDING" },
+        { "fieldPath": "residualOrdersPendingCleanup", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "live_trades",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "exchange", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "bot_deployments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "exchange", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "bot_deployments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "exchange", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

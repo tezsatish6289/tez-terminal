@@ -740,10 +740,18 @@ export async function GET(request: NextRequest) {
 
   try {
     // ── 1. Read cached prices ───────────────────────────────
-    const priceDoc = await db.collection("config").doc("exchange_prices").get();
     let allPrices: AllExchangePrices = { BINANCE: new Map(), BYBIT: new Map(), MEXC: new Map(), COINDCX: new Map(), HYPERLIQUID: new Map(), DHAN: new Map() };
-    if (priceDoc.exists) {
-      allPrices = deserializePrices(priceDoc.data() as Record<string, Record<string, number>>);
+    try {
+      const priceDoc = await db.collection("config").doc("exchange_prices").get();
+      if (priceDoc.exists) {
+        allPrices = deserializePrices(priceDoc.data() as Record<string, Record<string, number>>);
+      }
+    } catch (e) {
+      console.warn(
+        `[LiveSync] Failed to read cached prices — proceeding with empty maps: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
     }
 
     // ── 2. Fetch signals and compute live scores ─────────────
@@ -753,22 +761,29 @@ export async function GET(request: NextRequest) {
     // Only ACTIVE signals — resolved signals don't need re-scoring and
     // pulling the full signals collection every minute is the main cause
     // of bloated Firestore read bills.
-    const signalsSnap = await db
-      .collection("signals")
-      .where("status", "==", "ACTIVE")
-      .get();
-    const postUpdateDocs = signalsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-    const allSignalsForScoring = postUpdateDocs.map(mapFirestoreSignal);
-    const rawLiveScores = computeAutoFilter(allSignalsForScoring, { includeResolved: true });
-
-    // Convert to a simpler map: signalId → { score, pattern }
     const liveScores = new Map<string, { score: number; pattern: string | null }>();
-    for (const [id, entry] of rawLiveScores.entries()) {
-      liveScores.set(id, {
-        score: entry.score,
-        pattern: entry.breakdown?.pattern ?? null,
-      });
+    try {
+      const signalsSnap = await db
+        .collection("signals")
+        .where("status", "==", "ACTIVE")
+        .get();
+      const postUpdateDocs = signalsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+      const allSignalsForScoring = postUpdateDocs.map(mapFirestoreSignal);
+      const rawLiveScores = computeAutoFilter(allSignalsForScoring, { includeResolved: true });
+
+      for (const [id, entry] of rawLiveScores.entries()) {
+        liveScores.set(id, {
+          score: entry.score,
+          pattern: entry.breakdown?.pattern ?? null,
+        });
+      }
+    } catch (e) {
+      console.warn(
+        `[LiveSync] Failed to fetch ACTIVE signals — live scores will be empty this tick: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
     }
 
     // ── 3a. 3:15 PM IST square-off: force-close open Dhan 5-min intraday positions ──
@@ -902,10 +917,40 @@ export async function GET(request: NextRequest) {
       dhan:            "DHAN",
     };
 
-    const enabledSnap = await db
-      .collectionGroup("secrets")
-      .where("autoTradeEnabled", "==", true)
-      .get();
+    let enabledSnap: FirebaseFirestore.QuerySnapshot;
+    try {
+      enabledSnap = await db
+        .collectionGroup("secrets")
+        .where("autoTradeEnabled", "==", true)
+        .get();
+    } catch (e) {
+      console.error(
+        `[LiveSync] FATAL: collectionGroup(secrets) query failed — cannot discover auto-trade users this tick: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
+      const errMsg = e instanceof Error ? e.message : String(e);
+      const errCode = (e as { code?: unknown })?.code ?? null;
+      const errDetails = (e as { details?: unknown })?.details ?? null;
+      const errStack = (e as { stack?: unknown })?.stack ?? null;
+      await db.collection("logs").add({
+        timestamp: new Date().toISOString(),
+        level: "ERROR",
+        message: "Live Trade Sync: enabledSnap query failed",
+        details: errMsg,
+        errorCode: errCode,
+        errorDetails: errDetails,
+        errorStack: errStack,
+        webhookId: "SYSTEM_CRON",
+      }).catch(() => {});
+      return NextResponse.json({
+        success: false,
+        error: errMsg,
+        code: errCode,
+        details: errDetails,
+        hint: "collectionGroup(secrets).where(autoTradeEnabled,==,true) failed. Most likely a missing Firestore index — see errorDetails for the create-index URL.",
+      }, { status: 500 });
+    }
 
     // Dedupe by (userId, exchange) — BYBIT can match both `bybit` and legacy
     // `binance` docs; we only want one credential pair per exchange per user.
@@ -1197,14 +1242,54 @@ export async function GET(request: NextRequest) {
       simCloseSynced: totalSimCloseSynced,
       errors: totalErrors,
     });
-  } catch (error: any) {
-    await db.collection("logs").add({
-      timestamp: new Date().toISOString(),
-      level: "ERROR",
-      message: "Live Trade Sync Failure",
-      details: error.message,
-      webhookId: "SYSTEM_CRON",
-    });
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    // Surface every byte of context the SDK gives us. Firestore's
+    // FAILED_PRECONDITION error includes the index-creation URL in its
+    // `message` / `details` field, but plain `error.message` sometimes
+    // collapses to just "9 FAILED_PRECONDITION:" if the SDK serialised the
+    // error before populating the body. We log code, message, details, stack,
+    // and the original error JSON so future failures are debuggable from the
+    // logs collection alone.
+    const e = error as {
+      message?: string;
+      code?: number | string;
+      details?: string;
+      stack?: string;
+      metadata?: unknown;
+    };
+    const fullMessage =
+      e?.message ||
+      (typeof e?.details === "string" ? e.details : "") ||
+      String(error);
+    try {
+      console.error("[LiveSync] FATAL", error);
+    } catch {
+      // ignore logging failure
+    }
+    try {
+      await db.collection("logs").add({
+        timestamp: new Date().toISOString(),
+        level: "ERROR",
+        message: "Live Trade Sync Failure",
+        details: fullMessage,
+        errorCode: e?.code ?? null,
+        errorDetails: e?.details ?? null,
+        errorStack: e?.stack ?? null,
+        errorRaw: (() => {
+          try {
+            return JSON.stringify(error, Object.getOwnPropertyNames(error as object)).slice(0, 8000);
+          } catch {
+            return null;
+          }
+        })(),
+        webhookId: "SYSTEM_CRON",
+      });
+    } catch {
+      // Firestore write itself failed — give up on persisting the log.
+    }
+    return NextResponse.json(
+      { success: false, error: fullMessage, code: e?.code ?? null },
+      { status: 500 },
+    );
   }
 }

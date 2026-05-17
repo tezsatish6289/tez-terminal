@@ -1001,16 +1001,33 @@ export async function GET(request: NextRequest) {
     //      account id (Bybit/CoinDCX/Hyperliquid) — only done once per
     //      deployment; subsequent ticks short-circuit.
     //   2. Wallet-balance heartbeat. Calls `connector.getUsdtBalance(creds)`
-    //      every ~5 minutes per deployment and persists the result onto the
-    //      `bot_deployments` doc so the admin dashboard can show live
-    //      connection health (`walletStatus: "valid" | "invalid"`,
-    //      `walletTotal`, `walletAvailable`, `walletError`, `walletCheckedAt`).
-    //      Throttled by `skipIfCheckedWithinMs` so we don't pound the
-    //      venue on every minute-tick of the cron.
+    //      AT MOST every 30 minutes per deployment and persists the result
+    //      onto the `bot_deployments` doc so the admin dashboard can show
+    //      live connection health (`walletStatus: "valid" | "invalid"`,
+    //      `walletTotal`, `walletAvailable`, `walletError`,
+    //      `walletCheckedAt`). The opportunistic refresh after each trade
+    //      open/close keeps the displayed balance fresh between heartbeats.
+    // We deliberately cap concurrency to 5 so we never burst past venue
+    // rate limits (CoinDCX is the tightest at ~10 req/sec per IP, and we
+    // share Vercel's outbound IP across every active deployment).
     // Nothing in here can fail in a way that blocks trade processing.
-    const WALLET_REFRESH_THROTTLE_MS = 5 * 60 * 1000;
-    await Promise.allSettled(
-      pairs.map(async (pair) => {
+    const WALLET_REFRESH_THROTTLE_MS = 30 * 60 * 1000;
+    const WALLET_REFRESH_CONCURRENCY = 5;
+    const walletDeployRefByUserExchange = new Map<
+      string,
+      FirebaseFirestore.DocumentReference
+    >();
+    const walletRefreshStats = {
+      attempted: 0,
+      throttled: 0,
+      valid: 0,
+      invalid: 0,
+      missingDeployment: 0,
+    };
+    {
+      let idx = 0;
+      const workers: Promise<void>[] = [];
+      const runOne = async (pair: UserExchangePair) => {
         try {
           const deploySnap = await db
             .collection("bot_deployments")
@@ -1020,9 +1037,16 @@ export async function GET(request: NextRequest) {
             .limit(1)
             .get();
 
-          if (deploySnap.empty) return;
+          if (deploySnap.empty) {
+            walletRefreshStats.missingDeployment++;
+            return;
+          }
           const deployDoc = deploySnap.docs[0];
           const deployData = deployDoc.data();
+          walletDeployRefByUserExchange.set(
+            `${pair.userId}::${pair.exchange}`,
+            deployDoc.ref,
+          );
 
           // (1) exchangeUid backfill — only for venues that expose it.
           if (
@@ -1054,7 +1078,8 @@ export async function GET(request: NextRequest) {
             typeof deployData.walletCheckedAt === "string"
               ? deployData.walletCheckedAt
               : null;
-          await refreshDeploymentWalletBalance(
+          walletRefreshStats.attempted++;
+          const refreshResult = await refreshDeploymentWalletBalance(
             db,
             deployDoc.ref,
             pair.exchange,
@@ -1064,10 +1089,30 @@ export async function GET(request: NextRequest) {
               existingCheckedAt: lastCheckedAt,
             },
           );
-        } catch {
-          // best-effort, do not interrupt trading
+          if (refreshResult.skipped) walletRefreshStats.throttled++;
+          else if (refreshResult.status === "valid") walletRefreshStats.valid++;
+          else if (refreshResult.status === "invalid") walletRefreshStats.invalid++;
+        } catch (e) {
+          console.warn(
+            `[LiveSync] Wallet refresh failed for ${pair.userId}/${pair.exchange}: ${
+              e instanceof Error ? e.message : String(e)
+            }`,
+          );
         }
-      }),
+      };
+      const worker = async () => {
+        while (idx < pairs.length) {
+          const myIdx = idx++;
+          await runOne(pairs[myIdx]!);
+        }
+      };
+      for (let w = 0; w < Math.min(WALLET_REFRESH_CONCURRENCY, pairs.length); w++) {
+        workers.push(worker());
+      }
+      await Promise.all(workers);
+    }
+    console.log(
+      `[LiveSync] Wallet refresh: ${walletRefreshStats.valid} valid, ${walletRefreshStats.invalid} invalid, ${walletRefreshStats.throttled} throttled, ${walletRefreshStats.missingDeployment} no-deployment (of ${pairs.length} pairs)`,
     );
 
     // ── 4. Process all user×exchange pairs in parallel ──────
@@ -1081,7 +1126,31 @@ export async function GET(request: NextRequest) {
           allPrices,
           liveScores,
           db
-        ).then((r) => ({ ...r, userId: pair.userId, exchange: pair.exchange }))
+        ).then(async (r) => {
+          // Opportunistic wallet refresh: any time a fill landed or a
+          // protective close fired, the wallet balance just changed.
+          // Refresh it now (bypassing the 30-min cron throttle) so the
+          // admin dashboard reflects the real post-trade balance without
+          // waiting for the next heartbeat. We already have creds in
+          // hand, and this only fires when something actually happened,
+          // so it adds zero traffic on idle ticks.
+          if (r.fills > 0 || r.protectiveCloses > 0) {
+            const deployRef = walletDeployRefByUserExchange.get(
+              `${pair.userId}::${pair.exchange}`,
+            );
+            if (deployRef) {
+              await refreshDeploymentWalletBalance(
+                db,
+                deployRef,
+                pair.exchange,
+                pair.creds,
+              ).catch(() => {
+                /* best-effort; heartbeat will catch it within 30m */
+              });
+            }
+          }
+          return { ...r, userId: pair.userId, exchange: pair.exchange };
+        })
       )
     );
 

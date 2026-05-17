@@ -16,6 +16,7 @@ import { isIndianMarketEntryAllowed } from "./market-hours";
 import { getDhanLeverage } from "./exchanges/dhan";
 import { generateTokenForUser } from "./dhan-token";
 import { applyTradeChangeToAggregates } from "./freedombot/aggregates";
+import { refreshDeploymentWalletBalance } from "./freedombot/wallet-balance";
 import { userOptedIntoBot } from "./freedombot/zone-bot-subscription";
 
 /**
@@ -366,6 +367,37 @@ export async function executeForAllUsers(
           } catch (e) {
             console.warn(`[live-execution] aggregate bump on open failed: ${e instanceof Error ? e.message : String(e)}`);
           }
+
+          // Opportunistic wallet refresh: a trade just opened, so the user's
+          // available margin has changed. Refresh the deployment's cached
+          // wallet snapshot now (bypassing the cron's 30-min throttle) so
+          // the admin dashboard shows the real post-entry balance. We
+          // already have creds in hand; the marginal cost is one venue
+          // API call + one Firestore write per opened trade.
+          (async () => {
+            try {
+              const deploySnap = await db
+                .collection("bot_deployments")
+                .where("uid", "==", task.userId)
+                .where("exchange", "==", task.exchange)
+                .where("status", "==", "active")
+                .limit(1)
+                .get();
+              if (deploySnap.empty) return;
+              await refreshDeploymentWalletBalance(
+                db,
+                deploySnap.docs[0].ref,
+                task.exchange,
+                task.creds as ExchangeCredentials,
+              );
+            } catch (e) {
+              console.warn(
+                `[live-execution] opportunistic wallet refresh failed: ${
+                  e instanceof Error ? e.message : String(e)
+                }`,
+              );
+            }
+          })();
         }
 
         if (!writeOk) {

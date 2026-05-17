@@ -149,14 +149,6 @@
       ]
     },
     {
-      "collectionGroup": "secrets",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "autoTradeEnabled", "order": "ASCENDING" },
-        { "fieldPath": "__name__", "order": "ASCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "live_trades",
       "queryScope": "COLLECTION",
       "fields": [
@@ -209,7 +201,50 @@
         { "fieldPath": "uid", "order": "ASCENDING" },
         { "fieldPath": "exchange", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "live_trades",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "exchange", "order": "ASCENDING" },
+        { "fieldPath": "testnet", "order": "ASCENDING" },
+        { "fieldPath": "openedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "webhookId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "signals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "timeframe", "order": "ASCENDING" },
+        { "fieldPath": "receivedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "signals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "assetType", "order": "ASCENDING" },
+        { "fieldPath": "receivedAt", "order": "DESCENDING" }
+      ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "secrets",
+      "fieldPath": "autoTradeEnabled",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    }
+  ]
 }

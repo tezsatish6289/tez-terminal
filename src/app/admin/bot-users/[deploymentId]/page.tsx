@@ -13,7 +13,9 @@ import {
   Bot,
   ScrollText,
   LayoutList,
+  Shield,
 } from "lucide-react";
+import type { TradingPrefs } from "@/lib/freedombot/trading-prefs-shared";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -62,6 +64,7 @@ interface DeploymentRow {
    *  been refreshed yet. Cron refreshes every 5 minutes; admin can force a
    *  refresh from the detail page. */
   wallet: DeploymentWallet | null;
+  tradingPrefs?: TradingPrefs;
 }
 
 interface TradesAggregates {
@@ -637,6 +640,78 @@ export default function AdminBotUserDetailPage() {
                   </div>
                 )}
               </div>
+
+              {deployment.tradingPrefs && (
+                <div
+                  className="rounded-2xl overflow-hidden"
+                  style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.12)" }}
+                >
+                  <div
+                    className="flex items-center gap-2 px-5 py-3"
+                    style={{ borderBottom: "1px solid rgba(90,140,220,0.08)" }}
+                  >
+                    <Shield className="h-4 w-4" style={{ color: "#60a5fa" }} />
+                    <span className="text-sm font-black" style={{ color: "#e2e8f0" }}>
+                      Risk &amp; sizing (user settings)
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4">
+                    {[
+                      {
+                        label: "Risk / trade",
+                        value: `${deployment.tradingPrefs.riskPerTrade}%`,
+                        color: "#f0f4ff",
+                      },
+                      {
+                        label: "Max open",
+                        value: String(deployment.tradingPrefs.maxConcurrentTrades),
+                        color: "#60a5fa",
+                      },
+                      {
+                        label: "Daily loss cap",
+                        value: `${deployment.tradingPrefs.dailyLossLimit}%`,
+                        color: "#fbbf24",
+                      },
+                      {
+                        label: "Auto-trade",
+                        value:
+                          deployment.autoTradeEnabled === true
+                            ? "On"
+                            : deployment.autoTradeEnabled === false
+                              ? "Off"
+                              : "—",
+                        color:
+                          deployment.autoTradeEnabled === true ? "#34d399" : "#f87171",
+                      },
+                    ].map((s, i, arr) => (
+                      <div
+                        key={s.label}
+                        className="px-5 py-4"
+                        style={{
+                          borderRight:
+                            i < arr.length - 1 ? "1px solid rgba(90,140,220,0.08)" : "none",
+                        }}
+                      >
+                        <p
+                          className="text-[10px] font-bold uppercase tracking-widest mb-1"
+                          style={{ color: "#334155" }}
+                        >
+                          {s.label}
+                        </p>
+                        <p className="text-2xl font-black" style={{ color: s.color }}>
+                          {s.value}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <p
+                    className="px-5 py-3 text-[11px]"
+                    style={{ color: "#64748b", borderTop: "1px solid rgba(90,140,220,0.08)" }}
+                  >
+                    Set by the user in FreedomBot Bot Settings. Read-only here.
+                  </p>
+                </div>
+              )}
 
               <div
                 className="rounded-2xl overflow-hidden"

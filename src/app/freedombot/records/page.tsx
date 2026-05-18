@@ -694,7 +694,7 @@ export default function RecordsPage() {
             <span className="text-xs font-bold" style={{ color: "#334155" }}>freedombot.ai</span>
           </Link>
           <p className="text-[11px]" style={{ color: "#1e3a5f" }}>
-            &copy; {new Date().getFullYear()} FreedomBot.ai · Simulator data only. Not financial advice.
+            &copy; {new Date().getFullYear()} FreedomBot.ai · Trading involves risk. Not financial advice.
           </p>
         </div>
       </footer>

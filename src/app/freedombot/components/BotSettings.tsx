@@ -413,11 +413,25 @@ export function BotSettings({
                 border: "1px solid rgba(90,140,220,0.12)",
               }}
             >
-              <p className="text-xs leading-relaxed" style={{ color: "#64748b" }}>
-                Live trades use these settings (not the simulator). Position size is based on{" "}
-                <span className="text-slate-300">min(wallet, available)</span>, capped at{" "}
-                <span className="text-slate-300">95%</span> of margin × leverage.
-              </p>
+              <div className="space-y-2 text-xs leading-relaxed" style={{ color: "#64748b" }}>
+                <p>
+                  These settings control how the bot trades on{" "}
+                  <span className="text-slate-300">{exchangeLabel}</span>.
+                </p>
+                <p>
+                  <span className="font-semibold text-slate-400">Risk per trade</span> — how much of
+                  your balance is put at risk on each new position.{" "}
+                  <span className="font-semibold text-slate-400">Max open</span> — how many positions
+                  can run at once.{" "}
+                  <span className="font-semibold text-slate-400">Daily loss cap</span> — if
+                  today&apos;s losses reach this %, the bot pauses new trades and may close open
+                  positions; resume when you&apos;re ready.
+                </p>
+                <p>
+                  Each trade is sized from funds you have free to use (not already locked in other
+                  trades), and stays within your exchange&apos;s limits.
+                </p>
+              </div>
               <RiskControls
                 values={tradingPrefs}
                 onChange={(next) => {

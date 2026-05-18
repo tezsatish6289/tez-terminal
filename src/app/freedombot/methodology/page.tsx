@@ -203,25 +203,28 @@ export default function MethodologyPage() {
           <div className="grid sm:grid-cols-2 gap-5 sm:gap-6">
             <MethodCard icon={Shield} title="Position Sizing — Never Risk the House">
               <Bullet>
-                Each trade risks{" "}
-                <strong className="text-white">1% of current capital</strong> by default. During a
-                confirmed win streak, this steps up to{" "}
-                <strong className="text-white">1.5%</strong> — still small, just leaning into
-                momentum.
+                You choose <strong className="text-white">risk per trade</strong> in Bot Settings
+                (default <strong className="text-white">0.5%</strong>, range 0.25%–1% of your
+                balance). Each new position uses that slice of capital, with a stop-loss set at
+                entry.
               </Bullet>
               <Bullet>
-                Because we use compounding risk (% of current balance, not a fixed dollar),
-                position sizes automatically shrink as capital dips and grow as it rises.
+                <strong className="text-white">Max open</strong> limits how many positions can run at
+                once on your exchange.{" "}
+                <strong className="text-white">Daily loss cap</strong> pauses new trades if
+                today&apos;s losses reach your limit — protecting you from a bad day.
               </Bullet>
               <Bullet>
-                At your chosen risk per trade (default 0.5%), it would take roughly{" "}
-                <strong className="text-white">460 consecutive losses</strong> to approach zero — a
-                scenario that has never come close to occurring.
+                Sizing uses a percentage of your <strong className="text-white">current balance</strong>{" "}
+                (not a fixed dollar), so position sizes shrink when capital dips and grow when it
+                rises. Only funds free to trade are used — not money already locked in open
+                positions.
               </Bullet>
               <Bullet>
-                Every drawdown in our history has recovered. The math is designed so that{" "}
-                <strong className="text-white">staying committed</strong> is the most powerful edge
-                a user has — though past behaviour is not a promise of future outcomes.
+                At the default 0.5% risk, it would take roughly{" "}
+                <strong className="text-white">900+ consecutive losses</strong> to approach zero — a
+                scenario that has never come close to occurring. Past recovery is not a promise of
+                future results.
               </Bullet>
             </MethodCard>
 
@@ -231,8 +234,8 @@ export default function MethodologyPage() {
                 <strong className="text-white">signal efficiency</strong>, not to chase bigger bets.
               </Bullet>
               <Bullet>
-                Leverage is capped at <strong className="text-white">10×</strong>. With our 1%
-                position sizing, a stop-loss hit represents a{" "}
+                Leverage is capped at <strong className="text-white">10×</strong>. With small,
+                user-set risk per trade (default 0.5%), a stop-loss hit represents a{" "}
                 <strong className="text-white">small, defined loss</strong> — not a wipeout.
               </Bullet>
               <Bullet>

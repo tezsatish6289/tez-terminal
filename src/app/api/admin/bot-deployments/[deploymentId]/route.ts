@@ -5,6 +5,11 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { getDeploymentAggregates } from "@/lib/freedombot/aggregates";
 import { getSecretDocIds, docMatchesExchange } from "@/lib/exchanges";
 import type { ExchangeName } from "@/lib/exchanges";
+import {
+  DEFAULT_TRADING_PREFS,
+  tradingPrefsFromSecret,
+  type TradingPrefs,
+} from "@/lib/freedombot/trading-prefs";
 
 export const dynamic = "force-dynamic";
 
@@ -86,10 +91,13 @@ export async function GET(
 
     const exchangeName = exchange as ExchangeName;
     let autoTradeEnabled: boolean | null = null;
+    let tradingPrefs: TradingPrefs = { ...DEFAULT_TRADING_PREFS };
     for (const docId of getSecretDocIds(exchangeName)) {
       const secretDoc = await db.collection("users").doc(uid).collection("secrets").doc(docId).get();
       if (secretDoc.exists && docMatchesExchange(secretDoc.data()!, exchangeName, docId)) {
-        autoTradeEnabled = secretDoc.data()?.autoTradeEnabled === true;
+        const secretData = secretDoc.data()!;
+        autoTradeEnabled = secretData.autoTradeEnabled === true;
+        tradingPrefs = tradingPrefsFromSecret(secretData);
         break;
       }
     }
@@ -108,6 +116,7 @@ export async function GET(
       /** Secrets-doc switch the live dispatcher reads (can be false after kill switch). */
       autoTradeEnabled,
       liveMirroringActive: status === "active" && autoTradeEnabled === true,
+      tradingPrefs,
       lifetimeRealizedPnl: aggregates.lifetimeRealizedPnl,
       openTradeCount: aggregates.openTradeCount,
       closedTradeCount: aggregates.closedTradeCount,

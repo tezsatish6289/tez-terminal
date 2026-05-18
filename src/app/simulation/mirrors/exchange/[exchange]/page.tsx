@@ -13,7 +13,7 @@ function ExchangeMirrorsFallback() {
   );
 }
 
-export default function AdminSimExchangeMirrorsPage() {
+export default function SimulationExchangeMirrorsPage() {
   const params = useParams();
   const exchange = decodeURIComponent(String(params.exchange ?? "")).toUpperCase();
 

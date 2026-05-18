@@ -7,8 +7,7 @@ import type {
   ExchangeMirrorSummary,
   LiveMirrorTrade,
 } from "@/lib/admin/live-mirror-display";
-import { ChevronRight, ExternalLink, Loader2 } from "lucide-react";
-import { TableCell, TableRow } from "@/components/ui/table";
+import { ChevronRight, Loader2 } from "lucide-react";
 
 const ADMIN_EMAIL = "hello@tezterminal.com";
 
@@ -63,7 +62,7 @@ export function useOpenTradesMirrors(simTradeIds: string[], enabled: boolean) {
   };
 }
 
-/** Exchange pills linking to a full-page drill-down (above open trades table). */
+/** Exchange pills — opens full-page view for that exchange. */
 export function LiveMirrorExchangeBar({
   exchangeSummary,
   loading,
@@ -111,7 +110,7 @@ export function LiveMirrorExchangeBar({
         {exchangeSummary.map((ex) => (
           <Link
             key={ex.exchange}
-            href={`/admin/sim-open-trades/exchange/${encodeURIComponent(ex.exchange)}?simTradeIds=${idsQuery}`}
+            href={`/simulation/mirrors/exchange/${encodeURIComponent(ex.exchange)}?simTradeIds=${idsQuery}`}
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-white/10 bg-white/[0.03] text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-accent hover:border-accent/30 transition-colors"
           >
             <ChevronRight className="h-3 w-3" />
@@ -124,31 +123,24 @@ export function LiveMirrorExchangeBar({
   );
 }
 
-/** Link row under a sim trade — opens full-page live mirror detail. */
-export function SimTradeMirrorLinkRow({
+/** Clickable badge under symbol — opens per-trade mirror detail page. */
+export function LiveMirrorSymbolLink({
   simTradeId,
   mirrorCount,
-  colSpan,
 }: {
   simTradeId: string;
   mirrorCount: number;
-  colSpan: number;
 }) {
-  if (mirrorCount === 0) return null;
+  if (mirrorCount === 0 || !simTradeId) return null;
 
   return (
-    <TableRow className="border-white/5 bg-white/[0.01] hover:bg-white/[0.01]">
-      <TableCell colSpan={colSpan} className="py-1 px-3">
-        <Link
-          href={`/admin/sim-open-trades/${encodeURIComponent(simTradeId)}`}
-          onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-accent/80 hover:text-accent"
-        >
-          <ChevronRight className="h-3 w-3" />
-          {mirrorCount} live mirror{mirrorCount !== 1 ? "s" : ""} on exchange — view details
-          <ExternalLink className="h-3 w-3 opacity-60" />
-        </Link>
-      </TableCell>
-    </TableRow>
+    <Link
+      href={`/simulation/mirrors/${simTradeId}`}
+      onClick={(e) => e.stopPropagation()}
+      className="inline-flex items-center gap-0.5 text-[9px] font-mono font-bold text-accent/80 hover:text-accent mt-0.5"
+    >
+      {mirrorCount} live
+      <ChevronRight className="h-2.5 w-2.5" />
+    </Link>
   );
 }

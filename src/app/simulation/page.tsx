@@ -76,7 +76,7 @@ import { matchesBotSource, type BotSourceFilter as BotSourceFilterValue } from "
 import { CronHealthBanner } from "@/components/simulator/CronHealthBanner";
 import {
   LiveMirrorExchangeBar,
-  SimTradeMirrorLinkRow,
+  LiveMirrorSymbolLink,
   useOpenTradesMirrors,
 } from "@/components/simulator/OpenTradesLiveMirrors";
 
@@ -1159,8 +1159,6 @@ function ForceCloseDialog({ trade, onForceClose, children }: { trade: SimTrade; 
 
 // ── TradeList with column filters + pagination ────────────────
 
-const OPEN_TRADES_COL_SPAN = 14;
-
 function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose, cs, startingCapital, tradeNumberMap, balanceAfterMap: balanceAfterMapProp }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string; onSelectTrade: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string; startingCapital?: number; tradeNumberMap?: Map<string, number>; balanceAfterMap?: Map<string, number> }) {
   const isHistory = startingCapital != null;
   const isOpenTab = onForceClose != null;
@@ -1419,10 +1417,8 @@ function DesktopTradeRow({
         <Link href={`/chart/${trade.signalId}`} target="_blank" className="text-sm font-black text-white leading-none uppercase tracking-tighter hover:text-accent transition-colors" onClick={(e) => e.stopPropagation()}>
           {trade.symbol}
         </Link>
-        {showMirrorUi && mirrorCount > 0 && (
-          <div className="text-[9px] font-mono text-accent/70 mt-0.5">
-            {mirrorCount} live
-          </div>
+        {showMirrorUi && (
+          <LiveMirrorSymbolLink simTradeId={simTradeId} mirrorCount={mirrorCount} />
         )}
         {tradeNumber != null && (
           <div
@@ -1671,13 +1667,6 @@ function DesktopTradeRow({
         </div>
       </TableCell>
     </TableRow>
-    {showMirrorUi && simTradeId && (
-      <SimTradeMirrorLinkRow
-        simTradeId={simTradeId}
-        mirrorCount={mirrorCount}
-        colSpan={OPEN_TRADES_COL_SPAN}
-      />
-    )}
     </>
   );
 }

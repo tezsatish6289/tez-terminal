@@ -186,6 +186,14 @@
       ]
     },
     {
+      "collectionGroup": "live_trades",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "exchangeRealizedPnl", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "bot_deployments",
       "queryScope": "COLLECTION",
       "fields": [

@@ -26,12 +26,6 @@ import {
   type AllExchangePrices,
 } from "@/lib/exchanges";
 import {
-  computeClosedTradeExchangePnlMetrics,
-  exchangeReconcileOrderIdsFromLiveTrade,
-  coindcxClosedPnlWindowOpts,
-  bybitClosedPnlWindowOpts,
-  bybitClosedPnlApiEndMs,
-  exchangeClosedPnlFetchStartMs,
   reconcileTradeExchangePnl,
   exchangeSupportsClosedPnlReconciliation,
 } from "@/lib/freedombot/reconcile-exchange-pnl";
@@ -157,95 +151,11 @@ async function syncUserTrades(
       // best effort — never block main sync
     }
 
-    // ── 0. Backfill actual exchange data for closed trades ───────
-    // Fetches real PnL, entry/exit prices, and qty from the exchange for
-    // any closed trade missing exchangeRealizedPnl.
-    //
-    // For each attempted trade we bump `exchangePnlReconcileAttempts` so we can
-    // see in Firestore which trades have been retrying without success. Capped
-    // at 50/cycle to balance freshness vs. rate-limiting (Bybit ~120 req/sec).
-    // Best-effort: never blocks open-trade sync.
-    if (getConnector(exchange).getClosedPnl) {
-      try {
-        const missingSnap = await db.collection("live_trades")
-          .where("status", "==", "CLOSED")
-          .where("userId", "==", userId)
-          .where("exchange", "==", exchange)
-          .where("exchangeRealizedPnl", "==", null)
-          .limit(50)
-          .get();
-
-        const connector = getConnector(exchange);
-        for (const doc of missingSnap.docs) {
-          const lt = { id: doc.id, ...doc.data() } as LiveTrade;
-          const nowIso = new Date().toISOString();
-          try {
-            const openedAtMs = new Date(lt.openedAt).getTime();
-            const closedAtMs = lt.closedAt ? new Date(lt.closedAt).getTime() : Date.now();
-            if (!Number.isFinite(openedAtMs) || !Number.isFinite(closedAtMs)) continue;
-
-            const endArg = exchange === "BYBIT" ? bybitClosedPnlApiEndMs(closedAtMs) : undefined;
-            const records = await connector.getClosedPnl!(
-              lt.symbol,
-              creds,
-              exchangeClosedPnlFetchStartMs(exchange, openedAtMs),
-              endArg,
-            );
-            const metrics = computeClosedTradeExchangePnlMetrics(records, openedAtMs, closedAtMs, {
-              tradeSide:
-                String(lt.side ?? "BUY").toUpperCase() === "SELL" ? "SELL" : "BUY",
-              // Both Bybit and CoinDCX expose the order id on their PnL rows now,
-              // so prefer exact id match for either venue.
-              matchAnyOrderId:
-                exchange === "BYBIT" || exchange === "COINDCX"
-                  ? exchangeReconcileOrderIdsFromLiveTrade(lt as unknown as Record<string, unknown>)
-                  : undefined,
-              ...(exchange === "COINDCX" ? coindcxClosedPnlWindowOpts() : {}),
-              ...(exchange === "BYBIT" ? bybitClosedPnlWindowOpts() : {}),
-            });
-
-            if (metrics.recordCount === 0) {
-              // Track that we tried — useful for debugging perma-stuck trades.
-              await doc.ref.update({
-                exchangePnlReconcileAttempts: FieldValue.increment(1),
-                exchangePnlReconcileLastAttemptAt: nowIso,
-              });
-              continue;
-            }
-
-            const patch: Record<string, unknown> = {
-              exchangeRealizedPnl: Number(metrics.exchangeRealizedPnl.toFixed(6)),
-              exchangePnlReconciledAt: nowIso,
-              exchangePnlSource: "exchange_closed_pnl_api",
-              exchangePnlReconcileLastAttemptAt: nowIso,
-            };
-            if (metrics.exchangeAvgEntryPrice != null) {
-              patch.exchangeAvgEntryPrice = metrics.exchangeAvgEntryPrice;
-            }
-            if (metrics.exchangeAvgExitPrice != null) {
-              patch.exchangeAvgExitPrice = metrics.exchangeAvgExitPrice;
-            }
-            if (metrics.exchangeQty != null) {
-              patch.exchangeQty = metrics.exchangeQty;
-            }
-            await doc.ref.update(patch);
-          } catch (reconErr) {
-            try {
-              await doc.ref.update({
-                exchangePnlReconcileAttempts: FieldValue.increment(1),
-                exchangePnlReconcileLastAttemptAt: nowIso,
-                exchangePnlReconcileLastError:
-                  reconErr instanceof Error ? reconErr.message : String(reconErr),
-              });
-            } catch {
-              // best effort
-            }
-          }
-        }
-      } catch {
-        // best effort — never block main sync
-      }
-    }
+    // Closed-trade exchange-PnL backfill moved to /api/cron/sync-exchange-pnl
+    // (runs every 5 min as its own cron). Inline opportunistic reconciliation
+    // right after a fresh fill is still handled below via
+    // `reconcileClosedTradePnlBestEffort` — that's the fast path; the
+    // dedicated cron is the safety net.
 
     const liveTradesSnap = await db.collection("live_trades")
       .where("status", "==", "OPEN")

@@ -21,6 +21,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
+import { DEFAULT_TRADING_PREFS } from "@/lib/freedombot/trading-prefs-shared";
+import { RiskControls, type TradingPrefs } from "./risk-controls";
 import type { Auth, User } from "firebase/auth";
 // NOTE: DeployModal keeps its own local EXCHANGES / HELP_GUIDES tables
 // for now (richer copy + non-crypto bots). The shared `exchange-fields.ts`
@@ -286,6 +288,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
   const [isSigningIn, setIsSigningIn]   = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError]               = useState("");
+  const [tradingPrefs, setTradingPrefs] = useState<TradingPrefs>(DEFAULT_TRADING_PREFS);
 
   // Reset whenever modal opens
   useEffect(() => {
@@ -297,6 +300,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
       setShowPwd({});
       setShowHelp(false);
       setError("");
+      setTradingPrefs(DEFAULT_TRADING_PREFS);
     }
   }, [isOpen, user]);
 
@@ -338,7 +342,12 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
       const res = await fetch("/api/freedombot/deploy", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ bot: selectedBot, exchange: selectedExchange, credentials }),
+        body: JSON.stringify({
+          bot: selectedBot,
+          exchange: selectedExchange,
+          credentials,
+          ...tradingPrefs,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
@@ -696,6 +705,28 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                   ))}
                 </div>
               </div>
+
+              {selectedBot === "CRYPTO" && (
+                <div
+                  className="rounded-2xl p-4 mb-5 space-y-3"
+                  style={{
+                    backgroundColor: "rgba(10,22,40,0.6)",
+                    border: "1px solid rgba(90,140,220,0.12)",
+                  }}
+                >
+                  <p className="text-[11px] font-black uppercase tracking-widest" style={{ color: "#94a3b8" }}>
+                    Risk settings
+                  </p>
+                  <p className="text-[11px] leading-relaxed" style={{ color: "#64748b" }}>
+                    Default is 0.5% per trade. You can change these anytime in Bot Settings after deploy.
+                  </p>
+                  <RiskControls
+                    values={tradingPrefs}
+                    onChange={setTradingPrefs}
+                    compact
+                  />
+                </div>
+              )}
 
               {/* ── Credential fields ── */}
               <div className="space-y-4">

@@ -214,7 +214,7 @@ export default function MethodologyPage() {
                 position sizes automatically shrink as capital dips and grow as it rises.
               </Bullet>
               <Bullet>
-                At 1% risk per trade, it would take roughly{" "}
+                At your chosen risk per trade (default 0.5%), it would take roughly{" "}
                 <strong className="text-white">460 consecutive losses</strong> to approach zero — a
                 scenario that has never come close to occurring.
               </Bullet>

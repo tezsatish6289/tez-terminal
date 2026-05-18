@@ -17,7 +17,13 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
+  Shield,
 } from "lucide-react";
+import {
+  DEFAULT_TRADING_PREFS,
+  type TradingPrefs,
+} from "@/lib/freedombot/trading-prefs-shared";
+import { RiskControls } from "./risk-controls";
 import type { User } from "firebase/auth";
 import {
   getCryptoExchangeDef,
@@ -41,6 +47,7 @@ export interface SettingsDeployment {
   status: "active" | "paused";
   keyLastFour: string | null;
   wallet: DeploymentWallet | null;
+  tradingPrefs?: TradingPrefs;
 }
 
 interface BotSettingsProps {
@@ -104,6 +111,15 @@ export function BotSettings({
   const [pauseBusy, setPauseBusy] = useState(false);
   const [resumeBusy, setResumeBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [tradingPrefs, setTradingPrefs] = useState<TradingPrefs>(
+    deployment.tradingPrefs ?? DEFAULT_TRADING_PREFS,
+  );
+  const [savedTradingPrefs, setSavedTradingPrefs] = useState<TradingPrefs>(
+    deployment.tradingPrefs ?? DEFAULT_TRADING_PREFS,
+  );
+  const [riskSaveBusy, setRiskSaveBusy] = useState(false);
+  const [riskSaveError, setRiskSaveError] = useState<string | null>(null);
+  const [riskSaveOk, setRiskSaveOk] = useState(false);
 
   // Reset local state whenever the panel switches to a different deployment
   // — without this, opening Settings on Bybit after closing Hyperliquid
@@ -114,7 +130,12 @@ export function BotSettings({
     setUpdateOpen(false);
     setDeleteOpen(false);
     setUpdateBanner(null);
-  }, [deployment.id, deployment.wallet, deployment.keyLastFour]);
+    const prefs = deployment.tradingPrefs ?? DEFAULT_TRADING_PREFS;
+    setTradingPrefs(prefs);
+    setSavedTradingPrefs(prefs);
+    setRiskSaveError(null);
+    setRiskSaveOk(false);
+  }, [deployment.id, deployment.wallet, deployment.keyLastFour, deployment.tradingPrefs]);
 
   const exchangeDef = useMemo(
     () => getCryptoExchangeDef(deployment.exchange),
@@ -194,6 +215,49 @@ export function BotSettings({
       setResumeBusy(false);
     }
   }, [user, deployment.id, onMutated]);
+
+  const riskDirty =
+    tradingPrefs.riskPerTrade !== savedTradingPrefs.riskPerTrade ||
+    tradingPrefs.maxConcurrentTrades !== savedTradingPrefs.maxConcurrentTrades ||
+    tradingPrefs.dailyLossLimit !== savedTradingPrefs.dailyLossLimit;
+
+  const handleSaveRisk = useCallback(async () => {
+    if (!user || !riskDirty) return;
+    setRiskSaveBusy(true);
+    setRiskSaveError(null);
+    setRiskSaveOk(false);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/freedombot/trading-settings", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          deploymentId: deployment.id,
+          ...tradingPrefs,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRiskSaveError(data.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      const next =
+        data.tradingPrefs && typeof data.tradingPrefs === "object"
+          ? (data.tradingPrefs as TradingPrefs)
+          : tradingPrefs;
+      setTradingPrefs(next);
+      setSavedTradingPrefs(next);
+      setRiskSaveOk(true);
+      onMutated();
+    } catch (e) {
+      setRiskSaveError(e instanceof Error ? e.message : "Unexpected error");
+    } finally {
+      setRiskSaveBusy(false);
+    }
+  }, [user, deployment.id, tradingPrefs, riskDirty, onMutated]);
 
   if (!isOpen) return null;
 
@@ -337,6 +401,67 @@ export function BotSettings({
                 />
               </div>
             )}
+          </section>
+
+          {/* ── Risk & sizing ───────────────────────────────────────────── */}
+          <section>
+            <SectionLabel icon={Shield} text="Risk & sizing" />
+            <div
+              className="rounded-2xl p-4 space-y-3"
+              style={{
+                backgroundColor: "rgba(10,22,40,0.6)",
+                border: "1px solid rgba(90,140,220,0.12)",
+              }}
+            >
+              <p className="text-xs leading-relaxed" style={{ color: "#64748b" }}>
+                Live trades use these settings (not the simulator). Position size is based on{" "}
+                <span className="text-slate-300">min(wallet, available)</span>, capped at{" "}
+                <span className="text-slate-300">95%</span> of margin × leverage.
+              </p>
+              <RiskControls
+                values={tradingPrefs}
+                onChange={(next) => {
+                  setTradingPrefs(next);
+                  setRiskSaveOk(false);
+                }}
+                disabled={riskSaveBusy}
+              />
+              {riskSaveError && (
+                <div
+                  className="rounded-xl px-3 py-2 text-[11px] leading-relaxed"
+                  style={{
+                    backgroundColor: "rgba(239,68,68,0.07)",
+                    color: "#fca5a5",
+                    border: "1px solid rgba(239,68,68,0.15)",
+                  }}
+                >
+                  {riskSaveError}
+                </div>
+              )}
+              {riskSaveOk && !riskDirty && (
+                <p className="text-[11px] font-bold" style={{ color: "#34d399" }}>
+                  Risk settings saved.
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={handleSaveRisk}
+                disabled={!riskDirty || riskSaveBusy}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] disabled:opacity-40 disabled:hover:scale-100"
+                style={{
+                  backgroundColor: "rgba(59,130,246,0.12)",
+                  color: "#60a5fa",
+                  border: "1px solid rgba(59,130,246,0.25)",
+                }}
+              >
+                {riskSaveBusy ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                )}
+                Save risk settings
+              </button>
+            </div>
           </section>
 
           {/* ── Status block ─────────────────────────────────────────────── */}

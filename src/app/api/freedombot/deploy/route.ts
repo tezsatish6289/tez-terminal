@@ -4,6 +4,10 @@ import { encrypt } from "@/lib/crypto";
 import { getConnector, getSecretDocId } from "@/lib/exchanges";
 import type { ExchangeName, ExchangeCredentials } from "@/lib/exchanges";
 import { persistWalletBalanceSnapshot } from "@/lib/freedombot/wallet-balance";
+import {
+  DEFAULT_TRADING_PREFS,
+  validateTradingPrefsUpdate,
+} from "@/lib/freedombot/trading-prefs";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -50,11 +54,25 @@ export async function POST(req: NextRequest) {
       bot?: string;
       exchange?: string;
       credentials?: Record<string, string>;
+      riskPerTrade?: unknown;
+      maxConcurrentTrades?: unknown;
+      dailyLossLimit?: unknown;
     };
 
     if (!bot || !exchange || !credentials?.apiKey || !credentials?.apiSecret) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
+
+    const prefsInput = validateTradingPrefsUpdate({
+      riskPerTrade: body.riskPerTrade ?? DEFAULT_TRADING_PREFS.riskPerTrade,
+      maxConcurrentTrades:
+        body.maxConcurrentTrades ?? DEFAULT_TRADING_PREFS.maxConcurrentTrades,
+      dailyLossLimit: body.dailyLossLimit ?? DEFAULT_TRADING_PREFS.dailyLossLimit,
+    });
+    if (!prefsInput.ok) {
+      return NextResponse.json({ error: prefsInput.error }, { status: 400 });
+    }
+    const tradingPrefs = { ...DEFAULT_TRADING_PREFS, ...prefsInput.updates };
 
     if (!ALLOWED_BOTS.has(bot)) {
       return NextResponse.json({ error: "Invalid bot" }, { status: 400 });
@@ -200,9 +218,9 @@ export async function POST(req: NextRequest) {
       encryptedSecret: encrypt(credentials.apiSecret),
       keyLastFour: credentials.apiKey.slice(-4),
       autoTradeEnabled: true,
-      riskPerTrade: 0.5,
-      maxConcurrentTrades: 1,
-      dailyLossLimit: 5,
+      riskPerTrade: tradingPrefs.riskPerTrade,
+      maxConcurrentTrades: tradingPrefs.maxConcurrentTrades,
+      dailyLossLimit: tradingPrefs.dailyLossLimit,
       useTestnet: false,
       savedAt: new Date().toISOString(),
     });

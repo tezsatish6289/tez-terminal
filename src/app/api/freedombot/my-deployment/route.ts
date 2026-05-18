@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore, getAdminAuth } from "@/firebase/admin";
+import {
+  DEFAULT_TRADING_PREFS,
+  loadTradingPrefs,
+} from "@/lib/freedombot/trading-prefs";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +71,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ deployment: null, deployments: [] });
     }
 
+    const tradingPrefsByExchange = new Map<string, Awaited<ReturnType<typeof loadTradingPrefs>>>();
+    const uniqueExchanges = [...new Set(visible.map((d) => String(d.exchange ?? "")).filter(Boolean))];
+    await Promise.all(
+      uniqueExchanges.map(async (ex) => {
+        tradingPrefsByExchange.set(ex, await loadTradingPrefs(db, uid, ex));
+      }),
+    );
+
     const mapDep = (dep: Row) => {
       const status = normalizeStatus(dep.status);
       const walletStatusRaw = String(dep.walletStatus ?? "").toLowerCase();
@@ -74,6 +86,7 @@ export async function GET(req: NextRequest) {
         walletStatusRaw === "valid" || walletStatusRaw === "invalid"
           ? walletStatusRaw
           : null;
+      const exchangeKey = String(dep.exchange ?? "");
       return {
         id: dep.id,
         bot: dep.bot,
@@ -99,6 +112,8 @@ export async function GET(req: NextRequest) {
                 typeof dep.walletCheckedAt === "string" ? dep.walletCheckedAt : null,
             }
           : null,
+        tradingPrefs:
+          tradingPrefsByExchange.get(exchangeKey) ?? { ...DEFAULT_TRADING_PREFS },
       };
     };
 

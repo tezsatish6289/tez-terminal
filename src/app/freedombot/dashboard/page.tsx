@@ -25,6 +25,7 @@ import {
   type DeploymentWallet,
   type SettingsDeployment,
 } from "../components/BotSettings";
+import type { TradingPrefs } from "@/lib/freedombot/trading-prefs-shared";
 import { toast } from "@/hooks/use-toast";
 import { TradesPanel } from "@/components/freedombot/TradesPanel";
 import {
@@ -51,6 +52,7 @@ interface Deployment {
    *  while we're waiting for the first test-connection call to land or
    *  when the deployment pre-dates wallet tracking. */
   wallet?: DeploymentWallet | null;
+  tradingPrefs?: TradingPrefs;
 }
 
 interface BotStats {
@@ -997,6 +999,7 @@ export default function FreedomBotDashboard() {
               status: selectedDeployment.status,
               keyLastFour: selectedDeployment.keyLastFour ?? null,
               wallet: selectedDeployment.wallet ?? null,
+              tradingPrefs: selectedDeployment.tradingPrefs,
             } satisfies SettingsDeployment
           }
           exchangeLabel={

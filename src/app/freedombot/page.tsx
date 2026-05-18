@@ -1013,7 +1013,7 @@ export default function FreedomBotPage() {
               },
               {
                 q: "What's the maximum I can lose on a single trade?",
-                a: "By default the bot risks 1% of your balance per trade. With a stop-loss set at entry, a loss on any single trade is small and defined — never a wipeout. The risk per trade is capped by design.",
+                a: "You choose risk per trade in Bot Settings (default 0.5% of balance). With a stop-loss set at entry, a loss on any single trade is small and defined. A daily loss cap can pause new entries if the day goes against you.",
               },
               {
                 q: "Am I at risk of liquidation?",

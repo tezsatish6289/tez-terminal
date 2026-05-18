@@ -76,10 +76,9 @@ import { matchesBotSource, type BotSourceFilter as BotSourceFilterValue } from "
 import { CronHealthBanner } from "@/components/simulator/CronHealthBanner";
 import {
   LiveMirrorExchangeBar,
-  SimTradeMirrorSubRow,
+  SimTradeMirrorLinkRow,
   useOpenTradesMirrors,
 } from "@/components/simulator/OpenTradesLiveMirrors";
-import type { LiveMirrorTrade } from "@/lib/admin/live-mirror-display";
 
 function formatMoney(val: number, cs = "$"): string {
   if (cs === "₹") {
@@ -1167,8 +1166,6 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
   const isOpenTab = onForceClose != null;
   const [filters, setFilters] = useState<SimFilters>(DEFAULT_SIM_FILTERS);
   const [page, setPage] = useState(1);
-  const [expandedMirrorSimId, setExpandedMirrorSimId] = useState<string | null>(null);
-
   const simTradeIds = useMemo(
     () =>
       isOpenTab
@@ -1238,6 +1235,7 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
           exchangeSummary={exchangeSummary}
           loading={mirrorsLoading}
           error={mirrorsError}
+          simTradeIds={simTradeIds}
         />
       )}
 
@@ -1352,11 +1350,8 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
                         balance={balance}
                         startingCapital={startingCapital}
                         tradeNumber={tradeNumber}
-                        liveMirrors={mirrors}
-                        mirrorExpanded={expandedMirrorSimId === simId}
-                        onToggleMirrors={() =>
-                          setExpandedMirrorSimId((prev) => (prev === simId ? null : simId))
-                        }
+                        simTradeId={simId}
+                        mirrorCount={mirrors.length}
                         showMirrorUi={mirrorAdmin && isOpenTab}
                       />
                     );
@@ -1392,9 +1387,8 @@ function DesktopTradeRow({
   balance,
   startingCapital,
   tradeNumber,
-  liveMirrors = [],
-  mirrorExpanded = false,
-  onToggleMirrors,
+  simTradeId = "",
+  mirrorCount = 0,
   showMirrorUi = false,
 }: {
   trade: SimTrade;
@@ -1405,9 +1399,8 @@ function DesktopTradeRow({
   balance?: number;
   startingCapital?: number;
   tradeNumber?: number;
-  liveMirrors?: LiveMirrorTrade[];
-  mirrorExpanded?: boolean;
-  onToggleMirrors?: () => void;
+  simTradeId?: string;
+  mirrorCount?: number;
   showMirrorUi?: boolean;
 }) {
   const isBuy = trade.side === "BUY";
@@ -1426,9 +1419,9 @@ function DesktopTradeRow({
         <Link href={`/chart/${trade.signalId}`} target="_blank" className="text-sm font-black text-white leading-none uppercase tracking-tighter hover:text-accent transition-colors" onClick={(e) => e.stopPropagation()}>
           {trade.symbol}
         </Link>
-        {showMirrorUi && liveMirrors.length > 0 && (
+        {showMirrorUi && mirrorCount > 0 && (
           <div className="text-[9px] font-mono text-accent/70 mt-0.5">
-            {liveMirrors.length} live
+            {mirrorCount} live
           </div>
         )}
         {tradeNumber != null && (
@@ -1678,11 +1671,10 @@ function DesktopTradeRow({
         </div>
       </TableCell>
     </TableRow>
-    {showMirrorUi && onToggleMirrors && (
-      <SimTradeMirrorSubRow
-        mirrors={liveMirrors}
-        expanded={mirrorExpanded}
-        onToggle={onToggleMirrors}
+    {showMirrorUi && simTradeId && (
+      <SimTradeMirrorLinkRow
+        simTradeId={simTradeId}
+        mirrorCount={mirrorCount}
         colSpan={OPEN_TRADES_COL_SPAN}
       />
     )}

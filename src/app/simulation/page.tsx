@@ -69,6 +69,12 @@ import { buildEquityCurve } from "@/lib/equity-curve";
 import { BotSourceFilter } from "@/components/dashboard/BotSourceFilter";
 import { matchesBotSource, type BotSourceFilter as BotSourceFilterValue } from "@/lib/bot-source-filter";
 import { CronHealthBanner } from "@/components/simulator/CronHealthBanner";
+import {
+  LiveMirrorExchangeBar,
+  SimTradeMirrorSubRow,
+  useOpenTradesMirrors,
+} from "@/components/simulator/OpenTradesLiveMirrors";
+import type { LiveMirrorTrade } from "@/lib/admin/live-mirror-display";
 
 function formatMoney(val: number, cs = "$"): string {
   if (cs === "₹") {
@@ -1120,10 +1126,29 @@ function ForceCloseDialog({ trade, onForceClose, children }: { trade: SimTrade; 
 
 // ── TradeList with column filters + pagination ────────────────
 
+const OPEN_TRADES_COL_SPAN = 14;
+
 function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose, cs, startingCapital, tradeNumberMap, balanceAfterMap: balanceAfterMapProp }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string; onSelectTrade: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string; startingCapital?: number; tradeNumberMap?: Map<string, number>; balanceAfterMap?: Map<string, number> }) {
   const isHistory = startingCapital != null;
+  const isOpenTab = onForceClose != null;
   const [filters, setFilters] = useState<SimFilters>(DEFAULT_SIM_FILTERS);
   const [page, setPage] = useState(1);
+  const [expandedMirrorSimId, setExpandedMirrorSimId] = useState<string | null>(null);
+
+  const simTradeIds = useMemo(
+    () =>
+      isOpenTab
+        ? trades.map((t) => t.id ?? (t.signalId ? `sim-${t.signalId}` : "")).filter(Boolean)
+        : [],
+    [trades, isOpenTab],
+  );
+  const {
+    isAdmin: mirrorAdmin,
+    mirrorsBySimTradeId,
+    exchangeSummary,
+    loading: mirrorsLoading,
+    error: mirrorsError,
+  } = useOpenTradesMirrors(simTradeIds, isOpenTab);
   const setF = <K extends keyof SimFilters>(k: K, v: SimFilters[K]) => {
     setFilters((prev) => ({ ...prev, [k]: v }));
     setPage(1);
@@ -1174,6 +1199,14 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
 
   return (
     <div className="space-y-2">
+      {isOpenTab && mirrorAdmin && (
+        <LiveMirrorExchangeBar
+          exchangeSummary={exchangeSummary}
+          loading={mirrorsLoading}
+          error={mirrorsError}
+        />
+      )}
+
       {/* Active filter bar */}
       {active > 0 && (
         <div className="flex items-center gap-3 px-1">
@@ -1272,8 +1305,26 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
                     const key = trade.id ?? trade.signalId;
                     const balance = balanceAfterMap && key ? balanceAfterMap.get(key) : undefined;
                     const tradeNumber = tradeNumberMap && key ? tradeNumberMap.get(key) : undefined;
+                    const simId = trade.id ?? (trade.signalId ? `sim-${trade.signalId}` : "");
+                    const mirrors = simId ? (mirrorsBySimTradeId[simId] ?? []) : [];
                     return (
-                      <DesktopTradeRow key={key} trade={trade} onSelect={onSelectTrade} onForceClose={onForceClose} cs={cs} isHistory={isHistory} balance={balance} startingCapital={startingCapital} tradeNumber={tradeNumber} />
+                      <DesktopTradeRow
+                        key={key}
+                        trade={trade}
+                        onSelect={onSelectTrade}
+                        onForceClose={onForceClose}
+                        cs={cs}
+                        isHistory={isHistory}
+                        balance={balance}
+                        startingCapital={startingCapital}
+                        tradeNumber={tradeNumber}
+                        liveMirrors={mirrors}
+                        mirrorExpanded={expandedMirrorSimId === simId}
+                        onToggleMirrors={() =>
+                          setExpandedMirrorSimId((prev) => (prev === simId ? null : simId))
+                        }
+                        showMirrorUi={mirrorAdmin && isOpenTab}
+                      />
                     );
                   })
                 ) : (
@@ -1298,7 +1349,33 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
   );
 }
 
-function DesktopTradeRow({ trade, onSelect, onForceClose, cs, isHistory, balance, startingCapital, tradeNumber }: { trade: SimTrade; onSelect: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string; isHistory?: boolean; balance?: number; startingCapital?: number; tradeNumber?: number }) {
+function DesktopTradeRow({
+  trade,
+  onSelect,
+  onForceClose,
+  cs,
+  isHistory,
+  balance,
+  startingCapital,
+  tradeNumber,
+  liveMirrors = [],
+  mirrorExpanded = false,
+  onToggleMirrors,
+  showMirrorUi = false,
+}: {
+  trade: SimTrade;
+  onSelect: (t: SimTrade) => void;
+  onForceClose?: (t: SimTrade) => void;
+  cs: string;
+  isHistory?: boolean;
+  balance?: number;
+  startingCapital?: number;
+  tradeNumber?: number;
+  liveMirrors?: LiveMirrorTrade[];
+  mirrorExpanded?: boolean;
+  onToggleMirrors?: () => void;
+  showMirrorUi?: boolean;
+}) {
   const isBuy = trade.side === "BUY";
   const isOpen = trade.status === "OPEN";
   const chartLabel = tfLabelMap[String(trade.timeframe).toUpperCase()] ?? `${trade.timeframe}m`;
@@ -1309,11 +1386,17 @@ function DesktopTradeRow({ trade, onSelect, onForceClose, cs, isHistory, balance
   const cellPy = isHistory ? "py-2" : "py-4";
 
   return (
+    <>
     <TableRow className="border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer" onClick={() => onSelect(trade)}>
       <TableCell className={cellPy}>
         <Link href={`/chart/${trade.signalId}`} target="_blank" className="text-sm font-black text-white leading-none uppercase tracking-tighter hover:text-accent transition-colors" onClick={(e) => e.stopPropagation()}>
           {trade.symbol}
         </Link>
+        {showMirrorUi && liveMirrors.length > 0 && (
+          <div className="text-[9px] font-mono text-accent/70 mt-0.5">
+            {liveMirrors.length} live
+          </div>
+        )}
         {tradeNumber != null && (
           <div
             className="font-mono text-[9px] text-muted-foreground/40 hover:text-muted-foreground/70 cursor-pointer transition-colors mt-0.5"
@@ -1561,6 +1644,15 @@ function DesktopTradeRow({ trade, onSelect, onForceClose, cs, isHistory, balance
         </div>
       </TableCell>
     </TableRow>
+    {showMirrorUi && onToggleMirrors && (
+      <SimTradeMirrorSubRow
+        mirrors={liveMirrors}
+        expanded={mirrorExpanded}
+        onToggle={onToggleMirrors}
+        colSpan={OPEN_TRADES_COL_SPAN}
+      />
+    )}
+    </>
   );
 }
 

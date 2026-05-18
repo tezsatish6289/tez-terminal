@@ -1,18 +1,18 @@
 "use client";
 
-import { useMemo } from "react";
-import { collection } from "firebase/firestore";
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { useCallback, useMemo, useState, useEffect } from "react";
+import { useUser } from "@/firebase";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import {
   CRON_JOBS,
-  evaluateCronLevel,
   type CronJobId,
   type CronHeartbeatDoc,
   type CronHealthLevel,
 } from "@/lib/cron-health-shared";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+
+const ADMIN_EMAIL = "hello@tezterminal.com";
 
 function formatStale(staleMs: number | null): string {
   if (staleMs == null) return "no successful run yet";
@@ -35,58 +35,65 @@ function levelStyles(level: CronHealthLevel): string {
   }
 }
 
+type JobView = {
+  job: (typeof CRON_JOBS)[CronJobId];
+  doc: CronHeartbeatDoc;
+  level: CronHealthLevel;
+  staleMs: number | null;
+};
+
+/** Ops banner — admin only; loads via Admin API (not client Firestore). */
 export function CronHealthBanner() {
-  const firestore = useFirestore();
-  const healthQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, "cron_health");
-  }, [firestore]);
-  const { data: docs, isLoading, refetch } = useCollection(healthQuery);
-  useAutoRefresh([refetch], 60_000);
+  const { user } = useUser();
+  const isAdmin = user?.email === ADMIN_EMAIL;
+  const [views, setViews] = useState<JobView[] | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  const views = useMemo(() => {
-    const byId = new Map<string, CronHeartbeatDoc>();
-    for (const d of docs ?? []) {
-      // useCollection returns plain `{ id, ...fields }` objects, not snapshots.
-      byId.set(d.id, d as CronHeartbeatDoc);
+  const fetchHealth = useCallback(async () => {
+    if (!user || !isAdmin) return;
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/admin/cron-health", {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      setViews(data.jobs ?? []);
+    } catch (e: unknown) {
+      setFetchError(e instanceof Error ? e.message : "Failed to load cron health");
+      setViews(null);
+    } finally {
+      setIsLoading(false);
     }
-    const nowMs = Date.now();
-    return (Object.keys(CRON_JOBS) as CronJobId[]).map((id) => {
-      const job = CRON_JOBS[id];
-      const doc =
-        byId.get(id) ??
-        ({
-          jobId: id,
-          label: job.label,
-          enabled: true,
-          lastAttemptAt: null,
-          lastSuccessAt: null,
-          lastError: null,
-          consecutiveFailures: 0,
-          consecutiveDegraded: 0,
-          lastDurationMs: null,
-          lastSummary: null,
-          lastTelegramLevel: null,
-          lastTelegramAt: null,
-        } satisfies CronHeartbeatDoc);
-      const { level, staleMs } = evaluateCronLevel(job, doc, nowMs);
-      return { job, doc, level, staleMs };
-    });
-  }, [docs]);
+  }, [user, isAdmin]);
 
-  const worst = views.reduce<CronHealthLevel>((acc, v) => {
-    const rank: Record<CronHealthLevel, number> = {
-      ok: 0,
-      unknown: 1,
-      warn: 2,
-      critical: 3,
-    };
-    return rank[v.level] > rank[acc] ? v.level : acc;
-  }, "ok");
+  useEffect(() => {
+    if (isAdmin && user) void fetchHealth();
+  }, [isAdmin, user, fetchHealth]);
+
+  useAutoRefresh(isAdmin ? [fetchHealth] : [], 60_000);
+
+  const worst = useMemo(() => {
+    if (!views?.length) return "ok" as CronHealthLevel;
+    return views.reduce<CronHealthLevel>((acc, v) => {
+      const rank: Record<CronHealthLevel, number> = {
+        ok: 0,
+        unknown: 1,
+        warn: 2,
+        critical: 3,
+      };
+      return rank[v.level] > rank[acc] ? v.level : acc;
+    }, "ok");
+  }, [views]);
+
+  if (!isAdmin) return null;
 
   const anyBad = worst === "warn" || worst === "critical";
 
-  if (isLoading && !docs?.length) {
+  if (isLoading && !views?.length) {
     return (
       <div className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[10px] text-muted-foreground">
         <Loader2 className="h-3 w-3 animate-spin" />
@@ -94,6 +101,16 @@ export function CronHealthBanner() {
       </div>
     );
   }
+
+  if (fetchError) {
+    return (
+      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[10px] text-amber-200">
+        Cron health unavailable: {fetchError}
+      </div>
+    );
+  }
+
+  if (!views?.length) return null;
 
   return (
     <div className={cn("rounded-xl border px-3 py-2.5 space-y-2", levelStyles(worst))}>
@@ -129,16 +146,19 @@ export function CronHealthBanner() {
             <div className="font-mono text-[9px] opacity-80 mt-0.5">
               {level.toUpperCase()} · {formatStale(staleMs)}
             </div>
-            {doc.lastSummary && (
+            {doc.lastSummary ? (
               <div className="text-[9px] opacity-60 truncate mt-0.5" title={doc.lastSummary}>
                 {doc.lastSummary}
               </div>
-            )}
-            {doc.lastError && (level === "critical" || level === "warn") && (
-              <div className="text-[9px] text-rose-300/90 mt-0.5 line-clamp-2" title={doc.lastError}>
+            ) : null}
+            {doc.lastError && (level === "critical" || level === "warn") ? (
+              <div
+                className="text-[9px] text-rose-300/90 mt-0.5 line-clamp-2"
+                title={doc.lastError}
+              >
                 {doc.lastError}
               </div>
-            )}
+            ) : null}
           </div>
         ))}
       </div>

@@ -94,6 +94,29 @@ interface SuggestedZones {
   deribitIndexPrice: number | null;
   source:            string;
   computedAt:        string;
+
+  // ── v2 fields (added 2026-05-19) — all optional for back-compat with
+  //    pre-v2 suggested_zones docs that haven't been re-computed yet. ────
+  /** ATM IV (decimal, e.g. 0.3134 = 31.34%) used to derive all sizes. */
+  atmIV?:               number | null;
+  /** front IV / week IV. ≥ 1.10 = backwardation / panic regime. */
+  ivBackwardation?:     number | null;
+  /** ATM IV ≥ 70% OR term-structure inverted. Fresh entries suppressed. */
+  inPanicRegime?:       boolean | null;
+  /** Auto-derived half-width (1-σ × 4 hours, floored/capped). */
+  halfWidthUsd?:        number | null;
+  /** Reach band radius (1-σ × 1 day). Strikes outside this aren't picked. */
+  maxReachUsd?:         number | null;
+  /** Pin-gap threshold (0.5 × halfWidth). */
+  minPinGapUsd?:        number | null;
+  /** Suggester verdict: BULL entries safe? Considers magnet, TP-room, regime. */
+  bullActionable?:      boolean | null;
+  bearActionable?:      boolean | null;
+  /** Human-readable explanation when both sides aren't actionable. */
+  notActionableReason?: string | null;
+  /** Share of side OI captured by the chosen cluster strike (0..1). */
+  bullClusterShare?:    number | null;
+  bearClusterShare?:    number | null;
 }
 
 const EMPTY_ZONES: HeatmapZones = {
@@ -469,6 +492,78 @@ export function HeatmapAutoSwitch() {
             <div className="space-y-3">
               {suggested ? (
                 <>
+                  {/* ── Regime context (atmIV, reach, sizes) ──
+                      v2 transparency strip. Surfaces the suggester's
+                      auto-derived numbers so the bot's idle/active state
+                      is never a black box. */}
+                  {(suggested.atmIV != null || suggested.halfWidthUsd != null) && (() => {
+                    const iv         = suggested.atmIV ?? null;
+                    const ivPct      = iv != null ? iv * 100 : null;
+                    const spot       = suggested.deribitIndexPrice ?? suggested.btcPrice ?? null;
+                    const reach      = suggested.maxReachUsd ?? null;
+                    const half       = suggested.halfWidthUsd ?? null;
+                    const panic      = suggested.inPanicRegime === true;
+                    // Regime colour: green calm < 50%, amber elevated 50-70%, red panic ≥ 70%.
+                    const ivColor =
+                      panic                         ? "bg-negative/15 border-negative/30 text-negative"
+                      : ivPct != null && ivPct >= 50 ? "bg-amber-400/15 border-amber-400/30 text-amber-300"
+                      :                                "bg-positive/15 border-positive/30 text-positive/90";
+
+                    return (
+                      <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/55 shrink-0">Regime</span>
+                            {ivPct != null && (
+                              <span className={cn("px-1.5 py-0.5 rounded border text-[9px] font-mono font-bold", ivColor)}>
+                                ATM IV {ivPct.toFixed(1)}%
+                              </span>
+                            )}
+                            {panic && (
+                              <span className="text-[8px] font-bold uppercase tracking-wider text-negative/80">PANIC</span>
+                            )}
+                            <InfoTip text="ATM IV is the market's expected 1-σ daily move. < 50% = calm, 50-70% = elevated, ≥ 70% or inverted term structure = panic (fresh entries suppressed). Drives every distance below via Black-Scholes σ math — no arbitrary $-numbers." />
+                          </div>
+                        </div>
+                        {(half != null || reach != null) && (
+                          <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
+                            {half != null && (
+                              <div className="rounded border border-white/[0.05] bg-white/[0.02] px-2 py-1.5">
+                                <p className="text-[8px] uppercase tracking-wider text-muted-foreground/45">Half-width</p>
+                                <p className="text-[11px] font-bold text-foreground/85">±${Math.round(half).toLocaleString()}</p>
+                                <p className="text-[8px] text-muted-foreground/35">4h × 1σ (auto)</p>
+                              </div>
+                            )}
+                            {reach != null && spot != null && (
+                              <div className="rounded border border-white/[0.05] bg-white/[0.02] px-2 py-1.5">
+                                <p className="text-[8px] uppercase tracking-wider text-muted-foreground/45">Reach band</p>
+                                <p className="text-[11px] font-bold text-foreground/85">±${Math.round(reach).toLocaleString()}</p>
+                                <p className="text-[8px] text-muted-foreground/35">
+                                  ${Math.round(spot - reach).toLocaleString()}–${Math.round(spot + reach).toLocaleString()}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Not-actionable banner — surfaced when both sides idle for
+                      reasons other than spot-position. The suggester explains
+                      why; this prevents the "why is the bot idle?" black-box
+                      problem. Distinct from signalConflict / insufficientGap
+                      which are more specific. */}
+                  {suggested.bullActionable === false && suggested.bearActionable === false &&
+                   suggested.notActionableReason && !suggested.signalConflict && !suggested.insufficientGap && (
+                    <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.04] px-3 py-2.5">
+                      <p className="text-[10px] font-bold text-amber-400/85">No actionable side right now</p>
+                      <p className="text-[9px] text-muted-foreground/55 mt-0.5 font-mono">
+                        {suggested.notActionableReason}
+                      </p>
+                    </div>
+                  )}
+
                   {/* Signal conflict warning */}
                   {suggested.signalConflict && (
                     <div className="rounded-lg border border-amber-400/30 bg-amber-400/[0.06] px-3 py-2.5">
@@ -522,12 +617,23 @@ export function HeatmapAutoSwitch() {
                     </div>
                   )}
 
-                  {/* Bull / Bear zone cards */}
+                  {/* Bull / Bear zone cards. v2: cluster-share badge, dim
+                      when not actionable, fixed legacy "(wtd)" label. */}
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-lg border border-positive/20 bg-positive/[0.04] px-3 py-2.5 space-y-1">
-                      <div className="flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3 text-positive/60" />
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-positive/70">Bull entry</p>
+                    <div className={cn(
+                      "rounded-lg border border-positive/20 bg-positive/[0.04] px-3 py-2.5 space-y-1 transition-opacity",
+                      suggested.bullStrike != null && suggested.bullActionable === false && "opacity-55",
+                    )}>
+                      <div className="flex items-center gap-1 justify-between">
+                        <div className="flex items-center gap-1 min-w-0">
+                          <TrendingUp className="w-3 h-3 text-positive/60 shrink-0" />
+                          <p className="text-[9px] font-bold uppercase tracking-widest text-positive/70">Bull entry</p>
+                        </div>
+                        {suggested.bullStrike != null && suggested.bullActionable === false && (
+                          <span className="text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-white/[0.06] text-muted-foreground/60 shrink-0">
+                            Idle
+                          </span>
+                        )}
                       </div>
                       {suggested.bullStrike != null ? (
                         <>
@@ -539,9 +645,16 @@ export function HeatmapAutoSwitch() {
                             {suggested.deribitIndexPrice != null && <> · index ${Math.round(suggested.deribitIndexPrice).toLocaleString()}</>}
                           </p>
                           {(suggested.bullOI ?? suggested.bullVolume) != null && (
-                            <p className="text-[9px] text-muted-foreground/40">
-                              {Math.round(suggested.bullOI ?? suggested.bullVolume ?? 0)}c put OI (wtd)
-                            </p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[9px] text-muted-foreground/40">
+                                {Math.round(suggested.bullOI ?? suggested.bullVolume ?? 0)}c put OI (all expiries)
+                              </span>
+                              {suggested.bullClusterShare != null && (
+                                <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-positive/15 text-positive/75">
+                                  {Math.round(suggested.bullClusterShare * 100)}% of side
+                                </span>
+                              )}
+                            </div>
                           )}
                           {suggested.bullTpTarget != null && (
                             <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
@@ -557,6 +670,11 @@ export function HeatmapAutoSwitch() {
                               )}
                             </div>
                           )}
+                          {suggested.bullActionable === false && suggested.notActionableReason && (
+                            <p className="text-[8px] text-muted-foreground/40 pt-1 italic">
+                              {suggested.notActionableReason}
+                            </p>
+                          )}
                         </>
                       ) : (
                         <p className="text-[10px] text-muted-foreground/40 pt-1">
@@ -564,10 +682,20 @@ export function HeatmapAutoSwitch() {
                         </p>
                       )}
                     </div>
-                    <div className="rounded-lg border border-negative/20 bg-negative/[0.04] px-3 py-2.5 space-y-1">
-                      <div className="flex items-center gap-1">
-                        <TrendingDown className="w-3 h-3 text-negative/60" />
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-negative/70">Bear entry</p>
+                    <div className={cn(
+                      "rounded-lg border border-negative/20 bg-negative/[0.04] px-3 py-2.5 space-y-1 transition-opacity",
+                      suggested.bearStrike != null && suggested.bearActionable === false && "opacity-55",
+                    )}>
+                      <div className="flex items-center gap-1 justify-between">
+                        <div className="flex items-center gap-1 min-w-0">
+                          <TrendingDown className="w-3 h-3 text-negative/60 shrink-0" />
+                          <p className="text-[9px] font-bold uppercase tracking-widest text-negative/70">Bear entry</p>
+                        </div>
+                        {suggested.bearStrike != null && suggested.bearActionable === false && (
+                          <span className="text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-white/[0.06] text-muted-foreground/60 shrink-0">
+                            Idle
+                          </span>
+                        )}
                       </div>
                       {suggested.bearStrike != null ? (
                         <>
@@ -579,9 +707,16 @@ export function HeatmapAutoSwitch() {
                             {suggested.deribitIndexPrice != null && <> · index ${Math.round(suggested.deribitIndexPrice).toLocaleString()}</>}
                           </p>
                           {(suggested.bearOI ?? suggested.bearVolume) != null && (
-                            <p className="text-[9px] text-muted-foreground/40">
-                              {Math.round(suggested.bearOI ?? suggested.bearVolume ?? 0)}c call OI (wtd)
-                            </p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[9px] text-muted-foreground/40">
+                                {Math.round(suggested.bearOI ?? suggested.bearVolume ?? 0)}c call OI (all expiries)
+                              </span>
+                              {suggested.bearClusterShare != null && (
+                                <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-negative/15 text-negative/75">
+                                  {Math.round(suggested.bearClusterShare * 100)}% of side
+                                </span>
+                              )}
+                            </div>
                           )}
                           {suggested.bearTpTarget != null && (
                             <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
@@ -596,6 +731,11 @@ export function HeatmapAutoSwitch() {
                                 <span className="text-[8px] text-muted-foreground/30">{suggested.bearTpExpiry}</span>
                               )}
                             </div>
+                          )}
+                          {suggested.bearActionable === false && suggested.notActionableReason && (
+                            <p className="text-[8px] text-muted-foreground/40 pt-1 italic">
+                              {suggested.notActionableReason}
+                            </p>
                           )}
                         </>
                       ) : (
@@ -616,20 +756,10 @@ export function HeatmapAutoSwitch() {
                 </div>
               )}
 
-              <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                    Deribit zone half-width
-                  </p>
-                  <InfoTip text="Controls the entry band width around each Deribit strike. E.g. ±300 = $600 wide band. Narrower = tighter zone, fewer but more precise entries. Default 500." />
-                </div>
-                <PriceInput
-                  label="± USD around strike"
-                  description="Full entry band = 2× this value. Leave empty for default (500)."
-                  value={zones.zoneHalfWidthUsd}
-                  onChange={(v) => handleChange("zoneHalfWidthUsd", v)}
-                />
-              </div>
+              {/* Half-width is now auto-derived per call from ATM IV
+                  (1-σ × 4h, floored at 2-σ × 15min, capped at 2% of spot).
+                  The manual input was removed 2026-05-19. The actual value
+                  is shown in the Regime card at the top of this panel. */}
 
               <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1">
                 <div className="flex items-center gap-1.5">

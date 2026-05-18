@@ -47,7 +47,8 @@ export function CronHealthBanner() {
   const views = useMemo(() => {
     const byId = new Map<string, CronHeartbeatDoc>();
     for (const d of docs ?? []) {
-      byId.set(d.id, d.data() as CronHeartbeatDoc);
+      // useCollection returns plain `{ id, ...fields }` objects, not snapshots.
+      byId.set(d.id, d as CronHeartbeatDoc);
     }
     const nowMs = Date.now();
     return (Object.keys(CRON_JOBS) as CronJobId[]).map((id) => {

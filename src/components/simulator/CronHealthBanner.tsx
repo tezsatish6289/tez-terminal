@@ -10,7 +10,7 @@ import {
   type CronJobId,
   type CronHeartbeatDoc,
   type CronHealthLevel,
-} from "@/lib/cron-health";
+} from "@/lib/cron-health-shared";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 

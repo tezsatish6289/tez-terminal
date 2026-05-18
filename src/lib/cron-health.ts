@@ -1,111 +1,32 @@
 /**
- * Cron heartbeat registry + admin Telegram alerts (deduped).
+ * Cron heartbeat registry + admin Telegram alerts (server-only).
  */
 import type { Firestore } from "firebase-admin/firestore";
 import { notifyAdminTelegram } from "@/lib/admin-telegram";
+import {
+  CRON_JOBS,
+  evaluateCronLevel,
+  type CronHealthView,
+  type CronHeartbeatDoc,
+  type CronHealthLevel,
+  type CronJobId,
+} from "@/lib/cron-health-shared";
 
-export type CronJobId = "sync-prices" | "sync-simulator" | "sync-live-trades";
-
-export type CronHealthLevel = "ok" | "warn" | "critical" | "unknown";
-
-export interface CronJobConfig {
-  id: CronJobId;
-  label: string;
-  intervalMs: number;
-  warnAfterMs: number;
-  alertAfterMs: number;
-  telegram: boolean;
-}
-
-/** P0 trading chain — 1 min cadence on cron-job.org */
-export const CRON_JOBS: Record<CronJobId, CronJobConfig> = {
-  "sync-prices": {
-    id: "sync-prices",
-    label: "Price sync",
-    intervalMs: 60_000,
-    warnAfterMs: 3 * 60_000,
-    alertAfterMs: 5 * 60_000,
-    telegram: true,
-  },
-  "sync-simulator": {
-    id: "sync-simulator",
-    label: "Simulator sync",
-    intervalMs: 60_000,
-    warnAfterMs: 3 * 60_000,
-    alertAfterMs: 5 * 60_000,
-    telegram: true,
-  },
-  "sync-live-trades": {
-    id: "sync-live-trades",
-    label: "Live trade sync",
-    intervalMs: 60_000,
-    warnAfterMs: 3 * 60_000,
-    alertAfterMs: 5 * 60_000,
-    telegram: true,
-  },
-};
-
-export interface CronHeartbeatDoc {
-  jobId: CronJobId;
-  label: string;
-  enabled: boolean;
-  lastAttemptAt: string | null;
-  lastSuccessAt: string | null;
-  lastError: string | null;
-  consecutiveFailures: number;
-  consecutiveDegraded: number;
-  lastDurationMs: number | null;
-  lastSummary: string | null;
-  lastTelegramLevel: CronHealthLevel | null;
-  lastTelegramAt: string | null;
-}
-
-export interface CronHealthView extends CronHeartbeatDoc {
-  level: CronHealthLevel;
-  staleMs: number | null;
-  config: CronJobConfig;
-}
+export {
+  CRON_JOBS,
+  evaluateCronLevel,
+  type CronHealthView,
+  type CronHeartbeatDoc,
+  type CronHealthLevel,
+  type CronJobConfig,
+  type CronJobId,
+} from "@/lib/cron-health-shared";
 
 /** Repeat Telegram while a P0 job stays CRITICAL (even if that job’s cron stopped). */
 const TELEGRAM_REMINDER_MS = 5 * 60_000;
 
 function docRef(db: Firestore, jobId: CronJobId) {
   return db.collection("cron_health").doc(jobId);
-}
-
-export function evaluateCronLevel(
-  job: CronJobConfig,
-  doc: Pick<
-    CronHeartbeatDoc,
-    "enabled" | "lastSuccessAt" | "consecutiveFailures" | "consecutiveDegraded"
-  >,
-  nowMs = Date.now(),
-): { level: CronHealthLevel; staleMs: number | null } {
-  if (doc.enabled === false) {
-    return { level: "ok", staleMs: null };
-  }
-  if (!doc.lastSuccessAt) {
-    return { level: "unknown", staleMs: null };
-  }
-  const staleMs = nowMs - new Date(doc.lastSuccessAt).getTime();
-  if (doc.consecutiveFailures >= 3) {
-    return { level: "critical", staleMs };
-  }
-  if (staleMs >= job.alertAfterMs) {
-    return { level: "critical", staleMs };
-  }
-  if (staleMs >= job.warnAfterMs || doc.consecutiveDegraded >= 3) {
-    return { level: "warn", staleMs };
-  }
-  return { level: "ok", staleMs };
-}
-
-function formatStale(staleMs: number | null): string {
-  if (staleMs == null) return "never succeeded";
-  const mins = Math.round(staleMs / 60_000);
-  if (mins < 90) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  return `${hrs}h ago`;
 }
 
 /**

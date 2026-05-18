@@ -50,8 +50,10 @@ export interface ZoneBotSettings {
   manualOverride: ZoneBotOverride;
 
   /** ± USD around each Deribit strike to form the zone band.
-   *  Fixed USD, NOT a percent — different defaults per asset (BTC = 500,
-   *  SOL = 1.5, etc.). */
+   *  @deprecated As of 2026-05-19 the suggester (`options-zones.ts`)
+   *  auto-derives half-width per call from ATM IV. This field is preserved
+   *  for back-compat with existing Firestore docs and the legacy UI input
+   *  but the value is ignored by `computeOptionsZones`. */
   zoneHalfWidthUsd: number;
 
   /** Minutes BTC/ETH/etc. must hold the zone floor/ceiling without making
@@ -60,7 +62,8 @@ export interface ZoneBotSettings {
 
   /** Minimum USD distance between a candidate strike and today's (day-0)
    *  max pain. Strikes inside the band are skipped at selection time
-   *  because price action there is typically erratic. 0 disables. */
+   *  because price action there is typically erratic. 0 disables.
+   *  null → suggester default (= 2 × auto-derived halfWidth). */
   maxPainMinDistanceUsd: number;
 
   /** When ONLY one zone (bull OR bear) is active, close matching open trades

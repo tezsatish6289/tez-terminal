@@ -1,4 +1,5 @@
 import type { Firestore } from "firebase-admin/firestore";
+import { checkZoneConfirmation as sharedCheckZoneConfirmation } from "./zone-bot-engine";
 
 export const HEATMAP_ZONES_DOC = "config/heatmap_zones";
 
@@ -17,7 +18,10 @@ export interface HeatmapZones {
   /** Minutes BTC must hold the zone floor/ceiling without new lows/highs before trades open.
    *  null = no confirmation required (activate immediately on zone entry). */
   zoneConfirmMinutes:  number | null;
-  /** ±USD around each Deribit strike for AUTO zones; null → server default (500). */
+  /** ±USD around each Deribit strike for AUTO zones; null → server default (500).
+   *  @deprecated As of 2026-05-19 the suggester auto-derives half-width per call
+   *  from ATM IV. This field is preserved for back-compat with old Firestore docs
+   *  and the UI input but the value is ignored by `computeOptionsZones`. */
   zoneHalfWidthUsd:    number | null;
   /** Close open trades when BTC is within this many $ of today's max pain (one-sided zones only). null → default 200. */
   maxPainProximityUsd: number | null;
@@ -25,8 +29,19 @@ export interface HeatmapZones {
    *  today's (day-0) max pain price when selecting AUTO bull/bear zones.
    *  Strikes inside the band are skipped at selection time, so the simulator
    *  never picks a strike whose price sits in the erratic max-pain region.
-   *  Default $1,000. Set to 0 to disable the filter. */
+   *  null → suggester default (= 2 × auto-derived halfWidth).
+   *  0    → filter disabled. */
   maxPainMinDistanceUsd: number | null;
+
+  // ── v2 regime context (read from suggester; not user-editable) ─────────
+  /** Suggester's verdict on whether BULL entries are safe right now. Pulled
+   *  from `config/suggested_zones` in `loadEffectiveHeatmapZones`. Undefined
+   *  on legacy docs — treated as permissive default. */
+  bullActionable?:      boolean;
+  bearActionable?:      boolean;
+  inPanicRegime?:       boolean;
+  signalConflict?:      boolean;
+  notActionableReason?: string | null;
 }
 
 export interface PricePoint {
@@ -34,7 +49,14 @@ export interface PricePoint {
   ts:    number; // unix ms
 }
 
-export const ZONE_KEYS: (keyof Omit<HeatmapZones, "manualOverride" | "zoneConfirmMinutes">)[] = [
+/** Keys that hold the six zone band prices (`number | null`). Narrower
+ *  than `keyof HeatmapZones` so the parser loop can assign uniformly —
+ *  HeatmapZones now also carries booleans + strings (v2 regime flags). */
+export type ZoneKey =
+  | "bullZoneLow" | "bullZoneHigh" | "bullExitAbove"
+  | "bearZoneHigh" | "bearZoneLow" | "bearExitBelow";
+
+export const ZONE_KEYS: ZoneKey[] = [
   "bullZoneLow", "bullZoneHigh", "bullExitAbove",
   "bearZoneHigh", "bearZoneLow", "bearExitBelow",
 ];
@@ -163,6 +185,14 @@ export async function loadEffectiveHeatmapZones(db: Firestore): Promise<Effectiv
             bearZoneLow: s.bearZoneLow as number,
             bearZoneHigh: s.bearZoneHigh as number,
             bearExitBelow: (s.bearExitBelow as number | null) ?? null,
+            // v2 regime flags — passed through verbatim so computeAutoSwitch
+            // can consult them. Undefined when reading legacy docs.
+            bullActionable:      typeof s.bullActionable === "boolean" ? s.bullActionable : undefined,
+            bearActionable:      typeof s.bearActionable === "boolean" ? s.bearActionable : undefined,
+            inPanicRegime:       typeof s.inPanicRegime  === "boolean" ? s.inPanicRegime  : undefined,
+            signalConflict:      typeof s.signalConflict === "boolean" ? s.signalConflict : undefined,
+            notActionableReason: typeof s.notActionableReason === "string"
+                                   ? (s.notActionableReason as string) : null,
           };
         } else {
           if (!hasZones) autoZoneClearReason = "missing_suggested";
@@ -221,77 +251,26 @@ export function resolveHeatmapAutoStatusReason(
 }
 
 /**
- * Rolling zone confirmation check.
+ * Pattern-bot zone confirmation check — thin wrapper over the shared
+ * `checkZoneConfirmation` in `zone-bot-engine.ts`. We pass `Date.now()`
+ * for the clock and let the engine's CONFIRMATION_NOISE_PCT_OF_SPOT
+ * default decide the noise floor (anchored to the floor price itself).
  *
- * Uses the last `confirmMinutes` minutes of BTC price history to verify:
- *   1. Every price stayed on the right side of the zone floor/ceiling.
- *   2. No new lows (BULL) / no new highs (BEAR) in the second half vs first half.
- *
- * Returns null when there is insufficient history — caller should NOT block trading
- * (benefit of the doubt on early start / cold cache).
+ * Returning the same shape as before so the call sites below don't churn.
  */
 function checkZoneConfirmation(
   history:        PricePoint[],
   confirmMinutes: number,
-  floor:          number, // bullZoneLow for BULL, bearZoneHigh for BEAR
+  floor:          number,
   direction:      "BULL" | "BEAR",
 ): { confirmed: boolean; minutesHeld: number; detail: string } | null {
-  const now       = Date.now();
-  const windowMs  = confirmMinutes * 60_000;
-  const fmt       = (n: number) => `$${Math.round(n).toLocaleString()}`;
-
-  const window = history
-    .filter((p) => now - p.ts <= windowMs)
-    .sort((a, b) => a.ts - b.ts);
-
-  // Need at least half the expected points to make a meaningful call.
-  // If history is too thin (cold cache / first run), skip the gate.
-  const minRequired = Math.max(3, Math.floor(confirmMinutes / 2));
-  if (window.length < minRequired) return null; // not enough data — let it through
-
-  const minutesHeld = Math.round(window.length); // approx 1 point per minute
-
-  // ── Check 1: zone floor never broken ─────────────────────────────────────
-  const aboveFloor = direction === "BULL"
-    ? window.every((p) => p.price >= floor)
-    : window.every((p) => p.price <= floor);
-
-  if (!aboveFloor) {
-    const worst = direction === "BULL"
-      ? Math.min(...window.map((p) => p.price))
-      : Math.max(...window.map((p) => p.price));
-    return {
-      confirmed: false, minutesHeld,
-      detail: `zone ${direction === "BULL" ? "floor" : "ceiling"} broken — ${fmt(worst)} breached ${fmt(floor)}`,
-    };
-  }
-
-  // ── Check 2: no new lows (BULL) / no new highs (BEAR) ───────────────────
-  const half      = Math.floor(window.length / 2);
-  const firstHalf = window.slice(0, half);
-  const lastHalf  = window.slice(-half);
-
-  if (direction === "BULL") {
-    const minFirst = Math.min(...firstHalf.map((p) => p.price));
-    const minLast  = Math.min(...lastHalf.map((p) => p.price));
-    if (minLast < minFirst) {
-      return {
-        confirmed: false, minutesHeld,
-        detail: `still making lower lows (${fmt(minFirst)} → ${fmt(minLast)})`,
-      };
-    }
-  } else {
-    const maxFirst = Math.max(...firstHalf.map((p) => p.price));
-    const maxLast  = Math.max(...lastHalf.map((p) => p.price));
-    if (maxLast > maxFirst) {
-      return {
-        confirmed: false, minutesHeld,
-        detail: `still making higher highs (${fmt(maxFirst)} → ${fmt(maxLast)})`,
-      };
-    }
-  }
-
-  return { confirmed: true, minutesHeld, detail: `held ${confirmMinutes} min, no new ${direction === "BULL" ? "lows" : "highs"}` };
+  return sharedCheckZoneConfirmation(
+    history,
+    confirmMinutes,
+    floor,
+    direction,
+    Date.now(),
+  );
 }
 
 export function computeAutoSwitch(
@@ -308,6 +287,21 @@ export function computeAutoSwitch(
     return { simEnabled: false, directionBias: "BOTH", reason: "OFF — BTC price unavailable" };
   }
 
+  // ── Regime gates (suggester-provided; ignored on legacy docs) ──────────
+  // Mirrors the same gates in `evaluateZoneBot`. Panic IV or signal
+  // conflict suppresses fresh entries entirely. Pattern-bot pause is a
+  // simEnabled=false; the orchestrating UI / sim cron treats this as
+  // "AUTO mode says don't fire" same as a missing zone.
+  if (zones.inPanicRegime || zones.signalConflict) {
+    return {
+      simEnabled: false,
+      directionBias: "BOTH",
+      reason: zones.notActionableReason ??
+        (zones.inPanicRegime ? "OFF — panic regime (entries suppressed)"
+                              : "OFF — signal conflict (entries suppressed)"),
+    };
+  }
+
   const { bullZoneLow, bullZoneHigh, bullExitAbove, bearZoneHigh, bearZoneLow, bearExitBelow, zoneConfirmMinutes } = zones;
   const fmt = (n: number) => `$${n.toLocaleString()}`;
 
@@ -317,6 +311,16 @@ export function computeAutoSwitch(
     btcPrice >= bullZoneLow && btcPrice <= bullExitAbove;
 
   if (bullActive) {
+    // Suggester actionable veto — when explicitly false (e.g. magnet doesn't
+    // pull up, TP-room too small), don't fire even if price sits in band.
+    if (zones.bullActionable === false) {
+      return {
+        simEnabled: false,
+        directionBias: "BOTH",
+        reason: zones.notActionableReason ?? `OFF — BULL zone present but not actionable`,
+      };
+    }
+
     const inZone   = bullZoneHigh !== null && btcPrice <= bullZoneHigh;
     const posLabel = inZone
       ? `BTC ${fmt(btcPrice)} in entry zone ${fmt(bullZoneLow!)}–${fmt(bullZoneHigh!)}`
@@ -325,8 +329,15 @@ export function computeAutoSwitch(
     if (zoneConfirmMinutes) {
       const check = checkZoneConfirmation(priceHistory, zoneConfirmMinutes, bullZoneLow!, "BULL");
       if (check === null) {
-        // Not enough history yet — activate anyway (cold cache / first run)
-        return { simEnabled: true, directionBias: "BULL", reason: `BULL ACTIVE — ${posLabel} (confirmation: building history…)` };
+        // Cold cache — hold OFF instead of failing open. The legacy "let it
+        // through" behaviour caused the May-14 cascade (13 sequential SLs)
+        // where the pattern bot fired BULL trades on incomplete history.
+        // Mirrors the zone-bot engine's IDLE-on-cold behaviour.
+        return {
+          simEnabled: false,
+          directionBias: "BOTH",
+          reason: `OFF — BULL confirming: building history (${priceHistory.length}/${zoneConfirmMinutes} samples)`,
+        };
       }
       if (!check.confirmed) {
         return {
@@ -346,6 +357,14 @@ export function computeAutoSwitch(
     btcPrice >= bearExitBelow && btcPrice <= bearZoneHigh;
 
   if (bearActive) {
+    if (zones.bearActionable === false) {
+      return {
+        simEnabled: false,
+        directionBias: "BOTH",
+        reason: zones.notActionableReason ?? `OFF — BEAR zone present but not actionable`,
+      };
+    }
+
     const inZone   = bearZoneLow !== null && btcPrice >= bearZoneLow;
     const posLabel = inZone
       ? `BTC ${fmt(btcPrice)} in entry zone ${fmt(bearZoneLow!)}–${fmt(bearZoneHigh!)}`
@@ -354,7 +373,11 @@ export function computeAutoSwitch(
     if (zoneConfirmMinutes) {
       const check = checkZoneConfirmation(priceHistory, zoneConfirmMinutes, bearZoneHigh!, "BEAR");
       if (check === null) {
-        return { simEnabled: true, directionBias: "BEAR", reason: `BEAR ACTIVE — ${posLabel} (confirmation: building history…)` };
+        return {
+          simEnabled: false,
+          directionBias: "BOTH",
+          reason: `OFF — BEAR confirming: building history (${priceHistory.length}/${zoneConfirmMinutes} samples)`,
+        };
       }
       if (!check.confirmed) {
         return {

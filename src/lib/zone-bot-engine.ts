@@ -40,7 +40,11 @@ import type { PricePoint, ZoneBotState } from "./zone-bot-state";
 
 /** Minimal slice of `OptionsZones` (from `options-zones.ts`) that the
  *  engine actually needs. Keeping this narrow decouples the engine from
- *  the full suggester schema and makes it trivially mock-able in tests. */
+ *  the full suggester schema and makes it trivially mock-able in tests.
+ *
+ *  v2 (2026-05-19) adds regime/actionable flags computed by the suggester.
+ *  They're optional so old docs in Firestore continue to work — when
+ *  missing, the engine treats them as permissive defaults. */
 export interface ZoneBotSuggestedZones {
   bullZoneLow:   number | null;
   bullZoneHigh:  number | null;
@@ -52,6 +56,21 @@ export interface ZoneBotSuggestedZones {
   maxPain:       number | null;
   /** ISO timestamp when the suggester computed these zones. */
   computedAt:    string;
+
+  // ── v2 regime flags (optional for back-compat) ────────────────────────
+  /** Suggester says it's safe to fire fresh BULL entries (magnet pulls up,
+   *  TP-room satisfied, no panic/conflict regime). Undefined → permissive
+   *  default (treat as true if a bull zone exists). */
+  bullActionable?: boolean;
+  bearActionable?: boolean;
+  /** ATM IV ≥ panic threshold OR IV term-structure inverted. Open trades
+   *  unaffected; no fresh entries fire while this is true. */
+  inPanicRegime?: boolean;
+  /** Day-0 and day-1 max pains point opposite sides of spot — chop regime. */
+  signalConflict?: boolean;
+  /** Human-readable explanation surfaced into `state.reason` when neither
+   *  side is actionable. */
+  notActionableReason?: string | null;
 }
 
 export type ZoneBotAction =
@@ -122,6 +141,15 @@ const MAX_SL_DISTANCE_PCT = 0.03;
  *  is a one-line edit. */
 const BULL_SL_MULT = 0.99;
 const BEAR_SL_MULT = 1.01;
+
+/** Noise tolerance (fraction of spot) applied to the zone-floor / no-new-
+ *  lows checks. With BTC at $76k that's $53 — a single 1-sec wick that
+ *  pierces the floor by $20 no longer resets the confirmation timer.
+ *
+ *  Derivation: 7 bps ≈ 1-σ over ~3 minutes at typical BTC IV (~30%).
+ *  Smaller than the strike-grid spacing, larger than tick noise, anchored
+ *  to a real timescale. Asset-agnostic — works for ETH/SOL/XRP unchanged. */
+const CONFIRMATION_NOISE_PCT_OF_SPOT = 0.0007;
 
 // ── Trade-parameter math ─────────────────────────────────────────────────
 
@@ -208,6 +236,11 @@ export function checkZoneConfirmation(
   floor:          number,
   direction:      "BULL" | "BEAR",
   now:            number,
+  /** Optional override for the noise tolerance applied to gate 1 (floor
+   *  breach) and gate 2 (new lows / highs). Defaults to 7 bps of the
+   *  floor price — see CONFIRMATION_NOISE_PCT_OF_SPOT above for the
+   *  derivation. Tests pass 0 to get the legacy strict behaviour. */
+  noiseFloorUsd?: number,
 ): ZoneConfirmationCheck | null {
   const windowMs = confirmMinutes * 60_000;
   const window   = history
@@ -222,11 +255,14 @@ export function checkZoneConfirmation(
 
   const fmt = (n: number) => `$${Math.round(n).toLocaleString()}`;
   const minutesHeld = Math.round(window.length); // ≈ 1 sample / minute
+  const noise = noiseFloorUsd ?? Math.abs(floor) * CONFIRMATION_NOISE_PCT_OF_SPOT;
 
-  // Gate 1: zone floor / ceiling never broken anywhere in the window.
+  // Gate 1: zone floor / ceiling held, with a noise tolerance so that
+  // single 1-sec wicks below the floor by < `noise` don't reset the
+  // confirmation timer. A genuine break stays caught (wicks > noise).
   const heldFloor = direction === "BULL"
-    ? window.every((p) => p.price >= floor)
-    : window.every((p) => p.price <= floor);
+    ? window.every((p) => p.price >= floor - noise)
+    : window.every((p) => p.price <= floor + noise);
 
   if (!heldFloor) {
     const worst = direction === "BULL"
@@ -235,13 +271,13 @@ export function checkZoneConfirmation(
     return {
       confirmed: false,
       minutesHeld,
-      detail: `zone ${direction === "BULL" ? "floor" : "ceiling"} broken — ${fmt(worst)} breached ${fmt(floor)}`,
+      detail: `zone ${direction === "BULL" ? "floor" : "ceiling"} broken — ${fmt(worst)} breached ${fmt(floor)} by > ${fmt(noise)}`,
     };
   }
 
   // Gate 2: no new lows (BULL) / no new highs (BEAR) in 2nd half vs 1st half.
-  // Catches the case where price sits above the floor but is still drifting
-  // weaker — i.e., the bottom hasn't actually been put in yet.
+  // Same noise tolerance — a few-dollar drift over a 15-min window is
+  // normal and shouldn't count as "still drifting weaker".
   const half      = Math.floor(window.length / 2);
   const firstHalf = window.slice(0, half);
   const lastHalf  = window.slice(-half);
@@ -249,21 +285,21 @@ export function checkZoneConfirmation(
   if (direction === "BULL") {
     const minFirst = Math.min(...firstHalf.map((p) => p.price));
     const minLast  = Math.min(...lastHalf.map((p) => p.price));
-    if (minLast < minFirst) {
+    if (minLast < minFirst - noise) {
       return {
         confirmed: false,
         minutesHeld,
-        detail: `still making lower lows (${fmt(minFirst)} → ${fmt(minLast)})`,
+        detail: `still making lower lows (${fmt(minFirst)} → ${fmt(minLast)}, > ${fmt(noise)} drift)`,
       };
     }
   } else {
     const maxFirst = Math.max(...firstHalf.map((p) => p.price));
     const maxLast  = Math.max(...lastHalf.map((p) => p.price));
-    if (maxLast > maxFirst) {
+    if (maxLast > maxFirst + noise) {
       return {
         confirmed: false,
         minutesHeld,
-        detail: `still making higher highs (${fmt(maxFirst)} → ${fmt(maxLast)})`,
+        detail: `still making higher highs (${fmt(maxFirst)} → ${fmt(maxLast)}, > ${fmt(noise)} drift)`,
       };
     }
   }
@@ -271,7 +307,7 @@ export function checkZoneConfirmation(
   return {
     confirmed: true,
     minutesHeld,
-    detail: `held ${confirmMinutes} min, no new ${direction === "BULL" ? "lows" : "highs"}`,
+    detail: `held ${confirmMinutes} min, no new ${direction === "BULL" ? "lows" : "highs"} (noise ±${fmt(noise)})`,
   };
 }
 
@@ -414,6 +450,7 @@ export function evaluateZoneBot(input: EvaluateZoneBotInput): EvaluateZoneBotRes
         oppositeFloor,
         oppositeDir,
         now,
+        spot * CONFIRMATION_NOISE_PCT_OF_SPOT,
       );
 
       // Cold cache — hold both: trade stays open, confirmation primes.
@@ -514,12 +551,40 @@ export function evaluateZoneBot(input: EvaluateZoneBotInput): EvaluateZoneBotRes
   }
 
   // ── 4. No open trade — look for a fresh entry ──────────────────────────
+  // Before evaluating zones, check the suggester's regime flags. Panic IV
+  // or signal conflict suppresses fresh entries entirely. Existing trades
+  // (handled above) are untouched — they manage themselves on SL/TPs.
+  if (suggested.inPanicRegime || suggested.signalConflict) {
+    next.direction  = "IDLE";
+    next.confirming = null;
+    next.reason = suggested.notActionableReason ??
+      (suggested.inPanicRegime ? "Panic regime — entries suppressed"
+                                : "Signal conflict — entries suppressed");
+    return { nextState: next, action: { type: "NONE", reason: next.reason } };
+  }
+
   // BULL has priority arbitrarily when both sides are in entry (which
   // shouldn't happen with a >$2,500 gap, but be defensive).
   if (zones.priceInBull) {
+    // Suggester-level actionable veto. When the field is undefined
+    // (legacy doc), treat as permissive — we used to ignore this gate
+    // entirely. When explicitly false, hold IDLE with the suggester's
+    // own reason so the operator sees consistent state across UI + bot.
+    if (suggested.bullActionable === false) {
+      next.direction  = "IDLE";
+      next.confirming = null;
+      next.reason     = suggested.notActionableReason ?? "BULL zone present but not actionable";
+      return { nextState: next, action: { type: "NONE", reason: next.reason } };
+    }
     return tryOpen("BULL", spot, zones, settings, state, history, next, now);
   }
   if (zones.priceInBear) {
+    if (suggested.bearActionable === false) {
+      next.direction  = "IDLE";
+      next.confirming = null;
+      next.reason     = suggested.notActionableReason ?? "BEAR zone present but not actionable";
+      return { nextState: next, action: { type: "NONE", reason: next.reason } };
+    }
     return tryOpen("BEAR", spot, zones, settings, state, history, next, now);
   }
 
@@ -552,6 +617,7 @@ function tryOpen(
     floor,
     side,
     now,
+    spot * CONFIRMATION_NOISE_PCT_OF_SPOT,
   );
 
   // Cold cache — start the confirmation timer, no trade yet.

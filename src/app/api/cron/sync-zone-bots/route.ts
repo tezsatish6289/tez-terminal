@@ -138,13 +138,16 @@ async function computeAndPersistZones(
   spot:     number,
   settings: ZoneBotSettings,
 ): Promise<ZoneBotSuggestedZones | null> {
-  // Compute fresh Deribit-OI zones with per-asset config so the
-  // strike-selection filter (skip strikes near today's max pain) and
-  // half-width both come from the user's settings rather than the global
-  // pattern-bot ones.
+  // Compute fresh Deribit-OI zones. As of v2 (2026-05-19) the half-width
+  // is auto-derived inside `computeOptionsZones` from ATM IV — the user's
+  // `zoneHalfWidthUsd` setting is ignored (kept on the settings doc for
+  // back-compat / UI history but no longer plumbed in). Only the
+  // max-pain-min-distance override is still wired through; null = use the
+  // suggester's halfWidth-anchored default.
   try {
-    const result = await computeOptionsZones(spot, {
-      zoneHalfWidthUsd:      settings.zoneHalfWidthUsd,
+    const result = await computeOptionsZones({
+      asset,
+      currentPrice:          spot,
       maxPainMinDistanceUsd: settings.maxPainMinDistanceUsd,
     });
 
@@ -172,28 +175,45 @@ async function computeAndPersistZones(
       bearTpTarget:      result.bearTpTarget,
       bearTpExpiry:      result.bearTpExpiry,
       bearTpConfidence:  result.bearTpConfidence,
-      expiryUsed:        result.expiryUsed,
-      expiriesUsed:      result.expiriesUsed,
-      expiryOI:          result.expiryOI,
-      insufficientGap:   result.insufficientGap,
-      btcPrice:          result.btcPrice,
-      deribitIndexPrice: result.deribitIndexPrice,
-      source:            "deribit",
-      computedAt:        result.computedAt,
+      // v2 transparency fields — make derived sizes and regime visible.
+      atmIV:               result.atmIV,
+      ivBackwardation:     result.ivBackwardation,
+      inPanicRegime:       result.inPanicRegime,
+      halfWidthUsd:        result.halfWidthUsd,
+      maxReachUsd:         result.maxReachUsd,
+      minPinGapUsd:        result.minPinGapUsd,
+      bullActionable:      result.bullActionable,
+      bearActionable:      result.bearActionable,
+      notActionableReason: result.notActionableReason,
+      bullClusterShare:    result.bullClusterShare,
+      bearClusterShare:    result.bearClusterShare,
+      expiryUsed:          result.expiryUsed,
+      expiriesUsed:        result.expiriesUsed,
+      expiryOI:            result.expiryOI,
+      insufficientGap:     result.insufficientGap,
+      btcPrice:            result.btcPrice,
+      deribitIndexPrice:   result.deribitIndexPrice,
+      source:              "deribit",
+      computedAt:          result.computedAt,
     };
 
     await db.doc(`config/suggested_zones_${asset}`).set(doc);
 
-    // Engine only needs a narrow slice — return that view.
+    // Engine consumes the narrow slice (plus the new regime flags).
     return {
-      bullZoneLow:   result.bullZoneLow,
-      bullZoneHigh:  result.bullZoneHigh,
-      bullExitAbove: result.bullExitAbove,
-      bearZoneHigh:  result.bearZoneHigh,
-      bearZoneLow:   result.bearZoneLow,
-      bearExitBelow: result.bearExitBelow,
-      maxPain:       result.maxPain,
-      computedAt:    result.computedAt,
+      bullZoneLow:         result.bullZoneLow,
+      bullZoneHigh:        result.bullZoneHigh,
+      bullExitAbove:       result.bullExitAbove,
+      bearZoneHigh:        result.bearZoneHigh,
+      bearZoneLow:         result.bearZoneLow,
+      bearExitBelow:       result.bearExitBelow,
+      maxPain:             result.maxPain,
+      computedAt:          result.computedAt,
+      bullActionable:      result.bullActionable,
+      bearActionable:      result.bearActionable,
+      inPanicRegime:       result.inPanicRegime,
+      signalConflict:      result.signalConflict,
+      notActionableReason: result.notActionableReason,
     };
   } catch (err) {
     console.error(`[ZoneBot:${asset}] computeOptionsZones failed:`, err);
@@ -205,14 +225,20 @@ async function computeAndPersistZones(
       if (!snap.exists) return null;
       const d = snap.data() as Record<string, unknown>;
       return {
-        bullZoneLow:   typeof d.bullZoneLow   === "number" ? d.bullZoneLow   : null,
-        bullZoneHigh:  typeof d.bullZoneHigh  === "number" ? d.bullZoneHigh  : null,
-        bullExitAbove: typeof d.bullExitAbove === "number" ? d.bullExitAbove : null,
-        bearZoneHigh:  typeof d.bearZoneHigh  === "number" ? d.bearZoneHigh  : null,
-        bearZoneLow:   typeof d.bearZoneLow   === "number" ? d.bearZoneLow   : null,
-        bearExitBelow: typeof d.bearExitBelow === "number" ? d.bearExitBelow : null,
-        maxPain:       typeof d.maxPain       === "number" ? d.maxPain       : null,
-        computedAt:    typeof d.computedAt    === "string" ? d.computedAt    : "",
+        bullZoneLow:         typeof d.bullZoneLow   === "number" ? d.bullZoneLow   : null,
+        bullZoneHigh:        typeof d.bullZoneHigh  === "number" ? d.bullZoneHigh  : null,
+        bullExitAbove:       typeof d.bullExitAbove === "number" ? d.bullExitAbove : null,
+        bearZoneHigh:        typeof d.bearZoneHigh  === "number" ? d.bearZoneHigh  : null,
+        bearZoneLow:         typeof d.bearZoneLow   === "number" ? d.bearZoneLow   : null,
+        bearExitBelow:       typeof d.bearExitBelow === "number" ? d.bearExitBelow : null,
+        maxPain:             typeof d.maxPain       === "number" ? d.maxPain       : null,
+        computedAt:          typeof d.computedAt    === "string" ? d.computedAt    : "",
+        bullActionable:      typeof d.bullActionable === "boolean" ? d.bullActionable : undefined,
+        bearActionable:      typeof d.bearActionable === "boolean" ? d.bearActionable : undefined,
+        inPanicRegime:       typeof d.inPanicRegime  === "boolean" ? d.inPanicRegime  : undefined,
+        signalConflict:      typeof d.signalConflict === "boolean" ? d.signalConflict : undefined,
+        notActionableReason: typeof d.notActionableReason === "string"
+                               ? (d.notActionableReason as string) : null,
       };
     } catch {
       return null;

@@ -42,19 +42,21 @@ async function run() {
 
   if (!btcPrice) throw new Error("BTC price unavailable");
 
-  let zoneHalfWidthUsd:      number | null = null;
+  // v2: `zoneHalfWidthUsd` is now auto-derived per call inside the suggester
+  // and ignored from the user's settings. Only `maxPainMinDistanceUsd` is
+  // still a manual override (null = use suggester default).
   let maxPainMinDistanceUsd: number | null = null;
   try {
     const hzSnap = await db.doc("config/heatmap_zones").get();
     if (hzSnap.exists) {
       const parsed = parseZones(hzSnap.data() ?? {});
-      zoneHalfWidthUsd      = parsed.zoneHalfWidthUsd;
       maxPainMinDistanceUsd = parsed.maxPainMinDistanceUsd;
     }
   } catch {}
 
-  const result = await computeOptionsZones(btcPrice, {
-    zoneHalfWidthUsd,
+  const result = await computeOptionsZones({
+    asset:                 "btc",
+    currentPrice:          btcPrice,
     maxPainMinDistanceUsd,
   });
 
@@ -82,6 +84,20 @@ async function run() {
     bearTpTarget:      result.bearTpTarget,
     bearTpExpiry:      result.bearTpExpiry,
     bearTpConfidence:  result.bearTpConfidence,
+
+    // v2 transparency fields — surfaced into config/suggested_zones so the
+    // pattern-bot's loadEffectiveHeatmapZones can pull regime flags through.
+    atmIV:               result.atmIV,
+    ivBackwardation:     result.ivBackwardation,
+    inPanicRegime:       result.inPanicRegime,
+    halfWidthUsd:        result.halfWidthUsd,
+    maxReachUsd:         result.maxReachUsd,
+    minPinGapUsd:        result.minPinGapUsd,
+    bullActionable:      result.bullActionable,
+    bearActionable:      result.bearActionable,
+    notActionableReason: result.notActionableReason,
+    bullClusterShare:    result.bullClusterShare,
+    bearClusterShare:    result.bearClusterShare,
 
     expiryUsed:        result.expiryUsed,
     expiriesUsed:      result.expiriesUsed,

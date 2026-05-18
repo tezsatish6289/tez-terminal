@@ -1,36 +1,55 @@
 /**
- * /api/cron/sync-zone-bots
+ * /api/cron/sync-zone-bots — "Multi-Asset Zone Bots" engine tick.
  *
- * Heartbeat for the zone-bot family (Phase 1: BTC only). Every 15 min:
- *   1. Per registered asset (currently just BTC):
- *      a. Load per-asset settings + state.
- *      b. Read latest spot from config/exchange_prices.
- *      c. Compute fresh Deribit-OI zones via computeOptionsZones.
- *      d. Persist them at config/suggested_zones_${asset}.
- *      e. Append spot to the rolling price-history window.
- *      f. Call evaluateZoneBot (pure state-machine engine).
- *      g. Execute the returned action:
- *           NONE  → just save state
- *           OPEN  → create a simulator_trades row (stamped botSource)
- *           CLOSE → mark the open simulator_trades row CLOSED
- *           FLIP  → close + open
- *      h. Save state.
- *   2. Return per-asset summaries for cron-job.org logging.
+ * Cheap-per-call heartbeat for the zone-bot family. Per registered asset:
+ *   1. Load per-asset settings + state.
+ *   2. Read latest spot from config/exchange_prices.
+ *   3. READ the latest zones from config/suggested_zones (BTC) or
+ *      config/suggested_zones_${asset} (future ETH/SOL). NO Deribit call —
+ *      zones are computed once every 15 min by the separate `suggest-zones`
+ *      cron ("Auto Zones" on cron-job.org). This route is purely consumer.
+ *   4. Append spot to the rolling price-history window.
+ *   5. Call evaluateZoneBot (pure state-machine engine).
+ *   6. Execute the returned action:
+ *        NONE  → just save state
+ *        OPEN  → create a simulator_trades row + mirror to live exchanges
+ *        CLOSE → mark the open simulator_trades row CLOSED
+ *        FLIP  → close + open
+ *   7. Save state.
  *
  * ───────────────────────────────────────────────────────────────────────
- * Cron-job.org setup (one-time, after first deploy):
+ * 2026-05-19 architecture change
  * ───────────────────────────────────────────────────────────────────────
+ *   BEFORE: this route fetched the full Deribit option chain on every
+ *   tick (~3-5s), wrote `config/suggested_zones_${asset}`, then ran the
+ *   engine. With cron at every 15min that's 96 fetches/day. Worse,
+ *   because each tick appended exactly 1 price sample, the engine's
+ *   confirmation gate (needs ≥7 samples in 15min) could never pass
+ *   and the bot was effectively dead.
+ *
+ *   AFTER: the Deribit fetch lives entirely in `/api/cron/suggest-zones`
+ *   ("Auto Zones" cron, every 15min). This route just reads that doc and
+ *   runs the engine. Per-tick cost is now ~300ms (mostly Firestore round
+ *   trips), so cron-job.org can safely run this every minute. With 1-min
+ *   cadence the price history accumulates fast enough for confirmation
+ *   to actually fire.
+ *
+ * ───────────────────────────────────────────────────────────────────────
+ * Cron-job.org setup
+ * ───────────────────────────────────────────────────────────────────────
+ *   Title    : Multi-Asset Zone Bots
  *   URL      : https://tezterminal.com/api/cron/sync-zone-bots?key=<CRON_SECRET>
  *   Method   : GET
- *   Schedule : every 15 min   (cron expr: "  * /15 * * * *  ")
- *   Timeout  : 60 s   (apphosting.yaml allows up to 120 s)
+ *   Schedule : every 1 min   (cron expr: "  * * * * *  ")
+ *   Timeout  : 30 s
  *
- * Until that cron job is created, this endpoint runs only when triggered
- * manually (the POST variant below, no key required) — i.e., the new
- * code path is fully dormant in production.
+ *   Paired with:
+ *   Title    : Auto Zones
+ *   URL      : .../api/cron/suggest-zones?key=...
+ *   Schedule : every 15 min
  *
  * ───────────────────────────────────────────────────────────────────────
- * Safety
+ * Safety (unchanged from the original design)
  * ───────────────────────────────────────────────────────────────────────
  *   - Live mirroring is OPT-IN per user, per bot. executeForAllUsers
  *     receives `botSource: ZONE_BOT_SOURCE[asset]`; users only receive
@@ -38,15 +57,11 @@
  *     `zoneBotsEnabled.<asset> === true`. Default false → zero existing
  *     pattern-bot users get auto-enrolled.
  *   - Trades are stamped botSource = ZONE_BOT_SOURCE[asset] so the
- *     existing sync-simulator force-close branches (added in PR #3) skip
- *     them. Pattern-bot trades are completely unaffected.
- *   - sync-live-trades (1-min cron) mirrors the eventual zone-bot SIM
- *     close to live by extending its closeReason whitelist
- *     (`ZONE_BOT_FLIP`, `ZONE_BOT_MAX_PAIN_EXIT`) — same protective-
- *     close path used for TRAILING_SL.
- *   - Default settings = AUTO, but ZONE_BOT_REGISTRY only contains "btc"
- *     and nothing fires until cron-job.org actually starts hitting the
- *     endpoint AND at least one user has opted in.
+ *     existing sync-simulator force-close branches skip them. Pattern-
+ *     bot trades are completely unaffected.
+ *   - sync-live-trades mirrors the eventual zone-bot SIM close to live
+ *     by extending its closeReason whitelist (`ZONE_BOT_FLIP`,
+ *     `ZONE_BOT_MAX_PAIN_EXIT`).
  *
  * See `docs/zone-bots.md` for the full design.
  */
@@ -55,7 +70,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { deserializePrices } from "@/lib/exchanges";
 import { getLeverage } from "@/lib/leverage";
-import { computeOptionsZones } from "@/lib/options-zones";
 import { executeForAllUsers } from "@/lib/live-execution";
 import {
   SIM_CONFIG,
@@ -75,7 +89,6 @@ import {
   ZONE_BOT_PERP_SYMBOL,
   ZONE_BOT_SOURCE,
   type ZoneBotAsset,
-  type ZoneBotSettings,
 } from "@/lib/zone-bot-config";
 import {
   appendZoneBotPriceHistory,
@@ -130,99 +143,32 @@ function spotForAsset(prices: PricesView | null, asset: ZoneBotAsset): number | 
   );
 }
 
-// ── Suggested zones persistence ─────────────────────────────────────────
+// ── Suggested zones loader (read-only) ──────────────────────────────────
+//
+// As of 2026-05-19 this route no longer computes zones itself — the
+// `suggest-zones` cron ("Auto Zones") owns that work and writes the
+// result every 15 min. We just read the doc here so each engine tick
+// is cheap (~1 Firestore read instead of a 3-5s Deribit fetch).
+//
+// Path strategy:
+//   1. Prefer `config/suggested_zones_${asset}` if it exists (the future
+//      shape — separate doc per asset once ETH/SOL ship).
+//   2. For BTC, fall back to `config/suggested_zones` — the legacy doc
+//      that the pattern bot's AUTO mode and the UI already read from
+//      today. Single source of truth means we can't drift.
 
-async function computeAndPersistZones(
-  db:       FirebaseFirestore.Firestore,
-  asset:    ZoneBotAsset,
-  spot:     number,
-  settings: ZoneBotSettings,
+async function loadSuggestedZones(
+  db:    FirebaseFirestore.Firestore,
+  asset: ZoneBotAsset,
 ): Promise<ZoneBotSuggestedZones | null> {
-  // Compute fresh Deribit-OI zones. As of v2 (2026-05-19) the half-width
-  // is auto-derived inside `computeOptionsZones` from ATM IV — the user's
-  // `zoneHalfWidthUsd` setting is ignored (kept on the settings doc for
-  // back-compat / UI history but no longer plumbed in). Only the
-  // max-pain-min-distance override is still wired through; null = use the
-  // suggester's halfWidth-anchored default.
-  try {
-    const result = await computeOptionsZones({
-      asset,
-      currentPrice:          spot,
-      maxPainMinDistanceUsd: settings.maxPainMinDistanceUsd,
-    });
+  // Try per-asset path first, then fall back to the shared BTC doc.
+  const paths = [`config/suggested_zones_${asset}`];
+  if (asset === "btc") paths.push("config/suggested_zones");
 
-    // Full snapshot in Firestore so the UI can render the max-pain table
-    // and zone bands without re-computing. We re-use the same shape that
-    // suggest-zones writes to config/suggested_zones for consistency.
-    const doc = {
-      asset,
-      bullStrike:        result.bullStrike,
-      bearStrike:        result.bearStrike,
-      bullZoneLow:       result.bullZoneLow,
-      bullZoneHigh:      result.bullZoneHigh,
-      bullExitAbove:     result.bullExitAbove,
-      bearZoneLow:       result.bearZoneLow,
-      bearZoneHigh:      result.bearZoneHigh,
-      bearExitBelow:     result.bearExitBelow,
-      bullOI:            result.bullOI,
-      bearOI:            result.bearOI,
-      maxPain:           result.maxPain,
-      maxPainByExpiry:   result.maxPainByExpiry,
-      signalConflict:    result.signalConflict,
-      bullTpTarget:      result.bullTpTarget,
-      bullTpExpiry:      result.bullTpExpiry,
-      bullTpConfidence:  result.bullTpConfidence,
-      bearTpTarget:      result.bearTpTarget,
-      bearTpExpiry:      result.bearTpExpiry,
-      bearTpConfidence:  result.bearTpConfidence,
-      // v2 transparency fields — make derived sizes and regime visible.
-      atmIV:               result.atmIV,
-      ivBackwardation:     result.ivBackwardation,
-      inPanicRegime:       result.inPanicRegime,
-      halfWidthUsd:        result.halfWidthUsd,
-      maxReachUsd:         result.maxReachUsd,
-      minPinGapUsd:        result.minPinGapUsd,
-      bullActionable:      result.bullActionable,
-      bearActionable:      result.bearActionable,
-      notActionableReason: result.notActionableReason,
-      bullClusterShare:    result.bullClusterShare,
-      bearClusterShare:    result.bearClusterShare,
-      expiryUsed:          result.expiryUsed,
-      expiriesUsed:        result.expiriesUsed,
-      expiryOI:            result.expiryOI,
-      insufficientGap:     result.insufficientGap,
-      btcPrice:            result.btcPrice,
-      deribitIndexPrice:   result.deribitIndexPrice,
-      source:              "deribit",
-      computedAt:          result.computedAt,
-    };
-
-    await db.doc(`config/suggested_zones_${asset}`).set(doc);
-
-    // Engine consumes the narrow slice (plus the new regime flags).
-    return {
-      bullZoneLow:         result.bullZoneLow,
-      bullZoneHigh:        result.bullZoneHigh,
-      bullExitAbove:       result.bullExitAbove,
-      bearZoneHigh:        result.bearZoneHigh,
-      bearZoneLow:         result.bearZoneLow,
-      bearExitBelow:       result.bearExitBelow,
-      maxPain:             result.maxPain,
-      computedAt:          result.computedAt,
-      bullActionable:      result.bullActionable,
-      bearActionable:      result.bearActionable,
-      inPanicRegime:       result.inPanicRegime,
-      signalConflict:      result.signalConflict,
-      notActionableReason: result.notActionableReason,
-    };
-  } catch (err) {
-    console.error(`[ZoneBot:${asset}] computeOptionsZones failed:`, err);
-    // Fall back to the last persisted snapshot so the engine still gets
-    // *some* zones (just stale by one tick). On extended outages the
-    // engine's own staleness gate (>12h) eventually shuts the bot off.
+  for (const path of paths) {
     try {
-      const snap = await db.doc(`config/suggested_zones_${asset}`).get();
-      if (!snap.exists) return null;
+      const snap = await db.doc(path).get();
+      if (!snap.exists) continue;
       const d = snap.data() as Record<string, unknown>;
       return {
         bullZoneLow:         typeof d.bullZoneLow   === "number" ? d.bullZoneLow   : null,
@@ -240,10 +186,12 @@ async function computeAndPersistZones(
         notActionableReason: typeof d.notActionableReason === "string"
                                ? (d.notActionableReason as string) : null,
       };
-    } catch {
-      return null;
+    } catch (err) {
+      console.error(`[ZoneBot:${asset}] loadSuggestedZones read ${path} failed:`, err);
+      // Try next path
     }
   }
+  return null;
 }
 
 // ── SimulatorState load / save ─────────────────────────────────────────
@@ -540,10 +488,11 @@ async function tickAsset(
 
     const history = appendZoneBotPriceHistory(prevState.priceHistory, spot, now);
 
-    // Compute zones (and persist the snapshot). If this fails we fall back
-    // to the last persisted suggestion to avoid a single Deribit hiccup
-    // turning every zone bot off.
-    const suggested = await computeAndPersistZones(db, asset, spot, settings);
+    // Read the cached zones doc. Computation is owned by the separate
+    // `Auto Zones` cron (every 15min) — this route is purely a consumer
+    // so the engine tick stays cheap enough to run every minute (which
+    // is what the confirmation gate needs to gather ≥7 samples).
+    const suggested = await loadSuggestedZones(db, asset);
 
     const { nextState, action } = evaluateZoneBot({
       asset,

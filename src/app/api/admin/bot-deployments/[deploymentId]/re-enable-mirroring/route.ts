@@ -39,7 +39,15 @@ export async function POST(
       return NextResponse.json({ error: "Invalid deployment data" }, { status: 400 });
     }
 
-    const result = await resumeLiveMirroringForDeployment(db, uid, exchange);
+    let force = true;
+    try {
+      const body = await request.json();
+      if (body && typeof body.force === "boolean") force = body.force;
+    } catch {
+      // empty body → admin default force reset
+    }
+
+    const result = await resumeLiveMirroringForDeployment(db, uid, exchange, { force });
     if (!result.resumed) {
       return NextResponse.json(
         { success: false, error: result.reason ?? "Could not re-enable mirroring" },
@@ -47,7 +55,10 @@ export async function POST(
       );
     }
 
-    return NextResponse.json({ success: true, message: "Live mirroring re-enabled" });
+    return NextResponse.json({
+      success: true,
+      message: result.reason ?? "Live mirroring re-enabled",
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Unexpected error";
     console.error("[Admin re-enable-mirroring]", msg);

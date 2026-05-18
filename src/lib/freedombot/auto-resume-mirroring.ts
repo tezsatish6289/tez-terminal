@@ -38,7 +38,7 @@ export async function resumeLiveMirroringForDeployment(
   db: Firestore,
   uid: string,
   exchange: string,
-  options?: { requireActiveDeployment?: boolean },
+  options?: { requireActiveDeployment?: boolean; force?: boolean },
 ): Promise<ResumeMirroringResult> {
   const exchangeName = exchange.toUpperCase() as ExchangeName;
   const requireActive = options?.requireActiveDeployment !== false;
@@ -69,6 +69,23 @@ export async function resumeLiveMirroringForDeployment(
   const haltedToday =
     typeof data.dailyLossHaltedUtcDate === "string" &&
     data.dailyLossHaltedUtcDate === utcDateKey();
+
+  if (options?.force) {
+    await ref.update({
+      autoTradeEnabled: true,
+      ...clearDailyLossHaltPatch(),
+    });
+    if (alreadyOn && !haltedToday) {
+      return { resumed: true, reason: "Mirroring was already on; credentials refreshed." };
+    }
+    if (haltedToday) {
+      return {
+        resumed: true,
+        reason: "Daily loss pause cleared and mirroring re-enabled for today.",
+      };
+    }
+    return { resumed: true };
+  }
 
   if (alreadyOn && !haltedToday) {
     return { resumed: false, reason: "Live mirroring is already enabled" };

@@ -292,6 +292,7 @@ export default function AdminBotUserDetailPage() {
   const [walletRefreshing, setWalletRefreshing] = useState(false);
   const [walletRefreshError, setWalletRefreshError] = useState("");
   const [reEnableBusy, setReEnableBusy] = useState(false);
+  const [mirroringNotice, setMirroringNotice] = useState("");
 
   const handleRefreshWallet = useCallback(async () => {
     if (!user || !deploymentId) return;
@@ -329,14 +330,23 @@ export default function AdminBotUserDetailPage() {
     if (!user || !deploymentId) return;
     setReEnableBusy(true);
     setPageError("");
+    setMirroringNotice("");
     try {
       const idToken = await user.getIdToken();
       const res = await fetch(
         `/api/admin/bot-deployments/${deploymentId}/re-enable-mirroring`,
-        { method: "POST", headers: { Authorization: `Bearer ${idToken}` } },
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ force: true }),
+        },
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Re-enable failed");
+      setMirroringNotice(String(data.message ?? "Live mirroring re-enabled"));
       await fetchDeployment();
     } catch (e: unknown) {
       setPageError(e instanceof Error ? e.message : "Unexpected error");
@@ -485,6 +495,12 @@ export default function AdminBotUserDetailPage() {
           </div>
         )}
 
+        {mirroringNotice && (
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+            {mirroringNotice}
+          </div>
+        )}
+
         {deployment && (
           <Tabs
             defaultValue="details"
@@ -570,24 +586,51 @@ export default function AdminBotUserDetailPage() {
                         : "Never checked"}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void handleRefreshWallet()}
-                    disabled={walletRefreshing}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
-                    style={{
-                      borderColor: "rgba(90,140,220,0.18)",
-                      color: "#cbd5e1",
-                      backgroundColor: "rgba(255,255,255,0.02)",
-                    }}
-                  >
-                    {walletRefreshing ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-3 w-3" />
+                  <div className="flex items-center gap-2">
+                    {deployment.running && (
+                      <button
+                        type="button"
+                        onClick={() => void handleReEnableMirroring()}
+                        disabled={reEnableBusy}
+                        title="Turn on auto-trade and clear any daily-loss pause on this exchange"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+                        style={{
+                          borderColor: deployment.liveMirroringActive
+                            ? "rgba(90,140,220,0.18)"
+                            : "rgba(251,191,36,0.4)",
+                          color: deployment.liveMirroringActive ? "#cbd5e1" : "#fde68a",
+                          backgroundColor: deployment.liveMirroringActive
+                            ? "rgba(255,255,255,0.02)"
+                            : "rgba(251,191,36,0.12)",
+                        }}
+                      >
+                        {reEnableBusy ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3" />
+                        )}
+                        Re-enable mirroring
+                      </button>
                     )}
-                    Refresh
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleRefreshWallet()}
+                      disabled={walletRefreshing}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+                      style={{
+                        borderColor: "rgba(90,140,220,0.18)",
+                        color: "#cbd5e1",
+                        backgroundColor: "rgba(255,255,255,0.02)",
+                      }}
+                    >
+                      {walletRefreshing ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3 w-3" />
+                      )}
+                      Refresh
+                    </button>
+                  </div>
                 </div>
                 {deployment.running && !deployment.liveMirroringActive && (
                   <div
@@ -604,30 +647,10 @@ export default function AdminBotUserDetailPage() {
                         resumes automatically.
                       </p>
                     ) : deployment.autoTradeEnabled === false ? (
-                      <>
-                        <p>
-                          RUNNING but mirroring is OFF (legacy daily-loss kill). Use the button
-                          below to receive new signals again.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => void handleReEnableMirroring()}
-                          disabled={reEnableBusy}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-bold uppercase tracking-wider disabled:opacity-50"
-                          style={{
-                            borderColor: "rgba(251,191,36,0.4)",
-                            backgroundColor: "rgba(251,191,36,0.12)",
-                            color: "#fde68a",
-                          }}
-                        >
-                          {reEnableBusy ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <RefreshCw className="h-3 w-3" />
-                          )}
-                          Re-enable mirroring
-                        </button>
-                      </>
+                      <p>
+                        RUNNING but mirroring is OFF (legacy daily-loss kill). Use{" "}
+                        <strong>Re-enable mirroring</strong> above.
+                      </p>
                     ) : (
                       <p>Live mirroring is not active.</p>
                     )}

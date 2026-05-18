@@ -81,21 +81,34 @@ export function getSecretDocIds(exchange: ExchangeName): string[] {
 
 /**
  * Check whether a Firestore secrets doc actually belongs to the requested exchange.
- * Legacy docs (pre-migration) have no `exchange` field — treat them as BYBIT.
- * Hyperliquid rows on `secrets/hyperliquid` may omit `exchange`; pass `secretDocId` from the doc ref id when known.
+ *
+ * Canonical paths (`secrets/bybit`, `secrets/coindcx`, `secrets/hyperliquid`, …)
+ * are authoritative — a stale/wrong `exchange` field must not drop a venue from
+ * live dispatch while another venue on the same user still trades.
+ *
+ * Legacy `secrets/binance` (pre-migration Bybit keys) still requires a missing
+ * or `BYBIT` `exchange` field so real Binance credentials are not routed to Bybit.
  */
 export function docMatchesExchange(
   docData: Record<string, unknown>,
   exchange: ExchangeName,
   secretDocId?: string,
 ): boolean {
-  const storedExchange = docData.exchange as string | undefined;
-  if (!storedExchange) {
-    if (exchange === "BYBIT") return true;
-    if (exchange === "HYPERLIQUID" && secretDocId === SECRET_DOC_IDS.HYPERLIQUID) return true;
-    return false;
+  if (secretDocId === getSecretDocId(exchange)) {
+    return true;
   }
-  return storedExchange.toUpperCase() === exchange;
+
+  const stored = (docData.exchange as string | undefined)?.toUpperCase();
+
+  if (secretDocId === "binance" && exchange === "BYBIT") {
+    if (!stored) return true;
+    return stored === "BYBIT";
+  }
+
+  if (stored) return stored === exchange;
+
+  if (secretDocId) return getSecretDocIds(exchange).includes(secretDocId);
+  return exchange === "BYBIT";
 }
 
 export { connectors };

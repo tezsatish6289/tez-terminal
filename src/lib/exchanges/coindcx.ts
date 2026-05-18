@@ -108,6 +108,31 @@ async function signedGetJsonBody<T>(
   return data as T;
 }
 
+/** Cloudflare / CoinDCX burst limits (error 1015) on wallet endpoints. */
+function isCdCxTransientError(e: unknown): boolean {
+  const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
+  return (
+    msg.includes("1015") ||
+    msg.includes("rate limit") ||
+    msg.includes("too many requests") ||
+    (msg.includes("500") && msg.includes("wallets"))
+  );
+}
+
+async function withCdCxRetry<T>(fn: () => Promise<T>, attempts = 4): Promise<T> {
+  let last: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      last = e;
+      if (!isCdCxTransientError(e) || i >= attempts - 1) throw e;
+      await new Promise((r) => setTimeout(r, 600 * (i + 1)));
+    }
+  }
+  throw last;
+}
+
 async function signedPost<T>(path: string, bodyFields: Record<string, unknown>, creds: ExchangeCredentials): Promise<T> {
   const timestamp = nowTs();
   const payload = { ...bodyFields, timestamp };
@@ -217,6 +242,43 @@ interface CdCxInstrument {
 const infoCache: { symbols: Map<string, SymbolInfo>; ts: number } = { symbols: new Map(), ts: 0 };
 const CACHE_TTL_MS = 4 * 60 * 60 * 1000;
 
+function symbolInfoFromCdCxInstrument(s: CdCxInstrument): SymbolInfo {
+  const step = s.quantity_increment;
+  const tick = s.price_increment;
+  const internal = internalSymbolFromCoinDcxPair(s.pair);
+  const qtyPrecision = Math.max(0, Math.round(-Math.log10(step)));
+  const pricePrecision = Math.max(0, Math.round(-Math.log10(tick)));
+  const maxLev = Math.min(
+    Math.max(s.max_leverage_long ?? 10, s.max_leverage_short ?? 10),
+    125,
+  );
+  return {
+    symbol: internal,
+    pricePrecision,
+    quantityPrecision: qtyPrecision,
+    minQty: s.min_quantity,
+    maxQty: s.max_quantity,
+    stepSize: step,
+    tickSize: tick,
+    minNotional: s.min_notional,
+    maxLeverage: maxLev,
+  };
+}
+
+async function fetchCdCxInstrumentForPair(pair: string): Promise<SymbolInfo | null> {
+  try {
+    const infRes = await fetch(
+      `${API_BASE}/exchange/v1/derivatives/futures/data/instrument?pair=${encodeURIComponent(pair)}&margin_currency_short_name=${USDT_MARGIN}`,
+      { cache: "no-store" },
+    );
+    const body = (await infRes.json()) as { instrument?: CdCxInstrument };
+    if (!body.instrument) return null;
+    return symbolInfoFromCdCxInstrument(body.instrument);
+  } catch {
+    return null;
+  }
+}
+
 export class CoinDcxConnector implements ExchangeConnector {
   readonly name = "COINDCX" as const;
 
@@ -271,27 +333,8 @@ export class CoinDcxConnector implements ExchangeConnector {
             const body = (await infRes.json()) as { instrument?: CdCxInstrument };
             const s = body.instrument;
             if (!s) return;
-            const step = s.quantity_increment;
-            const tick = s.price_increment;
-            const internal = internalSymbolFromCoinDcxPair(s.pair);
-            const qtyPrecision = Math.max(0, Math.round(-Math.log10(step)));
-            const pricePrecision = Math.max(0, Math.round(-Math.log10(tick)));
-            const maxLev = Math.min(
-              Math.max(s.max_leverage_long ?? 10, s.max_leverage_short ?? 10),
-              125,
-            );
-
-            map.set(internal, {
-              symbol: internal,
-              pricePrecision,
-              quantityPrecision: qtyPrecision,
-              minQty: s.min_quantity,
-              maxQty: s.max_quantity,
-              stepSize: step,
-              tickSize: tick,
-              minNotional: s.min_notional,
-              maxLeverage: maxLev,
-            });
+            const info = symbolInfoFromCdCxInstrument(s);
+            map.set(info.symbol, info);
           } catch {
             /* skip instrument */
           }
@@ -304,22 +347,42 @@ export class CoinDcxConnector implements ExchangeConnector {
     return map;
   }
 
-  async getSymbolInfo(symbol: string, testnet?: boolean): Promise<SymbolInfo> {
-    const map = await this.getExchangeInfo(false, testnet);
+  async getSymbolInfo(symbol: string, _testnet?: boolean): Promise<SymbolInfo> {
     const internal = coinDcxPairFromInternal(symbol).startsWith("B-")
       ? internalSymbolFromCoinDcxPair(coinDcxPairFromInternal(symbol))
       : symbol.replace(/\.P$/i, "").toUpperCase();
 
+    if (
+      infoCache.symbols.size > 0 &&
+      Date.now() - infoCache.ts < CACHE_TTL_MS
+    ) {
+      const hit = infoCache.symbols.get(internal);
+      if (hit) return hit;
+    }
+
+    const pair = coinDcxPairFromInternal(symbol);
+    const single = await fetchCdCxInstrumentForPair(pair);
+    if (single) {
+      infoCache.symbols.set(single.symbol, single);
+      infoCache.ts = Date.now();
+      return single;
+    }
+
+    const map = await this.getExchangeInfo(true, _testnet);
     const info = map.get(internal);
-    if (!info) throw new Error(`Symbol ${symbol} not found on CoinDCX USDT futures`);
+    if (!info) {
+      throw new Error(`Symbol ${symbol} not found on CoinDCX USDT futures`);
+    }
     return info;
   }
 
   async getBalance(creds: ExchangeCredentials): Promise<FuturesBalance[]> {
-    const rows = await signedGetJsonBody<Array<{ currency_short_name: string; balance: string; locked_balance?: string }>>(
-      "/exchange/v1/derivatives/futures/wallets",
-      {},
-      creds,
+    const rows = await withCdCxRetry(() =>
+      signedGetJsonBody<Array<{ currency_short_name: string; balance: string; locked_balance?: string }>>(
+        "/exchange/v1/derivatives/futures/wallets",
+        {},
+        creds,
+      ),
     );
 
     return rows.map((w) => ({

@@ -84,6 +84,16 @@ export async function GET(
     const walletStatus: "valid" | "invalid" | null =
       walletStatusRaw === "valid" || walletStatusRaw === "invalid" ? walletStatusRaw : null;
 
+    const exchangeName = exchange as ExchangeName;
+    let autoTradeEnabled: boolean | null = null;
+    for (const docId of getSecretDocIds(exchangeName)) {
+      const secretDoc = await db.collection("users").doc(uid).collection("secrets").doc(docId).get();
+      if (secretDoc.exists && docMatchesExchange(secretDoc.data()!, exchangeName, docId)) {
+        autoTradeEnabled = secretDoc.data()?.autoTradeEnabled === true;
+        break;
+      }
+    }
+
     const deployment = {
       deploymentId: deployDoc.id,
       userId: uid,
@@ -95,6 +105,9 @@ export async function GET(
       firstDeployedAt: createdIso,
       deploymentStatus: status,
       running: status === "active",
+      /** Secrets-doc switch the live dispatcher reads (can be false after kill switch). */
+      autoTradeEnabled,
+      liveMirroringActive: status === "active" && autoTradeEnabled === true,
       lifetimeRealizedPnl: aggregates.lifetimeRealizedPnl,
       openTradeCount: aggregates.openTradeCount,
       closedTradeCount: aggregates.closedTradeCount,

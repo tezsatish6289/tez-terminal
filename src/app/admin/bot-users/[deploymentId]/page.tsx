@@ -49,6 +49,8 @@ interface DeploymentRow {
   firstDeployedAt: string | null;
   deploymentStatus: string;
   running: boolean;
+  autoTradeEnabled?: boolean | null;
+  liveMirroringActive?: boolean;
   lifetimeRealizedPnl: number;
   /** Server-cached aggregates (may be undefined on legacy deployment docs). */
   openTradeCount?: number;
@@ -563,6 +565,20 @@ export default function AdminBotUserDetailPage() {
                     Refresh
                   </button>
                 </div>
+                {deployment.running && deployment.autoTradeEnabled === false && (
+                  <p
+                    className="mx-5 mt-4 px-4 py-3 rounded-xl text-xs"
+                    style={{
+                      backgroundColor: "rgba(234,179,8,0.08)",
+                      border: "1px solid rgba(234,179,8,0.25)",
+                      color: "#fbbf24",
+                    }}
+                  >
+                    Deployment shows RUNNING but live mirroring is OFF (auto-trade disabled —
+                    often after the daily loss kill switch). Re-enable from FreedomBot or exchange
+                    settings to receive new signals.
+                  </p>
+                )}
                 <div className="grid grid-cols-2">
                   {[
                     {

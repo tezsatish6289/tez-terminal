@@ -9,6 +9,7 @@ import {
   getExchangeSegment,
   docMatchesExchange,
   getConnector,
+  getSecretDocId,
   type ExchangeCredentials,
 } from "./exchanges";
 import type { SimTrade, SimConfigType } from "./simulator";
@@ -65,6 +66,7 @@ export async function executeForAllUsers(
     exchange: ExchangeName;
     creds: Credentials;
     effectiveSimTrade: SimTrade;
+    maxConcurrentTrades?: number;
   }
 
   const tasks: UserExecutionTask[] = [];
@@ -94,6 +96,13 @@ export async function executeForAllUsers(
   };
 
   let scannedSecrets = 0;
+  const discoverySkips: Record<string, number> = {
+    unknown_doc_id: 0,
+    wrong_asset_class: 0,
+    exchange_mismatch: 0,
+    bot_opt_out: 0,
+    duplicate: 0,
+  };
   try {
     const enabledSnap = await db
       .collectionGroup("secrets")
@@ -119,20 +128,49 @@ export async function executeForAllUsers(
       if (!userId) continue;
 
       const exchangeName = DOC_ID_TO_EXCHANGE[secretDoc.id];
-      if (!exchangeName) continue;
-      if (!allowedExchanges.has(exchangeName)) continue;
+      if (!exchangeName) {
+        discoverySkips.unknown_doc_id++;
+        continue;
+      }
+      if (!allowedExchanges.has(exchangeName)) {
+        discoverySkips.wrong_asset_class++;
+        continue;
+      }
 
       const data = secretDoc.data() ?? {};
-      if (!docMatchesExchange(data, exchangeName, secretDoc.id)) continue;
+      if (!docMatchesExchange(data, exchangeName, secretDoc.id)) {
+        discoverySkips.exchange_mismatch++;
+        const stored = String(data.exchange ?? "(missing)");
+        console.warn(
+          `[LiveExec] Skipping user ${userId} secrets/${secretDoc.id}: stored exchange=${stored} does not match ${exchangeName}`,
+        );
+        continue;
+      }
+      const storedExchange = data.exchange as string | undefined;
+      if (
+        storedExchange &&
+        storedExchange.toUpperCase() !== exchangeName &&
+        secretDoc.id === getSecretDocId(exchangeName)
+      ) {
+        console.warn(
+          `[LiveExec] secrets/${secretDoc.id} for user ${userId} has stale exchange=${storedExchange}; dispatching as ${exchangeName} based on doc path`,
+        );
+      }
       // Per-bot opt-in gate. PATTERN trades always pass (legacy behaviour
       // for existing autoTradeEnabled users). Zone-bot trades require the
       // user to explicitly enable that specific bot via
       // `zoneBotsEnabled.<bot> === true` in their settings — opt-in by
       // design, never opt-out.
-      if (!userOptedIntoBot(data, botSource)) continue;
+      if (!userOptedIntoBot(data, botSource)) {
+        discoverySkips.bot_opt_out++;
+        continue;
+      }
 
       const dedupeKey = `${userId}::${exchangeName}`;
-      if (seen.has(dedupeKey)) continue;
+      if (seen.has(dedupeKey)) {
+        discoverySkips.duplicate++;
+        continue;
+      }
 
       try {
         let apiKey: string;
@@ -196,7 +234,16 @@ export async function executeForAllUsers(
             apiSecret,
             testnet: data.useTestnet === true,
             exchangeSegment: isStock ? getExchangeSegment(signalExchange) : undefined,
+            riskPerTradePct:
+              typeof data.riskPerTrade === "number" && Number.isFinite(data.riskPerTrade)
+                ? data.riskPerTrade
+                : undefined,
           },
+          maxConcurrentTrades:
+            typeof data.maxConcurrentTrades === "number" &&
+            data.maxConcurrentTrades > 0
+              ? data.maxConcurrentTrades
+              : undefined,
         });
         seen.add(dedupeKey);
       } catch (e) {
@@ -233,10 +280,14 @@ export async function executeForAllUsers(
   }
 
   if (tasks.length === 0) {
+    const skipDetail = Object.entries(discoverySkips)
+      .filter(([, n]) => n > 0)
+      .map(([k, n]) => `${k}=${n}`)
+      .join(", ");
     await db.collection("live_trade_logs").add({
       timestamp: new Date().toISOString(),
       action: "SKIPPED",
-      details: `${symbol} ${signalType} — no users with auto-trade enabled on any exchange. (${scannedSecrets} secret(s) scanned)`,
+      details: `${symbol} ${signalType} — no qualifying auto-trade users (${scannedSecrets} secret(s) scanned${skipDetail ? `; filtered: ${skipDetail}` : ""})`,
       signalId,
       symbol,
       assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
@@ -244,10 +295,22 @@ export async function executeForAllUsers(
     return;
   }
 
+  const perExchangeCounts = tasks.reduce<Record<string, number>>((acc, t) => {
+    acc[t.exchange] = (acc[t.exchange] ?? 0) + 1;
+    return acc;
+  }, {});
+  const exchangeBreakdown = Object.entries(perExchangeCounts)
+    .map(([ex, n]) => `${ex}=${n}`)
+    .join(", ");
+  const skipTotal = Object.values(discoverySkips).reduce((a, b) => a + b, 0);
+  const skipSummary = skipTotal > 0
+    ? ` (${scannedSecrets} secret(s) scanned; skipped: ${Object.entries(discoverySkips).filter(([, n]) => n > 0).map(([k, n]) => `${k}=${n}`).join(", ")})`
+    : "";
+
   await db.collection("live_trade_logs").add({
     timestamp: new Date().toISOString(),
     action: "EVALUATING",
-    details: `${symbol} ${signalType} — found ${tasks.length} qualifying user(s) across exchanges: ${[...new Set(tasks.map(t => t.exchange))].join(", ")}`,
+    details: `${symbol} ${signalType} — dispatching ${tasks.length} live open(s) [${exchangeBreakdown}]${skipSummary}`,
     signalId,
     symbol,
     assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
@@ -265,6 +328,29 @@ export async function executeForAllUsers(
         exchange: task.exchange,
         assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
       });
+
+      const maxOpen = task.maxConcurrentTrades;
+      if (maxOpen != null && maxOpen > 0) {
+        const openSnap = await db
+          .collection("live_trades")
+          .where("userId", "==", task.userId)
+          .where("exchange", "==", task.exchange)
+          .where("status", "==", "OPEN")
+          .get();
+        if (openSnap.size >= maxOpen) {
+          await db.collection("live_trade_logs").add({
+            timestamp: new Date().toISOString(),
+            action: "SKIPPED",
+            details: `${symbol} ${signalType} — max concurrent trades on ${task.exchange} (${openSnap.size}/${maxOpen} open); skipping new entry.`,
+            signalId,
+            symbol,
+            userId: task.userId,
+            exchange: task.exchange,
+            assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
+          }).catch(() => {});
+          return { success: false, error: `Max concurrent trades (${maxOpen}) reached on ${task.exchange}` };
+        }
+      }
 
       // Attempt exchange execution. On failure, retry once — but first check
       // whether the exchange already has a position open for this symbol to
@@ -317,7 +403,7 @@ export async function executeForAllUsers(
             await db.collection("live_trade_logs").add({
               timestamp: new Date().toISOString(),
               action: "TRADE_FAILED_PERMANENT",
-              details: `${symbol} ${signalType} — failed after 2 attempts on ${task.exchange} for user ${task.userId}: ${liveResult.error}. No further retries.`,
+              details: `${symbol} ${signalType} — failed after 2 attempts on ${task.exchange} for user ${task.userId}: ${(liveResult.error ?? "").replace(/\.\s*$/, "")}. No further retries.`,
               signalId,
               symbol,
               userId: task.userId,

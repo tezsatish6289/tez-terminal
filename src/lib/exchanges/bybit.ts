@@ -190,6 +190,7 @@ function mapBybitOrder(o: BybitOrderDetail): Order {
 
 interface BybitInstrument {
   symbol: string;
+  status?: string;
   lotSizeFilter: {
     maxOrderQty: string;
     minOrderQty: string;
@@ -210,6 +211,24 @@ interface BybitInstrument {
 
 const infoCache: Record<string, { symbols: Map<string, SymbolInfo>; ts: number }> = {};
 const CACHE_TTL_MS = 4 * 60 * 60 * 1000;
+
+function symbolInfoFromBybitInstrument(s: BybitInstrument): SymbolInfo {
+  const stepSize = parseFloat(s.lotSizeFilter.qtyStep);
+  const tickSize = parseFloat(s.priceFilter.tickSize);
+  const qtyPrecision = Math.max(0, Math.round(-Math.log10(stepSize)));
+  const pricePrecision = Math.max(0, Math.round(-Math.log10(tickSize)));
+  return {
+    symbol: s.symbol,
+    pricePrecision,
+    quantityPrecision: qtyPrecision,
+    minQty: parseFloat(s.lotSizeFilter.minOrderQty),
+    maxQty: parseFloat(s.lotSizeFilter.maxOrderQty),
+    stepSize,
+    tickSize,
+    minNotional: parseFloat(s.lotSizeFilter.minNotionalValue ?? "5"),
+    maxLeverage: Math.min(parseFloat(s.leverageFilter?.maxLeverage ?? "10"), 10),
+  };
+}
 
 // ── Connector Implementation ────────────────────────────────────
 
@@ -247,30 +266,27 @@ export class BybitConnector implements ExchangeConnector {
       return cached.symbols;
     }
 
-    const data = await publicGet<{ list: BybitInstrument[] }>(
-      "/v5/market/instruments-info",
-      { category: "linear" },
-      testnet
-    );
+    // Bybit defaults to limit=500; symbols after "T" (e.g. TRXUSDT) are on later pages.
     const map = new Map<string, SymbolInfo>();
+    let cursor: string | undefined;
+    for (let page = 0; page < 20; page++) {
+      const params: Record<string, string | number> = { category: "linear", limit: 1000 };
+      if (cursor) params.cursor = cursor;
 
-    for (const s of data.list) {
-      const stepSize = parseFloat(s.lotSizeFilter.qtyStep);
-      const tickSize = parseFloat(s.priceFilter.tickSize);
-      const qtyPrecision = Math.max(0, Math.round(-Math.log10(stepSize)));
-      const pricePrecision = Math.max(0, Math.round(-Math.log10(tickSize)));
+      const data = await publicGet<{ list: BybitInstrument[]; nextPageCursor?: string }>(
+        "/v5/market/instruments-info",
+        params,
+        testnet,
+      );
 
-      map.set(s.symbol, {
-        symbol: s.symbol,
-        pricePrecision,
-        quantityPrecision: qtyPrecision,
-        minQty: parseFloat(s.lotSizeFilter.minOrderQty),
-        maxQty: parseFloat(s.lotSizeFilter.maxOrderQty),
-        stepSize,
-        tickSize,
-        minNotional: parseFloat(s.lotSizeFilter.minNotionalValue ?? "5"),
-        maxLeverage: Math.min(parseFloat(s.leverageFilter?.maxLeverage ?? "10"), 10),
-      });
+      for (const s of data.list ?? []) {
+        if (s.status && s.status !== "Trading") continue;
+        map.set(s.symbol, symbolInfoFromBybitInstrument(s));
+      }
+
+      const next = data.nextPageCursor?.trim();
+      if (!next || !(data.list?.length)) break;
+      cursor = next;
     }
 
     infoCache[key] = { symbols: map, ts: Date.now() };
@@ -279,12 +295,41 @@ export class BybitConnector implements ExchangeConnector {
 
   async getSymbolInfo(symbol: string, testnet?: boolean): Promise<SymbolInfo> {
     const map = await this.getExchangeInfo(false, testnet);
-    const info = map.get(symbol);
-    if (!info) throw new Error(`Symbol ${symbol} not found on Bybit Futures`);
+    const cached = map.get(symbol);
+    if (cached) return cached;
+
+    const data = await publicGet<{ list: BybitInstrument[] }>(
+      "/v5/market/instruments-info",
+      { category: "linear", symbol },
+      testnet,
+    );
+    const s = data.list?.[0];
+    if (!s || (s.status && s.status !== "Trading")) {
+      throw new Error(`Symbol ${symbol} not found on Bybit Futures`);
+    }
+    const info = symbolInfoFromBybitInstrument(s);
+    map.set(s.symbol, info);
     return info;
   }
 
   // ── Account ─────────────────────────────────────────────────
+
+  /** Per-coin margin available for derivatives (not withdrawable). */
+  private coinMarginAvailable(c: {
+    walletBalance?: string;
+    locked?: string;
+    totalOrderIM?: string;
+    totalPositionIM?: string;
+    bonus?: string;
+  }): number {
+    const wallet = parseFloat(c.walletBalance ?? "0");
+    const locked = parseFloat(c.locked ?? "0") || 0;
+    const orderIm = parseFloat(c.totalOrderIM || "0") || 0;
+    const posIm = parseFloat(c.totalPositionIM || "0") || 0;
+    const bonus = parseFloat(c.bonus ?? "0") || 0;
+    const computed = wallet - locked - orderIm - posIm - bonus;
+    return Number.isFinite(computed) ? Math.max(0, computed) : 0;
+  }
 
   async getBalance(creds: ExchangeCredentials): Promise<FuturesBalance[]> {
     for (const accountType of ["UNIFIED", "CONTRACT"]) {
@@ -292,22 +337,41 @@ export class BybitConnector implements ExchangeConnector {
         const data = await signedGet<{
           list: Array<{
             accountType: string;
+            totalAvailableBalance?: string;
             coin: Array<{
               coin: string;
               walletBalance: string;
-              availableToWithdraw: string;
+              locked?: string;
+              totalOrderIM?: string;
+              totalPositionIM?: string;
+              bonus?: string;
+              availableToWithdraw?: string;
               unrealisedPnl: string;
             }>;
           }>;
         }>("/v5/account/wallet-balance", { accountType }, creds);
 
         if (data.list.length > 0 && data.list[0].coin.length > 0) {
-          return data.list[0].coin.map((c) => ({
-            asset: c.coin,
-            balance: c.walletBalance,
-            availableBalance: c.availableToWithdraw,
-            crossUnPnl: c.unrealisedPnl,
-          }));
+          const acct = data.list[0];
+          const accountAvailUsd = parseFloat(acct.totalAvailableBalance ?? "0");
+          return acct.coin.map((c) => {
+            let available = this.coinMarginAvailable(c);
+            // UTA cross/portfolio: per-coin IM fields are often empty strings;
+            // account-level totalAvailableBalance (USD) is the trading budget.
+            if (
+              accountType === "UNIFIED" &&
+              c.coin === "USDT" &&
+              accountAvailUsd > available
+            ) {
+              available = accountAvailUsd;
+            }
+            return {
+              asset: c.coin,
+              balance: c.walletBalance,
+              availableBalance: String(available),
+              crossUnPnl: c.unrealisedPnl,
+            };
+          });
         }
       } catch {
         continue;
@@ -317,12 +381,41 @@ export class BybitConnector implements ExchangeConnector {
   }
 
   async getUsdtBalance(creds: ExchangeCredentials): Promise<{ total: number; available: number }> {
-    const balances = await this.getBalance(creds);
-    const usdt = balances.find((b) => b.asset === "USDT");
-    return {
-      total: parseFloat(usdt?.balance ?? "0"),
-      available: parseFloat(usdt?.availableBalance ?? "0"),
-    };
+    for (const accountType of ["UNIFIED", "CONTRACT"]) {
+      try {
+        const data = await signedGet<{
+          list: Array<{
+            totalAvailableBalance?: string;
+            coin: Array<{
+              coin: string;
+              walletBalance: string;
+              locked?: string;
+              totalOrderIM?: string;
+              totalPositionIM?: string;
+              bonus?: string;
+              unrealisedPnl: string;
+            }>;
+          }>;
+        }>("/v5/account/wallet-balance", { accountType, coin: "USDT" }, creds);
+
+        const acct = data.list[0];
+        if (!acct?.coin?.length) continue;
+
+        const usdt = acct.coin.find((c) => c.coin === "USDT") ?? acct.coin[0];
+        const total = parseFloat(usdt.walletBalance ?? "0");
+        let available = this.coinMarginAvailable(usdt);
+        if (accountType === "UNIFIED") {
+          const accountAvail = parseFloat(acct.totalAvailableBalance ?? "0");
+          if (accountAvail > available) available = accountAvail;
+        }
+        if (total > 0 || available > 0) {
+          return { total, available };
+        }
+      } catch {
+        continue;
+      }
+    }
+    return { total: 0, available: 0 };
   }
 
   /**

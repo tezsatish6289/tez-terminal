@@ -20,7 +20,9 @@ import {
   getPrice,
   deserializePrices,
   getSecretDocIds,
+  docMatchesExchange,
   type AllExchangePrices,
+  type ExchangeName,
 } from "@/lib/exchanges";
 import { markTradeForBlockchain } from "@/lib/blockchain-logger";
 
@@ -158,8 +160,12 @@ export async function POST(request: NextRequest) {
         try {
           const secretDoc = await db.collection("users").doc(userId)
             .collection("secrets").doc(secretId).get();
-          if (secretDoc.exists && secretDoc.data()?.autoTradeEnabled === true) {
-            const data = secretDoc.data()!;
+          const data = secretDoc.data();
+          if (
+            secretDoc.exists &&
+            data &&
+            docMatchesExchange(data, ltExchange as ExchangeName, secretId)
+          ) {
             creds = {
               apiKey: decrypt(data.encryptedKey),
               apiSecret: decrypt(data.encryptedSecret),

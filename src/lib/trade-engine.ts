@@ -118,6 +118,8 @@ export interface Credentials {
   apiSecret: string;
   testnet?: boolean;
   exchangeSegment?: IndianExchangeSegment;
+  /** Per-user risk % from secrets (e.g. 0.5 = 0.5%). When set, overrides sim RISK_PER_TRADE_BASE. */
+  riskPerTradePct?: number;
 }
 
 // ── Credential Helpers ────────────────────────────────────────
@@ -300,10 +302,24 @@ export async function executeTrade(
 
     // 4. Calculate position size from real exchange balance
     const cfg = simConfig ?? SIM_CONFIG;
-    const riskPct = cfg.RISK_PER_TRADE_BASE;
-    const riskAmount = exchangeCapital * riskPct;
+    const riskPct =
+      creds.riskPerTradePct != null && Number.isFinite(creds.riskPerTradePct)
+        ? creds.riskPerTradePct / 100
+        : cfg.RISK_PER_TRADE_BASE;
+    const capitalForRisk = Math.min(
+      exchangeCapital,
+      balance.available > 0 ? balance.available : exchangeCapital,
+    );
+    const riskAmount = capitalForRisk * riskPct;
     const slDistance = Math.abs(simTrade.entryPrice - simTrade.stopLoss) / simTrade.entryPrice;
-    const notionalSize = slDistance > 0 ? (riskAmount / slDistance) : riskAmount * leverage;
+    let notionalSize = slDistance > 0 ? (riskAmount / slDistance) : riskAmount * leverage;
+    const maxNotionalFromMargin = balance.available * leverage * 0.95;
+    if (maxNotionalFromMargin > 0 && notionalSize > maxNotionalFromMargin) {
+      notionalSize = maxNotionalFromMargin;
+      warnings.push(
+        `Position capped to ~$${maxNotionalFromMargin.toFixed(0)} notional (${balance.available.toFixed(2)} ${exchange === "HYPERLIQUID" ? "USDC" : "USDT"} available × ${leverage}x).`,
+      );
+    }
     const rawQty = notionalSize / simTrade.entryPrice;
 
     const qtyResult = adjustQuantity(rawQty, info);

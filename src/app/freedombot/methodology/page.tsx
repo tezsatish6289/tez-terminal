@@ -204,15 +204,16 @@ export default function MethodologyPage() {
             <MethodCard icon={Shield} title="Position Sizing — Never Risk the House">
               <Bullet>
                 You choose <strong className="text-white">risk per trade</strong> in Bot Settings
-                (default <strong className="text-white">0.5%</strong>, range 0.25%–1% of your
+                (default <strong className="text-white">1%</strong>, range 0.25%–1% of your
                 balance). Each new position uses that slice of capital, with a stop-loss set at
                 entry.
               </Bullet>
               <Bullet>
                 <strong className="text-white">Max open</strong> limits how many positions can run at
                 once on your exchange.{" "}
-                <strong className="text-white">Daily loss cap</strong> pauses new trades if
-                today&apos;s losses reach your limit — protecting you from a bad day.
+                <strong className="text-white">Daily loss cap</strong> (default{" "}
+                <strong className="text-white">3%</strong>) pauses new trades if today&apos;s
+                losses reach your limit — protecting you from a bad day.
               </Bullet>
               <Bullet>
                 Sizing uses a percentage of your <strong className="text-white">current balance</strong>{" "}
@@ -221,8 +222,8 @@ export default function MethodologyPage() {
                 positions.
               </Bullet>
               <Bullet>
-                At the default 0.5% risk, it would take roughly{" "}
-                <strong className="text-white">900+ consecutive losses</strong> to approach zero — a
+                At the default 1% risk, it would take roughly{" "}
+                <strong className="text-white">460 consecutive losses</strong> to approach zero — a
                 scenario that has never come close to occurring. Past recovery is not a promise of
                 future results.
               </Bullet>
@@ -235,7 +236,7 @@ export default function MethodologyPage() {
               </Bullet>
               <Bullet>
                 Leverage is capped at <strong className="text-white">10×</strong>. With small,
-                user-set risk per trade (default 0.5%), a stop-loss hit represents a{" "}
+                user-set risk per trade (default 1%), a stop-loss hit represents a{" "}
                 <strong className="text-white">small, defined loss</strong> — not a wipeout.
               </Bullet>
               <Bullet>

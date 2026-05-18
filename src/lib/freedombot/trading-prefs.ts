@@ -9,14 +9,22 @@ import {
   DAILY_LOSS_OPTIONS,
   MAX_CONCURRENT_OPTIONS,
   RISK_PER_TRADE_OPTIONS,
+  resolveDailyLossLimit,
+  resolveRiskPerTrade,
+  secretNeedsTradingDefaultsMigration,
   type TradingPrefs,
 } from "@/lib/freedombot/trading-prefs-shared";
 
 export {
   DEFAULT_TRADING_PREFS,
   DAILY_LOSS_OPTIONS,
+  LEGACY_DEFAULT_DAILY_LOSS_LIMIT,
+  LEGACY_DEFAULT_RISK_PER_TRADE,
   MAX_CONCURRENT_OPTIONS,
   RISK_PER_TRADE_OPTIONS,
+  resolveDailyLossLimit,
+  resolveRiskPerTrade,
+  secretNeedsTradingDefaultsMigration,
   type TradingPrefs,
 };
 
@@ -36,20 +44,16 @@ export function tradingPrefsFromSecret(
   data: Record<string, unknown> | undefined | null,
 ): TradingPrefs {
   if (!data) return { ...DEFAULT_TRADING_PREFS };
-  const risk =
-    typeof data.riskPerTrade === "number" && isRiskPerTrade(data.riskPerTrade)
-      ? data.riskPerTrade
-      : DEFAULT_TRADING_PREFS.riskPerTrade;
   const max =
     typeof data.maxConcurrentTrades === "number" &&
     isMaxConcurrent(data.maxConcurrentTrades)
       ? data.maxConcurrentTrades
       : DEFAULT_TRADING_PREFS.maxConcurrentTrades;
-  const daily =
-    typeof data.dailyLossLimit === "number" && isDailyLoss(data.dailyLossLimit)
-      ? data.dailyLossLimit
-      : DEFAULT_TRADING_PREFS.dailyLossLimit;
-  return { riskPerTrade: risk, maxConcurrentTrades: max, dailyLossLimit: daily };
+  return {
+    riskPerTrade: resolveRiskPerTrade(data.riskPerTrade),
+    maxConcurrentTrades: max,
+    dailyLossLimit: resolveDailyLossLimit(data.dailyLossLimit),
+  };
 }
 
 export function validateTradingPrefsUpdate(body: {

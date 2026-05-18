@@ -19,6 +19,7 @@ import { generateTokenForUser } from "./dhan-token";
 import { applyTradeChangeToAggregates } from "./freedombot/aggregates";
 import { refreshDeploymentWalletBalance } from "./freedombot/wallet-balance";
 import { userOptedIntoBot } from "./freedombot/zone-bot-subscription";
+import { resolveRiskPerTrade } from "./freedombot/trading-prefs-shared";
 
 /**
  * Execute a trade for ALL users who have autoTradeEnabled on any supported exchange.
@@ -234,10 +235,7 @@ export async function executeForAllUsers(
             apiSecret,
             testnet: data.useTestnet === true,
             exchangeSegment: isStock ? getExchangeSegment(signalExchange) : undefined,
-            riskPerTradePct:
-              typeof data.riskPerTrade === "number" && Number.isFinite(data.riskPerTrade)
-                ? data.riskPerTrade
-                : undefined,
+            riskPerTradePct: resolveRiskPerTrade(data.riskPerTrade),
           },
           maxConcurrentTrades:
             typeof data.maxConcurrentTrades === "number" &&

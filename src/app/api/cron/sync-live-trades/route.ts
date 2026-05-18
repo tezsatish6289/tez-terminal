@@ -45,6 +45,7 @@ import {
 } from "@/lib/freedombot/aggregates";
 import { refreshDeploymentWalletBalance } from "@/lib/freedombot/wallet-balance";
 import { recordCronHeartbeat } from "@/lib/cron-health";
+import { resolveDailyLossLimit } from "@/lib/freedombot/trading-prefs-shared";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -618,7 +619,7 @@ async function syncUserTrades(
 
     // ── 5. Daily loss limit / auto kill switch ──────────────
     try {
-      const dailyLossLimit = (userSettings.dailyLossLimit ?? 5) / 100;
+      const dailyLossLimit = resolveDailyLossLimit(userSettings.dailyLossLimit) / 100;
 
       const todayStart = new Date();
       todayStart.setUTCHours(0, 0, 0, 0);
@@ -1026,7 +1027,7 @@ export async function GET(request: NextRequest) {
             testnet: data.useTestnet === true,
           },
           settings: {
-            dailyLossLimit: data.dailyLossLimit ?? 5,
+            dailyLossLimit: resolveDailyLossLimit(data.dailyLossLimit),
           },
         });
       } catch {

@@ -718,7 +718,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                     Risk settings
                   </p>
                   <p className="text-[11px] leading-relaxed" style={{ color: "#64748b" }}>
-                    Default is 0.5% per trade. You can change these anytime in Bot Settings after deploy.
+                    Default is 1% per trade and 3% daily loss cap. You can change these anytime in Bot Settings after deploy.
                   </p>
                   <RiskControls
                     values={tradingPrefs}

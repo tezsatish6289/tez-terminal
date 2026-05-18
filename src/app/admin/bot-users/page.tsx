@@ -4,7 +4,16 @@ import Link from "next/link";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { useUser } from "@/firebase";
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Loader2, ShieldAlert, Search, RefreshCw, Bot, ChevronRight, Trash2 } from "lucide-react";
+import {
+  Loader2,
+  ShieldAlert,
+  Search,
+  RefreshCw,
+  Bot,
+  ChevronRight,
+  Trash2,
+  Shield,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -87,6 +96,9 @@ export default function AdminBotUsersPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [walletRefreshAllBusy, setWalletRefreshAllBusy] = useState(false);
   const [walletRefreshAllSummary, setWalletRefreshAllSummary] = useState<string | null>(null);
+  const [migrateDefaultsBusy, setMigrateDefaultsBusy] = useState(false);
+  const [migrateDefaultsSummary, setMigrateDefaultsSummary] = useState<string | null>(null);
+  const [migrateConfirmOpen, setMigrateConfirmOpen] = useState(false);
 
   const fetchDeployments = useCallback(async () => {
     if (!user) return;
@@ -142,6 +154,31 @@ export default function AdminBotUsersPage() {
       setWalletRefreshAllBusy(false);
     }
   }, [user, botFilter, fetchDeployments]);
+
+  const migrateTradingDefaults = useCallback(async () => {
+    if (!user) return;
+    setMigrateDefaultsBusy(true);
+    setMigrateDefaultsSummary(null);
+    setError("");
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/admin/migrate-trading-defaults", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Migration failed");
+      setMigrateDefaultsSummary(
+        `Updated ${data.updated ?? 0} of ${data.scanned ?? 0} secret docs to 1% risk / 3% daily loss cap (legacy 0.5% / 5% or missing fields only).`,
+      );
+      await fetchDeployments();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Unexpected error");
+    } finally {
+      setMigrateDefaultsBusy(false);
+      setMigrateConfirmOpen(false);
+    }
+  }, [user, fetchDeployments]);
 
   const confirmDelete = async () => {
     if (!user || !deleteTarget) return;
@@ -222,7 +259,17 @@ export default function AdminBotUsersPage() {
               Open a row for trade details and execution logs, or delete to require a fresh deploy.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setMigrateConfirmOpen(true)}
+              disabled={migrateDefaultsBusy || loading}
+              title="Write 1% risk and 3% daily loss cap to secrets still on legacy defaults (0.5% / 5%) or missing values."
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-400/30 bg-blue-500/10 text-xs font-bold uppercase tracking-wider text-blue-300 hover:bg-blue-500/15 disabled:opacity-50"
+            >
+              <Shield className={cn("h-3.5 w-3.5", migrateDefaultsBusy && "animate-pulse")} />
+              {migrateDefaultsBusy ? "Migrating…" : "Apply risk defaults"}
+            </button>
             <button
               type="button"
               onClick={() => void refreshAllWallets()}
@@ -246,6 +293,13 @@ export default function AdminBotUsersPage() {
             </button>
           </div>
         </header>
+
+        {migrateDefaultsSummary && (
+          <div className="rounded-lg border border-blue-500/20 bg-blue-500/[0.04] px-4 py-2 text-xs text-blue-200">
+            <span className="font-bold uppercase tracking-wider mr-2">Risk defaults:</span>
+            {migrateDefaultsSummary}
+          </div>
+        )}
 
         {walletRefreshAllSummary && (
           <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.04] px-4 py-2 text-xs text-emerald-200">
@@ -452,6 +506,41 @@ export default function AdminBotUsersPage() {
               className="bg-rose-600 hover:bg-rose-700 text-white"
             >
               {deletingId ? "Deleting…" : "Delete deployment"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={migrateConfirmOpen} onOpenChange={setMigrateConfirmOpen}>
+        <AlertDialogContent className="border-white/10 bg-[#141416] text-foreground">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apply platform risk defaults?</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground space-y-2">
+              <span className="block">
+                Updates every exchange secret that still has the old defaults (
+                <span className="font-mono text-white">0.5%</span> risk or{" "}
+                <span className="font-mono text-white">5%</span> daily loss) or missing values to{" "}
+                <span className="font-mono text-white">1%</span> risk and{" "}
+                <span className="font-mono text-white">3%</span> daily loss cap.
+              </span>
+              <span className="block">
+                Users who chose other values (e.g. 0.25% risk, 2% daily cap) are not changed. Live
+                trading already uses the new defaults for legacy values; this writes them to the
+                database so Bot Settings matches.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-white/10 bg-white/[0.04]">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void migrateTradingDefaults();
+              }}
+              disabled={migrateDefaultsBusy}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {migrateDefaultsBusy ? "Applying…" : "Apply to all legacy secrets"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

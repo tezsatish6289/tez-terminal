@@ -14,7 +14,12 @@ import {
 } from "lucide-react";
 import { EquityChart } from "@/components/charts/EquityChart";
 import { format } from "date-fns";
-import { calcPerformanceMetrics } from "@/lib/performance-metrics";
+import {
+  calcPerformanceMetrics,
+  annualizeReturn,
+  compoundReturnOverPeriod,
+  MIN_DAYS_FOR_RELIABLE_ANNUALIZATION,
+} from "@/lib/performance-metrics";
 import type { PerformanceMetrics } from "@/lib/performance-metrics";
 import { buildEquityCurve } from "@/lib/equity-curve";
 import { BotSourceFilter } from "@/components/dashboard/BotSourceFilter";
@@ -74,11 +79,12 @@ function fmtRatio(n: number, dp = 2) {
 // ─── SummaryCard — identical to simulator ─────────────────────────────────────
 
 function SummaryCard({
-  label, value, sub, badge, color, icon,
+  label, value, sub, subTone = "muted", badge, color, icon,
 }: {
   label: string;
   value: string;
   sub?: string;
+  subTone?: "muted" | "warn";
   badge?: { text: string; variant: "projected" | "actual" | "live" };
   color: string;
   icon: React.ReactNode;
@@ -87,6 +93,10 @@ function SummaryCard({
     badge?.variant === "projected" ? { backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24" } :
     badge?.variant === "live"      ? { backgroundColor: "rgba(34,197,94,0.15)",  color: "#22c55e" } :
                                      { backgroundColor: "rgba(255,255,255,0.05)", color: "#64748b" };
+
+  const subStyle = subTone === "warn"
+    ? { color: "#fbbf24", fontWeight: 600 as const }
+    : { color: "#475569" };
 
   return (
     <div
@@ -99,7 +109,7 @@ function SummaryCard({
       </div>
       <div className="text-2xl font-black tabular-nums leading-none" style={{ color }}>{value}</div>
       <div className="flex items-center gap-1.5 flex-wrap">
-        {sub && <span className="text-[10px]" style={{ color: "#475569" }}>{sub}</span>}
+        {sub && <span className="text-[10px]" style={subStyle}>{sub}</span>}
         {badge && (
           <span
             className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
@@ -283,7 +293,6 @@ export default function PerformancePage() {
 
   const monthlyPnl = useMemo(() => {
     if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
-    const netPnl = derivedCapital - startCap;
     if (runningDays >= 30 && closedTrades.length > 0) {
       const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
       const monthNet = closedTrades.reduce((sum, t) => {
@@ -292,14 +301,28 @@ export default function PerformancePage() {
       }, 0);
       return { pct: (monthNet / simState.startingCapital) * 100, isProjected: false };
     }
-    return { pct: ((netPnl / runningDays) * 30 / simState.startingCapital) * 100, isProjected: true };
+    const totalReturnDecimal = startCap > 0 ? (derivedCapital - startCap) / startCap : 0;
+    return {
+      pct: compoundReturnOverPeriod(totalReturnDecimal, runningDays, 30) * 100,
+      isProjected: true,
+    };
   }, [simState, derivedCapital, startCap, runningDays, closedTrades]);
 
+  // Annualised return — CAGR shared with calcPerformanceMetrics so Calmar /
+  // Sharpe / Sortino and this headline tile stay in lockstep.
   const yearlyPnl = useMemo(() => {
-    if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
-    const netPnl = derivedCapital - startCap;
-    const annualPnl = runningDays >= 365 ? netPnl : (netPnl / runningDays) * 365;
-    return { pct: (annualPnl / startCap) * 100, isProjected: runningDays < 365 };
+    if (!simState || runningDays === 0) {
+      return { pct: 0, isProjected: true, isReliable: false };
+    }
+    const totalReturnDecimal = startCap > 0 ? (derivedCapital - startCap) / startCap : 0;
+    if (runningDays >= 365) {
+      return { pct: totalReturnDecimal * 100, isProjected: false, isReliable: true };
+    }
+    return {
+      pct: annualizeReturn(totalReturnDecimal, runningDays) * 100,
+      isProjected: true,
+      isReliable: runningDays >= MIN_DAYS_FOR_RELIABLE_ANNUALIZATION,
+    };
   }, [simState, derivedCapital, startCap, runningDays]);
 
   // Performance metrics — same function AND same args as simulator
@@ -461,15 +484,22 @@ export default function PerformancePage() {
             <SummaryCard
               label="Monthly Return"
               value={fmtPct(monthlyPnl.pct)}
-              sub={monthlyIsProjected ? `at current ${runningDays}d rate` : "this calendar month"}
+              sub={monthlyIsProjected ? `compounded from ${runningDays}-day live performance` : "this calendar month"}
               icon={monthlyPnl.pct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
               color={monthlyPnl.pct >= 0 ? "#34d399" : "#f87171"}
               badge={monthlyIsProjected ? { text: "Projected", variant: "projected" } : undefined}
             />
             <SummaryCard
-              label="Annual Return"
+              label="Annualized Return"
               value={fmtPct(yearlyPnl.pct)}
-              sub={yearlyIsProjected ? `at current ${runningDays}d rate` : "actual 12-month"}
+              sub={
+                yearlyIsProjected
+                  ? (yearlyPnl.isReliable
+                      ? `compounded from ${runningDays}-day live performance`
+                      : "Short track record — annualized metrics may be volatile")
+                  : "actual 12-month"
+              }
+              subTone={yearlyIsProjected && !yearlyPnl.isReliable ? "warn" : "muted"}
               icon={yearlyPnl.pct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
               color={yearlyPnl.pct >= 0 ? "#34d399" : "#f87171"}
               badge={yearlyIsProjected ? { text: "Projected", variant: "projected" } : { text: "Actual", variant: "actual" }}

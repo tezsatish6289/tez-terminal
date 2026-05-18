@@ -64,7 +64,12 @@ import { SimulatorParamsDialog } from "@/components/simulator/SimulatorParamsDia
 import { HeatmapAutoSwitch } from "@/components/simulator/HeatmapAutoSwitch";
 import { NiftyAutoSwitch } from "@/components/simulator/NiftyAutoSwitch";
 import { format, startOfDay, startOfWeek, startOfMonth, isAfter } from "date-fns";
-import { calcPerformanceMetrics } from "@/lib/performance-metrics";
+import {
+  calcPerformanceMetrics,
+  annualizeReturn,
+  compoundReturnOverPeriod,
+  MIN_DAYS_FOR_RELIABLE_ANNUALIZATION,
+} from "@/lib/performance-metrics";
 import { buildEquityCurve } from "@/lib/equity-curve";
 import { BotSourceFilter } from "@/components/dashboard/BotSourceFilter";
 import { matchesBotSource, type BotSourceFilter as BotSourceFilterValue } from "@/lib/bot-source-filter";
@@ -343,10 +348,10 @@ export default function SimulationPage() {
 
   // Monthly P&L % — derived from the same closed-equity basis as the chart.
   // For ≥30 days running we report the actual realized PnL of the current
-  // calendar month; otherwise we project from the avg daily rate.
+  // calendar month; otherwise we project the *compounded* 30-day equivalent
+  // of the live track record (same CAGR family as the annualised tile).
   const monthlyPnl = useMemo(() => {
     if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
-    const netPnl = derivedCapital - simState.startingCapital;
     if (runningDays >= 30 && filteredClosedTrades.length > 0) {
       const monthStart = new Date();
       monthStart.setDate(1);
@@ -357,15 +362,28 @@ export default function SimulationPage() {
       }, 0);
       return { pct: (monthNet / simState.startingCapital) * 100, isProjected: false };
     }
-    return { pct: ((netPnl / runningDays) * 30 / simState.startingCapital) * 100, isProjected: true };
+    const totalReturnDecimal = (derivedCapital - simState.startingCapital) / simState.startingCapital;
+    return {
+      pct: compoundReturnOverPeriod(totalReturnDecimal, runningDays, 30) * 100,
+      isProjected: true,
+    };
   }, [simState, runningDays, filteredClosedTrades, derivedCapital]);
 
-  // Yearly P&L % — projected from total realized return per day × 365.
+  // Annualised return % — single CAGR formula shared with calcPerformanceMetrics
+  // so the headline card and the Calmar/Sharpe/Sortino ratios can never drift.
   const yearlyPnl = useMemo(() => {
-    if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
-    const netPnl = derivedCapital - simState.startingCapital;
-    const annualPnl = runningDays >= 365 ? netPnl : (netPnl / runningDays) * 365;
-    return { pct: (annualPnl / simState.startingCapital) * 100, isProjected: runningDays < 365 };
+    if (!simState || runningDays === 0) {
+      return { pct: 0, isProjected: true, isReliable: false };
+    }
+    const totalReturnDecimal = (derivedCapital - simState.startingCapital) / simState.startingCapital;
+    if (runningDays >= 365) {
+      return { pct: totalReturnDecimal * 100, isProjected: false, isReliable: true };
+    }
+    return {
+      pct: annualizeReturn(totalReturnDecimal, runningDays) * 100,
+      isProjected: true,
+      isReliable: runningDays >= MIN_DAYS_FOR_RELIABLE_ANNUALIZATION,
+    };
   }, [simState, runningDays, derivedCapital]);
 
   const [forceClosing, setForceClosing] = useState<string | null>(null);
@@ -524,15 +542,22 @@ export default function SimulationPage() {
                   <SummaryCard
                     label="Monthly Return"
                     value={formatPct(monthlyPnl.pct)}
-                    sub={monthlyPnl.isProjected ? `at current ${runningDays}d rate` : "this calendar month"}
+                    sub={monthlyPnl.isProjected ? `compounded from ${runningDays}-day live performance` : "this calendar month"}
                     icon={monthlyPnl.pct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
                     color={monthlyPnl.pct >= 0 ? "text-positive" : "text-negative"}
                     badge={monthlyPnl.isProjected ? { text: "Projected", variant: "projected" } : undefined}
                   />
                   <SummaryCard
-                    label="Annual Return"
+                    label="Annualized Return"
                     value={formatPct(yearlyPnl.pct)}
-                    sub={yearlyPnl.isProjected ? `at current ${runningDays}d rate` : "actual 12-month"}
+                    sub={
+                      yearlyPnl.isProjected
+                        ? (yearlyPnl.isReliable
+                            ? `compounded from ${runningDays}-day live performance`
+                            : "Short track record — annualized metrics may be volatile")
+                        : "actual 12-month"
+                    }
+                    subTone={yearlyPnl.isProjected && !yearlyPnl.isReliable ? "warn" : "muted"}
                     icon={yearlyPnl.pct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
                     color={yearlyPnl.pct >= 0 ? "text-positive" : "text-negative"}
                     badge={yearlyPnl.isProjected ? { text: "Projected", variant: "projected" } : { text: "Actual", variant: "actual" }}
@@ -784,6 +809,7 @@ function SummaryCard({
   label,
   value,
   sub,
+  subTone = "muted",
   badge,
   color,
   icon,
@@ -791,6 +817,7 @@ function SummaryCard({
   label: string;
   value: string;
   sub?: string;
+  subTone?: "muted" | "warn";
   badge?: { text: string; variant: "projected" | "actual" | "live" };
   color: string;
   icon: React.ReactNode;
@@ -803,7 +830,14 @@ function SummaryCard({
       </div>
       <div className={cn("text-2xl font-black tabular-nums leading-none", color)}>{value}</div>
       <div className="flex items-center gap-1.5 flex-wrap">
-        {sub && <span className="text-[10px] text-muted-foreground/50">{sub}</span>}
+        {sub && (
+          <span className={cn(
+            "text-[10px]",
+            subTone === "warn" ? "text-amber-400/90 font-semibold" : "text-muted-foreground/50",
+          )}>
+            {sub}
+          </span>
+        )}
         {badge && (
           <span className={cn(
             "text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full",

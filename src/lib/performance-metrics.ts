@@ -4,6 +4,55 @@ import type { SimTrade, SimTradeEvent } from "./simulator";
 const TRADING_DAYS_PER_YEAR = 252;
 
 /**
+ * Below this many days of live track record, annualised metrics
+ * (Annualized Return, Sharpe, Sortino, Calmar) are statistically
+ * noisy and should be visually flagged or hidden in the UI.
+ */
+export const MIN_DAYS_FOR_RELIABLE_ANNUALIZATION = 7;
+
+/**
+ * Single source of truth for compounded (CAGR-style) annualisation.
+ *
+ *   annualizedReturn = (1 + totalReturn)^(365 / days) - 1
+ *
+ * Inputs are decimals (0.167 == +16.7%) and so is the output.
+ *
+ * Edge cases:
+ * - days <= 0     → returns 0 (no track record yet)
+ * - totalReturn ≤ -1 → returns -1 (a total wipeout cannot be compounded)
+ * - non-finite result (e.g. extreme inputs) → falls back to simple linear
+ *   extrapolation, which is what the dashboard used to show, so the UI
+ *   never renders NaN/Infinity for a real (non-wipeout) track record.
+ */
+export function annualizeReturn(
+  totalReturnDecimal: number,
+  runningDays: number,
+): number {
+  if (!isFinite(totalReturnDecimal) || runningDays <= 0) return 0;
+  if (totalReturnDecimal <= -1) return -1;
+  const compounded = Math.pow(1 + totalReturnDecimal, 365 / runningDays) - 1;
+  if (!isFinite(compounded)) return (totalReturnDecimal / runningDays) * 365;
+  return compounded;
+}
+
+/**
+ * Same shape as {@link annualizeReturn} but for an arbitrary projection
+ * horizon (e.g. 30 days for the "Monthly Return" tile when we don't yet
+ * have a full calendar month of data). Returned as a decimal.
+ */
+export function compoundReturnOverPeriod(
+  totalReturnDecimal: number,
+  runningDays: number,
+  periodDays: number,
+): number {
+  if (!isFinite(totalReturnDecimal) || runningDays <= 0 || periodDays <= 0) return 0;
+  if (totalReturnDecimal <= -1) return -1;
+  const compounded = Math.pow(1 + totalReturnDecimal, periodDays / runningDays) - 1;
+  if (!isFinite(compounded)) return (totalReturnDecimal / runningDays) * periodDays;
+  return compounded;
+}
+
+/**
  * True net PnL after ALL charges, backward-compatible with both old trades
  * (realizedPnl excludes entry fee) and new trades (realizedPnl includes it).
  *
@@ -70,8 +119,9 @@ export function calcPerformanceMetrics(
   const calendarDays = Math.max(1, (lastMs - firstMs) / 86_400_000);
 
   const totalReturn = (endCapital - startingCapital) / startingCapital;
-  // Compound annualisation: (1 + r)^(365 / days) - 1
-  const annualizedReturn = Math.pow(1 + totalReturn, 365 / calendarDays) - 1;
+  // CAGR — single source of truth shared with the UI tiles so the headline
+  // "Annualized Return" card and the Calmar ratio can never drift apart.
+  const annualizedReturn = annualizeReturn(totalReturn, calendarDays);
   const calmarRatio = maxDrawdown > 0
     ? annualizedReturn / maxDrawdown
     : annualizedReturn > 0 ? Infinity : 0;

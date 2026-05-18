@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { AggregateField } from "firebase-admin/firestore";
+import {
+  annualizeReturn,
+  compoundReturnOverPeriod,
+  MIN_DAYS_FOR_RELIABLE_ANNUALIZATION,
+} from "@/lib/performance-metrics";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -106,6 +111,7 @@ export async function GET() {
         profitPerDay: null,
         profitPerMonth: null,
         profitPerYear: null,
+        isAnnualizationReliable: false,
         winRate: null,
         totalTrades: 0,
         waitlistCount,
@@ -127,11 +133,20 @@ export async function GET() {
       startingCapital > 0
         ? ((derivedCapital - startingCapital) / startingCapital) * 100
         : 0;
+    const totalReturnDecimal = totalReturnPct / 100;
 
+    // CAGR-style compounded annualisation — same helper consumed by the
+    // simulator, performance, and records pages so the headline tile, the
+    // Calmar ratio, and the Sharpe / Sortino ratios can never disagree.
     const avgDailyPct = runningDays > 0 ? totalReturnPct / runningDays : 0;
-    const profitPerYear = avgDailyPct * 365;
-    const profitPerMonth = avgDailyPct * 30;
+    const profitPerYear = runningDays > 0
+      ? annualizeReturn(totalReturnDecimal, runningDays) * 100
+      : 0;
+    const profitPerMonth = runningDays > 0
+      ? compoundReturnOverPeriod(totalReturnDecimal, runningDays, 30) * 100
+      : 0;
     const profitPerMonthIsActual = false;
+    const isAnnualizationReliable = runningDays >= MIN_DAYS_FOR_RELIABLE_ANNUALIZATION;
 
     const winRate =
       totalTradesTaken > 0
@@ -157,6 +172,10 @@ export async function GET() {
       profitPerMonth:       Math.round(profitPerMonth   * 100) / 100,
       profitPerMonthIsActual,
       profitPerYear:        Math.round(profitPerYear    * 100) / 100,
+      // Annualised return uses CAGR ((1+r)^(365/d) - 1). Under
+      // MIN_DAYS_FOR_RELIABLE_ANNUALIZATION days the headline tile should
+      // either be hidden or shown with a "Short track record" warning.
+      isAnnualizationReliable,
       winRate,
       totalTrades: totalTradesTaken ?? 0,
       waitlistCount,

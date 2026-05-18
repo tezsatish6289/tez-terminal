@@ -18,6 +18,11 @@ import { useRouter } from "next/navigation";
 import { buildEquityCurve } from "@/lib/equity-curve";
 import { BotSourceFilter } from "@/components/dashboard/BotSourceFilter";
 import { matchesBotSource, type BotSourceFilter as BotSourceFilterValue } from "@/lib/bot-source-filter";
+import {
+  annualizeReturn,
+  compoundReturnOverPeriod,
+  MIN_DAYS_FOR_RELIABLE_ANNUALIZATION,
+} from "@/lib/performance-metrics";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -103,8 +108,8 @@ function fmtBalance(balance: number | undefined, assetType: string): string {
 
 // ─── Metric Card ──────────────────────────────────────────────────────────────
 
-function MetricCard({ label, value, sub, color }: {
-  label: string; value: string; sub?: string; color?: string;
+function MetricCard({ label, value, sub, warn, color }: {
+  label: string; value: string; sub?: string; warn?: string; color?: string;
 }) {
   return (
     <div
@@ -123,6 +128,15 @@ function MetricCard({ label, value, sub, color }: {
           style={{ backgroundColor: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}
         >
           {sub}
+        </span>
+      )}
+      {warn && (
+        <span
+          className="text-[9px] mt-1.5 leading-snug font-semibold"
+          style={{ color: "#fbbf24" }}
+          title="Annualised metrics are statistically noisy under a week of live trading"
+        >
+          {warn}
         </span>
       )}
     </div>
@@ -487,11 +501,11 @@ export default function RecordsPage() {
       ? ((currentCapital - startCap) / startCap) * 100
       : 0;
     const runningDays = Math.max(1, stats.runningDays);
-    const netPnl = currentCapital - startCap;
-    const profitPerMonth = ((netPnl / runningDays) * 30 / startCap) * 100;
+    const totalReturnDecimal = totalReturnPct / 100;
+    const profitPerMonth = compoundReturnOverPeriod(totalReturnDecimal, runningDays, 30) * 100;
     const profitPerYear  = stats.runningDays >= 365
       ? totalReturnPct
-      : ((netPnl / runningDays) * 365 / startCap) * 100;
+      : annualizeReturn(totalReturnDecimal, runningDays) * 100;
     return {
       ...stats,
       currentCapital,
@@ -634,10 +648,15 @@ export default function RecordsPage() {
                       sub={displayStats && displayStats.runningDays < 30 ? "Projected" : undefined}
                     />
                     <MetricCard
-                      label="Annual Return"
+                      label="Annualized Return"
                       value={fmt(displayStats?.profitPerYear ?? null)}
                       color="#a78bfa"
                       sub={displayStats && displayStats.runningDays < 365 ? "Projected" : undefined}
+                      warn={
+                        displayStats && displayStats.runningDays < MIN_DAYS_FOR_RELIABLE_ANNUALIZATION
+                          ? "Short track record — may be volatile"
+                          : undefined
+                      }
                     />
                   </div>
                 </>

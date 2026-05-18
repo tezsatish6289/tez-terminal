@@ -62,6 +62,7 @@ interface BotStats {
   totalReturnPct: number | null;
   profitPerMonth: number | null;
   profitPerYear: number | null;
+  isAnnualizationReliable?: boolean;
   winRate: number | null;
   totalTrades: number;
 }
@@ -314,7 +315,13 @@ function NotConnected({ stats, onDeploy }: { stats: BotStats | null; onDeploy: (
               { label: "Current Capital", value: stats?.currentCapital ? `$${stats.currentCapital.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "…", color: "#60a5fa" },
               { label: "Total Return", value: stats ? fmt(stats.totalReturnPct) : "…", color: (stats?.totalReturnPct ?? 0) >= 0 ? "#34d399" : "#f87171" },
               { label: "Monthly Return", value: stats ? fmt(stats.profitPerMonth) : "…", color: "#60a5fa", projected: stats ? (stats.runningDays < 30) : false },
-              { label: "Annual Return", value: stats ? fmt(stats.profitPerYear) : "…", color: "#a78bfa", projected: stats ? (stats.runningDays < 365) : false },
+              {
+                label: "Annualized Return",
+                value: stats ? fmt(stats.profitPerYear) : "…",
+                color: "#a78bfa",
+                projected: stats ? (stats.runningDays < 365) : false,
+                warn: stats ? (stats.isAnnualizationReliable === false || stats.runningDays < 7) : false,
+              },
             ].map((s) => (
               <div key={s.label} className="p-4 text-center">
                 <div className="flex items-center justify-center gap-1.5 mb-0.5 flex-wrap">
@@ -324,6 +331,15 @@ function NotConnected({ stats, onDeploy }: { stats: BotStats | null; onDeploy: (
                   )}
                 </div>
                 <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#334155" }}>{s.label}</p>
+                {"warn" in s && s.warn && (
+                  <p
+                    className="text-[9px] font-semibold mt-1 leading-snug"
+                    style={{ color: "#fbbf24" }}
+                    title="Annualised metrics are statistically noisy under a week of live trading"
+                  >
+                    Short track record — may be volatile
+                  </p>
+                )}
               </div>
             ))}
           </div>

@@ -20,6 +20,7 @@ import { applyTradeChangeToAggregates } from "./freedombot/aggregates";
 import { refreshDeploymentWalletBalance } from "./freedombot/wallet-balance";
 import { userOptedIntoBot } from "./freedombot/zone-bot-subscription";
 import { resolveRiskPerTrade } from "./freedombot/trading-prefs-shared";
+import { isDailyLossHaltedToday } from "./freedombot/daily-loss-gate";
 
 /**
  * Execute a trade for ALL users who have autoTradeEnabled on any supported exchange.
@@ -103,6 +104,7 @@ export async function executeForAllUsers(
     exchange_mismatch: 0,
     bot_opt_out: 0,
     duplicate: 0,
+    daily_loss_halt: 0,
   };
   try {
     const enabledSnap = await db
@@ -164,6 +166,11 @@ export async function executeForAllUsers(
       // design, never opt-out.
       if (!userOptedIntoBot(data, botSource)) {
         discoverySkips.bot_opt_out++;
+        continue;
+      }
+
+      if (isDailyLossHaltedToday(data)) {
+        discoverySkips.daily_loss_halt++;
         continue;
       }
 

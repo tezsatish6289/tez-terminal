@@ -13,7 +13,6 @@ import {
   Bot,
   ScrollText,
   LayoutList,
-  Shield,
 } from "lucide-react";
 import type { TradingPrefs } from "@/lib/freedombot/trading-prefs-shared";
 import { cn } from "@/lib/utils";
@@ -52,6 +51,7 @@ interface DeploymentRow {
   deploymentStatus: string;
   running: boolean;
   autoTradeEnabled?: boolean | null;
+  dailyLossHaltedToday?: boolean;
   liveMirroringActive?: boolean;
   lifetimeRealizedPnl: number;
   /** Server-cached aggregates (may be undefined on legacy deployment docs). */
@@ -291,6 +291,7 @@ export default function AdminBotUserDetailPage() {
 
   const [walletRefreshing, setWalletRefreshing] = useState(false);
   const [walletRefreshError, setWalletRefreshError] = useState("");
+  const [reEnableBusy, setReEnableBusy] = useState(false);
 
   const handleRefreshWallet = useCallback(async () => {
     if (!user || !deploymentId) return;
@@ -321,6 +322,26 @@ export default function AdminBotUserDetailPage() {
       setWalletRefreshError(e instanceof Error ? e.message : "Unexpected error");
     } finally {
       setWalletRefreshing(false);
+    }
+  }, [user, deploymentId, fetchDeployment]);
+
+  const handleReEnableMirroring = useCallback(async () => {
+    if (!user || !deploymentId) return;
+    setReEnableBusy(true);
+    setPageError("");
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(
+        `/api/admin/bot-deployments/${deploymentId}/re-enable-mirroring`,
+        { method: "POST", headers: { Authorization: `Bearer ${idToken}` } },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Re-enable failed");
+      await fetchDeployment();
+    } catch (e: unknown) {
+      setPageError(e instanceof Error ? e.message : "Unexpected error");
+    } finally {
+      setReEnableBusy(false);
     }
   }, [user, deploymentId, fetchDeployment]);
 
@@ -568,21 +589,51 @@ export default function AdminBotUserDetailPage() {
                     Refresh
                   </button>
                 </div>
-                {deployment.running && deployment.autoTradeEnabled === false && (
-                  <p
-                    className="mx-5 mt-4 px-4 py-3 rounded-xl text-xs"
+                {deployment.running && !deployment.liveMirroringActive && (
+                  <div
+                    className="mx-5 mt-4 px-4 py-3 rounded-xl text-xs space-y-3"
                     style={{
                       backgroundColor: "rgba(234,179,8,0.08)",
                       border: "1px solid rgba(234,179,8,0.25)",
                       color: "#fbbf24",
                     }}
                   >
-                    Deployment shows RUNNING but live mirroring is OFF (auto-trade disabled —
-                    often after the daily loss kill switch). Re-enable from FreedomBot or exchange
-                    settings to receive new signals.
-                  </p>
+                    {deployment.dailyLossHaltedToday ? (
+                      <p>
+                        Daily loss cap hit today (UTC). New trades pause until tomorrow; mirroring
+                        resumes automatically.
+                      </p>
+                    ) : deployment.autoTradeEnabled === false ? (
+                      <>
+                        <p>
+                          RUNNING but mirroring is OFF (legacy daily-loss kill). Use the button
+                          below to receive new signals again.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => void handleReEnableMirroring()}
+                          disabled={reEnableBusy}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-bold uppercase tracking-wider disabled:opacity-50"
+                          style={{
+                            borderColor: "rgba(251,191,36,0.4)",
+                            backgroundColor: "rgba(251,191,36,0.12)",
+                            color: "#fde68a",
+                          }}
+                        >
+                          {reEnableBusy ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3 w-3" />
+                          )}
+                          Re-enable mirroring
+                        </button>
+                      </>
+                    ) : (
+                      <p>Live mirroring is not active.</p>
+                    )}
+                  </div>
                 )}
-                <div className="grid grid-cols-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
                   {[
                     {
                       label: "Wallet balance",
@@ -607,19 +658,55 @@ export default function AdminBotUserDetailPage() {
                           : "—",
                       color: "#cbd5e1",
                     },
-                  ].map((s, i) => (
+                    ...(deployment.tradingPrefs
+                      ? [
+                          {
+                            label: "Risk / trade",
+                            value: `${deployment.tradingPrefs.riskPerTrade}%`,
+                            color: "#f0f4ff",
+                          },
+                          {
+                            label: "Max open",
+                            value: String(deployment.tradingPrefs.maxConcurrentTrades),
+                            color: "#60a5fa",
+                          },
+                          {
+                            label: "Daily loss cap",
+                            value: `${deployment.tradingPrefs.dailyLossLimit}%`,
+                            color: "#fbbf24",
+                          },
+                          {
+                            label: "Mirroring",
+                            value: deployment.liveMirroringActive
+                              ? "On"
+                              : deployment.dailyLossHaltedToday
+                                ? "Paused today"
+                                : deployment.autoTradeEnabled === false
+                                  ? "Off"
+                                  : "—",
+                            color: deployment.liveMirroringActive ? "#34d399" : "#f87171",
+                          },
+                        ]
+                      : []),
+                  ].map((s, i, arr) => (
                     <div
                       key={s.label}
-                      className="px-5 py-4"
-                      style={{ borderRight: i < 1 ? "1px solid rgba(90,140,220,0.08)" : "none" }}
+                      className="px-4 py-3 sm:px-5 sm:py-4"
+                      style={{
+                        borderRight:
+                          i < arr.length - 1 ? "1px solid rgba(90,140,220,0.08)" : "none",
+                      }}
                     >
                       <p
-                        className="text-[10px] font-bold uppercase tracking-widest mb-1"
+                        className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest mb-1"
                         style={{ color: "#334155" }}
                       >
                         {s.label}
                       </p>
-                      <p className="text-2xl font-black" style={{ color: s.color }}>
+                      <p
+                        className="text-lg sm:text-xl font-black leading-tight"
+                        style={{ color: s.color }}
+                      >
                         {s.value}
                       </p>
                     </div>
@@ -641,77 +728,6 @@ export default function AdminBotUserDetailPage() {
                 )}
               </div>
 
-              {deployment.tradingPrefs && (
-                <div
-                  className="rounded-2xl overflow-hidden"
-                  style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.12)" }}
-                >
-                  <div
-                    className="flex items-center gap-2 px-5 py-3"
-                    style={{ borderBottom: "1px solid rgba(90,140,220,0.08)" }}
-                  >
-                    <Shield className="h-4 w-4" style={{ color: "#60a5fa" }} />
-                    <span className="text-sm font-black" style={{ color: "#e2e8f0" }}>
-                      Risk &amp; sizing (user settings)
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4">
-                    {[
-                      {
-                        label: "Risk / trade",
-                        value: `${deployment.tradingPrefs.riskPerTrade}%`,
-                        color: "#f0f4ff",
-                      },
-                      {
-                        label: "Max open",
-                        value: String(deployment.tradingPrefs.maxConcurrentTrades),
-                        color: "#60a5fa",
-                      },
-                      {
-                        label: "Daily loss cap",
-                        value: `${deployment.tradingPrefs.dailyLossLimit}%`,
-                        color: "#fbbf24",
-                      },
-                      {
-                        label: "Auto-trade",
-                        value:
-                          deployment.autoTradeEnabled === true
-                            ? "On"
-                            : deployment.autoTradeEnabled === false
-                              ? "Off"
-                              : "—",
-                        color:
-                          deployment.autoTradeEnabled === true ? "#34d399" : "#f87171",
-                      },
-                    ].map((s, i, arr) => (
-                      <div
-                        key={s.label}
-                        className="px-5 py-4"
-                        style={{
-                          borderRight:
-                            i < arr.length - 1 ? "1px solid rgba(90,140,220,0.08)" : "none",
-                        }}
-                      >
-                        <p
-                          className="text-[10px] font-bold uppercase tracking-widest mb-1"
-                          style={{ color: "#334155" }}
-                        >
-                          {s.label}
-                        </p>
-                        <p className="text-2xl font-black" style={{ color: s.color }}>
-                          {s.value}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                  <p
-                    className="px-5 py-3 text-[11px]"
-                    style={{ color: "#64748b", borderTop: "1px solid rgba(90,140,220,0.08)" }}
-                  >
-                    Set by the user in FreedomBot Bot Settings. Read-only here.
-                  </p>
-                </div>
-              )}
 
               <div
                 className="rounded-2xl overflow-hidden"

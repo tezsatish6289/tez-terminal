@@ -10,6 +10,7 @@ import {
   tradingPrefsFromSecret,
   type TradingPrefs,
 } from "@/lib/freedombot/trading-prefs";
+import { isDailyLossHaltedToday } from "@/lib/freedombot/daily-loss-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -91,12 +92,14 @@ export async function GET(
 
     const exchangeName = exchange as ExchangeName;
     let autoTradeEnabled: boolean | null = null;
+    let dailyLossHaltedToday = false;
     let tradingPrefs: TradingPrefs = { ...DEFAULT_TRADING_PREFS };
     for (const docId of getSecretDocIds(exchangeName)) {
       const secretDoc = await db.collection("users").doc(uid).collection("secrets").doc(docId).get();
       if (secretDoc.exists && docMatchesExchange(secretDoc.data()!, exchangeName, docId)) {
         const secretData = secretDoc.data()!;
         autoTradeEnabled = secretData.autoTradeEnabled === true;
+        dailyLossHaltedToday = isDailyLossHaltedToday(secretData);
         tradingPrefs = tradingPrefsFromSecret(secretData);
         break;
       }
@@ -115,7 +118,9 @@ export async function GET(
       running: status === "active",
       /** Secrets-doc switch the live dispatcher reads (can be false after kill switch). */
       autoTradeEnabled,
-      liveMirroringActive: status === "active" && autoTradeEnabled === true,
+      dailyLossHaltedToday,
+      liveMirroringActive:
+        status === "active" && autoTradeEnabled === true && !dailyLossHaltedToday,
       tradingPrefs,
       lifetimeRealizedPnl: aggregates.lifetimeRealizedPnl,
       openTradeCount: aggregates.openTradeCount,

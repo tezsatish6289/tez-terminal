@@ -46,6 +46,11 @@ import {
 import { refreshDeploymentWalletBalance } from "@/lib/freedombot/wallet-balance";
 import { recordCronHeartbeat } from "@/lib/cron-health";
 import { resolveDailyLossLimit } from "@/lib/freedombot/trading-prefs-shared";
+import { dailyLossHaltPatchForToday } from "@/lib/freedombot/daily-loss-gate";
+import {
+  autoResumeLegacyKillSwitchUsers,
+  autoResumeStaleDailyLossHalts,
+} from "@/lib/freedombot/auto-resume-mirroring";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -671,13 +676,14 @@ async function syncUserTrades(
           await reconcileClosedTradePnlBestEffort(db, trade.id!, trade, exchange, creds);
         }
 
-        // Disable auto-trade for this exchange
+        // Halt new entries for the rest of today (UTC) — keep autoTradeEnabled on
+        // so FreedomBot stays "Live" and resumes automatically tomorrow.
         const killDocIds = getSecretDocIds(exchange);
         for (const killId of killDocIds) {
           const killRef = db.collection("users").doc(userId).collection("secrets").doc(killId);
           const killDoc = await killRef.get();
           if (killDoc.exists && docMatchesExchange(killDoc.data()!, exchange, killId)) {
-            await killRef.update({ autoTradeEnabled: false });
+            await killRef.update(dailyLossHaltPatchForToday());
             break;
           }
         }
@@ -687,16 +693,14 @@ async function syncUserTrades(
           const userDoc = await db.collection("users").doc(userId).get();
           const chatId = userDoc.data()?.telegramChatId;
           if (chatId) {
-            const msg = `🚨 <b>AUTO KILL SWITCH TRIGGERED</b> 🚨\n\n` +
+            const msg = `🚨 <b>Daily loss cap reached</b> 🚨\n\n` +
               `Exchange: <b>${exchange}</b>\n` +
-              `Daily loss limit breached: <b>${(dailyDrawdown * 100).toFixed(1)}%</b> (limit: ${(dailyLossLimit * 100).toFixed(0)}%)\n` +
+              `Daily loss: <b>${(dailyDrawdown * 100).toFixed(1)}%</b> (limit: ${(dailyLossLimit * 100).toFixed(0)}%)\n` +
               `Daily PnL: <b>$${totalDailyPnl.toFixed(2)}</b>\n` +
               `Positions closed: <b>${stillOpen.length}</b>\n\n` +
-              `⛔ Auto-trade on ${exchange} has been <b>DISABLED</b>.\n` +
-              `Re-enable manually from Settings when ready.`;
+              `⏸ New trades are paused for the rest of today (UTC).\n` +
+              `Your bot stays on — trading resumes automatically tomorrow.`;
             await sendMessage(chatId, msg);
-            await new Promise((r) => setTimeout(r, 2000));
-            await sendMessage(chatId, `🚨 REMINDER: Auto-trade on ${exchange} KILLED. ${stillOpen.length} positions closed. Daily loss: $${totalDailyPnl.toFixed(2)}`);
           }
         } catch (tgErr) {
           console.error(`[LiveSync] Telegram kill switch alert failed for ${userId}:`, tgErr);
@@ -705,7 +709,7 @@ async function syncUserTrades(
         await db.collection("live_trade_logs").add({
           timestamp: new Date().toISOString(),
           action: "AUTO_KILL_SWITCH",
-          details: `Daily loss ${(dailyDrawdown * 100).toFixed(1)}% >= limit ${(dailyLossLimit * 100).toFixed(0)}%. Closed ${stillOpen.length} positions. Auto-trade disabled.`,
+          details: `Daily loss ${(dailyDrawdown * 100).toFixed(1)}% >= limit ${(dailyLossLimit * 100).toFixed(0)}%. Closed ${stillOpen.length} positions. New entries halted for today (UTC).`,
           userId,
           exchange,
           assetType: exchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
@@ -742,6 +746,14 @@ export async function GET(request: NextRequest) {
   const startedAt = Date.now();
 
   try {
+    const staleHaltsCleared = await autoResumeStaleDailyLossHalts(db);
+    const legacyResumed = await autoResumeLegacyKillSwitchUsers(db);
+    if (staleHaltsCleared > 0 || legacyResumed > 0) {
+      console.log(
+        `[LiveSync] Auto-resume: ${staleHaltsCleared} stale daily-loss halt(s) cleared, ${legacyResumed} legacy kill-switch user(s) re-enabled`,
+      );
+    }
+
     // ── 1. Read cached prices ───────────────────────────────
     let allPrices: AllExchangePrices = { BINANCE: new Map(), BYBIT: new Map(), MEXC: new Map(), COINDCX: new Map(), HYPERLIQUID: new Map(), DHAN: new Map() };
     try {

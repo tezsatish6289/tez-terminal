@@ -3,6 +3,11 @@ import type { DocumentData } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
 import { getDeploymentAggregates } from "@/lib/freedombot/aggregates";
+import {
+  computeMirroringStatus,
+  loadMirroringFieldsForExchange,
+  type MirroringFields,
+} from "@/lib/freedombot/mirroring-status";
 
 export const dynamic = "force-dynamic";
 
@@ -125,6 +130,8 @@ export async function GET(request: NextRequest) {
       if (doc.exists) userByUid.set(doc.id, doc.data()!);
     });
 
+    const mirroringCache = new Map<string, MirroringFields>();
+
     const rows = await mapWithConcurrency(deployments, 8, async (dep) => {
       const u = userByUid.get(dep.uid);
       const email = u?.email ?? dep.email ?? null;
@@ -140,6 +147,14 @@ export async function GET(request: NextRequest) {
       });
       const currency = pnlCurrencyLabel(dep.bot, dep.exchange);
       const createdIso = dep.createdAt?.toDate?.()?.toISOString() ?? null;
+      const deploymentActive = dep.status === "active";
+      const cacheKey = `${dep.uid}:${dep.exchange}`;
+      let mirroringFields = mirroringCache.get(cacheKey);
+      if (!mirroringFields) {
+        mirroringFields = await loadMirroringFieldsForExchange(db, dep.uid, dep.exchange);
+        mirroringCache.set(cacheKey, mirroringFields);
+      }
+      const mirroring = computeMirroringStatus(deploymentActive, mirroringFields);
 
       return {
         deploymentId: dep.id,
@@ -151,7 +166,12 @@ export async function GET(request: NextRequest) {
         exchange: dep.exchange,
         firstDeployedAt: createdIso,
         deploymentStatus: dep.status,
-        running: dep.status === "active",
+        running: deploymentActive,
+        autoTradeEnabled: mirroring.autoTradeEnabled,
+        dailyLossHaltedToday: mirroring.dailyLossHaltedToday,
+        liveMirroringActive: mirroring.liveMirroringActive,
+        mirroringStatus: mirroring.status,
+        mirroringLabel: mirroring.label,
         lifetimeRealizedPnl: aggregates.lifetimeRealizedPnl,
         openTradeCount: aggregates.openTradeCount,
         closedTradeCount: aggregates.closedTradeCount,

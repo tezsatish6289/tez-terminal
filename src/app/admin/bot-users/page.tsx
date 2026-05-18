@@ -34,6 +34,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
+import { AdminColumnHeader } from "@/components/admin/AdminInfoTip";
+import { AdminCtaWithInfo } from "@/components/admin/AdminCtaLabel";
+import {
+  computeMirroringStatus,
+  mirroringStatusColorClass,
+  mirroringStatusTooltip,
+  type MirroringDisplayStatus,
+} from "@/lib/freedombot/mirroring-status-shared";
 
 const ADMIN_EMAIL = "hello@tezterminal.com";
 
@@ -77,6 +85,11 @@ interface DeploymentRow {
   firstDeployedAt: string | null;
   deploymentStatus: string;
   running: boolean;
+  mirroringStatus?: MirroringDisplayStatus;
+  mirroringLabel?: string;
+  autoTradeEnabled?: boolean | null;
+  dailyLossHaltedToday?: boolean;
+  liveMirroringActive?: boolean;
   lifetimeRealizedPnl: number;
   pnlCurrency: string;
   pnlNote: string;
@@ -260,37 +273,41 @@ export default function AdminBotUsersPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setMigrateConfirmOpen(true)}
-              disabled={migrateDefaultsBusy || loading}
-              title="Write 1% risk and 3% daily loss cap to secrets still on legacy defaults (0.5% / 5%) or missing values."
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-400/30 bg-blue-500/10 text-xs font-bold uppercase tracking-wider text-blue-300 hover:bg-blue-500/15 disabled:opacity-50"
-            >
-              <Shield className={cn("h-3.5 w-3.5", migrateDefaultsBusy && "animate-pulse")} />
-              {migrateDefaultsBusy ? "Migrating…" : "Apply risk defaults"}
-            </button>
-            <button
-              type="button"
-              onClick={() => void refreshAllWallets()}
-              disabled={walletRefreshAllBusy || loading}
-              title="Force a fresh wallet-balance fetch from each exchange for every deployment. Bypasses the cron's 30-min throttle."
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 text-xs font-bold uppercase tracking-wider text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-50"
-            >
-              <RefreshCw
-                className={cn("h-3.5 w-3.5", walletRefreshAllBusy && "animate-spin")}
-              />
-              {walletRefreshAllBusy ? "Refreshing wallets…" : "Refresh wallets"}
-            </button>
-            <button
-              type="button"
-              onClick={() => fetchDeployments()}
-              disabled={loading}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03] text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-white/[0.06] disabled:opacity-50"
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-              Refresh
-            </button>
+            <AdminCtaWithInfo description="Writes 1% risk per trade and 3% daily loss cap to exchange secrets still on legacy defaults (0.5% / 5%) or missing fields. Does not change users who already chose other values.">
+              <button
+                type="button"
+                onClick={() => setMigrateConfirmOpen(true)}
+                disabled={migrateDefaultsBusy || loading}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-400/30 bg-blue-500/10 text-xs font-bold uppercase tracking-wider text-blue-300 hover:bg-blue-500/15 disabled:opacity-50"
+              >
+                <Shield className={cn("h-3.5 w-3.5", migrateDefaultsBusy && "animate-pulse")} />
+                {migrateDefaultsBusy ? "Migrating…" : "Apply risk defaults"}
+              </button>
+            </AdminCtaWithInfo>
+            <AdminCtaWithInfo description="Fetches current wallet balance from each exchange for every deployment in this list. Updates connection status and balances; does not sync trade PnL or mirroring.">
+              <button
+                type="button"
+                onClick={() => void refreshAllWallets()}
+                disabled={walletRefreshAllBusy || loading}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 text-xs font-bold uppercase tracking-wider text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={cn("h-3.5 w-3.5", walletRefreshAllBusy && "animate-spin")}
+                />
+                {walletRefreshAllBusy ? "Refreshing wallets…" : "Refresh wallets"}
+              </button>
+            </AdminCtaWithInfo>
+            <AdminCtaWithInfo description="Reloads the deployment list from the database (PnL aggregates, mirroring status, wallet snapshots as last saved). Does not call exchange APIs.">
+              <button
+                type="button"
+                onClick={() => fetchDeployments()}
+                disabled={loading}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.03] text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-white/[0.06] disabled:opacity-50"
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+                Refresh
+              </button>
+            </AdminCtaWithInfo>
           </div>
         </header>
 
@@ -364,13 +381,17 @@ export default function AdminBotUsersPage() {
             </div>
 
             <div className="rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 overflow-hidden">
-              <div className="hidden lg:grid grid-cols-[28px_1.2fr_1fr_100px_120px_100px_140px_120px_56px] gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-black uppercase tracking-wider text-muted-foreground/50">
+              <div className="hidden lg:grid grid-cols-[28px_1.2fr_1fr_100px_120px_100px_96px_140px_120px_56px] gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-black uppercase tracking-wider text-muted-foreground/50">
                 <span />
                 <span>User</span>
                 <span>Bot</span>
                 <span>Exchange</span>
                 <span>First deploy</span>
                 <span>Status</span>
+                <AdminColumnHeader
+                  label="Mirroring"
+                  tip="Whether new platform signals are copied to this exchange. On = active deployment with auto-trade enabled and not paused for daily loss today."
+                />
                 <span className="text-right">Wallet</span>
                 <span className="text-right">Lifetime PnL</span>
                 <span />
@@ -389,6 +410,13 @@ export default function AdminBotUsersPage() {
                       : d.lifetimeRealizedPnl < 0
                         ? "text-rose-400"
                         : "text-muted-foreground";
+                  const mirroring =
+                    d.mirroringStatus && d.mirroringLabel
+                      ? { status: d.mirroringStatus, label: d.mirroringLabel }
+                      : computeMirroringStatus(d.running, {
+                          autoTradeEnabled: d.autoTradeEnabled ?? null,
+                          dailyLossHaltedToday: d.dailyLossHaltedToday ?? false,
+                        });
 
                   return (
                     <div
@@ -397,7 +425,7 @@ export default function AdminBotUsersPage() {
                     >
                       <Link
                         href={`/admin/bot-users/${d.deploymentId}`}
-                        className="grid flex-1 min-w-0 grid-cols-1 lg:grid-cols-[28px_1.2fr_1fr_100px_120px_100px_140px_120px] gap-2 px-4 py-3.5 items-start lg:items-center hover:bg-white/[0.03] transition-colors text-left group"
+                        className="grid flex-1 min-w-0 grid-cols-1 lg:grid-cols-[28px_1.2fr_1fr_100px_120px_100px_96px_140px_120px] gap-2 px-4 py-3.5 items-start lg:items-center hover:bg-white/[0.03] transition-colors text-left group"
                       >
                         <span className="hidden lg:flex justify-center pt-0.5">
                           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-accent shrink-0 transition-colors" />
@@ -428,6 +456,21 @@ export default function AdminBotUsersPage() {
                           >
                             {d.running ? "Running" : "Stopped"}
                           </span>
+                        </div>
+                        <div title={mirroringStatusTooltip(mirroring)}>
+                          <div className="flex items-center gap-2 lg:block">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50 lg:hidden">
+                              Mirroring
+                            </span>
+                            <span
+                              className={cn(
+                                "text-xs font-black uppercase tracking-wide",
+                                mirroringStatusColorClass(mirroring.status),
+                              )}
+                            >
+                              {mirroring.label}
+                            </span>
+                          </div>
                         </div>
                         <div className="text-right" title={walletTooltip(d.wallet)}>
                           {d.wallet == null ? (

@@ -19,6 +19,12 @@ import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
+import { AdminCtaWithInfo } from "@/components/admin/AdminCtaLabel";
+import { AdminInfoTip } from "@/components/admin/AdminInfoTip";
+import {
+  computeMirroringStatus,
+  mirroringStatusTooltip,
+} from "@/lib/freedombot/mirroring-status-shared";
 import { TradesPanel } from "@/components/freedombot/TradesPanel";
 import {
   type Trade,
@@ -471,19 +477,21 @@ export default function AdminBotUserDetailPage() {
 
               <div className="rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] p-4 space-y-3">
                 <p className="text-[11px] text-muted-foreground leading-snug">{deployment.pnlNote}</p>
-                <button
-                  type="button"
-                  onClick={() => void runReconcilePnl()}
-                  disabled={reconciling}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-accent/30 bg-accent/10 text-xs font-bold uppercase tracking-wider text-accent hover:bg-accent/20 disabled:opacity-50"
-                >
-                  {reconciling ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-3.5 w-3.5" />
-                  )}
-                  Sync PnL from exchange
-                </button>
+                <AdminCtaWithInfo description="Pulls closed-trade PnL from the exchange API into live_trades, then rebuilds lifetime PnL and the trade table. Does not change wallet balance or mirroring.">
+                  <button
+                    type="button"
+                    onClick={() => void runReconcilePnl()}
+                    disabled={reconciling}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-accent/30 bg-accent/10 text-xs font-bold uppercase tracking-wider text-accent hover:bg-accent/20 disabled:opacity-50"
+                  >
+                    {reconciling ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    )}
+                    Sync PnL from exchange
+                  </button>
+                </AdminCtaWithInfo>
               </div>
             </>
           ) : null}
@@ -588,12 +596,12 @@ export default function AdminBotUserDetailPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {deployment.running && (
-                      <button
-                        type="button"
-                        onClick={() => void handleReEnableMirroring()}
-                        disabled={reEnableBusy}
-                        title="Turn on auto-trade and clear any daily-loss pause on this exchange"
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+                      <AdminCtaWithInfo description="Force-resets auto-trade and clears today's daily-loss pause on this exchange. Use when mirroring shows Off/Paused today, or as a safe reset when On but signals are not copying.">
+                        <button
+                          type="button"
+                          onClick={() => void handleReEnableMirroring()}
+                          disabled={reEnableBusy}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
                         style={{
                           borderColor: deployment.liveMirroringActive
                             ? "rgba(90,140,220,0.18)"
@@ -609,27 +617,30 @@ export default function AdminBotUserDetailPage() {
                         ) : (
                           <RefreshCw className="h-3 w-3" />
                         )}
-                        Re-enable mirroring
-                      </button>
+                          Re-enable mirroring
+                        </button>
+                      </AdminCtaWithInfo>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => void handleRefreshWallet()}
-                      disabled={walletRefreshing}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
-                      style={{
-                        borderColor: "rgba(90,140,220,0.18)",
-                        color: "#cbd5e1",
-                        backgroundColor: "rgba(255,255,255,0.02)",
-                      }}
-                    >
-                      {walletRefreshing ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-3 w-3" />
-                      )}
-                      Refresh
-                    </button>
+                    <AdminCtaWithInfo description="Fetches current wallet balance and checks whether API keys still work. Updates Connection valid/invalid and Wallet balance. Does not sync trade PnL or change mirroring.">
+                      <button
+                        type="button"
+                        onClick={() => void handleRefreshWallet()}
+                        disabled={walletRefreshing}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+                        style={{
+                          borderColor: "rgba(90,140,220,0.18)",
+                          color: "#cbd5e1",
+                          backgroundColor: "rgba(255,255,255,0.02)",
+                        }}
+                      >
+                        {walletRefreshing ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3" />
+                        )}
+                        Refresh
+                      </button>
+                    </AdminCtaWithInfo>
                   </div>
                 </div>
                 {deployment.running && !deployment.liveMirroringActive && (
@@ -700,6 +711,12 @@ export default function AdminBotUserDetailPage() {
                           },
                           {
                             label: "Mirroring",
+                            tip: mirroringStatusTooltip(
+                              computeMirroringStatus(deployment.running, {
+                                autoTradeEnabled: deployment.autoTradeEnabled ?? null,
+                                dailyLossHaltedToday: deployment.dailyLossHaltedToday ?? false,
+                              }),
+                            ),
                             value: deployment.liveMirroringActive
                               ? "On"
                               : deployment.dailyLossHaltedToday
@@ -721,10 +738,11 @@ export default function AdminBotUserDetailPage() {
                       }}
                     >
                       <p
-                        className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest mb-1"
+                        className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest mb-1 inline-flex items-center gap-1"
                         style={{ color: "#334155" }}
                       >
                         {s.label}
+                        {"tip" in s && s.tip ? <AdminInfoTip text={s.tip} iconClassName="h-3 w-3" /> : null}
                       </p>
                       <p
                         className="text-lg sm:text-xl font-black leading-tight"

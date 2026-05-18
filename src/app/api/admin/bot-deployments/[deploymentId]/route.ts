@@ -10,7 +10,7 @@ import {
   tradingPrefsFromSecret,
   type TradingPrefs,
 } from "@/lib/freedombot/trading-prefs";
-import { isDailyLossHaltedToday } from "@/lib/freedombot/daily-loss-gate";
+import { computeMirroringStatus, loadMirroringFieldsForExchange } from "@/lib/freedombot/mirroring-status";
 
 export const dynamic = "force-dynamic";
 
@@ -91,16 +91,13 @@ export async function GET(
       walletStatusRaw === "valid" || walletStatusRaw === "invalid" ? walletStatusRaw : null;
 
     const exchangeName = exchange as ExchangeName;
-    let autoTradeEnabled: boolean | null = null;
-    let dailyLossHaltedToday = false;
+    const mirroringFields = await loadMirroringFieldsForExchange(db, uid, exchange);
+    const mirroring = computeMirroringStatus(status === "active", mirroringFields);
     let tradingPrefs: TradingPrefs = { ...DEFAULT_TRADING_PREFS };
     for (const docId of getSecretDocIds(exchangeName)) {
       const secretDoc = await db.collection("users").doc(uid).collection("secrets").doc(docId).get();
       if (secretDoc.exists && docMatchesExchange(secretDoc.data()!, exchangeName, docId)) {
-        const secretData = secretDoc.data()!;
-        autoTradeEnabled = secretData.autoTradeEnabled === true;
-        dailyLossHaltedToday = isDailyLossHaltedToday(secretData);
-        tradingPrefs = tradingPrefsFromSecret(secretData);
+        tradingPrefs = tradingPrefsFromSecret(secretDoc.data()!);
         break;
       }
     }
@@ -117,10 +114,11 @@ export async function GET(
       deploymentStatus: status,
       running: status === "active",
       /** Secrets-doc switch the live dispatcher reads (can be false after kill switch). */
-      autoTradeEnabled,
-      dailyLossHaltedToday,
-      liveMirroringActive:
-        status === "active" && autoTradeEnabled === true && !dailyLossHaltedToday,
+      autoTradeEnabled: mirroring.autoTradeEnabled,
+      dailyLossHaltedToday: mirroring.dailyLossHaltedToday,
+      liveMirroringActive: mirroring.liveMirroringActive,
+      mirroringStatus: mirroring.status,
+      mirroringLabel: mirroring.label,
       tradingPrefs,
       lifetimeRealizedPnl: aggregates.lifetimeRealizedPnl,
       openTradeCount: aggregates.openTradeCount,

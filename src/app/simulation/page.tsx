@@ -68,6 +68,7 @@ import { calcPerformanceMetrics } from "@/lib/performance-metrics";
 import { buildEquityCurve } from "@/lib/equity-curve";
 import { BotSourceFilter } from "@/components/dashboard/BotSourceFilter";
 import { matchesBotSource, type BotSourceFilter as BotSourceFilterValue } from "@/lib/bot-source-filter";
+import { CronHealthBanner } from "@/components/simulator/CronHealthBanner";
 
 function formatMoney(val: number, cs = "$"): string {
   if (cs === "₹") {
@@ -410,6 +411,7 @@ export default function SimulationPage() {
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           <div className="max-w-[1400px] mx-auto space-y-4">
+            <CronHealthBanner />
             {/* Asset type selector + simulator controls */}
             <div className="flex items-center justify-between gap-4 flex-wrap">
               {/* Asset type pills — primary navigation */}

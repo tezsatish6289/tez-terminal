@@ -37,6 +37,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Cron heartbeats (server-written; read on /simulation ops banner)
+    match /cron_health/{jobId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Logs: Technical audit trail.
     match /logs/{logId} {
       allow list, get: if isAdmin();

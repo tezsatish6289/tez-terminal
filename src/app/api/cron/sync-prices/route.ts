@@ -13,6 +13,7 @@ import {
   CANDLE_MINUTES as SNAPSHOT_CANDLE_MINUTES,
   type MarketRegimeData,
 } from "@/lib/auto-filter";
+import { recordCronHeartbeat } from "@/lib/cron-health";
 import {
   fetchAllExchangePrices,
   serializePrices,
@@ -71,6 +72,7 @@ export async function GET(request: NextRequest) {
   }
 
   const db = getAdminFirestore();
+  const startedAt = Date.now();
 
   try {
     // ── 1. Fetch prices from ALL exchanges in parallel ──────
@@ -651,6 +653,12 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     }));
 
+    const summary = `updated=${updateCount} scored=${scoreCount} throttle=${heavyCronThrottle}`;
+    await recordCronHeartbeat(db, "sync-prices", {
+      ok: true,
+      summary,
+      durationMs: Date.now() - startedAt,
+    });
     return NextResponse.json({
       success: true,
       updated: updateCount,
@@ -660,6 +668,11 @@ export async function GET(request: NextRequest) {
       heavyCronThrottle,
     });
   } catch (error: any) {
+    await recordCronHeartbeat(db, "sync-prices", {
+      ok: false,
+      error: error.message,
+      durationMs: Date.now() - startedAt,
+    }).catch(() => {});
     await db.collection("logs").add({
       timestamp: new Date().toISOString(),
       level: "ERROR",

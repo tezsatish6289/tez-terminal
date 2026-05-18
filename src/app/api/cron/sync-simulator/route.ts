@@ -50,6 +50,7 @@ import {
 import { executeForAllUsers } from "@/lib/live-execution";
 import { isMarketOpen, isIndianMarketEntryAllowed, isIndianSquareOffTime } from "@/lib/market-hours";
 import { markTradeForBlockchain } from "@/lib/blockchain-logger";
+import { recordCronHeartbeat } from "@/lib/cron-health";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -80,6 +81,7 @@ export async function GET(request: NextRequest) {
   }
 
   const db = getAdminFirestore();
+  const startedAt = Date.now();
 
   // Load simulator param overrides + controls (user-tunable via UI)
   let simConfig = SIM_CONFIG;
@@ -1234,6 +1236,11 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     }));
 
+    await recordCronHeartbeat(db, "sync-simulator", {
+      ok: true,
+      summary: `closes=${eventCloses} incubated=${incubatedCount} updates=${priceUpdates}`,
+      durationMs: Date.now() - startedAt,
+    });
     return NextResponse.json({
       success: true,
       prices: { binance: binancePriceCount, bybit: bybitPriceCount },
@@ -1243,6 +1250,11 @@ export async function GET(request: NextRequest) {
       incubatedCount,
     });
   } catch (error: any) {
+    await recordCronHeartbeat(db, "sync-simulator", {
+      ok: false,
+      error: error.message,
+      durationMs: Date.now() - startedAt,
+    }).catch(() => {});
     await db.collection("logs").add({
       timestamp: new Date().toISOString(),
       level: "ERROR",

@@ -44,6 +44,7 @@ import {
   type TradeAggregateSnapshot,
 } from "@/lib/freedombot/aggregates";
 import { refreshDeploymentWalletBalance } from "@/lib/freedombot/wallet-balance";
+import { recordCronHeartbeat } from "@/lib/cron-health";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -737,6 +738,7 @@ export async function GET(request: NextRequest) {
   }
 
   const db = getAdminFirestore();
+  const startedAt = Date.now();
 
   try {
     // ── 1. Read cached prices ───────────────────────────────
@@ -1232,6 +1234,13 @@ export async function GET(request: NextRequest) {
       webhookId: "SYSTEM_CRON",
     });
 
+    await recordCronHeartbeat(db, "sync-live-trades", {
+      ok: true,
+      degraded: totalErrors > 0,
+      summary: `pairs=${pairs.length} fills=${totalFills} errors=${totalErrors}`,
+      durationMs: Date.now() - startedAt,
+    });
+
     return NextResponse.json({
       success: true,
       pairs: pairs.length,
@@ -1265,6 +1274,15 @@ export async function GET(request: NextRequest) {
       console.error("[LiveSync] FATAL", error);
     } catch {
       // ignore logging failure
+    }
+    try {
+      await recordCronHeartbeat(db, "sync-live-trades", {
+        ok: false,
+        error: fullMessage,
+        durationMs: Date.now() - startedAt,
+      });
+    } catch {
+      /* heartbeat must not block error path */
     }
     try {
       await db.collection("logs").add({

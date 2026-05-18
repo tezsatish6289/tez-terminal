@@ -35,7 +35,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getAdminFirestore, getAdminAuth } from "@/firebase/admin";
-import { encrypt } from "@/lib/crypto";
+import { encrypt, decrypt } from "@/lib/crypto";
 import {
   getConnector,
   getSecretDocId,
@@ -169,35 +169,68 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    // ── Update the single secret doc in place ─────────────────────────────
-    // We deliberately use `.update()` not `.set()` so unrelated fields
-    // (autoTradeEnabled, riskPerTrade, dailyLossLimit, useTestnet, etc.)
-    // survive the rotation. Per design constraint: ONE secret doc per
-    // (user, exchange) — never create a new doc here.
+    // ── Detect "no-op": user submitted the same keys already on file ──────
+    // We decrypt the existing secret and string-compare to the new values.
+    // `keyFingerprint` alone is insufficient because it only covers
+    // `apiKey` (not `apiSecret`) — a user rotating only the secret would
+    // false-positive as unchanged. Decryption happens entirely in-memory
+    // here; the plaintext is never returned to the client.
     const docId = getSecretDocId(exchange);
     const secretRef = db.collection("users").doc(uid).collection("secrets").doc(docId);
+    const existingSecret = await secretRef.get();
+    let unchanged = false;
+    if (existingSecret.exists) {
+      try {
+        const data = existingSecret.data()!;
+        const currentApiKey =
+          typeof data.encryptedKey === "string" ? decrypt(data.encryptedKey) : null;
+        const currentApiSecret =
+          typeof data.encryptedSecret === "string"
+            ? decrypt(data.encryptedSecret)
+            : null;
+        if (
+          currentApiKey === credentials.apiKey &&
+          currentApiSecret === credentials.apiSecret
+        ) {
+          unchanged = true;
+        }
+      } catch {
+        // Decryption failure (e.g. ENCRYPTION_KEY rotated since the
+        // original write) — fall through and treat as a normal write.
+        unchanged = false;
+      }
+    }
 
-    await secretRef.set(
-      {
-        exchange,
-        encryptedKey: encrypt(credentials.apiKey),
-        encryptedSecret: encrypt(credentials.apiSecret),
+    if (!unchanged) {
+      // ── Update the single secret doc in place ─────────────────────────
+      // We deliberately use `.set(..., { merge: true })` so unrelated
+      // fields (autoTradeEnabled, riskPerTrade, dailyLossLimit,
+      // useTestnet, etc.) survive the rotation. Per design constraint:
+      // ONE secret doc per (user, exchange) — never create a new doc.
+      await secretRef.set(
+        {
+          exchange,
+          encryptedKey: encrypt(credentials.apiKey),
+          encryptedSecret: encrypt(credentials.apiSecret),
+          keyLastFour: credentials.apiKey.slice(-4),
+          savedAt: new Date().toISOString(),
+        },
+        { merge: true },
+      );
+
+      // Mirror identifying fields onto the deployment doc so the admin
+      // dashboard's "key ending in" column and the next rotation's
+      // duplicate-key check both work.
+      await deployRef.update({
+        keyFingerprint: newFingerprint,
         keyLastFour: credentials.apiKey.slice(-4),
-        savedAt: new Date().toISOString(),
-      },
-      { merge: true },
-    );
-
-    // Mirror identifying fields onto the deployment doc so the admin
-    // dashboard's "key ending in" column and the next rotation's
-    // duplicate-key check both work.
-    await deployRef.update({
-      keyFingerprint: newFingerprint,
-      keyLastFour: credentials.apiKey.slice(-4),
-      credentialsUpdatedAt: new Date().toISOString(),
-    });
+        credentialsUpdatedAt: new Date().toISOString(),
+      });
+    }
 
     // ── Seed the fresh wallet snapshot (skip an extra venue round-trip) ───
+    // Runs in both paths: even on a no-op submit we want the user to see a
+    // fresh balance + "Tested just now" so the click feels productive.
     if (validatedBalance) {
       await persistWalletBalanceSnapshot(deployRef, exchange, {
         ok: true,
@@ -208,6 +241,7 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      unchanged,
       keyLastFour: credentials.apiKey.slice(-4),
       wallet: validatedBalance
         ? {

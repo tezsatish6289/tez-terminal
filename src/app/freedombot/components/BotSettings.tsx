@@ -97,6 +97,10 @@ export function BotSettings({
   const [testBusy, setTestBusy] = useState(false);
 
   const [updateOpen, setUpdateOpen] = useState(false);
+  const [updateBanner, setUpdateBanner] = useState<{
+    tone: "success" | "info";
+    text: string;
+  } | null>(null);
   const [pauseBusy, setPauseBusy] = useState(false);
   const [resumeBusy, setResumeBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -109,6 +113,7 @@ export function BotSettings({
     setKeyLastFour(deployment.keyLastFour);
     setUpdateOpen(false);
     setDeleteOpen(false);
+    setUpdateBanner(null);
   }, [deployment.id, deployment.wallet, deployment.keyLastFour]);
 
   const exchangeDef = useMemo(
@@ -280,6 +285,25 @@ export function BotSettings({
               </button>
             </div>
 
+            {updateBanner && (
+              <div
+                className="mt-3 rounded-xl px-3 py-2 text-[11px] leading-relaxed"
+                style={{
+                  backgroundColor:
+                    updateBanner.tone === "info"
+                      ? "rgba(59,130,246,0.07)"
+                      : "rgba(34,197,94,0.07)",
+                  color: updateBanner.tone === "info" ? "#93c5fd" : "#86efac",
+                  border:
+                    updateBanner.tone === "info"
+                      ? "1px solid rgba(59,130,246,0.15)"
+                      : "1px solid rgba(34,197,94,0.15)",
+                }}
+              >
+                {updateBanner.text}
+              </div>
+            )}
+
             {updateOpen && exchangeDef && (
               <div className="mt-4">
                 <UpdateApiKeyForm
@@ -288,11 +312,27 @@ export function BotSettings({
                   exchange={deployment.exchange}
                   exchangeLabel={exchangeLabel}
                   fields={exchangeDef.fields}
-                  onSuccess={(newWallet, newLastFour) => {
+                  onSuccess={(newWallet, newLastFour, unchanged) => {
                     if (newWallet) setWallet(newWallet);
                     if (newLastFour) setKeyLastFour(newLastFour);
                     setUpdateOpen(false);
-                    onMutated();
+                    setUpdateBanner(
+                      unchanged
+                        ? {
+                            tone: "info",
+                            text:
+                              "These keys are already on file — connection is valid. Nothing was changed.",
+                          }
+                        : {
+                            tone: "success",
+                            text:
+                              "API keys updated. Old keys are no longer on file.",
+                          },
+                    );
+                    // Refresh parent state (deployments list + trades) so
+                    // the new keyLastFour / wallet snapshot also lands on
+                    // the dashboard chrome outside this panel.
+                    if (!unchanged) onMutated();
                   }}
                 />
               </div>
@@ -562,7 +602,15 @@ interface UpdateApiKeyFormProps {
   exchange: string;
   exchangeLabel: string;
   fields: { key: string; label: string; type: "text" | "password"; placeholder: string; hint?: string }[];
-  onSuccess: (wallet: DeploymentWallet | null, keyLastFour: string | null) => void;
+  /** Called on success (whether rotated or no-op). `unchanged: true` means
+   *  the user submitted the exact keys already on file — UI uses this to
+   *  show a different success copy ("already on file — connection valid")
+   *  instead of pretending an update happened. */
+  onSuccess: (
+    wallet: DeploymentWallet | null,
+    keyLastFour: string | null,
+    unchanged: boolean,
+  ) => void;
 }
 
 function UpdateApiKeyForm({
@@ -617,6 +665,7 @@ function UpdateApiKeyForm({
       onSuccess(
         newWallet,
         typeof data.keyLastFour === "string" ? data.keyLastFour : null,
+        data.unchanged === true,
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unexpected error");

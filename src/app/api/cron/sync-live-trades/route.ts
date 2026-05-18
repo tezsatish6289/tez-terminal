@@ -13,13 +13,10 @@ import {
 } from "@/lib/trade-engine";
 import { type SimTrade } from "@/lib/simulator";
 import { computeAutoFilter, mapFirestoreSignal } from "@/lib/auto-filter";
-import { decrypt, encrypt } from "@/lib/crypto";
-import { generateTokenForUser } from "@/lib/dhan-token";
+import { decrypt } from "@/lib/crypto";
 import { sendMessage } from "@/lib/telegram";
 import {
   type ExchangeName,
-  SUPPORTED_EXCHANGES,
-  STOCK_EXCHANGES,
   deserializePrices,
   getPrice,
   getSecretDocIds,
@@ -28,7 +25,6 @@ import {
   replaceSl,
   type AllExchangePrices,
 } from "@/lib/exchanges";
-import { isIndianMarketOpen, isIndianSquareOffTime } from "@/lib/market-hours";
 import {
   computeClosedTradeExchangePnlMetrics,
   exchangeReconcileOrderIdsFromLiveTrade,
@@ -47,10 +43,6 @@ import { refreshDeploymentWalletBalance } from "@/lib/freedombot/wallet-balance"
 import { recordCronHeartbeat } from "@/lib/cron-health";
 import { resolveDailyLossLimit } from "@/lib/freedombot/trading-prefs-shared";
 import { dailyLossHaltPatchForToday } from "@/lib/freedombot/daily-loss-gate";
-import {
-  autoResumeLegacyKillSwitchUsers,
-  autoResumeStaleDailyLossHalts,
-} from "@/lib/freedombot/auto-resume-mirroring";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -746,14 +738,6 @@ export async function GET(request: NextRequest) {
   const startedAt = Date.now();
 
   try {
-    const staleHaltsCleared = await autoResumeStaleDailyLossHalts(db);
-    const legacyResumed = await autoResumeLegacyKillSwitchUsers(db);
-    if (staleHaltsCleared > 0 || legacyResumed > 0) {
-      console.log(
-        `[LiveSync] Auto-resume: ${staleHaltsCleared} stale daily-loss halt(s) cleared, ${legacyResumed} legacy kill-switch user(s) re-enabled`,
-      );
-    }
-
     // ── 1. Read cached prices ───────────────────────────────
     let allPrices: AllExchangePrices = { BINANCE: new Map(), BYBIT: new Map(), MEXC: new Map(), COINDCX: new Map(), HYPERLIQUID: new Map(), DHAN: new Map() };
     try {
@@ -801,108 +785,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // ── 3a. 3:15 PM IST square-off: force-close open Dhan 5-min intraday positions ──
-    // Only 5-min chart trades are squared off — longer timeframes managed separately.
-    if (isIndianSquareOffTime()) {
-      console.log("[LiveSync] 3:15 PM IST square-off window — closing open Dhan 5m intraday positions.");
-
-      const openDhanTrades = await db.collection("live_trades")
-        .where("status", "==", "OPEN")
-        .where("exchange", "==", "DHAN")
-        .get();
-
-      // Filter to only 5-min chart trades
-      const fiveMinTrades = openDhanTrades.docs.filter((d) => {
-        const tf = d.data().timeframe;
-        return String(tf) === "5";
-      });
-
-      if (fiveMinTrades.length > 0) {
-        const squareOffResults = await Promise.allSettled(
-          fiveMinTrades.map(async (tradeDoc) => {
-            const lt = { id: tradeDoc.id, ...tradeDoc.data() } as LiveTrade;
-
-            // Get user's Dhan credentials
-            const userId = lt.userId as string;
-            let creds: { apiKey: string; apiSecret: string; testnet: boolean } | null = null;
-
-            const dhanSecretDoc = await db.collection("users").doc(userId)
-              .collection("secrets").doc("dhan").get().catch(() => null);
-
-            if (dhanSecretDoc?.exists) {
-              const d = dhanSecretDoc.data()!;
-              const clientId = decrypt(d.encryptedKey);
-
-              if (d.encryptedPin) {
-                let accessToken: string | null = null;
-                if (d.encryptedCachedToken && d.cachedTokenExpiresAt) {
-                  const expiresAt = new Date(d.cachedTokenExpiresAt as string).getTime();
-                  if (Date.now() < expiresAt - 5 * 60 * 1000) {
-                    try { accessToken = decrypt(d.encryptedCachedToken); } catch { /* stale */ }
-                  }
-                }
-                if (!accessToken) {
-                  const { token } = await generateTokenForUser(clientId, decrypt(d.encryptedSecret), decrypt(d.encryptedPin));
-                  accessToken = token;
-                }
-                if (accessToken) creds = { apiKey: accessToken, apiSecret: clientId, testnet: false };
-              } else {
-                creds = { apiKey: decrypt(d.encryptedKey), apiSecret: decrypt(d.encryptedSecret), testnet: false };
-              }
-            }
-
-            if (!creds) {
-              console.warn(`[LiveSync] Square-off: no valid Dhan creds for user ${userId}, trade ${lt.id}`);
-              return;
-            }
-
-            try {
-              const connector = getConnector("DHAN");
-              await connector.cancelAllOrders(lt.signalSymbol, creds);
-              await connector.placeMarketClose(lt.signalSymbol, lt.side, lt.quantity, creds);
-
-              const closePrice = getPrice(allPrices, lt.signalSymbol, "DHAN") ?? lt.entryPrice;
-              const isBuy = lt.side === "BUY";
-              const priceDiff = isBuy ? closePrice - lt.entryPrice : lt.entryPrice - closePrice;
-              // Realised PnL = priceMove% * notional. `positionSize` is the
-              // notional value at entry, so no leverage multiplier required.
-              const realizedPnl = (priceDiff / lt.entryPrice) * lt.positionSize;
-              const now = new Date().toISOString();
-
-              const eodPatch = {
-                status: "CLOSED" as const,
-                closeReason: "EOD_SQUARE_OFF",
-                closedAt: now,
-                exitPrice: closePrice,
-                realizedPnl: Math.round(realizedPnl * 100) / 100,
-              };
-              const eodAggBefore: TradeAggregateSnapshot = { ...lt };
-              await db.collection("live_trades").doc(lt.id!).update(eodPatch);
-              await applyTradeChangeToAggregates(db, eodAggBefore, {
-                ...eodAggBefore,
-                ...eodPatch,
-              });
-
-              await db.collection("live_trade_logs").add({
-                timestamp: now,
-                action: "EOD_SQUARE_OFF",
-                details: `${lt.signalSymbol} ${lt.side} force-closed @ ₹${closePrice} for EOD square-off. PnL: ₹${realizedPnl.toFixed(2)}`,
-                symbol: lt.signalSymbol,
-                userId,
-                exchange: "DHAN",
-                assetType: "INDIAN_STOCKS",
-              });
-            } catch (err) {
-              console.error(`[LiveSync] Square-off failed for ${lt.signalSymbol} (${lt.id}):`, err);
-            }
-          })
-        );
-
-        const soOk = squareOffResults.filter((r) => r.status === "fulfilled").length;
-        console.log(`[LiveSync] Square-off complete: ${soOk}/${fiveMinTrades.length} 5m positions closed.`);
-      }
-    }
-
     // ── 3. Find all users with auto-trade enabled ───────────
     // Check each supported exchange's secrets collection
     interface UserExchangePair {
@@ -922,6 +804,9 @@ export async function GET(request: NextRequest) {
     // `doc.ref.parent.parent.id`. Requires a Firestore single-field index
     // exemption is not needed; collection-group + simple equality is supported
     // out of the box.
+    // Dhan deliberately excluded — Indian-market live trading is paused.
+    // Re-add `dhan: "DHAN"` here (plus restore the token-regen path below)
+    // when reviving Indian stock support.
     const DOC_ID_TO_EXCHANGE: Record<string, ExchangeName> = {
       bybit:           "BYBIT",
       binance:         "BYBIT",   // legacy pre-migration doc
@@ -929,7 +814,6 @@ export async function GET(request: NextRequest) {
       mexc:            "MEXC",
       coindcx:         "COINDCX",
       hyperliquid:     "HYPERLIQUID",
-      dhan:            "DHAN",
     };
 
     let enabledSnap: FirebaseFirestore.QuerySnapshot;
@@ -979,56 +863,14 @@ export async function GET(request: NextRequest) {
       const exchangeName = DOC_ID_TO_EXCHANGE[secretDoc.id];
       if (!exchangeName) return;
       if (!docMatchesExchange(data, exchangeName, secretDoc.id)) return;
-      if (STOCK_EXCHANGES.includes(exchangeName) && !isIndianMarketOpen()) return;
 
       const dedupeKey = `${userId}::${exchangeName}`;
       if (seen.has(dedupeKey)) return;
       seen.add(dedupeKey);
 
       try {
-        let apiKey: string;
-        let apiSecret: string;
-
-        if (exchangeName === "DHAN") {
-          // Dhan: stored as clientId (key) + totpSecret (secret) + pin.
-          // Auto-generate a fresh JWT token; cache it for 24h so we
-          // don't hit Dhan's auth API on every cron tick.
-          const clientId = decrypt(data.encryptedKey);
-          const totpSecret = data.encryptedSecret ? decrypt(data.encryptedSecret) : null;
-          const pin = data.encryptedPin ? decrypt(data.encryptedPin) : null;
-
-          let accessToken: string | null = null;
-
-          if (data.encryptedCachedToken && data.cachedTokenExpiresAt) {
-            const expiresAt = new Date(data.cachedTokenExpiresAt as string).getTime();
-            if (Date.now() < expiresAt - 5 * 60 * 1000) {
-              try { accessToken = decrypt(data.encryptedCachedToken); } catch { /* stale */ }
-            }
-          }
-
-          if (!accessToken && totpSecret && pin) {
-            const { token } = await generateTokenForUser(clientId, totpSecret, pin);
-            accessToken = token;
-            if (accessToken) {
-              await secretDoc.ref.update({
-                encryptedCachedToken: encrypt(accessToken),
-                cachedTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-              });
-            }
-          }
-
-          if (!accessToken) {
-            console.error(`[LiveSync] Could not obtain Dhan token for user ${userId} — skipping.`);
-            return;
-          }
-
-          // DhanConnector expects: apiKey = access token, apiSecret = clientId
-          apiKey = accessToken;
-          apiSecret = clientId;
-        } else {
-          apiKey = decrypt(data.encryptedKey);
-          apiSecret = decrypt(data.encryptedSecret);
-        }
+        const apiKey = decrypt(data.encryptedKey);
+        const apiSecret = decrypt(data.encryptedSecret);
 
         pairs.push({
           userId,

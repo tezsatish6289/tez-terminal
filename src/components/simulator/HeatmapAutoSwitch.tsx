@@ -387,7 +387,14 @@ export function HeatmapAutoSwitch() {
               <span>
                 BTC <span className="font-bold">${status.btcPrice?.toLocaleString() ?? "—"}</span>
                 {" · "}
-                {status.reason}
+                {/* When signalConflict is active, the dedicated yellow warning
+                    card below carries the full explanation — collapse the
+                    banner reason to a short label so we don't say the same
+                    thing twice on the same screen. Other reasons (panic,
+                    pin chop, no clusters) still surface here verbatim. */}
+                {suggested?.signalConflict
+                  ? "Signal conflict — entries suppressed (see alert below)"
+                  : status.reason}
               </span>
             ) : (
               <span className="text-muted-foreground/40">Waiting for first cron cycle…</span>
@@ -670,7 +677,13 @@ export function HeatmapAutoSwitch() {
                               )}
                             </div>
                           )}
-                          {suggested.bullActionable === false && suggested.notActionableReason && (
+                          {/* Skip the per-card italic when signalConflict is
+                              true — the dedicated warning card above already
+                              displays the same `notActionableReason` text in
+                              full, and showing it again here just clutters
+                              the bull card. Pin-chop / no-cluster reasons
+                              still surface here as before. */}
+                          {suggested.bullActionable === false && suggested.notActionableReason && !suggested.signalConflict && (
                             <p className="text-[8px] text-muted-foreground/40 pt-1 italic">
                               {suggested.notActionableReason}
                             </p>
@@ -732,7 +745,10 @@ export function HeatmapAutoSwitch() {
                               )}
                             </div>
                           )}
-                          {suggested.bearActionable === false && suggested.notActionableReason && (
+                          {/* Same dedup as BULL card — skip during
+                              signalConflict so the dedicated alert isn't
+                              echoed inside the bear card. */}
+                          {suggested.bearActionable === false && suggested.notActionableReason && !suggested.signalConflict && (
                             <p className="text-[8px] text-muted-foreground/40 pt-1 italic">
                               {suggested.notActionableReason}
                             </p>
@@ -796,31 +812,21 @@ export function HeatmapAutoSwitch() {
           )}
         </div>
 
-        {/* Footer */}
+        {/* Footer.
+            Used to also restate `deribit · HH:MM` (already shown above
+            the bull/bear cards as `Zones auto-managed · last HH:MM`)
+            and `Max Pain $X · YYMONyy` (already the first row of the
+            MAX PAIN — MM DESTINATION table just above). Dropped both
+            2026-05-19 to remove triple-printing of the same data. */}
         <div className="px-5 py-3 border-t border-white/[0.06] flex items-center justify-between gap-3">
-          <div className="flex flex-col gap-0.5 min-w-0">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleRefreshSuggestions}
-                disabled={refreshing}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-white/[0.07] bg-white/[0.02] text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.05] transition-all disabled:opacity-40 shrink-0"
-              >
-                <RefreshCw className={cn("w-3 h-3", refreshing && "animate-spin")} />
-                {refreshing ? "Fetching…" : "Refresh Zones"}
-              </button>
-              {suggested?.computedAt && (
-                <span className="text-[9px] text-muted-foreground/30 truncate">
-                  deribit · {new Date(suggested.computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </span>
-              )}
-            </div>
-            {suggested?.expiryUsed && (
-              <p className="text-[9px] text-muted-foreground/35 pl-0.5">
-                Max Pain <span className="font-mono font-bold text-accent/60">${suggested.maxPain?.toLocaleString() ?? "—"}</span>
-                {` · ${suggested.expiryUsed}`}
-              </p>
-            )}
-          </div>
+          <button
+            onClick={handleRefreshSuggestions}
+            disabled={refreshing}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-white/[0.07] bg-white/[0.02] text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.05] transition-all disabled:opacity-40 shrink-0"
+          >
+            <RefreshCw className={cn("w-3 h-3", refreshing && "animate-spin")} />
+            {refreshing ? "Fetching…" : "Refresh Zones"}
+          </button>
 
           <button
             onClick={handleSave}

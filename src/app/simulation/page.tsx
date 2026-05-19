@@ -1173,16 +1173,27 @@ function ForceCloseDialog({ trade, onForceClose, children }: { trade: SimTrade; 
 // (either `confidenceScoreAtClose` or legacy `currentScore`). Zone-bot
 // trades have no score → counted under "No data".
 
-type ScoreBucket = "held" | "slight" | "major" | "zero" | "unknown";
+// Six buckets keyed by drop quartile so users can see whether win rate
+// declines smoothly with score deterioration or falls off a cliff somewhere
+// in the middle. "drop100" includes the score-zero case (hard gates failed)
+// since 100% drop = score went to 0 — keeping it as its own bucket would
+// fragment small samples.
+type ScoreBucket = "held" | "drop25" | "drop50" | "drop75" | "drop100" | "unknown";
 
 function classifyTrade(t: SimTrade): { bucket: ScoreBucket; closeScore: number | null } {
   const close = getCloseScore(t);
   if (close.value == null) return { bucket: "unknown", closeScore: null };
-  if (close.value === 0) return { bucket: "zero", closeScore: 0 };
-  const ratio = t.confidenceScore > 0 ? close.value / t.confidenceScore : 1;
-  if (ratio >= 1) return { bucket: "held", closeScore: close.value };
-  if (ratio >= 0.7) return { bucket: "slight", closeScore: close.value };
-  return { bucket: "major", closeScore: close.value };
+  // Dropped from what to 0 can't be expressed as a ratio of zero entry —
+  // treat any close < entry as full drop in that edge case.
+  if (t.confidenceScore <= 0) {
+    return { bucket: close.value > 0 ? "held" : "drop100", closeScore: close.value };
+  }
+  const ratio = close.value / t.confidenceScore;
+  if (ratio >= 1)    return { bucket: "held",    closeScore: close.value };
+  if (ratio >= 0.75) return { bucket: "drop25",  closeScore: close.value }; // 0–25% drop
+  if (ratio >= 0.50) return { bucket: "drop50",  closeScore: close.value }; // 25–50% drop
+  if (ratio >= 0.25) return { bucket: "drop75",  closeScore: close.value }; // 50–75% drop
+  return                    { bucket: "drop100", closeScore: close.value }; // 75–100% drop
 }
 
 interface BucketStats {
@@ -1197,10 +1208,11 @@ function emptyStats(): BucketStats {
 }
 
 interface ScoreOutcomeBuckets {
-  held: BucketStats;
-  slight: BucketStats;
-  major: BucketStats;
-  zero: BucketStats;
+  held:    BucketStats;
+  drop25:  BucketStats;
+  drop50:  BucketStats;
+  drop75:  BucketStats;
+  drop100: BucketStats;
   unknown: BucketStats;
   total: number;
   scoredTotal: number;
@@ -1208,10 +1220,11 @@ interface ScoreOutcomeBuckets {
 
 function computeScoreOutcomeBuckets(trades: SimTrade[]): ScoreOutcomeBuckets {
   const buckets: ScoreOutcomeBuckets = {
-    held: emptyStats(),
-    slight: emptyStats(),
-    major: emptyStats(),
-    zero: emptyStats(),
+    held:    emptyStats(),
+    drop25:  emptyStats(),
+    drop50:  emptyStats(),
+    drop75:  emptyStats(),
+    drop100: emptyStats(),
     unknown: emptyStats(),
     total: 0,
     scoredTotal: 0,
@@ -1230,11 +1243,12 @@ function computeScoreOutcomeBuckets(trades: SimTrade[]): ScoreOutcomeBuckets {
 }
 
 const BUCKET_DEFS: { key: ScoreBucket; label: string; sub: string; color: string; bg: string }[] = [
-  { key: "held",    label: "Score Held",    sub: "Close ≥ Entry",       color: "text-positive",   bg: "bg-positive/10" },
-  { key: "slight",  label: "Slight Drop",   sub: "70-99% of Entry",     color: "text-amber-400",  bg: "bg-amber-500/10" },
-  { key: "major",   label: "Major Drop",    sub: "1-69% of Entry",      color: "text-orange-400", bg: "bg-orange-500/10" },
-  { key: "zero",    label: "Score Zero",    sub: "Hard gates failed",   color: "text-rose-400",   bg: "bg-rose-500/10" },
-  { key: "unknown", label: "No Score",      sub: "Zone-bot / legacy",   color: "text-muted-foreground/60", bg: "bg-white/[0.03]" },
+  { key: "held",    label: "Score Held",    sub: "Close ≥ Entry",         color: "text-positive",            bg: "bg-positive/10"          },
+  { key: "drop25",  label: "0-25% Drop",    sub: "Close 75-100% of Entry", color: "text-yellow-300",          bg: "bg-yellow-500/10"        },
+  { key: "drop50",  label: "25-50% Drop",   sub: "Close 50-75% of Entry",  color: "text-amber-400",           bg: "bg-amber-500/10"         },
+  { key: "drop75",  label: "50-75% Drop",   sub: "Close 25-50% of Entry",  color: "text-orange-400",          bg: "bg-orange-500/10"        },
+  { key: "drop100", label: "75-100% Drop",  sub: "Close 0-25% of Entry",   color: "text-rose-400",            bg: "bg-rose-500/10"          },
+  { key: "unknown", label: "No Score",      sub: "Zone-bot / legacy",      color: "text-muted-foreground/60", bg: "bg-white/[0.03]"         },
 ];
 
 function ScoreOutcomeAnalysis({ trades, cs }: { trades: SimTrade[]; cs: string }) {
@@ -1245,8 +1259,8 @@ function ScoreOutcomeAnalysis({ trades, cs }: { trades: SimTrade[]; cs: string }
   // Headline insight: how does win rate when score holds compare to when it
   // collapses? Only meaningful with a few trades on either side.
   const heldWinRate = buckets.held.count > 0 ? (buckets.held.wins / buckets.held.count) * 100 : null;
-  const droppedCount = buckets.slight.count + buckets.major.count + buckets.zero.count;
-  const droppedWins = buckets.slight.wins + buckets.major.wins + buckets.zero.wins;
+  const droppedCount = buckets.drop25.count + buckets.drop50.count + buckets.drop75.count + buckets.drop100.count;
+  const droppedWins  = buckets.drop25.wins  + buckets.drop50.wins  + buckets.drop75.wins  + buckets.drop100.wins;
   const droppedWinRate = droppedCount > 0 ? (droppedWins / droppedCount) * 100 : null;
   const edge =
     heldWinRate != null && droppedWinRate != null && buckets.held.count >= 3 && droppedCount >= 3
@@ -1275,7 +1289,7 @@ function ScoreOutcomeAnalysis({ trades, cs }: { trades: SimTrade[]; cs: string }
           </div>
         )}
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         {BUCKET_DEFS.map((def) => {
           const b = buckets[def.key];
           const winRate = b.count > 0 ? (b.wins / b.count) * 100 : 0;

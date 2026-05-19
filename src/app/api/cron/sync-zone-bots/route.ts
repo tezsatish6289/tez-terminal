@@ -335,7 +335,6 @@ async function openZoneBotTrade(args: {
   const tradeWithSource: SimTrade = { ...result.trade, botSource: ZONE_BOT_SOURCE[asset] };
 
   const docId = `sim-${signalId}`;
-  await db.collection("simulator_trades").doc(docId).set(tradeWithSource);
 
   // Decorate the log so it's easy to grep zone-bot activity in
   // simulator_logs without scrolling through every pattern-signal event.
@@ -343,7 +342,26 @@ async function openZoneBotTrade(args: {
     ...result.log,
     details: `[${ZONE_BOT_SOURCE[asset]}] ${result.log.details}`,
   };
-  await db.collection("simulator_logs").add(decoratedLog);
+
+  // Surface any Firestore write failure as a simulator_logs entry — the
+  // outer tickAsset try/catch otherwise swallows the error into console
+  // and the operator sees zero zone-bot activity (which is what happened
+  // when `scoreBreakdownAtEntry: undefined` was rejected by the admin SDK).
+  try {
+    await db.collection("simulator_trades").doc(docId).set(tradeWithSource);
+    await db.collection("simulator_logs").add(decoratedLog);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await db.collection("simulator_logs").add({
+      timestamp: new Date(now).toISOString(),
+      action: "ZONE_BOT_OPEN_FAILED",
+      details: `[${ZONE_BOT_SOURCE[asset]}] open write threw: ${msg}. Sim trade NOT created.`,
+      symbol: tradeWithSource.symbol,
+      capital: state.capital,
+      assetType: "CRYPTO",
+    }).catch(() => {});
+    throw e; // re-throw so tickAsset's caller still surfaces the error
+  }
 
   // Mirror to live exchanges for any user who has explicitly opted into
   // this specific zone bot (zoneBotsEnabled.<asset> === true).

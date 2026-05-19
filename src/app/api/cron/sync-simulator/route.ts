@@ -307,6 +307,33 @@ export async function GET(request: NextRequest) {
     const scores = computeAutoFilter(allSignalsForScoring, undefined, liquidityCaches, liqConfig);
     const scoresForOpenTrades = computeAutoFilter(allSignalsForScoring, { includeResolved: true }, liquidityCaches, liqConfig);
 
+    // Build closingScore params for processTradeExit from the live score
+    // map. Returned undefined values are spread harmlessly so the trade
+    // doc keeps existing fields untouched when no score is available
+    // (e.g. zone-bot synthetic signals or signals already removed).
+    const closingScoreParams = (signalId: string) => {
+      const scored = scoresForOpenTrades.get(signalId);
+      if (!scored) return {} as const;
+      const liq = scored.breakdown.liquidityContext;
+      return {
+        closingScore: scored.score,
+        closingScorePattern: scored.breakdown.pattern,
+        closingScoreBreakdown: {
+          priceStructure: scored.breakdown.priceStructure,
+          pattern: scored.breakdown.pattern,
+          rrGateFailed: scored.breakdown.rrGateFailed,
+          liquidityContext: liq
+            ? {
+                score: liq.score,
+                sweepGatePassed: liq.sweepGatePassed ?? null,
+                sweepAgeMs: liq.sweepAgeMs ?? null,
+                reasons: liq.reasons,
+              }
+            : null,
+        },
+      } as const;
+    };
+
     // ── Helper: load/save sim state per asset type ─────────
     const simStates = new Map<string, SimulatorState>();
     async function loadSimState(assetType: string): Promise<SimulatorState> {
@@ -354,6 +381,7 @@ export async function GET(request: NextRequest) {
           exitType: "SL", // treat as a forced exit for capital accounting
           exitPrice: closePrice,
           simConfig,
+          ...closingScoreParams(t.signalId),
         });
 
         if (result) {
@@ -417,6 +445,7 @@ export async function GET(request: NextRequest) {
               exitType: "SL",
               exitPrice: closePrice,
               simConfig,
+              ...closingScoreParams(t.signalId),
             });
 
             if (result) {
@@ -511,6 +540,7 @@ export async function GET(request: NextRequest) {
                       exitType: "TP1",
                       exitPrice: closePrice,
                       simConfig,
+                      ...closingScoreParams(t.signalId),
                     });
 
                     if (result) {
@@ -583,6 +613,7 @@ export async function GET(request: NextRequest) {
               exitType: "SL",
               exitPrice: closePrice,
               simConfig,
+              ...closingScoreParams(t.signalId),
             });
 
             if (result) {
@@ -649,6 +680,7 @@ export async function GET(request: NextRequest) {
             exitType,
             exitPrice,
             simConfig,
+            ...closingScoreParams(simTrade.signalId),
           });
 
           if (result) {
@@ -713,6 +745,7 @@ export async function GET(request: NextRequest) {
                   exitType: exit.type,
                   exitPrice: exit.price,
                   simConfig,
+                  ...closingScoreParams(currentTrade.signalId),
                 });
                 if (result) {
                   currentTrade = result.updatedTrade;
@@ -754,6 +787,7 @@ export async function GET(request: NextRequest) {
                 exitPrice: effectiveSl,
                 state: simState2,
                 simConfig,
+                ...closingScoreParams(t.signalId),
               });
               if (exitResult) {
                 updateSimState(tradeAsset, exitResult.updatedState);

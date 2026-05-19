@@ -59,6 +59,16 @@ export async function GET(req: NextRequest) {
           openedAt: d.openedAt ?? null,
           closedAt: d.closedAt ?? null,
           events: d.events ?? [],
+          // Confidence score lifecycle: entry is stamped at trade open,
+          // currentScore is updated each cron tick while OPEN, and
+          // confidenceScoreAtClose is stamped when the trade fully closes.
+          // Scoring panel ("Score vs Outcome") needs all three.
+          confidenceScore: d.confidenceScore ?? null,
+          scorePattern: d.scorePattern ?? null,
+          currentScore: d.currentScore ?? null,
+          currentScorePattern: d.currentScorePattern ?? null,
+          confidenceScoreAtClose: d.confidenceScoreAtClose ?? null,
+          scorePatternAtClose: d.scorePatternAtClose ?? null,
           // Origin tag — legacy trades have no botSource field; the UI
           // normalises missing/undefined to "PATTERN" so the filter pills
           // always classify every trade into exactly one bucket.

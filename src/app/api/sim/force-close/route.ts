@@ -97,6 +97,18 @@ export async function POST(request: NextRequest) {
 
   const totalRealizedPnl = simTrade.realizedPnl + netPnl;
 
+  // Snapshot the most-recent live score the sync-simulator cron stamped on
+  // the open trade so the History view can show "Entry → Close" delta and
+  // the Score-vs-Outcome analysis has data for force-closed trades. Fields
+  // are copied conditionally to avoid writing `undefined` into Firestore.
+  const closeScoreUpdate: Record<string, unknown> = {};
+  if (simTrade.currentScore != null) {
+    closeScoreUpdate.confidenceScoreAtClose = simTrade.currentScore;
+  }
+  if (simTrade.currentScorePattern) {
+    closeScoreUpdate.scorePatternAtClose = simTrade.currentScorePattern;
+  }
+
   await db.collection("simulator_trades").doc(simTradeId).update({
     status: "CLOSED",
     closedAt: new Date().toISOString(),
@@ -107,6 +119,7 @@ export async function POST(request: NextRequest) {
     realizedPnl: totalRealizedPnl,
     fees: simTrade.fees + exitFee,
     events: [...(simTrade.events || []), closeEvent],
+    ...closeScoreUpdate,
   });
 
   // Queue this closed trade for blockchain publication (fire-and-forget)

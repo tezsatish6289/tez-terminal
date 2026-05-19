@@ -622,6 +622,11 @@ export default function SimulationPage() {
 
                 {tab === "trades" && (
                   <div className="space-y-3">
+                    {/* Score-vs-Outcome analysis — runs over the full
+                        bot-filtered closed-trade set (same source as the
+                        equity chart) so the edge stat reflects the user's
+                        active filter and not just the current page. */}
+                    <ScoreOutcomeAnalysis trades={filteredClosedTrades} cs={cs} />
                     {/* When a bot filter is active, render the full filtered
                         history client-side (zone-bot volumes are small and
                         the server pagination doesn't know about botSource).
@@ -1157,6 +1162,213 @@ function ForceCloseDialog({ trade, onForceClose, children }: { trade: SimTrade; 
   );
 }
 
+// ── Score-vs-Outcome analysis ─────────────────────────────────
+//
+// Buckets closed trades by how the confidence score behaved between entry
+// and exit, then reports win rate + average PnL per bucket. Lets you see at
+// a glance whether trades whose score collapsed actually performed worse
+// than trades whose score still endorsed the position at exit.
+//
+// Trade is counted toward a bucket only if a closing score is available
+// (either `confidenceScoreAtClose` or legacy `currentScore`). Zone-bot
+// trades have no score → counted under "No data".
+
+type ScoreBucket = "held" | "slight" | "major" | "zero" | "unknown";
+
+function classifyTrade(t: SimTrade): { bucket: ScoreBucket; closeScore: number | null } {
+  const close = getCloseScore(t);
+  if (close.value == null) return { bucket: "unknown", closeScore: null };
+  if (close.value === 0) return { bucket: "zero", closeScore: 0 };
+  const ratio = t.confidenceScore > 0 ? close.value / t.confidenceScore : 1;
+  if (ratio >= 1) return { bucket: "held", closeScore: close.value };
+  if (ratio >= 0.7) return { bucket: "slight", closeScore: close.value };
+  return { bucket: "major", closeScore: close.value };
+}
+
+interface BucketStats {
+  count: number;
+  wins: number;
+  losses: number;
+  totalPnl: number;
+}
+
+function emptyStats(): BucketStats {
+  return { count: 0, wins: 0, losses: 0, totalPnl: 0 };
+}
+
+interface ScoreOutcomeBuckets {
+  held: BucketStats;
+  slight: BucketStats;
+  major: BucketStats;
+  zero: BucketStats;
+  unknown: BucketStats;
+  total: number;
+  scoredTotal: number;
+}
+
+function computeScoreOutcomeBuckets(trades: SimTrade[]): ScoreOutcomeBuckets {
+  const buckets: ScoreOutcomeBuckets = {
+    held: emptyStats(),
+    slight: emptyStats(),
+    major: emptyStats(),
+    zero: emptyStats(),
+    unknown: emptyStats(),
+    total: 0,
+    scoredTotal: 0,
+  };
+  for (const t of trades) {
+    const { bucket } = classifyTrade(t);
+    const b = buckets[bucket];
+    b.count++;
+    b.totalPnl += t.realizedPnl ?? 0;
+    if ((t.realizedPnl ?? 0) > 0) b.wins++;
+    else if ((t.realizedPnl ?? 0) < 0) b.losses++;
+    buckets.total++;
+    if (bucket !== "unknown") buckets.scoredTotal++;
+  }
+  return buckets;
+}
+
+const BUCKET_DEFS: { key: ScoreBucket; label: string; sub: string; color: string; bg: string }[] = [
+  { key: "held",    label: "Score Held",    sub: "Close ≥ Entry",       color: "text-positive",   bg: "bg-positive/10" },
+  { key: "slight",  label: "Slight Drop",   sub: "70-99% of Entry",     color: "text-amber-400",  bg: "bg-amber-500/10" },
+  { key: "major",   label: "Major Drop",    sub: "1-69% of Entry",      color: "text-orange-400", bg: "bg-orange-500/10" },
+  { key: "zero",    label: "Score Zero",    sub: "Hard gates failed",   color: "text-rose-400",   bg: "bg-rose-500/10" },
+  { key: "unknown", label: "No Score",      sub: "Zone-bot / legacy",   color: "text-muted-foreground/60", bg: "bg-white/[0.03]" },
+];
+
+function ScoreOutcomeAnalysis({ trades, cs }: { trades: SimTrade[]; cs: string }) {
+  const buckets = useMemo(() => computeScoreOutcomeBuckets(trades), [trades]);
+
+  if (buckets.total === 0) return null;
+
+  // Headline insight: how does win rate when score holds compare to when it
+  // collapses? Only meaningful with a few trades on either side.
+  const heldWinRate = buckets.held.count > 0 ? (buckets.held.wins / buckets.held.count) * 100 : null;
+  const droppedCount = buckets.slight.count + buckets.major.count + buckets.zero.count;
+  const droppedWins = buckets.slight.wins + buckets.major.wins + buckets.zero.wins;
+  const droppedWinRate = droppedCount > 0 ? (droppedWins / droppedCount) * 100 : null;
+  const edge =
+    heldWinRate != null && droppedWinRate != null && buckets.held.count >= 3 && droppedCount >= 3
+      ? heldWinRate - droppedWinRate
+      : null;
+
+  return (
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 space-y-2.5">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="w-3.5 h-3.5 text-accent/70" />
+          <span className="text-[11px] font-black uppercase tracking-widest text-foreground/80">Score vs Outcome</span>
+          <span className="text-[10px] text-muted-foreground/40">
+            {buckets.scoredTotal}/{buckets.total} trades scored
+          </span>
+        </div>
+        {edge != null && (
+          <div className="flex items-center gap-1.5 text-[10px]">
+            <span className="text-muted-foreground/50">Edge when score holds:</span>
+            <span className={cn("font-mono font-black", edge >= 0 ? "text-positive" : "text-rose-400")}>
+              {edge >= 0 ? "+" : ""}{edge.toFixed(0)}pp
+            </span>
+            <span className="text-muted-foreground/30">
+              ({heldWinRate?.toFixed(0)}% vs {droppedWinRate?.toFixed(0)}% dropped)
+            </span>
+          </div>
+        )}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+        {BUCKET_DEFS.map((def) => {
+          const b = buckets[def.key];
+          const winRate = b.count > 0 ? (b.wins / b.count) * 100 : 0;
+          const avgPnl = b.count > 0 ? b.totalPnl / b.count : 0;
+          const pct = buckets.total > 0 ? (b.count / buckets.total) * 100 : 0;
+          return (
+            <div key={def.key} className={cn("rounded-lg border border-white/[0.05] p-2.5 space-y-1", def.bg)}>
+              <div className="flex items-baseline justify-between gap-1">
+                <span className={cn("text-[10px] font-black uppercase tracking-wider", def.color)}>{def.label}</span>
+                <span className="text-[9px] font-mono text-muted-foreground/40">{pct.toFixed(0)}%</span>
+              </div>
+              <p className="text-[9px] text-muted-foreground/40 -mt-0.5">{def.sub}</p>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-lg font-mono font-black text-foreground/90">{b.count}</span>
+                <span className="text-[9px] text-muted-foreground/40">trades</span>
+              </div>
+              {b.count > 0 && (
+                <div className="space-y-0.5 pt-0.5 border-t border-white/[0.04]">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-muted-foreground/50">Win rate</span>
+                    <span className={cn("font-mono font-bold", winRate >= 50 ? "text-positive" : "text-rose-400")}>
+                      {winRate.toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-muted-foreground/50">Avg PnL</span>
+                    <span className={cn("font-mono font-bold", avgPnl >= 0 ? "text-positive" : "text-rose-400")}>
+                      {avgPnl >= 0 ? "+" : ""}{formatMoney(avgPnl, cs)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── History score cell: Entry vs Close ────────────────────────
+//
+// Closed trades stamp `confidenceScoreAtClose` when the cron runs the exit
+// (PR: closing-score). For older trades that pre-date the field, fall back
+// to the last stamped `currentScore` so we don't lose data on the chart.
+// Zone-bot trades have neither (synthetic signal) and render as "—".
+
+function getCloseScore(trade: SimTrade): { value: number | null; pattern?: "A" | "B" | "none" | "early"; isLegacy: boolean } {
+  if (trade.confidenceScoreAtClose != null) {
+    return { value: trade.confidenceScoreAtClose, pattern: trade.scorePatternAtClose, isLegacy: false };
+  }
+  if (trade.currentScore != null) {
+    return { value: trade.currentScore, pattern: trade.currentScorePattern, isLegacy: true };
+  }
+  return { value: null, isLegacy: false };
+}
+
+function scoreDeltaColor(entry: number, close: number | null): string {
+  if (close == null) return "text-muted-foreground/40";
+  if (close === 0) return "text-rose-400";
+  if (close < entry * 0.7) return "text-rose-400";
+  if (close < entry) return "text-amber-400";
+  return "text-positive";
+}
+
+function HistoryScoreCell({ trade }: { trade: SimTrade }) {
+  const close = getCloseScore(trade);
+  const closeColor = scoreDeltaColor(trade.confidenceScore, close.value);
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/40">In</span>
+        <span className="font-mono text-xs font-bold text-accent">{trade.confidenceScore}</span>
+        {trade.scorePattern && (
+          <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
+        )}
+      </div>
+      <span className="text-white/15 text-[10px]">→</span>
+      <div className="flex flex-col gap-0.5">
+        <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/40" title={close.isLegacy ? "Last live score before close (legacy trade)" : "Score at close"}>
+          {close.isLegacy ? "Last" : "Out"}
+        </span>
+        <span className={cn("font-mono text-xs font-bold", closeColor)}>
+          {close.value ?? "—"}
+        </span>
+        {close.pattern && (
+          <PatternBadge pattern={close.pattern as PatternType} score={null} />
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── TradeList with column filters + pagination ────────────────
 
 function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose, cs, startingCapital, tradeNumberMap, balanceAfterMap: balanceAfterMapProp }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string; onSelectTrade: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string; startingCapital?: number; tradeNumberMap?: Map<string, number>; balanceAfterMap?: Map<string, number> }) {
@@ -1514,13 +1726,10 @@ function DesktopTradeRow({
       <TableCell className={cn(cellPy, "font-mono text-xs font-bold text-white/60")}>{formatMoney(trade.positionSize, cs)}</TableCell>
       <TableCell className={cellPy}>
         {isHistory ? (
-          /* History: compact single score, no Entry/Last label overhead */
-          <div className="flex flex-col gap-0.5">
-            <span className="font-mono text-xs font-bold text-accent">{trade.confidenceScore}</span>
-            {trade.scorePattern && (
-              <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />
-            )}
-          </div>
+          /* History: Entry score and "at close" score side-by-side so users
+             can read at a glance whether the score still endorsed the trade
+             when it exited (held = green, degraded = amber, zero = red). */
+          <HistoryScoreCell trade={trade} />
         ) : (
           <div className="flex gap-3">
             {/* Entry — click to see score breakdown */}
@@ -1751,19 +1960,31 @@ function MobileTradeCard({ trade, onSelect, onForceClose, cs, balance, startingC
               )}
             </Popover>
             {trade.scorePattern && <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />}
-            {trade.currentScore != null && (
-              <>
-                <span className="text-white/15">→</span>
-                <span className={cn(
-                  "text-[10px] font-bold",
-                  trade.currentScore === 0 ? "text-rose-400" :
-                  trade.currentScore < trade.confidenceScore ? "text-amber-400" : "text-positive",
-                )}>
-                  {isOpen ? "Now" : "Last"} {trade.currentScore}
-                </span>
-                {trade.currentScorePattern && <PatternBadge pattern={trade.currentScorePattern as PatternType} score={null} />}
-              </>
-            )}
+            {(() => {
+              // Open trades show the live `currentScore` as "Now"; closed
+              // trades prefer `confidenceScoreAtClose` (stamped on exit) and
+              // fall back to `currentScore` only for legacy rows that
+              // pre-date that field.
+              const close = isOpen
+                ? { value: trade.currentScore ?? null, pattern: trade.currentScorePattern, label: "Now" }
+                : (() => {
+                    const c = getCloseScore(trade);
+                    return { value: c.value, pattern: c.pattern, label: c.isLegacy ? "Last" : "Close" };
+                  })();
+              if (close.value == null) return null;
+              return (
+                <>
+                  <span className="text-white/15">→</span>
+                  <span className={cn(
+                    "text-[10px] font-bold",
+                    scoreDeltaColor(trade.confidenceScore, close.value),
+                  )}>
+                    {close.label} {close.value}
+                  </span>
+                  {close.pattern && <PatternBadge pattern={close.pattern as PatternType} score={null} />}
+                </>
+              );
+            })()}
             {tradeNumber != null && (
               <>
                 <span className="text-white/10 ml-auto">·</span>
@@ -2066,19 +2287,72 @@ function TradeNarrationDialog({ trade, onClose, cs }: { trade: SimTrade | null; 
                 </Popover>
                 {trade.scorePattern && <PatternBadge pattern={trade.scorePattern as PatternType} score={null} />}
               </div>
-              {trade.currentScore != null && (
-                <div className="flex flex-col items-end gap-0.5 border-t border-white/[0.06] pt-1.5">
-                  <span className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">{isOpen ? "Now" : "Last"}</span>
-                  <span className={cn(
-                    "font-mono font-bold",
-                    trade.currentScore === 0 ? "text-rose-400" :
-                    trade.currentScore < trade.confidenceScore ? "text-amber-400" : "text-positive",
-                  )}>
-                    {trade.currentScore}
+              {(() => {
+                // For closed trades, show the score that was live at the
+                // moment of exit (with full breakdown popover). For open
+                // trades, keep showing the live `currentScore`.
+                const close = isOpen
+                  ? {
+                      value: trade.currentScore ?? null,
+                      pattern: trade.currentScorePattern,
+                      label: "Now",
+                      breakdown: undefined as SimTrade["scoreBreakdownAtClose"] | undefined,
+                    }
+                  : (() => {
+                      const c = getCloseScore(trade);
+                      return {
+                        value: c.value,
+                        pattern: c.pattern,
+                        label: c.isLegacy ? "Last" : "Close",
+                        breakdown: trade.scoreBreakdownAtClose,
+                      };
+                    })();
+                if (close.value == null) return null;
+                const colorClass = scoreDeltaColor(trade.confidenceScore, close.value);
+                const valueNode = (
+                  <span className={cn("font-mono font-bold", colorClass, close.breakdown ? "underline decoration-dotted underline-offset-2 cursor-pointer" : "")}>
+                    {close.value}
                   </span>
-                  {trade.currentScorePattern && <PatternBadge pattern={trade.currentScorePattern as PatternType} score={null} />}
-                </div>
-              )}
+                );
+                return (
+                  <div className="flex flex-col items-end gap-0.5 border-t border-white/[0.06] pt-1.5">
+                    <span className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">{close.label}</span>
+                    {close.breakdown ? (
+                      <Popover>
+                        <PopoverTrigger asChild>{valueNode}</PopoverTrigger>
+                        <PopoverContent className="w-64 p-3 text-xs space-y-2" side="left">
+                          <p className="font-black uppercase tracking-widest text-[10px] text-muted-foreground/50 mb-1">Score at Close</p>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Price Structure</span><span className="font-mono font-bold">{close.breakdown.priceStructure}/60</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Pattern</span><span className="font-mono font-bold text-accent uppercase">{close.breakdown.pattern}</span></div>
+                          {close.breakdown.rrGateFailed && (
+                            <div className="text-rose-400 text-[10px]">⚠ RR gate failed</div>
+                          )}
+                          {close.breakdown.liquidityContext && (
+                            <>
+                              <div className="flex justify-between border-t border-white/[0.06] pt-2"><span className="text-muted-foreground">Liquidity</span><span className="font-mono font-bold">{close.breakdown.liquidityContext.score}/40</span></div>
+                              {close.breakdown.liquidityContext.reasons.map((r, i) => (
+                                <div key={i} className={cn("text-[10px]", r.startsWith("No ") || r.startsWith("Sweep AGAINST") || r.startsWith("Wall") || r.startsWith("Extreme") || r.startsWith("Ask heavy") || r.startsWith("Bid heavy") ? "text-rose-400/80" : "text-positive/80")}>
+                                  {r.startsWith("No ") || r.startsWith("Sweep AGAINST") || r.startsWith("Wall") || r.startsWith("Extreme") ? "↓ " : "↑ "}{r}
+                                </div>
+                              ))}
+                            </>
+                          )}
+                          <div className="border-t border-white/[0.06] pt-2 flex justify-between font-bold"><span>Total</span><span className={cn("font-mono", colorClass)}>{close.value}/100</span></div>
+                          <div className="border-t border-white/[0.06] pt-2 flex justify-between text-[10px]">
+                            <span className="text-muted-foreground">Δ vs Entry</span>
+                            <span className={cn("font-mono font-bold", colorClass)}>
+                              {close.value - trade.confidenceScore >= 0 ? "+" : ""}{close.value - trade.confidenceScore}
+                            </span>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    ) : (
+                      valueNode
+                    )}
+                    {close.pattern && <PatternBadge pattern={close.pattern as PatternType} score={null} />}
+                  </div>
+                );
+              })()}
             </div>
           </div>
           <div className="flex justify-between">

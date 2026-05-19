@@ -112,6 +112,24 @@ export interface SimTrade {
   };
   currentScore: number | null;
   currentScorePattern?: "A" | "B" | "none" | "early"; // live pattern, updated each cycle
+  /** Confidence score recomputed at the moment the trade fully closed.
+   *  Set once when status flips OPEN → CLOSED. Used to analyse how the
+   *  trade performed relative to the score's prediction at exit time.
+   *  null = no live score available (zone-bot synthetic signals, or
+   *  manual close where the source signal score couldn't be loaded). */
+  confidenceScoreAtClose?: number | null;
+  scorePatternAtClose?: "A" | "B" | "none" | "early";
+  scoreBreakdownAtClose?: {
+    priceStructure: number;
+    pattern: "A" | "B" | "none" | "early";
+    rrGateFailed: boolean;
+    liquidityContext?: {
+      score: number;
+      sweepGatePassed: boolean | null | undefined;
+      sweepAgeMs: number | null;
+      reasons: string[];
+    } | null;
+  };
   biasAtEntry: string;
   liveWinRateAtEntry: number;
   algoWinRateAtEntry: number;
@@ -775,6 +793,16 @@ export function processTradeExit(params: {
   exitType: "TP1" | "TP2" | "TP3" | "SL";
   exitPrice: number;
   simConfig?: SimConfigType;
+  /** Live score for the originating signal at the moment of exit, if
+   *  available. Stamped onto the trade as `confidenceScoreAtClose` /
+   *  `scorePatternAtClose` / `scoreBreakdownAtClose` when this exit
+   *  fully closes the position. Callers should pass the value from
+   *  `computeAutoFilter({ includeResolved: true })` for the trade's
+   *  signalId; pass undefined when no score is available (e.g. zone-bot
+   *  synthetic signals) to leave the close-score fields unset. */
+  closingScore?: number | null;
+  closingScorePattern?: "A" | "B" | "none" | "early";
+  closingScoreBreakdown?: SimTrade["scoreBreakdownAtClose"];
 }): { updatedTrade: SimTrade; updatedState: SimulatorState; log: SimLog } | null {
   const { trade, state, exitType, exitPrice, simConfig } = params;
   const cfg = simConfig ?? SIM_CONFIG;
@@ -943,6 +971,18 @@ export function processTradeExit(params: {
   // without re-summing all historical trades.
   if (isClosed) {
     updatedTrade.capitalAfter = parseFloat(updatedState.capital.toFixed(2));
+    // Stamp the live confidence score at the moment of full close so the
+    // history view can show "Entry → Close" and we can later analyse how
+    // the trade performed relative to the score's prediction at exit.
+    if (params.closingScore !== undefined) {
+      updatedTrade.confidenceScoreAtClose = params.closingScore;
+    }
+    if (params.closingScorePattern !== undefined) {
+      updatedTrade.scorePatternAtClose = params.closingScorePattern;
+    }
+    if (params.closingScoreBreakdown !== undefined) {
+      updatedTrade.scoreBreakdownAtClose = params.closingScoreBreakdown;
+    }
   }
 
   const streakInfo = isClosed && streakOutcome

@@ -1196,15 +1196,71 @@ function classifyTrade(t: SimTrade): { bucket: ScoreBucket; closeScore: number |
   return                    { bucket: "drop100", closeScore: close.value }; // 75–100% drop
 }
 
+// Close-reason classification used to validate whether the chart's edge
+// is real. Splits exits into:
+//   - tp     : `TP1` / `TP2` / `TP3` → price hit a take-profit (winning exit)
+//   - sl     : `SL` → price hit the hard stop, locked-in loss. THIS is the
+//              bucket score-floor exit could have prevented.
+//   - early  : `TRAILING_SL`, `MARKET_TURN`, `SCORE_DEGRADED`, `PATTERN_BREAK`,
+//              `ZONE_FLIP`, `MAX_PAIN_EXIT` → sim/bot decided to close before
+//              SL fired. System already caught these.
+//   - other  : `KILL_SWITCH`, `SYNCED_FROM_EXCHANGE`, `EOD_SQUARE_OFF`, null,
+//              and anything else. Outside-the-strategy closes; not meaningful
+//              for strategy evaluation.
+type CloseReasonGroup = "tp" | "sl" | "early" | "other";
+
+function classifyCloseReason(reason: string | null): CloseReasonGroup {
+  if (!reason) return "other";
+  switch (reason) {
+    case "TP1":
+    case "TP2":
+    case "TP3":
+      return "tp";
+    case "SL":
+      return "sl";
+    case "TRAILING_SL":
+    case "MARKET_TURN":
+    case "SCORE_DEGRADED":
+    case "PATTERN_BREAK":
+    case "ZONE_FLIP":
+    case "MAX_PAIN_EXIT":
+      return "early";
+    default:
+      return "other";
+  }
+}
+
 interface BucketStats {
   count: number;
   wins: number;
   losses: number;
   totalPnl: number;
+  // Close-reason split — surfaces what actually took each trade out so we
+  // can tell whether a low-score bucket is dominated by SL fills (which
+  // score-floor exit could have prevented) or by system-driven early
+  // closes (which are already being caught upstream).
+  tpCount: number;
+  slCount: number;
+  earlyCount: number;
+  otherCount: number;
+  // Realized PnL contributed by SL fills in this bucket. Used to size the
+  // "avoidable losses" headline so we can quantify the upper bound of EV
+  // recoverable by a stricter score-floor exit.
+  slPnl: number;
 }
 
 function emptyStats(): BucketStats {
-  return { count: 0, wins: 0, losses: 0, totalPnl: 0 };
+  return {
+    count: 0,
+    wins: 0,
+    losses: 0,
+    totalPnl: 0,
+    tpCount: 0,
+    slCount: 0,
+    earlyCount: 0,
+    otherCount: 0,
+    slPnl: 0,
+  };
 }
 
 interface ScoreOutcomeBuckets {
@@ -1236,6 +1292,14 @@ function computeScoreOutcomeBuckets(trades: SimTrade[]): ScoreOutcomeBuckets {
     b.totalPnl += t.realizedPnl ?? 0;
     if ((t.realizedPnl ?? 0) > 0) b.wins++;
     else if ((t.realizedPnl ?? 0) < 0) b.losses++;
+    const group = classifyCloseReason(t.closeReason ?? null);
+    if (group === "tp") b.tpCount++;
+    else if (group === "sl") {
+      b.slCount++;
+      b.slPnl += t.realizedPnl ?? 0;
+    }
+    else if (group === "early") b.earlyCount++;
+    else b.otherCount++;
     buckets.total++;
     if (bucket !== "unknown") buckets.scoredTotal++;
   }
@@ -1267,6 +1331,18 @@ function ScoreOutcomeAnalysis({ trades, cs }: { trades: SimTrade[]; cs: string }
       ? heldWinRate - droppedWinRate
       : null;
 
+  // "Avoidable losses" = trades that took an SL hit AFTER score had already
+  // dropped >25% from entry. Upper bound on what a stricter score-floor
+  // exit could have saved — those positions were held through a clearly
+  // dying signal until the hard stop fired.
+  // We deliberately exclude `drop25` (≤25% drop) because that band still
+  // shows healthy win rate / positive PnL in the panel below; only widening
+  // the SL→avoidable framing once the score has materially collapsed.
+  const avoidable = {
+    slCount: buckets.drop50.slCount + buckets.drop75.slCount + buckets.drop100.slCount,
+    slPnl:   buckets.drop50.slPnl   + buckets.drop75.slPnl   + buckets.drop100.slPnl,
+  };
+
   return (
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 space-y-2.5">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1289,6 +1365,24 @@ function ScoreOutcomeAnalysis({ trades, cs }: { trades: SimTrade[]; cs: string }
           </div>
         )}
       </div>
+      {avoidable.slCount > 0 && (
+        <div className="flex items-center justify-between flex-wrap gap-2 rounded-lg border border-rose-500/15 bg-rose-500/[0.04] px-2.5 py-1.5">
+          <div className="flex items-center gap-1.5 text-[10px]">
+            <span className="text-rose-400/80 font-bold uppercase tracking-wider">Avoidable</span>
+            <span className="text-muted-foreground/60">
+              SL hits after score dropped &gt;25%
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-[10px] font-mono">
+            <span className="text-foreground/80 font-bold">{avoidable.slCount} trades</span>
+            <span className="text-muted-foreground/30">·</span>
+            <span className={cn("font-black", avoidable.slPnl >= 0 ? "text-positive" : "text-rose-400")}>
+              {avoidable.slPnl >= 0 ? "+" : ""}{formatMoney(avoidable.slPnl, cs)}
+            </span>
+            <span className="text-muted-foreground/40">locked in</span>
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         {BUCKET_DEFS.map((def) => {
           const b = buckets[def.key];
@@ -1319,6 +1413,28 @@ function ScoreOutcomeAnalysis({ trades, cs }: { trades: SimTrade[]; cs: string }
                     <span className={cn("font-mono font-bold", avgPnl >= 0 ? "text-positive" : "text-rose-400")}>
                       {avgPnl >= 0 ? "+" : ""}{formatMoney(avgPnl, cs)}
                     </span>
+                  </div>
+                  {/* Close-reason breakdown: validates the bucket's PnL signal
+                      by showing what actually took the position out. Bands
+                      dominated by `SL` (red) are recoverable via score-floor
+                      exit; bands dominated by `Ear` (early system close) are
+                      already being caught upstream. */}
+                  <div className="flex items-center justify-between gap-1 pt-0.5 text-[9px] font-mono">
+                    <span className="text-muted-foreground/40">Exit</span>
+                    <div className="flex items-center gap-1.5 tabular-nums">
+                      {b.tpCount > 0 && (
+                        <span className="text-emerald-400/80" title="Take-profit hit">TP {b.tpCount}</span>
+                      )}
+                      {b.slCount > 0 && (
+                        <span className="text-rose-400/90 font-bold" title="Stop-loss hit">SL {b.slCount}</span>
+                      )}
+                      {b.earlyCount > 0 && (
+                        <span className="text-amber-400/80" title="System early close (trailing SL, market turn, score degraded, pattern break, zone flip, max-pain exit)">Ear {b.earlyCount}</span>
+                      )}
+                      {b.otherCount > 0 && (
+                        <span className="text-muted-foreground/50" title="Kill-switch / synced / other">Oth {b.otherCount}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

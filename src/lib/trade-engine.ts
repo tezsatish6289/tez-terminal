@@ -92,11 +92,14 @@ export interface LiveTradeEvent {
     | "SL_TO_BE"
     | "MARKET_TURN"
     | "SCORE_DEGRADED"
+    | "SCORE_FLOOR_EXIT"
     | "KILL_SWITCH"
     | "TRAILING_SL"
     | "PATTERN_BREAK"
     | "ZONE_BOT_FLIP"
-    | "ZONE_BOT_MAX_PAIN_EXIT";
+    | "ZONE_BOT_MAX_PAIN_EXIT"
+    | "ZONE_FLIP"
+    | "MAX_PAIN_EXIT";
   price: number;
   pnl: number;
   fee: number;
@@ -688,7 +691,10 @@ export async function protectiveClose(
     | "TRAILING_SL"
     | "PATTERN_BREAK"
     | "ZONE_BOT_FLIP"
-    | "ZONE_BOT_MAX_PAIN_EXIT",
+    | "ZONE_BOT_MAX_PAIN_EXIT"
+    | "ZONE_FLIP"
+    | "MAX_PAIN_EXIT"
+    | "SCORE_FLOOR_EXIT",
   currentPrice: number,
   creds: Credentials
 ): Promise<{

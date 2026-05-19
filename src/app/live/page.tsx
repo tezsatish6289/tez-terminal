@@ -63,6 +63,7 @@ const CLOSE_REASON_MAP: Record<string, { label: string; color: string }> = {
   TRAILING_SL: { label: "SL→BE", color: "bg-rose-500/15 text-rose-400" },
   MARKET_TURN: { label: "Mkt Turn", color: "bg-amber-500/15 text-amber-400" },
   SCORE_DEGRADED: { label: "Score↓", color: "bg-amber-500/15 text-amber-400" },
+  SCORE_FLOOR_EXIT: { label: "Score Floor", color: "bg-amber-500/15 text-amber-400" },
   KILL_SWITCH: { label: "Kill", color: "bg-rose-500/15 text-rose-400" },
   TP1: { label: "TP1", color: "bg-emerald-500/15 text-emerald-400" },
   TP2: { label: "TP2", color: "bg-emerald-500/15 text-emerald-400" },
@@ -89,6 +90,7 @@ const EVENT_DISPLAY: Record<string, { label: string; icon: string; color: string
   SL: { label: "Stop Loss Hit", icon: "🔴", color: "text-rose-400" },
   MARKET_TURN: { label: "Market Turn Close", icon: "🔄", color: "text-amber-400" },
   SCORE_DEGRADED: { label: "Score Degraded Close", icon: "📉", color: "text-amber-400" },
+  SCORE_FLOOR_EXIT: { label: "Score Floor Exit", icon: "📉", color: "text-amber-400" },
   KILL_SWITCH: { label: "Kill Switch Close", icon: "🚨", color: "text-rose-400" },
 };
 
@@ -1223,7 +1225,7 @@ function LiveTradeNarrationDialog({ trade, onClose }: { trade: LiveTrade | null;
                     </div>
                   )}
 
-                  {(evt.type === "MARKET_TURN" || evt.type === "SCORE_DEGRADED" || evt.type === "KILL_SWITCH") && (
+                  {(evt.type === "MARKET_TURN" || evt.type === "SCORE_DEGRADED" || evt.type === "SCORE_FLOOR_EXIT" || evt.type === "KILL_SWITCH") && (
                     <div className="text-[10px] text-muted-foreground/50 mt-0.5 space-y-0.5">
                       <div>
                         Emergency close @ <span className="font-mono text-white/60">${formatPrice(evt.price)}</span>

@@ -146,6 +146,19 @@ export interface SimTrade {
    *  zone bots fully control their own lifecycle. SL/TP fill detection still
    *  applies — that's the same engine and is asset-agnostic. */
   botSource?: string;
+  /** Most recent confidence score observed on this trade. Written each sim
+   *  cron tick. Used by the score-floor exit (`SCORE_FLOOR_EXIT`) to detect
+   *  whether the score is still falling vs. bouncing back. Distinct from
+   *  `currentScore` (which is also the latest score) only in semantics:
+   *  `lastScore` is the *previous* tick's snapshot used as the comparison
+   *  point on the next tick. */
+  lastScore?: number | null;
+  /** ISO timestamp marking the first tick in the current consecutive run of
+   *  "score below floor (= 75% of entry)" readings. Reset to null whenever
+   *  the score recovers above the floor. The score-floor exit fires only
+   *  after this has been set for ≥2 ticks AND the score is still declining,
+   *  so a single noisy tick below floor never books a premature close. */
+  scoreBelowFloorSinceTickIso?: string | null;
 }
 
 export interface SimTradeEvent {

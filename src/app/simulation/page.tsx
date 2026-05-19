@@ -874,6 +874,7 @@ const CLOSE_REASON_MAP: Record<string, { label: string; color: string }> = {
   TRAILING_SL: { label: "SL→BE", color: "bg-rose-500/15 text-rose-400" },
   MARKET_TURN: { label: "Mkt Turn", color: "bg-amber-500/15 text-amber-400" },
   SCORE_DEGRADED: { label: "Score↓", color: "bg-amber-500/15 text-amber-400" },
+  SCORE_FLOOR_EXIT: { label: "Score Floor", color: "bg-amber-500/15 text-amber-400" },
   PATTERN_BREAK: { label: "Pattern↓", color: "bg-orange-500/15 text-orange-400" },
   TP1: { label: "TP1", color: "bg-emerald-500/15 text-emerald-400" },
   TP2: { label: "TP2", color: "bg-emerald-500/15 text-emerald-400" },
@@ -1224,9 +1225,12 @@ function classifyCloseReason(reason: string | null): CloseReasonGroup {
     case "TRAILING_SL":
     case "MARKET_TURN":
     case "SCORE_DEGRADED":
+    case "SCORE_FLOOR_EXIT":
     case "PATTERN_BREAK":
     case "ZONE_FLIP":
+    case "ZONE_BOT_FLIP":
     case "MAX_PAIN_EXIT":
+    case "ZONE_BOT_MAX_PAIN_EXIT":
     case "EOD_SQUARE_OFF":
       return "early";
     case "KILL_SWITCH":

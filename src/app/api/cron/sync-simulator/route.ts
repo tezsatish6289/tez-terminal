@@ -809,12 +809,93 @@ export async function GET(request: NextRequest) {
               const liveScored = scoresForOpenTrades.get(t.signalId);
               const liveScore = liveScored?.score ?? null;
               const livePattern = liveScored?.breakdown?.pattern ?? null;
+
+              // ── Score-floor exit (progressive drop) ──────────────
+              // Fires when ALL THREE conditions converge on the same tick:
+              //   1. current score < 75% × entry score (below floor)
+              //   2. current score ≤ last tick's score (still falling or
+              //      flat — not bouncing back)
+              //   3. the trade was already below the floor on the previous
+              //      tick (i.e. ≥ 2 consecutive ticks below floor)
+              // Together these capture "progressive drop": single transient
+              // dips on score-recompute noise don't trigger; a genuine
+              // collapse closes within ~2 minutes.
+              //
+              // Scope: pattern + crypto bot trades only. Zone-bot trades
+              // hardcode `confidenceScore: 75` at entry and never recompute
+              // it, so the floor logic would never fire on them anyway —
+              // but the explicit guard makes intent clear and protects
+              // against future regressions if zone-bot ever gains scoring.
+              const isZoneBot =
+                typeof t.botSource === "string" && t.botSource !== "PATTERN";
+              const FLOOR_RATIO = 0.75;
+              const entryScore = t.confidenceScore;
+              const prevScore = t.lastScore ?? null;
+              const prevBelowSince = t.scoreBelowFloorSinceTickIso ?? null;
+              const isBelowFloor =
+                !isZoneBot &&
+                entryScore > 0 &&
+                liveScore != null &&
+                liveScore < FLOOR_RATIO * entryScore;
+              const isFallingOrFlat =
+                liveScore != null && prevScore != null && liveScore <= prevScore;
+              const wasBelowFloorLastTick = isBelowFloor && !!prevBelowSince;
+
+              if (wasBelowFloorLastTick && isFallingOrFlat) {
+                const exitResult = processTradeExit({
+                  trade: t,
+                  state: simState2,
+                  exitType: "SL",
+                  exitPrice: livePrice,
+                  simConfig,
+                  ...closingScoreParams(t.signalId),
+                });
+                if (exitResult) {
+                  updateSimState(tradeAsset, exitResult.updatedState);
+                  const { id: _sfeId, ...sfeUpdate } = exitResult.updatedTrade;
+                  await db
+                    .collection("simulator_trades")
+                    .doc(simDoc.id)
+                    .update({
+                      ...sfeUpdate,
+                      closeReason: "SCORE_FLOOR_EXIT",
+                      lastScore: liveScore,
+                      scoreBelowFloorSinceTickIso: null,
+                    });
+                  await db.collection("simulator_logs").add({
+                    ...exitResult.log,
+                    action: "SCORE_FLOOR_EXIT",
+                    details: `${t.symbol} ${t.side} closed (score-floor: ${liveScore!.toFixed(
+                      0,
+                    )} < ${(FLOOR_RATIO * entryScore).toFixed(0)} for ≥2 ticks since ${prevBelowSince})`,
+                  });
+                  if (exitResult.updatedTrade.status === "CLOSED") {
+                    await markTradeForBlockchain(db, simDoc.id);
+                  }
+                  continue;
+                }
+              }
+
+              // Advance the floor-tracking state machine. Set the timestamp
+              // on the first tick we cross below the floor; clear it the
+              // moment the score recovers above the floor (so the next dip
+              // starts a fresh 2-tick countdown rather than firing
+              // immediately off stale state).
+              let nextBelowSince: string | null = prevBelowSince;
+              if (isBelowFloor) {
+                if (!nextBelowSince) nextBelowSince = new Date().toISOString();
+              } else {
+                nextBelowSince = null;
+              }
+
               const updatePayload: Record<string, unknown> = {
                 currentPrice: livePrice,
                 unrealizedPnl: Math.round(unrealizedPnl * 100) / 100,
                 highWatermark: updatedHwm,
                 currentScore: liveScore,
                 currentScorePattern: livePattern,
+                lastScore: liveScore,
+                scoreBelowFloorSinceTickIso: nextBelowSince,
               };
               if (newTrailingSl !== t.trailingSl && newTrailingSl != null && t.trailingSl == null) {
                 updatePayload.trailingSl = newTrailingSl;

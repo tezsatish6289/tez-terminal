@@ -805,127 +805,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, message: "No active auto-trade users", pairs: 0 });
     }
 
-    // ── 3b. Per-deployment background refresh ─────────────────────────────────
-    // Runs best-effort against the deployment doc for each user×exchange we
-    // discovered. Two responsibilities, batched into a single Firestore
-    // lookup per pair:
-    //   1. Lazy backfill of `exchangeUid` for venues that expose a stable
-    //      account id (Bybit/CoinDCX/Hyperliquid) — only done once per
-    //      deployment; subsequent ticks short-circuit.
-    //   2. Wallet-balance heartbeat. Calls `connector.getUsdtBalance(creds)`
-    //      AT MOST every 30 minutes per deployment and persists the result
-    //      onto the `bot_deployments` doc so the admin dashboard can show
-    //      live connection health (`walletStatus: "valid" | "invalid"`,
-    //      `walletTotal`, `walletAvailable`, `walletError`,
-    //      `walletCheckedAt`). The opportunistic refresh after each trade
-    //      open/close keeps the displayed balance fresh between heartbeats.
-    // We deliberately cap concurrency to 5 so we never burst past venue
-    // rate limits (CoinDCX is the tightest at ~10 req/sec per IP, and we
-    // share Vercel's outbound IP across every active deployment).
-    // Nothing in here can fail in a way that blocks trade processing.
-    const WALLET_REFRESH_THROTTLE_MS = 30 * 60 * 1000;
-    const WALLET_REFRESH_CONCURRENCY = 5;
-    const walletDeployRefByUserExchange = new Map<
-      string,
-      FirebaseFirestore.DocumentReference
-    >();
-    const walletRefreshStats = {
-      attempted: 0,
-      throttled: 0,
-      valid: 0,
-      invalid: 0,
-      missingDeployment: 0,
-    };
-    {
-      let idx = 0;
-      const workers: Promise<void>[] = [];
-      const runOne = async (pair: UserExchangePair) => {
-        try {
-          const deploySnap = await db
-            .collection("bot_deployments")
-            .where("uid", "==", pair.userId)
-            .where("exchange", "==", pair.exchange)
-            .where("status", "==", "active")
-            .limit(1)
-            .get();
-
-          if (deploySnap.empty) {
-            walletRefreshStats.missingDeployment++;
-            return;
-          }
-          const deployDoc = deploySnap.docs[0];
-          const deployData = deployDoc.data();
-          walletDeployRefByUserExchange.set(
-            `${pair.userId}::${pair.exchange}`,
-            deployDoc.ref,
-          );
-
-          // (1) exchangeUid backfill — only for venues that expose it.
-          if (
-            (pair.exchange === "BYBIT" ||
-              pair.exchange === "COINDCX" ||
-              pair.exchange === "HYPERLIQUID") &&
-            !deployData.exchangeUid
-          ) {
-            try {
-              const connector = getConnector(pair.exchange) as {
-                getAccountUid?: (c: Credentials) => Promise<string | null>;
-              };
-              if (connector.getAccountUid) {
-                const exchangeUid = await connector.getAccountUid(pair.creds);
-                if (exchangeUid) {
-                  await deployDoc.ref.update({ exchangeUid });
-                  console.log(
-                    `[LiveSync] Backfilled exchangeUid for user ${pair.userId} (${pair.exchange})`,
-                  );
-                }
-              }
-            } catch {
-              // best-effort
-            }
-          }
-
-          // (2) Wallet-balance heartbeat — throttled per deployment.
-          const lastCheckedAt =
-            typeof deployData.walletCheckedAt === "string"
-              ? deployData.walletCheckedAt
-              : null;
-          walletRefreshStats.attempted++;
-          const refreshResult = await refreshDeploymentWalletBalance(
-            db,
-            deployDoc.ref,
-            pair.exchange,
-            pair.creds,
-            {
-              skipIfCheckedWithinMs: WALLET_REFRESH_THROTTLE_MS,
-              existingCheckedAt: lastCheckedAt,
-            },
-          );
-          if (refreshResult.skipped) walletRefreshStats.throttled++;
-          else if (refreshResult.status === "valid") walletRefreshStats.valid++;
-          else if (refreshResult.status === "invalid") walletRefreshStats.invalid++;
-        } catch (e) {
-          console.warn(
-            `[LiveSync] Wallet refresh failed for ${pair.userId}/${pair.exchange}: ${
-              e instanceof Error ? e.message : String(e)
-            }`,
-          );
-        }
-      };
-      const worker = async () => {
-        while (idx < pairs.length) {
-          const myIdx = idx++;
-          await runOne(pairs[myIdx]!);
-        }
-      };
-      for (let w = 0; w < Math.min(WALLET_REFRESH_CONCURRENCY, pairs.length); w++) {
-        workers.push(worker());
-      }
-      await Promise.all(workers);
-    }
-    console.log(
-      `[LiveSync] Wallet refresh: ${walletRefreshStats.valid} valid, ${walletRefreshStats.invalid} invalid, ${walletRefreshStats.throttled} throttled, ${walletRefreshStats.missingDeployment} no-deployment (of ${pairs.length} pairs)`,
-    );
+    // Per-deployment wallet-balance heartbeat + `exchangeUid` backfill used
+    // to live here as "step 3b" — a fan-out over every (user, exchange)
+    // pair on every minute, even on idle ticks. None of that work touches
+    // trade lifecycle, so it now runs on its own schedule in
+    // `/api/cron/sync-wallet-balances` (15-min cadence, same 30-min
+    // per-deployment throttle on the actual venue call).
+    //
+    // We keep the *opportunistic* refresh below: any tick where a fill
+    // or protective close lands, we look up the active deployment doc
+    // inline and refresh wallet balance immediately so the admin
+    // dashboard reflects the real post-trade balance without waiting
+    // for the wallet cron's next tick. That inline lookup only fires
+    // when something actually changed, so it adds zero load on idle
+    // ticks.
 
     // ── 4. Process all user×exchange pairs in parallel ──────
     const results = await Promise.allSettled(
@@ -941,24 +834,33 @@ export async function GET(request: NextRequest) {
         ).then(async (r) => {
           // Opportunistic wallet refresh: any time a fill landed or a
           // protective close fired, the wallet balance just changed.
-          // Refresh it now (bypassing the 30-min cron throttle) so the
-          // admin dashboard reflects the real post-trade balance without
-          // waiting for the next heartbeat. We already have creds in
-          // hand, and this only fires when something actually happened,
-          // so it adds zero traffic on idle ticks.
+          // Refresh it now (bypassing the 30-min throttle that the
+          // `sync-wallet-balances` cron honors) so the admin dashboard
+          // reflects the real post-trade balance without waiting for
+          // the next heartbeat. We do a small inline `bot_deployments`
+          // lookup — it only fires when something actually happened, so
+          // it's effectively free on idle ticks.
           if (r.fills > 0 || r.protectiveCloses > 0) {
-            const deployRef = walletDeployRefByUserExchange.get(
-              `${pair.userId}::${pair.exchange}`,
-            );
-            if (deployRef) {
-              await refreshDeploymentWalletBalance(
-                db,
-                deployRef,
-                pair.exchange,
-                pair.creds,
-              ).catch(() => {
-                /* best-effort; heartbeat will catch it within 30m */
-              });
+            try {
+              const deploySnap = await db
+                .collection("bot_deployments")
+                .where("uid", "==", pair.userId)
+                .where("exchange", "==", pair.exchange)
+                .where("status", "==", "active")
+                .limit(1)
+                .get();
+              if (!deploySnap.empty) {
+                await refreshDeploymentWalletBalance(
+                  db,
+                  deploySnap.docs[0].ref,
+                  pair.exchange,
+                  pair.creds,
+                ).catch(() => {
+                  /* best-effort; wallet cron will catch it within 15m */
+                });
+              }
+            } catch {
+              /* best-effort; wallet cron will catch it within 15m */
             }
           }
           return { ...r, userId: pair.userId, exchange: pair.exchange };

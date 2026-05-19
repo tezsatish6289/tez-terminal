@@ -677,13 +677,14 @@ export function HeatmapAutoSwitch() {
                               )}
                             </div>
                           )}
-                          {/* Skip the per-card italic when signalConflict is
-                              true — the dedicated warning card above already
-                              displays the same `notActionableReason` text in
-                              full, and showing it again here just clutters
-                              the bull card. Pin-chop / no-cluster reasons
-                              still surface here as before. */}
-                          {suggested.bullActionable === false && suggested.notActionableReason && !suggested.signalConflict && (
+                          {/* The card-level italic only fires when ONLY this
+                              side is non-actionable (bear is still in play).
+                              When both sides are dead OR there's a signal
+                              conflict / insufficient gap, the dedicated
+                              alert card directly above this row already
+                              displays the same `notActionableReason` — no
+                              need to echo it inside the bull card too. */}
+                          {suggested.bullActionable === false && suggested.bearActionable === true && suggested.notActionableReason && (
                             <p className="text-[8px] text-muted-foreground/40 pt-1 italic">
                               {suggested.notActionableReason}
                             </p>
@@ -745,10 +746,12 @@ export function HeatmapAutoSwitch() {
                               )}
                             </div>
                           )}
-                          {/* Same dedup as BULL card — skip during
-                              signalConflict so the dedicated alert isn't
-                              echoed inside the bear card. */}
-                          {suggested.bearActionable === false && suggested.notActionableReason && !suggested.signalConflict && (
+                          {/* Symmetric to BULL card — only show when ONLY
+                              the bear side is dead. If both sides are
+                              non-actionable / there's a signal conflict /
+                              insufficient gap, the dedicated alert above
+                              owns the message. */}
+                          {suggested.bearActionable === false && suggested.bullActionable === true && suggested.notActionableReason && (
                             <p className="text-[8px] text-muted-foreground/40 pt-1 italic">
                               {suggested.notActionableReason}
                             </p>

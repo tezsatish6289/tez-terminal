@@ -1197,17 +1197,20 @@ function classifyTrade(t: SimTrade): { bucket: ScoreBucket; closeScore: number |
 }
 
 // Close-reason classification used to validate whether the chart's edge
-// is real. Splits exits into:
+// is real. Splits exits into FIVE groups so user-initiated closes don't
+// contaminate the strategy-level read of system-driven exits:
 //   - tp     : `TP1` / `TP2` / `TP3` → price hit a take-profit (winning exit)
 //   - sl     : `SL` → price hit the hard stop, locked-in loss. THIS is the
 //              bucket score-floor exit could have prevented.
 //   - early  : `TRAILING_SL`, `MARKET_TURN`, `SCORE_DEGRADED`, `PATTERN_BREAK`,
-//              `ZONE_FLIP`, `MAX_PAIN_EXIT` → sim/bot decided to close before
-//              SL fired. System already caught these.
-//   - other  : `KILL_SWITCH`, `SYNCED_FROM_EXCHANGE`, `EOD_SQUARE_OFF`, null,
-//              and anything else. Outside-the-strategy closes; not meaningful
-//              for strategy evaluation.
-type CloseReasonGroup = "tp" | "sl" | "early" | "other";
+//              `ZONE_FLIP`, `MAX_PAIN_EXIT`, `EOD_SQUARE_OFF` → sim/bot
+//              decided to close before SL fired. System already caught these.
+//   - manual : `KILL_SWITCH` (force-close from UI/API), `SYNCED_FROM_EXCHANGE`
+//              (admin synced an off-platform fill). NOT a strategy decision;
+//              should not skew EV math.
+//   - other  : null, free-text (e.g. zone-bot's English `next.reason` written
+//              directly), and anything unmapped. Tracks classifier blind spots.
+type CloseReasonGroup = "tp" | "sl" | "early" | "manual" | "other";
 
 function classifyCloseReason(reason: string | null): CloseReasonGroup {
   if (!reason) return "other";
@@ -1224,7 +1227,11 @@ function classifyCloseReason(reason: string | null): CloseReasonGroup {
     case "PATTERN_BREAK":
     case "ZONE_FLIP":
     case "MAX_PAIN_EXIT":
+    case "EOD_SQUARE_OFF":
       return "early";
+    case "KILL_SWITCH":
+    case "SYNCED_FROM_EXCHANGE":
+      return "manual";
     default:
       return "other";
   }
@@ -1237,11 +1244,13 @@ interface BucketStats {
   totalPnl: number;
   // Close-reason split — surfaces what actually took each trade out so we
   // can tell whether a low-score bucket is dominated by SL fills (which
-  // score-floor exit could have prevented) or by system-driven early
-  // closes (which are already being caught upstream).
+  // score-floor exit could have prevented), system-driven early closes
+  // (already caught upstream), or user-initiated closes (not a strategy
+  // signal, must not skew EV math).
   tpCount: number;
   slCount: number;
   earlyCount: number;
+  manualCount: number;
   otherCount: number;
   // Realized PnL contributed by SL fills in this bucket. Used to size the
   // "avoidable losses" headline so we can quantify the upper bound of EV
@@ -1258,6 +1267,7 @@ function emptyStats(): BucketStats {
     tpCount: 0,
     slCount: 0,
     earlyCount: 0,
+    manualCount: 0,
     otherCount: 0,
     slPnl: 0,
   };
@@ -1299,6 +1309,7 @@ function computeScoreOutcomeBuckets(trades: SimTrade[]): ScoreOutcomeBuckets {
       b.slPnl += t.realizedPnl ?? 0;
     }
     else if (group === "early") b.earlyCount++;
+    else if (group === "manual") b.manualCount++;
     else b.otherCount++;
     buckets.total++;
     if (bucket !== "unknown") buckets.scoredTotal++;
@@ -1415,24 +1426,32 @@ function ScoreOutcomeAnalysis({ trades, cs }: { trades: SimTrade[]; cs: string }
                     </span>
                   </div>
                   {/* Close-reason breakdown: validates the bucket's PnL signal
-                      by showing what actually took the position out. Bands
-                      dominated by `SL` (red) are recoverable via score-floor
-                      exit; bands dominated by `Ear` (early system close) are
-                      already being caught upstream. */}
+                      by showing what actually took the position out.
+                        SL  → hard stop fired (score-floor exit could prevent).
+                        Ear → system-driven early close (already caught
+                              upstream — trailing SL, market turn, score
+                              degraded, pattern break, zone flip, max-pain).
+                        Man → user/admin force-close (KILL_SWITCH /
+                              SYNCED_FROM_EXCHANGE) — NOT a strategy signal.
+                        Oth → unmapped / free-text (e.g. zone-bot's English
+                              reason). Acts as a classifier-blind-spot meter. */}
                   <div className="flex items-center justify-between gap-1 pt-0.5 text-[9px] font-mono">
                     <span className="text-muted-foreground/40">Exit</span>
                     <div className="flex items-center gap-1.5 tabular-nums">
                       {b.tpCount > 0 && (
-                        <span className="text-emerald-400/80" title="Take-profit hit">TP {b.tpCount}</span>
+                        <span className="text-emerald-400/80" title="Take-profit hit (TP1/TP2/TP3)">TP {b.tpCount}</span>
                       )}
                       {b.slCount > 0 && (
-                        <span className="text-rose-400/90 font-bold" title="Stop-loss hit">SL {b.slCount}</span>
+                        <span className="text-rose-400/90 font-bold" title="Stop-loss hit (SL)">SL {b.slCount}</span>
                       )}
                       {b.earlyCount > 0 && (
-                        <span className="text-amber-400/80" title="System early close (trailing SL, market turn, score degraded, pattern break, zone flip, max-pain exit)">Ear {b.earlyCount}</span>
+                        <span className="text-amber-400/80" title="System early close (trailing SL, market turn, score degraded, pattern break, zone flip, max-pain exit, EOD square-off)">Ear {b.earlyCount}</span>
+                      )}
+                      {b.manualCount > 0 && (
+                        <span className="text-violet-400/80" title="User or admin force-close (KILL_SWITCH or SYNCED_FROM_EXCHANGE)">Man {b.manualCount}</span>
                       )}
                       {b.otherCount > 0 && (
-                        <span className="text-muted-foreground/50" title="Kill-switch / synced / other">Oth {b.otherCount}</span>
+                        <span className="text-muted-foreground/50" title="Unmapped close reason — likely zone-bot free-text or legacy. See Fix A in the cron split.">Oth {b.otherCount}</span>
                       )}
                     </div>
                   </div>

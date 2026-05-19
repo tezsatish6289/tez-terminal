@@ -40,21 +40,53 @@ interface AutoStatus {
   updatedAt:     string;
 }
 
-interface ZoneBotConfirmation {
-  side:        "BULL" | "BEAR";
-  minutesHeld: number;
-  startedAt:   string;
+// ZoneBotState / ZoneBotConfirmation interfaces removed 2026-05-19
+// alongside the inline BTC Zone Bot status card. Restore from
+// git show 0c21879~1 if the card ever comes back.
+
+// ── Compact-banner helpers ──────────────────────────────────────────────
+//
+// `heatmap-zones-settings.ts` emits verbose `status.reason` strings like
+// "OFF — BTC $76,951.8 above bull exit $76,543.86" so the admin pages can
+// show precise diagnostic info. The Heatmap Auto-Switch panel doesn't
+// need that level of detail at a glance — we strip the price portions
+// here and (when both sides are dead) tack on a "no X setup (reason)"
+// suffix derived from `suggested.notActionableReason`. Source layer is
+// intentionally left verbose so other consumers stay informative; this
+// is a UI-only summarisation pass.
+
+/** Shorten the verbose `OFF — BTC $X above bull exit $Y` style of
+ *  status.reason to a side-only descriptor. Unrecognised patterns pass
+ *  through unchanged so we don't accidentally drop diagnostic info. */
+function compactStatusReason(reason: string): string {
+  if (/^OFF — BTC \$[\d,.]+ above bull exit/i.test(reason))     return "OFF — bull zone exited above";
+  if (/^OFF — BTC \$[\d,.]+ below bear exit/i.test(reason))     return "OFF — bear zone exited below";
+  if (/^OFF — BTC \$[\d,.]+ above bear zone top/i.test(reason)) return "OFF — above bear zone";
+  if (/^OFF — BTC \$[\d,.]+ below bull zone/i.test(reason))     return "OFF — below bull zone";
+  if (/^OFF — BTC \$[\d,.]+ between zones/i.test(reason))       return "OFF — between zones";
+  return reason;
 }
 
-/** Live state of the BTC zone bot (separate sub-system, sim-only for now).
- *  Written by /api/cron/sync-zone-bots, read here to render the status row. */
-interface ZoneBotState {
-  direction:        "BULL" | "BEAR" | "IDLE";
-  confirming:       ZoneBotConfirmation | null;
-  openTradeId:      string | null;
-  lastFlipAt:       string | null;
-  reason:           string;
-  updatedAt:        string;
+/** Map the suggester's verbose `notActionableReason` to a one-clause
+ *  summary that fits inside the banner suffix. Signal-conflict variants
+ *  are handled by their own dedicated alert card and so deliberately
+ *  bypass this helper at the call site. */
+function shortNotActionable(reason: string | null | undefined): string | null {
+  if (!reason) return null;
+  if (reason.startsWith("TP room insufficient")) return "max pain too close";
+  if (reason.startsWith("Pin chop"))             return "pin chop near max pain";
+  if (reason.startsWith("No big cluster"))       return "no cluster in reach";
+  if (reason.startsWith("Panic regime"))         return "panic regime";
+  return reason;
+}
+
+/** Tells us which side the banner's compact reason is describing so the
+ *  "no <other> setup (...)" suffix points at the missing side. Returns
+ *  null when both sides are equally dormant (e.g. "between zones"). */
+function detectBannerSide(reason: string): "bull" | "bear" | null {
+  if (/bull (exit|zone)/i.test(reason)) return "bull";
+  if (/bear (exit|zone)/i.test(reason)) return "bear";
+  return null;
 }
 
 interface MaxPainEntry {
@@ -233,22 +265,14 @@ export function HeatmapAutoSwitch() {
   const { data: suggestedData, refetch: refetchSuggested } = useDoc(suggestedRef);
   const suggested = suggestedData as SuggestedZones | null;
 
-  // Live state of the BTC zone bot. Optional — when the new cron
-  // (sync-zone-bots) hasn't been wired up yet on cron-job.org, this doc
-  // simply doesn't exist and the panel renders a "not running" hint.
-  const zoneBotStateRef = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return doc(firestore, "config", "zone_bot_btc_state");
-  }, [firestore]);
-  const { data: zoneBotStateData, refetch: refetchZoneBotState } = useDoc(zoneBotStateRef);
-  const zoneBotState = zoneBotStateData as ZoneBotState | null;
-
-  const [zoneBotRefreshing, setZoneBotRefreshing] = useState(false);
+  // BTC Zone Bot status doc (config/zone_bot_btc_state) is no longer
+  // read here — see the marker comment further down where the inline
+  // status card used to render. The cron writing that doc still runs.
 
   // Match the simulation page cadence: refresh status while the tab is
   // visible (zero cost while hidden) so AUTO/Bull/Bear and Deribit zones
   // stay current without listeners.
-  useAutoRefresh([refetchStatus, refetchSuggested, refetchZoneBotState], 60_000);
+  useAutoRefresh([refetchStatus, refetchSuggested], 60_000);
 
   useEffect(() => {
     fetch("/api/settings/heatmap-zones")
@@ -302,21 +326,7 @@ export function HeatmapAutoSwitch() {
     }
   }, []);
 
-  // Triggers the zone-bot cron immediately rather than waiting for the
-  // 15-min cadence. Useful for verifying settings changes take effect
-  // and for debugging the bot's reaction to fresh zones.
-  const handleRefreshZoneBot = useCallback(async () => {
-    setZoneBotRefreshing(true);
-    try {
-      await fetch("/api/cron/sync-zone-bots", { method: "POST" });
-      // Re-pull state immediately so the panel reflects the new tick.
-      await refetchZoneBotState();
-    } catch (err) {
-      console.error("Failed to refresh zone bot:", err);
-    } finally {
-      setZoneBotRefreshing(false);
-    }
-  }, [refetchZoneBotState]);
+  // handleRefreshZoneBot removed 2026-05-19 with the inline card.
 
   const override    = zones.manualOverride;
   const isForcedOff = override === "OFF";
@@ -387,68 +397,56 @@ export function HeatmapAutoSwitch() {
               <span>
                 BTC <span className="font-bold">${status.btcPrice?.toLocaleString() ?? "—"}</span>
                 {" · "}
-                {/* When signalConflict is active, the dedicated yellow warning
-                    card below carries the full explanation — collapse the
-                    banner reason to a short label so we don't say the same
-                    thing twice on the same screen. Other reasons (panic,
-                    pin chop, no clusters) still surface here verbatim. */}
-                {suggested?.signalConflict
-                  ? "Signal conflict — entries suppressed (see alert below)"
-                  : status.reason}
+                {/* Banner-line rendering. Dedicated alert cards still own
+                    the signalConflict + insufficientGap explanations (they
+                    need the full paragraph), so we short-circuit those to
+                    a "see alert below" pointer. For every other case the
+                    banner now also absorbs what used to live in the "No
+                    actionable side right now" card — combined form is:
+                       BTC $X · {compact status} · no <side> setup (<short reason>)
+                    e.g.  BTC $76,951.8 · OFF — bull zone exited above · no bear setup (max pain too close) */}
+                {(() => {
+                  if (suggested?.signalConflict)  return "Signal conflict — entries suppressed (see alert below)";
+                  if (suggested?.insufficientGap) return "Zones too close — see alert below";
+                  const compact = compactStatusReason(status.reason);
+                  const bothDead =
+                    suggested?.bullActionable === false &&
+                    suggested?.bearActionable === false;
+                  if (!bothDead) return compact;
+                  const short = shortNotActionable(suggested?.notActionableReason);
+                  if (!short) return compact;
+                  const side = detectBannerSide(status.reason);
+                  if (side === "bull") return `${compact} · no bear setup (${short})`;
+                  if (side === "bear") return `${compact} · no bull setup (${short})`;
+                  return `${compact} · ${short}`;
+                })()}
               </span>
             ) : (
               <span className="text-muted-foreground/40">Waiting for first cron cycle…</span>
             )}
           </div>
 
-          {/* ── BTC Zone Bot status (separate sub-system) ──
-              Reads from config/zone_bot_btc_state, written by the
-              /api/cron/sync-zone-bots route every 15 min. Shares the
-              same heatmap_zones settings doc as Crypto Bot (see
-              zoneBotSettingsDoc in src/lib/zone-bot-config.ts), so all
-              the sliders below configure BOTH systems. */}
-          <div className="rounded-lg border border-white/[0.06] bg-white/[0.02]">
-            <div className="px-3 py-2 flex items-center justify-between border-b border-white/[0.04]">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-foreground/70 shrink-0">
-                  BTC Zone Bot
-                </span>
-                <span className={cn(
-                  "text-[9px] px-1.5 py-0.5 rounded border font-bold uppercase tracking-wider shrink-0",
-                  zoneBotState?.direction === "BULL"
-                    ? "bg-positive/10 border-positive/30 text-positive/80"
-                    : zoneBotState?.direction === "BEAR"
-                      ? "bg-negative/10 border-negative/30 text-negative/80"
-                      : "bg-white/[0.04] border-white/[0.08] text-muted-foreground/60",
-                )}>
-                  {zoneBotState?.direction ?? "IDLE"}
-                </span>
-                {zoneBotState?.confirming && (
-                  <span className="text-[9px] font-mono text-amber-400/80 truncate">
-                    {zoneBotState.confirming.side} {zoneBotState.confirming.minutesHeld}/{zones.zoneConfirmMinutes ?? 15}m
-                  </span>
-                )}
-                <InfoTip text="BTC Zone Bot trades the BTCUSDT.P perp based purely on Deribit OI zones + a rolling confirmation window. Shares the same heatmap settings as Crypto Bot — adjust below to tune both. Live mirroring requires the per-exchange opt-in toggle in your settings." />
-              </div>
-              <button
-                onClick={handleRefreshZoneBot}
-                disabled={zoneBotRefreshing}
-                title="Trigger sync-zone-bots cron now"
-                className="flex items-center gap-1 px-2 py-0.5 rounded border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] disabled:opacity-40 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/70 shrink-0"
-              >
-                <RefreshCw className={cn("w-2.5 h-2.5", zoneBotRefreshing && "animate-spin")} />
-                Tick
-              </button>
-            </div>
-            <div className="px-3 py-2 text-[10px] text-muted-foreground/70 font-mono">
-              {zoneBotState?.reason ?? "Not running yet — wire up the cron at cron-job.org → /api/cron/sync-zone-bots"}
-            </div>
-            {zoneBotState?.openTradeId && (
-              <div className="px-3 py-1.5 border-t border-white/[0.04] text-[9px] text-muted-foreground/50 font-mono truncate">
-                open: <span className="text-accent/70">{zoneBotState.openTradeId}</span>
-              </div>
-            )}
-          </div>
+          {/* ── BTC Zone Bot status card removed 2026-05-19 ───────────
+              The inline status panel that used to live here (showing
+              direction badge, confirming countdown, reason string from
+              the cron, open trade id, and a manual "Tick" button) was
+              dropped from the UI on user request — operator visibility
+              for the BTC Zone Bot lives on the admin + simulation
+              dashboards now, this card was duplicating that view.
+
+              The Zone Bot itself is untouched. The cron pipeline still
+              runs end-to-end:
+
+                /api/cron/suggest-zones       (every 15 min)
+                  └─ writes config/suggested_zones_btc
+                       └─ /api/cron/sync-zone-bots (every 1 min)
+                             └─ reads it, writes config/zone_bot_btc_state
+
+              To bring the card back, re-add the <div> block + the
+              `zoneBotStateRef` / `useDoc` / `handleRefreshZoneBot`
+              helpers — see git show 0c21879~1 -- src/components/simulator/HeatmapAutoSwitch.tsx
+              for the last working snapshot. The supporting hooks,
+              handler, and type defs are also removed in this commit. */}
 
           {/* ── AUTO / FORCE OFF toggle ── */}
           <div className="flex items-center gap-1 p-1 rounded-xl border border-white/[0.08] bg-white/[0.02]">
@@ -556,20 +554,19 @@ export function HeatmapAutoSwitch() {
                     );
                   })()}
 
-                  {/* Not-actionable banner — surfaced when both sides idle for
-                      reasons other than spot-position. The suggester explains
-                      why; this prevents the "why is the bot idle?" black-box
-                      problem. Distinct from signalConflict / insufficientGap
-                      which are more specific. */}
-                  {suggested.bullActionable === false && suggested.bearActionable === false &&
-                   suggested.notActionableReason && !suggested.signalConflict && !suggested.insufficientGap && (
-                    <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.04] px-3 py-2.5">
-                      <p className="text-[10px] font-bold text-amber-400/85">No actionable side right now</p>
-                      <p className="text-[9px] text-muted-foreground/55 mt-0.5 font-mono">
-                        {suggested.notActionableReason}
-                      </p>
-                    </div>
-                  )}
+                  {/* "No actionable side right now" yellow alert removed
+                      2026-05-19. It used to surface here when both sides
+                      were idle for reasons other than spot-position
+                      (TP-room insufficient, pin chop, no cluster in
+                      reach, panic regime). That same information is now
+                      folded into the status banner at the top of the
+                      panel as a "· no <side> setup (<short reason>)"
+                      suffix — see compactStatusReason /
+                      shortNotActionable helpers at the top of this file.
+                      The dedicated SignalConflict and InsufficientGap
+                      alerts below stay because each one needs a
+                      multi-line explanation that doesn't fit in the
+                      banner. */}
 
                   {/* Signal conflict warning */}
                   {suggested.signalConflict && (
@@ -780,20 +777,15 @@ export function HeatmapAutoSwitch() {
                   The manual input was removed 2026-05-19. The actual value
                   is shown in the Regime card at the top of this panel. */}
 
-              <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                    Max Pain exit proximity
-                  </p>
-                  <InfoTip text="Only applies when just one zone is active (bull OR bear, not both). When BTC reaches within this distance of the TP target (Deribit max pain), all open trades in that direction are force-closed to lock in profit before price reverses. Has no effect when both zones are active or when no zones are configured." />
-                </div>
-                <PriceInput
-                  label="± USD from TP target (max pain)"
-                  description="One-sided zone only — closes open trades when BTC reaches the TP shown above (±this buffer). Default 200."
-                  value={zones.maxPainProximityUsd}
-                  onChange={(v) => handleChange("maxPainProximityUsd", v)}
-                />
-              </div>
+              {/* MAX PAIN EXIT PROXIMITY input removed 2026-05-19.
+                  The pattern-bot and zone-bot engines still honour their
+                  built-in $200 default — `heatmapZones.maxPainProximityUsd
+                  ?? 200` (sync-simulator) and the parser default in
+                  zone-bot-config.ts both fall through cleanly when the
+                  field is absent. If we ever want this configurable
+                  again, re-add the <div> block and re-introduce the
+                  `maxPainProximityUsd` field to the local HeatmapZones
+                  interface — the upstream parser still understands it. */}
 
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1.5">
@@ -816,20 +808,62 @@ export function HeatmapAutoSwitch() {
         </div>
 
         {/* Footer.
-            Used to also restate `deribit · HH:MM` (already shown above
-            the bull/bear cards as `Zones auto-managed · last HH:MM`)
-            and `Max Pain $X · YYMONyy` (already the first row of the
-            MAX PAIN — MM DESTINATION table just above). Dropped both
-            2026-05-19 to remove triple-printing of the same data. */}
+            Refresh-zones button + freshness beacon on the left, Save
+            button on the right. The beacon (added 2026-05-19) is the
+            primary "is the suggest-zones cron still ticking?" signal —
+            green pulse means the doc is <30 min old, amber means
+            >30 min, red means >12h (engine treats data as missing).
+            Previously this row also restated `deribit · HH:MM` and
+            `Max Pain $X · YYMONyy` — both duplicated content shown
+            above the cards, dropped in the dedup pass. */}
         <div className="px-5 py-3 border-t border-white/[0.06] flex items-center justify-between gap-3">
-          <button
-            onClick={handleRefreshSuggestions}
-            disabled={refreshing}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-white/[0.07] bg-white/[0.02] text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.05] transition-all disabled:opacity-40 shrink-0"
-          >
-            <RefreshCw className={cn("w-3 h-3", refreshing && "animate-spin")} />
-            {refreshing ? "Fetching…" : "Refresh Zones"}
-          </button>
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              onClick={handleRefreshSuggestions}
+              disabled={refreshing}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-white/[0.07] bg-white/[0.02] text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 hover:text-foreground hover:bg-white/[0.05] transition-all disabled:opacity-40 shrink-0"
+            >
+              <RefreshCw className={cn("w-3 h-3", refreshing && "animate-spin")} />
+              {refreshing ? "Fetching…" : "Refresh Zones"}
+            </button>
+            {/* Health beacon next to Refresh button — gives instant
+                visual confirmation that the suggest-zones cron is
+                ticking. Green pulse = fresh (<30 min, well within the
+                15-min cadence). Amber = >30 min stale (one cron miss
+                or cron-job.org degraded). Red = >12h (engine treats
+                the data as missing entirely; bots IDLE out). */}
+            {suggested?.computedAt && (() => {
+              const ageMs    = Date.now() - new Date(suggested.computedAt).getTime();
+              const ageMin   = Math.floor(ageMs / 60_000);
+              const fresh    = ageMin < 30;
+              const veryStale = ageMin >= 12 * 60;
+              const dotColor = veryStale
+                ? "bg-red-400"
+                : fresh
+                  ? "bg-positive"
+                  : "bg-amber-400";
+              const textColor = veryStale
+                ? "text-red-400/80"
+                : fresh
+                  ? "text-muted-foreground/55"
+                  : "text-amber-400/80";
+              const ageLabel =
+                ageMin < 1   ? "just now" :
+                ageMin < 60  ? `${ageMin}m ago` :
+                ageMin < 1440 ? `${Math.floor(ageMin / 60)}h ${ageMin % 60}m ago` :
+                                `${Math.floor(ageMin / 1440)}d ago`;
+              return (
+                <span className={cn("flex items-center gap-1.5 text-[9px] font-mono truncate", textColor)}>
+                  <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dotColor, fresh && "animate-pulse")} />
+                  <span className="truncate">
+                    Refreshed {new Date(suggested.computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    {" · "}
+                    {ageLabel}
+                  </span>
+                </span>
+              );
+            })()}
+          </div>
 
           <button
             onClick={handleSave}

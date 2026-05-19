@@ -2,12 +2,25 @@
  * /api/cron/suggest-zones
  *
  * Fetches BTC options OI from Deribit, finds dominant put/call strikes
- * for the nearest liquid expiry, and writes to config/suggested_zones.
+ * for the nearest liquid expiry, and writes the result to BOTH:
+ *
+ *   • config/suggested_zones      — legacy path read by sync-simulator
+ *                                   (Crypto Bot AUTO mode) and the
+ *                                   HeatmapAutoSwitch UI.
+ *   • config/suggested_zones_btc  — asset-namespaced path that
+ *                                   sync-zone-bots prefers when picking
+ *                                   up zones for the BTC Zone Bot.
+ *
+ * Both docs receive the same payload — single source of truth. The dual
+ * write exists because the BTC Zone Bot was added later and is the only
+ * caller that reads the namespaced path today; once ETH/SOL/XRP zone
+ * bots ship and start writing `suggested_zones_{eth,sol,xrp}`, the
+ * legacy doc can finally retire.
  *
  * When manualOverride === "AUTO" in heatmap_zones, the sync-simulator
  * cron reads these suggested zones directly and uses them for auto-switch.
  *
- * Scheduled: every 4 hours via vercel.json (GET).
+ * Scheduled: every 15 min via cron-job.org (GET).
  * Also callable manually from the UI Refresh button (POST).
  */
 
@@ -109,7 +122,10 @@ async function run() {
     computedAt:        result.computedAt,
   };
 
-  await db.doc("config/suggested_zones").set(suggested);
+  await Promise.all([
+    db.doc("config/suggested_zones").set(suggested),
+    db.doc("config/suggested_zones_btc").set(suggested),
+  ]);
   return suggested;
 }
 

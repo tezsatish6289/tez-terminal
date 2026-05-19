@@ -231,13 +231,23 @@ function computePositionSize(
 ): PositionSizeResult {
   const leverage = getLeverage(timeframe, "CRYPTO");
   const slDist   = Math.abs(entryPrice - stopLoss);
-  if (slDist <= 0 || leverage <= 0) {
-    return { size: 0, leverage, skip: true, reason: "slDist or leverage non-positive" };
+  if (slDist <= 0 || entryPrice <= 0 || leverage <= 0) {
+    return { size: 0, leverage, skip: true, reason: "slDist / entryPrice / leverage non-positive" };
   }
+
+  // CRITICAL: SL distance must be expressed as a FRACTION of entry, not a
+  // USD value. The formula
+  //     positionSize = (capital × riskPct) / (slDistPct × leverage)
+  // matches the pattern bot's sizing in src/lib/simulator.ts:660. Earlier
+  // versions of this function passed `slDist` (dollars) directly, which
+  // made the denominator ~10⁴× too large for BTC and produced sub-$1
+  // notionals that always tripped the "< $1 floor" skip — that's why
+  // the zone bot was silently missing every BULL confirmation.
+  const slDistPct = slDist / entryPrice;
 
   const hasStreak  = (state.consecutiveWins ?? 0) >= cfg.STREAK_WINS_TO_SCALE;
   const riskPct    = hasStreak ? cfg.RISK_PER_TRADE_STREAK : cfg.RISK_PER_TRADE_BASE;
-  let   posNotional = (state.capital * riskPct) / (slDist * leverage);
+  let   posNotional = (state.capital * riskPct) / (slDistPct * leverage);
 
   // Hard cap at 5% of capital — same guardrail used by the legacy zone
   // block in sync-simulator. Prevents a tiny SL distance from blowing up

@@ -73,7 +73,15 @@ function compactStatusReason(reason: string): string {
  *  bypass this helper at the call site. */
 function shortNotActionable(reason: string | null | undefined): string | null {
   if (!reason) return null;
-  if (reason.startsWith("TP room insufficient")) return "max pain too close";
+  // New TP-room format (2026-05-19) carries the actual numbers — e.g.
+  // "TP room $882 from bull zone $76,000 to max pain $77,500 — need
+  // $1,238 (2× halfWidth $1,238)". For the banner suffix we keep just
+  // the "TP room $X / need $Y" headline so the operator gets the
+  // diagnosis at a glance; the full sentence lives in the dedicated
+  // alert card below.
+  const tpRoomMatch = reason.match(/^TP room (\$[\d,]+)[\s\S]*?need (\$[\d,]+)/);
+  if (tpRoomMatch) return `TP room ${tpRoomMatch[1]} / need ${tpRoomMatch[2]}`;
+  if (reason.startsWith("TP room insufficient")) return "max pain too close"; // legacy fallback
   if (reason.startsWith("Pin chop"))             return "pin chop near max pain";
   if (reason.startsWith("No big cluster"))       return "no cluster in reach";
   if (reason.startsWith("Panic regime"))         return "panic regime";

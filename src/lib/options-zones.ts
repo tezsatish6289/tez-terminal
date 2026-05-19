@@ -121,10 +121,21 @@ const HALFWIDTH_CAP_PCT_OF_SPOT = 0.02;
  *  Otherwise spot ≈ max pain = chop regime, neither direction has edge. */
 const MIN_PIN_GAP_PCT_OF_HALFWIDTH = 0.5;
 
-/** TP-room = 3 × halfWidth from zone edge to max-pain target. With a $500
- *  half-width that's a $1,500 minimum — at least 3:1 R-multiple before
- *  the trade is considered. Replaces the legacy `MIN_TP_USD = 500`. */
-const TP_ROOM_PCT_OF_HALFWIDTH = 3.0;
+/** TP-room = 2 × halfWidth from zone CENTER to max-pain target. With a
+ *  $500 half-width that's a $1,000 minimum — clean 2:1 R-multiple when
+ *  SL sits at the opposite zone edge (~1 × halfWidth below center).
+ *
+ *  The actual threshold applied at the call site is
+ *      max(TP_ROOM_PCT_OF_HALFWIDTH × halfWidth, maxPainMinDistanceUsd)
+ *  so the per-asset `maxPainMinDistanceUsd` knob (configured on the
+ *  Heatmap Auto-Switch panel) doubles as the absolute floor — same lens
+ *  that decides "how far candidate strikes must be from max pain" also
+ *  governs "how far the zone center must be". One operator-facing
+ *  number, two consistent uses. Tuned 2026-05-19 from a 3× multiplier
+ *  anchored at the zone EDGE (effectively 4 × halfWidth from center)
+ *  — that was rejecting trades like BTC zone center $76k with max pain
+ *  $77.5k even though the 1.97× ratio was perfectly tradeable. */
+const TP_ROOM_PCT_OF_HALFWIDTH = 2.0;
 
 /** Panic regime: ATM IV at or above this triggers "no fresh entries" mode.
  *  Calibrated to BTC: 30–50% is normal, 70%+ has historically marked event
@@ -376,7 +387,10 @@ interface DerivedSizes {
   maxReachUsd:   number;
   halfWidthUsd:  number;
   minPinGapUsd:  number;
-  minTpRoomUsd:  number;
+  // minTpRoomUsd dropped 2026-05-19. The TP-room threshold now depends
+  // on `maxPainMinDistanceUsd` (per-asset operator config), which isn't
+  // known until the caller resolves it inside computeOptionsZones — so
+  // it's computed at the use site rather than baked in here.
 }
 
 function deriveSizes(spot: number, atmIV: number, asset: ZoneBotAsset): DerivedSizes {
@@ -405,7 +419,6 @@ function deriveSizes(spot: number, atmIV: number, asset: ZoneBotAsset): DerivedS
     maxReachUsd,
     halfWidthUsd,
     minPinGapUsd: MIN_PIN_GAP_PCT_OF_HALFWIDTH * halfWidthUsd,
-    minTpRoomUsd: TP_ROOM_PCT_OF_HALFWIDTH * halfWidthUsd,
   };
 }
 
@@ -637,17 +650,35 @@ export async function computeOptionsZones(
   const insufficientGap = gap > 0 && gap < 2500;
 
   // ── TP targets (= day-0 max pain when room allows) ───────────────────
+  // TP-room reference point is the zone CENTER (`bullStrike` /
+  // `bearStrike`), not the zone edge, because the bot enters around
+  // center after the confirmation window holds — measuring from the
+  // far edge built in an extra 1 × halfWidth that the trade never
+  // actually has to traverse. The required gap is
+  //     max(TP_ROOM_PCT_OF_HALFWIDTH × halfWidth, maxPainMinDistanceUsd)
+  // The first half is dynamic — wider TP-room when IV is high. The
+  // second half is the per-asset operator floor configured via the
+  // "Min strike ↔ max-pain distance" input on the Heatmap Auto-Switch
+  // panel (BTC default 1000, ETH/SOL/XRP set independently when those
+  // zone bots ship). Whichever is larger wins, so the floor only
+  // kicks in during low-IV periods where the dynamic part shrinks
+  // below an asset's natural noise budget.
+  const minTpRoomUsd = Math.max(
+    TP_ROOM_PCT_OF_HALFWIDTH * sizes.halfWidthUsd,
+    maxPainMinDistanceUsd,
+  );
+
   const bullTpTarget =
-    bullStrike !== null && bullZoneHigh !== null && day0MaxPain !== null &&
-    day0MaxPain >= bullZoneHigh + sizes.minTpRoomUsd
+    bullStrike !== null && day0MaxPain !== null &&
+    day0MaxPain >= bullStrike + minTpRoomUsd
       ? day0MaxPain : null;
   const bullTpExpiry = bullTpTarget !== null ? day0?.expiry ?? null : null;
   const bullTpConfidence: "HIGH" | "MEDIUM" | "LOW" | null =
     bullTpTarget !== null ? "HIGH" : null;
 
   const bearTpTarget =
-    bearStrike !== null && bearZoneLow !== null && day0MaxPain !== null &&
-    day0MaxPain <= bearZoneLow - sizes.minTpRoomUsd
+    bearStrike !== null && day0MaxPain !== null &&
+    day0MaxPain <= bearStrike - minTpRoomUsd
       ? day0MaxPain : null;
   const bearTpExpiry = bearTpTarget !== null ? day0?.expiry ?? null : null;
   const bearTpConfidence: "HIGH" | "MEDIUM" | "LOW" | null =
@@ -688,7 +719,23 @@ export async function computeOptionsZones(
     } else if (bullStrike === null && bearStrike === null) {
       notActionableReason = `No big cluster within reach (±${fmtUsd(sizes.maxReachUsd)} = ${fmtPct(sizes.maxReachUsd / spot)} of spot)`;
     } else {
-      notActionableReason = "TP room insufficient — max pain too close to zone edge";
+      // Surface the actual numbers so the operator can see WHICH gap
+      // failed and by how much. Picks the side that has a strike (if
+      // both have strikes but neither passes the TP-room check, the
+      // bull side is shown first — the magnet direction is already
+      // implied by which side picked a strike at all).
+      const side: "bull" | "bear" = bullStrike !== null ? "bull" : "bear";
+      const center = side === "bull" ? (bullStrike as number) : (bearStrike as number);
+      const room = day0MaxPain !== null
+        ? Math.abs(day0MaxPain - center)
+        : 0;
+      const dynamic = TP_ROOM_PCT_OF_HALFWIDTH * sizes.halfWidthUsd;
+      const need    = minTpRoomUsd;
+      const floorClause = maxPainMinDistanceUsd > dynamic
+        ? `min-distance ${fmtUsd(maxPainMinDistanceUsd)}`
+        : `${TP_ROOM_PCT_OF_HALFWIDTH}× halfWidth ${fmtUsd(dynamic)}`;
+      notActionableReason =
+        `TP room ${fmtUsd(room)} from ${side} zone $${center.toLocaleString()} to max pain ${fmtUsd(day0MaxPain ?? 0)} — need ${fmtUsd(need)} (${floorClause})`;
     }
   }
 

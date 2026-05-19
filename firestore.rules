@@ -143,5 +143,16 @@ service cloud.firestore {
     match /twitter_processed/{docId} {
       allow read, write: if false;
     }
+
+    // RBAC — role definitions and per-user role assignments.
+    // Server-only: written by the access-control admin UI via Admin SDK,
+    // read on every admin API request via requireAdmin() in src/lib/admin-auth.ts.
+    // Client SDK is intentionally locked out so admins cannot self-elevate.
+    match /admin_roles/{roleId} {
+      allow read, write: if false;
+    }
+    match /admin_user_roles/{userId} {
+      allow read, write: if false;
+    }
   }
 }

@@ -1,23 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminFirestore, getAdminAuth } from "@/firebase/admin";
+import { getAdminFirestore } from "@/firebase/admin";
+import { requireAdmin } from "@/lib/admin-auth";
 import { decrypt } from "@/lib/crypto";
 
 export const dynamic = "force-dynamic";
 
-const ADMIN_EMAILS = new Set(["hello@tezterminal.com"]);
-
 export async function GET(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
-    const authHeader = request.headers.get("Authorization") ?? "";
-    const idToken = authHeader.replace("Bearer ", "").trim();
-    if (!idToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const adminAuth = getAdminAuth();
-    const decoded = await adminAuth.verifyIdToken(idToken);
-    if (!ADMIN_EMAILS.has(decoded.email ?? "")) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
     const db = getAdminFirestore();
     const snap = await db
       .collection("contact_submissions")
@@ -52,17 +46,12 @@ export async function GET(request: NextRequest) {
 
 // PATCH — update status (new → read → replied)
 export async function PATCH(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
-    const authHeader = request.headers.get("Authorization") ?? "";
-    const idToken = authHeader.replace("Bearer ", "").trim();
-    if (!idToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const adminAuth = getAdminAuth();
-    const decoded = await adminAuth.verifyIdToken(idToken);
-    if (!ADMIN_EMAILS.has(decoded.email ?? "")) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
     const { id, status } = await request.json() as { id?: string; status?: string };
     if (!id || !["new", "read", "replied"].includes(status ?? "")) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });

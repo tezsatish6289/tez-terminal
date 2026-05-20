@@ -467,7 +467,7 @@ export default function FreedomBotPage() {
             >
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
               {stats ? `${stats.runningDays} days live` : "Live now"}
-              {stats && stats.totalReturnPct !== null && (
+              {stats && stats.totalReturnPct != null && Number.isFinite(stats.totalReturnPct) && (
                 <>
                   {" · "}
                   <span style={{ color: stats.totalReturnPct >= 0 ? "#34d399" : "#f87171", fontWeight: 700 }}>

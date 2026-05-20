@@ -69,6 +69,7 @@ import {
   LiveMirrorSymbolLink,
   useOpenTradesMirrors,
 } from "@/components/simulator/OpenTradesLiveMirrors";
+import { TabErrorBoundary } from "@/components/error/TabErrorBoundary";
 
 // Defensive against legacy trade docs missing newer fields
 // (`fees`, `positionSize`, zone-bot fields). Unguarded
@@ -485,22 +486,31 @@ export default function SimulationPage() {
                     {/* Score-vs-Outcome analysis — runs over the full
                         bot-filtered closed-trade set (same source as the
                         equity chart) so the edge stat reflects the user's
-                        active filter and not just the current page. */}
-                    <ScoreOutcomeAnalysis trades={filteredClosedTrades} cs={cs} />
+                        active filter and not just the current page.
+                        Wrapped in a TabErrorBoundary because partial
+                        legacy trade docs occasionally crash a renderer
+                        when a field is undefined — keep the rest of the
+                        cockpit usable and surface the exact stack so we
+                        can pinpoint the offending field. */}
+                    <TabErrorBoundary label="Score vs Outcome">
+                      <ScoreOutcomeAnalysis trades={filteredClosedTrades} cs={cs} />
+                    </TabErrorBoundary>
                     {/* When a bot filter is active, render the full filtered
                         history client-side (zone-bot volumes are small and
                         the server pagination doesn't know about botSource).
                         For "All" keep the existing server-paginated path. */}
-                    <TradeList
-                      trades={isBotFiltered ? filteredClosedTrades : closedTrades}
-                      emptyIcon={<BarChart3 className="w-6 h-6" />}
-                      emptyLabel={isBotFiltered ? "No trades from this bot yet" : "No closed trades yet"}
-                      onSelectTrade={setSelectedTrade}
-                      cs={cs}
-                      startingCapital={simState?.startingCapital}
-                      tradeNumberMap={tradeNumberMap}
-                      balanceAfterMap={balanceAfterMap}
-                    />
+                    <TabErrorBoundary label="History">
+                      <TradeList
+                        trades={isBotFiltered ? filteredClosedTrades : closedTrades}
+                        emptyIcon={<BarChart3 className="w-6 h-6" />}
+                        emptyLabel={isBotFiltered ? "No trades from this bot yet" : "No closed trades yet"}
+                        onSelectTrade={setSelectedTrade}
+                        cs={cs}
+                        startingCapital={simState?.startingCapital}
+                        tradeNumberMap={tradeNumberMap}
+                        balanceAfterMap={balanceAfterMap}
+                      />
+                    </TabErrorBoundary>
                     {/* Server-side pagination controls — only meaningful for
                         the unfiltered ("All Bots") view. */}
                     {!isBotFiltered && (histPage > 0 || histHasMore) && (

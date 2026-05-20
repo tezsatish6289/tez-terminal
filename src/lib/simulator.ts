@@ -1,5 +1,7 @@
 import { getLeverage } from "./leverage";
 import { calcDhanFees } from "./dhan-fees";
+import { countOpenForBotSource } from "./sim-slot-policy";
+import { BOT_SOURCE_PATTERN, classifyBotSource } from "./bot-source-filter";
 
 // ── Configuration ────────────────────────────────────────────
 
@@ -254,6 +256,9 @@ export function selectIncubatedSignals(params: {
   killedSignalIds?: Set<string>;
   simConfig?: SimConfigType;
   directionBias?: DirectionBias;
+  /** Per-bot cap from sim_bot_crypto_settings; falls back to state.currentMaxTrades. */
+  maxOpenTrades?: number;
+  minScore?: number;
 }): IncubatedResult {
   const { candidates, state, bullScore, bearScore, openTrades } = params;
   const killed = params.killedSignalIds ?? new Set<string>();
@@ -267,16 +272,23 @@ export function selectIncubatedSignals(params: {
 
   if (!currentState.isActive) return { selected, skipped, cappedByMaxTrades: 0, cappedByType };
 
-  const maxTrades = currentState.currentMaxTrades ?? cfg.MAX_OPEN_TRADES_BASE;
-  const currentOpen = openTrades.filter((t) => t.status === "OPEN");
-  const openSymbols = new Set(currentOpen.map((t) => t.symbol));
-  const openSignalIds = new Set(currentOpen.map((t) => t.signalId));
+  const maxTrades =
+    params.maxOpenTrades ??
+    currentState.currentMaxTrades ??
+    cfg.MAX_OPEN_TRADES_BASE;
+  const minScore = params.minScore ?? cfg.INCUBATED_MIN_SCORE;
+  const patternOpenCount = countOpenForBotSource(openTrades, BOT_SOURCE_PATTERN);
+  const patternOpen = openTrades.filter(
+    (t) => t.status === "OPEN" && classifyBotSource(t.botSource) === BOT_SOURCE_PATTERN,
+  );
+  const openSymbols = new Set(patternOpen.map((t) => t.symbol));
+  const openSignalIds = new Set(patternOpen.map((t) => t.signalId));
 
   // Rank by pattern strength (priceStructure score, 0-80) — strongest pattern first
   const sorted = [...candidates].sort((a, b) => b.confidenceScore - a.confidenceScore);
 
   for (const c of sorted) {
-    if (currentOpen.length + selected.length >= maxTrades) {
+    if (patternOpenCount + selected.length >= maxTrades) {
       cappedByType[c.type]++;
       continue;
     }
@@ -316,8 +328,8 @@ export function selectIncubatedSignals(params: {
     }
 
     // Minimum confidence score gate
-    if (c.confidenceScore < cfg.INCUBATED_MIN_SCORE) {
-      skipped.push({ symbol: c.symbol, type: c.type, reason: `Score ${c.confidenceScore} below minimum ${cfg.INCUBATED_MIN_SCORE}` });
+    if (c.confidenceScore < minScore) {
+      skipped.push({ symbol: c.symbol, type: c.type, reason: `Score ${c.confidenceScore} below minimum ${minScore}` });
       continue;
     }
 
@@ -623,13 +635,17 @@ export function evaluateTrade(params: {
 
   // Adaptive max open trades: based on streak
   const maxTrades = currentState.currentMaxTrades ?? cfg.MAX_OPEN_TRADES_BASE;
-  const currentOpen = openTrades.filter((t) => t.status === "OPEN");
-  if (currentOpen.length >= maxTrades) {
-    return { canTrade: false, reason: `Max open trades reached (${currentOpen.length}/${maxTrades}, streak: ${currentState.consecutiveWins ?? 0})` };
+  const patternOpen = openTrades.filter(
+    (t) => t.status === "OPEN" && classifyBotSource(t.botSource) === BOT_SOURCE_PATTERN,
+  );
+  if (patternOpen.length >= maxTrades) {
+    return {
+      canTrade: false,
+      reason: `Max open trades reached (${patternOpen.length}/${maxTrades}, streak: ${currentState.consecutiveWins ?? 0})`,
+    };
   }
 
-  // Duplicate symbol
-  if (currentOpen.some((t) => t.symbol === signal.symbol)) {
+  if (patternOpen.some((t) => t.symbol === signal.symbol)) {
     return { canTrade: false, reason: `Already have open trade on ${signal.symbol}` };
   }
 

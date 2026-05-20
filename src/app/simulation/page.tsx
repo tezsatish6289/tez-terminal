@@ -123,7 +123,17 @@ export default function SimulationPage() {
     () => SIM_COCKPIT_BOTS.find((b) => b.id === selectedBotId) ?? SIM_COCKPIT_BOTS[0],
     [selectedBotId],
   );
+  const [botMaxOpenTrades, setBotMaxOpenTrades] = useState<number | null>(null);
   const cs = "$";
+
+  useEffect(() => {
+    fetch(`/api/settings/sim-bot/${selectedBotId}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d.maxOpenTrades === "number") setBotMaxOpenTrades(d.maxOpenTrades);
+      })
+      .catch(() => setBotMaxOpenTrades(null));
+  }, [selectedBotId]);
 
   const stateRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -413,7 +423,11 @@ export default function SimulationPage() {
                 {tab === "overview" && (
                   <OpenPositionsPanel
                     trades={openTrades}
-                    maxSlots={simState.currentMaxTrades ?? 5}
+                    maxSlots={
+                      botMaxOpenTrades ??
+                      simState.currentMaxTrades ??
+                      5
+                    }
                     cs={cs}
                     onSelectTrade={setSelectedTrade}
                     onForceClose={handleForceClose}

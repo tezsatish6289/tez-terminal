@@ -84,12 +84,13 @@ import {
   processTradeExit,
 } from "@/lib/simulator";
 import {
-  loadZoneBotSettings,
   ZONE_BOT_REGISTRY,
   ZONE_BOT_PERP_SYMBOL,
   ZONE_BOT_SOURCE,
   type ZoneBotAsset,
 } from "@/lib/zone-bot-config";
+import { canBotOpenMore } from "@/lib/sim-slot-policy";
+import { loadSimBotSettings, toZoneBotSettings } from "@/lib/sim-bot-settings";
 import {
   appendZoneBotPriceHistory,
   loadZoneBotState,
@@ -196,6 +197,17 @@ async function loadSuggestedZones(
 
 // ── SimulatorState load / save ─────────────────────────────────────────
 
+async function loadOpenCryptoTrades(
+  db: FirebaseFirestore.Firestore,
+): Promise<SimTrade[]> {
+  const snap = await db
+    .collection("simulator_trades")
+    .where("status", "==", "OPEN")
+    .where("assetType", "==", "CRYPTO")
+    .get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as SimTrade));
+}
+
 async function loadCryptoSimState(db: FirebaseFirestore.Firestore): Promise<SimulatorState> {
   try {
     const snap = await db.doc(`config/${getSimStateDocId("CRYPTO")}`).get();
@@ -228,6 +240,7 @@ function computePositionSize(
   entryPrice:  number,
   stopLoss:    number,
   timeframe:   string = "60",
+  riskPctOverride?: number,
 ): PositionSizeResult {
   const leverage = getLeverage(timeframe, "CRYPTO");
   const slDist   = Math.abs(entryPrice - stopLoss);
@@ -246,7 +259,9 @@ function computePositionSize(
   const slDistPct = slDist / entryPrice;
 
   const hasStreak  = (state.consecutiveWins ?? 0) >= cfg.STREAK_WINS_TO_SCALE;
-  const riskPct    = hasStreak ? cfg.RISK_PER_TRADE_STREAK : cfg.RISK_PER_TRADE_BASE;
+  const riskPct    =
+    riskPctOverride ??
+    (hasStreak ? cfg.RISK_PER_TRADE_STREAK : cfg.RISK_PER_TRADE_BASE);
   let   posNotional = (state.capital * riskPct) / (slDistPct * leverage);
 
   // Hard cap at 5% of capital — same guardrail used by the legacy zone
@@ -282,15 +297,23 @@ async function openZoneBotTrade(args: {
   simConfig:  SimConfigType;
   action:     Extract<ZoneBotAction, { type: "OPEN" } | { type: "FLIP" }>;
   now:        number;
+  riskPerTradePct?: number;
 }): Promise<{ tradeId: string; updatedState: SimulatorState; log: SimLog; sizing: PositionSizeResult }> {
-  const { db, asset, state, simConfig, action, now } = args;
+  const { db, asset, state, simConfig, action, now, riskPerTradePct } = args;
 
   // OPEN uses `.side`, FLIP uses `.openSide`; the rest of the trade params
   // share names across both variants of the union.
   const side = action.type === "OPEN" ? action.side : action.openSide;
   const { entryPrice, stopLoss, tp1, tp2, tp3 } = action;
 
-  const sizing = computePositionSize(state, simConfig, entryPrice, stopLoss);
+  const sizing = computePositionSize(
+    state,
+    simConfig,
+    entryPrice,
+    stopLoss,
+    "60",
+    riskPerTradePct,
+  );
   if (sizing.skip) {
     // Caller decides what to do — typically just log and keep state.
     return { tradeId: "", updatedState: state, log: {
@@ -494,7 +517,8 @@ async function tickAsset(
   now:       number,
 ): Promise<AssetTickResult> {
   try {
-    const settings = await loadZoneBotSettings(db, asset);
+    const botSettings = await loadSimBotSettings(db, asset);
+    const settings = toZoneBotSettings(botSettings);
     const spot     = spotForAsset(prices, asset);
 
     if (spot == null) {
@@ -543,8 +567,34 @@ async function tickAsset(
       }
 
       case "OPEN": {
+        const openTrades = await loadOpenCryptoTrades(db);
+        const slotCheck = canBotOpenMore(
+          openTrades,
+          ZONE_BOT_SOURCE[asset] as "BTC_ZONE",
+          botSettings.maxOpenTrades,
+        );
+        if (!slotCheck.ok) {
+          workingState.direction = "IDLE";
+          workingState.confirming = null;
+          workingState.reason = `${asset.toUpperCase()} zone ready — ${slotCheck.reason}`;
+          await db.collection("simulator_logs").add({
+            timestamp: new Date(now).toISOString(),
+            action: "TRADE_SKIPPED",
+            details: `[${ZONE_BOT_SOURCE[asset]}] ${slotCheck.reason}`,
+            symbol: `${ZONE_BOT_PERP_SYMBOL[asset]}.P`,
+            capital: workingSimState.capital,
+            assetType: "CRYPTO",
+          }).catch(() => {});
+          break;
+        }
         const opened = await openZoneBotTrade({
-          db, asset, state: workingSimState, simConfig, action, now,
+          db,
+          asset,
+          state: workingSimState,
+          simConfig,
+          action,
+          now,
+          riskPerTradePct: botSettings.riskPerTradePct,
         });
         if (opened.tradeId) {
           workingState.openTradeId = opened.tradeId;
@@ -585,17 +635,42 @@ async function tickAsset(
           workingSimState = closed.updatedState;
           if (closed.log) await saveCryptoSimState(db, workingSimState);
         }
-        const opened = await openZoneBotTrade({
-          db, asset, state: workingSimState, simConfig, action, now,
-        });
-        if (opened.tradeId) {
-          workingState.openTradeId = opened.tradeId;
-          workingSimState = opened.updatedState;
-          await saveCryptoSimState(db, workingSimState);
-        } else {
-          await db.collection("simulator_logs").add(opened.log);
+        const openTradesFlip = await loadOpenCryptoTrades(db);
+        const flipSlot = canBotOpenMore(
+          openTradesFlip,
+          ZONE_BOT_SOURCE[asset] as "BTC_ZONE",
+          botSettings.maxOpenTrades,
+        );
+        if (!flipSlot.ok) {
           workingState.openTradeId = null;
-          workingState.reason = `FLIP close OK, open skipped (${opened.sizing.reason})`;
+          workingState.reason = `FLIP close OK, open skipped — ${flipSlot.reason}`;
+          await db.collection("simulator_logs").add({
+            timestamp: new Date(now).toISOString(),
+            action: "TRADE_SKIPPED",
+            details: `[${ZONE_BOT_SOURCE[asset]}] FLIP open skipped — ${flipSlot.reason}`,
+            symbol: `${ZONE_BOT_PERP_SYMBOL[asset]}.P`,
+            capital: workingSimState.capital,
+            assetType: "CRYPTO",
+          }).catch(() => {});
+        } else {
+          const opened = await openZoneBotTrade({
+            db,
+            asset,
+            state: workingSimState,
+            simConfig,
+            action,
+            now,
+            riskPerTradePct: botSettings.riskPerTradePct,
+          });
+          if (opened.tradeId) {
+            workingState.openTradeId = opened.tradeId;
+            workingSimState = opened.updatedState;
+            await saveCryptoSimState(db, workingSimState);
+          } else {
+            await db.collection("simulator_logs").add(opened.log);
+            workingState.openTradeId = null;
+            workingState.reason = `FLIP close OK, open skipped (${opened.sizing.reason})`;
+          }
         }
         break;
       }

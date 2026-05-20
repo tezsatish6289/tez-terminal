@@ -1089,6 +1089,20 @@ export async function GET(request: NextRequest) {
         const bear = makeAssess("SELL");
 
         const { simEnabled: assetSimEnabled, directionBias: assetDirectionBias } = await getAssetControls(assetType);
+        const cryptoBotSettings =
+          assetType === "CRYPTO"
+            ? await (await import("@/lib/sim-bot-settings")).loadSimBotSettings(db, "crypto")
+            : null;
+        const cryptoStreakActive =
+          cryptoBotSettings &&
+          (simState3.consecutiveWins ?? 0) >=
+            (cryptoBotSettings.streakWinsToScale ?? simConfig.STREAK_WINS_TO_SCALE);
+        const cryptoMaxOpen = cryptoBotSettings
+          ? cryptoStreakActive
+            ? (cryptoBotSettings.maxOpenTradesStreakCap ?? cryptoBotSettings.maxOpenTrades)
+            : cryptoBotSettings.maxOpenTrades
+          : undefined;
+
         const { selected, skipped: incubSkipped, cappedByType } = assetSimEnabled
           ? selectIncubatedSignals({
               candidates: assetCandidates,
@@ -1099,6 +1113,11 @@ export async function GET(request: NextRequest) {
               killedSignalIds,
               simConfig,
               directionBias: assetDirectionBias,
+              maxOpenTrades: cryptoMaxOpen,
+              minScore:
+                assetType === "CRYPTO"
+                  ? cryptoBotSettings?.minScore
+                  : undefined,
             })
           : { selected: [], skipped: [], cappedByType: { BUY: 0, SELL: 0 } };
 

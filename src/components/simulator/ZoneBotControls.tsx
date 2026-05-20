@@ -112,6 +112,10 @@ export function ZoneBotControls({
           isForcedOff={isForcedOff}
           power={status.power}
           sheetLabel="Config"
+          onAutoToggle={(e) => {
+            e.stopPropagation();
+            void handleOverride(isForcedOff ? "AUTO" : "OFF");
+          }}
         />
       </SheetTrigger>
 
@@ -151,6 +155,12 @@ export function ZoneBotControls({
               {state.reason}
             </p>
           )}
+
+          <p className="text-[10px] text-muted-foreground/50 leading-relaxed px-1">
+            Slot policy: up to <span className="text-foreground/70 font-bold">1 open sim trade</span>{" "}
+            per zone bot. Crypto pattern bot uses the remaining slots under global Simulator
+            Parameters (1 slot reserved for BTC while BTC Zone is live).
+          </p>
 
           <div className="space-y-3">
             <div className="flex items-center gap-1.5 pb-1 border-b border-white/[0.05]">

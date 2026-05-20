@@ -29,8 +29,8 @@ const PARAM_GROUPS: { title: string; params: ParamDef[] }[] = [
     params: [
       { key: "RISK_PER_TRADE_BASE", label: "Base Risk per Trade", description: "Capital risked per trade in normal mode", min: 0.001, max: 0.03, step: 0.001, format: "pctDecimal" },
       { key: "RISK_PER_TRADE_STREAK", label: "Streak Risk per Trade", description: "Capital risked per trade when streak is active", min: 0.005, max: 0.05, step: 0.005, format: "pctDecimal" },
-      { key: "MAX_OPEN_TRADES_BASE", label: "Base Max Open Trades", description: "Concurrent trades allowed without a streak", min: 1, max: 5, step: 1, format: "number" },
-      { key: "MAX_OPEN_TRADES_CAP", label: "Hard Cap Open Trades", description: "Maximum concurrent trades even with a hot streak", min: 1, max: 10, step: 1, format: "number" },
+      { key: "MAX_OPEN_TRADES_BASE", label: "Base Max Open Trades", description: "Pattern (Crypto) bot slots; 1 slot per live zone bot (BTC today) is reserved", min: 1, max: 5, step: 1, format: "number" },
+      { key: "MAX_OPEN_TRADES_CAP", label: "Hard Cap Open Trades", description: "Absolute max OPEN trades across pattern + all zone bots", min: 1, max: 10, step: 1, format: "number" },
       { key: "STREAK_WINS_TO_SCALE", label: "Wins to Scale", description: "Consecutive wins needed before scaling up", min: 1, max: 5, step: 1, format: "number" },
     ],
   },
@@ -139,7 +139,9 @@ export function SimulatorParamsDialog() {
         <SheetHeader className="pb-4 border-b border-white/[0.06]">
           <SheetTitle className="text-base font-black tracking-tight">Simulator Parameters</SheetTitle>
           <SheetDescription className="text-[11px] text-muted-foreground/60">
-            Tune the gates that control when the simulator takes or rejects trades. Changes apply to both simulation and live trading.
+            Legacy global defaults (still used as fallbacks). For full control, open
+            Config on each bot card — Crypto, BTC Zone, ETH Zone, and SOL Zone each have
+            their own max trades, risk, and entry rules.
           </SheetDescription>
         </SheetHeader>
 

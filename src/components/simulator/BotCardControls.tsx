@@ -1,14 +1,10 @@
 "use client";
 
 import type { CockpitBotId } from "@/lib/sim-cockpit-bots";
-import type { ZoneBotAsset } from "@/lib/zone-bot-config";
 import type { CockpitBotStatus } from "@/lib/cockpit-bot-status";
-import { HeatmapAutoSwitch } from "@/components/simulator/HeatmapAutoSwitch";
-import { ZoneBotControls } from "@/components/simulator/ZoneBotControls";
+import { SimBotConfigSheet } from "@/components/simulator/SimBotConfigSheet";
 
-const ZONE_ASSETS = new Set<string>(["btc", "eth", "sol"]);
-
-/** Config trigger on every cockpit card — crypto uses full macro sheet, zones use per-asset settings. */
+/** Per-bot Config + AUTO on every cockpit card. */
 export function BotCardControls({
   botId,
   label,
@@ -18,17 +14,11 @@ export function BotCardControls({
   label: string;
   onStatusChange?: (status: CockpitBotStatus) => void;
 }) {
-  if (botId === "crypto") {
-    return <HeatmapAutoSwitch onStatusChange={onStatusChange} />;
-  }
-  if (ZONE_ASSETS.has(botId)) {
-    return (
-      <ZoneBotControls
-        asset={botId as ZoneBotAsset}
-        label={label}
-        onStatusChange={onStatusChange}
-      />
-    );
-  }
-  return null;
+  return (
+    <SimBotConfigSheet
+      botId={botId}
+      label={label}
+      onStatusChange={onStatusChange}
+    />
+  );
 }

@@ -369,6 +369,10 @@ export function HeatmapAutoSwitch({
           isForcedOff={isForcedOff}
           power={cardPower}
           sheetLabel="Config"
+          onAutoToggle={(e) => {
+            e.stopPropagation();
+            void handleOverride(isForcedOff ? "AUTO" : "OFF");
+          }}
         />
       </SheetTrigger>
 

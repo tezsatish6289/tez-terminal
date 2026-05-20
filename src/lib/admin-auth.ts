@@ -1,20 +1,9 @@
 import { getAdminAuth, getAdminFirestore } from "@/firebase/admin";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import type { NextRequest } from "next/server";
+import { ADMIN_EMAILS, SUPER_ADMIN_EMAIL } from "@/lib/admin-emails-client";
 
-/**
- * Hardcoded escape hatch — this email always passes, even if Firestore is
- * unreachable, the admin_user_roles doc is missing/corrupt, or the new
- * Firestore-backed RBAC system has a bug. Never remove without first
- * ensuring the requesting user has another path to super-admin access.
- */
-const SUPER_ADMIN_EMAIL = "hello@tezterminal.com";
-
-// Legacy constant — kept for the client-side UI gates that still import it
-// (admin pages and simulator components). Those checks are cosmetic (decide
-// which menu items to render); the real security is server-side via
-// requireAdmin() below. New server code should NOT read this directly.
-export const ADMIN_EMAILS = new Set([SUPER_ADMIN_EMAIL]);
+export { ADMIN_EMAILS, SUPER_ADMIN_EMAIL };
 
 export type AdminAuthResult =
   | { ok: true; decoded: DecodedIdToken; permissions: string[] }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Crosshair, Loader2 } from "lucide-react";
 import { useUser } from "@/firebase";
-import { ADMIN_EMAILS } from "@/lib/admin-auth";
+import { isAdminEmail } from "@/lib/admin-emails-client";
 import { cn } from "@/lib/utils";
 import {
   Sheet,
@@ -62,7 +62,7 @@ export function ManualTradeSheet({
   onOpened?: () => void;
 }) {
   const { user } = useUser();
-  const isAdmin = user?.email != null && ADMIN_EMAILS.has(user.email);
+  const isAdmin = isAdminEmail(user?.email);
 
   const [open, setOpen] = useState(false);
   const [settings, setSettings] = useState<SimBotSettings | null>(null);

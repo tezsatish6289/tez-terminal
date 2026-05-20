@@ -17,10 +17,8 @@ import { getAdminFirestore } from "@/firebase/admin";
 import { computeOptionsZones } from "@/lib/options-zones";
 import { deserializePrices } from "@/lib/exchanges";
 import { parseZones } from "@/lib/heatmap-zones-settings";
-import type { ZoneBotAsset } from "@/lib/zone-bot-config";
 import { loadSimBotSettings } from "@/lib/sim-bot-settings";
-import { parseZones } from "@/lib/heatmap-zones-settings";
-import { zoneBotSettingsDoc } from "@/lib/zone-bot-config";
+import { zoneBotSettingsDoc, type ZoneBotAsset } from "@/lib/zone-bot-config";
 
 export const dynamic     = "force-dynamic";
 export const maxDuration = 60;

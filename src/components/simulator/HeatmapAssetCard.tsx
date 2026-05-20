@@ -10,12 +10,13 @@ import {
   type SuggestedZonesSnapshot,
 } from "@/components/simulator/heatmap-types";
 import { SIM_CARD, SIM_INSET_TILE } from "@/components/simulator/simulator-surfaces";
+import type { CockpitBotStatus } from "@/lib/cockpit-bot-status";
 
 export function HeatmapAssetCard({
   botId,
   label,
   suggested,
-  macroLine,
+  botStatus,
   capital,
   openCount,
   cs,
@@ -24,7 +25,7 @@ export function HeatmapAssetCard({
   botId: CockpitBotId;
   label: string;
   suggested: SuggestedZonesSnapshot | null;
-  macroLine?: string | null;
+  botStatus: CockpitBotStatus;
   capital: number;
   openCount: number;
   cs: string;
@@ -77,11 +78,7 @@ export function HeatmapAssetCard({
             ${formatSpot(spot)}
           </p>
           <p className={cn("text-[10px] font-bold mt-1", statusColor)}>{status}</p>
-          {macroLine && (
-            <p className="text-[9px] text-muted-foreground/45 mt-0.5 truncate" title={macroLine}>
-              {macroLine}
-            </p>
-          )}
+          <BotPowerBadge status={botStatus} />
         </div>
         {settingsSlot}
       </div>
@@ -163,6 +160,38 @@ export function HeatmapAssetCard({
             </p>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+function BotPowerBadge({ status }: { status: CockpitBotStatus }) {
+  return (
+    <div
+      className={cn(
+        "inline-flex items-center gap-1.5 mt-1.5 px-2 py-1 rounded-md border text-[9px] font-black uppercase tracking-wider",
+        status.power === "on"
+          ? "border-emerald-500/35 bg-emerald-500/15 text-emerald-400"
+          : status.power === "off"
+            ? "border-white/[0.12] bg-white/[0.04] text-muted-foreground/55"
+            : "border-amber-500/25 bg-amber-500/10 text-amber-400/90",
+      )}
+    >
+      <span
+        className={cn(
+          "h-1.5 w-1.5 rounded-full",
+          status.power === "on"
+            ? "bg-emerald-400 animate-pulse"
+            : status.power === "off"
+              ? "bg-muted-foreground/40"
+              : "bg-amber-400",
+        )}
+      />
+      {status.label}
+      {status.detail && (
+        <span className="font-medium normal-case text-muted-foreground/50">
+          · {status.detail}
+        </span>
       )}
     </div>
   );

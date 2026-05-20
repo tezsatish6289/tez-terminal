@@ -6,6 +6,7 @@ import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
+import { cryptoBotStatus, type CockpitBotStatus } from "@/lib/cockpit-bot-status";
 import {
   Sheet,
   SheetContent,
@@ -251,7 +252,12 @@ function ZoneConfirmationWindow({
   );
 }
 
-export function HeatmapAutoSwitch() {
+export function HeatmapAutoSwitch({
+  onStatusChange,
+}: {
+  /** Live Bot ON/OFF for the Crypto Bot heatmap card. */
+  onStatusChange?: (status: CockpitBotStatus) => void;
+}) {
   const firestore = useFirestore();
   const [zones, setZones] = useState<HeatmapZones>(EMPTY_ZONES);
   const [loading, setLoading] = useState(true);
@@ -340,6 +346,10 @@ export function HeatmapAutoSwitch() {
   const isForcedOff = override === "OFF";
   const effectiveOn = isForcedOff ? false : (status?.simEnabled ?? false);
   const effectiveBull = !isForcedOff && status?.simEnabled && status?.directionBias === "BULL";
+
+  useEffect(() => {
+    onStatusChange?.(cryptoBotStatus(zones, status));
+  }, [zones.manualOverride, status?.simEnabled, status?.directionBias, onStatusChange]);
 
   const triggerColor = isForcedOff
     ? "bg-white/[0.04] text-muted-foreground/40 border-white/[0.06]"

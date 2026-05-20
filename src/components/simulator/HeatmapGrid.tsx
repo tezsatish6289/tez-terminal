@@ -12,54 +12,82 @@ import { computeBotCapital, countBotOpen } from "@/lib/sim-bot-metrics";
 import type { SimTrade } from "@/lib/simulator";
 import { HeatmapAssetCard } from "@/components/simulator/HeatmapAssetCard";
 import type { SuggestedZonesSnapshot } from "@/components/simulator/heatmap-types";
-import { HeatmapAutoSwitch } from "@/components/simulator/HeatmapAutoSwitch";
+import { BotCardControls } from "@/components/simulator/BotCardControls";
+import {
+  cryptoBotStatus,
+  zoneBotStatus,
+  type CockpitBotStatus,
+} from "@/lib/cockpit-bot-status";
+import type { ZoneBotState } from "@/lib/zone-bot-state";
+import type { ZoneBotSettings } from "@/lib/zone-bot-config";
+import type { ZoneBotAsset } from "@/lib/zone-bot-config";
 
 interface BtcMacroStatus {
   btcPrice: number | null;
   simEnabled: boolean;
   directionBias: string;
-  reason: string;
 }
+
+const DEFAULT_STATUS: CockpitBotStatus = { power: "idle", label: "Bot OFF" };
 
 function HeatmapBotColumn({
   bot,
   docRef,
-  macroLine,
   capital,
   openCount,
   cs,
   onRegisterRefetch,
+  cryptoMacro,
+  zoneState,
+  zoneSettings,
 }: {
   bot: (typeof SIM_COCKPIT_BOTS)[number];
   docRef: DocumentReference | null;
-  macroLine?: string | null;
   capital: number;
   openCount: number;
   cs: string;
   onRegisterRefetch: (fn: () => void) => void;
+  cryptoMacro: BtcMacroStatus | null;
+  zoneState: ZoneBotState | null;
+  zoneSettings: ZoneBotSettings | null;
 }) {
   const { data, refetch } = useDoc(docRef);
   const suggested = data as SuggestedZonesSnapshot | null;
+  const [botStatus, setBotStatus] = useState<CockpitBotStatus>(DEFAULT_STATUS);
 
   useEffect(() => {
     onRegisterRefetch(refetch);
   }, [refetch, onRegisterRefetch]);
+
+  // Keep ON/OFF in sync with Firestore even before opening the settings sheet.
+  useEffect(() => {
+    if (bot.id === "crypto") {
+      setBotStatus(
+        cryptoBotStatus(
+          zoneSettings ?? { manualOverride: "AUTO" },
+          cryptoMacro,
+        ),
+      );
+    } else {
+      setBotStatus(zoneBotStatus(zoneSettings, zoneState));
+    }
+  }, [bot.id, cryptoMacro, zoneState, zoneSettings]);
 
   return (
     <HeatmapAssetCard
       botId={bot.id}
       label={bot.label}
       suggested={suggested}
-      macroLine={macroLine}
+      botStatus={botStatus}
       capital={capital}
       openCount={openCount}
       cs={cs}
       settingsSlot={
-        bot.id === "crypto" ? (
-          <div className="shrink-0">
-            <HeatmapAutoSwitch />
-          </div>
-        ) : undefined
+        <BotCardControls
+          botId={bot.id}
+          label={bot.label}
+          onStatusChange={setBotStatus}
+        />
       }
     />
   );
@@ -81,13 +109,53 @@ export function HeatmapGrid({
   const [refreshing, setRefreshing] = useState(false);
   const refetchersRef = useRef<Record<string, () => void>>({});
 
-  const statusRef = useMemoFirebase(() => {
+  const macroRef = useMemoFirebase(() => {
     if (!firestore) return null;
     return doc(firestore, "config", "heatmap_auto_status");
   }, [firestore]);
+  const { data: macroData, refetch: refetchMacro } = useDoc(macroRef);
+  const cryptoMacro = macroData as BtcMacroStatus | null;
 
-  const { data: statusData, refetch: refetchStatus } = useDoc(statusRef);
-  const macro = statusData as BtcMacroStatus | null;
+  const heatmapZonesRef = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return doc(firestore, "config", "heatmap_zones");
+  }, [firestore]);
+  const { data: heatmapZonesData, refetch: refetchHeatmapZones } = useDoc(heatmapZonesRef);
+  const heatmapZones = heatmapZonesData as ZoneBotSettings | null;
+
+  const zoneStateRefs = useMemo(() => {
+    if (!firestore) return {};
+    return Object.fromEntries(
+      (["btc", "eth", "sol"] as ZoneBotAsset[]).map((a) => [
+        a,
+        doc(firestore, "config", `zone_bot_${a}_state`),
+      ]),
+    );
+  }, [firestore]);
+
+  const zoneSettingsRefs = useMemo(() => {
+    if (!firestore) return {};
+    return Object.fromEntries(
+      (["btc", "eth", "sol"] as ZoneBotAsset[]).map((a) => [
+        a,
+        a === "btc"
+          ? doc(firestore, "config", "heatmap_zones")
+          : doc(firestore, "config", `zone_bot_${a}_settings`),
+      ]),
+    );
+  }, [firestore]);
+
+  const btcStateRef = zoneStateRefs.btc;
+  const ethStateRef = zoneStateRefs.eth;
+  const solStateRef = zoneStateRefs.sol;
+  const ethSettingsRef = zoneSettingsRefs.eth;
+  const solSettingsRef = zoneSettingsRefs.sol;
+
+  const { data: btcStateData, refetch: refetchBtcState } = useDoc(btcStateRef ?? null);
+  const { data: ethStateData, refetch: refetchEthState } = useDoc(ethStateRef ?? null);
+  const { data: solStateData, refetch: refetchSolState } = useDoc(solStateRef ?? null);
+  const { data: ethSettingsData, refetch: refetchEthSettings } = useDoc(ethSettingsRef ?? null);
+  const { data: solSettingsData, refetch: refetchSolSettings } = useDoc(solSettingsRef ?? null);
 
   const docRefs = useMemo(() => {
     if (!firestore) return {};
@@ -97,9 +165,23 @@ export function HeatmapGrid({
   }, [firestore]);
 
   const refetchAll = useCallback(() => {
-    void refetchStatus();
+    void refetchMacro();
+    void refetchHeatmapZones();
+    void refetchBtcState();
+    void refetchEthState();
+    void refetchSolState();
+    void refetchEthSettings();
+    void refetchSolSettings();
     Object.values(refetchersRef.current).forEach((fn) => void fn());
-  }, [refetchStatus]);
+  }, [
+    refetchMacro,
+    refetchHeatmapZones,
+    refetchBtcState,
+    refetchEthState,
+    refetchSolState,
+    refetchEthSettings,
+    refetchSolSettings,
+  ]);
 
   useAutoRefresh([refetchAll], 60_000);
 
@@ -115,13 +197,6 @@ export function HeatmapGrid({
     }
   }, [refetchAll]);
 
-  const cryptoMacroLine = useMemo(() => {
-    if (!macro) return null;
-    return macro.simEnabled
-      ? `Bot ON · ${macro.directionBias}`
-      : "Bot OFF";
-  }, [macro]);
-
   const botMetrics = useMemo(() => {
     return Object.fromEntries(
       SIM_COCKPIT_BOTS.map((b) => [
@@ -133,6 +208,24 @@ export function HeatmapGrid({
       ]),
     );
   }, [closedTrades, openTrades, startingCapital]);
+
+  const zoneContext = useMemo(
+    () => ({
+      btc: {
+        state: btcStateData as ZoneBotState | null,
+        settings: heatmapZones,
+      },
+      eth: {
+        state: ethStateData as ZoneBotState | null,
+        settings: ethSettingsData as ZoneBotSettings | null,
+      },
+      sol: {
+        state: solStateData as ZoneBotState | null,
+        settings: solSettingsData as ZoneBotSettings | null,
+      },
+    }),
+    [btcStateData, ethStateData, solStateData, heatmapZones, ethSettingsData, solSettingsData],
+  );
 
   const registerRefetch = useCallback(
     (id: string) => (fn: () => void) => {
@@ -151,7 +244,7 @@ export function HeatmapGrid({
               Deribit zone heatmaps
             </h2>
             <p className="text-[10px] text-muted-foreground/45">
-              Crypto Bot uses BTC chain for macro gate · zone bots per coin · one cron refresh
+              Heatmap-only bots · config &amp; ON/OFF per card · one Refresh all cron
             </p>
           </div>
         </div>
@@ -171,18 +264,26 @@ export function HeatmapGrid({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-        {SIM_COCKPIT_BOTS.map((b) => (
-          <HeatmapBotColumn
-            key={b.id}
-            bot={b}
-            docRef={docRefs[b.id] ?? null}
-            macroLine={b.id === "crypto" ? cryptoMacroLine : undefined}
-            capital={botMetrics[b.id]?.capital ?? startingCapital}
-            openCount={botMetrics[b.id]?.openCount ?? 0}
-            cs={cs}
-            onRegisterRefetch={registerRefetch(b.id)}
-          />
-        ))}
+        {SIM_COCKPIT_BOTS.map((b) => {
+          const zc =
+            b.id === "crypto"
+              ? { state: null, settings: heatmapZones }
+              : zoneContext[b.id as ZoneBotAsset];
+          return (
+            <HeatmapBotColumn
+              key={b.id}
+              bot={b}
+              docRef={docRefs[b.id] ?? null}
+              capital={botMetrics[b.id]?.capital ?? startingCapital}
+              openCount={botMetrics[b.id]?.openCount ?? 0}
+              cs={cs}
+              cryptoMacro={b.id === "crypto" ? cryptoMacro : null}
+              zoneState={zc?.state ?? null}
+              zoneSettings={zc?.settings ?? null}
+              onRegisterRefetch={registerRefetch(b.id)}
+            />
+          );
+        })}
       </div>
     </section>
   );

@@ -10,7 +10,7 @@ import {
   type CronHealthLevel,
 } from "@/lib/cron-health-shared";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, Loader2 } from "lucide-react";
 
 const ADMIN_EMAIL = "hello@tezterminal.com";
 
@@ -43,7 +43,8 @@ type JobView = {
 };
 
 /** Ops banner — admin only; loads via Admin API (not client Firestore). */
-export function CronHealthBanner() {
+export function CronHealthBanner({ variant = "full" }: { variant?: "full" | "compact" }) {
+  const [expanded, setExpanded] = useState(false);
   const { user } = useUser();
   const isAdmin = user?.email === ADMIN_EMAIL;
   const [views, setViews] = useState<JobView[] | null>(null);
@@ -112,6 +113,60 @@ export function CronHealthBanner() {
 
   if (!views?.length) return null;
 
+  if (variant === "compact") {
+    return (
+      <div className={cn("rounded-xl border overflow-hidden", levelStyles(worst))}>
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-white/[0.03] transition-colors"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            {anyBad ? (
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+            )}
+            <span className="text-[9px] font-black uppercase tracking-widest shrink-0">
+              Crons {anyBad ? "· check" : "· OK"}
+            </span>
+            <div className="hidden sm:flex items-center gap-1.5 min-w-0 overflow-hidden">
+              {views.map(({ job, level }) => (
+                <span
+                  key={job.id}
+                  className={cn(
+                    "text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border truncate max-w-[100px]",
+                    level === "critical"
+                      ? "border-rose-500/40 text-rose-300"
+                      : level === "warn"
+                        ? "border-amber-500/35 text-amber-200"
+                        : "border-white/10 text-muted-foreground/70",
+                  )}
+                  title={job.label}
+                >
+                  {job.label.split(" ")[0]}
+                </span>
+              ))}
+            </div>
+          </div>
+          <ChevronDown
+            className={cn(
+              "h-3.5 w-3.5 shrink-0 opacity-50 transition-transform",
+              expanded && "rotate-180",
+            )}
+          />
+        </button>
+        {expanded && (
+          <div className="grid gap-1 sm:grid-cols-3 px-2 pb-2 border-t border-white/[0.06]">
+            {views.map(({ job, doc, level, staleMs }) => (
+              <CronJobCell key={job.id} job={job} doc={doc} level={level} staleMs={staleMs} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={cn("rounded-xl border px-3 py-2.5 space-y-2", levelStyles(worst))}>
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -131,37 +186,52 @@ export function CronHealthBanner() {
       </div>
       <div className="grid gap-1 sm:grid-cols-3">
         {views.map(({ job, doc, level, staleMs }) => (
-          <div
-            key={job.id}
-            className={cn(
-              "rounded-lg border px-2 py-1.5 text-[10px]",
-              level === "critical"
-                ? "border-rose-500/30 bg-rose-500/5"
-                : level === "warn"
-                  ? "border-amber-500/25 bg-amber-500/5"
-                  : "border-white/[0.06] bg-black/20",
-            )}
-          >
-            <div className="font-bold uppercase tracking-wide">{job.label}</div>
-            <div className="font-mono text-[9px] opacity-80 mt-0.5">
-              {level.toUpperCase()} · {formatStale(staleMs)}
-            </div>
-            {doc.lastSummary ? (
-              <div className="text-[9px] opacity-60 truncate mt-0.5" title={doc.lastSummary}>
-                {doc.lastSummary}
-              </div>
-            ) : null}
-            {doc.lastError && (level === "critical" || level === "warn") ? (
-              <div
-                className="text-[9px] text-rose-300/90 mt-0.5 line-clamp-2"
-                title={doc.lastError}
-              >
-                {doc.lastError}
-              </div>
-            ) : null}
-          </div>
+          <CronJobCell key={job.id} job={job} doc={doc} level={level} staleMs={staleMs} />
         ))}
       </div>
+    </div>
+  );
+}
+
+function CronJobCell({
+  job,
+  doc,
+  level,
+  staleMs,
+}: {
+  job: JobView["job"];
+  doc: CronHeartbeatDoc;
+  level: CronHealthLevel;
+  staleMs: number | null;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg border px-2 py-1.5 text-[10px]",
+        level === "critical"
+          ? "border-rose-500/30 bg-rose-500/5"
+          : level === "warn"
+            ? "border-amber-500/25 bg-amber-500/5"
+            : "border-white/[0.06] bg-black/20",
+      )}
+    >
+      <div className="font-bold uppercase tracking-wide">{job.label}</div>
+      <div className="font-mono text-[9px] opacity-80 mt-0.5">
+        {level.toUpperCase()} · {formatStale(staleMs)}
+      </div>
+      {doc.lastSummary ? (
+        <div className="text-[9px] opacity-60 truncate mt-0.5" title={doc.lastSummary}>
+          {doc.lastSummary}
+        </div>
+      ) : null}
+      {doc.lastError && (level === "critical" || level === "warn") ? (
+        <div
+          className="text-[9px] text-rose-300/90 mt-0.5 line-clamp-2"
+          title={doc.lastError}
+        >
+          {doc.lastError}
+        </div>
+      ) : null}
     </div>
   );
 }

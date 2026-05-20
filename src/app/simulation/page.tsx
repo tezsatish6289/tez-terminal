@@ -21,7 +21,6 @@ import {
   X,
   XCircle,
   Link2,
-  RefreshCw,
 } from "lucide-react";
 import { useAutoRefresh, useRelativeTimeLabel } from "@/hooks/use-auto-refresh";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -57,7 +56,7 @@ import { Switch } from "@/components/ui/switch";
 import type { SimulatorState, SimTrade, SimLog, SimTradeEvent } from "@/lib/simulator";
 import { getSimStateDocId } from "@/lib/simulator";
 import { SimulatorParamsDialog } from "@/components/simulator/SimulatorParamsDialog";
-import { HeatmapAutoSwitch } from "@/components/simulator/HeatmapAutoSwitch";
+import { HeatmapGrid } from "@/components/simulator/HeatmapGrid";
 import { NiftyAutoSwitch } from "@/components/simulator/NiftyAutoSwitch";
 import { format, startOfDay, startOfWeek, startOfMonth, isAfter } from "date-fns";
 import { buildEquityCurve } from "@/lib/equity-curve";
@@ -70,6 +69,9 @@ import {
   useOpenTradesMirrors,
 } from "@/components/simulator/OpenTradesLiveMirrors";
 import { TabErrorBoundary } from "@/components/error/TabErrorBoundary";
+import { SimulatorToolbar } from "@/components/simulator/SimulatorToolbar";
+import { SimulatorMainPanel } from "@/components/simulator/SimulatorMainPanel";
+import { OpenPositionsPanel } from "@/components/simulator/OpenPositionsPanel";
 
 // Defensive against legacy trade docs missing newer fields
 // (`fees`, `positionSize`, zone-bot fields). Unguarded
@@ -349,140 +351,93 @@ export default function SimulationPage() {
       <main className="flex-1 flex flex-col min-w-0">
         <TopBar />
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <div className="max-w-[1400px] mx-auto space-y-4">
-            <CronHealthBanner />
-            {/* Asset type selector + simulator controls */}
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              {/* Asset type pills — primary navigation */}
-              <div className="flex items-center gap-0 rounded-xl border border-white/[0.08] bg-white/[0.02] p-1 w-fit">
-                {([
-                  { key: "CRYPTO" as const, label: "Crypto", icon: "₿", fund: "$1,000 USDT" },
-                  { key: "INDIAN_STOCKS" as const, label: "Indian Stocks", icon: "₹", fund: "₹1,00,000 INR" },
-                ]).map(({ key, label, icon, fund }) => (
-                  <button
-                    key={key}
-                    onClick={() => { setAssetType(key); setTab("overview"); }}
-                    className={cn(
-                      "relative flex items-center gap-2 px-5 lg:px-6 py-2 lg:py-2.5 rounded-lg text-xs lg:text-sm font-black uppercase tracking-wider transition-all",
-                      assetType === key
-                        ? "bg-accent text-black shadow-lg shadow-accent/25"
-                        : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
-                    )}
-                  >
-                    <span className="text-sm lg:text-base">{icon}</span>
-                    <span className="flex flex-col items-start leading-tight">
-                      <span>{label}</span>
-                      <span className={cn("text-[9px] font-bold tracking-normal normal-case", assetType === key ? "text-black/60" : "text-muted-foreground/40")}>{fund}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+          <div className="max-w-[1280px] mx-auto space-y-3 sm:space-y-4">
+            <CronHealthBanner variant="compact" />
 
-              {/* Simulator controls */}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={refresh}
-                  title="Refresh sim state & open trades"
-                  className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.02] px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors"
-                >
-                  <RefreshCw className="h-3 w-3" />
-                  <span className="hidden sm:inline">{lastRefreshedLabel}</span>
-                </button>
-                <Link
-                  href="/stats"
-                  title="View headline stats, equity curve and risk ratios"
-                  className="flex items-center gap-1.5 rounded-lg border border-accent/30 bg-accent/[0.06] px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-accent hover:bg-accent/[0.12] transition-colors"
-                >
-                  <BarChart3 className="h-3 w-3" />
-                  <span>View performance →</span>
-                </Link>
-                {assetType === "CRYPTO" && <HeatmapAutoSwitch />}
-                {assetType === "INDIAN_STOCKS" && <NiftyAutoSwitch />}
-                <SimulatorParamsDialog />
-              </div>
-            </div>
+            <SimulatorToolbar
+              assetType={assetType}
+              onAssetChange={(key) => {
+                setAssetType(key);
+                setTab("overview");
+              }}
+              simState={simState}
+              openCount={openTrades.length}
+              maxSlots={simState?.currentMaxTrades ?? 5}
+              cs={cs}
+              lastRefreshedLabel={lastRefreshedLabel}
+              onRefresh={refresh}
+              heatmapControl={
+                assetType === "INDIAN_STOCKS" ? <NiftyAutoSwitch /> : undefined
+              }
+              paramsControl={<SimulatorParamsDialog />}
+            />
+
+            {assetType === "CRYPTO" && <HeatmapGrid />}
 
             {isLoading ? (
-              <div className="flex items-center justify-center h-40">
-                <Loader2 className="h-6 w-6 animate-spin text-accent/50" />
+              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] flex items-center justify-center min-h-[280px]">
+                <Loader2 className="h-7 w-7 animate-spin text-accent/50" />
               </div>
             ) : !simState ? (
-              <div className="space-y-4">
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-8 text-center">
-                  <Activity className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
-                  <p className="text-sm font-bold text-muted-foreground/50">Simulator not started yet</p>
-                  <p className="text-[11px] text-muted-foreground/30 mt-1">The simulator will activate when the next AI-passed signal arrives.</p>
+              <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-b from-white/[0.03] to-transparent p-8 sm:p-12 text-center space-y-3">
+                <div className="w-14 h-14 rounded-2xl border border-white/[0.08] bg-accent/[0.08] flex items-center justify-center mx-auto">
+                  <Activity className="w-7 h-7 text-accent/50" />
                 </div>
-
+                <p className="text-sm font-black text-foreground/80">Simulator idle</p>
+                <p className="text-[11px] text-muted-foreground/45 max-w-sm mx-auto leading-relaxed">
+                  Waiting for the next AI-passed signal. Once a trade opens, it will appear in the open slots above.
+                </p>
                 {logs.length > 0 && (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Decision Logs</span>
-                      <span className="text-[9px] text-muted-foreground/30">({logs.length})</span>
-                    </div>
-                    <div className="space-y-1">
-                      {logs.map((log, i) => (
+                  <div className="pt-6 text-left max-w-lg mx-auto space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+                      Recent logs ({logs.length})
+                    </p>
+                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                      {logs.slice(0, 20).map((log, i) => (
                         <LogRow key={i} log={log} cs={cs} />
                       ))}
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
             ) : (
-              <>
-                {/* Headline cards, equity curve and risk ratios live on
-                    /stats now. This page is the operations cockpit — the
-                    bot-source filter below still applies to the trade
-                    tabs (Open / History) so you can scope your trade
-                    list to one bot without leaving the page. */}
-
-                {/* Bot-source filter — scopes the trade tabs below. */}
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <BotSourceFilter value={botSourceFilter} onChange={setBotSourceFilter} />
-                  {isBotFiltered && (
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400/70 px-2 py-1 rounded-md border border-amber-400/20 bg-amber-400/[0.06]">
-                      Trade list filtered to this bot
-                    </span>
-                  )}
-                </div>
-
-                {/* Streak scaling indicator */}
-                {(simState.consecutiveWins ?? 0) >= 2 && (
-                  <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-400/10 border border-emerald-400/20">
-                    <TrendingUp className="w-4 h-4 text-emerald-400" />
-                    <span className="text-[11px] font-bold text-emerald-400">
-                      Streak active — {simState.consecutiveWins} consecutive {simState.streakSide === "BUY" ? "bull" : "bear"} wins → trading up to {simState.currentMaxTrades} concurrent at 1% risk
-                    </span>
-                  </div>
-                )}
-
-                {/* Tabs */}
-                <div className="flex items-center gap-1 border-b border-white/[0.06] pb-0">
-                  {(["overview", "trades", "logs"] as const).map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setTab(t)}
-                      className={cn(
-                        "px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer border-b-2",
-                        tab === t
-                          ? "border-accent text-accent"
-                          : "border-transparent text-muted-foreground/40 hover:text-muted-foreground"
-                      )}
-                    >
-                      {t === "overview" ? `Open (${openTrades.length})` : t === "trades" ? "History" : `Logs (${logs.length})`}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Tab Content */}
+              <SimulatorMainPanel
+                tab={tab}
+                onTabChange={setTab}
+                openCount={openTrades.length}
+                logsCount={logs.length}
+                botFilterRow={
+                  <>
+                    <BotSourceFilter value={botSourceFilter} onChange={setBotSourceFilter} size="sm" />
+                    {isBotFiltered && (
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400/60">
+                        Filtered view
+                      </span>
+                    )}
+                  </>
+                }
+                filterHint={
+                  <Link
+                    href="/stats"
+                    className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/45 hover:text-accent transition-colors hidden sm:inline"
+                  >
+                    Full performance →
+                  </Link>
+                }
+              >
                 {tab === "overview" && (
-                  <TradeList trades={openTrades} emptyIcon={<Activity className="w-6 h-6" />} emptyLabel="No open trades" onSelectTrade={setSelectedTrade} onForceClose={handleForceClose} cs={cs} />
+                  <OpenPositionsPanel
+                    trades={openTrades}
+                    maxSlots={simState.currentMaxTrades ?? 5}
+                    cs={cs}
+                    onSelectTrade={setSelectedTrade}
+                    onForceClose={handleForceClose}
+                  />
                 )}
 
                 {tab === "trades" && (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {/* Score-vs-Outcome analysis — runs over the full
                         bot-filtered closed-trade set (same source as the
                         equity chart) so the edge stat reflects the user's
@@ -538,11 +493,14 @@ export default function SimulationPage() {
                 )}
 
                 {tab === "logs" && (
-                  <div className="space-y-1">
+                  <div className="space-y-1 max-h-[min(60vh,520px)] overflow-y-auto pr-1">
                     {logs.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground/30">
-                        <Activity className="w-6 h-6 mx-auto mb-2" />
+                      <div className="text-center py-12 text-muted-foreground/30">
+                        <Activity className="w-6 h-6 mx-auto mb-2 opacity-40" />
                         <p className="text-xs font-bold">No logs yet</p>
+                        <p className="text-[10px] text-muted-foreground/25 mt-1">
+                          Evaluations and trade events appear here
+                        </p>
                       </div>
                     ) : (
                       logs.map((log, i) => (
@@ -551,7 +509,7 @@ export default function SimulationPage() {
                     )}
                   </div>
                 )}
-              </>
+              </SimulatorMainPanel>
             )}
           </div>
         </div>

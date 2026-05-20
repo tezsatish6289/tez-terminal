@@ -265,8 +265,10 @@ function computePositionSize(
 // ── Trade open / close primitives ───────────────────────────────────────
 
 const ZONE_BOT_ALGO     = "ZONE_BOT";
-const ZONE_BOT_BIAS_BTC: Record<ZoneBotAsset, string> = {
+const ZONE_BOT_BIAS: Record<ZoneBotAsset, string> = {
   btc: "BTC_ZONE",
+  eth: "ETH_ZONE",
+  sol: "SOL_ZONE",
 };
 
 function makeZoneSignalId(asset: ZoneBotAsset, now: number): string {
@@ -326,7 +328,7 @@ async function openZoneBotTrade(args: {
     bearScore:     0,
     liveWinRate:   0,
     algoWinRate:   0,
-    directionBias: ZONE_BOT_BIAS_BTC[asset] as "BULL" | "BEAR" | "BOTH",
+    directionBias: ZONE_BOT_BIAS[asset] as "BULL" | "BEAR" | "BOTH",
   });
 
   // Stamp botSource so PR #3's guards in sync-simulator skip this trade

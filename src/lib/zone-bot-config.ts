@@ -15,25 +15,47 @@ import type { Firestore } from "firebase-admin/firestore";
 
 // ── Asset registry ───────────────────────────────────────────────────────
 
-/** Coins currently active as zone bots. Add new coins here in Phase 2. */
-export type ZoneBotAsset = "btc";
+/** Coins with Deribit option chains (zone suggester + zone bots). */
+export type ZoneBotAsset = "btc" | "eth" | "sol";
 
-/** Iteration order for crons / UI tabs. */
+/** All assets shown on the simulation heatmap grid (XRP uses perp OI later). */
+export type HeatmapUiAsset = ZoneBotAsset | "xrp";
+
+/** Iteration order for zone-bot crons — BTC only until live mirroring ships. */
 export const ZONE_BOT_REGISTRY: readonly ZoneBotAsset[] = ["btc"] as const;
+
+/** Deribit heatmaps shown together on /simulation. */
+export const HEATMAP_UI_ASSETS: readonly {
+  id: HeatmapUiAsset;
+  label: string;
+  perpSymbol: string;
+  deribit: boolean;
+}[] = [
+  { id: "btc", label: "BTC", perpSymbol: "BTCUSDT", deribit: true },
+  { id: "eth", label: "ETH", perpSymbol: "ETHUSDT", deribit: true },
+  { id: "sol", label: "SOL", perpSymbol: "SOLUSDT", deribit: true },
+  { id: "xrp", label: "XRP", perpSymbol: "XRPUSDT", deribit: false },
+] as const;
 
 /** Bybit perp symbol for the asset (used by sync-prices + live execution). */
 export const ZONE_BOT_PERP_SYMBOL: Record<ZoneBotAsset, string> = {
   btc: "BTCUSDT",
+  eth: "ETHUSDT",
+  sol: "SOLUSDT",
 };
 
 /** Human-friendly label shown in the UI ("BTC Zone", etc.). */
 export const ZONE_BOT_LABEL: Record<ZoneBotAsset, string> = {
   btc: "BTC Zone",
+  eth: "ETH Zone",
+  sol: "SOL Zone",
 };
 
 /** `botSource` value stamped on trades from this bot. */
 export const ZONE_BOT_SOURCE: Record<ZoneBotAsset, string> = {
   btc: "BTC_ZONE",
+  eth: "ETH_ZONE",
+  sol: "SOL_ZONE",
 };
 
 // ── Settings shape ───────────────────────────────────────────────────────
@@ -85,6 +107,20 @@ export const ZONE_BOT_DEFAULTS: Record<ZoneBotAsset, ZoneBotSettings> = {
     zoneConfirmMinutes:    15,
     maxPainMinDistanceUsd: 1000,
     maxPainProximityUsd:   200,
+  },
+  eth: {
+    manualOverride:        "AUTO",
+    zoneHalfWidthUsd:      25,
+    zoneConfirmMinutes:    15,
+    maxPainMinDistanceUsd: 50,
+    maxPainProximityUsd:   10,
+  },
+  sol: {
+    manualOverride:        "AUTO",
+    zoneHalfWidthUsd:      1.5,
+    zoneConfirmMinutes:    15,
+    maxPainMinDistanceUsd: 3,
+    maxPainProximityUsd:   0.5,
   },
 };
 

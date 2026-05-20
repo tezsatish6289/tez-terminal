@@ -176,9 +176,18 @@ const ASSET_SPEC: Record<ZoneBotAsset, AssetSpec> = {
     yearDays:        365,
     indexEndpoint:   "btc_usd",
   },
-  // When adding ETH / SOL:
-  //   eth: { deribitCurrency: "ETH", strikeGridUsd:  50, yearDays: 365, indexEndpoint: "eth_usd"   },
-  //   sol: { deribitCurrency: "SOL", strikeGridUsd:   5, yearDays: 365, indexEndpoint: "sol_usdc"  },
+  eth: {
+    deribitCurrency: "ETH",
+    strikeGridUsd:   50,
+    yearDays:        365,
+    indexEndpoint:   "eth_usd",
+  },
+  sol: {
+    deribitCurrency: "SOL",
+    strikeGridUsd:   5,
+    yearDays:        365,
+    indexEndpoint:   "sol_usdc",
+  },
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────

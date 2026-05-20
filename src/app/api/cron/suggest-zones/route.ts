@@ -1,24 +1,12 @@
 /**
  * /api/cron/suggest-zones
  *
- * Fetches BTC options OI from Deribit, finds dominant put/call strikes
- * for the nearest liquid expiry, and writes the result to BOTH:
+ * Fetches options OI from Deribit for BTC, ETH, and SOL, writes zones to:
  *
- *   • config/suggested_zones      — legacy path read by sync-simulator
- *                                   (Crypto Bot AUTO mode) and the
- *                                   HeatmapAutoSwitch UI.
- *   • config/suggested_zones_btc  — asset-namespaced path that
- *                                   sync-zone-bots prefers when picking
- *                                   up zones for the BTC Zone Bot.
+ *   • config/suggested_zones_{asset}  — per-asset (zone bots + heatmap grid)
+ *   • config/suggested_zones          — legacy BTC path (Crypto Bot macro gate)
  *
- * Both docs receive the same payload — single source of truth. The dual
- * write exists because the BTC Zone Bot was added later and is the only
- * caller that reads the namespaced path today; once ETH/SOL/XRP zone
- * bots ship and start writing `suggested_zones_{eth,sol,xrp}`, the
- * legacy doc can finally retire.
- *
- * When manualOverride === "AUTO" in heatmap_zones, the sync-simulator
- * cron reads these suggested zones directly and uses them for auto-switch.
+ * XRP has no Deribit options chain — omitted until perp-OI zones ship.
  *
  * Scheduled: every 15 min via cron-job.org (GET).
  * Also callable manually from the UI Refresh button (POST).
@@ -29,51 +17,31 @@ import { getAdminFirestore } from "@/firebase/admin";
 import { computeOptionsZones } from "@/lib/options-zones";
 import { deserializePrices } from "@/lib/exchanges";
 import { parseZones } from "@/lib/heatmap-zones-settings";
+import {
+  zoneBotSettingsDoc,
+  parseZoneBotSettings,
+  type ZoneBotAsset,
+} from "@/lib/zone-bot-config";
 
 export const dynamic     = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
-async function run() {
-  const db = getAdminFirestore();
+/** All Deribit assets refreshed by this cron (includes BTC for the grid). */
+const SUGGEST_ZONE_ASSETS: ZoneBotAsset[] = ["btc", "eth", "sol"];
 
-  // Get current BTC price from Firestore (kept fresh by sync-prices cron)
-  let btcPrice: number | null = null;
-  try {
-    const priceDoc  = await db.doc("config/exchange_prices").get();
-    if (priceDoc.exists) {
-      const allPrices = deserializePrices(
-        priceDoc.data() as Record<string, Record<string, number>>,
-      );
-      btcPrice =
-        allPrices.BYBIT?.get("BTCUSDT") ??
-        allPrices.BINANCE?.get("BTCUSDT") ??
-        null;
-    }
-  } catch {}
+const PERP_SYMBOL: Record<ZoneBotAsset, string> = {
+  btc: "BTCUSDT",
+  eth: "ETHUSDT",
+  sol: "SOLUSDT",
+};
 
-  if (!btcPrice) throw new Error("BTC price unavailable");
-
-  // v2: `zoneHalfWidthUsd` is now auto-derived per call inside the suggester
-  // and ignored from the user's settings. Only `maxPainMinDistanceUsd` is
-  // still a manual override (null = use suggester default).
-  let maxPainMinDistanceUsd: number | null = null;
-  try {
-    const hzSnap = await db.doc("config/heatmap_zones").get();
-    if (hzSnap.exists) {
-      const parsed = parseZones(hzSnap.data() ?? {});
-      maxPainMinDistanceUsd = parsed.maxPainMinDistanceUsd;
-    }
-  } catch {}
-
-  const result = await computeOptionsZones({
-    asset:                 "btc",
-    currentPrice:          btcPrice,
-    maxPainMinDistanceUsd,
-  });
-
-  const suggested = {
+function serializeSuggested(
+  result: Awaited<ReturnType<typeof computeOptionsZones>>,
+  spotPrice: number,
+) {
+  return {
     bullStrike:        result.bullStrike,
     bearStrike:        result.bearStrike,
     bullZoneLow:       result.bullZoneLow,
@@ -84,22 +52,15 @@ async function run() {
     bearExitBelow:     result.bearExitBelow,
     bullOI:            result.bullOI,
     bearOI:            result.bearOI,
-
-    // Multi-day max pain picture
     maxPain:           result.maxPain,
     maxPainByExpiry:   result.maxPainByExpiry,
     signalConflict:    result.signalConflict,
-
-    // TP targets per zone
     bullTpTarget:      result.bullTpTarget,
     bullTpExpiry:      result.bullTpExpiry,
     bullTpConfidence:  result.bullTpConfidence,
     bearTpTarget:      result.bearTpTarget,
     bearTpExpiry:      result.bearTpExpiry,
     bearTpConfidence:  result.bearTpConfidence,
-
-    // v2 transparency fields — surfaced into config/suggested_zones so the
-    // pattern-bot's loadEffectiveHeatmapZones can pull regime flags through.
     atmIV:               result.atmIV,
     ivBackwardation:     result.ivBackwardation,
     inPanicRegime:       result.inPanicRegime,
@@ -111,25 +72,102 @@ async function run() {
     notActionableReason: result.notActionableReason,
     bullClusterShare:    result.bullClusterShare,
     bearClusterShare:    result.bearClusterShare,
-
     expiryUsed:        result.expiryUsed,
     expiriesUsed:      result.expiriesUsed,
     expiryOI:          result.expiryOI,
     insufficientGap:   result.insufficientGap,
-    btcPrice:          result.btcPrice,
+    btcPrice:          spotPrice,
     deribitIndexPrice: result.deribitIndexPrice,
     source:            "deribit",
     computedAt:        result.computedAt,
   };
+}
 
-  await Promise.all([
-    db.doc("config/suggested_zones").set(suggested),
-    db.doc("config/suggested_zones_btc").set(suggested),
-  ]);
+async function suggestForAsset(
+  asset: ZoneBotAsset,
+  allPrices: Record<string, Map<string, number>>,
+): Promise<Record<string, unknown>> {
+  const db = getAdminFirestore();
+  const symbol = PERP_SYMBOL[asset];
+
+  const spot =
+    allPrices.BYBIT?.get(symbol) ??
+    allPrices.BINANCE?.get(symbol) ??
+    null;
+
+  if (!spot) throw new Error(`${asset.toUpperCase()} price unavailable`);
+
+  let maxPainMinDistanceUsd: number | null = null;
+  try {
+    const settingsPath = zoneBotSettingsDoc(asset);
+    const snap = await db.doc(settingsPath).get();
+    if (snap.exists) {
+      if (asset === "btc") {
+        const parsed = parseZones(snap.data() ?? {});
+        maxPainMinDistanceUsd = parsed.maxPainMinDistanceUsd;
+      } else {
+        const parsed = parseZoneBotSettings(asset, snap.data() ?? {});
+        maxPainMinDistanceUsd = parsed.maxPainMinDistanceUsd;
+      }
+    }
+  } catch {}
+
+  const result = await computeOptionsZones({
+    asset,
+    currentPrice: spot,
+    maxPainMinDistanceUsd,
+  });
+
+  const suggested = serializeSuggested(result, spot);
+
+  const writes: Promise<unknown>[] = [
+    db.doc(`config/suggested_zones_${asset}`).set(suggested),
+  ];
+  if (asset === "btc") {
+    writes.push(db.doc("config/suggested_zones").set(suggested));
+    writes.push(db.doc("config/suggested_zones_btc").set(suggested));
+  }
+
+  await Promise.all(writes);
   return suggested;
 }
 
-// GET — called by cron-job.org with ?key=CRON_SECRET
+async function run() {
+  const db = getAdminFirestore();
+
+  let allPrices: Record<string, Map<string, number>> = {};
+  try {
+    const priceDoc = await db.doc("config/exchange_prices").get();
+    if (priceDoc.exists) {
+      allPrices = deserializePrices(
+        priceDoc.data() as Record<string, Record<string, number>>,
+      );
+    }
+  } catch {}
+
+  const results: Record<string, unknown> = {};
+  const errors: Record<string, string> = {};
+
+  await Promise.all(
+    SUGGEST_ZONE_ASSETS.map(async (asset) => {
+      try {
+        results[asset] = await suggestForAsset(asset, allPrices);
+      } catch (e) {
+        errors[asset] = e instanceof Error ? e.message : String(e);
+        console.error(`[SuggestZones] ${asset} failed:`, e);
+      }
+    }),
+  );
+
+  if (Object.keys(results).length === 0) {
+    throw new Error(
+      Object.values(errors).join("; ") || "All zone suggestions failed",
+    );
+  }
+
+  return { suggested: results, errors };
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const key = searchParams.get("key");
@@ -137,8 +175,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const suggested = await run();
-    return NextResponse.json({ success: true, suggested });
+    const payload = await run();
+    return NextResponse.json({ success: true, ...payload });
   } catch (err) {
     console.error("[SuggestZones] Failed:", err);
     return NextResponse.json(
@@ -148,11 +186,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST — called by the UI Refresh button (no key required, internal)
 export async function POST(_request: NextRequest) {
   try {
-    const suggested = await run();
-    return NextResponse.json({ success: true, suggested });
+    const payload = await run();
+    return NextResponse.json({ success: true, ...payload });
   } catch (err) {
     console.error("[SuggestZones] Failed:", err);
     return NextResponse.json(

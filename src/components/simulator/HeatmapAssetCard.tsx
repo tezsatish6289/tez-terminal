@@ -99,7 +99,10 @@ export function HeatmapAssetCard({
     <div
       role={onSelect ? "button" : undefined}
       tabIndex={onSelect ? 0 : undefined}
-      onClick={onSelect}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest("[data-heatmap-toolbar]")) return;
+        onSelect?.();
+      }}
       onKeyDown={
         onSelect
           ? (e) => {

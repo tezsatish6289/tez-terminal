@@ -11,7 +11,6 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
-  SheetTrigger,
 } from "@/components/ui/sheet";
 import type { CockpitBotId } from "@/lib/sim-cockpit-bots";
 import type { SimBotSettings } from "@/lib/sim-bot-settings";
@@ -77,6 +76,7 @@ export function SimBotConfigSheet({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const apiBase = `/api/settings/sim-bot/${botId}`;
   const isCrypto = botId === "crypto";
@@ -159,20 +159,21 @@ export function SimBotConfigSheet({
   const isForcedOff = settings?.manualOverride === "OFF";
 
   return (
-    <Sheet>
-      <SheetTrigger asChild>
-        <BotCardToolbarTrigger
-          isForcedOff={isForcedOff}
-          power={status.power}
-          sheetLabel="Config"
-          onAutoToggle={(e) => {
-            e.stopPropagation();
-            void handleOverride(isForcedOff ? "AUTO" : "OFF");
-          }}
-        />
-      </SheetTrigger>
+    <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+      <BotCardToolbarTrigger
+        isForcedOff={isForcedOff}
+        power={status.power}
+        sheetLabel="Config"
+        onConfigClick={() => setSheetOpen(true)}
+        onAutoToggle={() => {
+          void handleOverride(isForcedOff ? "AUTO" : "OFF");
+        }}
+      />
 
-      <SheetContent side="right" className="w-[400px] sm:w-[440px] flex flex-col gap-0 p-0">
+      <SheetContent
+        side="right"
+        className="w-[400px] sm:w-[440px] flex flex-col gap-0 p-0 z-[100]"
+      >
         <SheetHeader className="px-5 py-4 border-b border-white/[0.06]">
           <SheetTitle className="text-[13px] font-black uppercase tracking-widest">
             {label} settings

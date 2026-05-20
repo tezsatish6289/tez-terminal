@@ -43,8 +43,8 @@ interface BotStats {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function fmt(n: number | null, suffix = "%") {
-  if (n === null) return "—";
+function fmt(n: number | null | undefined, suffix = "%") {
+  if (n == null || !Number.isFinite(n)) return "—";
   const sign = n >= 0 ? "+" : "";
   return `${sign}${n.toFixed(2)}${suffix}`;
 }

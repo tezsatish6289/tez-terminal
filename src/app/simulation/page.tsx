@@ -70,14 +70,21 @@ import {
   useOpenTradesMirrors,
 } from "@/components/simulator/OpenTradesLiveMirrors";
 
-function formatMoney(val: number, cs = "$"): string {
+// Defensive against legacy trade docs missing newer fields
+// (`fees`, `positionSize`, zone-bot fields). Unguarded
+// `undefined.toFixed()` previously crashed the History tab.
+function formatMoney(val: number | null | undefined, cs = "$"): string {
+  if (val == null || !Number.isFinite(val)) {
+    return cs === "₹" ? "₹0.00" : "$0.00";
+  }
   if (cs === "₹") {
     return `₹${val.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
   return `$${val.toFixed(2)}`;
 }
 
-function formatPct(val: number): string {
+function formatPct(val: number | null | undefined): string {
+  if (val == null || !Number.isFinite(val)) return "0.00%";
   const sign = val >= 0 ? "+" : "";
   return `${sign}${val.toFixed(2)}%`;
 }

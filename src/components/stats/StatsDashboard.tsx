@@ -50,14 +50,20 @@ import {
 //    cannot drift apart). Intentionally local — these are presentation
 //    concerns and don't belong in a shared lib.
 
-function formatMoney(val: number, cs: string): string {
+// Defensive against null/undefined/NaN — server stats can omit fields
+// (e.g. legacy trades) and unguarded .toFixed crashes the page.
+function formatMoney(val: number | null | undefined, cs: string): string {
+  if (val == null || !Number.isFinite(val)) {
+    return cs === "₹" ? "₹0.00" : "$0.00";
+  }
   if (cs === "₹") {
     return `₹${val.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
   return `$${val.toFixed(2)}`;
 }
 
-function formatPct(val: number): string {
+function formatPct(val: number | null | undefined): string {
+  if (val == null || !Number.isFinite(val)) return "0.00%";
   const sign = val >= 0 ? "+" : "";
   return `${sign}${val.toFixed(2)}%`;
 }

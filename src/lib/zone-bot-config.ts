@@ -21,8 +21,8 @@ export type ZoneBotAsset = "btc" | "eth" | "sol";
 /** @deprecated Use `CockpitBotId` from `sim-cockpit-bots.ts` for /simulation UI. */
 export type HeatmapUiAsset = ZoneBotAsset | "crypto";
 
-/** Iteration order for zone-bot crons — BTC only until live mirroring ships. */
-export const ZONE_BOT_REGISTRY: readonly ZoneBotAsset[] = ["btc"] as const;
+/** Iteration order for zone-bot crons (simulator engine ticks). */
+export const ZONE_BOT_REGISTRY: readonly ZoneBotAsset[] = ["btc", "eth"] as const;
 
 /** Bybit perp symbol for the asset (used by sync-prices + live execution). */
 export const ZONE_BOT_PERP_SYMBOL: Record<ZoneBotAsset, string> = {

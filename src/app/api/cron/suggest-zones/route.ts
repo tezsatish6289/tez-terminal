@@ -17,11 +17,10 @@ import { getAdminFirestore } from "@/firebase/admin";
 import { computeOptionsZones } from "@/lib/options-zones";
 import { deserializePrices } from "@/lib/exchanges";
 import { parseZones } from "@/lib/heatmap-zones-settings";
-import {
-  zoneBotSettingsDoc,
-  parseZoneBotSettings,
-  type ZoneBotAsset,
-} from "@/lib/zone-bot-config";
+import type { ZoneBotAsset } from "@/lib/zone-bot-config";
+import { loadSimBotSettings } from "@/lib/sim-bot-settings";
+import { parseZones } from "@/lib/heatmap-zones-settings";
+import { zoneBotSettingsDoc } from "@/lib/zone-bot-config";
 
 export const dynamic     = "force-dynamic";
 export const maxDuration = 60;
@@ -99,16 +98,18 @@ async function suggestForAsset(
 
   let maxPainMinDistanceUsd: number | null = null;
   try {
-    const settingsPath = zoneBotSettingsDoc(asset);
-    const snap = await db.doc(settingsPath).get();
-    if (snap.exists) {
-      if (asset === "btc") {
-        const parsed = parseZones(snap.data() ?? {});
-        maxPainMinDistanceUsd = parsed.maxPainMinDistanceUsd;
-      } else {
-        const parsed = parseZoneBotSettings(asset, snap.data() ?? {});
-        maxPainMinDistanceUsd = parsed.maxPainMinDistanceUsd;
+    if (asset === "btc") {
+      const snap = await db.doc(zoneBotSettingsDoc(asset)).get();
+      if (snap.exists) {
+        maxPainMinDistanceUsd = parseZones(snap.data() ?? {}).maxPainMinDistanceUsd;
       }
+      const sim = await loadSimBotSettings(db, "btc");
+      if (sim.maxPainMinDistanceUsd != null) {
+        maxPainMinDistanceUsd = sim.maxPainMinDistanceUsd;
+      }
+    } else {
+      const sim = await loadSimBotSettings(db, asset);
+      maxPainMinDistanceUsd = sim.maxPainMinDistanceUsd ?? null;
     }
   } catch {}
 

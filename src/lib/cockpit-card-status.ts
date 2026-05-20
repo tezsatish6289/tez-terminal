@@ -7,6 +7,7 @@
  *   ready   — active bias, confirming complete, or managing a trade
  */
 import type { CockpitBotId } from "@/lib/sim-cockpit-bots";
+import { ZONE_BOT_REGISTRY, type ZoneBotAsset } from "@/lib/zone-bot-config";
 import type { SuggestedZonesSnapshot } from "@/components/simulator/heatmap-types";
 import type { ZoneBotDirection } from "@/lib/zone-bot-state";
 
@@ -192,9 +193,16 @@ export function deriveCockpitCardStatus(
   }
 
   if (botId !== "crypto" && !botEngineLive) {
-    return blocked(
-      "Engine not live",
-      "Zone bot cron runs for BTC only — ETH/SOL heatmaps refresh only",
+    const asset = botId as ZoneBotAsset;
+    if (!ZONE_BOT_REGISTRY.includes(asset)) {
+      return blocked(
+        "Engine not live",
+        `${botId.toUpperCase()} zone sim not enabled — zones refresh only`,
+      );
+    }
+    return waiting(
+      "Engine warming up",
+      "Waiting for first sync-zone-bots tick (~1 min)",
     );
   }
 

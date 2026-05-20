@@ -26,6 +26,7 @@ interface BtcMacroStatus {
   btcPrice: number | null;
   simEnabled: boolean;
   directionBias: string;
+  updatedAt?: string;
 }
 
 const DEFAULT_STATUS: CockpitBotStatus = { power: "idle", label: "Bot OFF" };
@@ -74,12 +75,18 @@ function HeatmapBotColumn({
   }, [bot.id, cryptoMacro, zoneState, zoneSettings]);
 
   return (
-    <div className="h-full min-h-[400px]">
+    <div className="h-full min-h-[448px]">
       <HeatmapAssetCard
         botId={bot.id}
         label={bot.label}
         suggested={suggested}
         botStatus={botStatus}
+        botLastRanAt={
+          bot.id === "crypto"
+            ? cryptoMacro?.updatedAt ?? null
+            : zoneState?.updatedAt ?? null
+        }
+        zonesRefreshedAt={suggested?.computedAt ?? null}
         capital={capital}
         openCount={openCount}
         cs={cs}

@@ -1,6 +1,7 @@
 "use client";
 
-import { TrendingDown, TrendingUp, AlertTriangle } from "lucide-react";
+import { TrendingDown, TrendingUp, AlertTriangle, Clock } from "lucide-react";
+import { useIsoTimeLabel } from "@/hooks/use-auto-refresh";
 import { cn } from "@/lib/utils";
 import type { CockpitBotId } from "@/lib/sim-cockpit-bots";
 import {
@@ -28,6 +29,8 @@ export function HeatmapAssetCard({
   label,
   suggested,
   botStatus,
+  botLastRanAt,
+  zonesRefreshedAt,
   capital,
   openCount,
   cs,
@@ -37,6 +40,10 @@ export function HeatmapAssetCard({
   label: string;
   suggested: SuggestedZonesSnapshot | null;
   botStatus: CockpitBotStatus;
+  /** sync-simulator / sync-zone-bots last tick */
+  botLastRanAt?: string | null;
+  /** suggest-zones cron (Deribit OI snapshot) */
+  zonesRefreshedAt?: string | null;
   capital: number;
   openCount: number;
   cs: string;
@@ -68,7 +75,7 @@ export function HeatmapAssetCard({
     <div
       className={cn(
         SIM_CARD,
-        "flex flex-col h-full min-h-[400px] overflow-hidden",
+        "flex flex-col h-full min-h-[448px] overflow-hidden",
       )}
     >
       {/* ── Header: title row + controls ── */}
@@ -106,6 +113,13 @@ export function HeatmapAssetCard({
       <div className="shrink-0 px-3 py-2 border-b border-white/[0.08] bg-[#141418] h-[40px] flex items-center">
         <BotPowerBadge status={botStatus} />
       </div>
+
+      {/* ── Last ran — fixed height, always visible ── */}
+      <LastRanBar
+        botId={botId}
+        botLastRanAt={botLastRanAt}
+        zonesRefreshedAt={zonesRefreshedAt}
+      />
 
       {/* ── Capital / Open — fixed height ── */}
       <div className="shrink-0 px-3 py-2 border-b border-white/[0.08] bg-[#121214] h-[52px] grid grid-cols-2 gap-2">
@@ -159,27 +173,74 @@ export function HeatmapAssetCard({
                 actionable={suggested.bearActionable}
               />
             </div>
-            <p className="shrink-0 text-[9px] text-center text-muted-foreground/35 font-mono h-4 leading-4">
-              {suggested.halfWidthUsd != null ? (
-                <>
-                  ±${Math.round(suggested.halfWidthUsd)} half-width
-                  {suggested.computedAt && (
-                    <>
-                      {" · "}
-                      {new Date(suggested.computedAt).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </>
-                  )}
-                </>
-              ) : (
-                "\u00A0"
-              )}
-            </p>
+            {suggested.halfWidthUsd != null && (
+              <p className="shrink-0 text-[9px] text-center text-muted-foreground/35 font-mono h-4 leading-4">
+                ±${Math.round(suggested.halfWidthUsd)} half-width
+              </p>
+            )}
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function LastRanBar({
+  botId,
+  botLastRanAt,
+  zonesRefreshedAt,
+}: {
+  botId: CockpitBotId;
+  botLastRanAt?: string | null;
+  zonesRefreshedAt?: string | null;
+}) {
+  const botTick = useIsoTimeLabel(botLastRanAt);
+  const zones = useIsoTimeLabel(zonesRefreshedAt);
+  const primary = botTick ?? zones;
+  const label = botTick ? "Last ran" : "Zones";
+  const showZonesSub =
+    zones != null &&
+    botTick != null &&
+    zonesRefreshedAt !== botLastRanAt &&
+    zones.relative !== botTick.relative;
+
+  return (
+    <div
+      className="shrink-0 px-3 py-2 border-b border-white/[0.08] bg-[#16161a] min-h-[44px] flex flex-col justify-center"
+      title={
+        primary
+          ? `${label} ${primary.relative} (${primary.clock})`
+          : "No bot tick or zone data yet"
+      }
+    >
+      <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+        <Clock className="w-3.5 h-3.5 text-accent/60 shrink-0" />
+        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 shrink-0">
+          {label}
+        </span>
+        {primary ? (
+          <>
+            <span className="text-[12px] font-black text-accent tabular-nums">
+              {primary.relative}
+            </span>
+            <span className="text-[10px] font-mono text-foreground/50 tabular-nums">
+              {primary.clock}
+            </span>
+          </>
+        ) : (
+          <span className="text-[10px] text-muted-foreground/40">—</span>
+        )}
+      </div>
+      {showZonesSub && zones && (
+        <p className="text-[9px] text-muted-foreground/45 mt-0.5 pl-5 truncate">
+          Zones refreshed {zones.relative} · {zones.clock}
+        </p>
+      )}
+      {!botTick && zones && botId !== "crypto" && (
+        <p className="text-[9px] text-amber-400/50 mt-0.5 pl-5 truncate">
+          Bot engine not ticking yet (BTC live only)
+        </p>
+      )}
     </div>
   );
 }

@@ -112,3 +112,43 @@ export function useRelativeTimeLabel(ts: number): string {
   const diffHr = Math.floor(diffMin / 60);
   return `${diffHr} hr ago`;
 }
+
+/** Relative + clock label from an ISO timestamp (re-ticks every 10s). */
+export function useIsoTimeLabel(iso: string | null | undefined): {
+  relative: string;
+  clock: string;
+} | null {
+  const [now, setNow] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 10_000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (!iso) return null;
+  const ts = new Date(iso).getTime();
+  if (!Number.isFinite(ts)) return null;
+
+  const diffSec = Math.max(0, Math.floor((now - ts) / 1000));
+  let relative: string;
+  if (diffSec < 10) relative = "just now";
+  else if (diffSec < 60) relative = `${diffSec}s ago`;
+  else {
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) relative = `${diffMin} min ago`;
+    else {
+      const diffHr = Math.floor(diffMin / 60);
+      if (diffHr < 48) relative = `${diffHr} hr ago`;
+      else relative = `${Math.floor(diffHr / 24)}d ago`;
+    }
+  }
+
+  const clock = new Date(ts).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return { relative, clock };
+}

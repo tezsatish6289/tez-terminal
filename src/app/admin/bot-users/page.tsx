@@ -36,6 +36,7 @@ import {
 import { format } from "date-fns";
 import { AdminColumnHeader } from "@/components/admin/AdminInfoTip";
 import { AdminCtaWithInfo } from "@/components/admin/AdminCtaLabel";
+import { AdminStatCard, formatUsdtHeadline } from "@/components/admin/AdminStatCard";
 import {
   computeMirroringStatus,
   mirroringStatusColorClass,
@@ -44,6 +45,45 @@ import {
 } from "@/lib/freedombot/mirroring-status-shared";
 
 const ADMIN_EMAIL = "hello@tezterminal.com";
+
+/** Drill-down filter for headline stats (lifetime scope). */
+type SegmentFilter =
+  | null
+  | "total_users"
+  | "active_users"
+  | "capital"
+  | "volume"
+  | "profit"
+  | "no_bot"
+  | "stopped_only"
+  | "all_deployments"
+  | "active_deployments";
+
+interface PlatformSummaryMetrics {
+  totalUsers: number;
+  activeUsers: number;
+  totalCapitalUsdt: number;
+  totalVolumeUsdt: number;
+  totalProfitUsdt: number;
+  accountsNoBot: number;
+  accountsStoppedOnly: number;
+  totalDeployments: number;
+  activeDeployments: number;
+}
+
+interface AccountNoBot {
+  userId: string;
+  email: string | null;
+  displayName: string | null;
+}
+
+interface PlatformSummary {
+  metrics: PlatformSummaryMetrics;
+  userIdsActive: string[];
+  userIdsStoppedOnly: string[];
+  accountsNoBot: AccountNoBot[];
+  rates: { source: string; fetchedAt: string; inrPerUsdt: number };
+}
 
 /** Hover-tooltip text for the wallet column. Surfaces freshness and (for
  *  invalid links) the exact error returned by the venue API so the admin
@@ -91,6 +131,7 @@ interface DeploymentRow {
   dailyLossHaltedToday?: boolean;
   liveMirroringActive?: boolean;
   lifetimeRealizedPnl: number;
+  closedTradeCount?: number;
   pnlCurrency: string;
   pnlNote: string;
   wallet: DeploymentWallet | null;
@@ -112,6 +153,35 @@ export default function AdminBotUsersPage() {
   const [migrateDefaultsBusy, setMigrateDefaultsBusy] = useState(false);
   const [migrateDefaultsSummary, setMigrateDefaultsSummary] = useState<string | null>(null);
   const [migrateConfirmOpen, setMigrateConfirmOpen] = useState(false);
+  const [summary, setSummary] = useState<PlatformSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [segmentFilter, setSegmentFilter] = useState<SegmentFilter>(null);
+
+  const fetchSummary = useCallback(async () => {
+    if (!user) return;
+    setSummaryLoading(true);
+    try {
+      const idToken = await user.getIdToken();
+      const q = new URLSearchParams({ period: "lifetime" });
+      if (botFilter !== "all") q.set("bot", botFilter);
+      const res = await fetch(`/api/admin/bot-deployments/summary?${q}`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to load summary");
+      setSummary({
+        metrics: data.metrics,
+        userIdsActive: data.userIdsActive ?? [],
+        userIdsStoppedOnly: data.userIdsStoppedOnly ?? [],
+        accountsNoBot: data.accountsNoBot ?? [],
+        rates: data.rates,
+      });
+    } catch {
+      setSummary(null);
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [user, botFilter]);
 
   const fetchDeployments = useCallback(async () => {
     if (!user) return;
@@ -135,8 +205,69 @@ export default function AdminBotUsersPage() {
   }, [user, botFilter]);
 
   useEffect(() => {
-    if (isAdmin) fetchDeployments();
-  }, [isAdmin, fetchDeployments]);
+    if (isAdmin) {
+      void fetchDeployments();
+      void fetchSummary();
+    }
+  }, [isAdmin, fetchDeployments, fetchSummary]);
+
+  useEffect(() => {
+    setSegmentFilter(null);
+  }, [botFilter]);
+
+  const toggleSegment = (next: SegmentFilter) => {
+    setSegmentFilter((prev) => (prev === next ? null : next));
+  };
+
+  const activeUserSet = useMemo(
+    () => new Set(summary?.userIdsActive ?? []),
+    [summary?.userIdsActive],
+  );
+  const stoppedOnlyUserSet = useMemo(
+    () => new Set(summary?.userIdsStoppedOnly ?? []),
+    [summary?.userIdsStoppedOnly],
+  );
+
+  const segmentDeployments = useMemo(() => {
+    if (segmentFilter === "no_bot") return [];
+    let rows = deployments;
+    switch (segmentFilter) {
+      case "active_deployments":
+        return rows.filter((d) => d.running);
+      case "active_users":
+        return rows.filter((d) => activeUserSet.has(d.userId));
+      case "stopped_only":
+        return rows.filter((d) => stoppedOnlyUserSet.has(d.userId));
+      case "capital":
+        return rows.filter(
+          (d) =>
+            d.running &&
+            d.wallet?.status === "valid" &&
+            d.wallet.total != null &&
+            d.wallet.total > 0,
+        );
+      case "volume":
+        return rows.filter((d) => (d.closedTradeCount ?? 0) > 0);
+      case "profit":
+        return rows.filter((d) => d.lifetimeRealizedPnl !== 0);
+      case "total_users":
+      case "all_deployments":
+      default:
+        return rows;
+    }
+  }, [deployments, segmentFilter, activeUserSet, stoppedOnlyUserSet]);
+
+  const filteredAccountsNoBot = useMemo(() => {
+    const list = summary?.accountsNoBot ?? [];
+    if (!search.trim()) return list;
+    const q = search.toLowerCase();
+    return list.filter(
+      (a) =>
+        a.email?.toLowerCase().includes(q) ||
+        a.displayName?.toLowerCase().includes(q) ||
+        a.userId.toLowerCase().includes(q),
+    );
+  }, [summary?.accountsNoBot, search]);
 
   const refreshAllWallets = useCallback(async () => {
     if (!user) return;
@@ -161,12 +292,13 @@ export default function AdminBotUsersPage() {
         console.log("[Admin] Wallet refresh outcomes:", data.outcomes);
       }
       await fetchDeployments();
+      await fetchSummary();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Unexpected error");
     } finally {
       setWalletRefreshAllBusy(false);
     }
-  }, [user, botFilter, fetchDeployments]);
+  }, [user, botFilter, fetchDeployments, fetchSummary]);
 
   const migrateTradingDefaults = useCallback(async () => {
     if (!user) return;
@@ -185,13 +317,14 @@ export default function AdminBotUsersPage() {
         `Updated ${data.updated ?? 0} of ${data.scanned ?? 0} secret docs to 1% risk / 3% daily loss cap (legacy 0.5% / 5% or missing fields only).`,
       );
       await fetchDeployments();
+      await fetchSummary();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Unexpected error");
     } finally {
       setMigrateDefaultsBusy(false);
       setMigrateConfirmOpen(false);
     }
-  }, [user, fetchDeployments]);
+  }, [user, fetchDeployments, fetchSummary]);
 
   const confirmDelete = async () => {
     if (!user || !deleteTarget) return;
@@ -216,9 +349,9 @@ export default function AdminBotUsersPage() {
   };
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return deployments;
+    if (!search.trim()) return segmentDeployments;
     const q = search.toLowerCase();
-    return deployments.filter(
+    return segmentDeployments.filter(
       (d) =>
         d.email?.toLowerCase().includes(q) ||
         d.displayName?.toLowerCase().includes(q) ||
@@ -227,12 +360,10 @@ export default function AdminBotUsersPage() {
         d.botLabel.toLowerCase().includes(q) ||
         d.exchange.toLowerCase().includes(q),
     );
-  }, [deployments, search]);
+  }, [segmentDeployments, search]);
 
-  const stats = useMemo(() => {
-    const active = deployments.filter((d) => d.running).length;
-    return { total: deployments.length, active };
-  }, [deployments]);
+  const m = summary?.metrics;
+  const showNoBotTable = segmentFilter === "no_bot";
 
   if (isUserLoading) {
     return (
@@ -268,9 +399,14 @@ export default function AdminBotUsersPage() {
               <h1 className="text-3xl font-black text-white tracking-tighter uppercase">Bot users</h1>
             </div>
             <p className="text-muted-foreground text-sm max-w-xl">
-              One row per deployment. Lifetime realized PnL uses closed live trades (exchange PnL when available).
-              Open a row for trade details and execution logs, or delete to require a fresh deploy.
+              Lifetime platform metrics (all amounts in USDT). Click a stat to filter the table. Capital uses active
+              deployments only; volume is closed-trade notional (one-sided); profit is production closed trades only.
             </p>
+            {summary?.rates && (
+              <p className="text-[10px] text-muted-foreground/50 font-mono">
+                FX: INR→USDT via {summary.rates.source} ({summary.rates.fetchedAt.slice(0, 16)} UTC)
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <AdminCtaWithInfo description="Writes 1% risk per trade and 3% daily loss cap to exchange secrets still on legacy defaults (0.5% / 5%) or missing fields. Does not change users who already chose other values.">
@@ -340,19 +476,93 @@ export default function AdminBotUsersPage() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] p-4">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">
-                  Deployments
-                </span>
-                <span className="text-2xl font-black font-mono text-white">{stats.total}</span>
-              </div>
-              <div className="rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] p-4">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 block">
-                  Active
-                </span>
-                <span className="text-2xl font-black font-mono text-emerald-400">{stats.active}</span>
-              </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                Period
+              </span>
+              <span className="px-2.5 py-1 rounded-lg border border-accent/30 bg-accent/10 text-[10px] font-black uppercase text-accent">
+                Lifetime
+              </span>
+              <span className="text-[10px] text-muted-foreground/40">(date range filters coming soon)</span>
+              {segmentFilter && (
+                <button
+                  type="button"
+                  onClick={() => setSegmentFilter(null)}
+                  className="ml-auto text-[10px] font-bold uppercase tracking-wider text-rose-400 hover:text-rose-300"
+                >
+                  Clear filter
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              <AdminStatCard
+                label="Total users"
+                value={summaryLoading ? "…" : String(m?.totalUsers ?? 0)}
+                sublabel="Ever deployed (scope)"
+                active={segmentFilter === "total_users"}
+                onClick={() => toggleSegment("total_users")}
+              />
+              <AdminStatCard
+                label="Active users"
+                value={summaryLoading ? "…" : String(m?.activeUsers ?? 0)}
+                sublabel="≥1 running bot"
+                active={segmentFilter === "active_users"}
+                onClick={() => toggleSegment("active_users")}
+                valueClassName="text-emerald-400"
+              />
+              <AdminStatCard
+                label="Capital deployed"
+                value={summaryLoading ? "…" : formatUsdtHeadline(m?.totalCapitalUsdt ?? 0)}
+                sublabel="Active · wallet balance"
+                active={segmentFilter === "capital"}
+                onClick={() => toggleSegment("capital")}
+                valueClassName="text-sky-400"
+              />
+              <AdminStatCard
+                label="Volume traded"
+                value={summaryLoading ? "…" : formatUsdtHeadline(m?.totalVolumeUsdt ?? 0)}
+                sublabel="Closed · one-sided notional"
+                active={segmentFilter === "volume"}
+                onClick={() => toggleSegment("volume")}
+              />
+              <AdminStatCard
+                label="Profit (lifetime)"
+                value={summaryLoading ? "…" : formatUsdtHeadline(m?.totalProfitUsdt ?? 0)}
+                sublabel="Realized · production"
+                active={segmentFilter === "profit"}
+                onClick={() => toggleSegment("profit")}
+                valueClassName={
+                  (m?.totalProfitUsdt ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400"
+                }
+              />
+              <AdminStatCard
+                label="No bot"
+                value={summaryLoading ? "…" : String(m?.accountsNoBot ?? 0)}
+                sublabel="Accounts · never deployed"
+                active={segmentFilter === "no_bot"}
+                onClick={() => toggleSegment("no_bot")}
+              />
+              <AdminStatCard
+                label="Stopped only"
+                value={summaryLoading ? "…" : String(m?.accountsStoppedOnly ?? 0)}
+                sublabel="Users · no active bot"
+                active={segmentFilter === "stopped_only"}
+                onClick={() => toggleSegment("stopped_only")}
+              />
+              <AdminStatCard
+                label="Deployments"
+                value={summaryLoading ? "…" : String(m?.totalDeployments ?? deployments.length)}
+                active={segmentFilter === "all_deployments"}
+                onClick={() => toggleSegment("all_deployments")}
+              />
+              <AdminStatCard
+                label="Active deployments"
+                value={summaryLoading ? "…" : String(m?.activeDeployments ?? 0)}
+                active={segmentFilter === "active_deployments"}
+                onClick={() => toggleSegment("active_deployments")}
+                valueClassName="text-emerald-400"
+              />
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 max-w-2xl">
@@ -381,6 +591,38 @@ export default function AdminBotUsersPage() {
             </div>
 
             <div className="rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 overflow-hidden">
+              {showNoBotTable ? (
+                <>
+                  <div className="px-4 py-3 border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-black uppercase tracking-wider text-muted-foreground/50">
+                    Accounts with no bot in this scope
+                  </div>
+                  {filteredAccountsNoBot.length === 0 ? (
+                    <div className="flex flex-col items-center gap-4 py-16 opacity-40">
+                      <Bot className="h-12 w-12 text-muted-foreground" />
+                      <p className="text-xs font-bold uppercase tracking-widest text-white">No accounts</p>
+                    </div>
+                  ) : (
+                    filteredAccountsNoBot.map((a) => (
+                      <div
+                        key={a.userId}
+                        className="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.04] last:border-0"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-sm font-bold text-white truncate">
+                            {a.displayName || "—"}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground truncate">{a.email ?? "—"}</div>
+                          <div className="text-[10px] font-mono text-muted-foreground/50 truncate">{a.userId}</div>
+                        </div>
+                        <span className="text-[9px] font-black uppercase text-muted-foreground/60 shrink-0 ml-4">
+                          No deployment
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </>
+              ) : (
+                <>
               <div className="hidden lg:grid grid-cols-[28px_1.2fr_1fr_100px_120px_100px_96px_140px_120px_56px] gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-black uppercase tracking-wider text-muted-foreground/50">
                 <span />
                 <span>User</span>
@@ -400,7 +642,9 @@ export default function AdminBotUsersPage() {
               {filtered.length === 0 ? (
                 <div className="flex flex-col items-center gap-4 py-16 opacity-40">
                   <Bot className="h-12 w-12 text-muted-foreground" />
-                  <p className="text-xs font-bold uppercase tracking-widest text-white">No deployments</p>
+                  <p className="text-xs font-bold uppercase tracking-widest text-white">
+                    {segmentFilter ? "No matching deployments" : "No deployments"}
+                  </p>
                 </div>
               ) : (
                 filtered.map((d) => {
@@ -519,6 +763,8 @@ export default function AdminBotUsersPage() {
                     </div>
                   );
                 })
+              )}
+                </>
               )}
             </div>
           </>

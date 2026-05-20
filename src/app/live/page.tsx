@@ -40,11 +40,16 @@ import { ExchangeSettingsDialog, MultiExchangeStatusBadges, useExchangeConfig } 
 import type { LiveTrade, LiveTradeEvent } from "@/lib/trade-engine";
 import { format } from "date-fns";
 
-function formatUsd(val: number): string {
+// Defensive against legacy trade docs missing newer fields (`fees`,
+// `positionSize`, `realizedPnl`) — `undefined.toFixed()` previously
+// crashed the entire History tab for users with any pre-fees trade.
+function formatUsd(val: number | null | undefined): string {
+  if (val == null || !Number.isFinite(val)) return "$0.00";
   return `$${val.toFixed(2)}`;
 }
 
-function formatPct(val: number): string {
+function formatPct(val: number | null | undefined): string {
+  if (val == null || !Number.isFinite(val)) return "0.00%";
   const sign = val >= 0 ? "+" : "";
   return `${sign}${val.toFixed(2)}%`;
 }

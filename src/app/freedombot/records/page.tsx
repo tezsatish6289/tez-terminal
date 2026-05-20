@@ -65,8 +65,10 @@ const tfLabels: Record<string, string> = {
   "5": "5m", "15": "15m", "60": "1h", "240": "4h", D: "1D", W: "1W",
 };
 
-function fmt(n: number | null, suffix = "%") {
-  if (n === null) return "—";
+// Defensive against `undefined` and `NaN` — strict `=== null` would
+// only catch null and let undefined crash `.toFixed`.
+function fmt(n: number | null | undefined, suffix = "%") {
+  if (n == null || !Number.isFinite(n)) return "—";
   const sign = n >= 0 ? "+" : "";
   return `${sign}${n.toFixed(2)}${suffix}`;
 }

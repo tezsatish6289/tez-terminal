@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { SIM_PANEL } from "@/components/simulator/simulator-surfaces";
 
 type SimTab = "overview" | "trades" | "logs";
 
@@ -28,11 +29,11 @@ export function SimulatorMainPanel({
   ];
 
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-[#0c0c0e]/80 overflow-hidden flex flex-col min-h-[320px]">
+    <div className={cn(SIM_PANEL, "overflow-hidden flex flex-col min-h-[320px]")}>
       {/* Panel header */}
-      <div className="border-b border-white/[0.06] bg-white/[0.02] px-3 sm:px-4 py-3 space-y-3">
+      <div className="border-b border-white/[0.1] bg-[#18181c] px-3 sm:px-4 py-3 space-y-3 shadow-[inset_0_-1px_0_rgba(255,255,255,0.04)]">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-1 p-0.5 rounded-lg bg-black/40 border border-white/[0.06] w-fit">
+          <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[#0a0a0c] border border-white/[0.1] w-fit shadow-[inset_0_2px_6px_rgba(0,0,0,0.45)]">
             {tabs.map((t) => {
               const active = tab === t.id;
               return (
@@ -43,7 +44,7 @@ export function SimulatorMainPanel({
                   className={cn(
                     "relative px-3 sm:px-4 py-2 rounded-md text-[10px] font-black uppercase tracking-wider transition-all",
                     active
-                      ? "bg-accent text-black shadow-sm"
+                      ? "bg-accent text-black shadow-[0_2px_10px_rgba(0,212,170,0.3)]"
                       : "text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.04]",
                   )}
                 >

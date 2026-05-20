@@ -43,3 +43,7 @@ next-env.d.ts
 # firebase
 firebase-debug.log
 firestore-debug.log
+
+# tez-engage scaffold (moved out by _setup-tez-engage.sh into ~/Documents/tez-engage)
+/_tez-engage-scaffold/
+/_setup-tez-engage.sh

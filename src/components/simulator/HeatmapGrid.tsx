@@ -6,6 +6,7 @@ import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { doc, type DocumentReference } from "firebase/firestore";
 import { cn } from "@/lib/utils";
+import { SIM_PANEL } from "@/components/simulator/simulator-surfaces";
 import { HEATMAP_UI_ASSETS } from "@/lib/zone-bot-config";
 import { HeatmapAssetCard } from "@/components/simulator/HeatmapAssetCard";
 import type { SuggestedZonesSnapshot } from "@/components/simulator/heatmap-types";
@@ -121,7 +122,7 @@ export function HeatmapGrid() {
   );
 
   return (
-    <section className="space-y-3">
+    <section className={cn(SIM_PANEL, "p-4 space-y-4")}>
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <Zap className="w-4 h-4 text-accent/70" />
@@ -140,9 +141,9 @@ export function HeatmapGrid() {
             onClick={() => void handleRefreshZones()}
             disabled={refreshing}
             className={cn(
-              "flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03]",
+              "flex items-center gap-1.5 rounded-lg border border-white/[0.12] bg-[#1a1a1f]",
               "px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground",
-              "hover:text-foreground hover:bg-white/[0.06] transition-colors disabled:opacity-40",
+              "shadow-[0_2px_10px_rgba(0,0,0,0.35)] hover:text-foreground hover:bg-[#222228] hover:border-white/[0.18] transition-all disabled:opacity-40",
             )}
           >
             <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />

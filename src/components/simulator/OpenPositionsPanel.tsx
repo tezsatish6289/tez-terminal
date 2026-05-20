@@ -10,6 +10,10 @@ import {
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import type { SimTrade } from "@/lib/simulator";
+import {
+  SIM_CARD_INTERACTIVE,
+  SIM_SLOT_EMPTY,
+} from "@/components/simulator/simulator-surfaces";
 
 const tfLabelMap: Record<string, string> = {
   "5": "5m",
@@ -103,16 +107,16 @@ function EmptySlot({ index }: { index: number }) {
   return (
     <div
       className={cn(
-        "relative flex flex-col items-center justify-center rounded-xl border border-dashed",
-        "border-white/[0.08] bg-white/[0.01] min-h-[140px] sm:min-h-[152px]",
+        SIM_SLOT_EMPTY,
+        "relative flex flex-col items-center justify-center min-h-[140px] sm:min-h-[152px]",
         "text-center px-4 py-6",
       )}
     >
-      <div className="absolute top-3 right-3 text-[9px] font-mono font-bold text-muted-foreground/25">
+      <div className="absolute top-3 right-3 text-[9px] font-mono font-bold text-muted-foreground/30">
         #{index}
       </div>
-      <div className="w-10 h-10 rounded-full border border-white/[0.06] bg-white/[0.02] flex items-center justify-center mb-3">
-        <Activity className="w-4 h-4 text-muted-foreground/20" />
+      <div className="w-10 h-10 rounded-full border border-white/[0.12] bg-[#1a1a1f] shadow-[inset_0_2px_6px_rgba(0,0,0,0.4)] flex items-center justify-center mb-3">
+        <Activity className="w-4 h-4 text-muted-foreground/30" />
       </div>
       <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/30">
         Slot open
@@ -146,14 +150,14 @@ function OpenPositionCard({
       type="button"
       onClick={onSelect}
       className={cn(
-        "group relative flex flex-col rounded-xl border text-left transition-all w-full",
-        "hover:border-accent/35 hover:shadow-lg hover:shadow-accent/5",
+        SIM_CARD_INTERACTIVE,
+        "group relative flex flex-col text-left w-full",
         positive
-          ? "border-emerald-500/20 bg-gradient-to-b from-emerald-500/[0.06] to-transparent"
-          : "border-rose-500/15 bg-gradient-to-b from-rose-500/[0.05] to-transparent",
+          ? "border-emerald-500/30 bg-[#141a18] hover:border-emerald-500/45 hover:shadow-[0_14px_36px_-10px_rgba(0,0,0,0.85),0_4px_16px_-4px_rgba(16,185,129,0.15)]"
+          : "border-rose-500/25 bg-[#1a1416] hover:border-rose-500/40 hover:shadow-[0_14px_36px_-10px_rgba(0,0,0,0.85),0_4px_16px_-4px_rgba(244,63,94,0.12)]",
       )}
     >
-      <div className="px-3.5 pt-3.5 pb-2 border-b border-white/[0.05]">
+      <div className="px-3.5 pt-3.5 pb-2 border-b border-white/[0.1] bg-[#1c1c21]/80">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <Link

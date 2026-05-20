@@ -34,7 +34,7 @@ export function BotSourceFilter({
 }) {
   return (
     <div className={cn(
-      "inline-flex items-center gap-0 rounded-lg border border-white/[0.08] bg-white/[0.02] p-0.5 w-fit",
+      "inline-flex items-center gap-0 rounded-lg border border-white/[0.12] bg-[#0a0a0c] p-0.5 w-fit shadow-[inset_0_2px_6px_rgba(0,0,0,0.45)]",
       className,
     )}>
       {BOT_SOURCE_PILLS.map((pill) => {
@@ -50,7 +50,7 @@ export function BotSourceFilter({
                 ? "px-2.5 py-1 text-[9px]"
                 : "px-3 py-1.5 text-[10px]",
               active
-                ? "bg-accent text-black shadow-lg shadow-accent/20"
+                ? "bg-accent text-black shadow-[0_2px_10px_rgba(0,212,170,0.3)]"
                 : "text-muted-foreground/70 hover:text-foreground hover:bg-white/[0.04]",
             )}
             aria-pressed={active}

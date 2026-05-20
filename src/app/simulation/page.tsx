@@ -72,6 +72,7 @@ import { TabErrorBoundary } from "@/components/error/TabErrorBoundary";
 import { SimulatorToolbar } from "@/components/simulator/SimulatorToolbar";
 import { SimulatorMainPanel } from "@/components/simulator/SimulatorMainPanel";
 import { OpenPositionsPanel } from "@/components/simulator/OpenPositionsPanel";
+import { SIM_CARD, SIM_PANEL } from "@/components/simulator/simulator-surfaces";
 
 // Defensive against legacy trade docs missing newer fields
 // (`fees`, `positionSize`, zone-bot fields). Unguarded
@@ -351,7 +352,7 @@ export default function SimulationPage() {
       <main className="flex-1 flex flex-col min-w-0">
         <TopBar />
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-[#08080a]">
           <div className="max-w-[1280px] mx-auto space-y-3 sm:space-y-4">
             <CronHealthBanner variant="compact" />
 
@@ -376,12 +377,12 @@ export default function SimulationPage() {
             {assetType === "CRYPTO" && <HeatmapGrid />}
 
             {isLoading ? (
-              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] flex items-center justify-center min-h-[280px]">
+              <div className={cn(SIM_PANEL, "flex items-center justify-center min-h-[280px]")}>
                 <Loader2 className="h-7 w-7 animate-spin text-accent/50" />
               </div>
             ) : !simState ? (
-              <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-b from-white/[0.03] to-transparent p-8 sm:p-12 text-center space-y-3">
-                <div className="w-14 h-14 rounded-2xl border border-white/[0.08] bg-accent/[0.08] flex items-center justify-center mx-auto">
+              <div className={cn(SIM_PANEL, "p-8 sm:p-12 text-center space-y-3")}>
+                <div className="w-14 h-14 rounded-2xl border border-accent/25 bg-accent/[0.12] shadow-[0_4px_16px_rgba(0,212,170,0.15)] flex items-center justify-center mx-auto">
                   <Activity className="w-7 h-7 text-accent/50" />
                 </div>
                 <p className="text-sm font-black text-foreground/80">Simulator idle</p>
@@ -1014,7 +1015,7 @@ function ScoreOutcomeAnalysis({ trades, cs }: { trades: SimTrade[]; cs: string }
   };
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 space-y-2.5">
+    <div className={cn(SIM_CARD, "p-3 space-y-2.5")}>
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <BarChart3 className="w-3.5 h-3.5 text-accent/70" />

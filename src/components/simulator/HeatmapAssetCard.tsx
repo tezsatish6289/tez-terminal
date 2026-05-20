@@ -9,6 +9,7 @@ import {
   zoneStatusLine,
   type SuggestedZonesSnapshot,
 } from "@/components/simulator/heatmap-types";
+import { SIM_CARD, SIM_INSET_TILE } from "@/components/simulator/simulator-surfaces";
 
 export function HeatmapAssetCard({
   asset,
@@ -28,7 +29,7 @@ export function HeatmapAssetCard({
 }) {
   if (!deribit) {
     return (
-      <div className="rounded-xl border border-dashed border-white/[0.1] bg-white/[0.02] p-4 flex flex-col min-h-[200px]">
+      <div className={cn(SIM_CARD, "border-dashed border-white/[0.14] bg-[#121214] p-4 flex flex-col min-h-[200px]")}>
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm font-black text-foreground/90">{label}</span>
           <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400/70 px-2 py-0.5 rounded border border-amber-400/25 bg-amber-400/10">
@@ -59,9 +60,9 @@ export function HeatmapAssetCard({
           : "text-emerald-400/90";
 
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-gradient-to-b from-white/[0.03] to-transparent overflow-hidden flex flex-col min-h-[200px]">
+    <div className={cn(SIM_CARD, "overflow-hidden flex flex-col min-h-[220px]")}>
       {/* Header */}
-      <div className="px-3.5 py-3 border-b border-white/[0.06] flex items-start justify-between gap-2">
+      <div className="px-3.5 py-3 border-b border-white/[0.1] bg-[#1c1c21] flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-black tracking-tight">{label}</span>
@@ -100,7 +101,7 @@ export function HeatmapAssetCard({
       ) : (
         <div className="flex-1 p-3 space-y-2.5">
           {(suggested.signalConflict || suggested.insufficientGap) && (
-            <div className="flex items-start gap-1.5 rounded-lg border border-amber-400/25 bg-amber-400/[0.06] px-2 py-1.5">
+            <div className="flex items-start gap-1.5 rounded-lg border border-amber-400/35 bg-amber-400/[0.1] px-2 py-1.5 shadow-[0_2px_10px_rgba(251,191,36,0.12)]">
               <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />
               <p className="text-[9px] text-amber-300/80 leading-snug">
                 {suggested.signalConflict
@@ -111,7 +112,7 @@ export function HeatmapAssetCard({
           )}
 
           {day0Pain && (
-            <div className="flex items-center justify-between text-[10px] px-2 py-1.5 rounded-lg bg-accent/[0.06] border border-accent/15">
+            <div className="flex items-center justify-between text-[10px] px-2 py-1.5 rounded-lg bg-accent/[0.1] border border-accent/25 shadow-[0_2px_8px_rgba(0,212,170,0.1)]">
               <span className="text-[9px] font-bold uppercase tracking-wider text-accent/60">
                 Max pain (today)
               </span>
@@ -185,11 +186,12 @@ function ZoneSide({
   return (
     <div
       className={cn(
-        "rounded-lg border px-2.5 py-2 space-y-1",
+        SIM_INSET_TILE,
+        "px-2.5 py-2 space-y-1",
         isBull
-          ? "border-emerald-500/20 bg-emerald-500/[0.05]"
-          : "border-rose-500/20 bg-rose-500/[0.05]",
-        idle && "opacity-50",
+          ? "border-emerald-500/30 bg-emerald-500/[0.08]"
+          : "border-rose-500/30 bg-rose-500/[0.08]",
+        idle && "opacity-55",
       )}
     >
       <div className="flex items-center gap-1">

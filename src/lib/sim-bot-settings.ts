@@ -62,6 +62,11 @@ const DEFAULTS: Record<CockpitBotId, SimBotSettings> = {
     riskPerTradeStreakPct: SIM_CONFIG.RISK_PER_TRADE_STREAK,
     streakWinsToScale: SIM_CONFIG.STREAK_WINS_TO_SCALE,
     maxOpenTradesStreakCap: SIM_CONFIG.MAX_OPEN_TRADES_CAP,
+    // BTC macro gate (stored in heatmap_zones; synced on save)
+    zoneConfirmMinutes: 15,
+    maxPainMinDistanceUsd: 1000,
+    maxPainProximityUsd: 200,
+    zoneHalfWidthUsd: 500,
   },
   btc: {
     manualOverride: "AUTO",
@@ -122,6 +127,7 @@ export function parseSimBotSettings(
   };
 
   if (botId === "crypto") {
+    const zone = parseZoneBotSettings("btc", raw);
     return {
       ...base,
       minScore:
@@ -148,6 +154,10 @@ export function parseSimBotSettings(
         typeof raw.maxOpenTradesStreakCap === "number"
           ? clamp(Math.round(raw.maxOpenTradesStreakCap), maxOpen, MAX_OPEN_MAX)
           : d.maxOpenTradesStreakCap!,
+      zoneConfirmMinutes: zone.zoneConfirmMinutes,
+      maxPainMinDistanceUsd: zone.maxPainMinDistanceUsd,
+      maxPainProximityUsd: zone.maxPainProximityUsd,
+      zoneHalfWidthUsd: zone.zoneHalfWidthUsd,
     };
   }
 
@@ -182,16 +192,35 @@ export async function loadSimBotSettings(
   const primary = SIM_BOT_SETTINGS_DOC[botId];
   const snap = await db.doc(primary).get();
   if (snap.exists) {
-    return parseSimBotSettings(botId, snap.data() as Record<string, unknown>);
+    let data = snap.data() as Record<string, unknown>;
+    if (botId === "crypto") {
+      const hz = await db.doc("config/heatmap_zones").get();
+      if (hz.exists) {
+        const h = hz.data() ?? {};
+        data = {
+          ...data,
+          manualOverride: h.manualOverride ?? data.manualOverride,
+          zoneConfirmMinutes: h.zoneConfirmMinutes ?? data.zoneConfirmMinutes,
+          maxPainMinDistanceUsd: h.maxPainMinDistanceUsd ?? data.maxPainMinDistanceUsd,
+          maxPainProximityUsd: h.maxPainProximityUsd ?? data.maxPainProximityUsd,
+          zoneHalfWidthUsd: h.zoneHalfWidthUsd ?? data.zoneHalfWidthUsd,
+        };
+      }
+    }
+    return parseSimBotSettings(botId, data);
   }
 
   // Legacy migration read (no write — user save creates new doc).
   if (botId === "crypto") {
     const hz = await db.doc("config/heatmap_zones").get();
     if (hz.exists) {
+      const h = hz.data() ?? {};
       return parseSimBotSettings("crypto", {
-        manualOverride: hz.data()?.manualOverride,
-        zoneConfirmMinutes: hz.data()?.zoneConfirmMinutes,
+        manualOverride: h.manualOverride,
+        zoneConfirmMinutes: h.zoneConfirmMinutes,
+        maxPainMinDistanceUsd: h.maxPainMinDistanceUsd,
+        maxPainProximityUsd: h.maxPainProximityUsd,
+        zoneHalfWidthUsd: h.zoneHalfWidthUsd,
       });
     }
   }

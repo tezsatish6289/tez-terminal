@@ -20,6 +20,68 @@ import type { ZoneBotState } from "@/lib/zone-bot-state";
 
 type ManualOverride = "AUTO" | "OFF";
 
+function ZoneEntryFields({
+  settings,
+  patch,
+  botId,
+}: {
+  settings: SimBotSettings;
+  patch: (partial: Partial<SimBotSettings>) => void;
+  botId: CockpitBotId;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-1.5 pb-1 border-b border-white/[0.05]">
+        <Activity className="w-3.5 h-3.5 text-accent/60" />
+        <span className="text-[10px] font-bold uppercase tracking-widest text-accent/80">
+          Zone entry
+        </span>
+      </div>
+      {botId === "crypto" && (
+        <p className="text-[9px] text-muted-foreground/50 leading-relaxed">
+          BTC Deribit OI macro gate — when pattern trades may open relative to suggested
+          bull/bear zones and max pain.
+        </p>
+      )}
+      <div className="flex justify-between text-[11px]">
+        <span className="font-bold text-foreground/80">Confirm window</span>
+        <span className="font-mono font-bold text-accent">
+          {settings.zoneConfirmMinutes ?? 15} min
+        </span>
+      </div>
+      <input
+        type="range"
+        min={5}
+        max={60}
+        step={5}
+        value={settings.zoneConfirmMinutes ?? 15}
+        onChange={(e) => patch({ zoneConfirmMinutes: parseInt(e.target.value, 10) })}
+        className="w-full accent-accent"
+      />
+      <NumField
+        label="Max pain min distance ($)"
+        hint="Skip strikes within this $ of day-0 max pain (0 = off)"
+        value={settings.maxPainMinDistanceUsd ?? 0}
+        min={0}
+        onChange={(v) => patch({ maxPainMinDistanceUsd: v })}
+      />
+      <NumField
+        label="Max pain proximity ($)"
+        hint="One-sided zones: close at TP when spot is within this $ of max pain"
+        value={settings.maxPainProximityUsd ?? 0}
+        min={0}
+        onChange={(v) => patch({ maxPainProximityUsd: v })}
+      />
+      {botId !== "btc" && botId !== "crypto" && (
+        <p className="text-[9px] text-amber-400/60">
+          Engine cron runs for BTC only today — ETH/SOL settings are saved for when
+          those bots go live.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function NumField({
   label,
   hint,
@@ -179,8 +241,9 @@ export function SimBotConfigSheet({
             {label} settings
           </SheetTitle>
           <SheetDescription className="text-[11px] text-muted-foreground/50">
-            This bot only — max trades, risk, and entry rules. Other bots use their own
-            config on their cards.
+            {isCrypto
+              ? "Pattern bot limits plus BTC zone gates (confirm window, max pain)."
+              : "Max trades, risk, and zone entry rules for this bot only."}
           </SheetDescription>
         </SheetHeader>
 
@@ -291,50 +354,8 @@ export function SimBotConfigSheet({
                 </div>
               )}
 
-              {isZone && (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-1.5 pb-1 border-b border-white/[0.05]">
-                    <Activity className="w-3.5 h-3.5 text-accent/60" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-accent/80">
-                      Zone entry
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-[11px]">
-                    <span className="font-bold text-foreground/80">Confirm window</span>
-                    <span className="font-mono font-bold text-accent">
-                      {settings.zoneConfirmMinutes ?? 15} min
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={5}
-                    max={60}
-                    step={5}
-                    value={settings.zoneConfirmMinutes ?? 15}
-                    onChange={(e) =>
-                      patch({ zoneConfirmMinutes: parseInt(e.target.value, 10) })
-                    }
-                    className="w-full accent-accent"
-                  />
-                  <NumField
-                    label="Max pain min distance ($)"
-                    value={settings.maxPainMinDistanceUsd ?? 0}
-                    min={0}
-                    onChange={(v) => patch({ maxPainMinDistanceUsd: v })}
-                  />
-                  <NumField
-                    label="Max pain proximity ($)"
-                    value={settings.maxPainProximityUsd ?? 0}
-                    min={0}
-                    onChange={(v) => patch({ maxPainProximityUsd: v })}
-                  />
-                  {botId !== "btc" && (
-                    <p className="text-[9px] text-amber-400/60">
-                      Engine cron runs for BTC only today — ETH/SOL settings are saved for
-                      when those bots go live.
-                    </p>
-                  )}
-                </div>
+              {(isCrypto || isZone) && (
+                <ZoneEntryFields settings={settings} patch={patch} botId={botId} />
               )}
 
               <button

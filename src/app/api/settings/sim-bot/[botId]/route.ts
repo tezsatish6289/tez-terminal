@@ -29,10 +29,28 @@ export async function GET(
 
   const db = getAdminFirestore();
   const snap = await db.doc(SIM_BOT_SETTINGS_DOC[botId]).get();
-  if (snap.exists) {
-    return NextResponse.json(
-      parseSimBotSettings(botId, snap.data() as Record<string, unknown>),
-    );
+  let docData: Record<string, unknown> | null = snap.exists
+    ? (snap.data() as Record<string, unknown>)
+    : null;
+
+  // Crypto macro gate still reads config/heatmap_zones — merge so Config matches the card.
+  if (botId === "crypto") {
+    const hz = await db.doc("config/heatmap_zones").get();
+    if (hz.exists) {
+      const h = hz.data() ?? {};
+      docData = {
+        ...(docData ?? {}),
+        manualOverride: h.manualOverride ?? docData?.manualOverride,
+        zoneConfirmMinutes: h.zoneConfirmMinutes ?? docData?.zoneConfirmMinutes,
+        maxPainMinDistanceUsd: h.maxPainMinDistanceUsd ?? docData?.maxPainMinDistanceUsd,
+        maxPainProximityUsd: h.maxPainProximityUsd ?? docData?.maxPainProximityUsd,
+        zoneHalfWidthUsd: h.zoneHalfWidthUsd ?? docData?.zoneHalfWidthUsd,
+      };
+    }
+  }
+
+  if (docData) {
+    return NextResponse.json(parseSimBotSettings(botId, docData));
   }
 
   const { loadSimBotSettings } = await import("@/lib/sim-bot-settings");
@@ -67,6 +85,15 @@ export async function PUT(
     if ("manualOverride" in body) zoneFields.manualOverride = update.manualOverride;
     if ("zoneConfirmMinutes" in body) {
       zoneFields.zoneConfirmMinutes = update.zoneConfirmMinutes;
+    }
+    if ("maxPainMinDistanceUsd" in body) {
+      zoneFields.maxPainMinDistanceUsd = update.maxPainMinDistanceUsd;
+    }
+    if ("maxPainProximityUsd" in body) {
+      zoneFields.maxPainProximityUsd = update.maxPainProximityUsd;
+    }
+    if ("zoneHalfWidthUsd" in body) {
+      zoneFields.zoneHalfWidthUsd = update.zoneHalfWidthUsd;
     }
     if (Object.keys(zoneFields).length > 0) {
       await db.doc("config/heatmap_zones").set(zoneFields, { merge: true });

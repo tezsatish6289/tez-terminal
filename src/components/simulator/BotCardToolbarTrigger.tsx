@@ -32,7 +32,7 @@ export function BotCardToolbarTrigger({
       className="flex items-center gap-1 shrink-0 relative z-10"
       onClick={stop}
       onPointerDown={stop}
-      onKeyDown={stop}
+      onKeyDown={(e) => e.stopPropagation()}
     >
       <button
         type="button"

@@ -50,6 +50,7 @@ function HeatmapBotColumn({
   zoneSettings,
   selected,
   onSelect,
+  onTradeOpened,
 }: {
   bot: (typeof SIM_COCKPIT_BOTS)[number];
   docRef: DocumentReference | null;
@@ -63,6 +64,7 @@ function HeatmapBotColumn({
   zoneSettings: ZoneBotSettings | null;
   selected: boolean;
   onSelect: () => void;
+  onTradeOpened?: () => void;
 }) {
   const { data, refetch } = useDoc(docRef);
   const suggested = normalizeSuggestedZones(
@@ -123,7 +125,9 @@ function HeatmapBotColumn({
           <BotCardControls
             botId={bot.id}
             label={bot.label}
+            capital={capital}
             onStatusChange={setBotStatus}
+            onTradeOpened={onTradeOpened}
           />
         }
         selected={selected}
@@ -329,6 +333,7 @@ export function HeatmapGrid({
               onRegisterRefetch={registerRefetch(b.id)}
               selected={selectedBotId === b.id}
               onSelect={() => onSelectBot(b.id)}
+              onTradeOpened={refetchAll}
             />
           );
         })}

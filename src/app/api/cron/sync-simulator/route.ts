@@ -51,6 +51,7 @@ import { executeForAllUsers } from "@/lib/live-execution";
 import { isMarketOpen, isIndianMarketEntryAllowed, isIndianSquareOffTime } from "@/lib/market-hours";
 import { markTradeForBlockchain } from "@/lib/blockchain-logger";
 import { recordCronHeartbeat } from "@/lib/cron-health";
+import { isManualSimTrade } from "@/lib/manual-sim-open";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -828,12 +829,14 @@ export async function GET(request: NextRequest) {
               // against future regressions if zone-bot ever gains scoring.
               const isZoneBot =
                 typeof t.botSource === "string" && t.botSource !== "PATTERN";
+              const isManual = isManualSimTrade(t);
               const FLOOR_RATIO = 0.75;
               const entryScore = t.confidenceScore;
               const prevScore = t.lastScore ?? null;
               const prevBelowSince = t.scoreBelowFloorSinceTickIso ?? null;
               const isBelowFloor =
                 !isZoneBot &&
+                !isManual &&
                 entryScore > 0 &&
                 liveScore != null &&
                 liveScore < FLOOR_RATIO * entryScore;
@@ -876,16 +879,15 @@ export async function GET(request: NextRequest) {
                 }
               }
 
-              // Advance the floor-tracking state machine. Set the timestamp
-              // on the first tick we cross below the floor; clear it the
-              // moment the score recovers above the floor (so the next dip
-              // starts a fresh 2-tick countdown rather than firing
-              // immediately off stale state).
-              let nextBelowSince: string | null = prevBelowSince;
-              if (isBelowFloor) {
-                if (!nextBelowSince) nextBelowSince = new Date().toISOString();
-              } else {
-                nextBelowSince = null;
+              // Advance the floor-tracking state machine (skipped for manual trades).
+              let nextBelowSince: string | null = null;
+              if (!isManual) {
+                nextBelowSince = prevBelowSince;
+                if (isBelowFloor) {
+                  if (!nextBelowSince) nextBelowSince = new Date().toISOString();
+                } else {
+                  nextBelowSince = null;
+                }
               }
 
               const updatePayload: Record<string, unknown> = {
@@ -894,8 +896,8 @@ export async function GET(request: NextRequest) {
                 highWatermark: updatedHwm,
                 currentScore: liveScore,
                 currentScorePattern: livePattern,
-                lastScore: liveScore,
-                scoreBelowFloorSinceTickIso: nextBelowSince,
+                lastScore: isManual ? t.lastScore ?? null : liveScore,
+                scoreBelowFloorSinceTickIso: isManual ? null : nextBelowSince,
               };
               if (newTrailingSl !== t.trailingSl && newTrailingSl != null && t.trailingSl == null) {
                 updatePayload.trailingSl = newTrailingSl;

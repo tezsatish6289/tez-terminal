@@ -236,6 +236,9 @@ export function ManualTradeSheet({
             Punch entry, SL, and TPs. Size uses this bot&apos;s Config risk % and max
             open trades.
           </SheetDescription>
+          <p className="text-[9px] font-bold uppercase tracking-wider text-amber-400/70 px-1">
+            No score floor exit for manual trades
+          </p>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">

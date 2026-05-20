@@ -6,7 +6,7 @@ import {
   type BotSourceFilter,
 } from "@/lib/bot-source-filter";
 import type { SimBotSettings } from "@/lib/sim-bot-settings";
-import type { SimulatorState } from "@/lib/simulator";
+import type { SimTrade, SimulatorState } from "@/lib/simulator";
 import type { ZoneBotAsset } from "@/lib/zone-bot-config";
 import { ZONE_BOT_SOURCE } from "@/lib/zone-bot-config";
 
@@ -153,6 +153,14 @@ export function defaultSymbolForBot(botId: CockpitBotId): string {
 
 export function botSourceLabel(source: string): string {
   return classifyBotSource(source);
+}
+
+/** Manual punches from the cockpit — never subject to score-floor exit. */
+export function isManualSimTrade(
+  trade: Pick<SimTrade, "algo" | "signalId">,
+): boolean {
+  if (trade.algo === "MANUAL") return true;
+  return typeof trade.signalId === "string" && trade.signalId.startsWith("manual-");
 }
 
 export { ZONE_BOT_SOURCE };

@@ -1,21 +1,23 @@
 "use client";
 
-import { TrendingDown, TrendingUp, AlertTriangle, Clock } from "lucide-react";
+import { useMemo } from "react";
+import { TrendingDown, TrendingUp, Clock } from "lucide-react";
 import { useIsoTimeLabel } from "@/hooks/use-auto-refresh";
 import { cn } from "@/lib/utils";
 import type { CockpitBotId } from "@/lib/sim-cockpit-bots";
 import {
+  deriveCockpitCardStatus,
+  type CockpitCardStatus,
+  type CockpitStatusBucket,
+} from "@/lib/cockpit-card-status";
+import {
   formatSpot,
   noClusterLine,
   spotFromSuggested,
-  zoneStatusLine,
   type SuggestedZonesSnapshot,
 } from "@/components/simulator/heatmap-types";
 import { SIM_CARD, SIM_INSET_TILE } from "@/components/simulator/simulator-surfaces";
-import {
-  shortBotStatusDetail,
-  type CockpitBotStatus,
-} from "@/lib/cockpit-bot-status";
+import type { ZoneBotDirection } from "@/lib/zone-bot-state";
 
 const ASSET_TAG: Record<CockpitBotId, string> = {
   crypto: "BTC",
@@ -29,7 +31,11 @@ export function HeatmapAssetCard({
   botId,
   label,
   suggested,
-  botStatus,
+  manualOverride,
+  engineReason,
+  engineDirection,
+  simEnabled,
+  botEngineLive,
   botLastRanAt,
   zonesRefreshedAt,
   capital,
@@ -43,7 +49,11 @@ export function HeatmapAssetCard({
   botId: CockpitBotId;
   label: string;
   suggested: SuggestedZonesSnapshot | null;
-  botStatus: CockpitBotStatus;
+  manualOverride?: string | null;
+  engineReason?: string | null;
+  engineDirection?: ZoneBotDirection | null;
+  simEnabled?: boolean | null;
+  botEngineLive?: boolean;
   /** sync-simulator / sync-zone-bots last tick */
   botLastRanAt?: string | null;
   /** suggest-zones cron (Deribit OI snapshot) */
@@ -59,25 +69,31 @@ export function HeatmapAssetCard({
 }) {
   const spot = spotFromSuggested(suggested);
   const ivPct = suggested?.atmIV != null ? suggested.atmIV * 100 : null;
-  const zoneLine = suggested ? zoneStatusLine(suggested) : "—";
   const maxPainDays = suggested?.maxPainByExpiry ?? [];
 
-  const hasAlert =
-    suggested?.signalConflict === true || suggested?.insufficientGap === true;
-  const alertText = suggested?.signalConflict
-    ? "Day 0 / Day 1 max pain disagree"
-    : suggested?.insufficientGap
-      ? "Bull & bear zones too tight"
-      : null;
-
-  const zoneLineColor =
-    !suggested
-      ? "text-muted-foreground/40"
-      : suggested.signalConflict || suggested.insufficientGap
-        ? "text-amber-400"
-        : suggested.inPanicRegime
-          ? "text-rose-400"
-          : "text-muted-foreground/55";
+  const cardStatus = useMemo(
+    () =>
+      deriveCockpitCardStatus({
+        botId,
+        suggested,
+        manualOverride,
+        engineReason,
+        engineDirection,
+        simEnabled,
+        botEngineLive,
+        liveCount,
+      }),
+    [
+      botId,
+      suggested,
+      manualOverride,
+      engineReason,
+      engineDirection,
+      simEnabled,
+      botEngineLive,
+      liveCount,
+    ],
+  );
 
   return (
     <div
@@ -129,20 +145,11 @@ export function HeatmapAssetCard({
         <p className="text-[12px] font-mono font-bold text-foreground/85 mt-2 tabular-nums leading-none">
           ${formatSpot(spot)}
         </p>
-        <p
-          className={cn(
-            "text-[10px] font-bold mt-1 h-4 leading-4 truncate",
-            zoneLineColor,
-          )}
-          title={zoneLine}
-        >
-          {zoneLine}
-        </p>
       </div>
 
-      {/* ── Bot ON/OFF — fixed height on every card ── */}
-      <div className="shrink-0 px-3 py-2 border-b border-white/[0.08] bg-[#141418] h-[40px] flex items-center">
-        <BotPowerBadge status={botStatus} />
+      {/* ── Unified status (one hierarchy) ── */}
+      <div className="shrink-0 px-3 py-2 border-b border-white/[0.08] bg-[#141418] min-h-[52px] flex items-center">
+        <CardStatusBar status={cardStatus} />
       </div>
 
       {/* ── Last ran — fixed height, always visible ── */}
@@ -185,7 +192,6 @@ export function HeatmapAssetCard({
           </div>
         ) : (
           <>
-            <AlertSlot active={hasAlert} text={alertText} />
             <MaxPainDays entries={maxPainDays} />
             <div className="grid grid-cols-2 gap-2 min-h-[100px]">
               <ZoneClusterTile side="bull" suggested={suggested} />
@@ -254,11 +260,6 @@ function LastRanBar({
           Zones refreshed {zones.relative} · {zones.clock}
         </p>
       )}
-      {!botTick && zones && botId !== "crypto" && (
-        <p className="text-[9px] text-amber-400/50 mt-0.5 pl-5 truncate">
-          Bot engine not ticking yet (BTC live only)
-        </p>
-      )}
     </div>
   );
 }
@@ -280,60 +281,67 @@ function IvBadge({ pct }: { pct: number }) {
   );
 }
 
-function BotPowerBadge({ status }: { status: CockpitBotStatus }) {
-  const shortDetail = shortBotStatusDetail(status.detail);
+const BUCKET_STYLES: Record<
+  CockpitStatusBucket,
+  { bar: string; dot: string; bucket: string; headline: string }
+> = {
+  blocked: {
+    bar: "border-white/[0.12] bg-white/[0.04]",
+    dot: "bg-muted-foreground/45",
+    bucket: "text-muted-foreground/55",
+    headline: "text-foreground/75",
+  },
+  waiting: {
+    bar: "border-amber-500/25 bg-amber-500/10",
+    dot: "bg-amber-400",
+    bucket: "text-amber-400/80",
+    headline: "text-amber-200/90",
+  },
+  ready: {
+    bar: "border-emerald-500/35 bg-emerald-500/15",
+    dot: "bg-emerald-400 animate-pulse",
+    bucket: "text-emerald-400/80",
+    headline: "text-emerald-300",
+  },
+};
+
+function CardStatusBar({ status }: { status: CockpitCardStatus }) {
+  const s = BUCKET_STYLES[status.bucket];
+  const title = [status.bucketLabel, status.headline, status.detail]
+    .filter(Boolean)
+    .join(" — ");
 
   return (
     <div
       className={cn(
-        "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg border h-9",
-        status.power === "on"
-          ? "border-emerald-500/35 bg-emerald-500/15 text-emerald-400"
-          : status.power === "off"
-            ? "border-white/[0.12] bg-white/[0.04] text-muted-foreground/55"
-            : "border-amber-500/25 bg-amber-500/10 text-amber-400/90",
+        "w-full flex flex-col gap-0.5 px-2.5 py-1.5 rounded-lg border min-h-[44px] justify-center",
+        s.bar,
       )}
-      title={status.detail}
+      title={title}
     >
-      <span
-        className={cn(
-          "h-2 w-2 rounded-full shrink-0",
-          status.power === "on"
-            ? "bg-emerald-400 animate-pulse"
-            : status.power === "off"
-              ? "bg-muted-foreground/40"
-              : "bg-amber-400",
-        )}
-      />
-      <span className="text-[9px] font-black uppercase tracking-wider shrink-0">
-        {status.label}
-      </span>
-      {shortDetail && (
-        <span className="text-[9px] font-medium normal-case text-muted-foreground/50 truncate min-w-0">
-          {shortDetail}
+      <div className="flex items-center gap-2 min-w-0">
+        <span className={cn("h-2 w-2 rounded-full shrink-0", s.dot)} />
+        <span
+          className={cn(
+            "text-[8px] font-black uppercase tracking-widest shrink-0",
+            s.bucket,
+          )}
+        >
+          {status.bucketLabel}
         </span>
-      )}
-    </div>
-  );
-}
-
-function AlertSlot({ active, text }: { active: boolean; text: string | null }) {
-  return (
-    <div
-      className={cn(
-        "shrink-0 h-8 rounded-lg border px-2 flex items-center gap-1.5",
-        active
-          ? "border-amber-400/35 bg-amber-400/[0.1]"
-          : "border-white/[0.06] bg-white/[0.02]",
-      )}
-    >
-      {active && text ? (
-        <>
-          <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
-          <p className="text-[9px] text-amber-300/80 truncate">{text}</p>
-        </>
-      ) : (
-        <p className="text-[9px] text-muted-foreground/25 w-full text-center">—</p>
+        <span
+          className={cn(
+            "text-[10px] font-bold truncate min-w-0",
+            s.headline,
+          )}
+        >
+          {status.headline}
+        </span>
+      </div>
+      {status.detail && (
+        <p className="text-[9px] text-muted-foreground/50 pl-4 truncate leading-snug">
+          {status.detail}
+        </p>
       )}
     </div>
   );

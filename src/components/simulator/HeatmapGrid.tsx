@@ -31,6 +31,7 @@ interface BtcMacroStatus {
   btcPrice: number | null;
   simEnabled: boolean;
   directionBias: string;
+  reason?: string;
   updatedAt?: string;
 }
 
@@ -93,7 +94,21 @@ function HeatmapBotColumn({
         botId={bot.id}
         label={bot.label}
         suggested={suggested}
-        botStatus={botStatus}
+        manualOverride={zoneSettings?.manualOverride ?? null}
+        engineReason={
+          bot.id === "crypto"
+            ? cryptoMacro?.reason ?? null
+            : zoneState?.reason ?? null
+        }
+        engineDirection={
+          bot.id === "crypto" ? null : (zoneState?.direction ?? null)
+        }
+        simEnabled={bot.id === "crypto" ? cryptoMacro?.simEnabled : undefined}
+        botEngineLive={
+          bot.id === "crypto"
+            ? !!cryptoMacro?.updatedAt
+            : !!zoneState?.updatedAt
+        }
         botLastRanAt={
           bot.id === "crypto"
             ? cryptoMacro?.updatedAt ?? null

@@ -20,6 +20,7 @@ export function shortBotStatusDetail(detail: string | undefined, maxLen = 36): s
 interface CryptoAutoStatus {
   simEnabled?: boolean;
   directionBias?: string;
+  reason?: string;
 }
 
 /** Pattern-bot macro gate (Crypto Bot card). */
@@ -37,7 +38,9 @@ export function cryptoBotStatus(
       detail: macro.directionBias ?? undefined,
     };
   }
-  return { power: "idle", label: "Bot OFF", detail: "Outside zones" };
+  const detail =
+    macro?.reason?.replace(/^OFF —\s*/, "") ?? "Outside zones";
+  return { power: "idle", label: "Bot OFF", detail };
 }
 
 /** Zone bot (BTC / ETH / SOL cards). */

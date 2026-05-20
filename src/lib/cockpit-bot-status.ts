@@ -9,6 +9,14 @@ export interface CockpitBotStatus {
   detail?: string;
 }
 
+/** One-line detail for symmetrical card badges (avoids layout jump). */
+export function shortBotStatusDetail(detail: string | undefined, maxLen = 36): string | undefined {
+  if (!detail) return undefined;
+  const trimmed = detail.replace(/\s+/g, " ").trim();
+  if (trimmed.length <= maxLen) return trimmed;
+  return `${trimmed.slice(0, maxLen - 1)}…`;
+}
+
 interface CryptoAutoStatus {
   simEnabled?: boolean;
   directionBias?: string;

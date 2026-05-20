@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Activity, Loader2, PowerOff, Save, Settings2, Zap } from "lucide-react";
+import { Activity, Loader2, Save } from "lucide-react";
 import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ import {
 import type { ZoneBotAsset } from "@/lib/zone-bot-config";
 import type { ZoneBotSettings } from "@/lib/zone-bot-config";
 import { zoneBotStatus, type CockpitBotStatus } from "@/lib/cockpit-bot-status";
+import { BotCardToolbarTrigger } from "@/components/simulator/BotCardToolbarTrigger";
 import type { ZoneBotState } from "@/lib/zone-bot-state";
 
 type ManualOverride = "AUTO" | "OFF";
@@ -103,30 +104,15 @@ export function ZoneBotControls({
   }, [apiBase, settings]);
 
   const isForcedOff = settings.manualOverride === "OFF";
-  const triggerColor = isForcedOff
-    ? "bg-white/[0.04] text-muted-foreground/40 border-white/[0.06]"
-    : status.power === "on"
-      ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/25"
-      : "bg-amber-500/10 text-amber-400/90 border-amber-500/20";
 
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <button
-          type="button"
-          className="flex items-center gap-1 rounded-lg border border-white/[0.1] bg-[#1a1a1f] px-2 py-1 hover:bg-[#222228] transition-all"
-        >
-          <Settings2 className="w-3 h-3 text-muted-foreground/60" />
-          <span
-            className={cn(
-              "flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border",
-              triggerColor,
-            )}
-          >
-            {isForcedOff ? <PowerOff className="w-2 h-2" /> : <Zap className="w-2 h-2" />}
-            {isForcedOff ? "Off" : "Auto"}
-          </span>
-        </button>
+        <BotCardToolbarTrigger
+          isForcedOff={isForcedOff}
+          power={status.power}
+          sheetLabel="Config"
+        />
       </SheetTrigger>
 
       <SheetContent side="right" className="w-[400px] sm:w-[440px] flex flex-col gap-0 p-0">

@@ -74,22 +74,24 @@ function HeatmapBotColumn({
   }, [bot.id, cryptoMacro, zoneState, zoneSettings]);
 
   return (
-    <HeatmapAssetCard
-      botId={bot.id}
-      label={bot.label}
-      suggested={suggested}
-      botStatus={botStatus}
-      capital={capital}
-      openCount={openCount}
-      cs={cs}
-      settingsSlot={
-        <BotCardControls
-          botId={bot.id}
-          label={bot.label}
-          onStatusChange={setBotStatus}
-        />
-      }
-    />
+    <div className="h-full min-h-[400px]">
+      <HeatmapAssetCard
+        botId={bot.id}
+        label={bot.label}
+        suggested={suggested}
+        botStatus={botStatus}
+        capital={capital}
+        openCount={openCount}
+        cs={cs}
+        settingsSlot={
+          <BotCardControls
+            botId={bot.id}
+            label={bot.label}
+            onStatusChange={setBotStatus}
+          />
+        }
+      />
+    </div>
   );
 }
 
@@ -263,7 +265,7 @@ export function HeatmapGrid({
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 items-stretch">
         {SIM_COCKPIT_BOTS.map((b) => {
           const zc =
             b.id === "crypto"

@@ -7,6 +7,7 @@ import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { cryptoBotStatus, type CockpitBotStatus } from "@/lib/cockpit-bot-status";
+import { BotCardToolbarTrigger } from "@/components/simulator/BotCardToolbarTrigger";
 import {
   Sheet,
   SheetContent,
@@ -351,6 +352,12 @@ export function HeatmapAutoSwitch({
     onStatusChange?.(cryptoBotStatus(zones, status));
   }, [zones.manualOverride, status?.simEnabled, status?.directionBias, onStatusChange]);
 
+  const cardPower = isForcedOff
+    ? "off"
+    : effectiveOn
+      ? "on"
+      : "idle";
+
   const triggerColor = isForcedOff
     ? "bg-white/[0.04] text-muted-foreground/40 border-white/[0.06]"
     : "bg-accent/15 text-accent border-accent/20";
@@ -358,19 +365,11 @@ export function HeatmapAutoSwitch({
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <button className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.04] transition-all">
-          <Zap className="w-3.5 h-3.5 text-accent/70" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70">
-            Heatmap
-          </span>
-          <span className={cn(
-            "flex items-center gap-1 px-2 py-0.5 rounded-md border text-[9px] font-bold uppercase tracking-widest",
-            triggerColor,
-          )}>
-            {isForcedOff ? <PowerOff className="w-2.5 h-2.5" /> : <Zap className="w-2.5 h-2.5" />}
-            {isForcedOff ? "Off" : "Auto"}
-          </span>
-        </button>
+        <BotCardToolbarTrigger
+          isForcedOff={isForcedOff}
+          power={cardPower}
+          sheetLabel="Config"
+        />
       </SheetTrigger>
 
       <SheetContent side="right" className="w-[420px] sm:w-[460px] flex flex-col gap-0 p-0">

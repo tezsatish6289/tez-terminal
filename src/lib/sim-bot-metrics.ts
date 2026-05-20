@@ -24,3 +24,10 @@ export function countBotOpen(
 ): number {
   return openTrades.filter(matchesBotSource(filter)).length;
 }
+
+export function countBotClosed(
+  closedTrades: SimTrade[],
+  filter: PerBotFilter,
+): number {
+  return closedTrades.filter(matchesBotSource(filter)).length;
+}

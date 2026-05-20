@@ -59,8 +59,9 @@ import { SimulatorParamsDialog } from "@/components/simulator/SimulatorParamsDia
 import { HeatmapGrid } from "@/components/simulator/HeatmapGrid";
 import { format, startOfDay, startOfWeek, startOfMonth, isAfter } from "date-fns";
 import { buildEquityCurve } from "@/lib/equity-curve";
-import { BotSourceFilter } from "@/components/dashboard/BotSourceFilter";
-import { matchesBotSource, type BotSourceFilter as BotSourceFilterValue } from "@/lib/bot-source-filter";
+import { matchesBotSource } from "@/lib/bot-source-filter";
+import { SIM_COCKPIT_BOTS, type CockpitBotId } from "@/lib/sim-cockpit-bots";
+import { matchesLogForBotSource } from "@/lib/sim-cockpit-logs";
 import { CronHealthBanner } from "@/components/simulator/CronHealthBanner";
 import {
   LiveMirrorExchangeBar,
@@ -116,7 +117,12 @@ export default function SimulationPage() {
   const firestore = useFirestore();
   const router = useRouter();
   const [tab, setTab] = useState<"overview" | "trades" | "logs">("overview");
+  const [selectedBotId, setSelectedBotId] = useState<CockpitBotId>("crypto");
   const [selectedTrade, setSelectedTrade] = useState<SimTrade | null>(null);
+  const selectedBot = useMemo(
+    () => SIM_COCKPIT_BOTS.find((b) => b.id === selectedBotId) ?? SIM_COCKPIT_BOTS[0],
+    [selectedBotId],
+  );
   const cs = "$";
 
   const stateRef = useMemoFirebase(() => {
@@ -220,15 +226,11 @@ export default function SimulationPage() {
     refetchLogs();
   }, [refetchLogs]);
 
-  // Bot-source filter (PR #6). "ALL" = shared-capital reality.
-  // Per-bot values render a counterfactual view: equity curve, headline
-  // stats, and history are recomputed as if only that bot ran starting
-  // from simState.startingCapital. Pattern bot + zone bot share the
-  // same capital ledger in reality, so this is the only way to compare
-  // them head-to-head.
-  const [botSourceFilter, setBotSourceFilter] = useState<BotSourceFilterValue>("ALL");
-  const botSourcePredicate = useMemo(() => matchesBotSource(botSourceFilter), [botSourceFilter]);
-  const isBotFiltered = botSourceFilter !== "ALL";
+  // Bottom panel is scoped to the heatmap card selected above.
+  const botSourcePredicate = useMemo(
+    () => matchesBotSource(selectedBot.botSource),
+    [selectedBot.botSource],
+  );
 
   const openTradesAll = useMemo(() => {
     return (rawOpenTrades ?? [])
@@ -286,12 +288,17 @@ export default function SimulationPage() {
   );
   const { tradeNumberMap, balanceAfterMap, finalCapital: closedEquity } = equityCurve;
 
-  const logs = useMemo(() => {
+  const logsAll = useMemo(() => {
     if (!rawLogs) return [];
     return rawLogs
       .map((d: any) => d as SimLog)
       .filter((l) => (l.assetType || "CRYPTO") === "CRYPTO");
   }, [rawLogs]);
+
+  const logs = useMemo(
+    () => logsAll.filter((l) => matchesLogForBotSource(l, selectedBot.botSource)),
+    [logsAll, selectedBot.botSource],
+  );
 
   // Headline stats / equity chart / risk ratios moved to /stats
   // (rendered by `<StatsDashboard />`). The trade-history tab on this
@@ -365,6 +372,8 @@ export default function SimulationPage() {
               closedTrades={allClosedTrades}
               startingCapital={simState?.startingCapital ?? 1000}
               cs={cs}
+              selectedBotId={selectedBotId}
+              onSelectBot={setSelectedBotId}
             />
 
             {isLoading ? (
@@ -395,28 +404,11 @@ export default function SimulationPage() {
               </div>
             ) : (
               <SimulatorMainPanel
+                botLabel={selectedBot.label}
                 tab={tab}
                 onTabChange={setTab}
                 openCount={openTrades.length}
                 logsCount={logs.length}
-                botFilterRow={
-                  <>
-                    <BotSourceFilter value={botSourceFilter} onChange={setBotSourceFilter} size="sm" />
-                    {isBotFiltered && (
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400/60">
-                        Filtered view
-                      </span>
-                    )}
-                  </>
-                }
-                filterHint={
-                  <Link
-                    href="/stats"
-                    className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/45 hover:text-accent transition-colors hidden sm:inline"
-                  >
-                    Performance by bot →
-                  </Link>
-                }
               >
                 {tab === "overview" && (
                   <OpenPositionsPanel
@@ -448,9 +440,9 @@ export default function SimulationPage() {
                         For "All" keep the existing server-paginated path. */}
                     <TabErrorBoundary label="History">
                       <TradeList
-                        trades={isBotFiltered ? filteredClosedTrades : closedTrades}
+                        trades={filteredClosedTrades}
                         emptyIcon={<BarChart3 className="w-6 h-6" />}
-                        emptyLabel={isBotFiltered ? "No trades from this bot yet" : "No closed trades yet"}
+                        emptyLabel={`No closed trades for ${selectedBot.label} yet`}
                         onSelectTrade={setSelectedTrade}
                         cs={cs}
                         startingCapital={simState?.startingCapital}
@@ -458,29 +450,6 @@ export default function SimulationPage() {
                         balanceAfterMap={balanceAfterMap}
                       />
                     </TabErrorBoundary>
-                    {/* Server-side pagination controls — only meaningful for
-                        the unfiltered ("All Bots") view. */}
-                    {!isBotFiltered && (histPage > 0 || histHasMore) && (
-                      <div className="flex items-center justify-between px-1 pt-1 border-t border-white/[0.06]">
-                        <button
-                          disabled={histPage === 0 || closedTradesLoading}
-                          onClick={() => fetchHistPage(histPage - 1)}
-                          className="text-[10px] font-medium px-3 py-1 rounded border border-white/[0.08] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/[0.05] transition-colors"
-                        >
-                          ← Prev
-                        </button>
-                        <span className="text-[10px] text-muted-foreground/40">
-                          Page {histPage + 1}{histHasMore ? "" : " · end"}
-                        </span>
-                        <button
-                          disabled={!histHasMore || closedTradesLoading}
-                          onClick={() => fetchHistPage(histPage + 1)}
-                          className="text-[10px] font-medium px-3 py-1 rounded border border-white/[0.08] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/[0.05] transition-colors"
-                        >
-                          Next →
-                        </button>
-                      </div>
-                    )}
                   </div>
                 )}
 

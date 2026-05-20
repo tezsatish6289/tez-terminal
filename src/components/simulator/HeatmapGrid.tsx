@@ -7,10 +7,15 @@ import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { doc, type DocumentReference } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { SIM_PANEL } from "@/components/simulator/simulator-surfaces";
-import { SIM_COCKPIT_BOTS } from "@/lib/sim-cockpit-bots";
-import { computeBotCapital, countBotOpen } from "@/lib/sim-bot-metrics";
+import { SIM_COCKPIT_BOTS, type CockpitBotId } from "@/lib/sim-cockpit-bots";
+import {
+  computeBotCapital,
+  countBotClosed,
+  countBotOpen,
+} from "@/lib/sim-bot-metrics";
 import type { SimTrade } from "@/lib/simulator";
 import { HeatmapAssetCard } from "@/components/simulator/HeatmapAssetCard";
+import { normalizeSuggestedZones } from "@/components/simulator/heatmap-types";
 import type { SuggestedZonesSnapshot } from "@/components/simulator/heatmap-types";
 import { BotCardControls } from "@/components/simulator/BotCardControls";
 import {
@@ -35,25 +40,33 @@ function HeatmapBotColumn({
   bot,
   docRef,
   capital,
-  openCount,
+  liveCount,
+  closedCount,
   cs,
   onRegisterRefetch,
   cryptoMacro,
   zoneState,
   zoneSettings,
+  selected,
+  onSelect,
 }: {
   bot: (typeof SIM_COCKPIT_BOTS)[number];
   docRef: DocumentReference | null;
   capital: number;
-  openCount: number;
+  liveCount: number;
+  closedCount: number;
   cs: string;
   onRegisterRefetch: (fn: () => void) => void;
   cryptoMacro: BtcMacroStatus | null;
   zoneState: ZoneBotState | null;
   zoneSettings: ZoneBotSettings | null;
+  selected: boolean;
+  onSelect: () => void;
 }) {
   const { data, refetch } = useDoc(docRef);
-  const suggested = data as SuggestedZonesSnapshot | null;
+  const suggested = normalizeSuggestedZones(
+    data as Record<string, unknown> | null | undefined,
+  );
   const [botStatus, setBotStatus] = useState<CockpitBotStatus>(DEFAULT_STATUS);
 
   useEffect(() => {
@@ -88,7 +101,8 @@ function HeatmapBotColumn({
         }
         zonesRefreshedAt={suggested?.computedAt ?? null}
         capital={capital}
-        openCount={openCount}
+        liveCount={liveCount}
+        closedCount={closedCount}
         cs={cs}
         settingsSlot={
           <BotCardControls
@@ -97,6 +111,8 @@ function HeatmapBotColumn({
             onStatusChange={setBotStatus}
           />
         }
+        selected={selected}
+        onSelect={onSelect}
       />
     </div>
   );
@@ -108,11 +124,15 @@ export function HeatmapGrid({
   closedTrades,
   startingCapital,
   cs,
+  selectedBotId,
+  onSelectBot,
 }: {
   openTrades: SimTrade[];
   closedTrades: SimTrade[];
   startingCapital: number;
   cs: string;
+  selectedBotId: CockpitBotId;
+  onSelectBot: (id: CockpitBotId) => void;
 }) {
   const firestore = useFirestore();
   const [refreshing, setRefreshing] = useState(false);
@@ -212,7 +232,8 @@ export function HeatmapGrid({
         b.id,
         {
           capital: computeBotCapital(closedTrades, startingCapital, b.botSource),
-          openCount: countBotOpen(openTrades, b.botSource),
+          liveCount: countBotOpen(openTrades, b.botSource),
+          closedCount: countBotClosed(closedTrades, b.botSource),
         },
       ]),
     );
@@ -284,12 +305,15 @@ export function HeatmapGrid({
               bot={b}
               docRef={docRefs[b.id] ?? null}
               capital={botMetrics[b.id]?.capital ?? startingCapital}
-              openCount={botMetrics[b.id]?.openCount ?? 0}
+              liveCount={botMetrics[b.id]?.liveCount ?? 0}
+              closedCount={botMetrics[b.id]?.closedCount ?? 0}
               cs={cs}
               cryptoMacro={b.id === "crypto" ? cryptoMacro : null}
               zoneState={zc?.state ?? null}
               zoneSettings={zc?.settings ?? null}
               onRegisterRefetch={registerRefetch(b.id)}
+              selected={selectedBotId === b.id}
+              onSelect={() => onSelectBot(b.id)}
             />
           );
         })}

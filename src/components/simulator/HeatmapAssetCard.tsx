@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import type { CockpitBotId } from "@/lib/sim-cockpit-bots";
 import {
   formatSpot,
+  noClusterLine,
   spotFromSuggested,
   zoneStatusLine,
   type SuggestedZonesSnapshot,
@@ -32,9 +33,12 @@ export function HeatmapAssetCard({
   botLastRanAt,
   zonesRefreshedAt,
   capital,
-  openCount,
+  liveCount,
+  closedCount,
   cs,
   settingsSlot,
+  selected,
+  onSelect,
 }: {
   botId: CockpitBotId;
   label: string;
@@ -45,14 +49,18 @@ export function HeatmapAssetCard({
   /** suggest-zones cron (Deribit OI snapshot) */
   zonesRefreshedAt?: string | null;
   capital: number;
-  openCount: number;
+  /** OPEN simulator_trades for this bot right now */
+  liveCount: number;
+  closedCount: number;
   cs: string;
   settingsSlot?: React.ReactNode;
+  selected?: boolean;
+  onSelect?: () => void;
 }) {
   const spot = spotFromSuggested(suggested);
   const ivPct = suggested?.atmIV != null ? suggested.atmIV * 100 : null;
   const zoneLine = suggested ? zoneStatusLine(suggested) : "—";
-  const day0Pain = suggested?.maxPainByExpiry?.find((e) => e.dayIndex === 0);
+  const maxPainDays = suggested?.maxPainByExpiry ?? [];
 
   const hasAlert =
     suggested?.signalConflict === true || suggested?.insufficientGap === true;
@@ -73,9 +81,26 @@ export function HeatmapAssetCard({
 
   return (
     <div
+      role={onSelect ? "button" : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      onClick={onSelect}
+      onKeyDown={
+        onSelect
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelect();
+              }
+            }
+          : undefined
+      }
       className={cn(
         SIM_CARD,
         "flex flex-col h-full min-h-[448px] overflow-hidden",
+        onSelect && "cursor-pointer transition-shadow",
+        selected &&
+          "ring-2 ring-accent/80 shadow-[0_0_0_1px_rgba(0,212,170,0.25),0_8px_28px_rgba(0,212,170,0.12)]",
+        onSelect && !selected && "hover:ring-1 hover:ring-white/20",
       )}
     >
       {/* ── Header: title row + controls ── */}
@@ -91,7 +116,13 @@ export function HeatmapAssetCard({
             {ivPct != null && <IvBadge pct={ivPct} />}
           </div>
           {settingsSlot && (
-            <div className="shrink-0">{settingsSlot}</div>
+            <div
+              className="shrink-0"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              {settingsSlot}
+            </div>
           )}
         </div>
 
@@ -121,8 +152,8 @@ export function HeatmapAssetCard({
         zonesRefreshedAt={zonesRefreshedAt}
       />
 
-      {/* ── Capital / Open — fixed height ── */}
-      <div className="shrink-0 px-3 py-2 border-b border-white/[0.08] bg-[#121214] h-[52px] grid grid-cols-2 gap-2">
+      {/* ── Capital / live / closed — fixed height ── */}
+      <div className="shrink-0 px-3 py-2 border-b border-white/[0.08] bg-[#121214] h-[52px] grid grid-cols-3 gap-1.5">
         <BotStatChip
           label="Capital"
           value={`${cs}${capital.toLocaleString(undefined, {
@@ -132,9 +163,15 @@ export function HeatmapAssetCard({
           accent
         />
         <BotStatChip
-          label="Open"
-          value={String(openCount)}
-          sub={openCount === 1 ? "position" : "positions"}
+          label="Live now"
+          value={String(liveCount)}
+          sub={liveCount === 1 ? "trade open" : "trades open"}
+          live={liveCount > 0}
+        />
+        <BotStatChip
+          label="Closed"
+          value={String(closedCount)}
+          sub="all time"
         />
       </div>
 
@@ -149,29 +186,10 @@ export function HeatmapAssetCard({
         ) : (
           <>
             <AlertSlot active={hasAlert} text={alertText} />
-            <MaxPainSlot
-              value={day0Pain?.maxPain ?? null}
-              active={day0Pain != null}
-            />
-            <div className="grid grid-cols-2 gap-2 min-h-[76px]">
-              <ZoneSide
-                side="bull"
-                strike={suggested.bullStrike}
-                low={suggested.bullZoneLow}
-                high={suggested.bullZoneHigh}
-                tp={suggested.bullTpTarget}
-                tpConf={suggested.bullTpConfidence}
-                actionable={suggested.bullActionable}
-              />
-              <ZoneSide
-                side="bear"
-                strike={suggested.bearStrike}
-                low={suggested.bearZoneLow}
-                high={suggested.bearZoneHigh}
-                tp={suggested.bearTpTarget}
-                tpConf={suggested.bearTpConfidence}
-                actionable={suggested.bearActionable}
-              />
+            <MaxPainDays entries={maxPainDays} />
+            <div className="grid grid-cols-2 gap-2 min-h-[100px]">
+              <ZoneClusterTile side="bull" suggested={suggested} />
+              <ZoneClusterTile side="bear" suggested={suggested} />
             </div>
             {suggested.halfWidthUsd != null && (
               <p className="shrink-0 text-[9px] text-center text-muted-foreground/35 font-mono h-4 leading-4">
@@ -321,38 +339,60 @@ function AlertSlot({ active, text }: { active: boolean; text: string | null }) {
   );
 }
 
-function MaxPainSlot({
-  value,
-  active,
+function MaxPainDays({
+  entries,
 }: {
-  value: number | null;
-  active: boolean;
+  entries: NonNullable<SuggestedZonesSnapshot["maxPainByExpiry"]>;
 }) {
+  if (entries.length === 0) {
+    return (
+      <div className="shrink-0 rounded-lg border border-white/[0.06] bg-white/[0.02] px-2 py-1.5 h-8 flex items-center justify-center">
+        <span className="text-[9px] text-muted-foreground/25">Max pain —</span>
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={cn(
-        "shrink-0 h-8 rounded-lg border px-2 flex items-center justify-between",
-        active
-          ? "border-accent/25 bg-accent/[0.08]"
-          : "border-white/[0.06] bg-white/[0.02]",
-      )}
-    >
-      <span
-        className={cn(
-          "text-[9px] font-bold uppercase tracking-wider",
-          active ? "text-accent/60" : "text-muted-foreground/25",
-        )}
-      >
-        Max pain (today)
-      </span>
-      <span
-        className={cn(
-          "text-[10px] font-mono font-bold tabular-nums",
-          active ? "text-accent" : "text-muted-foreground/25",
-        )}
-      >
-        {active && value != null ? `$${value.toLocaleString()}` : "—"}
-      </span>
+    <div className="shrink-0 rounded-lg border border-accent/20 bg-accent/[0.05] overflow-hidden">
+      <div className="px-2 py-1 border-b border-accent/10">
+        <span className="text-[8px] font-bold uppercase tracking-widest text-accent/55">
+          Max pain (3 days)
+        </span>
+      </div>
+      <div className="divide-y divide-white/[0.04]">
+        {entries.map((entry) => {
+          const label =
+            entry.dayIndex === 0
+              ? "Today"
+              : entry.dayIndex === 1
+                ? "D+1"
+                : "D+2";
+          const isDay0 = entry.dayIndex === 0;
+          return (
+            <div
+              key={entry.expiry}
+              className="flex items-center justify-between px-2 py-1 gap-1"
+            >
+              <span
+                className={cn(
+                  "text-[8px] font-bold uppercase tracking-wider shrink-0",
+                  isDay0 ? "text-accent/70" : "text-muted-foreground/45",
+                )}
+              >
+                {label}
+              </span>
+              <span
+                className={cn(
+                  "text-[10px] font-mono font-bold tabular-nums",
+                  isDay0 ? "text-accent" : "text-foreground/55",
+                )}
+              >
+                ${entry.maxPain.toLocaleString()}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -362,28 +402,41 @@ function BotStatChip({
   value,
   sub,
   accent,
+  live,
 }: {
   label: string;
   value: string;
   sub?: string;
   accent?: boolean;
+  live?: boolean;
 }) {
   return (
     <div
       className={cn(
-        "rounded-lg border px-2 py-1.5 h-full flex flex-col justify-center",
-        accent
-          ? "border-accent/20 bg-accent/[0.06]"
-          : "border-white/[0.08] bg-[#1a1a1f]",
+        "rounded-lg border px-1.5 py-1.5 h-full flex flex-col justify-center min-w-0",
+        live
+          ? "border-emerald-500/35 bg-emerald-500/10"
+          : accent
+            ? "border-accent/20 bg-accent/[0.06]"
+            : "border-white/[0.08] bg-[#1a1a1f]",
       )}
     >
-      <div className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/45 leading-none">
-        {label}
+      <div className="flex items-center gap-1">
+        {live && (
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+        )}
+        <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/45 leading-none truncate">
+          {label}
+        </span>
       </div>
       <div
         className={cn(
           "text-[11px] font-black font-mono tabular-nums leading-tight mt-0.5",
-          accent ? "text-accent" : "text-foreground/85",
+          live
+            ? "text-emerald-400"
+            : accent
+              ? "text-accent"
+              : "text-foreground/85",
         )}
       >
         {value}
@@ -395,36 +448,35 @@ function BotStatChip({
   );
 }
 
-function ZoneSide({
+function ZoneClusterTile({
   side,
-  strike,
-  low,
-  high,
-  tp,
-  tpConf,
-  actionable,
+  suggested,
 }: {
   side: "bull" | "bear";
-  strike: number | null;
-  low: number | null;
-  high: number | null;
-  tp: number | null;
-  tpConf: string | null;
-  actionable: boolean | null | undefined;
+  suggested: SuggestedZonesSnapshot;
 }) {
   const isBull = side === "bull";
-  const idle = strike != null && actionable === false;
-  const hasZone = strike != null && low != null && high != null;
+  const strike = isBull ? suggested.bullStrike : suggested.bearStrike;
+  const low = isBull ? suggested.bullZoneLow : suggested.bearZoneLow;
+  const high = isBull ? suggested.bullZoneHigh : suggested.bearZoneHigh;
+  const tp = isBull ? suggested.bullTpTarget : suggested.bearTpTarget;
+  const tpConf = isBull ? suggested.bullTpConfidence : suggested.bearTpConfidence;
+  const actionable = isBull ? suggested.bullActionable : suggested.bearActionable;
+  const oi = isBull ? suggested.bullOI : suggested.bearOI;
+  const share = isBull ? suggested.bullClusterShare : suggested.bearClusterShare;
+
+  const hasZone = low != null && high != null;
+  const idle = hasZone && actionable === false;
 
   return (
     <div
       className={cn(
         SIM_INSET_TILE,
-        "px-2 py-2 h-full min-h-[76px] flex flex-col",
+        "px-2 py-2 h-full min-h-[100px] flex flex-col gap-1",
         isBull
           ? "border-emerald-500/30 bg-emerald-500/[0.08]"
           : "border-rose-500/30 bg-rose-500/[0.08]",
-        idle && "opacity-55",
+        idle && "opacity-70",
       )}
     >
       <div className="flex items-center gap-1 shrink-0">
@@ -441,32 +493,58 @@ function ZoneSide({
         >
           {isBull ? "Bull" : "Bear"}
         </span>
-        {idle && (
+        {share != null && share > 0 && (
+          <span
+            className={cn(
+              "text-[7px] font-bold px-1 py-0.5 rounded ml-auto shrink-0",
+              isBull
+                ? "bg-emerald-500/20 text-emerald-300/90"
+                : "bg-rose-500/20 text-rose-300/90",
+            )}
+          >
+            {Math.round(share * 100)}% OI
+          </span>
+        )}
+        {idle && share == null && (
           <span className="text-[7px] font-bold uppercase text-muted-foreground/50 ml-auto">
             idle
           </span>
         )}
       </div>
-      <div className="flex-1 flex flex-col justify-center min-h-[44px]">
-        {hasZone ? (
-          <>
-            <p
-              className={cn(
-                "text-[10px] font-mono font-bold leading-tight truncate",
-                isBull ? "text-emerald-300/90" : "text-rose-300/90",
-              )}
-              title={`$${low!.toLocaleString()}–$${high!.toLocaleString()}`}
-            >
-              ${low!.toLocaleString()}–${high!.toLocaleString()}
+
+      {hasZone ? (
+        <div className="flex-1 flex flex-col justify-center gap-0.5 min-h-0">
+          <p
+            className={cn(
+              "text-[10px] font-mono font-bold leading-tight",
+              isBull ? "text-emerald-300/90" : "text-rose-300/90",
+            )}
+            title={`$${low.toLocaleString()}–$${high.toLocaleString()}`}
+          >
+            ${low.toLocaleString()}–${high.toLocaleString()}
+          </p>
+          {strike != null && (
+            <p className="text-[8px] font-mono text-muted-foreground/45 truncate">
+              @{strike.toLocaleString()}
             </p>
-            <p className="text-[8px] font-mono text-muted-foreground/45 truncate mt-0.5 h-3">
-              {tp != null ? `TP $${tp.toLocaleString()}${tpConf ? ` · ${tpConf}` : ""}` : "\u00A0"}
+          )}
+          {oi != null && oi > 0 && (
+            <p className="text-[8px] text-muted-foreground/40 truncate">
+              {Math.round(oi).toLocaleString()} contracts OI
             </p>
-          </>
-        ) : (
-          <p className="text-[9px] text-muted-foreground/40">No cluster</p>
-        )}
-      </div>
+          )}
+          {tp != null && (
+            <p className="text-[8px] font-mono text-muted-foreground/50 truncate">
+              TP ${tp.toLocaleString()}
+              {tpConf ? ` · ${tpConf}` : ""}
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="text-[9px] text-muted-foreground/45 leading-snug flex-1 flex items-center">
+          {noClusterLine(side, suggested)}
+        </p>
+      )}
     </div>
   );
 }

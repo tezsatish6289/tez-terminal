@@ -18,6 +18,8 @@ export interface SuggestedZonesSnapshot {
   bearExitBelow: number | null;
   bullOI: number | null;
   bearOI: number | null;
+  bullClusterShare?: number | null;
+  bearClusterShare?: number | null;
   maxPain: number | null;
   maxPainByExpiry: MaxPainEntry[] | null;
   signalConflict: boolean | null;
@@ -36,6 +38,96 @@ export interface SuggestedZonesSnapshot {
   btcPrice?: number | null;
   deribitIndexPrice?: number | null;
   computedAt?: string;
+}
+
+function readNum(raw: unknown): number | null {
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string" && raw.trim() !== "") {
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/** Coerce a Firestore config doc into a typed snapshot (handles string numbers). */
+export function normalizeSuggestedZones(
+  raw: Record<string, unknown> | null | undefined,
+): SuggestedZonesSnapshot | null {
+  if (!raw || typeof raw !== "object") return null;
+  return {
+    bullStrike: readNum(raw.bullStrike),
+    bearStrike: readNum(raw.bearStrike),
+    bullZoneLow: readNum(raw.bullZoneLow),
+    bullZoneHigh: readNum(raw.bullZoneHigh),
+    bullExitAbove: readNum(raw.bullExitAbove),
+    bearZoneLow: readNum(raw.bearZoneLow),
+    bearZoneHigh: readNum(raw.bearZoneHigh),
+    bearExitBelow: readNum(raw.bearExitBelow),
+    bullOI: readNum(raw.bullOI),
+    bearOI: readNum(raw.bearOI),
+    bullClusterShare: readNum(raw.bullClusterShare),
+    bearClusterShare: readNum(raw.bearClusterShare),
+    maxPain: readNum(raw.maxPain),
+    maxPainByExpiry: Array.isArray(raw.maxPainByExpiry)
+      ? raw.maxPainByExpiry.map((entry, i) => {
+          const e = entry as Record<string, unknown>;
+          return {
+            expiry: typeof e.expiry === "string" ? e.expiry : "",
+            maxPain: readNum(e.maxPain) ?? 0,
+            totalOI: readNum(e.totalOI) ?? 0,
+            dayIndex:
+              typeof e.dayIndex === "number" && Number.isFinite(e.dayIndex)
+                ? e.dayIndex
+                : i,
+          };
+        })
+      : null,
+    signalConflict: raw.signalConflict === true ? true : raw.signalConflict === false ? false : null,
+    bullTpTarget: readNum(raw.bullTpTarget),
+    bullTpConfidence:
+      raw.bullTpConfidence === "HIGH" ||
+      raw.bullTpConfidence === "MEDIUM" ||
+      raw.bullTpConfidence === "LOW"
+        ? raw.bullTpConfidence
+        : null,
+    bearTpTarget: readNum(raw.bearTpTarget),
+    bearTpConfidence:
+      raw.bearTpConfidence === "HIGH" ||
+      raw.bearTpConfidence === "MEDIUM" ||
+      raw.bearTpConfidence === "LOW"
+        ? raw.bearTpConfidence
+        : null,
+    atmIV: readNum(raw.atmIV),
+    inPanicRegime: raw.inPanicRegime === true ? true : raw.inPanicRegime === false ? false : null,
+    halfWidthUsd: readNum(raw.halfWidthUsd),
+    maxReachUsd: readNum(raw.maxReachUsd),
+    bullActionable:
+      raw.bullActionable === true ? true : raw.bullActionable === false ? false : null,
+    bearActionable:
+      raw.bearActionable === true ? true : raw.bearActionable === false ? false : null,
+    notActionableReason:
+      typeof raw.notActionableReason === "string" ? raw.notActionableReason : null,
+    insufficientGap:
+      raw.insufficientGap === true ? true : raw.insufficientGap === false ? false : null,
+    btcPrice: readNum(raw.btcPrice),
+    deribitIndexPrice: readNum(raw.deribitIndexPrice),
+    computedAt: typeof raw.computedAt === "string" ? raw.computedAt : undefined,
+  };
+}
+
+export function noClusterLine(
+  side: "bull" | "bear",
+  s: SuggestedZonesSnapshot,
+): string {
+  const oi = side === "bull" ? s.bullOI : s.bearOI;
+  if (oi != null && oi > 0) {
+    return side === "bull"
+      ? "Put OI cluster — TP room blocked"
+      : "Call OI cluster — TP room blocked";
+  }
+  return side === "bull"
+    ? "No put cluster in reach"
+    : "No call cluster in reach";
 }
 
 export function spotFromSuggested(s: SuggestedZonesSnapshot | null): number | null {

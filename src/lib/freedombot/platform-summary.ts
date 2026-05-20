@@ -73,7 +73,19 @@ type DepRow = {
 };
 
 function pairKey(uid: string, exchange: string): string {
-  return `${uid}::${exchange}`;
+  return `${uid}::${String(exchange).toUpperCase()}`;
+}
+
+function isProductionTrade(testnet: unknown): boolean {
+  return testnet !== true;
+}
+
+function isClosedTrade(status: unknown): boolean {
+  return String(status ?? "").toUpperCase() === "CLOSED";
+}
+
+function isActiveDeployment(status: string): boolean {
+  return String(status).toLowerCase() === "active";
 }
 
 function matchesBotFilter(bot: string, filter: string | null): boolean {
@@ -81,7 +93,11 @@ function matchesBotFilter(bot: string, filter: string | null): boolean {
   return bot === filter;
 }
 
-/** Walk all production closed trades once; bucket by uid+exchange. */
+/**
+ * Walk closed production trades; bucket volume + profit by uid+exchange.
+ * Uses `orderBy(openedAt)` only (indexed) and filters status/testnet in memory so
+ * we don't require a status+testnet+openedAt composite index.
+ */
 async function sumClosedTradeVolumeAndProfit(
   db: Firestore,
   allowedPairs: Set<string>,
@@ -94,8 +110,6 @@ async function sumClosedTradeVolumeAndProfit(
   while (true) {
     let q: FirebaseFirestore.Query = db
       .collection("live_trades")
-      .where("status", "==", "CLOSED")
-      .where("testnet", "==", false)
       .orderBy("openedAt", "asc")
       .limit(PAGE);
 
@@ -104,6 +118,8 @@ async function sumClosedTradeVolumeAndProfit(
     const snap = await q.get();
     for (const doc of snap.docs) {
       const t = doc.data();
+      if (!isProductionTrade(t.testnet) || !isClosedTrade(t.status)) continue;
+
       const uid = String(t.userId ?? "");
       const exchange = String(t.exchange ?? "");
       if (!uid || !exchange) continue;
@@ -132,6 +148,22 @@ async function sumClosedTradeVolumeAndProfit(
   }
 }
 
+/** Fallback when trade scan fails: cached lifetime PnL on deployment docs. */
+function seedProfitFromDeployments(
+  scopedDeps: DepRow[],
+  pairProfit: Map<string, { amount: number; currency: string }>,
+): void {
+  for (const dep of scopedDeps) {
+    if (typeof dep.lifetimeRealizedPnl !== "number") continue;
+    const key = pairKey(dep.uid, dep.exchange);
+    if (pairProfit.has(key)) continue;
+    pairProfit.set(key, {
+      amount: dep.lifetimeRealizedPnl,
+      currency: dep.walletCurrency?.toUpperCase() === "INR" ? "INR" : "USDT",
+    });
+  }
+}
+
 export async function computePlatformSummary(
   db: Firestore,
   params: PlatformSummaryParams,
@@ -151,7 +183,7 @@ export async function computePlatformSummary(
       id: d.id,
       uid: String(x.uid ?? ""),
       bot: String(x.bot ?? ""),
-      exchange: String(x.exchange ?? ""),
+      exchange: String(x.exchange ?? "").toUpperCase(),
       status: String(x.status ?? ""),
       walletTotal: typeof x.walletTotal === "number" ? x.walletTotal : undefined,
       walletCurrency: typeof x.walletCurrency === "string" ? x.walletCurrency : undefined,
@@ -171,7 +203,7 @@ export async function computePlatformSummary(
       deploymentIds: [],
     };
     entry.deploymentIds.push(dep.id);
-    if (dep.status === "active") entry.hasActive = true;
+    if (isActiveDeployment(dep.status)) entry.hasActive = true;
     userBotScope[dep.uid] = entry;
   }
 
@@ -199,7 +231,15 @@ export async function computePlatformSummary(
   const pairProfit = new Map<string, { amount: number; currency: string }>();
   const pairVolume = new Map<string, number>();
 
-  await sumClosedTradeVolumeAndProfit(db, allowedPairs, pairProfit, pairVolume);
+  try {
+    await sumClosedTradeVolumeAndProfit(db, allowedPairs, pairProfit, pairVolume);
+  } catch (e) {
+    console.error(
+      "[PlatformSummary] live_trades scan failed, using deployment PnL cache:",
+      e instanceof Error ? e.message : e,
+    );
+    seedProfitFromDeployments(scopedDeps, pairProfit);
+  }
 
   const pairTotals: PlatformSummaryResult["pairTotals"] = {};
   let totalVolumeUsdt = 0;
@@ -220,8 +260,8 @@ export async function computePlatformSummary(
 
   let totalCapitalUsdt = 0;
   for (const dep of scopedDeps) {
-    if (dep.status !== "active") continue;
-    if (dep.walletStatus !== "valid" || dep.walletTotal == null) continue;
+    if (!isActiveDeployment(dep.status)) continue;
+    if (String(dep.walletStatus).toLowerCase() !== "valid" || dep.walletTotal == null) continue;
     totalCapitalUsdt += convertToUsdt(
       dep.walletTotal,
       dep.walletCurrency ?? "USDT",
@@ -229,7 +269,7 @@ export async function computePlatformSummary(
     );
   }
 
-  const activeDeployments = scopedDeps.filter((d) => d.status === "active").length;
+  const activeDeployments = scopedDeps.filter((d) => isActiveDeployment(d.status)).length;
 
   return {
     period,

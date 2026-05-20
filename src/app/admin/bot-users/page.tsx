@@ -155,11 +155,13 @@ export default function AdminBotUsersPage() {
   const [migrateConfirmOpen, setMigrateConfirmOpen] = useState(false);
   const [summary, setSummary] = useState<PlatformSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState("");
   const [segmentFilter, setSegmentFilter] = useState<SegmentFilter>(null);
 
   const fetchSummary = useCallback(async () => {
     if (!user) return;
     setSummaryLoading(true);
+    setSummaryError("");
     try {
       const idToken = await user.getIdToken();
       const q = new URLSearchParams({ period: "lifetime" });
@@ -176,8 +178,9 @@ export default function AdminBotUsersPage() {
         accountsNoBot: data.accountsNoBot ?? [],
         rates: data.rates,
       });
-    } catch {
+    } catch (e: unknown) {
       setSummary(null);
+      setSummaryError(e instanceof Error ? e.message : "Failed to load platform summary");
     } finally {
       setSummaryLoading(false);
     }
@@ -362,7 +365,45 @@ export default function AdminBotUsersPage() {
     );
   }, [segmentDeployments, search]);
 
-  const m = summary?.metrics;
+  /** When the summary API fails, derive headline stats from the deployment list. */
+  const fallbackMetrics = useMemo((): PlatformSummaryMetrics | null => {
+    if (summary?.metrics || deployments.length === 0) return null;
+    const seenPairs = new Set<string>();
+    let profit = 0;
+    let capital = 0;
+    const allUids = new Set<string>();
+    const activeUids = new Set<string>();
+    for (const d of deployments) {
+      if (!d.userId) continue;
+      allUids.add(d.userId);
+      if (d.running) activeUids.add(d.userId);
+      const pair = `${d.userId}::${d.exchange}`;
+      if (!seenPairs.has(pair)) {
+        seenPairs.add(pair);
+        profit += d.lifetimeRealizedPnl ?? 0;
+      }
+      if (d.running && d.wallet?.status === "valid" && d.wallet.total != null) {
+        capital += d.wallet.total;
+      }
+    }
+    let stoppedOnly = 0;
+    for (const uid of allUids) {
+      if (!activeUids.has(uid)) stoppedOnly++;
+    }
+    return {
+      totalUsers: allUids.size,
+      activeUsers: activeUids.size,
+      totalCapitalUsdt: Math.round(capital * 100) / 100,
+      totalVolumeUsdt: 0,
+      totalProfitUsdt: Math.round(profit * 100) / 100,
+      accountsNoBot: 0,
+      accountsStoppedOnly: stoppedOnly,
+      totalDeployments: deployments.length,
+      activeDeployments: deployments.filter((d) => d.running).length,
+    };
+  }, [summary?.metrics, deployments]);
+
+  const m = summary?.metrics ?? fallbackMetrics ?? undefined;
   const showNoBotTable = segmentFilter === "no_bot";
 
   if (isUserLoading) {
@@ -467,6 +508,13 @@ export default function AdminBotUsersPage() {
         {error && (
           <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
             {error}
+          </div>
+        )}
+
+        {summaryError && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+            Platform summary: {summaryError}
+            {fallbackMetrics ? " — showing estimates from the deployment table below." : ""}
           </div>
         )}
 

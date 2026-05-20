@@ -7,7 +7,9 @@ import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { doc, type DocumentReference } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { SIM_PANEL } from "@/components/simulator/simulator-surfaces";
-import { HEATMAP_UI_ASSETS } from "@/lib/zone-bot-config";
+import { SIM_COCKPIT_BOTS } from "@/lib/sim-cockpit-bots";
+import { computeBotCapital, countBotOpen } from "@/lib/sim-bot-metrics";
+import type { SimTrade } from "@/lib/simulator";
 import { HeatmapAssetCard } from "@/components/simulator/HeatmapAssetCard";
 import type { SuggestedZonesSnapshot } from "@/components/simulator/heatmap-types";
 import { HeatmapAutoSwitch } from "@/components/simulator/HeatmapAutoSwitch";
@@ -19,24 +21,21 @@ interface BtcMacroStatus {
   reason: string;
 }
 
-function suggestedDocPath(assetId: string): string {
-  if (assetId === "btc") return "suggested_zones";
-  return `suggested_zones_${assetId}`;
-}
-
-function HeatmapAssetColumn({
-  assetId,
-  label,
-  deribit,
+function HeatmapBotColumn({
+  bot,
   docRef,
   macroLine,
+  capital,
+  openCount,
+  cs,
   onRegisterRefetch,
 }: {
-  assetId: string;
-  label: string;
-  deribit: boolean;
+  bot: (typeof SIM_COCKPIT_BOTS)[number];
   docRef: DocumentReference | null;
   macroLine?: string | null;
+  capital: number;
+  openCount: number;
+  cs: string;
   onRegisterRefetch: (fn: () => void) => void;
 }) {
   const { data, refetch } = useDoc(docRef);
@@ -48,13 +47,15 @@ function HeatmapAssetColumn({
 
   return (
     <HeatmapAssetCard
-      asset={assetId as "btc" | "eth" | "sol" | "xrp"}
-      label={label}
+      botId={bot.id}
+      label={bot.label}
       suggested={suggested}
-      deribit={deribit}
       macroLine={macroLine}
+      capital={capital}
+      openCount={openCount}
+      cs={cs}
       settingsSlot={
-        assetId === "btc" ? (
+        bot.id === "crypto" ? (
           <div className="shrink-0">
             <HeatmapAutoSwitch />
           </div>
@@ -64,8 +65,18 @@ function HeatmapAssetColumn({
   );
 }
 
-/** Four Deribit heatmaps (BTC, ETH, SOL) + XRP placeholder on the simulation page. */
-export function HeatmapGrid() {
+/** Crypto Bot + BTC / ETH / SOL zone heatmaps (Deribit OI, one cron refresh). */
+export function HeatmapGrid({
+  openTrades,
+  closedTrades,
+  startingCapital,
+  cs,
+}: {
+  openTrades: SimTrade[];
+  closedTrades: SimTrade[];
+  startingCapital: number;
+  cs: string;
+}) {
   const firestore = useFirestore();
   const [refreshing, setRefreshing] = useState(false);
   const refetchersRef = useRef<Record<string, () => void>>({});
@@ -81,10 +92,7 @@ export function HeatmapGrid() {
   const docRefs = useMemo(() => {
     if (!firestore) return {};
     return Object.fromEntries(
-      HEATMAP_UI_ASSETS.map((a) => [
-        a.id,
-        doc(firestore, "config", suggestedDocPath(a.id)),
-      ]),
+      SIM_COCKPIT_BOTS.map((b) => [b.id, doc(firestore, "config", b.suggestedDoc)]),
     );
   }, [firestore]);
 
@@ -107,12 +115,24 @@ export function HeatmapGrid() {
     }
   }, [refetchAll]);
 
-  const btcMacroLine = useMemo(() => {
+  const cryptoMacroLine = useMemo(() => {
     if (!macro) return null;
     return macro.simEnabled
-      ? `Crypto bot ON · ${macro.directionBias}`
-      : "Crypto bot OFF";
+      ? `Bot ON · ${macro.directionBias}`
+      : "Bot OFF";
   }, [macro]);
+
+  const botMetrics = useMemo(() => {
+    return Object.fromEntries(
+      SIM_COCKPIT_BOTS.map((b) => [
+        b.id,
+        {
+          capital: computeBotCapital(closedTrades, startingCapital, b.botSource),
+          openCount: countBotOpen(openTrades, b.botSource),
+        },
+      ]),
+    );
+  }, [closedTrades, openTrades, startingCapital]);
 
   const registerRefetch = useCallback(
     (id: string) => (fn: () => void) => {
@@ -131,37 +151,36 @@ export function HeatmapGrid() {
               Deribit zone heatmaps
             </h2>
             <p className="text-[10px] text-muted-foreground/45">
-              Bull / bear OI zones per asset · refreshed every 15 min
+              Crypto Bot uses BTC chain for macro gate · zone bots per coin · one cron refresh
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => void handleRefreshZones()}
-            disabled={refreshing}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg border border-white/[0.12] bg-[#1a1a1f]",
-              "px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground",
-              "shadow-[0_2px_10px_rgba(0,0,0,0.35)] hover:text-foreground hover:bg-[#222228] hover:border-white/[0.18] transition-all disabled:opacity-40",
-            )}
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
-            {refreshing ? "Fetching…" : "Refresh all"}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => void handleRefreshZones()}
+          disabled={refreshing}
+          className={cn(
+            "flex items-center gap-1.5 rounded-lg border border-white/[0.12] bg-[#1a1a1f]",
+            "px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground",
+            "shadow-[0_2px_10px_rgba(0,0,0,0.35)] hover:text-foreground hover:bg-[#222228] hover:border-white/[0.18] transition-all disabled:opacity-40",
+          )}
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+          {refreshing ? "Fetching…" : "Refresh all"}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-        {HEATMAP_UI_ASSETS.map((a) => (
-          <HeatmapAssetColumn
-            key={a.id}
-            assetId={a.id}
-            label={a.label}
-            deribit={a.deribit}
-            docRef={docRefs[a.id] ?? null}
-            macroLine={a.id === "btc" ? btcMacroLine : undefined}
-            onRegisterRefetch={registerRefetch(a.id)}
+        {SIM_COCKPIT_BOTS.map((b) => (
+          <HeatmapBotColumn
+            key={b.id}
+            bot={b}
+            docRef={docRefs[b.id] ?? null}
+            macroLine={b.id === "crypto" ? cryptoMacroLine : undefined}
+            capital={botMetrics[b.id]?.capital ?? startingCapital}
+            openCount={botMetrics[b.id]?.openCount ?? 0}
+            cs={cs}
+            onRegisterRefetch={registerRefetch(b.id)}
           />
         ))}
       </div>

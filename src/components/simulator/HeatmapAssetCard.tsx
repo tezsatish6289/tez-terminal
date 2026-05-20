@@ -2,7 +2,7 @@
 
 import { TrendingDown, TrendingUp, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { HeatmapUiAsset } from "@/lib/zone-bot-config";
+import type { CockpitBotId } from "@/lib/sim-cockpit-bots";
 import {
   formatSpot,
   spotFromSuggested,
@@ -12,37 +12,24 @@ import {
 import { SIM_CARD, SIM_INSET_TILE } from "@/components/simulator/simulator-surfaces";
 
 export function HeatmapAssetCard({
-  asset,
+  botId,
   label,
   suggested,
-  deribit,
   macroLine,
+  capital,
+  openCount,
+  cs,
   settingsSlot,
 }: {
-  asset: HeatmapUiAsset;
+  botId: CockpitBotId;
   label: string;
   suggested: SuggestedZonesSnapshot | null;
-  deribit: boolean;
-  /** Optional second line (BTC crypto-bot macro, zone-bot direction, etc.) */
   macroLine?: string | null;
+  capital: number;
+  openCount: number;
+  cs: string;
   settingsSlot?: React.ReactNode;
 }) {
-  if (!deribit) {
-    return (
-      <div className={cn(SIM_CARD, "border-dashed border-white/[0.14] bg-[#121214] p-4 flex flex-col min-h-[200px]")}>
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-black text-foreground/90">{label}</span>
-          <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400/70 px-2 py-0.5 rounded border border-amber-400/25 bg-amber-400/10">
-            Soon
-          </span>
-        </div>
-        <p className="text-[11px] text-muted-foreground/45 leading-relaxed flex-1">
-          No Deribit options chain for XRP. Zone heatmap will use Bybit perp OI when that module ships.
-        </p>
-      </div>
-    );
-  }
-
   const spot = spotFromSuggested(suggested);
   const ivPct = suggested?.atmIV != null ? suggested.atmIV * 100 : null;
   const status = zoneStatusLine(suggested);
@@ -63,9 +50,14 @@ export function HeatmapAssetCard({
     <div className={cn(SIM_CARD, "overflow-hidden flex flex-col min-h-[220px]")}>
       {/* Header */}
       <div className="px-3.5 py-3 border-b border-white/[0.1] bg-[#1c1c21] flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-black tracking-tight">{label}</span>
+            {botId === "crypto" && (
+              <span className="text-[8px] font-bold uppercase tracking-wider text-accent/70 px-1.5 py-0.5 rounded border border-accent/25 bg-accent/10">
+                BTC Deribit
+              </span>
+            )}
             {ivPct != null && (
               <span
                 className={cn(
@@ -92,6 +84,19 @@ export function HeatmapAssetCard({
           )}
         </div>
         {settingsSlot}
+      </div>
+
+      <div className="px-3.5 py-2 border-b border-white/[0.08] bg-[#141418] grid grid-cols-2 gap-2">
+        <BotStatChip
+          label="Capital"
+          value={`${cs}${capital.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          accent
+        />
+        <BotStatChip
+          label="Open"
+          value={String(openCount)}
+          sub={openCount === 1 ? "position" : "positions"}
+        />
       </div>
 
       {!suggested ? (
@@ -159,6 +164,42 @@ export function HeatmapAssetCard({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function BotStatChip({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg border px-2 py-1.5",
+        accent
+          ? "border-accent/20 bg-accent/[0.06]"
+          : "border-white/[0.08] bg-[#1a1a1f]",
+      )}
+    >
+      <div className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/45">
+        {label}
+      </div>
+      <div
+        className={cn(
+          "text-[11px] font-black font-mono tabular-nums leading-tight",
+          accent ? "text-accent" : "text-foreground/85",
+        )}
+      >
+        {value}
+      </div>
+      {sub && <div className="text-[8px] text-muted-foreground/40">{sub}</div>}
     </div>
   );
 }

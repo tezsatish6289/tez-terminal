@@ -57,7 +57,6 @@ import type { SimulatorState, SimTrade, SimLog, SimTradeEvent } from "@/lib/simu
 import { getSimStateDocId } from "@/lib/simulator";
 import { SimulatorParamsDialog } from "@/components/simulator/SimulatorParamsDialog";
 import { HeatmapGrid } from "@/components/simulator/HeatmapGrid";
-import { NiftyAutoSwitch } from "@/components/simulator/NiftyAutoSwitch";
 import { format, startOfDay, startOfWeek, startOfMonth, isAfter } from "date-fns";
 import { buildEquityCurve } from "@/lib/equity-curve";
 import { BotSourceFilter } from "@/components/dashboard/BotSourceFilter";
@@ -116,16 +115,14 @@ export default function SimulationPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
-  const [assetType, setAssetType] = useState<"CRYPTO" | "INDIAN_STOCKS">("CRYPTO");
   const [tab, setTab] = useState<"overview" | "trades" | "logs">("overview");
   const [selectedTrade, setSelectedTrade] = useState<SimTrade | null>(null);
-  const cs = assetType === "INDIAN_STOCKS" ? "₹" : "$";
-
+  const cs = "$";
 
   const stateRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return doc(firestore, "config", getSimStateDocId(assetType));
-  }, [firestore, user, assetType]);
+    return doc(firestore, "config", getSimStateDocId("CRYPTO"));
+  }, [firestore, user]);
   const { data: stateData, isLoading: stateLoading, refetch: refetchState } = useDoc(stateRef);
   const simState = stateData as SimulatorState | null;
 
@@ -172,7 +169,7 @@ export default function SimulationPage() {
       const cursor = pageCursorsRef.current.get(pageIdx) ?? null;
       const baseConstraints = [
         where("status", "==", "CLOSED"),
-        where("assetType", "==", assetType),
+        where("assetType", "==", "CRYPTO"),
         orderBy("openedAt", "desc"),
         limit(HIST_PAGE_SIZE + 1), // +1 to detect if a next page exists
       ] as const;
@@ -194,10 +191,10 @@ export default function SimulationPage() {
     } finally {
       setClosedTradesLoading(false);
     }
-  }, [firestore, user, assetType]);
+  }, [firestore, user]);
 
   useEffect(() => {
-    // Reset cursors and jump to first page whenever the asset type changes.
+    // Reset cursors and jump to first page on mount.
     pageCursorsRef.current = new Map([[0, null]]);
     fetchHistPage(0);
   }, [fetchHistPage]);
@@ -236,8 +233,8 @@ export default function SimulationPage() {
   const openTradesAll = useMemo(() => {
     return (rawOpenTrades ?? [])
       .map((d: any) => ({ id: d.id, ...d } as SimTrade))
-      .filter((t) => (t.assetType || "CRYPTO") === assetType);
-  }, [rawOpenTrades, assetType]);
+      .filter((t) => (t.assetType || "CRYPTO") === "CRYPTO");
+  }, [rawOpenTrades]);
 
   const openTrades = useMemo(
     () => openTradesAll.filter(botSourcePredicate),
@@ -259,7 +256,7 @@ export default function SimulationPage() {
   useEffect(() => {
     setAllTradesLoading(true);
     setAllClosedTrades([]);
-    fetch(`/api/freedombot/perf-data?assetType=${assetType}`)
+    fetch(`/api/freedombot/perf-data?assetType=CRYPTO`)
       .then((r) => r.json())
       .then((d) => {
         const trades: SimTrade[] = (d.trades ?? []).filter(
@@ -269,7 +266,7 @@ export default function SimulationPage() {
       })
       .catch(() => {})
       .finally(() => setAllTradesLoading(false));
-  }, [assetType]);
+  }, []);
 
   // Bot-source-aware filtered closed trades — drives the equity curve,
   // metric panel, chart and history table so all four numbers reconcile
@@ -293,8 +290,8 @@ export default function SimulationPage() {
     if (!rawLogs) return [];
     return rawLogs
       .map((d: any) => d as SimLog)
-      .filter((l) => (l.assetType || "CRYPTO") === assetType);
-  }, [rawLogs, assetType]);
+      .filter((l) => (l.assetType || "CRYPTO") === "CRYPTO");
+  }, [rawLogs]);
 
   // Headline stats / equity chart / risk ratios moved to /stats
   // (rendered by `<StatsDashboard />`). The trade-history tab on this
@@ -357,24 +354,18 @@ export default function SimulationPage() {
             <CronHealthBanner variant="compact" />
 
             <SimulatorToolbar
-              assetType={assetType}
-              onAssetChange={(key) => {
-                setAssetType(key);
-                setTab("overview");
-              }}
               simState={simState}
-              openCount={openTrades.length}
-              maxSlots={simState?.currentMaxTrades ?? 5}
-              cs={cs}
               lastRefreshedLabel={lastRefreshedLabel}
               onRefresh={refresh}
-              heatmapControl={
-                assetType === "INDIAN_STOCKS" ? <NiftyAutoSwitch /> : undefined
-              }
               paramsControl={<SimulatorParamsDialog />}
             />
 
-            {assetType === "CRYPTO" && <HeatmapGrid />}
+            <HeatmapGrid
+              openTrades={openTradesAll}
+              closedTrades={allClosedTrades}
+              startingCapital={simState?.startingCapital ?? 1000}
+              cs={cs}
+            />
 
             {isLoading ? (
               <div className={cn(SIM_PANEL, "flex items-center justify-center min-h-[280px]")}>
@@ -423,7 +414,7 @@ export default function SimulationPage() {
                     href="/stats"
                     className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/45 hover:text-accent transition-colors hidden sm:inline"
                   >
-                    Full performance →
+                    Performance by bot →
                   </Link>
                 }
               >

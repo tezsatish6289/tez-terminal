@@ -18,24 +18,11 @@ import type { Firestore } from "firebase-admin/firestore";
 /** Coins with Deribit option chains (zone suggester + zone bots). */
 export type ZoneBotAsset = "btc" | "eth" | "sol";
 
-/** All assets shown on the simulation heatmap grid (XRP uses perp OI later). */
-export type HeatmapUiAsset = ZoneBotAsset | "xrp";
+/** @deprecated Use `CockpitBotId` from `sim-cockpit-bots.ts` for /simulation UI. */
+export type HeatmapUiAsset = ZoneBotAsset | "crypto";
 
 /** Iteration order for zone-bot crons — BTC only until live mirroring ships. */
 export const ZONE_BOT_REGISTRY: readonly ZoneBotAsset[] = ["btc"] as const;
-
-/** Deribit heatmaps shown together on /simulation. */
-export const HEATMAP_UI_ASSETS: readonly {
-  id: HeatmapUiAsset;
-  label: string;
-  perpSymbol: string;
-  deribit: boolean;
-}[] = [
-  { id: "btc", label: "BTC", perpSymbol: "BTCUSDT", deribit: true },
-  { id: "eth", label: "ETH", perpSymbol: "ETHUSDT", deribit: true },
-  { id: "sol", label: "SOL", perpSymbol: "SOLUSDT", deribit: true },
-  { id: "xrp", label: "XRP", perpSymbol: "XRPUSDT", deribit: false },
-] as const;
 
 /** Bybit perp symbol for the asset (used by sync-prices + live execution). */
 export const ZONE_BOT_PERP_SYMBOL: Record<ZoneBotAsset, string> = {

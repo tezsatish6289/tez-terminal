@@ -19,10 +19,16 @@
 // Discriminator values — must match `SimTrade.botSource` writes.
 export const BOT_SOURCE_PATTERN = "PATTERN";
 export const BOT_SOURCE_BTC_ZONE = "BTC_ZONE";
-// Add ETH_ZONE / SOL_ZONE / XRP_ZONE here as those bots ship.
+export const BOT_SOURCE_ETH_ZONE = "ETH_ZONE";
+export const BOT_SOURCE_SOL_ZONE = "SOL_ZONE";
 
 /** Filter pill values. "ALL" includes every trade regardless of source. */
-export type BotSourceFilter = "ALL" | "PATTERN" | "BTC_ZONE";
+export type BotSourceFilter =
+  | "ALL"
+  | "PATTERN"
+  | "BTC_ZONE"
+  | "ETH_ZONE"
+  | "SOL_ZONE";
 
 /** Pills rendered, in display order. Add ETH/SOL/XRP entries here when
  *  their bots ship — every page picks them up automatically. */
@@ -42,6 +48,8 @@ export const BOT_SOURCE_PILLS: BotSourcePillOption[] = [
   { id: "ALL",       label: "All Bots",    short: "All" },
   { id: "PATTERN",   label: "Crypto Bot",  short: "Crypto" },
   { id: "BTC_ZONE",  label: "BTC Zone",    short: "BTC" },
+  { id: "ETH_ZONE",  label: "ETH Zone",    short: "ETH" },
+  { id: "SOL_ZONE",  label: "SOL Zone",    short: "SOL" },
 ];
 
 /** Normalise an optional `botSource` field to a canonical bucket so the
@@ -50,6 +58,8 @@ export const BOT_SOURCE_PILLS: BotSourcePillOption[] = [
  *  collapses to "PATTERN" so trades are never silently hidden. */
 export function classifyBotSource(raw: string | null | undefined): Exclude<BotSourceFilter, "ALL"> {
   if (raw === BOT_SOURCE_BTC_ZONE) return "BTC_ZONE";
+  if (raw === BOT_SOURCE_ETH_ZONE) return "ETH_ZONE";
+  if (raw === BOT_SOURCE_SOL_ZONE) return "SOL_ZONE";
   // Anything else — including null/undefined/legacy values — is pattern.
   return "PATTERN";
 }

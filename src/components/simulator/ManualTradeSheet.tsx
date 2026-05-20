@@ -23,6 +23,35 @@ import {
 import type { SimulatorState } from "@/lib/simulator";
 import { createInitialState } from "@/lib/simulator";
 
+function TextInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  autoComplete = "off",
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  autoComplete?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-[11px] font-bold text-foreground/80">{label}</label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        spellCheck={false}
+        className="w-full px-3 py-2 rounded-lg border border-white/[0.08] bg-white/[0.03] text-[12px] font-mono uppercase"
+      />
+    </div>
+  );
+}
+
 function NumInput({
   label,
   value,
@@ -210,7 +239,12 @@ export function ManualTradeSheet({
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
-          <NumInput label="Symbol (Bybit perp)" value={symbol} onChange={setSymbol} />
+          <TextInput
+            label="Symbol (Bybit perp)"
+            value={symbol}
+            onChange={setSymbol}
+            placeholder="BTCUSDT.P"
+          />
 
           <div className="space-y-1">
             <span className="text-[11px] font-bold text-foreground/80">Side</span>

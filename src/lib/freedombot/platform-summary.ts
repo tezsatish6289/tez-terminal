@@ -26,7 +26,10 @@ export interface AccountRow {
 }
 
 export interface PlatformSummaryMetrics {
+  /** All accounts in scope: deployed at least once + never deployed. */
   totalUsers: number;
+  /** Unique users with ≥1 deployment row in the bot filter. */
+  deployedUsers: number;
   activeUsers: number;
   totalCapitalUsdt: number;
   totalVolumeUsdt: number;
@@ -270,13 +273,16 @@ export async function computePlatformSummary(
   }
 
   const activeDeployments = scopedDeps.filter((d) => isActiveDeployment(d.status)).length;
+  const deployedUsers = userIdsAll.length;
+  const totalAccounts = deployedUsers + accountsNoBot.length;
 
   return {
     period,
     bot: botFilter,
     rates,
     metrics: {
-      totalUsers: userIdsAll.length,
+      totalUsers: totalAccounts,
+      deployedUsers,
       activeUsers: userIdsActive.length,
       totalCapitalUsdt: Math.round(totalCapitalUsdt * 100) / 100,
       totalVolumeUsdt: Math.round(totalVolumeUsdt * 100) / 100,

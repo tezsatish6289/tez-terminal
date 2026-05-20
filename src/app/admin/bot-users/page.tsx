@@ -61,6 +61,7 @@ type SegmentFilter =
 
 interface PlatformSummaryMetrics {
   totalUsers: number;
+  deployedUsers?: number;
   activeUsers: number;
   totalCapitalUsdt: number;
   totalVolumeUsdt: number;
@@ -392,6 +393,7 @@ export default function AdminBotUsersPage() {
     }
     return {
       totalUsers: allUids.size,
+      deployedUsers: allUids.size,
       activeUsers: activeUids.size,
       totalCapitalUsdt: Math.round(capital * 100) / 100,
       totalVolumeUsdt: 0,
@@ -547,7 +549,11 @@ export default function AdminBotUsersPage() {
               <AdminStatCard
                 label="Total users"
                 value={summaryLoading ? "…" : String(m?.totalUsers ?? 0)}
-                sublabel="Ever deployed (scope)"
+                sublabel={
+                  m
+                    ? `${m.deployedUsers ?? m.activeUsers + m.accountsStoppedOnly} deployed · ${m.accountsNoBot} no bot`
+                    : "All accounts in scope"
+                }
                 active={segmentFilter === "total_users"}
                 onClick={() => toggleSegment("total_users")}
               />

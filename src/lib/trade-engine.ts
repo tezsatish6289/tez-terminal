@@ -688,13 +688,14 @@ export async function protectiveClose(
   reason:
     | "MARKET_TURN"
     | "KILL_SWITCH"
+    | "SL"
     | "TRAILING_SL"
     | "PATTERN_BREAK"
     | "ZONE_BOT_FLIP"
     | "ZONE_BOT_MAX_PAIN_EXIT"
     | "ZONE_FLIP"
     | "MAX_PAIN_EXIT"
-    | "SCORE_FLOOR_EXIT",
+    | "SCORE_FLOOR_EXIT"
   currentPrice: number,
   creds: Credentials
 ): Promise<{

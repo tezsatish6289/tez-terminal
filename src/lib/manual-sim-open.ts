@@ -155,7 +155,7 @@ export function botSourceLabel(source: string): string {
   return classifyBotSource(source);
 }
 
-/** Manual punches from the cockpit — never subject to score-floor exit. */
+/** Manual punches from the cockpit (synthetic signal id / algo MANUAL). */
 export function isManualSimTrade(
   trade: Pick<SimTrade, "algo" | "signalId">,
 ): boolean {

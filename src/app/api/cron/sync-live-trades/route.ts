@@ -413,10 +413,9 @@ async function syncUserTrades(
     }
 
     // ── 3. Sim-driven close sync ─────────────────────────────
-    // If the simulator has closed a trade for risk reasons (trailing SL crossed,
-    // market turned, score degraded), close the matching live trade immediately.
-    // This is the primary close-sync path — the market-turn and score-degradation
-    // blocks below act as independent safety nets.
+    // If the simulator has closed a trade for risk reasons the venue may not
+    // have reflected yet (trailing SL, original SL catch-up, zone exits, etc.),
+    // close the matching live trade immediately.
     //
     // Retry guarantee: if protectiveClose fails the Firestore doc is NOT updated,
     // so live_trade.status stays OPEN and we retry on the next cron cycle
@@ -472,9 +471,10 @@ async function syncUserTrades(
         // is the executor. We only sit out closes that already have their
         // own live-side propagation path (otherwise we'd double-close):
         //
-        //   - `TP1` / `TP2` / `TP3` / `SL`: exchange handles these via the
-        //     live trade's own TP / SL orders; mirroring would race with
-        //     the actual fill.
+        //   - `TP1` / `TP2` / `TP3`: exchange TP orders handle the partials;
+        //     mirroring would race with the actual fill.
+        //   - `SL` / `TRAILING_SL`: mirror when sim closes but live is still
+        //     OPEN (missed fill, sync lag, or trailing stop on sim only).
         //   - `KILL_SWITCH`: `sim/force-close/route.ts` already cascades
         //     the close to every linked live trade inline.
         //   - `SYNCED_FROM_EXCHANGE`: admin manually reconciled one trade;
@@ -482,13 +482,9 @@ async function syncUserTrades(
         //   - `EOD_SQUARE_OFF`: Indian-stocks 3:15 PM IST close, kept for
         //     backwards compat; Dhan live mirroring is paused.
         //
-        // Everything else mirrors. New sim close reasons (e.g.
-        // `SCORE_FLOOR_EXIT`, future zone-bot exits) automatically
-        // propagate without code changes here — the whitelist that used
-        // to live in this block is now a blacklist of "do not mirror"
-        // reasons.
+        // Everything else mirrors (including `SL` and `TRAILING_SL`).
         const NON_MIRRORED_SIM_CLOSE_REASONS = new Set([
-          "TP1", "TP2", "TP3", "SL",
+          "TP1", "TP2", "TP3",
           "KILL_SWITCH",
           "SYNCED_FROM_EXCHANGE",
           "EOD_SQUARE_OFF",
@@ -497,10 +493,8 @@ async function syncUserTrades(
         if (!sim.closeReason) continue;
         if (NON_MIRRORED_SIM_CLOSE_REASONS.has(sim.closeReason)) continue;
 
-        // `protectiveClose`'s reason type now covers every mirror-able sim
-        // close reason (`TRAILING_SL`, `ZONE_BOT_FLIP`,
-        // `ZONE_BOT_MAX_PAIN_EXIT`, `ZONE_FLIP`, `MAX_PAIN_EXIT`,
-        // `SCORE_FLOOR_EXIT`, etc.). If sim writes a tag outside that
+        // `protectiveClose`'s reason type covers mirror-able sim close reasons
+        // (`SL`, `TRAILING_SL`, zone exits, etc.). If sim writes a tag outside that
         // union (a future strategy we haven't taught the live engine
         // about yet) the cast keeps mirroring working — `protectiveClose`
         // only uses the reason for the event's `type` field and the

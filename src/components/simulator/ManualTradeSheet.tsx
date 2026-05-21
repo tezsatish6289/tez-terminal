@@ -251,7 +251,7 @@ export function ManualTradeSheet({
             open trades.
           </SheetDescription>
           <p className="text-[9px] font-bold uppercase tracking-wider text-amber-400/70 px-1">
-            No score floor exit for manual trades
+            Exits follow SL / TP / trailing only (no score-based auto-close)
           </p>
           {!manualGate.allowed && (
             <p className="text-[10px] text-rose-400/90 leading-snug mt-2">

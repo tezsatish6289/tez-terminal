@@ -148,18 +148,9 @@ export interface SimTrade {
    *  zone bots fully control their own lifecycle. SL/TP fill detection still
    *  applies — that's the same engine and is asset-agnostic. */
   botSource?: string;
-  /** Most recent confidence score observed on this trade. Written each sim
-   *  cron tick. Used by the score-floor exit (`SCORE_FLOOR_EXIT`) to detect
-   *  whether the score is still falling vs. bouncing back. Distinct from
-   *  `currentScore` (which is also the latest score) only in semantics:
-   *  `lastScore` is the *previous* tick's snapshot used as the comparison
-   *  point on the next tick. */
+  /** @deprecated Legacy score-floor tracking — no longer written. */
   lastScore?: number | null;
-  /** ISO timestamp marking the first tick in the current consecutive run of
-   *  "score below floor (= 75% of entry)" readings. Reset to null whenever
-   *  the score recovers above the floor. The score-floor exit fires only
-   *  after this has been set for ≥2 ticks AND the score is still declining,
-   *  so a single noisy tick below floor never books a premature close. */
+  /** @deprecated Legacy score-floor tracking — no longer written. */
   scoreBelowFloorSinceTickIso?: string | null;
 }
 
@@ -1019,10 +1010,14 @@ export function processTradeExit(params: {
     : "";
 
   const cs = (trade.assetType ?? "CRYPTO") === "INDIAN_STOCKS" ? "₹" : "$";
+  const scoreAtCloseNote =
+    isClosed && params.closingScore != null
+      ? ` | score@close=${params.closingScore}${params.closingScorePattern ? ` (${params.closingScorePattern})` : ""}`
+      : "";
   const log: SimLog = {
     timestamp: new Date().toISOString(),
     action: exitType === "SL" ? "SL_HIT" : "TP_HIT",
-    details: `${exitType} on ${trade.symbol} | closed ${(closePct * 100).toFixed(0)}% @ ${cs}${exitPrice.toFixed(4)} pnl=${cs}${netPnl.toFixed(4)} fee=${cs}${exitFee.toFixed(4)}${streakInfo}`,
+    details: `${exitType} on ${trade.symbol} | closed ${(closePct * 100).toFixed(0)}% @ ${cs}${exitPrice.toFixed(4)} pnl=${cs}${netPnl.toFixed(4)} fee=${cs}${exitFee.toFixed(4)}${scoreAtCloseNote}${streakInfo}`,
     signalId: trade.signalId,
     symbol: trade.symbol,
     capital: updatedState.capital,

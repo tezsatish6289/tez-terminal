@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { User, LogOut, Zap, History, LineChart, Webhook, Settings, CreditCard, Bell, Gift, Users, Twitter, Activity, Link2, ClipboardList, MessageSquare, Bot } from "lucide-react";
+import { User, LogOut, Zap, History, LineChart, Webhook, Settings, CreditCard, Bell, Gift, Users, Twitter, Activity, Link2, ClipboardList, MessageSquare, Bot, ListChecks } from "lucide-react";
 import { RadarIcon } from "@/components/icons/RadarIcon";
 import { Button } from "@/components/ui/button";
 import { useUser, useAuth } from "@/firebase";
@@ -70,6 +70,7 @@ export function TopBar() {
     { name: "Users", icon: Users, href: "/admin/users" },
     { name: "Bot users", icon: Bot, href: "/admin/bot-users" },
     { name: "Waitlist", icon: ClipboardList, href: "/admin/waitlist" },
+    { name: "Ideal Watchlist", icon: ListChecks, href: "/admin/watchlist" },
     { name: "Contact", icon: MessageSquare, href: "/admin/contact" },
     { name: "Social", icon: Twitter, href: "/admin/social" },
     { name: "Blockchain", icon: Link2, href: "/admin/blockchain" },

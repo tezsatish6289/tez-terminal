@@ -10,7 +10,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "liquidity:ws": "tsx --env-file=.env.local scripts/liquidity-ws-server.ts"
+    "liquidity:ws": "tsx --env-file=.env.local scripts/liquidity-ws-server.ts",
+    "watchlist:generate": "tsx scripts/generate-tv-watchlist.ts"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.28.0",

@@ -20,6 +20,9 @@
 # production
 /build
 
+# generated TradingView watchlist exports
+/output/watchlists/
+
 # misc
 .DS_Store
 *.pem

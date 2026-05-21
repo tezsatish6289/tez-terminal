@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SimulatorState } from "@/lib/simulator";
@@ -27,10 +28,13 @@ export function SimulatorToolbar({
             Simulator cockpit
           </h1>
           <p className="text-[10px] text-muted-foreground/45 mt-0.5">
-            Capital &amp; open slots are per bot on each zone card · performance on{" "}
-            <a href="/stats" className="text-accent/80 hover:text-accent underline-offset-2">
-              /stats
-            </a>
+            Capital &amp; open slots are per bot on each zone card ·{" "}
+            <Link
+              href="/stats"
+              className="text-accent hover:text-accent/90 underline underline-offset-2 font-semibold"
+            >
+              Performance &amp; stats
+            </Link>
           </p>
         </div>
 

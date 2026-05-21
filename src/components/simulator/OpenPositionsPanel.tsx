@@ -22,6 +22,7 @@ import type {
   ExchangeMirrorSummary,
   LiveMirrorTrade,
 } from "@/lib/admin/live-mirror-display";
+import { SimNotionalSizeDisplay } from "@/components/simulator/SimNotionalSize";
 
 function simTradeIdFor(trade: SimTrade): string {
   return trade.id ?? (trade.signalId ? `sim-${trade.signalId}` : "");
@@ -56,22 +57,6 @@ function formatPrice(val: number | null | undefined, cs: string): string {
 function formatMoney(val: number | null | undefined, cs: string): string {
   if (val == null || !Number.isFinite(val)) return `${cs}0.00`;
   return `${cs}${val.toFixed(2)}`;
-}
-
-/** Margin still open (after partial TPs) and leveraged notional. */
-function positionSizeDisplay(trade: SimTrade): {
-  marginUsd: number;
-  notionalUsd: number;
-  leverage: number;
-} {
-  const pct = trade.remainingPct ?? 1;
-  const marginUsd = (trade.positionSize ?? 0) * pct;
-  const leverage = trade.leverage ?? 1;
-  return {
-    marginUsd,
-    notionalUsd: marginUsd * leverage,
-    leverage,
-  };
 }
 
 /** Cockpit grid for live positions — max ~5 slots, empty slots shown as
@@ -205,8 +190,6 @@ function OpenPositionCard({
   const positive = pnl >= 0;
   const chartLabel =
     tfLabelMap[String(trade.timeframe).toUpperCase()] ?? `${trade.timeframe}m`;
-  const { marginUsd, notionalUsd, leverage } = positionSizeDisplay(trade);
-
   return (
     <button
       type="button"
@@ -303,20 +286,17 @@ function OpenPositionCard({
               {formatPrice(trade.currentPrice, cs)}
             </span>
           </div>
-          <div className="shrink-0 text-right min-w-[72px]">
+          <div className="shrink-0 text-right min-w-[88px]">
             <span className="text-muted-foreground/40 block text-[8px] uppercase tracking-wider mb-0.5">
-              Size
+              Notional
             </span>
-            <span
-              className="font-mono font-bold text-white/80 tabular-nums block"
-              title="Margin at risk (remaining %) × leverage"
-            >
-              {formatMoney(marginUsd, cs)}
-              <span className="text-accent/70 font-bold"> · {leverage}×</span>
-            </span>
-            <span className="font-mono text-[9px] text-muted-foreground/55 tabular-nums block mt-0.5">
-              {formatMoney(notionalUsd, cs)} notional
-            </span>
+            <SimNotionalSizeDisplay
+              trade={trade}
+              cs={cs}
+              useRemaining
+              className="text-[10px] block text-right"
+              valueClassName="text-white/80"
+            />
           </div>
         </div>
 

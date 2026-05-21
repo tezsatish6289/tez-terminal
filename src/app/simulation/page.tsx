@@ -73,6 +73,7 @@ import { SimulatorToolbar } from "@/components/simulator/SimulatorToolbar";
 import { SimulatorMainPanel } from "@/components/simulator/SimulatorMainPanel";
 import { OpenPositionsPanel } from "@/components/simulator/OpenPositionsPanel";
 import { SimForceCloseDialog } from "@/components/simulator/SimForceCloseDialog";
+import { SimNotionalSizeDisplay } from "@/components/simulator/SimNotionalSize";
 import { SIM_CARD, SIM_PANEL } from "@/components/simulator/simulator-surfaces";
 
 // Defensive against legacy trade docs missing newer fields
@@ -1278,7 +1279,7 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
                       <PnlFilterUI value={filters.pnl} onChange={(v) => setF("pnl", v)} />
                     </ColFilter>
                   </TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12">Size</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12 min-w-[120px]">Notional</TableHead>
                   <TableHead className="h-12 w-[130px]">
                     <ColFilter label="Score" isActive={!!(filters.scoreMin || filters.scoreMax)} width="w-44">
                       <ScoreRangeFilter min={filters.scoreMin} max={filters.scoreMax} onMin={(v) => setF("scoreMin", v)} onMax={(v) => setF("scoreMax", v)} />
@@ -1474,7 +1475,14 @@ function DesktopTradeRow({
           )}
         </div>
       </TableCell>
-      <TableCell className={cn(cellPy, "font-mono text-xs font-bold text-white/60")}>{formatMoney(trade.positionSize, cs)}</TableCell>
+      <TableCell className={cellPy}>
+        <SimNotionalSizeDisplay
+          trade={trade}
+          cs={cs}
+          className="text-xs"
+          valueClassName="text-white/60"
+        />
+      </TableCell>
       <TableCell className={cellPy}>
         {isHistory ? (
           /* History: Entry score and "at close" score side-by-side so users
@@ -1830,12 +1838,26 @@ function MobileTradeCard({ trade, onSelect, onForceClose, cs, balance, startingC
             </div>
           </div>
 
-          {/* Size */}
-          <div className="text-[11px]">
-            <span className="text-muted-foreground/40 mr-1.5">Size</span>
-            <span className="font-mono font-bold text-white/50">{formatMoney(trade.positionSize, cs)}</span>
-            <span className="text-muted-foreground/40 ml-3 mr-1.5">Remaining</span>
-            <span className="font-mono font-bold text-white/50">{(trade.remainingPct * 100).toFixed(0)}%</span>
+          {/* Notional */}
+          <div className="text-[11px] flex flex-wrap items-center gap-x-3 gap-y-1">
+            <div>
+              <span className="text-muted-foreground/40 mr-1.5">Notional</span>
+              <SimNotionalSizeDisplay
+                trade={trade}
+                cs={cs}
+                useRemaining={isOpen}
+                className="text-[11px] inline"
+                valueClassName="text-white/50"
+              />
+            </div>
+            {isOpen && (
+              <div>
+                <span className="text-muted-foreground/40 mr-1.5">Remaining</span>
+                <span className="font-mono font-bold text-white/50">
+                  {(trade.remainingPct * 100).toFixed(0)}%
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Targets */}
@@ -1992,9 +2014,14 @@ function TradeNarrationDialog({ trade, onClose, cs }: { trade: SimTrade | null; 
             <span className="text-muted-foreground/40">Entry</span>
             <span className="font-mono font-bold text-white/70">{cs}{formatPrice(trade.entryPrice)}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground/40">Size</span>
-            <span className="font-mono font-bold text-white/70">{formatMoney(trade.positionSize, cs)}</span>
+          <div className="flex justify-between col-span-2">
+            <span className="text-muted-foreground/40">Notional</span>
+            <SimNotionalSizeDisplay
+              trade={trade}
+              cs={cs}
+              useRemaining={isOpen}
+              valueClassName="text-white/70"
+            />
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground/40">SL</span>
@@ -2163,10 +2190,24 @@ function TradeNarrationDialog({ trade, onClose, cs }: { trade: SimTrade | null; 
                   </div>
 
                   {evt.type === "OPEN" && (
-                    <div className="text-[10px] text-muted-foreground/50 mt-0.5">
-                      Entry @ <span className="font-mono text-white/60">{cs}{formatPrice(evt.price)}</span>
-                      {" · "}Size: <span className="font-mono text-white/60">{formatMoney(trade.positionSize, cs)}</span>
-                      {" · "}Fee: <span className="font-mono text-rose-400/50">{formatMoney(evt.fee, cs)}</span>
+                    <div className="text-[10px] text-muted-foreground/50 mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-0.5">
+                      <span>
+                        Entry @ <span className="font-mono text-white/60">{cs}{formatPrice(evt.price)}</span>
+                      </span>
+                      <span className="text-muted-foreground/35">·</span>
+                      <span className="inline-flex items-center gap-1">
+                        <span>Notional</span>
+                        <SimNotionalSizeDisplay
+                          trade={trade}
+                          cs={cs}
+                          className="text-[10px] inline"
+                          valueClassName="text-white/60"
+                        />
+                      </span>
+                      <span className="text-muted-foreground/35">·</span>
+                      <span>
+                        Fee: <span className="font-mono text-rose-400/50">{formatMoney(evt.fee, cs)}</span>
+                      </span>
                     </div>
                   )}
 

@@ -34,7 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
-import { AdminColumnHeader } from "@/components/admin/AdminInfoTip";
+import { AdminColumnHeader, AdminInfoTip } from "@/components/admin/AdminInfoTip";
 import { AdminCtaWithInfo } from "@/components/admin/AdminCtaLabel";
 import { AdminStatCard, formatUsdtHeadline } from "@/components/admin/AdminStatCard";
 import {

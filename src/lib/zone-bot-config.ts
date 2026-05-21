@@ -22,7 +22,10 @@ export type ZoneBotAsset = "btc" | "eth" | "sol";
 export type HeatmapUiAsset = ZoneBotAsset | "crypto";
 
 /** Iteration order for zone-bot crons (simulator engine ticks). */
-export const ZONE_BOT_REGISTRY: readonly ZoneBotAsset[] = ["btc", "eth"] as const;
+export const ZONE_BOT_REGISTRY: readonly ZoneBotAsset[] = ["btc", "eth", "sol"] as const;
+
+/** Each zone bot sim ledger starts at this USD balance (independent of Crypto Bot). */
+export const ZONE_BOT_STARTING_CAPITAL_USD = 1000;
 
 /** Bybit perp symbol for the asset (used by sync-prices + live execution). */
 export const ZONE_BOT_PERP_SYMBOL: Record<ZoneBotAsset, string> = {

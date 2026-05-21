@@ -10,6 +10,11 @@
  */
 import type { Firestore } from "firebase-admin/firestore";
 import type { ZoneBotAsset } from "./zone-bot-config";
+import { ZONE_BOT_STARTING_CAPITAL_USD } from "./zone-bot-config";
+import {
+  createInitialState,
+  type SimulatorState,
+} from "./simulator";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -66,6 +71,37 @@ export const ZONE_BOT_PRICE_HISTORY_MAX = 80;
 
 export function zoneBotStateDoc(asset: ZoneBotAsset): string {
   return `config/zone_bot_${asset}_state`;
+}
+
+/** Per-zone sim capital ledger (`$1000` each) — separate from shared `simulator_state`. */
+export function zoneSimStateDoc(asset: ZoneBotAsset): string {
+  return `config/zone_sim_state_${asset}`;
+}
+
+export function defaultZoneSimState(): SimulatorState {
+  const s = createInitialState("CRYPTO");
+  return {
+    ...s,
+    capital: ZONE_BOT_STARTING_CAPITAL_USD,
+    startingCapital: ZONE_BOT_STARTING_CAPITAL_USD,
+  };
+}
+
+export async function loadZoneSimState(
+  db: Firestore,
+  asset: ZoneBotAsset,
+): Promise<SimulatorState> {
+  const snap = await db.doc(zoneSimStateDoc(asset)).get();
+  if (snap.exists) return snap.data() as SimulatorState;
+  return defaultZoneSimState();
+}
+
+export async function saveZoneSimState(
+  db: Firestore,
+  asset: ZoneBotAsset,
+  state: SimulatorState,
+): Promise<void> {
+  await db.doc(zoneSimStateDoc(asset)).set(state);
 }
 
 // ── Defaults / construction ──────────────────────────────────────────────

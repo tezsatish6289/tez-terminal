@@ -26,6 +26,8 @@ import {
 import type { ZoneBotState } from "@/lib/zone-bot-state";
 import type { ZoneBotSettings } from "@/lib/zone-bot-config";
 import type { ZoneBotAsset } from "@/lib/zone-bot-config";
+import { ZONE_BOT_STARTING_CAPITAL_USD } from "@/lib/zone-bot-config";
+import type { SimulatorState } from "@/lib/simulator";
 
 interface BtcMacroStatus {
   btcPrice: number | null;
@@ -195,6 +197,16 @@ export function HeatmapGrid({
     );
   }, [firestore]);
 
+  const zoneSimStateRefs = useMemo(() => {
+    if (!firestore) return {};
+    return Object.fromEntries(
+      (["btc", "eth", "sol"] as ZoneBotAsset[]).map((a) => [
+        a,
+        doc(firestore, "config", `zone_sim_state_${a}`),
+      ]),
+    );
+  }, [firestore]);
+
   const btcStateRef = zoneStateRefs.btc;
   const ethStateRef = zoneStateRefs.eth;
   const solStateRef = zoneStateRefs.sol;
@@ -206,6 +218,10 @@ export function HeatmapGrid({
   const { data: solStateData, refetch: refetchSolState } = useDoc(solStateRef ?? null);
   const { data: ethSettingsData, refetch: refetchEthSettings } = useDoc(ethSettingsRef ?? null);
   const { data: solSettingsData, refetch: refetchSolSettings } = useDoc(solSettingsRef ?? null);
+
+  const { data: btcSimData, refetch: refetchBtcSim } = useDoc(zoneSimStateRefs.btc ?? null);
+  const { data: ethSimData, refetch: refetchEthSim } = useDoc(zoneSimStateRefs.eth ?? null);
+  const { data: solSimData, refetch: refetchSolSim } = useDoc(zoneSimStateRefs.sol ?? null);
 
   const docRefs = useMemo(() => {
     if (!firestore) return {};
@@ -222,6 +238,9 @@ export function HeatmapGrid({
     void refetchSolState();
     void refetchEthSettings();
     void refetchSolSettings();
+    void refetchBtcSim();
+    void refetchEthSim();
+    void refetchSolSim();
     Object.values(refetchersRef.current).forEach((fn) => void fn());
   }, [
     refetchMacro,
@@ -231,6 +250,9 @@ export function HeatmapGrid({
     refetchSolState,
     refetchEthSettings,
     refetchSolSettings,
+    refetchBtcSim,
+    refetchEthSim,
+    refetchSolSim,
   ]);
 
   useAutoRefresh([refetchAll], 60_000);
@@ -247,18 +269,42 @@ export function HeatmapGrid({
     }
   }, [refetchAll]);
 
+  const zoneSimById = useMemo(
+    () => ({
+      btc: btcSimData as SimulatorState | null,
+      eth: ethSimData as SimulatorState | null,
+      sol: solSimData as SimulatorState | null,
+    }),
+    [btcSimData, ethSimData, solSimData],
+  );
+
   const botMetrics = useMemo(() => {
     return Object.fromEntries(
-      SIM_COCKPIT_BOTS.map((b) => [
-        b.id,
-        {
-          capital: computeBotCapital(closedTrades, startingCapital, b.botSource),
-          liveCount: countBotOpen(openTrades, b.botSource),
-          closedCount: countBotClosed(closedTrades, b.botSource),
-        },
-      ]),
+      SIM_COCKPIT_BOTS.map((b) => {
+        const zoneSim =
+          b.id === "btc" || b.id === "eth" || b.id === "sol"
+            ? zoneSimById[b.id]
+            : null;
+        const capital =
+          b.id === "crypto"
+            ? computeBotCapital(closedTrades, startingCapital, b.botSource)
+            : zoneSim?.capital ??
+              computeBotCapital(
+                closedTrades,
+                ZONE_BOT_STARTING_CAPITAL_USD,
+                b.botSource,
+              );
+        return [
+          b.id,
+          {
+            capital,
+            liveCount: countBotOpen(openTrades, b.botSource),
+            closedCount: countBotClosed(closedTrades, b.botSource),
+          },
+        ];
+      }),
     );
-  }, [closedTrades, openTrades, startingCapital]);
+  }, [closedTrades, openTrades, startingCapital, zoneSimById]);
 
   const zoneContext = useMemo(
     () => ({

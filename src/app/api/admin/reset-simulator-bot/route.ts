@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { BOT_SOURCE_BTC_ZONE, BOT_SOURCE_ETH_ZONE, BOT_SOURCE_SOL_ZONE } from "@/lib/bot-source-filter";
-import { emptyZoneBotState, zoneBotStateDoc } from "@/lib/zone-bot-state";
+import {
+  defaultZoneSimState,
+  emptyZoneBotState,
+  saveZoneSimState,
+  zoneBotStateDoc,
+  zoneSimStateDoc,
+} from "@/lib/zone-bot-state";
 import type { ZoneBotAsset } from "@/lib/zone-bot-config";
 
 export const dynamic = "force-dynamic";
@@ -27,9 +33,8 @@ const ZONE_ASSET_BY_SOURCE: Record<AllowedBotSource, ZoneBotAsset> = {
  * GET /api/admin/reset-simulator-bot?key=CRON_SECRET&botSource=BTC_ZONE
  *   dry=true — preview counts only
  *
- * Counterfactual perf (BTC Zone tab) restarts at shared startingCapital ($1000)
- * once that bot's trades are gone. Does not reset global simulator_state or
- * other bots' trades.
+ * Resets zone sim ledger (`zone_sim_state_*`) to $1000 and clears zone engine
+ * state. Does not reset global `simulator_state` (Crypto Bot) or other bots' trades.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -98,6 +103,7 @@ export async function GET(request: NextRequest) {
         .collection("config")
         .doc(zoneBotStateDoc(zoneAsset))
         .set(emptyZoneBotState());
+      await saveZoneSimState(db, zoneAsset, defaultZoneSimState());
 
       try {
         await db.collection("logs").add({
@@ -123,10 +129,10 @@ export async function GET(request: NextRequest) {
       symbolsForLogCleanup: symbols.size,
       simulatorLogsRemoved: dryRun ? 0 : logsDeleted,
       zoneBotStateReset: dryRun ? "skipped (dry run)" : zoneBotStateDoc(zoneAsset),
+      zoneSimStateReset: dryRun ? "skipped (dry run)" : zoneSimStateDoc(zoneAsset),
       counterfactualStartingCapitalUsd: 1000,
       note:
-        "BTC Zone performance chart uses $1000 + only this bot's closed trades. " +
-        "Crypto Bot / shared simulator_state are unchanged.",
+        "Each zone bot uses its own $1000 sim ledger. Crypto Bot shared simulator_state is unchanged.",
     });
   } catch (err) {
     console.error("[reset-simulator-bot]", err);

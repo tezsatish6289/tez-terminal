@@ -78,8 +78,6 @@ import {
   type SimulatorState,
   type SimLog,
   getEffectiveSimConfig,
-  getSimStateDocId,
-  createInitialState,
   openTrade,
   processTradeExit,
 } from "@/lib/simulator";
@@ -94,9 +92,12 @@ import { loadSimBotSettings, toZoneBotSettings } from "@/lib/sim-bot-settings";
 import {
   appendZoneBotPriceHistory,
   loadZoneBotState,
+  loadZoneSimState,
   saveZoneBotState,
+  saveZoneSimState,
   type ZoneBotState,
 } from "@/lib/zone-bot-state";
+import type { BotSourceFilter } from "@/lib/bot-source-filter";
 import {
   evaluateZoneBot,
   type ZoneBotAction,
@@ -206,23 +207,6 @@ async function loadOpenCryptoTrades(
     .where("assetType", "==", "CRYPTO")
     .get();
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as SimTrade));
-}
-
-async function loadCryptoSimState(db: FirebaseFirestore.Firestore): Promise<SimulatorState> {
-  try {
-    const snap = await db.doc(`config/${getSimStateDocId("CRYPTO")}`).get();
-    if (snap.exists) return snap.data() as SimulatorState;
-  } catch {
-    /* fall through to initial state */
-  }
-  return createInitialState("CRYPTO");
-}
-
-async function saveCryptoSimState(
-  db: FirebaseFirestore.Firestore,
-  state: SimulatorState,
-): Promise<void> {
-  await db.doc(`config/${getSimStateDocId("CRYPTO")}`).set(state);
 }
 
 // ── Position sizing ─────────────────────────────────────────────────────
@@ -558,7 +542,7 @@ async function tickAsset(
       now,
     });
 
-    let workingSimState  = await loadCryptoSimState(db);
+    let workingSimState  = await loadZoneSimState(db, asset);
     const workingState   = { ...nextState }; // we'll patch openTradeId below
 
     switch (action.type) {
@@ -570,7 +554,7 @@ async function tickAsset(
         const openTrades = await loadOpenCryptoTrades(db);
         const slotCheck = canBotOpenMore(
           openTrades,
-          ZONE_BOT_SOURCE[asset] as "BTC_ZONE",
+          ZONE_BOT_SOURCE[asset] as Exclude<BotSourceFilter, "ALL">,
           botSettings.maxOpenTrades,
         );
         if (!slotCheck.ok) {
@@ -599,7 +583,7 @@ async function tickAsset(
         if (opened.tradeId) {
           workingState.openTradeId = opened.tradeId;
           workingSimState = opened.updatedState;
-          await saveCryptoSimState(db, workingSimState);
+          await saveZoneSimState(db, asset, workingSimState);
         } else {
           // sizing.skip — engine wanted to open but we can't (size < $1).
           // Log it and keep state IDLE so we re-evaluate next tick.
@@ -620,7 +604,7 @@ async function tickAsset(
             reason: "ZONE_BOT_MAX_PAIN_EXIT", exitType: "SL",
           });
           workingSimState = closed.updatedState;
-          if (closed.log) await saveCryptoSimState(db, workingSimState);
+          if (closed.log) await saveZoneSimState(db, asset, workingSimState);
         }
         workingState.openTradeId = null;
         break;
@@ -633,12 +617,12 @@ async function tickAsset(
             reason: "ZONE_BOT_FLIP", exitType: "SL",
           });
           workingSimState = closed.updatedState;
-          if (closed.log) await saveCryptoSimState(db, workingSimState);
+          if (closed.log) await saveZoneSimState(db, asset, workingSimState);
         }
         const openTradesFlip = await loadOpenCryptoTrades(db);
         const flipSlot = canBotOpenMore(
           openTradesFlip,
-          ZONE_BOT_SOURCE[asset] as "BTC_ZONE",
+          ZONE_BOT_SOURCE[asset] as Exclude<BotSourceFilter, "ALL">,
           botSettings.maxOpenTrades,
         );
         if (!flipSlot.ok) {
@@ -665,7 +649,7 @@ async function tickAsset(
           if (opened.tradeId) {
             workingState.openTradeId = opened.tradeId;
             workingSimState = opened.updatedState;
-            await saveCryptoSimState(db, workingSimState);
+            await saveZoneSimState(db, asset, workingSimState);
           } else {
             await db.collection("simulator_logs").add(opened.log);
             workingState.openTradeId = null;
@@ -716,10 +700,8 @@ async function run(db: FirebaseFirestore.Firestore): Promise<AssetTickResult[]> 
   const prices = await loadSpotPrices(db);
   const now    = Date.now();
 
-  // Per-asset ticks run sequentially for safety — they share the CRYPTO
-  // SimulatorState ledger, and concurrent writes from two assets could
-  // race. With only 1 asset in v1 the sequential cost is zero; even at
-  // 4 assets it's still well under the 60s cron timeout.
+  // Per-asset ticks run sequentially — each uses its own `zone_sim_state_*`
+  // ledger ($1000 starting capital per bot).
   const results: AssetTickResult[] = [];
   for (const asset of ZONE_BOT_REGISTRY) {
     results.push(await tickAsset(db, asset, prices, simConfig, now));

@@ -5,6 +5,7 @@ import { Loader2, Bot, PauseCircle, Trash2 } from "lucide-react";
 import type { User } from "firebase/auth";
 import {
   RETENTION_FALLBACK_P90_DAYS,
+  showsRetentionModal,
   type RetentionExchangeStats,
 } from "@/lib/freedombot/retention-stats-shared";
 
@@ -240,7 +241,5 @@ export function shouldShowRetentionIntervention(
   intent: RetentionIntent,
   lifetimeRealizedPnl: number | null,
 ): boolean {
-  if (intent === "delete") return true;
-  if (lifetimeRealizedPnl == null || !Number.isFinite(lifetimeRealizedPnl)) return true;
-  return lifetimeRealizedPnl <= 0;
+  return showsRetentionModal(intent, lifetimeRealizedPnl);
 }

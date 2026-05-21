@@ -43,6 +43,10 @@ import {
   mirroringStatusTooltip,
   type MirroringDisplayStatus,
 } from "@/lib/freedombot/mirroring-status-shared";
+import {
+  lifetimePnlBand,
+  showsPauseRetentionModal,
+} from "@/lib/freedombot/retention-stats-shared";
 
 const ADMIN_EMAIL = "hello@tezterminal.com";
 
@@ -677,7 +681,7 @@ export default function AdminBotUsersPage() {
                 </>
               ) : (
                 <>
-              <div className="hidden lg:grid grid-cols-[28px_1.2fr_1fr_100px_120px_100px_96px_140px_120px_56px] gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-black uppercase tracking-wider text-muted-foreground/50">
+              <div className="hidden lg:grid grid-cols-[28px_1.2fr_1fr_100px_120px_100px_96px_140px_120px_100px_56px] gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-black uppercase tracking-wider text-muted-foreground/50">
                 <span />
                 <span>User</span>
                 <span>Bot</span>
@@ -690,6 +694,10 @@ export default function AdminBotUsersPage() {
                 />
                 <span className="text-right">Wallet</span>
                 <span className="text-right">Lifetime PnL</span>
+                <span className="text-right inline-flex items-center justify-end gap-1">
+                  Pause msg
+                  <AdminInfoTip text="FreedomBot dashboard: pause retention modal shows only when lifetime realized PnL is zero or negative. Profitable users skip it; delete always shows the modal first." />
+                </span>
                 <span />
               </div>
 
@@ -708,6 +716,8 @@ export default function AdminBotUsersPage() {
                       : d.lifetimeRealizedPnl < 0
                         ? "text-rose-400"
                         : "text-muted-foreground";
+                  const pnlBand = lifetimePnlBand(d.lifetimeRealizedPnl);
+                  const pauseRetention = showsPauseRetentionModal(d.lifetimeRealizedPnl);
                   const mirroring =
                     d.mirroringStatus && d.mirroringLabel
                       ? { status: d.mirroringStatus, label: d.mirroringLabel }
@@ -723,7 +733,7 @@ export default function AdminBotUsersPage() {
                     >
                       <Link
                         href={`/admin/bot-users/${d.deploymentId}`}
-                        className="grid flex-1 min-w-0 grid-cols-1 lg:grid-cols-[28px_1.2fr_1fr_100px_120px_100px_96px_140px_120px] gap-2 px-4 py-3.5 items-start lg:items-center hover:bg-white/[0.03] transition-colors text-left group"
+                        className="grid flex-1 min-w-0 grid-cols-1 lg:grid-cols-[28px_1.2fr_1fr_100px_120px_100px_96px_140px_120px_100px] gap-2 px-4 py-3.5 items-start lg:items-center hover:bg-white/[0.03] transition-colors text-left group"
                       >
                         <span className="hidden lg:flex justify-center pt-0.5">
                           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-accent shrink-0 transition-colors" />
@@ -797,6 +807,37 @@ export default function AdminBotUsersPage() {
                             maximumFractionDigits: 4,
                           })}{" "}
                           <span className="text-[10px] font-semibold text-muted-foreground">{d.pnlCurrency}</span>
+                        </div>
+                        <div className="text-right space-y-0.5">
+                          <div className="flex items-center justify-end gap-2 lg:block">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50 lg:hidden">
+                              Pause msg
+                            </span>
+                            <span
+                              className={cn(
+                                "text-[9px] font-black uppercase tracking-wide",
+                                pnlBand === "profitable"
+                                  ? "text-emerald-400"
+                                  : pnlBand === "drawdown"
+                                    ? "text-rose-400"
+                                    : "text-muted-foreground",
+                              )}
+                            >
+                              {pnlBand === "profitable"
+                                ? "Profitable"
+                                : pnlBand === "drawdown"
+                                  ? "Drawdown"
+                                  : "Breakeven"}
+                            </span>
+                          </div>
+                          <div
+                            className={cn(
+                              "text-[10px] font-bold",
+                              pauseRetention ? "text-amber-400/90" : "text-muted-foreground/50",
+                            )}
+                          >
+                            {pauseRetention ? "Shows" : "Skips"}
+                          </div>
                         </div>
                       </Link>
                       <div className="flex items-center justify-center px-3 lg:px-2 shrink-0 border-l border-white/[0.04]">

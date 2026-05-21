@@ -68,6 +68,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
+import { recordCronHeartbeat } from "@/lib/cron-health";
 import { deserializePrices } from "@/lib/exchanges";
 import { getLeverage } from "@/lib/leverage";
 import { executeForAllUsers } from "@/lib/live-execution";
@@ -709,6 +710,14 @@ async function run(db: FirebaseFirestore.Firestore): Promise<AssetTickResult[]> 
   return results;
 }
 
+function summarizeZoneBotTick(
+  results: { asset: string; ok: boolean; action: string }[],
+): string {
+  return results
+    .map((r) => `${r.asset}=${r.ok ? r.action : "ERR"}`)
+    .join(" ");
+}
+
 // GET — called by cron-job.org with ?key=CRON_SECRET (see header comment).
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -716,16 +725,33 @@ export async function GET(request: NextRequest) {
   if (CRON_SECRET && key !== CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const startedAt = Date.now();
+  const db = getAdminFirestore();
   try {
-    const db = getAdminFirestore();
     const results = await run(db);
+    const allOk = results.every((r) => r.ok);
+    await recordCronHeartbeat(db, "sync-zone-bots", {
+      ok: allOk,
+      degraded: !allOk,
+      summary: summarizeZoneBotTick(results),
+      durationMs: Date.now() - startedAt,
+      error: allOk
+        ? undefined
+        : results
+            .filter((r) => !r.ok)
+            .map((r) => `${r.asset}: ${"error" in r ? r.error : "failed"}`)
+            .join("; "),
+    });
     return NextResponse.json({ success: true, results });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     console.error("[SyncZoneBots] Failed:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
-    );
+    await recordCronHeartbeat(db, "sync-zone-bots", {
+      ok: false,
+      error: msg,
+      durationMs: Date.now() - startedAt,
+    }).catch(() => {});
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 

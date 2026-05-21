@@ -20,6 +20,7 @@ import { deserializePrices } from "@/lib/exchanges";
 import { parseZones } from "@/lib/heatmap-zones-settings";
 import { loadSimBotSettings } from "@/lib/sim-bot-settings";
 import { zoneBotSettingsDoc, type ZoneBotAsset } from "@/lib/zone-bot-config";
+import { recordCronHeartbeat } from "@/lib/cron-health";
 
 export const dynamic     = "force-dynamic";
 export const maxDuration = 60;
@@ -177,21 +178,54 @@ async function run() {
   return { suggested: results, errors };
 }
 
+function summarizeSuggestZones(payload: {
+  suggested: Record<string, unknown>;
+  errors: Record<string, string>;
+}): string {
+  const parts: string[] = [];
+  for (const [asset, row] of Object.entries(payload.suggested)) {
+    const z = row as {
+      bullActionable?: boolean;
+      bearActionable?: boolean;
+      signalConflict?: boolean;
+      notActionableReason?: string | null;
+    };
+    let tag = "idle";
+    if (z.signalConflict) tag = "conflict";
+    else if (z.bullActionable || z.bearActionable) tag = "actionable";
+    else if (z.notActionableReason) tag = "blocked";
+    parts.push(`${asset}=${tag}`);
+  }
+  const errN = Object.keys(payload.errors).length;
+  if (errN > 0) parts.push(`errors=${errN}`);
+  return parts.join(" ");
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const key = searchParams.get("key");
   if (CRON_SECRET && key !== CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const startedAt = Date.now();
+  const db = getAdminFirestore();
   try {
     const payload = await run();
+    await recordCronHeartbeat(db, "suggest-zones", {
+      ok: true,
+      summary: summarizeSuggestZones(payload),
+      durationMs: Date.now() - startedAt,
+    });
     return NextResponse.json({ success: true, ...payload });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     console.error("[SuggestZones] Failed:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
-    );
+    await recordCronHeartbeat(db, "suggest-zones", {
+      ok: false,
+      error: msg,
+      durationMs: Date.now() - startedAt,
+    }).catch(() => {});
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 

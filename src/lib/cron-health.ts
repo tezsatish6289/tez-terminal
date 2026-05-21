@@ -4,6 +4,7 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { notifyAdminTelegram } from "@/lib/admin-telegram";
 import {
+  CRON_JOB_ORDER,
   CRON_JOBS,
   evaluateCronLevel,
   type CronHealthView,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/cron-health-shared";
 
 export {
+  CRON_JOB_ORDER,
   CRON_JOBS,
   evaluateCronLevel,
   type CronHealthView,
@@ -96,7 +98,8 @@ export async function processCronTelegramAlerts(
   db: Firestore,
   nowMs = Date.now(),
 ): Promise<void> {
-  for (const job of Object.values(CRON_JOBS)) {
+  for (const jobId of CRON_JOB_ORDER) {
+    const job = CRON_JOBS[jobId];
     if (!job.telegram) continue;
 
     try {
@@ -163,7 +166,8 @@ export async function processCronTelegramAlerts(
 export async function loadCronHealthViews(db: Firestore): Promise<CronHealthView[]> {
   const nowMs = Date.now();
   const views: CronHealthView[] = [];
-  for (const job of Object.values(CRON_JOBS)) {
+  for (const jobId of CRON_JOB_ORDER) {
+    const job = CRON_JOBS[jobId];
     const snap = await db.collection("cron_health").doc(job.id).get();
     const data = snap.data() as CronHeartbeatDoc | undefined;
     const doc: CronHeartbeatDoc = data ?? {

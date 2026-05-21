@@ -144,7 +144,7 @@ export function CronHealthBanner({ variant = "full" }: { variant?: "full" | "com
                   )}
                   title={job.label}
                 >
-                  {job.label.split(" ")[0]}
+                  {job.shortLabel}
                 </span>
               ))}
             </div>
@@ -157,7 +157,7 @@ export function CronHealthBanner({ variant = "full" }: { variant?: "full" | "com
           />
         </button>
         {expanded && (
-          <div className="grid gap-1 sm:grid-cols-3 px-2 pb-2 border-t border-white/[0.06]">
+          <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-5 px-2 pb-2 border-t border-white/[0.06]">
             {views.map(({ job, doc, level, staleMs }) => (
               <CronJobCell key={job.id} job={job} doc={doc} level={level} staleMs={staleMs} />
             ))}
@@ -184,7 +184,7 @@ export function CronHealthBanner({ variant = "full" }: { variant?: "full" | "com
           refreshes every 60s · Telegram every 5m while critical
         </span>
       </div>
-      <div className="grid gap-1 sm:grid-cols-3">
+      <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-5">
         {views.map(({ job, doc, level, staleMs }) => (
           <CronJobCell key={job.id} job={job} doc={doc} level={level} staleMs={staleMs} />
         ))}

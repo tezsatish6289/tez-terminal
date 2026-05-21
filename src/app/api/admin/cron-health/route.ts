@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
+  CRON_JOB_ORDER,
   CRON_JOBS,
   evaluateCronLevel,
   type CronHeartbeatDoc,
@@ -65,7 +66,7 @@ export async function GET(request: NextRequest) {
     }
 
     const nowMs = Date.now();
-    const jobs = (Object.keys(CRON_JOBS) as CronJobId[]).map((id) => {
+    const jobs = CRON_JOB_ORDER.map((id) => {
       const job = CRON_JOBS[id];
       const doc =
         byId.get(id) ??

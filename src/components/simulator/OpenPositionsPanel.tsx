@@ -58,6 +58,22 @@ function formatMoney(val: number | null | undefined, cs: string): string {
   return `${cs}${val.toFixed(2)}`;
 }
 
+/** Margin still open (after partial TPs) and leveraged notional. */
+function positionSizeDisplay(trade: SimTrade): {
+  marginUsd: number;
+  notionalUsd: number;
+  leverage: number;
+} {
+  const pct = trade.remainingPct ?? 1;
+  const marginUsd = (trade.positionSize ?? 0) * pct;
+  const leverage = trade.leverage ?? 1;
+  return {
+    marginUsd,
+    notionalUsd: marginUsd * leverage,
+    leverage,
+  };
+}
+
 /** Cockpit grid for live positions — max ~5 slots, empty slots shown as
  *  placeholders so the panel never looks broken when idle. */
 export function OpenPositionsPanel({
@@ -189,6 +205,7 @@ function OpenPositionCard({
   const positive = pnl >= 0;
   const chartLabel =
     tfLabelMap[String(trade.timeframe).toUpperCase()] ?? `${trade.timeframe}m`;
+  const { marginUsd, notionalUsd, leverage } = positionSizeDisplay(trade);
 
   return (
     <button
@@ -269,8 +286,8 @@ function OpenPositionCard({
           </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 text-[10px]">
-          <div>
+        <div className="flex gap-2 text-[10px]">
+          <div className="flex-1 min-w-0">
             <span className="text-muted-foreground/40 block text-[8px] uppercase tracking-wider mb-0.5">
               Entry
             </span>
@@ -278,12 +295,27 @@ function OpenPositionCard({
               {formatPrice(trade.entryPrice, cs)}
             </span>
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <span className="text-muted-foreground/40 block text-[8px] uppercase tracking-wider mb-0.5">
               Mark
             </span>
             <span className="font-mono font-bold text-white/90">
               {formatPrice(trade.currentPrice, cs)}
+            </span>
+          </div>
+          <div className="shrink-0 text-right min-w-[72px]">
+            <span className="text-muted-foreground/40 block text-[8px] uppercase tracking-wider mb-0.5">
+              Size
+            </span>
+            <span
+              className="font-mono font-bold text-white/80 tabular-nums block"
+              title="Margin at risk (remaining %) × leverage"
+            >
+              {formatMoney(marginUsd, cs)}
+              <span className="text-accent/70 font-bold"> · {leverage}×</span>
+            </span>
+            <span className="font-mono text-[9px] text-muted-foreground/55 tabular-nums block mt-0.5">
+              {formatMoney(notionalUsd, cs)} notional
             </span>
           </div>
         </div>

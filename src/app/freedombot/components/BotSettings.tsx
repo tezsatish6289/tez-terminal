@@ -24,6 +24,11 @@ import {
   type TradingPrefs,
 } from "@/lib/freedombot/trading-prefs-shared";
 import { RiskControls } from "./risk-controls";
+import {
+  RetentionInterventionModal,
+  shouldShowRetentionIntervention,
+  type RetentionIntent,
+} from "./RetentionInterventionModal";
 import type { User } from "firebase/auth";
 import {
   getCryptoExchangeDef,
@@ -48,6 +53,7 @@ export interface SettingsDeployment {
   keyLastFour: string | null;
   wallet: DeploymentWallet | null;
   tradingPrefs?: TradingPrefs;
+  createdAt?: string | null;
 }
 
 interface BotSettingsProps {
@@ -58,6 +64,8 @@ interface BotSettingsProps {
   exchangeLabel: string;
   /** Number of OPEN trades for this deployment (drives the delete-warning copy). */
   openTradesCount: number;
+  /** Cached lifetime realised P&L for retention copy (optional). */
+  lifetimeRealizedPnl?: number | null;
   /** Called whenever a backend action mutates state — parent should re-fetch
    *  deployments and trades so the dashboard chrome updates. */
   onMutated: () => void;
@@ -95,6 +103,7 @@ export function BotSettings({
   deployment,
   exchangeLabel,
   openTradesCount,
+  lifetimeRealizedPnl = null,
   onMutated,
 }: BotSettingsProps) {
   // Local wallet snapshot so the panel can update in place after Test /
@@ -111,6 +120,8 @@ export function BotSettings({
   const [pauseBusy, setPauseBusy] = useState(false);
   const [resumeBusy, setResumeBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [retentionOpen, setRetentionOpen] = useState(false);
+  const [retentionIntent, setRetentionIntent] = useState<RetentionIntent>("pause");
   const [tradingPrefs, setTradingPrefs] = useState<TradingPrefs>(
     deployment.tradingPrefs ?? DEFAULT_TRADING_PREFS,
   );
@@ -129,6 +140,7 @@ export function BotSettings({
     setKeyLastFour(deployment.keyLastFour);
     setUpdateOpen(false);
     setDeleteOpen(false);
+    setRetentionOpen(false);
     setUpdateBanner(null);
     const prefs = deployment.tradingPrefs ?? DEFAULT_TRADING_PREFS;
     setTradingPrefs(prefs);
@@ -258,6 +270,39 @@ export function BotSettings({
       setRiskSaveBusy(false);
     }
   }, [user, deployment.id, tradingPrefs, riskDirty, onMutated]);
+
+  const runningDays = deployment.createdAt
+    ? Math.floor(
+        (Date.now() - new Date(deployment.createdAt).getTime()) / (1000 * 60 * 60 * 24),
+      )
+    : 0;
+
+  const requestPause = useCallback(() => {
+    if (shouldShowRetentionIntervention("pause", lifetimeRealizedPnl ?? null)) {
+      setRetentionIntent("pause");
+      setRetentionOpen(true);
+      return;
+    }
+    void handlePause();
+  }, [lifetimeRealizedPnl, handlePause]);
+
+  const requestDelete = useCallback(() => {
+    if (shouldShowRetentionIntervention("delete", lifetimeRealizedPnl ?? null)) {
+      setRetentionIntent("delete");
+      setRetentionOpen(true);
+      return;
+    }
+    setDeleteOpen(true);
+  }, [lifetimeRealizedPnl]);
+
+  const onRetentionContinue = useCallback(() => {
+    setRetentionOpen(false);
+    if (retentionIntent === "pause") {
+      void handlePause();
+    } else {
+      setDeleteOpen(true);
+    }
+  }, [retentionIntent, handlePause]);
 
   if (!isOpen) return null;
 
@@ -528,7 +573,7 @@ export function BotSettings({
                 </button>
               ) : (
                 <button
-                  onClick={handlePause}
+                  onClick={requestPause}
                   disabled={pauseBusy}
                   className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] disabled:opacity-50"
                   style={{
@@ -578,7 +623,7 @@ export function BotSettings({
                 <span className="font-semibold text-rose-300">This cannot be undone.</span>
               </p>
               <button
-                onClick={() => setDeleteOpen(true)}
+                onClick={requestDelete}
                 className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.02]"
                 style={{
                   backgroundColor: "rgba(239,68,68,0.08)",
@@ -592,6 +637,18 @@ export function BotSettings({
             </div>
           </section>
         </div>
+
+        <RetentionInterventionModal
+          isOpen={retentionOpen}
+          intent={retentionIntent}
+          user={user}
+          exchange={deployment.exchange}
+          exchangeLabel={exchangeLabel}
+          runningDays={runningDays}
+          lifetimeRealizedPnl={lifetimeRealizedPnl ?? null}
+          onKeepRunning={() => setRetentionOpen(false)}
+          onContinueAnyway={onRetentionContinue}
+        />
 
         {deleteOpen && (
           <DeleteConfirm

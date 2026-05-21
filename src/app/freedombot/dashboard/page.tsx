@@ -1018,6 +1018,7 @@ export default function FreedomBotDashboard() {
               keyLastFour: selectedDeployment.keyLastFour ?? null,
               wallet: selectedDeployment.wallet ?? null,
               tradingPrefs: selectedDeployment.tradingPrefs,
+              createdAt: selectedDeployment.createdAt,
             } satisfies SettingsDeployment
           }
           exchangeLabel={
@@ -1031,6 +1032,7 @@ export default function FreedomBotDashboard() {
                 (t.status === "OPEN" || t.status === "open"),
             ).length
           }
+          lifetimeRealizedPnl={tradesAggregates?.lifetimeRealizedPnl ?? null}
           onMutated={handleSettingsMutated}
         />
       )}

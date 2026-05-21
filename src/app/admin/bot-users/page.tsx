@@ -36,6 +36,7 @@ import {
 import { format } from "date-fns";
 import { AdminColumnHeader, AdminInfoTip } from "@/components/admin/AdminInfoTip";
 import { AdminCtaWithInfo } from "@/components/admin/AdminCtaLabel";
+import { RetentionMessagePreviewTip } from "@/components/admin/RetentionMessagePreviewTip";
 import { AdminStatCard, formatUsdtHeadline } from "@/components/admin/AdminStatCard";
 import {
   computeMirroringStatus,
@@ -44,9 +45,20 @@ import {
   type MirroringDisplayStatus,
 } from "@/lib/freedombot/mirroring-status-shared";
 import {
+  buildPauseRetentionHoverText,
+  runningDaysFromFirstDeploy,
+} from "@/lib/freedombot/retention-preview-text";
+import {
   lifetimePnlBand,
   showsPauseRetentionModal,
+  type RetentionExchangeStats,
 } from "@/lib/freedombot/retention-stats-shared";
+
+const EXCHANGE_LABELS: Record<string, string> = {
+  BYBIT: "Bybit",
+  COINDCX: "CoinDCX",
+  HYPERLIQUID: "Hyperliquid",
+};
 
 const ADMIN_EMAIL = "hello@tezterminal.com";
 
@@ -162,6 +174,9 @@ export default function AdminBotUsersPage() {
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState("");
   const [segmentFilter, setSegmentFilter] = useState<SegmentFilter>(null);
+  const [retentionStatsByExchange, setRetentionStatsByExchange] = useState<
+    Record<string, RetentionExchangeStats>
+  >({});
 
   const fetchSummary = useCallback(async () => {
     if (!user) return;
@@ -212,12 +227,29 @@ export default function AdminBotUsersPage() {
     }
   }, [user, botFilter]);
 
+  const fetchRetentionStats = useCallback(async () => {
+    if (!user) return;
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/admin/retention-stats", {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.stats && typeof data.stats === "object") {
+        setRetentionStatsByExchange(data.stats as Record<string, RetentionExchangeStats>);
+      }
+    } catch {
+      // Hover previews fall back to default p90 copy
+    }
+  }, [user]);
+
   useEffect(() => {
     if (isAdmin) {
       void fetchDeployments();
       void fetchSummary();
+      void fetchRetentionStats();
     }
-  }, [isAdmin, fetchDeployments, fetchSummary]);
+  }, [isAdmin, fetchDeployments, fetchSummary, fetchRetentionStats]);
 
   useEffect(() => {
     setSegmentFilter(null);
@@ -696,7 +728,7 @@ export default function AdminBotUsersPage() {
                 <span className="text-right">Lifetime PnL</span>
                 <span className="text-right inline-flex items-center justify-end gap-1">
                   Pause msg
-                  <AdminInfoTip text="FreedomBot dashboard: pause retention modal shows only when lifetime realized PnL is zero or negative. Profitable users skip it; delete always shows the modal first." />
+                  <AdminInfoTip text="Hover a row to read the exact FreedomBot message the user would see on Pause (or why pause is skipped). Profitable rows also include the Delete message." />
                 </span>
                 <span />
               </div>
@@ -718,6 +750,14 @@ export default function AdminBotUsersPage() {
                         : "text-muted-foreground";
                   const pnlBand = lifetimePnlBand(d.lifetimeRealizedPnl);
                   const pauseRetention = showsPauseRetentionModal(d.lifetimeRealizedPnl);
+                  const exchangeLabel = EXCHANGE_LABELS[d.exchange] ?? d.exchange;
+                  const pauseHoverText = buildPauseRetentionHoverText({
+                    exchangeLabel,
+                    runningDays: runningDaysFromFirstDeploy(d.firstDeployedAt),
+                    lifetimeRealizedPnl: d.lifetimeRealizedPnl,
+                    pnlCurrency: d.pnlCurrency,
+                    stats: retentionStatsByExchange[d.exchange] ?? null,
+                  });
                   const mirroring =
                     d.mirroringStatus && d.mirroringLabel
                       ? { status: d.mirroringStatus, label: d.mirroringLabel }
@@ -808,37 +848,42 @@ export default function AdminBotUsersPage() {
                           })}{" "}
                           <span className="text-[10px] font-semibold text-muted-foreground">{d.pnlCurrency}</span>
                         </div>
-                        <div className="text-right space-y-0.5">
-                          <div className="flex items-center justify-end gap-2 lg:block">
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50 lg:hidden">
-                              Pause msg
-                            </span>
-                            <span
-                              className={cn(
-                                "text-[9px] font-black uppercase tracking-wide",
-                                pnlBand === "profitable"
-                                  ? "text-emerald-400"
+                        <RetentionMessagePreviewTip
+                          text={pauseHoverText}
+                          className="text-right w-full"
+                        >
+                          <div className="space-y-0.5">
+                            <div className="flex items-center justify-end gap-2 lg:block">
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50 lg:hidden">
+                                Pause msg
+                              </span>
+                              <span
+                                className={cn(
+                                  "text-[9px] font-black uppercase tracking-wide underline decoration-dotted decoration-muted-foreground/40 underline-offset-2",
+                                  pnlBand === "profitable"
+                                    ? "text-emerald-400"
+                                    : pnlBand === "drawdown"
+                                      ? "text-rose-400"
+                                      : "text-muted-foreground",
+                                )}
+                              >
+                                {pnlBand === "profitable"
+                                  ? "Profitable"
                                   : pnlBand === "drawdown"
-                                    ? "text-rose-400"
-                                    : "text-muted-foreground",
+                                    ? "Drawdown"
+                                    : "Breakeven"}
+                              </span>
+                            </div>
+                            <div
+                              className={cn(
+                                "text-[10px] font-bold",
+                                pauseRetention ? "text-amber-400/90" : "text-muted-foreground/50",
                               )}
                             >
-                              {pnlBand === "profitable"
-                                ? "Profitable"
-                                : pnlBand === "drawdown"
-                                  ? "Drawdown"
-                                  : "Breakeven"}
-                            </span>
+                              {pauseRetention ? "Hover → message" : "Hover → skip + delete"}
+                            </div>
                           </div>
-                          <div
-                            className={cn(
-                              "text-[10px] font-bold",
-                              pauseRetention ? "text-amber-400/90" : "text-muted-foreground/50",
-                            )}
-                          >
-                            {pauseRetention ? "Shows" : "Skips"}
-                          </div>
-                        </div>
+                        </RetentionMessagePreviewTip>
                       </Link>
                       <div className="flex items-center justify-center px-3 lg:px-2 shrink-0 border-l border-white/[0.04]">
                         <button

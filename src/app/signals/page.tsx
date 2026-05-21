@@ -46,6 +46,8 @@ import { AUTO_FILTER_THRESHOLD, type ScoredSignal } from "@/lib/auto-filter";
 import { PatternBadge, type PatternType } from "@/components/ui/pattern-badge";
 import { useSubscription } from "@/hooks/use-subscription";
 import { DEFAULT_PLANS, FREE_TRIAL_DAYS } from "@/lib/subscription";
+import { isAdminEmail } from "@/lib/admin-emails-client";
+import { SignalRetireControls } from "@/components/signals/SignalRetireControls";
 
 const TIMEFRAME_OPTIONS = [
   { id: "all", label: "All" },
@@ -556,6 +558,8 @@ export default function SignalsPage() {
     photo: user?.photoURL,
   });
 
+  const isAdmin = isAdminEmail(user?.email);
+
   useEffect(() => {
     trackSignalsPageView();
   }, []);
@@ -651,13 +655,17 @@ export default function SignalsPage() {
   const [filterCfgData, setFilterCfgData] = useState<any>(null);
   const [biasData, setBiasData] = useState<any>(null);
 
-  useEffect(() => {
+  const refreshSignals = useCallback(() => {
     if (!firestore || !user) return;
     setSignalsLoading(true);
     getDocs(query(collection(firestore, "signals"), orderBy("receivedAt", "desc"), limit(200)))
-      .then(snap => setRawSignals(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+      .then((snap) => setRawSignals(snap.docs.map((d) => ({ id: d.id, ...d.data() }))))
       .finally(() => setSignalsLoading(false));
   }, [firestore, user]);
+
+  useEffect(() => {
+    refreshSignals();
+  }, [refreshSignals]);
 
   useEffect(() => {
     if (!firestore || !user) return;
@@ -929,7 +937,10 @@ export default function SignalsPage() {
                     Bears {!isLoading && `(${bearCount})`}
                   </button>
                 </div>
-              <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
+              <div className="flex items-center gap-1.5 lg:gap-2 shrink-0 flex-wrap justify-end">
+              {isAdmin && (
+                <SignalRetireControls assetType={assetType} onRetired={refreshSignals} />
+              )}
               <Popover>
                 <PopoverTrigger asChild>
                   <button className="flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/10 bg-white/[0.04] text-muted-foreground hover:bg-white/[0.08] hover:text-foreground transition-all cursor-pointer">

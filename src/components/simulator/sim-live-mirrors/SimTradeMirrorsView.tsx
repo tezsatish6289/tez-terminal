@@ -12,8 +12,8 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { ArrowLeft, ExternalLink, Loader2, ShieldAlert, Users } from "lucide-react";
 import { format } from "date-fns";
 import type { SimTrade } from "@/lib/simulator";
-
-const ADMIN_EMAIL = "hello@tezterminal.com";
+import { isAdminEmail } from "@/lib/admin-emails-client";
+import { MirrorPageKillSwitch } from "@/components/simulator/MirrorPageKillSwitch";
 
 interface Analytics {
   userCount: number;
@@ -25,7 +25,7 @@ interface Analytics {
 
 export function SimTradeMirrorsView({ simTradeId }: { simTradeId: string }) {
   const { user, isUserLoading } = useUser();
-  const isAdmin = user?.email === ADMIN_EMAIL;
+  const isAdmin = isAdminEmail(user?.email);
 
   const [simTrade, setSimTrade] = useState<SimTrade | null>(null);
   const [mirrors, setMirrors] = useState<LiveMirrorTrade[]>([]);
@@ -150,6 +150,12 @@ export function SimTradeMirrorsView({ simTradeId }: { simTradeId: string }) {
                   ? format(new Date(simTrade.openedAt), "MMM d, yyyy h:mm a")
                   : "—"}
               </p>
+              <div className="mt-4">
+                <MirrorPageKillSwitch
+                  simTradeIds={[simTradeId]}
+                  onClosed={() => void fetchData()}
+                />
+              </div>
             </header>
 
             {analytics && (

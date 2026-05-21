@@ -72,6 +72,7 @@ import { TabErrorBoundary } from "@/components/error/TabErrorBoundary";
 import { SimulatorToolbar } from "@/components/simulator/SimulatorToolbar";
 import { SimulatorMainPanel } from "@/components/simulator/SimulatorMainPanel";
 import { OpenPositionsPanel } from "@/components/simulator/OpenPositionsPanel";
+import { SimForceCloseDialog } from "@/components/simulator/SimForceCloseDialog";
 import { SIM_CARD, SIM_PANEL } from "@/components/simulator/simulator-surfaces";
 
 // Defensive against legacy trade docs missing newer fields
@@ -757,62 +758,6 @@ function Paginator({ page, total, pageSize, onChange, activeClass = "bg-accent/2
         </button>
       </div>
     </div>
-  );
-}
-
-// ── Force-close dialog with safety phrase ────────────────────
-const SAFETY_PHRASE = "I am an idiot";
-
-function ForceCloseDialog({ trade, onForceClose, children }: { trade: SimTrade; onForceClose: (t: SimTrade) => void; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const [phrase, setPhrase] = useState("");
-  const confirmed = phrase === SAFETY_PHRASE;
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setPhrase(""); }}>
-      <DialogTrigger asChild onClick={(e) => e.stopPropagation()}>
-        {children}
-      </DialogTrigger>
-      <DialogContent className="bg-[#1a1a1e] border-white/10 max-w-sm" onClick={(e) => e.stopPropagation()}>
-        <DialogHeader>
-          <DialogTitle className="text-white flex items-center gap-2">
-            <XCircle className="w-4 h-4 text-rose-400" /> Force Close Trade
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-1">
-          <p className="text-[12px] text-muted-foreground">
-            You are about to force-close{" "}
-            <span className="text-white font-bold">{trade.symbol}</span>{" "}
-            ({trade.side}) at market price. This will also close any linked live trade on the exchange.
-          </p>
-          <div className="space-y-2">
-            <p className="text-[11px] text-muted-foreground/60">
-              Type <span className="font-mono font-bold text-rose-400">"{SAFETY_PHRASE}"</span> to confirm:
-            </p>
-            <Input
-              value={phrase}
-              onChange={(e) => setPhrase(e.target.value)}
-              placeholder={SAFETY_PHRASE}
-              className="bg-white/[0.03] border-white/10 text-white placeholder:text-muted-foreground/30 font-mono text-[12px]"
-              autoFocus
-            />
-          </div>
-          <div className="flex gap-2 justify-end pt-1">
-            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => { setOpen(false); setPhrase(""); }}>
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              disabled={!confirmed}
-              onClick={() => { onForceClose(trade); setOpen(false); setPhrase(""); }}
-              className="bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-30"
-            >
-              Force Close
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -1619,7 +1564,7 @@ function DesktopTradeRow({
           <div className="flex items-center gap-1.5">
             <Badge className="text-[9px] font-black h-5 uppercase px-2 bg-accent/15 text-accent">Open</Badge>
             {onForceClose && (
-              <ForceCloseDialog trade={trade} onForceClose={onForceClose}>
+              <SimForceCloseDialog trade={trade} onConfirm={() => onForceClose(trade)}>
                 <button
                   onClick={(e) => e.stopPropagation()}
                   className="h-5 w-5 flex items-center justify-center rounded hover:bg-rose-500/20 text-muted-foreground/30 hover:text-rose-400 transition-colors"
@@ -1627,7 +1572,7 @@ function DesktopTradeRow({
                 >
                   <XCircle className="h-3.5 w-3.5" />
                 </button>
-              </ForceCloseDialog>
+              </SimForceCloseDialog>
             )}
           </div>
         ) : (
@@ -1722,14 +1667,14 @@ function MobileTradeCard({ trade, onSelect, onForceClose, cs, balance, startingC
                 <>
                   <Badge className="text-[9px] font-black h-5 uppercase px-2 bg-accent/15 text-accent">Open</Badge>
                   {onForceClose && (
-                    <ForceCloseDialog trade={trade} onForceClose={onForceClose}>
+                    <SimForceCloseDialog trade={trade} onConfirm={() => onForceClose(trade)}>
                       <button
                         onClick={(e) => e.stopPropagation()}
                         className="h-5 px-1.5 flex items-center gap-1 rounded text-[9px] font-bold text-rose-400/50 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                       >
                         <XCircle className="h-3 w-3" /> Close
                       </button>
-                    </ForceCloseDialog>
+                    </SimForceCloseDialog>
                   )}
                 </>
               ) : (

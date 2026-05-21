@@ -11,8 +11,8 @@ import type { LiveMirrorTrade } from "@/lib/admin/live-mirror-display";
 import { cn } from "@/lib/utils";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, ExternalLink, Loader2, ShieldAlert, Users } from "lucide-react";
-
-const ADMIN_EMAIL = "hello@tezterminal.com";
+import { isAdminEmail } from "@/lib/admin-emails-client";
+import { MirrorPageKillSwitch } from "@/components/simulator/MirrorPageKillSwitch";
 
 interface ExchangeUser {
   userId: string;
@@ -35,7 +35,7 @@ export function ExchangeMirrorsView({ exchange }: { exchange: string }) {
   );
 
   const { user, isUserLoading } = useUser();
-  const isAdmin = user?.email === ADMIN_EMAIL;
+  const isAdmin = isAdminEmail(user?.email);
 
   const [users, setUsers] = useState<ExchangeUser[]>([]);
   const [analytics, setAnalytics] = useState<{
@@ -136,6 +136,13 @@ export function ExchangeMirrorsView({ exchange }: { exchange: string }) {
             Open mirrors from current sim book · {simTradeIds.length} sim position
             {simTradeIds.length !== 1 ? "s" : ""}
           </p>
+          <div className="mt-4">
+            <MirrorPageKillSwitch
+              simTradeIds={simTradeIds}
+              exchangeLabel={exchange}
+              onClosed={() => void fetchData()}
+            />
+          </div>
         </header>
 
         {loading ? (

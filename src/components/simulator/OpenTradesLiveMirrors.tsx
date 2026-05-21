@@ -7,13 +7,13 @@ import type {
   ExchangeMirrorSummary,
   LiveMirrorTrade,
 } from "@/lib/admin/live-mirror-display";
+import { isAdminEmail } from "@/lib/admin-emails-client";
+import { cn } from "@/lib/utils";
 import { ChevronRight, Loader2 } from "lucide-react";
-
-const ADMIN_EMAIL = "hello@tezterminal.com";
 
 export function useOpenTradesMirrors(simTradeIds: string[], enabled: boolean) {
   const { user } = useUser();
-  const isAdmin = user?.email === ADMIN_EMAIL;
+  const isAdmin = isAdminEmail(user?.email);
   const [mirrorsBySimTradeId, setMirrorsBySimTradeId] = useState<
     Record<string, LiveMirrorTrade[]>
   >({});
@@ -123,7 +123,7 @@ export function LiveMirrorExchangeBar({
   );
 }
 
-/** Clickable badge under symbol — opens per-trade mirror detail page. */
+/** Clickable badge on open cards — opens per-trade live user mirror list. */
 export function LiveMirrorSymbolLink({
   simTradeId,
   mirrorCount,
@@ -131,15 +131,21 @@ export function LiveMirrorSymbolLink({
   simTradeId: string;
   mirrorCount: number;
 }) {
-  if (mirrorCount === 0 || !simTradeId) return null;
+  if (!simTradeId) return null;
 
   return (
     <Link
       href={`/simulation/mirrors/${simTradeId}`}
       onClick={(e) => e.stopPropagation()}
-      className="inline-flex items-center gap-0.5 text-[9px] font-mono font-bold text-accent/80 hover:text-accent mt-0.5"
+      title="Live user trades mirrored to exchanges for this signal"
+      className={cn(
+        "inline-flex items-center gap-0.5 text-[9px] font-mono font-bold mt-0.5",
+        mirrorCount > 0
+          ? "text-accent/80 hover:text-accent"
+          : "text-muted-foreground/45 hover:text-muted-foreground/70",
+      )}
     >
-      {mirrorCount} live
+      {mirrorCount} live user{mirrorCount === 1 ? "" : "s"}
       <ChevronRight className="h-2.5 w-2.5" />
     </Link>
   );

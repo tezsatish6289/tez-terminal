@@ -14,6 +14,18 @@ import {
   SIM_CARD_INTERACTIVE,
   SIM_SLOT_EMPTY,
 } from "@/components/simulator/simulator-surfaces";
+import {
+  LiveMirrorExchangeBar,
+  LiveMirrorSymbolLink,
+} from "@/components/simulator/OpenTradesLiveMirrors";
+import type {
+  ExchangeMirrorSummary,
+  LiveMirrorTrade,
+} from "@/lib/admin/live-mirror-display";
+
+function simTradeIdFor(trade: SimTrade): string {
+  return trade.id ?? (trade.signalId ? `sim-${trade.signalId}` : "");
+}
 
 const tfLabelMap: Record<string, string> = {
   "5": "5m",
@@ -54,18 +66,38 @@ export function OpenPositionsPanel({
   cs,
   onSelectTrade,
   onForceClose,
+  showMirrorUi = false,
+  mirrorsBySimTradeId = {},
+  exchangeSummary = [],
+  mirrorsLoading = false,
+  mirrorsError = null,
+  openSimTradeIds = [],
 }: {
   trades: SimTrade[];
   maxSlots: number;
   cs: string;
   onSelectTrade: (t: SimTrade) => void;
   onForceClose?: (t: SimTrade) => void;
+  showMirrorUi?: boolean;
+  mirrorsBySimTradeId?: Record<string, LiveMirrorTrade[]>;
+  exchangeSummary?: ExchangeMirrorSummary[];
+  mirrorsLoading?: boolean;
+  mirrorsError?: string | null;
+  openSimTradeIds?: string[];
 }) {
   const slots = Math.min(Math.max(maxSlots, 1), 6);
   const emptyCount = Math.max(0, slots - trades.length);
 
   return (
     <div className="space-y-4">
+      {showMirrorUi && (
+        <LiveMirrorExchangeBar
+          exchangeSummary={exchangeSummary}
+          loading={mirrorsLoading}
+          error={mirrorsError}
+          simTradeIds={openSimTradeIds}
+        />
+      )}
       <div className="flex items-center justify-between gap-2 px-0.5">
         <p className="text-[10px] text-muted-foreground/50 max-w-md">
           Up to <span className="text-foreground/70 font-bold">{slots}</span>{" "}
@@ -86,15 +118,22 @@ export function OpenPositionsPanel({
             : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5",
         )}
       >
-        {trades.map((trade) => (
-          <OpenPositionCard
-            key={trade.id ?? trade.signalId}
-            trade={trade}
-            cs={cs}
-            onSelect={() => onSelectTrade(trade)}
-            onForceClose={onForceClose ? () => onForceClose(trade) : undefined}
-          />
-        ))}
+        {trades.map((trade) => {
+          const simId = simTradeIdFor(trade);
+          const mirrorCount = simId ? (mirrorsBySimTradeId[simId]?.length ?? 0) : 0;
+          return (
+            <OpenPositionCard
+              key={trade.id ?? trade.signalId}
+              trade={trade}
+              cs={cs}
+              onSelect={() => onSelectTrade(trade)}
+              onForceClose={onForceClose ? () => onForceClose(trade) : undefined}
+              simTradeId={simId}
+              mirrorCount={mirrorCount}
+              showMirrorUi={showMirrorUi}
+            />
+          );
+        })}
         {Array.from({ length: emptyCount }).map((_, i) => (
           <EmptySlot key={`empty-${i}`} index={trades.length + i + 1} />
         ))}
@@ -133,11 +172,17 @@ function OpenPositionCard({
   cs,
   onSelect,
   onForceClose,
+  simTradeId = "",
+  mirrorCount = 0,
+  showMirrorUi = false,
 }: {
   trade: SimTrade;
   cs: string;
   onSelect: () => void;
   onForceClose?: () => void;
+  simTradeId?: string;
+  mirrorCount?: number;
+  showMirrorUi?: boolean;
 }) {
   const isBuy = trade.side === "BUY";
   const pnl = trade.unrealizedPnl ?? 0;
@@ -262,9 +307,17 @@ function OpenPositionCard({
               {tp.hit ? " ✓" : ""}
             </span>
           ))}
-          <span className="ml-auto text-[9px] font-bold text-accent/80">
-            {trade.confidenceScore}
-          </span>
+          <div className="ml-auto flex flex-col items-end gap-0.5">
+            {showMirrorUi && (
+              <LiveMirrorSymbolLink simTradeId={simTradeId} mirrorCount={mirrorCount} />
+            )}
+            <span
+              className="text-[9px] font-bold text-accent/80"
+              title="Entry confidence score"
+            >
+              Score {trade.confidenceScore}
+            </span>
+          </div>
         </div>
       </div>
     </button>

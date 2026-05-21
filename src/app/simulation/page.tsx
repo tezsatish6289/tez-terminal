@@ -347,6 +347,23 @@ export default function SimulationPage() {
     }
   }, [user, forceClosing, refresh, fetchHistPage, refetchLogs]);
 
+  const openSimTradeIds = useMemo(
+    () =>
+      tab === "overview"
+        ? openTrades
+            .map((t) => t.id ?? (t.signalId ? `sim-${t.signalId}` : ""))
+            .filter(Boolean)
+        : [],
+    [openTrades, tab],
+  );
+  const {
+    isAdmin: mirrorAdmin,
+    mirrorsBySimTradeId,
+    exchangeSummary,
+    loading: mirrorsLoading,
+    error: mirrorsError,
+  } = useOpenTradesMirrors(openSimTradeIds, tab === "overview");
+
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.replace("/");
@@ -431,6 +448,12 @@ export default function SimulationPage() {
                     cs={cs}
                     onSelectTrade={setSelectedTrade}
                     onForceClose={handleForceClose}
+                    showMirrorUi={mirrorAdmin}
+                    mirrorsBySimTradeId={mirrorsBySimTradeId}
+                    exchangeSummary={exchangeSummary}
+                    mirrorsLoading={mirrorsLoading}
+                    mirrorsError={mirrorsError}
+                    openSimTradeIds={openSimTradeIds}
                   />
                 )}
 

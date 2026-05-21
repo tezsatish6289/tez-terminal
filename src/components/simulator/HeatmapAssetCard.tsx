@@ -475,6 +475,7 @@ function ZoneClusterTile({
   const actionable = isBull ? suggested.bullActionable : suggested.bearActionable;
   const oi = isBull ? suggested.bullOI : suggested.bearOI;
   const share = isBull ? suggested.bullClusterShare : suggested.bearClusterShare;
+  const locked = isBull ? suggested.bullLocked : suggested.bearLocked;
 
   const hasZone = low != null && high != null;
   const idle = hasZone && actionable === false;
@@ -504,7 +505,12 @@ function ZoneClusterTile({
         >
           {isBull ? "Bull" : "Bear"}
         </span>
-        {share != null && share > 0 && (
+        {locked && (
+          <span className="text-[7px] font-bold uppercase text-amber-300/80 ml-auto shrink-0">
+            locked
+          </span>
+        )}
+        {!locked && share != null && share > 0 && (
           <span
             className={cn(
               "text-[7px] font-bold px-1 py-0.5 rounded ml-auto shrink-0",
@@ -516,7 +522,7 @@ function ZoneClusterTile({
             {Math.round(share * 100)}% OI
           </span>
         )}
-        {idle && share == null && (
+        {!locked && idle && share == null && (
           <span className="text-[7px] font-bold uppercase text-muted-foreground/50 ml-auto">
             idle
           </span>

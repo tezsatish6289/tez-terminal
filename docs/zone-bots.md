@@ -16,8 +16,10 @@ For each of the 4 coins:
 1. Every 15 min, a single cron loops all coins. Per coin:
    1. Pull Deribit OI → compute bull/bear strikes, max-pain values, TPs
       (re-uses `computeOptionsZones`).
-   2. Filter strikes within `maxPainMinDistanceUsd` of day-0 max pain
-      (already done by `options-zones`).
+   2. Zone picker (`options-zones`): potent walls **near** day-0 max pain
+      (anchor span ~2.5% spot / 2.5× IV reach), absolute OI floor per
+      asset, highest OI then closest to pin; bull below / bear above max
+      pain; **sticky** bands while spot stays inside the published range.
    3. Persist suggested zones for the coin.
    4. Append the latest spot to a rolling price-history window.
    5. Run zone-confirmation check (15 min default, configurable per coin):

@@ -37,11 +37,15 @@
  *           — capped  at 2% × spot (so SL distance ≤ 3%, the engine's limit)
  *
  *   4. Aggregate OI per strike across ALL expiries (no day-weighting).
- *      Within the reach band, find "big clusters" — strikes that hold
- *      ≥ 25% of the OI on their side. These are the genuine walls.
  *
- *   5. Pick the closest big cluster on each side of spot. If no big
- *      cluster exists in reach → return null for that side. No zone.
+ *   5. Pick the **most potent** cluster on each side, **anchored near
+ *      day-0 max pain** (not far-away structural walls):
+ *        bull (puts):  below maxPain, within an anchor span under the pin
+ *        bear (calls): above maxPain, within an anchor span over the pin
+ *      Potency = OI ≥ per-asset floor AND ≥ 25% of pool max in window.
+ *      Priority: highest OI, then closest to max pain.
+ *      Bands must sandwich the pin; min gap = max(2×halfWidth, configured).
+ *      Sticky: while spot stays inside a published band, keep that band.
  *
  *   6. Today's max pain (day-0 only) is the magnet. Directional gate:
  *        bullActionable: maxPain > spot + MIN_PIN_GAP
@@ -82,6 +86,10 @@
  */
 
 import type { ZoneBotAsset } from "./zone-bot-config";
+import {
+  applyStickyZones,
+  type ZoneBandSnapshot,
+} from "./options-zone-sticky";
 
 const DERIBIT_API = "https://www.deribit.com/api/v2/public";
 
@@ -90,11 +98,11 @@ const DERIBIT_API = "https://www.deribit.com/api/v2/public";
 // Every value here has a stated derivation or empirical anchor. None of
 // them are tuning knobs picked by gut.
 
-/** A strike qualifies as a "big cluster" if its OI ≥ this fraction of the
- *  tallest OI bar on its side within the reach band. 25% means at minimum
- *  the strike holds more OI than a 4-way even split — a real concentration,
- *  not noise. */
+/** Secondary potency: OI ≥ this fraction of the tallest bar in the anchor window. */
 const MIN_CLUSTER_PCT_OF_MAX = 0.25;
+
+/** Max distance from day-0 max pain for zone-center search (also IV-scaled). */
+const MAX_PAIN_ANCHOR_REACH_MULT = 2.5;
 
 /** Reach gate = 1-σ daily move. 68% probability price visits any strike
  *  inside this band today. Sourced from the market's own IV pricing. */
@@ -137,6 +145,16 @@ const MIN_PIN_GAP_PCT_OF_HALFWIDTH = 0.5;
  *  $77.5k even though the 1.97× ratio was perfectly tradeable. */
 const TP_ROOM_PCT_OF_HALFWIDTH = 2.0;
 
+/** Strike ↔ max-pain gap: max(2 × halfWidth, operator-configured floor).
+ *  Same rule as TP-room and manual punch gate — one number, three uses. */
+export function effectiveMaxPainMinDistanceUsd(
+  halfWidthUsd: number,
+  configured: number,
+): number {
+  if (configured <= 0) return 0;
+  return Math.max(TP_ROOM_PCT_OF_HALFWIDTH * halfWidthUsd, configured);
+}
+
 /** Panic regime: ATM IV at or above this triggers "no fresh entries" mode.
  *  Calibrated to BTC: 30–50% is normal, 70%+ has historically marked event
  *  days (FTX collapse, COVID flush, LUNA, etc.). */
@@ -167,6 +185,10 @@ interface AssetSpec {
   yearDays: number;
   /** Index endpoint name. Deribit uses `btc_usd`, `eth_usd`, `sol_usdc`. */
   indexEndpoint: string;
+  /** Minimum all-expiry OI (contracts) at a strike to count as a wall. */
+  minClusterOi: number;
+  /** Max zone-center distance from max pain as % of spot (anchor window). */
+  maxPainAnchorPct: number;
 }
 
 const ASSET_SPEC: Record<ZoneBotAsset, AssetSpec> = {
@@ -175,18 +197,24 @@ const ASSET_SPEC: Record<ZoneBotAsset, AssetSpec> = {
     strikeGridUsd:   500,
     yearDays:        365,
     indexEndpoint:   "btc_usd",
+    minClusterOi:    1000,
+    maxPainAnchorPct: 0.028,
   },
   eth: {
     deribitCurrency: "ETH",
     strikeGridUsd:   50,
     yearDays:        365,
     indexEndpoint:   "eth_usd",
+    minClusterOi:    200,
+    maxPainAnchorPct: 0.035,
   },
   sol: {
     deribitCurrency: "SOL",
     strikeGridUsd:   5,
     yearDays:        365,
     indexEndpoint:   "sol_usdc",
+    minClusterOi:    50,
+    maxPainAnchorPct: 0.04,
   },
 };
 
@@ -250,6 +278,11 @@ export interface OptionsZones {
   bullOI:            number | null;        // all-expiry OI at chosen bull strike
   bearOI:            number | null;        // all-expiry OI at chosen bear strike
   insufficientGap:   boolean;
+  /** USD span used to search for walls near day-0 max pain. */
+  maxPainAnchorSpanUsd: number;
+  /** Prior band held because spot is still inside it. */
+  bullLocked: boolean;
+  bearLocked: boolean;
   btcPrice:          number;               // input spot (kept name for back-compat)
   deribitIndexPrice: number | null;
   computedAt:        string;
@@ -440,52 +473,105 @@ interface ClusterPick {
 }
 
 interface ClusterPickInput {
-  oiByStrike:           Map<number, number>;
-  spot:                 number;
-  side:                 "put" | "call";
-  maxReachUsd:          number;
-  day0MaxPain:          number | null;
+  oiByStrike:            Map<number, number>;
+  spot:                  number;
+  side:                  "put" | "call";
+  maxReachUsd:           number;
+  zoneHalfWidthUsd:      number;
+  day0MaxPain:           number | null;
   maxPainMinDistanceUsd: number;
+  minClusterOi:          number;
+  maxPainAnchorSpanUsd:  number;
 }
 
-function pickClosestBigCluster(input: ClusterPickInput): ClusterPick | null {
-  const { oiByStrike, spot, side, maxReachUsd, day0MaxPain, maxPainMinDistanceUsd } = input;
+function deriveMaxPainAnchorSpan(
+  spot: number,
+  maxReachUsd: number,
+  anchorPct: number,
+): number {
+  return Math.max(
+    maxReachUsd * MAX_PAIN_ANCHOR_REACH_MULT,
+    spot * anchorPct,
+    800,
+  );
+}
 
-  // 1. Restrict to same-side, in-reach strikes.
-  const sameSide = [...oiByStrike.entries()].filter(([strike]) => {
-    const correctSide = side === "put" ? strike < spot : strike > spot;
-    const inReach     = Math.abs(strike - spot) <= maxReachUsd;
-    return correctSide && inReach;
+function filterPotentNearMaxPain(
+  input: ClusterPickInput,
+  anchorSpanUsd: number,
+): Array<[number, number]> {
+  const {
+    oiByStrike,
+    side,
+    zoneHalfWidthUsd,
+    day0MaxPain,
+    maxPainMinDistanceUsd,
+    minClusterOi,
+  } = input;
+  const half = zoneHalfWidthUsd;
+  const mpGap = maxPainMinDistanceUsd > 0 ? maxPainMinDistanceUsd : 0;
+
+  if (day0MaxPain == null) return [];
+
+  const pool = [...oiByStrike.entries()].filter(([strike, oi]) => {
+    if (oi <= 0) return false;
+
+    if (side === "put") {
+      const upper = day0MaxPain - mpGap;
+      const lower = day0MaxPain - anchorSpanUsd;
+      if (strike >= upper) return false;
+      if (strike < lower) return false;
+      if (strike + half >= day0MaxPain) return false;
+      return true;
+    }
+
+    const lower = day0MaxPain + mpGap;
+    const upper = day0MaxPain + anchorSpanUsd;
+    if (strike <= lower) return false;
+    if (strike > upper) return false;
+    if (strike - half <= day0MaxPain) return false;
+    return true;
   });
 
-  // 2. Optional max-pain-proximity filter (kept per user request). Drops
-  //    candidate strikes too close to today's max-pain — that region has
-  //    erratic price action where MMs hedge through the strike.
-  const filtered = day0MaxPain !== null && maxPainMinDistanceUsd > 0
-    ? sameSide.filter(([strike]) => Math.abs(strike - day0MaxPain) > maxPainMinDistanceUsd)
-    : sameSide;
+  if (!pool.length) return [];
 
-  if (!filtered.length) return null;
+  const poolMax = pool.reduce((m, [, oi]) => Math.max(m, oi), 0);
+  const relThreshold = MIN_CLUSTER_PCT_OF_MAX * poolMax;
+  return pool.filter(([, oi]) => oi >= minClusterOi && oi >= relThreshold);
+}
 
-  // 3. Big cluster = ≥ MIN_CLUSTER_PCT_OF_MAX of the tallest bar on this side.
-  const sideMax = filtered.reduce((m, [, oi]) => Math.max(m, oi), 0);
-  if (sideMax <= 0) return null;
+function pickPotentClusterNearMaxPain(
+  input: ClusterPickInput,
+): ClusterPick | null {
+  const { oiByStrike, day0MaxPain, maxPainAnchorSpanUsd } = input;
+  if (day0MaxPain == null) return null;
 
-  const sideTotal  = filtered.reduce((s, [, oi]) => s + oi, 0);
-  const threshold  = MIN_CLUSTER_PCT_OF_MAX * sideMax;
-  const big        = filtered.filter(([, oi]) => oi >= threshold);
-  if (!big.length) return null;
+  const tryPick = (span: number): ClusterPick | null => {
+    const potent = filterPotentNearMaxPain(input, span);
+    if (!potent.length) return null;
 
-  // 4. Among big clusters, pick the one closest to spot.
-  const [chosenStrike, chosenOi] = big.reduce((best, cur) =>
-    Math.abs(cur[0] - spot) < Math.abs(best[0] - spot) ? cur : best,
-  );
+    const sideTotal = [...oiByStrike.entries()].reduce((s, [, oi]) => s + oi, 0);
+    const [chosenStrike, chosenOi] = potent.reduce((best, cur) => {
+      const [, bestOi] = best;
+      const [, curOi] = cur;
+      if (curOi > bestOi) return cur;
+      if (curOi < bestOi) return best;
+      const bestDist = Math.abs(best[0] - day0MaxPain);
+      const curDist = Math.abs(cur[0] - day0MaxPain);
+      return curDist < bestDist ? cur : best;
+    });
 
-  return {
-    strike:      chosenStrike,
-    oi:          chosenOi,
-    shareOfSide: sideTotal > 0 ? chosenOi / sideTotal : 0,
+    return {
+      strike: chosenStrike,
+      oi: chosenOi,
+      shareOfSide: sideTotal > 0 ? chosenOi / sideTotal : 0,
+    };
   };
+
+  return (
+    tryPick(maxPainAnchorSpanUsd) ??
+    tryPick(maxPainAnchorSpanUsd * 1.75)
+  );
 }
 
 // ── Main entry point ──────────────────────────────────────────────────────
@@ -496,6 +582,8 @@ export interface ComputeOptionsZonesInput {
   /** Override default max-pain-min-distance filter. null → default (= 2 ×
    *  derived halfWidth). 0 → disable filter. */
   maxPainMinDistanceUsd?: number | null;
+  /** Prior published bands — enables sticky zones while spot is in-band. */
+  previousBands?: ZoneBandSnapshot | null;
 }
 
 export async function computeOptionsZones(
@@ -525,6 +613,13 @@ export async function computeOptionsZones(
     expiryUsed: null, expiriesUsed: [], expiryOI: null,
     bullOI: null, bearOI: null,
     insufficientGap: false,
+    maxPainAnchorSpanUsd: deriveMaxPainAnchorSpan(
+      spot,
+      sizes.maxReachUsd,
+      spec.maxPainAnchorPct,
+    ),
+    bullLocked: false,
+    bearLocked: false,
     btcPrice: currentPrice, deribitIndexPrice,
     computedAt: new Date().toISOString(),
   });
@@ -569,16 +664,20 @@ export async function computeOptionsZones(
   const sizes           = deriveSizes(spot, atmIV, asset);
   const ivBackwardation = computeIvBackwardation(itemsByExpiry, spot, nowMs);
 
-  // ── Default max-pain-min-distance scales with halfWidth ──────────────
-  // User can still override via `input.maxPainMinDistanceUsd`. null = default.
-  const maxPainMinDistanceUsd = (() => {
+  // ── Max-pain min distance: max(2 × halfWidth, configured) ───────────
+  // null → configured defaults to 2×halfWidth; 0 → disable proximity filter.
+  const configuredMpMinDist = (() => {
     const raw = input.maxPainMinDistanceUsd;
     if (raw === undefined || raw === null) {
-      return 2 * sizes.halfWidthUsd; // default: 2 × halfWidth
+      return 2 * sizes.halfWidthUsd;
     }
-    if (raw <= 0) return 0; // explicit opt-out
+    if (raw <= 0) return 0;
     return raw;
   })();
+  const maxPainMinDistanceUsd = effectiveMaxPainMinDistanceUsd(
+    sizes.halfWidthUsd,
+    configuredMpMinDist,
+  );
 
   // ── Max-pain per expiry (still useful for UI table) ──────────────────
   // Use day-0, day-1, day-2 expiries within the 7-day window for the
@@ -619,36 +718,76 @@ export async function computeOptionsZones(
     map.set(p.strike, (map.get(p.strike) ?? 0) + p.oi);
   }
 
-  // ── Pick zones (closest big cluster per side) ────────────────────────
-  const bullPick = pickClosestBigCluster({
-    oiByStrike:           putOIByStrike,
+  const maxPainAnchorSpanUsd = deriveMaxPainAnchorSpan(
     spot,
-    side:                 "put",
-    maxReachUsd:          sizes.maxReachUsd,
+    sizes.maxReachUsd,
+    spec.maxPainAnchorPct,
+  );
+
+  const pickInput = (side: "put" | "call", map: Map<number, number>) => ({
+    oiByStrike: map,
+    spot,
+    side,
+    maxReachUsd: sizes.maxReachUsd,
+    zoneHalfWidthUsd: sizes.halfWidthUsd,
     day0MaxPain,
     maxPainMinDistanceUsd,
+    minClusterOi: spec.minClusterOi,
+    maxPainAnchorSpanUsd,
   });
 
-  const bearPick = pickClosestBigCluster({
-    oiByStrike:           callOIByStrike,
-    spot,
-    side:                 "call",
-    maxReachUsd:          sizes.maxReachUsd,
-    day0MaxPain,
-    maxPainMinDistanceUsd,
-  });
+  const bullPick = pickPotentClusterNearMaxPain(pickInput("put", putOIByStrike));
+  const bearPick = pickPotentClusterNearMaxPain(pickInput("call", callOIByStrike));
 
-  // ── Bands ─────────────────────────────────────────────────────────────
+  // ── Bands (fresh scan) ────────────────────────────────────────────────
   const half = sizes.halfWidthUsd;
-  const bullStrike    = bullPick?.strike ?? null;
-  const bullZoneLow   = bullStrike !== null ? bullStrike - half : null;
-  const bullZoneHigh  = bullStrike !== null ? bullStrike + half : null;
-  const bullExitAbove = bullZoneHigh;
+  let bullStrike    = bullPick?.strike ?? null;
+  let bullZoneLow   = bullStrike !== null ? bullStrike - half : null;
+  let bullZoneHigh  = bullStrike !== null ? bullStrike + half : null;
+  let bullExitAbove = bullZoneHigh;
+  let bullOI        = bullPick ? Math.round(bullPick.oi) : null;
 
-  const bearStrike    = bearPick?.strike ?? null;
-  const bearZoneLow   = bearStrike !== null ? bearStrike - half : null;
-  const bearZoneHigh  = bearStrike !== null ? bearStrike + half : null;
-  const bearExitBelow = bearZoneLow;
+  let bearStrike    = bearPick?.strike ?? null;
+  let bearZoneLow   = bearStrike !== null ? bearStrike - half : null;
+  let bearZoneHigh  = bearStrike !== null ? bearStrike + half : null;
+  let bearExitBelow = bearZoneLow;
+  let bearOI        = bearPick ? Math.round(bearPick.oi) : null;
+
+  let bullClusterShare = bullPick?.shareOfSide ?? null;
+  let bearClusterShare = bearPick?.shareOfSide ?? null;
+
+  const { bands: stickyBands, meta: stickyMeta } = applyStickyZones(
+    spot,
+    {
+      bullStrike,
+      bullZoneLow,
+      bullZoneHigh,
+      bullExitAbove,
+      bullOI,
+      bearStrike,
+      bearZoneLow,
+      bearZoneHigh,
+      bearExitBelow,
+      bearOI,
+    },
+    input.previousBands ?? null,
+    (side, strike) =>
+      side === "put"
+        ? (putOIByStrike.get(strike) ?? 0)
+        : (callOIByStrike.get(strike) ?? 0),
+    spec.minClusterOi,
+  );
+
+  bullStrike = stickyBands.bullStrike;
+  bullZoneLow = stickyBands.bullZoneLow;
+  bullZoneHigh = stickyBands.bullZoneHigh;
+  bullExitAbove = stickyBands.bullExitAbove;
+  bullOI = stickyBands.bullOI;
+  bearStrike = stickyBands.bearStrike;
+  bearZoneLow = stickyBands.bearZoneLow;
+  bearZoneHigh = stickyBands.bearZoneHigh;
+  bearExitBelow = stickyBands.bearExitBelow;
+  bearOI = stickyBands.bearOI;
 
   // Gap check between bull-top and bear-bottom — informational, retained
   // for UI continuity. The new algorithm picks zones from "closest big
@@ -726,7 +865,13 @@ export async function computeOptionsZones(
     } else if (day0MaxPain !== null && Math.abs(day0MaxPain - spot) < sizes.minPinGapUsd) {
       notActionableReason = `Pin chop — spot ${fmtUsd(spot)} too close to max pain ${fmtUsd(day0MaxPain)} (gap < ${fmtUsd(sizes.minPinGapUsd)})`;
     } else if (bullStrike === null && bearStrike === null) {
-      notActionableReason = `No big cluster within reach (±${fmtUsd(sizes.maxReachUsd)} = ${fmtPct(sizes.maxReachUsd / spot)} of spot)`;
+      notActionableReason = day0MaxPain !== null
+        ? `No potent cluster within ${fmtUsd(maxPainAnchorSpanUsd)} of max pain ${fmtUsd(day0MaxPain)} (need ≥${spec.minClusterOi.toLocaleString()} OI)`
+        : `No potent cluster within reach (±${fmtUsd(sizes.maxReachUsd)} = ${fmtPct(sizes.maxReachUsd / spot)} of spot)`;
+    } else if (bullStrike === null && day0MaxPain !== null && day0MaxPain > spot) {
+      notActionableReason = `No potent put cluster within ${fmtUsd(maxPainAnchorSpanUsd)} below max pain ${fmtUsd(day0MaxPain)}`;
+    } else if (bearStrike === null && day0MaxPain !== null && day0MaxPain > spot) {
+      notActionableReason = `No potent call cluster within ${fmtUsd(maxPainAnchorSpanUsd)} above max pain ${fmtUsd(day0MaxPain)}`;
     } else {
       // Surface the actual numbers so the operator can see WHICH gap
       // failed and by how much. Picks the side that has a strike (if
@@ -772,15 +917,18 @@ export async function computeOptionsZones(
     halfWidthUsd:    sizes.halfWidthUsd,
     maxReachUsd:     sizes.maxReachUsd,
     minPinGapUsd:    sizes.minPinGapUsd,
-    bullClusterShare: bullPick?.shareOfSide ?? null,
-    bearClusterShare: bearPick?.shareOfSide ?? null,
+    bullClusterShare,
+    bearClusterShare,
 
     expiryUsed:   day0?.expiry ?? null,
     expiriesUsed,
     expiryOI:     day0?.totalOI ?? null,
-    bullOI:       bullPick ? Math.round(bullPick.oi) : null,
-    bearOI:       bearPick ? Math.round(bearPick.oi) : null,
+    bullOI,
+    bearOI,
     insufficientGap,
+    maxPainAnchorSpanUsd,
+    bullLocked: stickyMeta.bullLocked,
+    bearLocked: stickyMeta.bearLocked,
     btcPrice:     currentPrice,
     deribitIndexPrice,
     computedAt:   new Date().toISOString(),

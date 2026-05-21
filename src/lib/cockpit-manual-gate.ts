@@ -7,6 +7,7 @@
  * Does NOT block on signal conflict, panic regime, or pin chop — those are AUTO-only.
  */
 import type { SuggestedZonesSnapshot } from "@/components/simulator/heatmap-types";
+import { effectiveMaxPainMinDistanceUsd } from "@/lib/options-zones";
 
 /** Matches `TP_ROOM_PCT_OF_HALFWIDTH` in options-zones.ts */
 const TP_ROOM_PCT_OF_HALFWIDTH = 2.0;
@@ -32,13 +33,16 @@ export function resolveMaxPainMinDistanceUsd(
   return configured;
 }
 
-/** `max(2 × halfWidth, maxPainMinDistanceUsd)` — TP-room floor for zone center → max pain. */
+/** `max(2 × halfWidth, configured)` — TP-room floor for zone center → max pain. */
 export function computeMinTpRoomUsd(
   halfWidthUsd: number,
   maxPainMinDistanceUsd?: number | null,
 ): number {
-  const floor = resolveMaxPainMinDistanceUsd(halfWidthUsd, maxPainMinDistanceUsd);
-  return Math.max(TP_ROOM_PCT_OF_HALFWIDTH * halfWidthUsd, floor);
+  const configured = resolveMaxPainMinDistanceUsd(halfWidthUsd, maxPainMinDistanceUsd);
+  const effective = effectiveMaxPainMinDistanceUsd(halfWidthUsd, configured);
+  return effective > 0
+    ? effective
+    : TP_ROOM_PCT_OF_HALFWIDTH * halfWidthUsd;
 }
 
 export function evaluateManualEntryGate(

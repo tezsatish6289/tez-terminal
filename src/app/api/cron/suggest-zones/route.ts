@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { computeOptionsZones } from "@/lib/options-zones";
+import { zoneBandSnapshotFromSuggested } from "@/lib/options-zone-sticky";
 import { deserializePrices } from "@/lib/exchanges";
 import { parseZones } from "@/lib/heatmap-zones-settings";
 import { loadSimBotSettings } from "@/lib/sim-bot-settings";
@@ -73,6 +74,9 @@ function serializeSuggested(
     expiriesUsed:      result.expiriesUsed,
     expiryOI:          result.expiryOI,
     insufficientGap:   result.insufficientGap,
+    maxPainAnchorSpanUsd: result.maxPainAnchorSpanUsd,
+    bullLocked:        result.bullLocked,
+    bearLocked:        result.bearLocked,
     btcPrice:          spotPrice,
     deribitIndexPrice: result.deribitIndexPrice,
     source:            "deribit",
@@ -111,10 +115,16 @@ async function suggestForAsset(
     }
   } catch {}
 
+  const prevSnap = await db.doc(`config/suggested_zones_${asset}`).get();
+  const previousBands = prevSnap.exists
+    ? zoneBandSnapshotFromSuggested(prevSnap.data() as Record<string, unknown>)
+    : null;
+
   const result = await computeOptionsZones({
     asset,
     currentPrice: spot,
     maxPainMinDistanceUsd,
+    previousBands,
   });
 
   const suggested = serializeSuggested(result, spot);

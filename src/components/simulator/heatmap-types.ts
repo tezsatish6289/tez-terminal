@@ -35,6 +35,9 @@ export interface SuggestedZonesSnapshot {
   bearActionable?: boolean | null;
   notActionableReason?: string | null;
   insufficientGap?: boolean | null;
+  maxPainAnchorSpanUsd?: number | null;
+  bullLocked?: boolean | null;
+  bearLocked?: boolean | null;
   btcPrice?: number | null;
   deribitIndexPrice?: number | null;
   computedAt?: string;
@@ -109,6 +112,9 @@ export function normalizeSuggestedZones(
       typeof raw.notActionableReason === "string" ? raw.notActionableReason : null,
     insufficientGap:
       raw.insufficientGap === true ? true : raw.insufficientGap === false ? false : null,
+    maxPainAnchorSpanUsd: readNum(raw.maxPainAnchorSpanUsd),
+    bullLocked: raw.bullLocked === true ? true : raw.bullLocked === false ? false : null,
+    bearLocked: raw.bearLocked === true ? true : raw.bearLocked === false ? false : null,
     btcPrice: readNum(raw.btcPrice),
     deribitIndexPrice: readNum(raw.deribitIndexPrice),
     computedAt: typeof raw.computedAt === "string" ? raw.computedAt : undefined,
@@ -126,8 +132,8 @@ export function noClusterLine(
       : "Call OI cluster — TP room blocked";
   }
   return side === "bull"
-    ? "No put cluster in reach"
-    : "No call cluster in reach";
+    ? "No potent put wall near max pain"
+    : "No potent call wall near max pain";
 }
 
 export function spotFromSuggested(s: SuggestedZonesSnapshot | null): number | null {

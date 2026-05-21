@@ -1572,7 +1572,7 @@ function DesktopTradeRow({
           <div className="flex items-center gap-1.5">
             <Badge className="text-[9px] font-black h-5 uppercase px-2 bg-accent/15 text-accent">Open</Badge>
             {onForceClose && (
-              <SimForceCloseDialog trade={trade} onConfirm={() => onForceClose(trade)}>
+              <SimForceCloseDialog trades={trade} onConfirm={() => onForceClose(trade)}>
                 <button
                   onClick={(e) => e.stopPropagation()}
                   className="h-5 w-5 flex items-center justify-center rounded hover:bg-rose-500/20 text-muted-foreground/30 hover:text-rose-400 transition-colors"
@@ -1675,7 +1675,7 @@ function MobileTradeCard({ trade, onSelect, onForceClose, cs, balance, startingC
                 <>
                   <Badge className="text-[9px] font-black h-5 uppercase px-2 bg-accent/15 text-accent">Open</Badge>
                   {onForceClose && (
-                    <SimForceCloseDialog trade={trade} onConfirm={() => onForceClose(trade)}>
+                    <SimForceCloseDialog trades={trade} onConfirm={() => onForceClose(trade)}>
                       <button
                         onClick={(e) => e.stopPropagation()}
                         className="h-5 px-1.5 flex items-center gap-1 rounded text-[9px] font-bold text-rose-400/50 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"

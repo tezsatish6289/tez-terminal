@@ -5,6 +5,7 @@ import { emptyZoneBotState, zoneBotStateDoc } from "@/lib/zone-bot-state";
 import type { ZoneBotAsset } from "@/lib/zone-bot-config";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 const ALLOWED_BOT_SOURCES = [
   BOT_SOURCE_BTC_ZONE,
@@ -31,89 +32,107 @@ const ZONE_ASSET_BY_SOURCE: Record<AllowedBotSource, ZoneBotAsset> = {
  * other bots' trades.
  */
 export async function GET(request: NextRequest) {
-  const key = request.nextUrl.searchParams.get("key");
-  if (key !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  try {
+    const key = request.nextUrl.searchParams.get("key");
+    if (key !== process.env.CRON_SECRET) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-  const botSourceParam = request.nextUrl.searchParams.get("botSource");
-  const dryRun = request.nextUrl.searchParams.get("dry") === "true";
+    const botSourceParam = request.nextUrl.searchParams.get("botSource");
+    const dryRun = request.nextUrl.searchParams.get("dry") === "true";
 
-  if (
-    !botSourceParam ||
-    !ALLOWED_BOT_SOURCES.includes(botSourceParam as AllowedBotSource)
-  ) {
+    if (
+      !botSourceParam ||
+      !ALLOWED_BOT_SOURCES.includes(botSourceParam as AllowedBotSource)
+    ) {
+      return NextResponse.json(
+        { error: `botSource must be one of: ${ALLOWED_BOT_SOURCES.join(", ")}` },
+        { status: 400 },
+      );
+    }
+
+    const botSource = botSourceParam as AllowedBotSource;
+    const zoneAsset = ZONE_ASSET_BY_SOURCE[botSource];
+    const db = getAdminFirestore();
+
+    const tradesSnap = await db
+      .collection("simulator_trades")
+      .where("botSource", "==", botSource)
+      .get();
+
+    const tradeIds: string[] = [];
+    const symbols = new Set<string>();
+    let openCount = 0;
+
+    for (const doc of tradesSnap.docs) {
+      tradeIds.push(doc.id);
+      const sym = doc.data().symbol as string | undefined;
+      if (sym) symbols.add(sym);
+      if (doc.data().status === "OPEN") openCount++;
+    }
+
+    let logsDeleted = 0;
+
+    if (!dryRun) {
+      const chunkSize = 400;
+      for (let i = 0; i < tradeIds.length; i += chunkSize) {
+        const batch = db.batch();
+        for (const id of tradeIds.slice(i, i + chunkSize)) {
+          batch.delete(db.collection("simulator_trades").doc(id));
+        }
+        await batch.commit();
+      }
+
+      for (const sym of symbols) {
+        const logSnap = await db
+          .collection("simulator_logs")
+          .where("symbol", "==", sym)
+          .get();
+        for (const logDoc of logSnap.docs) {
+          await db.collection("simulator_logs").doc(logDoc.id).delete();
+          logsDeleted++;
+        }
+      }
+
+      await db
+        .collection("config")
+        .doc(zoneBotStateDoc(zoneAsset))
+        .set(emptyZoneBotState());
+
+      try {
+        await db.collection("logs").add({
+          timestamp: new Date().toISOString(),
+          level: "INFO",
+          message:
+            `RESET_SIMULATOR_BOT [${botSource}]: deleted ${tradeIds.length} simulator_trades ` +
+            `(${openCount} were OPEN), ${logsDeleted} simulator_logs; zone state cleared`,
+          webhookId: "ADMIN_RESET_SIM_BOT",
+        });
+      } catch {
+        // Non-fatal — reset already applied.
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      dryRun,
+      botSource,
+      zoneAsset,
+      simulatorTradesRemoved: tradeIds.length,
+      openTradesRemoved: openCount,
+      symbolsForLogCleanup: symbols.size,
+      simulatorLogsRemoved: dryRun ? 0 : logsDeleted,
+      zoneBotStateReset: dryRun ? "skipped (dry run)" : zoneBotStateDoc(zoneAsset),
+      counterfactualStartingCapitalUsd: 1000,
+      note:
+        "BTC Zone performance chart uses $1000 + only this bot's closed trades. " +
+        "Crypto Bot / shared simulator_state are unchanged.",
+    });
+  } catch (err) {
+    console.error("[reset-simulator-bot]", err);
     return NextResponse.json(
-      { error: `botSource must be one of: ${ALLOWED_BOT_SOURCES.join(", ")}` },
-      { status: 400 },
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 },
     );
   }
-
-  const botSource = botSourceParam as AllowedBotSource;
-  const zoneAsset = ZONE_ASSET_BY_SOURCE[botSource];
-  const db = getAdminFirestore();
-
-  const tradesSnap = await db
-    .collection("simulator_trades")
-    .where("botSource", "==", botSource)
-    .get();
-
-  const tradeIds: string[] = [];
-  const symbols = new Set<string>();
-  let openCount = 0;
-
-  for (const doc of tradesSnap.docs) {
-    tradeIds.push(doc.id);
-    const sym = doc.data().symbol as string | undefined;
-    if (sym) symbols.add(sym);
-    if (doc.data().status === "OPEN") openCount++;
-  }
-
-  let logsDeleted = 0;
-
-  if (!dryRun) {
-    const chunkSize = 400;
-    for (let i = 0; i < tradeIds.length; i += chunkSize) {
-      const batch = db.batch();
-      for (const id of tradeIds.slice(i, i + chunkSize)) {
-        batch.delete(db.collection("simulator_trades").doc(id));
-      }
-      await batch.commit();
-    }
-
-    for (const sym of symbols) {
-      const logSnap = await db.collection("simulator_logs").where("symbol", "==", sym).get();
-      for (const logDoc of logSnap.docs) {
-        await db.collection("simulator_logs").doc(logDoc.id).delete();
-        logsDeleted++;
-      }
-    }
-
-    await db.collection("config").doc(zoneBotStateDoc(zoneAsset)).set(emptyZoneBotState());
-
-    await db.collection("logs").add({
-      timestamp: new Date().toISOString(),
-      level: "INFO",
-      message:
-        `RESET_SIMULATOR_BOT [${botSource}]: deleted ${tradeIds.length} simulator_trades ` +
-        `(${openCount} were OPEN), ${logsDeleted} simulator_logs; zone state cleared`,
-      webhookId: "ADMIN_RESET_SIM_BOT",
-    });
-  }
-
-  return NextResponse.json({
-    success: true,
-    dryRun,
-    botSource,
-    zoneAsset,
-    simulatorTradesRemoved: tradeIds.length,
-    openTradesRemoved: openCount,
-    symbolsForLogCleanup: symbols.size,
-    simulatorLogsRemoved: dryRun ? 0 : logsDeleted,
-    zoneBotStateReset: dryRun ? "skipped (dry run)" : zoneBotStateDoc(zoneAsset),
-    counterfactualStartingCapitalUsd: 1000,
-    note:
-      "BTC Zone performance chart uses $1000 + only this bot's closed trades. " +
-      "Crypto Bot / shared simulator_state are unchanged.",
-  });
 }

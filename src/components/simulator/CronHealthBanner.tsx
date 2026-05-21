@@ -10,7 +10,7 @@ import {
   type CronHealthLevel,
 } from "@/lib/cron-health-shared";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, CheckCircle2, ChevronDown, Loader2 } from "lucide-react";
+import { CheckCircle2, ChevronDown, Flag, Loader2 } from "lucide-react";
 
 const ADMIN_EMAIL = "hello@tezterminal.com";
 
@@ -22,16 +22,34 @@ function formatStale(staleMs: number | null): string {
   return `${Math.round(mins / 60)}h since last OK`;
 }
 
+/** Cron missed schedule or never reported success. */
+function isCronMissed(level: CronHealthLevel): boolean {
+  return level === "warn" || level === "critical" || level === "unknown";
+}
+
 function levelStyles(level: CronHealthLevel): string {
   switch (level) {
     case "critical":
-      return "border-rose-500/50 bg-rose-500/10 text-rose-200 animate-pulse";
+      return "border-rose-500/60 bg-rose-600/15 text-rose-100 animate-pulse";
     case "warn":
-      return "border-amber-500/40 bg-amber-500/10 text-amber-100";
+      return "border-rose-500/45 bg-rose-500/12 text-rose-100";
     case "unknown":
-      return "border-white/10 bg-white/[0.03] text-muted-foreground";
+      return "border-rose-500/30 bg-rose-950/40 text-rose-200/80";
     default:
       return "border-emerald-500/25 bg-emerald-500/5 text-emerald-200/90";
+  }
+}
+
+function chipStyles(level: CronHealthLevel): string {
+  switch (level) {
+    case "critical":
+      return "border-rose-500 bg-rose-600/55 text-rose-50 shadow-[0_0_8px_rgba(244,63,94,0.35)] animate-pulse";
+    case "warn":
+      return "border-rose-500/80 bg-rose-500/35 text-rose-50";
+    case "unknown":
+      return "border-rose-500/50 bg-rose-950/70 text-rose-200";
+    default:
+      return "border-white/10 bg-white/[0.06] text-muted-foreground/80";
   }
 }
 
@@ -92,7 +110,8 @@ export function CronHealthBanner({ variant = "full" }: { variant?: "full" | "com
 
   if (!isAdmin) return null;
 
-  const anyBad = worst === "warn" || worst === "critical";
+  const anyBad = isCronMissed(worst);
+  const missedCount = views?.filter((v) => isCronMissed(v.level)).length ?? 0;
 
   if (isLoading && !views?.length) {
     return (
@@ -123,27 +142,31 @@ export function CronHealthBanner({ variant = "full" }: { variant?: "full" | "com
         >
           <div className="flex items-center gap-2 min-w-0">
             {anyBad ? (
-              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <Flag className="h-3.5 w-3.5 shrink-0 text-rose-400 fill-rose-500/30" />
             ) : (
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
             )}
-            <span className="text-[9px] font-black uppercase tracking-widest shrink-0">
-              Crons {anyBad ? "· check" : "· OK"}
+            <span
+              className={cn(
+                "text-[9px] font-black uppercase tracking-widest shrink-0",
+                anyBad && "text-rose-200",
+              )}
+            >
+              Crons {anyBad ? `· ${missedCount} missed` : "· OK"}
             </span>
             <div className="hidden sm:flex items-center gap-1.5 min-w-0 overflow-hidden">
-              {views.map(({ job, level }) => (
+              {views.map(({ job, level, staleMs }) => (
                 <span
                   key={job.id}
                   className={cn(
-                    "text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border truncate max-w-[100px]",
-                    level === "critical"
-                      ? "border-rose-500/40 text-rose-300"
-                      : level === "warn"
-                        ? "border-amber-500/35 text-amber-200"
-                        : "border-white/10 text-muted-foreground/70",
+                    "inline-flex items-center gap-0.5 text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border truncate max-w-[110px]",
+                    chipStyles(level),
                   )}
-                  title={job.label}
+                  title={`${job.label} — ${level.toUpperCase()} · ${formatStale(staleMs)}`}
                 >
+                  {isCronMissed(level) ? (
+                    <Flag className="h-2 w-2 shrink-0 opacity-90" aria-hidden />
+                  ) : null}
                   {job.shortLabel}
                 </span>
               ))}
@@ -172,12 +195,17 @@ export function CronHealthBanner({ variant = "full" }: { variant?: "full" | "com
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           {anyBad ? (
-            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <Flag className="h-4 w-4 shrink-0 text-rose-400 fill-rose-500/30" />
           ) : (
             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
           )}
-          <span className="text-[10px] font-black uppercase tracking-widest">
-            Cron health {anyBad ? "— attention" : "— OK"}
+          <span
+            className={cn(
+              "text-[10px] font-black uppercase tracking-widest",
+              anyBad && "text-rose-200",
+            )}
+          >
+            Cron health {anyBad ? `— ${missedCount} missed` : "— OK"}
           </span>
         </div>
         <span className="text-[9px] font-mono opacity-70">
@@ -204,19 +232,32 @@ function CronJobCell({
   level: CronHealthLevel;
   staleMs: number | null;
 }) {
+  const missed = isCronMissed(level);
   return (
     <div
       className={cn(
         "rounded-lg border px-2 py-1.5 text-[10px]",
         level === "critical"
-          ? "border-rose-500/30 bg-rose-500/5"
+          ? "border-rose-500/50 bg-rose-600/25 text-rose-50"
           : level === "warn"
-            ? "border-amber-500/25 bg-amber-500/5"
-            : "border-white/[0.06] bg-black/20",
+            ? "border-rose-500/40 bg-rose-500/20 text-rose-100"
+            : level === "unknown"
+              ? "border-rose-500/30 bg-rose-950/50 text-rose-200/90"
+              : "border-white/[0.06] bg-black/20",
       )}
     >
-      <div className="font-bold uppercase tracking-wide">{job.label}</div>
-      <div className="font-mono text-[9px] opacity-80 mt-0.5">
+      <div className="flex items-center gap-1 font-bold uppercase tracking-wide">
+        {missed ? (
+          <Flag className="h-3 w-3 shrink-0 text-rose-400 fill-rose-500/25" aria-hidden />
+        ) : null}
+        {job.label}
+      </div>
+      <div
+        className={cn(
+          "font-mono text-[9px] mt-0.5",
+          missed ? "text-rose-200/90" : "opacity-80",
+        )}
+      >
         {level.toUpperCase()} · {formatStale(staleMs)}
       </div>
       {doc.lastSummary ? (

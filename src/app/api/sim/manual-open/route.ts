@@ -14,6 +14,8 @@ import {
   type ManualOpenTradeInput,
   type ManualTradeSide,
 } from "@/lib/manual-sim-open";
+import { normalizeSuggestedZones } from "@/components/simulator/heatmap-types";
+import { evaluateManualEntryGate } from "@/lib/cockpit-manual-gate";
 import { loadSimBotSettings } from "@/lib/sim-bot-settings";
 import { SIM_COCKPIT_BOTS, type CockpitBotId } from "@/lib/sim-cockpit-bots";
 import {
@@ -122,6 +124,22 @@ export async function POST(request: NextRequest) {
 
   const db = getAdminFirestore();
   const botSettings = await loadSimBotSettings(db, input.botId);
+
+  const botDef = SIM_COCKPIT_BOTS.find((b) => b.id === input.botId);
+  const suggestedSnap = botDef
+    ? await db.doc(`config/${botDef.suggestedDoc}`).get()
+    : null;
+  const manualGate = evaluateManualEntryGate(
+    normalizeSuggestedZones(
+      suggestedSnap?.exists
+        ? (suggestedSnap.data() as Record<string, unknown>)
+        : null,
+    ),
+    botSettings.maxPainMinDistanceUsd,
+  );
+  if (!manualGate.allowed) {
+    return NextResponse.json({ error: manualGate.reason }, { status: 403 });
+  }
 
   let simConfig: SimConfigType = SIM_CONFIG;
   try {

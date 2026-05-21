@@ -20,6 +20,7 @@ import {
   normalizePerpSymbol,
   resolveManualRiskPct,
 } from "@/lib/manual-sim-open";
+import type { ManualEntryGateResult } from "@/lib/cockpit-manual-gate";
 import type { SimulatorState } from "@/lib/simulator";
 import { createInitialState } from "@/lib/simulator";
 
@@ -82,12 +83,14 @@ export function ManualTradeSheet({
   botId,
   label,
   capital,
+  manualGate,
   onOpened,
 }: {
   botId: CockpitBotId;
   label: string;
   /** Current sim capital for size preview */
   capital: number;
+  manualGate: ManualEntryGateResult;
   onOpened?: () => void;
 }) {
   const { user } = useUser();
@@ -136,7 +139,7 @@ export function ManualTradeSheet({
   }, [open, isAdmin, botId]);
 
   const handleSubmit = useCallback(async () => {
-    if (!user || !isAdmin) return;
+    if (!user || !isAdmin || !manualGate.allowed) return;
     setError(null);
     setSubmitting(true);
     try {
@@ -199,26 +202,37 @@ export function ManualTradeSheet({
     tp3,
     mirrorMode,
     note,
+    manualGate.allowed,
     onOpened,
   ]);
 
   if (!isAdmin) return null;
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
+  const gateBlocked = !manualGate.allowed;
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <button
         type="button"
         aria-label={`Manual trade ${label}`}
+        title={
+          gateBlocked
+            ? `Manual blocked — ${manualGate.reason}`
+            : `Manual trade — ${label}`
+        }
+        disabled={gateBlocked}
         onClick={(e) => {
           stop(e);
-          setOpen(true);
+          if (!gateBlocked) setOpen(true);
         }}
         onPointerDown={stop}
         className={cn(
           "flex items-center gap-1 rounded-lg border border-white/[0.12] bg-[#1a1a1f]",
-          "px-2 py-1.5 hover:bg-[#222228] hover:border-amber-500/25 transition-all",
+          "px-2 py-1.5 transition-all",
+          gateBlocked
+            ? "opacity-40 cursor-not-allowed border-white/[0.06]"
+            : "hover:bg-[#222228] hover:border-amber-500/25",
         )}
       >
         <Crosshair className="w-3.5 h-3.5 text-amber-400/70" />
@@ -239,6 +253,11 @@ export function ManualTradeSheet({
           <p className="text-[9px] font-bold uppercase tracking-wider text-amber-400/70 px-1">
             No score floor exit for manual trades
           </p>
+          {!manualGate.allowed && (
+            <p className="text-[10px] text-rose-400/90 leading-snug mt-2">
+              Blocked by heatmap gate: {manualGate.reason}
+            </p>
+          )}
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
@@ -354,7 +373,7 @@ export function ManualTradeSheet({
 
           <button
             type="button"
-            disabled={submitting}
+            disabled={submitting || !manualGate.allowed}
             onClick={() => void handleSubmit()}
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-amber-500 text-black text-[11px] font-black uppercase tracking-wider disabled:opacity-40"
           >

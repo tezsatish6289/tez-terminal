@@ -126,6 +126,8 @@ function HeatmapBotColumn({
             botId={bot.id}
             label={bot.label}
             capital={capital}
+            suggested={suggested}
+            maxPainMinDistanceUsd={zoneSettings?.maxPainMinDistanceUsd ?? null}
             onStatusChange={setBotStatus}
             onTradeOpened={onTradeOpened}
           />

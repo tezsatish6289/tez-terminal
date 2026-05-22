@@ -547,7 +547,7 @@ function ZoneClusterTile({
           )}
           {oi != null && oi > 0 && (
             <p className="text-[8px] text-muted-foreground/40 truncate">
-              {Math.round(oi).toLocaleString()} contracts OI
+              {Math.round(oi).toLocaleString()} near-term OI
             </p>
           )}
           {tp != null && (

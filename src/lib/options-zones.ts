@@ -11,17 +11,23 @@
  * Algorithm (v2 — current)
  * ──────────────────────────────────────────────────────────────────────────
  *
- * Zone *selection* uses ALL-EXPIRY OI (not day-weighted). Rationale:
- * dealer positioning is durable across expiries — a $80k call wall with
- * 21k contracts spread over the next 30 days is the same defensive
- * obligation regardless of which Friday expires first. Day-weighting
- * was filtering out exactly the structural walls we want to trade
- * against.
+ * Zone *selection* uses DAY-0 + DAY-1 OI only (revised 2026-05-22).
  *
- * TP / magnet uses TODAY's (day-0) max pain only — that's the intraday
- * pinning effect, separate from the structural wall question.
+ * The previous build aggregated OI across every un-expired expiry. The
+ * stated rationale — "dealer positioning is durable across expiries" —
+ * held for BTC where the IV-derived anchor window (~6% of spot)
+ * naturally excludes deep-OTM premium magnets. It failed badly for ETH
+ * (and would fail worse for SOL): round-number premium-seller strikes
+ * (e.g. $1,800 puts / $2,500 calls on ETH at $2,130 spot) accumulate
+ * huge all-expiry OI with no near-term pinning effect, but dominated
+ * the picker by sheer contract count and crowded out the real walls
+ * around max pain. Switching to day-0+1 matches what dealers actually
+ * hedge today and tomorrow, which is what pins spot.
  *
- * Two different OI lenses for two different questions.
+ * TP / magnet still uses TODAY's (day-0) max pain only — unchanged.
+ *
+ * Same near-term OI lens for cluster selection and max-pain; just
+ * different horizons (≤2-day pinning vs intraday pinning).
  *
  *   1. Fetch all options for the asset from Deribit (single REST call —
  *      returns OI + IV + underlying price for every instrument).
@@ -36,7 +42,7 @@
  *           — floored at 2σ × 15 min (so the confirmation gate has room)
  *           — capped  at 2% × spot (so SL distance ≤ 3%, the engine's limit)
  *
- *   4. Aggregate OI per strike across ALL expiries (no day-weighting).
+ *   4. Aggregate OI per strike across DAY-0 + DAY-1 expiries only.
  *
  *   5. Pick the **most potent** cluster on each side, **anchored near
  *      day-0 max pain** (not far-away structural walls):
@@ -103,6 +109,15 @@ const MIN_CLUSTER_PCT_OF_MAX = 0.25;
 
 /** Max distance from day-0 max pain for zone-center search (also IV-scaled). */
 const MAX_PAIN_ANCHOR_REACH_MULT = 2.5;
+
+/** Anchor-span floor as % of spot. Replaces the previous $800 absolute
+ *  floor, which was BTC-scaled and silently became the binding constraint
+ *  for smaller-priced assets — at $2,130 spot ETH that floor was 38% of
+ *  spot, and at $200 SOL it was 400% of spot, both swept in far-OTM
+ *  noise. 1% gives BTC ~$770 (other terms dominate anyway), ETH ~$21,
+ *  SOL ~$2 — small enough that the IV-derived terms always lead for
+ *  any asset with a real options market. */
+const MIN_ANCHOR_FLOOR_PCT_OF_SPOT = 0.01;
 
 /** Reach gate = 1-σ daily move. 68% probability price visits any strike
  *  inside this band today. Sourced from the market's own IV pricing. */
@@ -492,7 +507,7 @@ function deriveMaxPainAnchorSpan(
   return Math.max(
     maxReachUsd * MAX_PAIN_ANCHOR_REACH_MULT,
     spot * anchorPct,
-    800,
+    spot * MIN_ANCHOR_FLOOR_PCT_OF_SPOT,
   );
 }
 
@@ -710,10 +725,19 @@ export async function computeOptionsZones(
     atmIV >= PANIC_IV_THRESHOLD ||
     ivBackwardation >= BACKWARDATION_RATIO_THRESHOLD;
 
-  // ── Aggregate OI per strike across ALL expiries ─────────────────────
+  // ── Aggregate OI per strike across DAY-0 + DAY-1 expiries only ──────
+  // Far-dated premium-magnet strikes (e.g. $1,800 puts and $2,500 calls
+  // on ETH) accumulate enormous all-expiry OI with no near-term price
+  // impact. Restricting to day-0+1 leaves only what dealers actually
+  // hedge today and tomorrow — the OI that pins spot. See the file
+  // header for the full story.
+  const nearTermExpiries = new Set(
+    sortedExpiries.slice(0, 2).map(([label]) => label),
+  );
   const putOIByStrike  = new Map<number, number>();
   const callOIByStrike = new Map<number, number>();
   for (const p of allParsed) {
+    if (!nearTermExpiries.has(p.expiry)) continue;
     const map = p.type === "P" ? putOIByStrike : callOIByStrike;
     map.set(p.strike, (map.get(p.strike) ?? 0) + p.oi);
   }

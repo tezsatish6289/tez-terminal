@@ -131,10 +131,24 @@ export interface EvaluateZoneBotResult {
 const SUGGESTED_STALE_MS = 12 * 60 * 60 * 1000; // 12h
 
 /** Hard upper bound on SL distance as a fraction of entry price.
- *  Mirrors the `INCUBATED_MAX_SL_DISTANCE_PCT = 0.03` gate the existing
- *  pattern bot uses — anything wider produces a tiny position that
- *  doesn't justify the venue fees. */
-const MAX_SL_DISTANCE_PCT = 0.03;
+ *
+ *  Raised 2026-05-22 from 0.03 → 0.05 so ETH and SOL zone bots can
+ *  actually fire trades. BTC's half-width is ~0.7% of spot (well under
+ *  the 2%-of-spot cap), so worst-case entry at the top of the band
+ *  gives slDistance ~2.5% — comfortably under both the old and new
+ *  gates. ETH and SOL hit the strike-grid floor in `options-zones.ts`,
+ *  which forces half-width to be 1–1.5% of spot. Combined with the 1%
+ *  `BULL_SL_MULT`/`BEAR_SL_MULT` buffer below the zone edge, the worst-
+ *  case slDistance (entry at zone top, SL just outside zone bottom)
+ *  legitimately reaches ~3.4% (ETH) and ~3.9% (SOL). At 5% gate, every
+ *  realistic entry across BTC/ETH/SOL passes; position-sizing still
+ *  caps risk-per-trade so a 5% SL just means a smaller notional, not
+ *  more dollar risk.
+ *
+ *  Still tighter than the pattern bot's full-confidence trades use
+ *  (capped at SIM_CONFIG.MAX_SL_DISTANCE_PCT = 0.10) — this is the
+ *  zone-bot-specific cap. */
+const MAX_SL_DISTANCE_PCT = 0.05;
 
 /** SL anchor multipliers. SL = zoneLow × 0.99 for BULL,
  *  zoneHigh × 1.01 for BEAR. Pulled out as constants so a tuning change

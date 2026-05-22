@@ -208,8 +208,18 @@ const MAX_DAYS_WINDOW = 7; // expiries beyond this are too far to be magnets
 // ── Per-asset specifications ──────────────────────────────────────────────
 
 interface AssetSpec {
-  /** Deribit currency code in the REST URL (`?currency=BTC|ETH|SOL`). */
+  /** Currency code passed to `get_book_summary_by_currency?currency=...`.
+   *  BTC and ETH have their own dedicated inverse chains (BTC-margined,
+   *  ETH-margined). SOL options on Deribit are USDC-margined and live
+   *  inside the shared `USDC` bucket alongside BTC_USDC / ETH_USDC /
+   *  TRX_USDC / XRP_USDC / AVAX_USDC, so SOL queries `USDC` and then
+   *  filters by `instrumentPrefix` below. */
   deribitCurrency: string;
+  /** Instrument-name prefix used to filter the fetched chain. Defaults
+   *  to `${deribitCurrency}-` (BTC-..., ETH-...) so single-asset buckets
+   *  need no special config. SOL sets this to `SOL_USDC-` because it
+   *  shares the USDC bucket with other assets. */
+  instrumentPrefix?: string;
   /** Approximate strike-grid spacing near ATM, in USD. Two uses:
    *  (a) floor on half-width so the band can't sit narrower than the
    *      gap between adjacent listed strikes;
@@ -243,11 +253,19 @@ const ASSET_SPEC: Record<ZoneBotAsset, AssetSpec> = {
     minClusterOi:    200,
   },
   sol: {
-    deribitCurrency: "SOL",
-    strikeGridUsd:   5,
-    yearDays:        365,
-    indexEndpoint:   "sol_usdc",
-    minClusterOi:    50,
+    // SOL options on Deribit are USDC-margined linear — name shape is
+    // `SOL_USDC-23MAY26-87-C` and the chain is parked in the shared
+    // USDC bucket. Querying `currency=SOL` returns zero (verified
+    // 2026-05-22 — even `get_instruments?expired=true` is empty),
+    // which was sending the suggester into the empty-result path.
+    deribitCurrency:  "USDC",
+    instrumentPrefix: "SOL_USDC-",
+    // SOL_USDC trades on a $1 grid near ATM (e.g. $80/$81/$82/.../$91).
+    // Far OTM widens to $2–$5; near ATM is where the wall-picker cares.
+    strikeGridUsd:    1,
+    yearDays:         365,
+    indexEndpoint:    "sol_usdc",
+    minClusterOi:     50,
   },
 };
 
@@ -673,11 +691,18 @@ export async function computeOptionsZones(
   const nowMs       = Date.now();
   const maxWindowMs = MAX_DAYS_WINDOW * 24 * 60 * 60 * 1000;
 
+  // For shared buckets (`currency=USDC` returns BTC_USDC + ETH_USDC +
+  // SOL_USDC + ...), keep only this asset's instruments. Single-asset
+  // buckets (BTC, ETH) fall through with their default `BTC-` / `ETH-`
+  // prefix which already matches every instrument they return.
+  const namePrefix = spec.instrumentPrefix ?? `${spec.deribitCurrency}-`;
+
   // Parse all un-expired instruments (within 7-day window for max-pain math;
   // OI aggregation will use everything).
   const allParsed: Parsed[] = [];
   for (const item of json.result ?? []) {
     if (item.open_interest <= 0) continue;
+    if (!item.instrument_name.startsWith(namePrefix)) continue;
     const p = parseInstrument(item.instrument_name, item.open_interest, item.mark_iv);
     if (!p) continue;
     if (p.expiryDate.getTime() <= nowMs) continue;

@@ -392,8 +392,8 @@ export function BotCockpit({
           })}
         </aside>
 
-        {/* Right pane — detail card on top, tabs underneath */}
-        <div className="flex-1 min-w-0 space-y-3 sm:space-y-4">
+        {/* Right pane — single card: detail header + tabs in one section */}
+        <div className="flex-1 min-w-0">
           <HeatmapAssetCard
             botId={selectedBot.id}
             label={selectedBot.label}
@@ -436,9 +436,8 @@ export function BotCockpit({
                 onTradeOpened={refetchAll}
               />
             }
+            footerSlot={children}
           />
-
-          {children}
         </div>
       </div>
     </section>

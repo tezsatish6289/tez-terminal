@@ -2,20 +2,25 @@
 
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { SIM_PANEL } from "@/components/simulator/simulator-surfaces";
 
 type SimTab = "overview" | "trades" | "logs";
 
-/** Bottom panel — Open / History / Logs for the heatmap card selected above. */
+/**
+ * Bottom section of the cockpit — Open / History / Logs tabs.
+ *
+ * Renders without its own outer panel so it can be folded into the
+ * selected bot's HeatmapAssetCard footer slot. The card above already
+ * shows the bot label + mode buttons, and the left rail handles bot
+ * switching, so we drop both the duplicate title and the
+ * "Select another card" hint that used to live here.
+ */
 export function SimulatorMainPanel({
-  botLabel,
   tab,
   onTabChange,
   openCount,
   logsCount,
   children,
 }: {
-  botLabel: string;
   tab: SimTab;
   onTabChange: (t: SimTab) => void;
   openCount: number;
@@ -29,25 +34,9 @@ export function SimulatorMainPanel({
   ];
 
   return (
-    <div className={cn(SIM_PANEL, "overflow-hidden flex flex-col min-h-[320px]")}>
-      <div className="border-b border-white/[0.1] bg-[#18181c] px-3 sm:px-4 py-3 space-y-3 shadow-[inset_0_-1px_0_rgba(255,255,255,0.04)]">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="text-[11px] font-black uppercase tracking-widest text-foreground/90 truncate">
-              {botLabel}
-            </h2>
-            <p className="text-[10px] text-muted-foreground/45 mt-0.5">
-              Select another card above to switch bots
-            </p>
-          </div>
-          <Link
-            href="/stats"
-            className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/45 hover:text-accent transition-colors shrink-0"
-          >
-            Performance &amp; stats →
-          </Link>
-        </div>
-        <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[#0a0a0c] border border-white/[0.1] w-fit shadow-[inset_0_2px_6px_rgba(0,0,0,0.45)]">
+    <div className="flex flex-col">
+      <div className="px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[#0a0a0c] border border-white/[0.1] shadow-[inset_0_2px_6px_rgba(0,0,0,0.45)]">
           {tabs.map((t) => {
             const active = tab === t.id;
             return (
@@ -56,7 +45,7 @@ export function SimulatorMainPanel({
                 type="button"
                 onClick={() => onTabChange(t.id)}
                 className={cn(
-                  "relative px-3 sm:px-4 py-2 rounded-md text-[10px] font-black uppercase tracking-wider transition-all",
+                  "relative px-3 sm:px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all",
                   active
                     ? "bg-accent text-black shadow-[0_2px_10px_rgba(0,212,170,0.3)]"
                     : "text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.04]",
@@ -77,8 +66,14 @@ export function SimulatorMainPanel({
             );
           })}
         </div>
+        <Link
+          href="/stats"
+          className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/45 hover:text-accent transition-colors shrink-0"
+        >
+          Performance &amp; stats →
+        </Link>
       </div>
-      <div className="flex-1 p-3 sm:p-4 min-h-0">{children}</div>
+      <div className="flex-1 px-3 sm:px-4 pb-3 sm:pb-4 min-h-0">{children}</div>
     </div>
   );
 }

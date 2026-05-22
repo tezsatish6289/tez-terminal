@@ -75,7 +75,7 @@ import { SimulatorMainPanel } from "@/components/simulator/SimulatorMainPanel";
 import { OpenPositionsPanel } from "@/components/simulator/OpenPositionsPanel";
 import { SimForceCloseDialog } from "@/components/simulator/SimForceCloseDialog";
 import { SimNotionalSizeDisplay } from "@/components/simulator/SimNotionalSize";
-import { SIM_CARD, SIM_PANEL } from "@/components/simulator/simulator-surfaces";
+import { SIM_CARD } from "@/components/simulator/simulator-surfaces";
 
 // Defensive against legacy trade docs missing newer fields
 // (`fees`, `positionSize`, zone-bot fields). Unguarded
@@ -454,11 +454,11 @@ export default function SimulationPage() {
               onSelectBot={setSelectedBotId}
             >
             {isLoading ? (
-              <div className={cn(SIM_PANEL, "flex items-center justify-center min-h-[280px]")}>
+              <div className="flex items-center justify-center min-h-[200px] py-6">
                 <Loader2 className="h-7 w-7 animate-spin text-accent/50" />
               </div>
             ) : !simState ? (
-              <div className={cn(SIM_PANEL, "p-8 sm:p-12 text-center space-y-3")}>
+              <div className="px-3 sm:px-4 py-8 sm:py-10 text-center space-y-3">
                 <div className="w-14 h-14 rounded-2xl border border-accent/25 bg-accent/[0.12] shadow-[0_4px_16px_rgba(0,212,170,0.15)] flex items-center justify-center mx-auto">
                   <Activity className="w-7 h-7 text-accent/50" />
                 </div>
@@ -481,7 +481,6 @@ export default function SimulationPage() {
               </div>
             ) : (
               <SimulatorMainPanel
-                botLabel={selectedBot.label}
                 tab={tab}
                 onTabChange={setTab}
                 openCount={openTrades.length}

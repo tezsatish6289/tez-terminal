@@ -44,6 +44,7 @@ export function HeatmapAssetCard({
   closedCount,
   cs,
   settingsSlot,
+  footerSlot,
   selected,
   onSelect,
 }: {
@@ -65,6 +66,11 @@ export function HeatmapAssetCard({
   closedCount: number;
   cs: string;
   settingsSlot?: React.ReactNode;
+  /** Slot rendered inside the same card, below the BULL/BEAR section. Used
+   *  by `BotCockpit` to fold the Open / History / Logs tabs into one
+   *  continuous panel with the heatmap status above it. When present,
+   *  the card drops its fixed height so the footer can size naturally. */
+  footerSlot?: React.ReactNode;
   selected?: boolean;
   onSelect?: () => void;
 }) {
@@ -116,7 +122,12 @@ export function HeatmapAssetCard({
       }
       className={cn(
         SIM_CARD,
-        "flex flex-col h-full min-h-[448px] overflow-hidden",
+        "flex flex-col overflow-hidden",
+        // When the card is used standalone (no footer), keep its old
+        // fixed-height shape so cards in a row stay aligned. Once a
+        // footer slot is wired in (the master-detail cockpit) the card
+        // sizes to content so the tabs can flow naturally below.
+        !footerSlot && "h-full min-h-[448px]",
         onSelect && "cursor-pointer transition-shadow",
         selected &&
           "ring-2 ring-accent/80 shadow-[0_0_0_1px_rgba(0,212,170,0.25),0_8px_28px_rgba(0,212,170,0.12)]",
@@ -209,6 +220,13 @@ export function HeatmapAssetCard({
           </>
         )}
       </div>
+
+      {/* ── Footer slot — Open / History / Logs tabs in the cockpit ── */}
+      {footerSlot && (
+        <div className="shrink-0 border-t border-white/[0.1] bg-[#101013]">
+          {footerSlot}
+        </div>
+      )}
     </div>
   );
 }

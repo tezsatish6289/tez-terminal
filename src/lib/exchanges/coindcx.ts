@@ -640,8 +640,124 @@ export class CoinDcxConnector implements ExchangeConnector {
   }
 
   async placeMarketClose(symbol: string, side: "BUY" | "SELL", quantity: number, creds: ExchangeCredentials): Promise<Order> {
-    const closeSide = side === "BUY" ? "SELL" : "BUY";
-    return this.placeMarketOrder(symbol, closeSide, quantity, creds);
+    // CoinDCX futures require a dedicated close endpoint
+    // (`/positions/exit`) — NOT a side-flipped market order. The latter
+    // can be interpreted by the venue as a NEW entry on the opposite side
+    // (no `reduceOnly` flag exists on this venue), which is exactly why
+    // the NILUSDT.P kill-switch cascade left every CoinDCX user's position
+    // open: a "close" SELL market order was placed but the original LONG
+    // sat untouched. Bybit/Hyperliquid have `reduceOnly` so the equivalent
+    // side flip is safe there.
+    //
+    // The fix follows CoinDCX's official "exit position" flow:
+    //
+    //   1. Look up the open position by pair via `/positions`. The
+    //      `active_pos` field is signed: positive=long, negative=short,
+    //      zero=closed. If the position is already gone (manual close,
+    //      SL filled earlier, etc.) we return a synthetic FILLED order so
+    //      `protectiveClose` clears Firestore — there's nothing left to
+    //      do on the exchange.
+    //
+    //   2. Call `/positions/exit` with the `position.id`. CoinDCX splits
+    //      the close into multiple internal market orders and replies
+    //      with a `group_id` (we keep it for downstream PnL reconcile).
+    //
+    //   3. Verify the close by polling `/positions` again until
+    //      `active_pos` drops to zero. Exit-position is async; without
+    //      this check we'd mark Firestore CLOSED while the venue still
+    //      had the residual size open — exactly the bug that bit us on
+    //      Hyperliquid before commit `9320fd0`'s zero-fill guard.
+    //
+    // Returns an Order in the standard shape with `executedQty` set to
+    // the absolute size that was actually closed, so `protectiveClose`
+    // can compute approximate PnL. The exact fill price comes later from
+    // `sync-exchange-pnl` via the `group_id`.
+    const pair = coinDcxPairFromInternal(symbol);
+    const internal = internalSymbolFromCoinDcxPair(pair);
+    const closeSide: "BUY" | "SELL" = side === "BUY" ? "SELL" : "BUY";
+
+    interface CdCxPositionRow {
+      id: string;
+      pair: string;
+      active_pos?: number;
+    }
+
+    const fetchPositionForPair = async (): Promise<CdCxPositionRow | null> => {
+      const rows = await signedPost<CdCxPositionRow[]>(
+        "/exchange/v1/derivatives/futures/positions",
+        { page: "1", size: "10", pairs: pair, margin_currency_short_name: [USDT_MARGIN] },
+        creds,
+      );
+      return rows.find((r) => r.pair === pair) ?? null;
+    };
+
+    const synthOrder = (orderId: string, qty: number): Order => ({
+      orderId,
+      symbol: internal,
+      status: "FILLED",
+      clientOrderId: "",
+      price: "0",
+      avgPrice: "0",
+      origQty: String(qty),
+      executedQty: String(qty),
+      cumQuote: "0",
+      type: "MARKET",
+      side: closeSide,
+      stopPrice: "0",
+      time: Date.now(),
+      updateTime: Date.now(),
+    });
+
+    const pos = await fetchPositionForPair();
+    const activePos = pos?.active_pos ?? 0;
+    const closedQty = Math.abs(activePos);
+
+    if (!pos || closedQty === 0) {
+      // Position already gone on the venue — let `protectiveClose` clear
+      // the Firestore doc. `quantity` is what the caller _expected_ to
+      // close (`trade.remainingQty`); we echo it so PnL math doesn't
+      // divide by zero downstream.
+      return synthOrder("no-position", quantity);
+    }
+
+    interface CdCxExitResponse {
+      message?: string;
+      status?: number;
+      code?: number;
+      data?: { group_id?: string };
+    }
+
+    const exitResp = await signedPost<CdCxExitResponse>(
+      "/exchange/v1/derivatives/futures/positions/exit",
+      { id: pos.id },
+      creds,
+    );
+    const groupId = exitResp?.data?.group_id ?? "no-group-id";
+
+    // Poll for actual close — total budget 6s split across ~10 attempts.
+    // First check sits at 400ms (matches `createOrder`'s existing wait).
+    const POLL_INTERVAL_MS = 600;
+    const POLL_BUDGET_MS = 6000;
+    const startMs = Date.now();
+    while (Date.now() - startMs < POLL_BUDGET_MS) {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      const pos2 = await fetchPositionForPair();
+      const stillOpen = pos2 ? Math.abs(pos2.active_pos ?? 0) : 0;
+      if (stillOpen === 0) {
+        return synthOrder(groupId, closedQty);
+      }
+    }
+
+    // We accepted the exit call but the venue hadn't drained the position
+    // within budget. Throw so `protectiveClose` keeps Firestore OPEN and
+    // the next sync-live-trades cron tick retries — exit-position is
+    // idempotent (closing a zero-size position is a no-op on CoinDCX).
+    throw new ExchangeApiError(
+      `positions/exit accepted (group_id=${groupId}) but ${pair} active_pos did not reach 0 within ${POLL_BUDGET_MS}ms`,
+      500,
+      "/positions/exit",
+      "COINDCX",
+    );
   }
 
   async cancelOrder(symbol: string, orderId: string, creds: ExchangeCredentials): Promise<Order> {

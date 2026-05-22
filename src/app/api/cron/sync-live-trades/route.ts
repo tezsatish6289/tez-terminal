@@ -475,17 +475,22 @@ async function syncUserTrades(
         //     mirroring would race with the actual fill.
         //   - `SL` / `TRAILING_SL`: mirror when sim closes but live is still
         //     OPEN (missed fill, sync lag, or trailing stop on sim only).
-        //   - `KILL_SWITCH`: `sim/force-close/route.ts` already cascades
-        //     the close to every linked live trade inline.
         //   - `SYNCED_FROM_EXCHANGE`: admin manually reconciled one trade;
         //     not a strategy signal, no broadcast intended.
         //   - `EOD_SQUARE_OFF`: Indian-stocks 3:15 PM IST close, kept for
         //     backwards compat; Dhan live mirroring is paused.
         //
-        // Everything else mirrors (including `SL` and `TRAILING_SL`).
+        // `KILL_SWITCH` IS mirrored here (used to be blacklisted on the
+        // assumption that `sim/force-close/route.ts` always handled the
+        // cascade inline). It doesn't always — if any user's exchange call
+        // failed during the inline cascade (zero fill, API error, missing
+        // creds), the live row stayed OPEN forever with no retry. NILUSDT
+        // 2026-05-22 was the canary. Now the cron retries on every tick:
+        // `protectiveClose` is idempotent (only acts on OPEN rows whose
+        // sim is CLOSED), so successful inline closes are no-ops here and
+        // failed ones self-heal within ~60s.
         const NON_MIRRORED_SIM_CLOSE_REASONS = new Set([
           "TP1", "TP2", "TP3",
-          "KILL_SWITCH",
           "SYNCED_FROM_EXCHANGE",
           "EOD_SQUARE_OFF",
         ]);

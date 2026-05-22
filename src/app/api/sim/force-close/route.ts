@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore, getAdminAuth } from "@/firebase/admin";
+import { requireAdmin } from "@/lib/admin-auth";
+import type { Firestore } from "firebase-admin/firestore";
 import {
-  processTradeExit,
   type SimTrade,
   type SimulatorState,
   checkDailyReset,
@@ -28,16 +29,126 @@ import { markTradeForBlockchain } from "@/lib/blockchain-logger";
 
 export const dynamic = "force-dynamic";
 
+interface CascadeResult {
+  liveClosed: number;
+  liveErrors: string[];
+}
+
+/**
+ * Closes every OPEN live_trades doc linked to this sim trade via
+ * `simTradeId`, using `protectiveClose` (the same path sync-live-trades
+ * uses for sim-driven closes). Returns the count closed and any per-mirror
+ * errors. Never throws — failures roll up into `liveErrors`.
+ *
+ * Shared between two call sites in the same endpoint:
+ *   • the standard "close OPEN sim + cascade" path
+ *   • the "live-only" recovery path for an already-closed sim whose
+ *     original inline cascade failed (admin-gated)
+ */
+async function cascadeCloseLiveMirrors(
+  db: Firestore,
+  simTradeId: string,
+  fallbackPrice: number,
+  allPrices: AllExchangePrices,
+): Promise<CascadeResult> {
+  let liveClosed = 0;
+  const liveErrors: string[] = [];
+
+  const liveSnap = await db.collection("live_trades")
+    .where("simTradeId", "==", simTradeId)
+    .where("status", "==", "OPEN")
+    .get();
+
+  for (const liveDoc of liveSnap.docs) {
+    const lt = { id: liveDoc.id, ...liveDoc.data() } as LiveTrade;
+    try {
+      const userId = lt.userId;
+      const ltExchange = lt.exchange;
+      const docIds = getSecretDocIds(ltExchange);
+      let creds: Credentials | null = null;
+
+      for (const secretId of docIds) {
+        try {
+          const secretDoc = await db.collection("users").doc(userId)
+            .collection("secrets").doc(secretId).get();
+          const data = secretDoc.data();
+          if (
+            secretDoc.exists &&
+            data &&
+            docMatchesExchange(data, ltExchange as ExchangeName, secretId)
+          ) {
+            creds = {
+              apiKey: decrypt(data.encryptedKey),
+              apiSecret: decrypt(data.encryptedSecret),
+              testnet: data.useTestnet === true,
+            };
+            break;
+          }
+        } catch {}
+      }
+
+      if (!creds) {
+        liveErrors.push(`${lt.signalSymbol}: no credentials found`);
+        continue;
+      }
+
+      const livePrice = getPrice(allPrices, lt.signalSymbol, ltExchange) ?? fallbackPrice;
+      const closeResult = await protectiveClose(lt, "KILL_SWITCH", livePrice, creds);
+
+      if (closeResult.updatedFields.status === "CLOSED") {
+        await db.collection("live_trades").doc(liveDoc.id).update({
+          ...closeResult.updatedFields,
+          events: [...(lt.events || []), closeResult.newEvent],
+        });
+        await db.collection("live_trade_logs").add({
+          timestamp: new Date().toISOString(),
+          action: "KILL_SWITCH",
+          details: `${lt.signalSymbol} ${lt.side} force-closed @ $${livePrice} (sim cascade)`,
+          symbol: lt.signalSymbol,
+          userId,
+          exchange: ltExchange,
+          assetType: ltExchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
+        });
+        liveClosed++;
+      } else if (closeResult.warning) {
+        liveErrors.push(`${lt.signalSymbol}: ${closeResult.warning}`);
+      } else {
+        liveErrors.push(`${lt.signalSymbol}: close did not fill`);
+      }
+    } catch (err) {
+      liveErrors.push(`${lt.signalSymbol}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  return { liveClosed, liveErrors };
+}
+
+async function loadAllPrices(db: Firestore): Promise<AllExchangePrices> {
+  const priceDoc = await db.collection("config").doc("exchange_prices").get();
+  if (!priceDoc.exists) {
+    return { BINANCE: new Map(), BYBIT: new Map(), MEXC: new Map(), COINDCX: new Map(), HYPERLIQUID: new Map(), DHAN: new Map() };
+  }
+  return deserializePrices(priceDoc.data() as Record<string, Record<string, number>>);
+}
+
 /**
  * POST /api/sim/force-close
  * Body: { simTradeId: string }
  * Auth: Firebase ID token in Authorization header
  *
- * Closes a simulator trade at current market price and cascades
- * the close to any linked live trade on the exchange.
+ * Two behaviours, picked from the sim trade's current state:
+ *
+ *   • Sim is OPEN → close the sim at market + cascade live mirrors.
+ *     Any signed-in user can trigger this (existing behaviour).
+ *
+ *   • Sim is CLOSED but still has OPEN linked live_trades → admin-only
+ *     "live-only" recovery cascade. Sim doc is NOT touched. Returns the
+ *     same `{ liveClosed, liveErrors }` shape so the caller can show a
+ *     toast and retry until clean.
+ *
+ *   • Sim is CLOSED with zero open mirrors → 400 (nothing to do).
  */
 export async function POST(request: NextRequest) {
-  // Auth
   const authHeader = request.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -61,16 +172,57 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Sim trade not found" }, { status: 404 });
   }
   const simTrade = { id: simDoc.id, ...simDoc.data() } as SimTrade;
+
+  // Branch A — sim already CLOSED → admin-only "live-only" cascade.
   if (simTrade.status !== "OPEN") {
-    return NextResponse.json({ error: "Trade already closed" }, { status: 400 });
+    const auth = await requireAdmin(request);
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
+    const allPricesAdmin = await loadAllPrices(db);
+    const exchangeAdmin = (simTrade as any).exchange ?? "BINANCE";
+    const fallbackPriceAdmin =
+      getPrice(allPricesAdmin, simTrade.symbol, exchangeAdmin)
+      ?? simTrade.currentPrice
+      ?? simTrade.entryPrice;
+
+    const recovery = await cascadeCloseLiveMirrors(db, simTradeId, fallbackPriceAdmin, allPricesAdmin);
+
+    if (recovery.liveClosed === 0 && recovery.liveErrors.length === 0) {
+      return NextResponse.json({
+        error: "No open live mirrors to close — sim is already closed and all mirrors are reconciled.",
+      }, { status: 400 });
+    }
+
+    await db.collection("simulator_logs").add({
+      timestamp: new Date().toISOString(),
+      action: "KILL_SWITCH_LIVE_RECOVERY",
+      details: `${simTrade.symbol} ${simTrade.side}: live-only recovery cascade — closed ${recovery.liveClosed}, errors ${recovery.liveErrors.length}`,
+      signalId: simTrade.signalId,
+      symbol: simTrade.symbol,
+      capital: null,
+      pnl: null,
+      assetType: (simTrade as any).assetType ?? "CRYPTO",
+    }).catch(() => {});
+
+    return NextResponse.json({
+      success: true,
+      mode: "live-only",
+      simTrade: {
+        id: simTradeId,
+        symbol: simTrade.symbol,
+        side: simTrade.side,
+      },
+      liveClosed: recovery.liveClosed,
+      liveErrors: recovery.liveErrors.length > 0 ? recovery.liveErrors : undefined,
+    });
   }
 
+  // Branch B — sim still OPEN → standard close + cascade (existing behaviour).
+
   // 2. Get current price
-  const priceDoc = await db.collection("config").doc("exchange_prices").get();
-  let allPrices: AllExchangePrices = { BINANCE: new Map(), BYBIT: new Map(), MEXC: new Map(), COINDCX: new Map(), HYPERLIQUID: new Map(), DHAN: new Map() };
-  if (priceDoc.exists) {
-    allPrices = deserializePrices(priceDoc.data() as Record<string, Record<string, number>>);
-  }
+  const allPrices = await loadAllPrices(db);
   const exchange = (simTrade as any).exchange ?? "BINANCE";
   const currentPrice = getPrice(allPrices, simTrade.symbol, exchange) ?? simTrade.currentPrice ?? simTrade.entryPrice;
 
@@ -151,77 +303,13 @@ export async function POST(request: NextRequest) {
     assetType,
   });
 
-  // 4. Cascade to linked live trades
-  let liveClosed = 0;
-  let liveErrors: string[] = [];
-
-  const liveSnap = await db.collection("live_trades")
-    .where("simTradeId", "==", simTradeId)
-    .where("status", "==", "OPEN")
-    .get();
-
-  for (const liveDoc of liveSnap.docs) {
-    const lt = { id: liveDoc.id, ...liveDoc.data() } as LiveTrade;
-    try {
-      // Find user credentials
-      const userId = lt.userId;
-      const ltExchange = lt.exchange;
-      const docIds = getSecretDocIds(ltExchange);
-      let creds: Credentials | null = null;
-
-      for (const secretId of docIds) {
-        try {
-          const secretDoc = await db.collection("users").doc(userId)
-            .collection("secrets").doc(secretId).get();
-          const data = secretDoc.data();
-          if (
-            secretDoc.exists &&
-            data &&
-            docMatchesExchange(data, ltExchange as ExchangeName, secretId)
-          ) {
-            creds = {
-              apiKey: decrypt(data.encryptedKey),
-              apiSecret: decrypt(data.encryptedSecret),
-              testnet: data.useTestnet === true,
-            };
-            break;
-          }
-        } catch {}
-      }
-
-      if (!creds) {
-        liveErrors.push(`${lt.signalSymbol}: no credentials found`);
-        continue;
-      }
-
-      const livePrice = getPrice(allPrices, lt.signalSymbol, ltExchange) ?? currentPrice;
-      const closeResult = await protectiveClose(lt, "KILL_SWITCH", livePrice, creds);
-
-      if (closeResult.updatedFields.status === "CLOSED") {
-        await db.collection("live_trades").doc(liveDoc.id).update({
-          ...closeResult.updatedFields,
-          events: [...(lt.events || []), closeResult.newEvent],
-        });
-        await db.collection("live_trade_logs").add({
-          timestamp: new Date().toISOString(),
-          action: "KILL_SWITCH",
-          details: `${lt.signalSymbol} ${lt.side} force-closed @ $${livePrice} (sim cascade)`,
-          symbol: lt.signalSymbol,
-          userId,
-          exchange: ltExchange,
-          assetType: ltExchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
-        });
-        liveClosed++;
-      } else if (closeResult.warning) {
-        liveErrors.push(`${lt.signalSymbol}: ${closeResult.warning}`);
-      }
-    } catch (err) {
-      liveErrors.push(`${lt.signalSymbol}: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
+  // 4. Cascade to linked live trades (shared helper — same logic the
+  // "live-only" recovery branch uses).
+  const cascade = await cascadeCloseLiveMirrors(db, simTradeId, currentPrice, allPrices);
 
   return NextResponse.json({
     success: true,
+    mode: "default",
     simTrade: {
       id: simTradeId,
       symbol: simTrade.symbol,
@@ -229,7 +317,7 @@ export async function POST(request: NextRequest) {
       closePrice: currentPrice,
       pnl: netPnl,
     },
-    liveClosed,
-    liveErrors: liveErrors.length > 0 ? liveErrors : undefined,
+    liveClosed: cascade.liveClosed,
+    liveErrors: cascade.liveErrors.length > 0 ? cascade.liveErrors : undefined,
   });
 }

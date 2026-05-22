@@ -116,7 +116,8 @@ export function MirrorPageKillSwitch({
   if (openTrades.length === 0) {
     return (
       <p className="text-[10px] text-muted-foreground/45">
-        Sim position already closed — live mirrors may clear on the next sync.
+        Sim position already closed — sync-live-trades will retry the cascade
+        every 60s until all mirrors are reconciled.
       </p>
     );
   }

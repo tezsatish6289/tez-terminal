@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/hooks/use-toast";
 import type { SimulatorState, SimTrade, SimLog, SimTradeEvent } from "@/lib/simulator";
 import { getSimStateDocId } from "@/lib/simulator";
 import { SimulatorParamsDialog } from "@/components/simulator/SimulatorParamsDialog";
@@ -322,7 +323,18 @@ export default function SimulationPage() {
   const isLoading = stateLoading || openTradesLoading || closedTradesLoading || logsLoading || allTradesLoading;
 
   const [forceClosing, setForceClosing] = useState<string | null>(null);
+  const { toast } = useToast();
 
+  // Single handler for BOTH paths:
+  //   • Open Trades panel button → sim is OPEN → endpoint closes sim + cascades
+  //   • History row button       → sim is CLOSED → endpoint runs live-only
+  //                                cascade (admin gated by the route itself)
+  // The endpoint switches behaviour from the sim doc's current state, so the
+  // client doesn't need to pass a mode. `liveErrors` is the field we missed
+  // before — when the inline cascade failed, the UI silently celebrated and
+  // the orphaned live positions sat there until someone noticed. Now any
+  // non-empty `liveErrors` raises a destructive toast that names the symbols
+  // that didn't confirm.
   const handleForceClose = useCallback(async (trade: SimTrade) => {
     if (!user || !trade.id || forceClosing) return;
     setForceClosing(trade.id);
@@ -335,19 +347,56 @@ export default function SimulationPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(`Force close failed: ${data.error || "Unknown error"}`);
+        toast({
+          variant: "destructive",
+          title: "Force close failed",
+          description: data.error || "Unknown error",
+        });
         return;
       }
-      // Refresh live + history so the closed trade vanishes from OPEN,
-      // shows up in HISTORY, and the new log entry appears in LOGS.
+      const liveErrors: string[] = Array.isArray(data.liveErrors) ? data.liveErrors : [];
+      const liveClosed = typeof data.liveClosed === "number" ? data.liveClosed : 0;
+      const mode = data.mode === "live-only" ? "live-only" : "default";
+
+      if (liveErrors.length > 0) {
+        // Cron will retry within ~60s now that KILL_SWITCH is no longer in
+        // the sync-live-trades blacklist, so this is a heads-up — not a
+        // dead-end. Make it loud anyway so the operator can verify on the
+        // users' panels.
+        toast({
+          variant: "destructive",
+          title:
+            mode === "live-only"
+              ? `Live recovery: ${liveErrors.length} mirror${liveErrors.length === 1 ? "" : "s"} still open`
+              : `Sim closed — ${liveErrors.length} live mirror${liveErrors.length === 1 ? "" : "s"} didn't confirm`,
+          description:
+            (liveClosed > 0 ? `${liveClosed} closed OK. ` : "") +
+            `Failures: ${liveErrors.slice(0, 4).join("; ")}${liveErrors.length > 4 ? "; …" : ""}. sync-live-trades will retry on the next tick.`,
+        });
+      } else if (mode === "live-only") {
+        toast({
+          title: "Live mirrors closed",
+          description: `Reconciled ${liveClosed} orphaned mirror${liveClosed === 1 ? "" : "s"} on the exchange.`,
+        });
+      } else if (liveClosed > 0) {
+        toast({
+          title: "Sim + live closed",
+          description: `${liveClosed} live mirror${liveClosed === 1 ? "" : "s"} cascaded successfully.`,
+        });
+      }
+
       refresh();
       await Promise.all([fetchHistPage(0), refetchLogs()]);
     } catch (err) {
-      alert(`Force close failed: ${err instanceof Error ? err.message : String(err)}`);
+      toast({
+        variant: "destructive",
+        title: "Force close failed",
+        description: err instanceof Error ? err.message : String(err),
+      });
     } finally {
       setForceClosing(null);
     }
-  }, [user, forceClosing, refresh, fetchHistPage, refetchLogs]);
+  }, [user, forceClosing, refresh, fetchHistPage, refetchLogs, toast]);
 
   const openSimTradeIds = useMemo(
     () =>
@@ -483,6 +532,7 @@ export default function SimulationPage() {
                         emptyIcon={<BarChart3 className="w-6 h-6" />}
                         emptyLabel={`No closed trades for ${selectedBot.label} yet`}
                         onSelectTrade={setSelectedTrade}
+                        onForceClose={handleForceClose}
                         cs={cs}
                         startingCapital={simState?.startingCapital}
                         tradeNumberMap={tradeNumberMap}
@@ -1125,15 +1175,28 @@ function HistoryScoreCell({ trade }: { trade: SimTrade }) {
 
 function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose, cs, startingCapital, tradeNumberMap, balanceAfterMap: balanceAfterMapProp }: { trades: SimTrade[]; emptyIcon: React.ReactNode; emptyLabel: string; onSelectTrade: (t: SimTrade) => void; onForceClose?: (t: SimTrade) => void; cs: string; startingCapital?: number; tradeNumberMap?: Map<string, number>; balanceAfterMap?: Map<string, number> }) {
   const isHistory = startingCapital != null;
-  const isOpenTab = onForceClose != null;
+  // `isOpenTab` historically meant "user can force-close from this list",
+  // which used to align with the Open Trades panel only. Now History also
+  // gets `onForceClose` (for the live-mirror recovery flow), so the open-tab
+  // flag is derived from the absence of history, not the presence of the
+  // callback.
+  const isOpenTab = !isHistory;
+  const canForceClose = onForceClose != null;
   const [filters, setFilters] = useState<SimFilters>(DEFAULT_SIM_FILTERS);
   const [page, setPage] = useState(1);
+  // For Open Trades we fetch mirrors for every visible row to power the
+  // exchange pills + per-row live-user count. For History we ALSO fetch
+  // them so we can surface a "Force close live mirror" button on any
+  // already-closed sim that still has an open live row hanging around
+  // (the orphan that started this whole RCA). The mirror endpoint already
+  // filters server-side to `status == OPEN`, so the History call only
+  // returns rows that actually need attention.
   const simTradeIds = useMemo(
     () =>
-      isOpenTab
-        ? trades.map((t) => t.id ?? (t.signalId ? `sim-${t.signalId}` : "")).filter(Boolean)
-        : [],
-    [trades, isOpenTab],
+      trades
+        .map((t) => t.id ?? (t.signalId ? `sim-${t.signalId}` : ""))
+        .filter(Boolean),
+    [trades],
   );
   const {
     isAdmin: mirrorAdmin,
@@ -1141,7 +1204,7 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
     exchangeSummary,
     loading: mirrorsLoading,
     error: mirrorsError,
-  } = useOpenTradesMirrors(simTradeIds, isOpenTab);
+  } = useOpenTradesMirrors(simTradeIds, true);
   const setF = <K extends keyof SimFilters>(k: K, v: SimFilters[K]) => {
     setFilters((prev) => ({ ...prev, [k]: v }));
     setPage(1);
@@ -1315,6 +1378,7 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
                         simTradeId={simId}
                         mirrorCount={mirrors.length}
                         showMirrorUi={mirrorAdmin && isOpenTab}
+                        staleMirrorAdmin={mirrorAdmin && isHistory && canForceClose}
                       />
                     );
                   })
@@ -1352,6 +1416,7 @@ function DesktopTradeRow({
   simTradeId = "",
   mirrorCount = 0,
   showMirrorUi = false,
+  staleMirrorAdmin = false,
 }: {
   trade: SimTrade;
   onSelect: (t: SimTrade) => void;
@@ -1364,6 +1429,11 @@ function DesktopTradeRow({
   simTradeId?: string;
   mirrorCount?: number;
   showMirrorUi?: boolean;
+  /** Admin-only: drives the orphaned-live-mirror force-close button on
+   *  the History row's status cell. Decoupled from `showMirrorUi` because
+   *  the per-row "X live users" chip on Open trades has different visibility
+   *  rules from the History recovery button. */
+  staleMirrorAdmin?: boolean;
 }) {
   const isBuy = trade.side === "BUY";
   const isOpen = trade.status === "OPEN";
@@ -1585,9 +1655,32 @@ function DesktopTradeRow({
           </div>
         ) : (
           <div className="flex flex-col gap-1">
-            <Badge className={cn("text-[9px] font-black h-5 uppercase px-2 w-fit", closeDisplay.color)}>
-              {closeDisplay.label}
-            </Badge>
+            <div className="flex items-center gap-1.5">
+              <Badge className={cn("text-[9px] font-black h-5 uppercase px-2 w-fit", closeDisplay.color)}>
+                {closeDisplay.label}
+              </Badge>
+              {/* Orphaned-live-mirror recovery: shows only when the sim
+                  is CLOSED but the mirror endpoint still returned OPEN
+                  live_trades for this simTradeId. The endpoint is the
+                  same `/api/sim/force-close` — when the sim is already
+                  closed it runs the cascade-only branch (admin-gated). */}
+              {staleMirrorAdmin && mirrorCount > 0 && onForceClose && (
+                <SimForceCloseDialog
+                  trades={trade}
+                  onConfirm={() => onForceClose(trade)}
+                  extraNote={`${mirrorCount} live mirror${mirrorCount === 1 ? "" : "s"} still open. Sim is already closed; this only runs the live-cascade recovery and does not touch the sim doc.`}
+                >
+                  <button
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 h-5 px-1.5 rounded border border-rose-400/30 bg-rose-500/10 text-[9px] font-black uppercase text-rose-300 hover:bg-rose-500/20 transition-colors"
+                    title={`Force close ${mirrorCount} orphaned live mirror${mirrorCount === 1 ? "" : "s"}`}
+                  >
+                    <XCircle className="h-3 w-3" />
+                    {mirrorCount}
+                  </button>
+                </SimForceCloseDialog>
+              )}
+            </div>
             {(trade as any).txHash ? (
               <a
                 href={`https://solscan.io/tx/${(trade as any).txHash}`}

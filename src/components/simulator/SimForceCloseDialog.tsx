@@ -66,17 +66,31 @@ export function SimForceCloseDialog({
       >
         <DialogHeader>
           <DialogTitle className="text-white flex items-center gap-2">
-            <XCircle className="w-4 h-4 text-rose-400" /> Kill switch
+            <XCircle className="w-4 h-4 text-rose-400" />
+            {/* Title swaps when the sim is already closed: we're not killing
+                the sim again, we're chasing down the orphaned live mirror(s)
+                whose original inline cascade failed. */}
+            {list.every((t) => t.status !== "OPEN") ? "Force close live mirrors" : "Kill switch"}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-1">
           <p className="text-[12px] text-muted-foreground">
             {list.length === 1 ? (
-              <>
-                Force-close sim{" "}
-                <span className="text-white font-bold">{tradeLabel(list[0]!)}</span> at
-                market. This also closes every linked live mirror on all exchanges.
-              </>
+              list[0]!.status !== "OPEN" ? (
+                <>
+                  Sim{" "}
+                  <span className="text-white font-bold">{tradeLabel(list[0]!)}</span>{" "}
+                  is already closed, but linked live mirrors are still OPEN on the
+                  exchange. This runs the cascade-only recovery — sim doc is not
+                  touched.
+                </>
+              ) : (
+                <>
+                  Force-close sim{" "}
+                  <span className="text-white font-bold">{tradeLabel(list[0]!)}</span> at
+                  market. This also closes every linked live mirror on all exchanges.
+                </>
+              )
             ) : (
               <>
                 Force-close{" "}

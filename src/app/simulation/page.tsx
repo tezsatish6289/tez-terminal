@@ -57,7 +57,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { SimulatorState, SimTrade, SimLog, SimTradeEvent } from "@/lib/simulator";
 import { getSimStateDocId } from "@/lib/simulator";
 import { SimulatorParamsDialog } from "@/components/simulator/SimulatorParamsDialog";
-import { HeatmapGrid } from "@/components/simulator/HeatmapGrid";
+import { BotCockpit } from "@/components/simulator/BotCockpit";
 import { format, startOfDay, startOfWeek, startOfMonth, isAfter } from "date-fns";
 import { buildEquityCurve } from "@/lib/equity-curve";
 import { matchesBotSource } from "@/lib/bot-source-filter";
@@ -445,15 +445,14 @@ export default function SimulationPage() {
               paramsControl={<SimulatorParamsDialog />}
             />
 
-            <HeatmapGrid
+            <BotCockpit
               openTrades={openTradesAll}
               closedTrades={allClosedTrades}
               startingCapital={simState?.startingCapital ?? 1000}
               cs={cs}
               selectedBotId={selectedBotId}
               onSelectBot={setSelectedBotId}
-            />
-
+            >
             {isLoading ? (
               <div className={cn(SIM_PANEL, "flex items-center justify-center min-h-[280px]")}>
                 <Loader2 className="h-7 w-7 animate-spin text-accent/50" />
@@ -561,6 +560,7 @@ export default function SimulationPage() {
                 )}
               </SimulatorMainPanel>
             )}
+            </BotCockpit>
           </div>
         </div>
       </main>

@@ -11,23 +11,29 @@
  * Algorithm (v2 — current)
  * ──────────────────────────────────────────────────────────────────────────
  *
- * Zone *selection* uses DAY-0 + DAY-1 OI only (revised 2026-05-22).
+ * Zone *selection* uses ALL-EXPIRY OI for ranking, gated by a
+ * near-term (day-0+1) sanity filter. Revised 2026-05-22 after a
+ * round-trip:
  *
- * The previous build aggregated OI across every un-expired expiry. The
- * stated rationale — "dealer positioning is durable across expiries" —
- * held for BTC where the IV-derived anchor window (~6% of spot)
- * naturally excludes deep-OTM premium magnets. It failed badly for ETH
- * (and would fail worse for SOL): round-number premium-seller strikes
- * (e.g. $1,800 puts / $2,500 calls on ETH at $2,130 spot) accumulate
- * huge all-expiry OI with no near-term pinning effect, but dominated
- * the picker by sheer contract count and crowded out the real walls
- * around max pain. Switching to day-0+1 matches what dealers actually
- * hedge today and tomorrow, which is what pins spot.
+ *   Original: all-expiry only. BTC worked (its anchor window is
+ *     narrow in % terms so deep-OTM premium magnets sit outside).
+ *     ETH/SOL broke because round-number premium-seller strikes
+ *     (e.g. $1,800 puts / $2,500 calls on ETH at $2,130 spot)
+ *     accumulate huge all-expiry OI with ~zero near-term pinning
+ *     effect.
+ *
+ *   Day-0+1 only: filtered the magnets but ALSO filtered the real
+ *     walls whenever OI is concentrated in the next weekly (day-4
+ *     on a post-Friday-expiry Friday). BTC lost its picks entirely.
+ *
+ *   Current (hybrid): rank by all-expiry OI (so weekly/monthly walls
+ *     register), require non-trivial day-0+1 OI to reject pure
+ *     premium magnets. The magnet signature is "huge all-expiry, ~0
+ *     near-term"; a structural wall whose OI is mostly in next-weekly
+ *     still has *some* day-0+1 contracts (dailies aren't zero) and
+ *     passes.
  *
  * TP / magnet still uses TODAY's (day-0) max pain only — unchanged.
- *
- * Same near-term OI lens for cluster selection and max-pain; just
- * different horizons (≤2-day pinning vs intraday pinning).
  *
  *   1. Fetch all options for the asset from Deribit (single REST call —
  *      returns OI + IV + underlying price for every instrument).
@@ -42,7 +48,8 @@
  *           — floored at 2σ × 15 min (so the confirmation gate has room)
  *           — capped  at 2% × spot (so SL distance ≤ 3%, the engine's limit)
  *
- *   4. Aggregate OI per strike across DAY-0 + DAY-1 expiries only.
+ *   4. Aggregate OI per strike — all-expiry for ranking, day-0+1 for
+ *      the premium-magnet sanity filter.
  *
  *   5. Pick the **most potent** cluster on each side, **anchored near
  *      day-0 max pain** (not far-away structural walls):
@@ -110,14 +117,29 @@ const MIN_CLUSTER_PCT_OF_MAX = 0.25;
 /** Max distance from day-0 max pain for zone-center search (also IV-scaled). */
 const MAX_PAIN_ANCHOR_REACH_MULT = 2.5;
 
-/** Anchor-span floor as % of spot. Replaces the previous $800 absolute
- *  floor, which was BTC-scaled and silently became the binding constraint
- *  for smaller-priced assets — at $2,130 spot ETH that floor was 38% of
- *  spot, and at $200 SOL it was 400% of spot, both swept in far-OTM
- *  noise. 1% gives BTC ~$770 (other terms dominate anyway), ETH ~$21,
- *  SOL ~$2 — small enough that the IV-derived terms always lead for
- *  any asset with a real options market. */
-const MIN_ANCHOR_FLOOR_PCT_OF_SPOT = 0.01;
+/** Anchor-span floor in USD. Wide enough that the picker finds real
+ *  walls even when IV is low (low IV → tiny IV-derived span). The
+ *  near-term sanity filter (`NEAR_TERM_OI_MIN_FLOOR` below) keeps
+ *  deep-OTM premium magnets out of the pool even with a generous
+ *  span, so we don't lose anything by being permissive here.
+ *
+ *  $800 ≈ 1% of spot for BTC. For ETH at $2,130 that's 38% of spot,
+ *  but the magnet filter neutralises the noise that wide window would
+ *  otherwise sweep in. SOL at $87 spot effectively never uses this
+ *  floor — its IV-derived span is the binding constraint and the SOL
+ *  zone bot is gated on having any usable day-0 max pain at all. */
+const MIN_ANCHOR_FLOOR_USD = 800;
+
+/** Near-term (day-0+1) OI floor a strike must clear to count as a
+ *  real wall, even if its all-expiry OI is huge. The premium-magnet
+ *  failure mode is "tens of thousands of all-expiry contracts at a
+ *  deep-OTM round number, ~0 near-term contracts" — premium-sellers
+ *  write those positions in distant expiries and dailies barely
+ *  touch them. Setting this to 5% of the per-asset `minClusterOi`
+ *  catches that without rejecting structural walls whose OI is
+ *  concentrated in the next weekly (those still have non-trivial
+ *  daily-expiry OI). */
+const NEAR_TERM_OI_FLOOR_FRAC_OF_MIN_CLUSTER = 0.05;
 
 /** Reach gate = 1-σ daily move. 68% probability price visits any strike
  *  inside this band today. Sourced from the market's own IV pricing. */
@@ -489,6 +511,11 @@ interface ClusterPick {
 
 interface ClusterPickInput {
   oiByStrike:            Map<number, number>;
+  /** Day-0+1 OI per strike. Used only for the premium-magnet sanity
+   *  filter — a strike whose near-term OI is below `nearTermOiFloor`
+   *  is rejected regardless of its all-expiry total. */
+  nearTermOiByStrike:    Map<number, number>;
+  nearTermOiFloor:       number;
   spot:                  number;
   side:                  "put" | "call";
   maxReachUsd:           number;
@@ -507,7 +534,7 @@ function deriveMaxPainAnchorSpan(
   return Math.max(
     maxReachUsd * MAX_PAIN_ANCHOR_REACH_MULT,
     spot * anchorPct,
-    spot * MIN_ANCHOR_FLOOR_PCT_OF_SPOT,
+    MIN_ANCHOR_FLOOR_USD,
   );
 }
 
@@ -517,6 +544,8 @@ function filterPotentNearMaxPain(
 ): Array<[number, number]> {
   const {
     oiByStrike,
+    nearTermOiByStrike,
+    nearTermOiFloor,
     side,
     zoneHalfWidthUsd,
     day0MaxPain,
@@ -537,14 +566,22 @@ function filterPotentNearMaxPain(
       if (strike >= upper) return false;
       if (strike < lower) return false;
       if (strike + half >= day0MaxPain) return false;
-      return true;
+    } else {
+      const lower = day0MaxPain + mpGap;
+      const upper = day0MaxPain + anchorSpanUsd;
+      if (strike <= lower) return false;
+      if (strike > upper) return false;
+      if (strike - half <= day0MaxPain) return false;
     }
 
-    const lower = day0MaxPain + mpGap;
-    const upper = day0MaxPain + anchorSpanUsd;
-    if (strike <= lower) return false;
-    if (strike > upper) return false;
-    if (strike - half <= day0MaxPain) return false;
+    // Premium-magnet sanity filter — see file header. A strike with
+    // tens of thousands of all-expiry OI but ~zero day-0+1 OI is a
+    // premium-seller magnet, not a wall that pins price. Real walls
+    // (even ones concentrated in next-weekly) always have *some*
+    // daily-expiry OI.
+    const nearTerm = nearTermOiByStrike.get(strike) ?? 0;
+    if (nearTerm < nearTermOiFloor) return false;
+
     return true;
   });
 
@@ -725,21 +762,22 @@ export async function computeOptionsZones(
     atmIV >= PANIC_IV_THRESHOLD ||
     ivBackwardation >= BACKWARDATION_RATIO_THRESHOLD;
 
-  // ── Aggregate OI per strike across DAY-0 + DAY-1 expiries only ──────
-  // Far-dated premium-magnet strikes (e.g. $1,800 puts and $2,500 calls
-  // on ETH) accumulate enormous all-expiry OI with no near-term price
-  // impact. Restricting to day-0+1 leaves only what dealers actually
-  // hedge today and tomorrow — the OI that pins spot. See the file
-  // header for the full story.
+  // ── Aggregate OI per strike — all-expiry for ranking, near-term for
+  //    the premium-magnet sanity filter (see header for rationale).
   const nearTermExpiries = new Set(
     sortedExpiries.slice(0, 2).map(([label]) => label),
   );
-  const putOIByStrike  = new Map<number, number>();
-  const callOIByStrike = new Map<number, number>();
+  const putOIByStrike      = new Map<number, number>(); // all-expiry, drives ranking
+  const callOIByStrike     = new Map<number, number>();
+  const nearTermPutOI      = new Map<number, number>(); // day-0+1, gates against magnets
+  const nearTermCallOI     = new Map<number, number>();
   for (const p of allParsed) {
-    if (!nearTermExpiries.has(p.expiry)) continue;
-    const map = p.type === "P" ? putOIByStrike : callOIByStrike;
-    map.set(p.strike, (map.get(p.strike) ?? 0) + p.oi);
+    const allMap = p.type === "P" ? putOIByStrike : callOIByStrike;
+    allMap.set(p.strike, (allMap.get(p.strike) ?? 0) + p.oi);
+    if (nearTermExpiries.has(p.expiry)) {
+      const ntMap = p.type === "P" ? nearTermPutOI : nearTermCallOI;
+      ntMap.set(p.strike, (ntMap.get(p.strike) ?? 0) + p.oi);
+    }
   }
 
   const maxPainAnchorSpanUsd = deriveMaxPainAnchorSpan(
@@ -748,8 +786,19 @@ export async function computeOptionsZones(
     spec.maxPainAnchorPct,
   );
 
-  const pickInput = (side: "put" | "call", map: Map<number, number>) => ({
-    oiByStrike: map,
+  const nearTermOiFloor = Math.max(
+    10,
+    NEAR_TERM_OI_FLOOR_FRAC_OF_MIN_CLUSTER * spec.minClusterOi,
+  );
+
+  const pickInput = (
+    side: "put" | "call",
+    allMap: Map<number, number>,
+    nearTermMap: Map<number, number>,
+  ): ClusterPickInput => ({
+    oiByStrike: allMap,
+    nearTermOiByStrike: nearTermMap,
+    nearTermOiFloor,
     spot,
     side,
     maxReachUsd: sizes.maxReachUsd,
@@ -760,8 +809,12 @@ export async function computeOptionsZones(
     maxPainAnchorSpanUsd,
   });
 
-  const bullPick = pickPotentClusterNearMaxPain(pickInput("put", putOIByStrike));
-  const bearPick = pickPotentClusterNearMaxPain(pickInput("call", callOIByStrike));
+  const bullPick = pickPotentClusterNearMaxPain(
+    pickInput("put", putOIByStrike, nearTermPutOI),
+  );
+  const bearPick = pickPotentClusterNearMaxPain(
+    pickInput("call", callOIByStrike, nearTermCallOI),
+  );
 
   // ── Bands (fresh scan) ────────────────────────────────────────────────
   const half = sizes.halfWidthUsd;

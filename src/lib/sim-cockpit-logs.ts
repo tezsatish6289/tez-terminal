@@ -2,12 +2,13 @@ import {
   BOT_SOURCE_BTC_ZONE,
   BOT_SOURCE_ETH_ZONE,
   BOT_SOURCE_SOL_ZONE,
+  BOT_SOURCE_XRP_ZONE,
   type BotSourceFilter,
 } from "@/lib/bot-source-filter";
 import type { SimLog } from "@/lib/simulator";
 
 const ZONE_TAG = new RegExp(
-  `\\[(${BOT_SOURCE_BTC_ZONE}|${BOT_SOURCE_ETH_ZONE}|${BOT_SOURCE_SOL_ZONE})\\]`,
+  `\\[(${BOT_SOURCE_BTC_ZONE}|${BOT_SOURCE_ETH_ZONE}|${BOT_SOURCE_SOL_ZONE}|${BOT_SOURCE_XRP_ZONE})\\]`,
 );
 
 type PerBotSource = Exclude<BotSourceFilter, "ALL">;
@@ -37,6 +38,12 @@ export function matchesLogForBotSource(
     return (
       details.includes(`[${BOT_SOURCE_SOL_ZONE}]`) ||
       (action.includes("ZONE_BOT") && sym.includes("SOL"))
+    );
+  }
+  if (botSource === BOT_SOURCE_XRP_ZONE) {
+    return (
+      details.includes(`[${BOT_SOURCE_XRP_ZONE}]`) ||
+      (action.includes("ZONE_BOT") && sym.includes("XRP"))
     );
   }
 

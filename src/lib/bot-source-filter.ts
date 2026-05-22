@@ -21,6 +21,7 @@ export const BOT_SOURCE_PATTERN = "PATTERN";
 export const BOT_SOURCE_BTC_ZONE = "BTC_ZONE";
 export const BOT_SOURCE_ETH_ZONE = "ETH_ZONE";
 export const BOT_SOURCE_SOL_ZONE = "SOL_ZONE";
+export const BOT_SOURCE_XRP_ZONE = "XRP_ZONE";
 
 /** Filter pill values. "ALL" includes every trade regardless of source. */
 export type BotSourceFilter =
@@ -28,7 +29,8 @@ export type BotSourceFilter =
   | "PATTERN"
   | "BTC_ZONE"
   | "ETH_ZONE"
-  | "SOL_ZONE";
+  | "SOL_ZONE"
+  | "XRP_ZONE";
 
 /** Pills rendered, in display order. Add ETH/SOL/XRP entries here when
  *  their bots ship — every page picks them up automatically. */
@@ -50,6 +52,7 @@ export const BOT_SOURCE_PILLS: BotSourcePillOption[] = [
   { id: "BTC_ZONE",  label: "BTC Zone",    short: "BTC" },
   { id: "ETH_ZONE",  label: "ETH Zone",    short: "ETH" },
   { id: "SOL_ZONE",  label: "SOL Zone",    short: "SOL" },
+  { id: "XRP_ZONE",  label: "XRP Zone",    short: "XRP" },
 ];
 
 /** Normalise an optional `botSource` field to a canonical bucket so the
@@ -60,6 +63,7 @@ export function classifyBotSource(raw: string | null | undefined): Exclude<BotSo
   if (raw === BOT_SOURCE_BTC_ZONE) return "BTC_ZONE";
   if (raw === BOT_SOURCE_ETH_ZONE) return "ETH_ZONE";
   if (raw === BOT_SOURCE_SOL_ZONE) return "SOL_ZONE";
+  if (raw === BOT_SOURCE_XRP_ZONE) return "XRP_ZONE";
   // Anything else — including null/undefined/legacy values — is pattern.
   return "PATTERN";
 }

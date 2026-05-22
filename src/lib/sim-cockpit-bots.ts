@@ -1,6 +1,8 @@
 /**
- * Simulation cockpit — four Deribit zone cards (Crypto Bot + 3 zone bots).
- * XRP is omitted (no Deribit chain; no fourth zone bot planned).
+ * Simulation cockpit — five Deribit zone cards (Crypto Bot + 4 zone bots).
+ * XRP joined 2026-05-22 once we confirmed Deribit has a thick XRP_USDC
+ * linear options chain (`currency=USDC` bucket, instrument prefix
+ * `XRP_USDC-`, $0.02 strike grid, 19.8M+ OI on the front-month weekly).
  */
 import {
   BOT_SOURCE_BTC_ZONE,
@@ -44,5 +46,11 @@ export const SIM_COCKPIT_BOTS: readonly SimCockpitBot[] = [
     label: "SOL Zone",
     suggestedDoc: "suggested_zones_sol",
     botSource: ZONE_BOT_SOURCE.sol as Exclude<BotSourceFilter, "ALL">,
+  },
+  {
+    id: "xrp",
+    label: "XRP Zone",
+    suggestedDoc: "suggested_zones_xrp",
+    botSource: ZONE_BOT_SOURCE.xrp as Exclude<BotSourceFilter, "ALL">,
   },
 ] as const;

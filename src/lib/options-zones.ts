@@ -267,6 +267,30 @@ const ASSET_SPEC: Record<ZoneBotAsset, AssetSpec> = {
     indexEndpoint:    "sol_usdc",
     minClusterOi:     50,
   },
+  xrp: {
+    // XRP options are USDC-margined linear, name shape
+    // `XRP_USDC-29MAY26-1d35-C` (the `d` is XRP's decimal-point
+    // workaround because `.` collides with the field separator —
+    // handled in parseInstrument). Strike grid is $0.02 near ATM
+    // ($1.25 / $1.26 / $1.28 / $1.30 / $1.32 / …), widening to
+    // $0.05–$0.10 far OTM. Spot ~$1.36 at time of wiring.
+    //
+    // Chain is THICK on the monthly weekly (29MAY: 63 strikes, 19.8M
+    // OI) and the next monthly (26JUN: 44 strikes, 26.5M OI) but
+    // lean on daily expiries (Sat/Sun: 4–6 strikes). The cluster
+    // picker uses all-expiry OI so it benefits from the rich
+    // weeklies even when day-0 is a thin daily.
+    deribitCurrency:  "USDC",
+    instrumentPrefix: "XRP_USDC-",
+    strikeGridUsd:    0.02,
+    yearDays:         365,
+    indexEndpoint:    "xrp_usdc",
+    // XRP carries huge per-strike OI (median ~200k) so a floor of
+    // 2000 is well below the noise mark and lets thin-day pickers
+    // still find a wall. The relative `MIN_CLUSTER_PCT_OF_MAX`
+    // filter (25% of tallest bar in window) does the real work.
+    minClusterOi:     2000,
+  },
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -389,10 +413,15 @@ interface Parsed {
 
 function parseInstrument(name: string, oi: number, iv?: number): Parsed | null {
   const parts = name.split("-");
-  // BTC-31JUL26-83000-C → 4 parts; ETH/SOL same shape.
+  // BTC-31JUL26-83000-C → 4 parts; ETH/SOL_USDC same shape.
   if (parts.length !== 4) return null;
-  const strike = parseInt(parts[2], 10);
-  if (isNaN(strike) || strike <= 0) return null;
+  // Decimal-strike assets (XRP_USDC, TRX_USDC, etc.) encode the decimal
+  // point as `d` because `.` would collide with the field separator:
+  //   XRP_USDC-29MAY26-1d35-C  ⇒  $1.35 call.
+  // Integer-strike assets (BTC, ETH, SOL_USDC) have no `d` to swap.
+  const strikeRaw = parts[2].replace("d", ".");
+  const strike = parseFloat(strikeRaw);
+  if (!Number.isFinite(strike) || strike <= 0) return null;
   if (parts[3] !== "C" && parts[3] !== "P") return null;
   const expiryDate = parseExpiryDate(parts[1]);
   if (!expiryDate) return null;

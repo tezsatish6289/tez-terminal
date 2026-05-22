@@ -95,7 +95,7 @@ export async function PUT(
       await db.doc("config/heatmap_zones").set(zoneFields, { merge: true });
     }
   }
-  if (botId === "btc" || botId === "eth" || botId === "sol") {
+  if (botId === "btc" || botId === "eth" || botId === "sol" || botId === "xrp") {
     const zUpdate: Record<string, unknown> = { updatedAt: update.updatedAt };
     if ("manualOverride" in body) zUpdate.manualOverride = update.manualOverride;
     if ("zoneConfirmMinutes" in body) {

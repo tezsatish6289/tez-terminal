@@ -13,6 +13,7 @@ const ZONE_ASSET: Record<string, ZoneBotAsset> = {
   BTC_ZONE: "btc",
   ETH_ZONE: "eth",
   SOL_ZONE: "sol",
+  XRP_ZONE: "xrp",
 };
 
 async function main() {
@@ -21,7 +22,7 @@ async function main() {
   const zoneAsset = ZONE_ASSET[botSource];
 
   if (!zoneAsset) {
-    console.error(`Unknown botSource: ${botSource}. Use BTC_ZONE, ETH_ZONE, or SOL_ZONE.`);
+    console.error(`Unknown botSource: ${botSource}. Use BTC_ZONE, ETH_ZONE, SOL_ZONE, or XRP_ZONE.`);
     process.exit(1);
   }
 

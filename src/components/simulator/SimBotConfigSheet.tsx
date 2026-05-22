@@ -65,11 +65,6 @@ function ZoneEntryFields({
         min={0}
         onChange={(v) => patch({ maxPainProximityUsd: v })}
       />
-      {botId === "sol" && (
-        <p className="text-[9px] text-amber-400/60">
-          Simulator engine not enabled for SOL yet — settings are saved for when it ships.
-        </p>
-      )}
     </div>
   );
 }

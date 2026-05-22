@@ -269,6 +269,7 @@ const ZONE_BOT_BIAS: Record<ZoneBotAsset, string> = {
   btc: "BTC_ZONE",
   eth: "ETH_ZONE",
   sol: "SOL_ZONE",
+  xrp: "XRP_ZONE",
 };
 
 function makeZoneSignalId(asset: ZoneBotAsset, now: number): string {

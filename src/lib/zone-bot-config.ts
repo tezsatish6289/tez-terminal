@@ -16,13 +16,13 @@ import type { Firestore } from "firebase-admin/firestore";
 // ── Asset registry ───────────────────────────────────────────────────────
 
 /** Coins with Deribit option chains (zone suggester + zone bots). */
-export type ZoneBotAsset = "btc" | "eth" | "sol";
+export type ZoneBotAsset = "btc" | "eth" | "sol" | "xrp";
 
 /** @deprecated Use `CockpitBotId` from `sim-cockpit-bots.ts` for /simulation UI. */
 export type HeatmapUiAsset = ZoneBotAsset | "crypto";
 
 /** Iteration order for zone-bot crons (simulator engine ticks). */
-export const ZONE_BOT_REGISTRY: readonly ZoneBotAsset[] = ["btc", "eth", "sol"] as const;
+export const ZONE_BOT_REGISTRY: readonly ZoneBotAsset[] = ["btc", "eth", "sol", "xrp"] as const;
 
 /** Each zone bot sim ledger starts at this USD balance (independent of Crypto Bot). */
 export const ZONE_BOT_STARTING_CAPITAL_USD = 1000;
@@ -32,6 +32,7 @@ export const ZONE_BOT_PERP_SYMBOL: Record<ZoneBotAsset, string> = {
   btc: "BTCUSDT",
   eth: "ETHUSDT",
   sol: "SOLUSDT",
+  xrp: "XRPUSDT",
 };
 
 /** Human-friendly label shown in the UI ("BTC Zone", etc.). */
@@ -39,6 +40,7 @@ export const ZONE_BOT_LABEL: Record<ZoneBotAsset, string> = {
   btc: "BTC Zone",
   eth: "ETH Zone",
   sol: "SOL Zone",
+  xrp: "XRP Zone",
 };
 
 /** `botSource` value stamped on trades from this bot. */
@@ -46,6 +48,7 @@ export const ZONE_BOT_SOURCE: Record<ZoneBotAsset, string> = {
   btc: "BTC_ZONE",
   eth: "ETH_ZONE",
   sol: "SOL_ZONE",
+  xrp: "XRP_ZONE",
 };
 
 // ── Settings shape ───────────────────────────────────────────────────────
@@ -102,6 +105,16 @@ export const ZONE_BOT_DEFAULTS: Record<ZoneBotAsset, ZoneBotSettings> = {
     zoneHalfWidthUsd:      1.5,
     zoneConfirmMinutes:    15,
     maxPainProximityUsd:   0.5,
+  },
+  xrp: {
+    manualOverride:        "AUTO",
+    // Half-width auto-derives from ATM IV inside computeOptionsZones;
+    // this seed (~2% of $1.36 spot) only matters for the back-compat
+    // path when the suggester hasn't published yet.
+    zoneHalfWidthUsd:      0.03,
+    zoneConfirmMinutes:    15,
+    // One-sided "close near max pain" knob — half a halfWidth.
+    maxPainProximityUsd:   0.015,
   },
 };
 

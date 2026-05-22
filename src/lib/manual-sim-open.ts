@@ -37,7 +37,7 @@ export interface ManualOpenTradeResult {
   liveMirrorAttempted: boolean;
 }
 
-const ZONE_ASSETS = new Set<ZoneBotAsset>(["btc", "eth", "sol"]);
+const ZONE_ASSETS = new Set<ZoneBotAsset>(["btc", "eth", "sol", "xrp"]);
 
 export function normalizePerpSymbol(raw: string): string {
   const s = raw.trim().toUpperCase().replace(/\s+/g, "");
@@ -146,6 +146,8 @@ export function defaultSymbolForBot(botId: CockpitBotId): string {
       return "ETHUSDT.P";
     case "sol":
       return "SOLUSDT.P";
+    case "xrp":
+      return "XRPUSDT.P";
     default:
       return "BTCUSDT.P";
   }

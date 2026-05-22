@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
-import { BOT_SOURCE_BTC_ZONE, BOT_SOURCE_ETH_ZONE, BOT_SOURCE_SOL_ZONE } from "@/lib/bot-source-filter";
+import {
+  BOT_SOURCE_BTC_ZONE,
+  BOT_SOURCE_ETH_ZONE,
+  BOT_SOURCE_SOL_ZONE,
+  BOT_SOURCE_XRP_ZONE,
+} from "@/lib/bot-source-filter";
 import {
   defaultZoneSimState,
   emptyZoneBotState,
@@ -17,6 +22,7 @@ const ALLOWED_BOT_SOURCES = [
   BOT_SOURCE_BTC_ZONE,
   BOT_SOURCE_ETH_ZONE,
   BOT_SOURCE_SOL_ZONE,
+  BOT_SOURCE_XRP_ZONE,
 ] as const;
 
 type AllowedBotSource = (typeof ALLOWED_BOT_SOURCES)[number];
@@ -25,6 +31,7 @@ const ZONE_ASSET_BY_SOURCE: Record<AllowedBotSource, ZoneBotAsset> = {
   [BOT_SOURCE_BTC_ZONE]: "btc",
   [BOT_SOURCE_ETH_ZONE]: "eth",
   [BOT_SOURCE_SOL_ZONE]: "sol",
+  [BOT_SOURCE_XRP_ZONE]: "xrp",
 };
 
 /**

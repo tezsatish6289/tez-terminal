@@ -10,7 +10,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const VALID_ASSETS: ZoneBotAsset[] = ["btc", "eth", "sol"];
+const VALID_ASSETS: ZoneBotAsset[] = ["btc", "eth", "sol", "xrp"];
 
 function parseAsset(raw: string): ZoneBotAsset | null {
   if (VALID_ASSETS.includes(raw as ZoneBotAsset)) return raw as ZoneBotAsset;

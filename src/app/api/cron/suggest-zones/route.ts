@@ -26,12 +26,13 @@ export const maxDuration = 60;
 const CRON_SECRET = process.env.CRON_SECRET;
 
 /** All Deribit assets refreshed by this cron (includes BTC for the grid). */
-const SUGGEST_ZONE_ASSETS: ZoneBotAsset[] = ["btc", "eth", "sol"];
+const SUGGEST_ZONE_ASSETS: ZoneBotAsset[] = ["btc", "eth", "sol", "xrp"];
 
 const PERP_SYMBOL: Record<ZoneBotAsset, string> = {
   btc: "BTCUSDT",
   eth: "ETHUSDT",
   sol: "SOLUSDT",
+  xrp: "XRPUSDT",
 };
 
 function serializeSuggested(

@@ -177,7 +177,7 @@ export function HeatmapGrid({
   const zoneStateRefs = useMemo(() => {
     if (!firestore) return {};
     return Object.fromEntries(
-      (["btc", "eth", "sol"] as ZoneBotAsset[]).map((a) => [
+      (["btc", "eth", "sol", "xrp"] as ZoneBotAsset[]).map((a) => [
         a,
         doc(firestore, "config", `zone_bot_${a}_state`),
       ]),
@@ -187,7 +187,7 @@ export function HeatmapGrid({
   const zoneSettingsRefs = useMemo(() => {
     if (!firestore) return {};
     return Object.fromEntries(
-      (["btc", "eth", "sol"] as ZoneBotAsset[]).map((a) => [
+      (["btc", "eth", "sol", "xrp"] as ZoneBotAsset[]).map((a) => [
         a,
         a === "btc"
           ? doc(firestore, "config", "heatmap_zones")
@@ -199,7 +199,7 @@ export function HeatmapGrid({
   const zoneSimStateRefs = useMemo(() => {
     if (!firestore) return {};
     return Object.fromEntries(
-      (["btc", "eth", "sol"] as ZoneBotAsset[]).map((a) => [
+      (["btc", "eth", "sol", "xrp"] as ZoneBotAsset[]).map((a) => [
         a,
         doc(firestore, "config", `zone_sim_state_${a}`),
       ]),
@@ -209,18 +209,23 @@ export function HeatmapGrid({
   const btcStateRef = zoneStateRefs.btc;
   const ethStateRef = zoneStateRefs.eth;
   const solStateRef = zoneStateRefs.sol;
+  const xrpStateRef = zoneStateRefs.xrp;
   const ethSettingsRef = zoneSettingsRefs.eth;
   const solSettingsRef = zoneSettingsRefs.sol;
+  const xrpSettingsRef = zoneSettingsRefs.xrp;
 
   const { data: btcStateData, refetch: refetchBtcState } = useDoc(btcStateRef ?? null);
   const { data: ethStateData, refetch: refetchEthState } = useDoc(ethStateRef ?? null);
   const { data: solStateData, refetch: refetchSolState } = useDoc(solStateRef ?? null);
+  const { data: xrpStateData, refetch: refetchXrpState } = useDoc(xrpStateRef ?? null);
   const { data: ethSettingsData, refetch: refetchEthSettings } = useDoc(ethSettingsRef ?? null);
   const { data: solSettingsData, refetch: refetchSolSettings } = useDoc(solSettingsRef ?? null);
+  const { data: xrpSettingsData, refetch: refetchXrpSettings } = useDoc(xrpSettingsRef ?? null);
 
   const { data: btcSimData, refetch: refetchBtcSim } = useDoc(zoneSimStateRefs.btc ?? null);
   const { data: ethSimData, refetch: refetchEthSim } = useDoc(zoneSimStateRefs.eth ?? null);
   const { data: solSimData, refetch: refetchSolSim } = useDoc(zoneSimStateRefs.sol ?? null);
+  const { data: xrpSimData, refetch: refetchXrpSim } = useDoc(zoneSimStateRefs.xrp ?? null);
 
   const docRefs = useMemo(() => {
     if (!firestore) return {};
@@ -235,11 +240,14 @@ export function HeatmapGrid({
     void refetchBtcState();
     void refetchEthState();
     void refetchSolState();
+    void refetchXrpState();
     void refetchEthSettings();
     void refetchSolSettings();
+    void refetchXrpSettings();
     void refetchBtcSim();
     void refetchEthSim();
     void refetchSolSim();
+    void refetchXrpSim();
     Object.values(refetchersRef.current).forEach((fn) => void fn());
   }, [
     refetchMacro,
@@ -247,11 +255,14 @@ export function HeatmapGrid({
     refetchBtcState,
     refetchEthState,
     refetchSolState,
+    refetchXrpState,
     refetchEthSettings,
     refetchSolSettings,
+    refetchXrpSettings,
     refetchBtcSim,
     refetchEthSim,
     refetchSolSim,
+    refetchXrpSim,
   ]);
 
   useAutoRefresh([refetchAll], 60_000);
@@ -273,15 +284,16 @@ export function HeatmapGrid({
       btc: btcSimData as SimulatorState | null,
       eth: ethSimData as SimulatorState | null,
       sol: solSimData as SimulatorState | null,
+      xrp: xrpSimData as SimulatorState | null,
     }),
-    [btcSimData, ethSimData, solSimData],
+    [btcSimData, ethSimData, solSimData, xrpSimData],
   );
 
   const botMetrics = useMemo(() => {
     return Object.fromEntries(
       SIM_COCKPIT_BOTS.map((b) => {
         const zoneSim =
-          b.id === "btc" || b.id === "eth" || b.id === "sol"
+          b.id === "btc" || b.id === "eth" || b.id === "sol" || b.id === "xrp"
             ? zoneSimById[b.id]
             : null;
         const capital =
@@ -319,8 +331,21 @@ export function HeatmapGrid({
         state: solStateData as ZoneBotState | null,
         settings: solSettingsData as ZoneBotSettings | null,
       },
+      xrp: {
+        state: xrpStateData as ZoneBotState | null,
+        settings: xrpSettingsData as ZoneBotSettings | null,
+      },
     }),
-    [btcStateData, ethStateData, solStateData, heatmapZones, ethSettingsData, solSettingsData],
+    [
+      btcStateData,
+      ethStateData,
+      solStateData,
+      xrpStateData,
+      heatmapZones,
+      ethSettingsData,
+      solSettingsData,
+      xrpSettingsData,
+    ],
   );
 
   const registerRefetch = useCallback(

@@ -24,6 +24,7 @@ const ASSET_TAG: Record<CockpitBotId, string> = {
   btc: "BTC",
   eth: "ETH",
   sol: "SOL",
+  xrp: "XRP",
 };
 
 /** Fixed-height symmetrical heatmap card — same slots on all four bots. */

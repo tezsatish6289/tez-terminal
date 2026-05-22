@@ -48,6 +48,7 @@ export const SIM_BOT_SETTINGS_DOC: Record<CockpitBotId, string> = {
   btc: "config/sim_bot_btc_settings",
   eth: "config/sim_bot_eth_settings",
   sol: "config/sim_bot_sol_settings",
+  xrp: "config/sim_bot_xrp_settings",
 };
 
 const DEFAULTS: Record<CockpitBotId, SimBotSettings> = {
@@ -89,6 +90,14 @@ const DEFAULTS: Record<CockpitBotId, SimBotSettings> = {
     zoneConfirmMinutes: 15,
     maxPainProximityUsd: 0.5,
     zoneHalfWidthUsd: 1.5,
+  },
+  xrp: {
+    manualOverride: "AUTO",
+    maxOpenTrades: 1,
+    riskPerTradePct: SIM_CONFIG.RISK_PER_TRADE_BASE,
+    zoneConfirmMinutes: 15,
+    maxPainProximityUsd: 0.015,
+    zoneHalfWidthUsd: 0.03,
   },
 };
 
@@ -214,7 +223,7 @@ export async function loadSimBotSettings(
       });
     }
   }
-  if (botId === "btc" || botId === "eth" || botId === "sol") {
+  if (botId === "btc" || botId === "eth" || botId === "sol" || botId === "xrp") {
     const legacyPath = zoneBotSettingsDoc(botId as ZoneBotAsset);
     const leg = await db.doc(legacyPath).get();
     if (leg.exists) {

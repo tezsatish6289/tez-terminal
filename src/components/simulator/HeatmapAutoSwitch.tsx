@@ -31,7 +31,6 @@ interface HeatmapZones {
   zoneConfirmMinutes:  number | null;
   zoneHalfWidthUsd:    number | null;
   maxPainProximityUsd: number | null;
-  maxPainMinDistanceUsd: number | null;
 }
 
 interface AutoStatus {
@@ -169,7 +168,6 @@ const EMPTY_ZONES: HeatmapZones = {
   zoneConfirmMinutes: 15,
   zoneHalfWidthUsd: null,
   maxPainProximityUsd: null,
-  maxPainMinDistanceUsd: null,
 };
 
 function PriceInput({
@@ -808,20 +806,11 @@ export function HeatmapAutoSwitch({
                   `maxPainProximityUsd` field to the local HeatmapZones
                   interface — the upstream parser still understands it. */}
 
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                    Min strike ↔ max-pain distance
-                  </p>
-                  <InfoTip text="When AUTO picks bull/bear strikes from Deribit OI, any candidate whose strike price is within this many $ of today's (day-0) max pain price is skipped — the next-best strike is used instead. Price around max pain is typically erratic (MMs hedge back and forth across the strike), so we keep the chosen strike clear of that band. Compares two real Deribit numbers (strike price vs day-0 max pain), independent of zone half-width. Default $1,000. Set to 0 to disable." />
-                </div>
-                <PriceInput
-                  label="± USD between strike and today's max pain"
-                  description="Skips candidate strikes whose price is within this band of today's max pain. Default 1000."
-                  value={zones.maxPainMinDistanceUsd}
-                  onChange={(v) => handleChange("maxPainMinDistanceUsd", v)}
-                />
-              </div>
+              {/* "Min strike ↔ max-pain distance" was removed 2026-05-22.
+                  The picker now uses 2 × halfWidth for that gap, which
+                  auto-tunes to ATM IV via the suggester. See
+                  `MAX_PAIN_GAP_HALFWIDTHS` in options-zones.ts for the
+                  rationale. */}
 
               <ZoneConfirmationWindow value={zones.zoneConfirmMinutes} onChange={(v) => handleChange("zoneConfirmMinutes", v)} />
             </div>

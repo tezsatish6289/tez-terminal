@@ -72,12 +72,6 @@ export interface ZoneBotSettings {
    *  new lows/highs before a trade may open. 5–60 range. */
   zoneConfirmMinutes: number;
 
-  /** Minimum USD distance between a candidate strike and today's (day-0)
-   *  max pain. Strikes inside the band are skipped at selection time
-   *  because price action there is typically erratic. 0 disables.
-   *  null → suggester default (= 2 × auto-derived halfWidth). */
-  maxPainMinDistanceUsd: number;
-
   /** When ONLY one zone (bull OR bear) is active, close matching open trades
    *  once spot reaches within this many $ of today's max pain (the TP
    *  target). Has no effect when both zones are active. */
@@ -95,21 +89,18 @@ export const ZONE_BOT_DEFAULTS: Record<ZoneBotAsset, ZoneBotSettings> = {
     manualOverride:        "AUTO",
     zoneHalfWidthUsd:      500,
     zoneConfirmMinutes:    15,
-    maxPainMinDistanceUsd: 1000,
     maxPainProximityUsd:   200,
   },
   eth: {
     manualOverride:        "AUTO",
     zoneHalfWidthUsd:      25,
     zoneConfirmMinutes:    15,
-    maxPainMinDistanceUsd: 50,
     maxPainProximityUsd:   10,
   },
   sol: {
     manualOverride:        "AUTO",
     zoneHalfWidthUsd:      1.5,
     zoneConfirmMinutes:    15,
-    maxPainMinDistanceUsd: 3,
     maxPainProximityUsd:   0.5,
   },
 };
@@ -122,8 +113,6 @@ const ZONE_CONFIRM_MIN = 5;
 const ZONE_CONFIRM_MAX = 60;
 const MAX_PAIN_PROXIMITY_MIN_USD = 50;
 const MAX_PAIN_PROXIMITY_MAX_USD = 2000;
-const MAX_PAIN_MIN_DISTANCE_MIN_USD = 0;
-const MAX_PAIN_MIN_DISTANCE_MAX_USD = 3000;
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
@@ -140,8 +129,8 @@ function clamp(v: number, lo: number, hi: number): number {
  * than a parallel `config/zone_bot_btc_settings` doc. HeatmapZones is a
  * superset of ZoneBotSettings — all the fields ZoneBotSettings cares
  * about (manualOverride / zoneHalfWidthUsd / zoneConfirmMinutes /
- * maxPainMinDistanceUsd / maxPainProximityUsd) live there with the same
- * names and value ranges, so `parseZoneBotSettings` just works.
+ * maxPainProximityUsd) live there with the same names and value
+ * ranges, so `parseZoneBotSettings` just works.
  *
  * Future assets (ETH/SOL/XRP) get their own per-asset docs since there's
  * no existing pattern-bot heatmap UI for them.
@@ -184,14 +173,6 @@ export function parseZoneBotSettings(
       ? d.zoneConfirmMinutes
       : defaults.zoneConfirmMinutes;
 
-  // maxPainMinDistanceUsd: allow 0 to explicitly disable the filter.
-  const mpMinDist =
-    typeof d.maxPainMinDistanceUsd === "number" &&
-    d.maxPainMinDistanceUsd >= MAX_PAIN_MIN_DISTANCE_MIN_USD &&
-    d.maxPainMinDistanceUsd <= MAX_PAIN_MIN_DISTANCE_MAX_USD
-      ? d.maxPainMinDistanceUsd
-      : defaults.maxPainMinDistanceUsd;
-
   const mpProx =
     typeof d.maxPainProximityUsd === "number" &&
     d.maxPainProximityUsd >= MAX_PAIN_PROXIMITY_MIN_USD &&
@@ -203,7 +184,6 @@ export function parseZoneBotSettings(
     manualOverride:        override,
     zoneHalfWidthUsd:      halfWidth,
     zoneConfirmMinutes:    confirmMin,
-    maxPainMinDistanceUsd: mpMinDist,
     maxPainProximityUsd:   mpProx,
   };
 }
@@ -229,10 +209,6 @@ export function coerceZoneBotSettingField<K extends keyof ZoneBotSettings>(
     case "zoneConfirmMinutes":
       return (typeof raw === "number"
         ? clamp(raw, ZONE_CONFIRM_MIN, ZONE_CONFIRM_MAX)
-        : null) as ZoneBotSettings[K] | null;
-    case "maxPainMinDistanceUsd":
-      return (typeof raw === "number"
-        ? clamp(raw, MAX_PAIN_MIN_DISTANCE_MIN_USD, MAX_PAIN_MIN_DISTANCE_MAX_USD)
         : null) as ZoneBotSettings[K] | null;
     case "maxPainProximityUsd":
       return (typeof raw === "number"

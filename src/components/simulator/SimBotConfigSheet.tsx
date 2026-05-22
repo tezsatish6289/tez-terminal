@@ -59,13 +59,6 @@ function ZoneEntryFields({
         className="w-full accent-accent"
       />
       <NumField
-        label="Max pain min distance ($)"
-        hint="Skip strikes within this $ of day-0 max pain (0 = off)"
-        value={settings.maxPainMinDistanceUsd ?? 0}
-        min={0}
-        onChange={(v) => patch({ maxPainMinDistanceUsd: v })}
-      />
-      <NumField
         label="Max pain proximity ($)"
         hint="One-sided zones: close at TP when spot is within this $ of max pain"
         value={settings.maxPainProximityUsd ?? 0}

@@ -25,13 +25,6 @@ export interface HeatmapZones {
   zoneHalfWidthUsd:    number | null;
   /** Close open trades when BTC is within this many $ of today's max pain (one-sided zones only). null → default 200. */
   maxPainProximityUsd: number | null;
-  /** Minimum USD distance between any candidate option STRIKE PRICE and
-   *  today's (day-0) max pain price when selecting AUTO bull/bear zones.
-   *  Strikes inside the band are skipped at selection time, so the simulator
-   *  never picks a strike whose price sits in the erratic max-pain region.
-   *  null → suggester default (= 2 × auto-derived halfWidth).
-   *  0    → filter disabled. */
-  maxPainMinDistanceUsd: number | null;
 
   // ── v2 regime context (read from suggester; not user-editable) ─────────
   /** Suggester's verdict on whether BULL entries are safe right now. Pulled
@@ -71,7 +64,6 @@ export function parseZones(data: Record<string, unknown>): HeatmapZones {
     zoneConfirmMinutes: 15,
     zoneHalfWidthUsd: null,
     maxPainProximityUsd: null,
-    maxPainMinDistanceUsd: null,
   };
   for (const key of ZONE_KEYS) {
     const v = data[key];
@@ -93,9 +85,6 @@ export function parseZones(data: Record<string, unknown>): HeatmapZones {
   const mp = data.maxPainProximityUsd;
   zones.maxPainProximityUsd =
     typeof mp === "number" && mp >= 50 && mp <= 2000 ? mp : null;
-  const mpMinDist = data.maxPainMinDistanceUsd;
-  zones.maxPainMinDistanceUsd =
-    typeof mpMinDist === "number" && mpMinDist >= 0 && mpMinDist <= 3000 ? mpMinDist : null;
   return zones;
 }
 

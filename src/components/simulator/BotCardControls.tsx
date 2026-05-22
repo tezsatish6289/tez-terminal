@@ -14,7 +14,6 @@ export function BotCardControls({
   label,
   capital,
   suggested,
-  maxPainMinDistanceUsd,
   onStatusChange,
   onTradeOpened,
 }: {
@@ -22,13 +21,12 @@ export function BotCardControls({
   label: string;
   capital: number;
   suggested: SuggestedZonesSnapshot | null;
-  maxPainMinDistanceUsd?: number | null;
   onStatusChange?: (status: CockpitBotStatus) => void;
   onTradeOpened?: () => void;
 }) {
   const manualGate = useMemo(
-    () => evaluateManualEntryGate(suggested, maxPainMinDistanceUsd),
-    [suggested, maxPainMinDistanceUsd],
+    () => evaluateManualEntryGate(suggested),
+    [suggested],
   );
 
   return (

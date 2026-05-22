@@ -42,7 +42,6 @@ export async function GET(
         ...(docData ?? {}),
         manualOverride: h.manualOverride ?? docData?.manualOverride,
         zoneConfirmMinutes: h.zoneConfirmMinutes ?? docData?.zoneConfirmMinutes,
-        maxPainMinDistanceUsd: h.maxPainMinDistanceUsd ?? docData?.maxPainMinDistanceUsd,
         maxPainProximityUsd: h.maxPainProximityUsd ?? docData?.maxPainProximityUsd,
         zoneHalfWidthUsd: h.zoneHalfWidthUsd ?? docData?.zoneHalfWidthUsd,
       };
@@ -86,9 +85,6 @@ export async function PUT(
     if ("zoneConfirmMinutes" in body) {
       zoneFields.zoneConfirmMinutes = update.zoneConfirmMinutes;
     }
-    if ("maxPainMinDistanceUsd" in body) {
-      zoneFields.maxPainMinDistanceUsd = update.maxPainMinDistanceUsd;
-    }
     if ("maxPainProximityUsd" in body) {
       zoneFields.maxPainProximityUsd = update.maxPainProximityUsd;
     }
@@ -104,9 +100,6 @@ export async function PUT(
     if ("manualOverride" in body) zUpdate.manualOverride = update.manualOverride;
     if ("zoneConfirmMinutes" in body) {
       zUpdate.zoneConfirmMinutes = update.zoneConfirmMinutes;
-    }
-    if ("maxPainMinDistanceUsd" in body) {
-      zUpdate.maxPainMinDistanceUsd = update.maxPainMinDistanceUsd;
     }
     if ("maxPainProximityUsd" in body) {
       zUpdate.maxPainProximityUsd = update.maxPainProximityUsd;

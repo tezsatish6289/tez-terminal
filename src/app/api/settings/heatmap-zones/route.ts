@@ -43,11 +43,6 @@ export async function PUT(request: NextRequest) {
     update.maxPainProximityUsd =
       typeof v === "number" && v >= 50 && v <= 2000 ? v : null;
   }
-  if ("maxPainMinDistanceUsd" in body) {
-    const v = body.maxPainMinDistanceUsd;
-    update.maxPainMinDistanceUsd =
-      typeof v === "number" && v >= 0 && v <= 3000 ? v : null;
-  }
 
   await db.doc(HEATMAP_ZONES_DOC).set({ ...update, updatedAt: new Date().toISOString() }, { merge: true });
   return NextResponse.json({ success: true, saved: update });

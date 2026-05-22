@@ -135,7 +135,6 @@ export async function POST(request: NextRequest) {
         ? (suggestedSnap.data() as Record<string, unknown>)
         : null,
     ),
-    botSettings.maxPainMinDistanceUsd,
   );
   if (!manualGate.allowed) {
     return NextResponse.json({ error: manualGate.reason }, { status: 403 });

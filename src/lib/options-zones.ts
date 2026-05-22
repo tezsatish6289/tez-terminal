@@ -11,27 +11,26 @@
  * Algorithm (v2 — current)
  * ──────────────────────────────────────────────────────────────────────────
  *
- * Zone *selection* uses ALL-EXPIRY OI for ranking, gated by a
- * near-term (day-0+1) sanity filter. Revised 2026-05-22 after a
- * round-trip:
+ * Zone *selection* uses ALL-EXPIRY OI for ranking, inside a window
+ * around day-0 max pain whose width is the max of:
  *
- *   Original: all-expiry only. BTC worked (its anchor window is
- *     narrow in % terms so deep-OTM premium magnets sit outside).
- *     ETH/SOL broke because round-number premium-seller strikes
- *     (e.g. $1,800 puts / $2,500 calls on ETH at $2,130 spot)
- *     accumulate huge all-expiry OI with ~zero near-term pinning
- *     effect.
+ *   (a) IV-derived 1-σ daily move × 2.5 — "expand the window when
+ *       price is more likely to travel far today";
+ *   (b) ANCHOR_STRIKES_PER_SIDE × strikeGridUsd — "always include
+ *       at least N closest Deribit strikes either side regardless
+ *       of IV", because walls form at the listed strike grid and
+ *       low-IV regimes still have meaningful gamma at the closest
+ *       strikes.
  *
- *   Day-0+1 only: filtered the magnets but ALSO filtered the real
- *     walls whenever OI is concentrated in the next weekly (day-4
- *     on a post-Friday-expiry Friday). BTC lost its picks entirely.
+ * Plus a defence-in-depth near-term (day-0+1) OI floor that rejects
+ * the rare strike with huge all-expiry OI but no daily presence
+ * (premium magnets like ETH $1,800 puts).
  *
- *   Current (hybrid): rank by all-expiry OI (so weekly/monthly walls
- *     register), require non-trivial day-0+1 OI to reject pure
- *     premium magnets. The magnet signature is "huge all-expiry, ~0
- *     near-term"; a structural wall whose OI is mostly in next-weekly
- *     still has *some* day-0+1 contracts (dailies aren't zero) and
- *     passes.
+ * Strike↔max-pain gap and TP-room minimum are both 2 × halfWidth
+ * (auto-tuned to IV via halfWidth). The previous operator override
+ * (`maxPainMinDistanceUsd`) was removed 2026-05-22 — dormant at
+ * default settings, footgun if raised, defended none of the failure
+ * modes the picker actually faces.
  *
  * TP / magnet still uses TODAY's (day-0) max pain only — unchanged.
  *
@@ -114,31 +113,33 @@ const DERIBIT_API = "https://www.deribit.com/api/v2/public";
 /** Secondary potency: OI ≥ this fraction of the tallest bar in the anchor window. */
 const MIN_CLUSTER_PCT_OF_MAX = 0.25;
 
-/** Max distance from day-0 max pain for zone-center search (also IV-scaled). */
+/** Max distance from day-0 max pain for zone-center search, scaled by
+ *  the IV-derived 1-σ daily move. Sets the "in a volatile market we
+ *  expect price to travel further today, so include strikes further
+ *  out" term of the anchor span. The other term is the strike-grid
+ *  floor — see `ANCHOR_STRIKES_PER_SIDE` below. The window is the
+ *  max of the two. */
 const MAX_PAIN_ANCHOR_REACH_MULT = 2.5;
 
-/** Anchor-span floor in USD. Wide enough that the picker finds real
- *  walls even when IV is low (low IV → tiny IV-derived span). The
- *  near-term sanity filter (`NEAR_TERM_OI_MIN_FLOOR` below) keeps
- *  deep-OTM premium magnets out of the pool even with a generous
- *  span, so we don't lose anything by being permissive here.
+/** Strike-grid floor on the anchor window — "search at least this many
+ *  Deribit strikes either side of max pain." Replaces the previous
+ *  per-asset `maxPainAnchorPct` percentages (3% / 8% / 12%) which were
+ *  hand-picked numbers; this is one algorithm constant that defers
+ *  per-asset behaviour to `strikeGridUsd` (a market fact about Deribit,
+ *  not a tuning knob).
  *
- *  $800 ≈ 1% of spot for BTC. For ETH at $2,130 that's 38% of spot,
- *  but the magnet filter neutralises the noise that wide window would
- *  otherwise sweep in. SOL at $87 spot effectively never uses this
- *  floor — its IV-derived span is the binding constraint and the SOL
- *  zone bot is gated on having any usable day-0 max pain at all. */
-const MIN_ANCHOR_FLOOR_USD = 800;
+ *    BTC: 4 × $500 = $2,000  (IV-derived usually wider)
+ *    ETH: 4 × $50  = $200    (catches $2,000 puts at $125 from max pain)
+ *    SOL: 4 × $5   = $20     (covers ~4 strikes per side at $5 grid)
+ */
+const ANCHOR_STRIKES_PER_SIDE = 4;
 
-/** Near-term (day-0+1) OI floor a strike must clear to count as a
- *  real wall, even if its all-expiry OI is huge. The premium-magnet
- *  failure mode is "tens of thousands of all-expiry contracts at a
- *  deep-OTM round number, ~0 near-term contracts" — premium-sellers
- *  write those positions in distant expiries and dailies barely
- *  touch them. Setting this to 5% of the per-asset `minClusterOi`
- *  catches that without rejecting structural walls whose OI is
- *  concentrated in the next weekly (those still have non-trivial
- *  daily-expiry OI). */
+/** Near-term (day-0+1) OI floor a strike must clear, as a fraction of
+ *  per-asset `minClusterOi`. Defence-in-depth filter — kicks in for the
+ *  rare strike that has substantial all-expiry OI but zero daily
+ *  presence (which would otherwise out-rank legitimate walls). The
+ *  primary proximity filter is `ANCHOR_STRIKES_PER_SIDE × strikeGridUsd`
+ *  above. */
 const NEAR_TERM_OI_FLOOR_FRAC_OF_MIN_CLUSTER = 0.05;
 
 /** Reach gate = 1-σ daily move. 68% probability price visits any strike
@@ -166,30 +167,26 @@ const HALFWIDTH_CAP_PCT_OF_SPOT = 0.02;
  *  Otherwise spot ≈ max pain = chop regime, neither direction has edge. */
 const MIN_PIN_GAP_PCT_OF_HALFWIDTH = 0.5;
 
-/** TP-room = 2 × halfWidth from zone CENTER to max-pain target. With a
- *  $500 half-width that's a $1,000 minimum — clean 2:1 R-multiple when
- *  SL sits at the opposite zone edge (~1 × halfWidth below center).
+/** Strike ↔ max-pain gap AND TP-room minimum, both expressed as a
+ *  multiple of half-width. Zone center must sit at least this many
+ *  half-widths away from max pain for: (a) candidate strike eligibility
+ *  in the cluster picker, (b) the TP-room reach check, (c) the manual
+ *  punch gate. One number, three consistent uses.
  *
- *  The actual threshold applied at the call site is
- *      max(TP_ROOM_PCT_OF_HALFWIDTH × halfWidth, maxPainMinDistanceUsd)
- *  so the per-asset `maxPainMinDistanceUsd` knob (configured on the
- *  Heatmap Auto-Switch panel) doubles as the absolute floor — same lens
- *  that decides "how far candidate strikes must be from max pain" also
- *  governs "how far the zone center must be". One operator-facing
- *  number, two consistent uses. Tuned 2026-05-19 from a 3× multiplier
- *  anchored at the zone EDGE (effectively 4 × halfWidth from center)
- *  — that was rejecting trades like BTC zone center $76k with max pain
- *  $77.5k even though the 1.97× ratio was perfectly tradeable. */
-const TP_ROOM_PCT_OF_HALFWIDTH = 2.0;
+ *  Hardcoded at 2× because that yields a clean ≥2:1 R-multiple when
+ *  SL sits one half-width outside the zone (the engine's anchor). The
+ *  previous operator-facing override (`maxPainMinDistanceUsd`) was
+ *  removed 2026-05-22 — it was either dormant (overridden by this
+ *  2×halfWidth floor) or a footgun (setting it too high silently
+ *  blocked every candidate via the TP-room check). With half-width
+ *  already auto-derived from ATM IV, this number self-tunes to
+ *  regime: calm market → tight band → tight gap; panic IV → wider
+ *  band → wider gap. */
+const MAX_PAIN_GAP_HALFWIDTHS = 2.0;
 
-/** Strike ↔ max-pain gap: max(2 × halfWidth, operator-configured floor).
- *  Same rule as TP-room and manual punch gate — one number, three uses. */
-export function effectiveMaxPainMinDistanceUsd(
-  halfWidthUsd: number,
-  configured: number,
-): number {
-  if (configured <= 0) return 0;
-  return Math.max(TP_ROOM_PCT_OF_HALFWIDTH * halfWidthUsd, configured);
+/** Convenience accessor used at the manual-gate call site. */
+export function maxPainGapUsd(halfWidthUsd: number): number {
+  return MAX_PAIN_GAP_HALFWIDTHS * halfWidthUsd;
 }
 
 /** Panic regime: ATM IV at or above this triggers "no fresh entries" mode.
@@ -213,9 +210,13 @@ const MAX_DAYS_WINDOW = 7; // expiries beyond this are too far to be magnets
 interface AssetSpec {
   /** Deribit currency code in the REST URL (`?currency=BTC|ETH|SOL`). */
   deribitCurrency: string;
-  /** Approximate strike-grid spacing near ATM, in USD. Used as a floor on
-   *  half-width so the band can't sit narrower than the gap between
-   *  adjacent listed strikes. */
+  /** Approximate strike-grid spacing near ATM, in USD. Two uses:
+   *  (a) floor on half-width so the band can't sit narrower than the
+   *      gap between adjacent listed strikes;
+   *  (b) floor on the anchor window
+   *      (`ANCHOR_STRIKES_PER_SIDE × strikeGridUsd`) so the picker
+   *      always sees at least the closest N strikes either side of
+   *      max pain regardless of IV. */
   strikeGridUsd: number;
   /** Annualisation horizon in years for the IV → σ conversion. Black-Scholes
    *  convention is 365 days/year (calendar, not trading days) for crypto. */
@@ -224,8 +225,6 @@ interface AssetSpec {
   indexEndpoint: string;
   /** Minimum all-expiry OI (contracts) at a strike to count as a wall. */
   minClusterOi: number;
-  /** Max zone-center distance from max pain as % of spot (anchor window). */
-  maxPainAnchorPct: number;
 }
 
 const ASSET_SPEC: Record<ZoneBotAsset, AssetSpec> = {
@@ -235,7 +234,6 @@ const ASSET_SPEC: Record<ZoneBotAsset, AssetSpec> = {
     yearDays:        365,
     indexEndpoint:   "btc_usd",
     minClusterOi:    1000,
-    maxPainAnchorPct: 0.028,
   },
   eth: {
     deribitCurrency: "ETH",
@@ -243,7 +241,6 @@ const ASSET_SPEC: Record<ZoneBotAsset, AssetSpec> = {
     yearDays:        365,
     indexEndpoint:   "eth_usd",
     minClusterOi:    200,
-    maxPainAnchorPct: 0.035,
   },
   sol: {
     deribitCurrency: "SOL",
@@ -251,7 +248,6 @@ const ASSET_SPEC: Record<ZoneBotAsset, AssetSpec> = {
     yearDays:        365,
     indexEndpoint:   "sol_usdc",
     minClusterOi:    50,
-    maxPainAnchorPct: 0.04,
   },
 };
 
@@ -466,10 +462,6 @@ interface DerivedSizes {
   maxReachUsd:   number;
   halfWidthUsd:  number;
   minPinGapUsd:  number;
-  // minTpRoomUsd dropped 2026-05-19. The TP-room threshold now depends
-  // on `maxPainMinDistanceUsd` (per-asset operator config), which isn't
-  // known until the caller resolves it inside computeOptionsZones — so
-  // it's computed at the use site rather than baked in here.
 }
 
 function deriveSizes(spot: number, atmIV: number, asset: ZoneBotAsset): DerivedSizes {
@@ -521,20 +513,17 @@ interface ClusterPickInput {
   maxReachUsd:           number;
   zoneHalfWidthUsd:      number;
   day0MaxPain:           number | null;
-  maxPainMinDistanceUsd: number;
   minClusterOi:          number;
   maxPainAnchorSpanUsd:  number;
 }
 
 function deriveMaxPainAnchorSpan(
-  spot: number,
   maxReachUsd: number,
-  anchorPct: number,
+  strikeGridUsd: number,
 ): number {
   return Math.max(
     maxReachUsd * MAX_PAIN_ANCHOR_REACH_MULT,
-    spot * anchorPct,
-    MIN_ANCHOR_FLOOR_USD,
+    ANCHOR_STRIKES_PER_SIDE * strikeGridUsd,
   );
 }
 
@@ -549,11 +538,12 @@ function filterPotentNearMaxPain(
     side,
     zoneHalfWidthUsd,
     day0MaxPain,
-    maxPainMinDistanceUsd,
     minClusterOi,
   } = input;
   const half = zoneHalfWidthUsd;
-  const mpGap = maxPainMinDistanceUsd > 0 ? maxPainMinDistanceUsd : 0;
+  // The strike↔max-pain gap is hardcoded at 2 × halfWidth — see
+  // MAX_PAIN_GAP_HALFWIDTHS for the rationale.
+  const mpGap = maxPainGapUsd(half);
 
   if (day0MaxPain == null) return [];
 
@@ -631,9 +621,6 @@ function pickPotentClusterNearMaxPain(
 export interface ComputeOptionsZonesInput {
   asset:        ZoneBotAsset;
   currentPrice: number;
-  /** Override default max-pain-min-distance filter. null → default (= 2 ×
-   *  derived halfWidth). 0 → disable filter. */
-  maxPainMinDistanceUsd?: number | null;
   /** Prior published bands — enables sticky zones while spot is in-band. */
   previousBands?: ZoneBandSnapshot | null;
 }
@@ -666,9 +653,8 @@ export async function computeOptionsZones(
     bullOI: null, bearOI: null,
     insufficientGap: false,
     maxPainAnchorSpanUsd: deriveMaxPainAnchorSpan(
-      spot,
       sizes.maxReachUsd,
-      spec.maxPainAnchorPct,
+      spec.strikeGridUsd,
     ),
     bullLocked: false,
     bearLocked: false,
@@ -716,20 +702,9 @@ export async function computeOptionsZones(
   const sizes           = deriveSizes(spot, atmIV, asset);
   const ivBackwardation = computeIvBackwardation(itemsByExpiry, spot, nowMs);
 
-  // ── Max-pain min distance: max(2 × halfWidth, configured) ───────────
-  // null → configured defaults to 2×halfWidth; 0 → disable proximity filter.
-  const configuredMpMinDist = (() => {
-    const raw = input.maxPainMinDistanceUsd;
-    if (raw === undefined || raw === null) {
-      return 2 * sizes.halfWidthUsd;
-    }
-    if (raw <= 0) return 0;
-    return raw;
-  })();
-  const maxPainMinDistanceUsd = effectiveMaxPainMinDistanceUsd(
-    sizes.halfWidthUsd,
-    configuredMpMinDist,
-  );
+  // Strike↔max-pain gap + TP-room minimum, both = 2 × halfWidth. See
+  // MAX_PAIN_GAP_HALFWIDTHS for the rationale; no operator override.
+  const maxPainGap = maxPainGapUsd(sizes.halfWidthUsd);
 
   // ── Max-pain per expiry (still useful for UI table) ──────────────────
   // Use day-0, day-1, day-2 expiries within the 7-day window for the
@@ -781,9 +756,8 @@ export async function computeOptionsZones(
   }
 
   const maxPainAnchorSpanUsd = deriveMaxPainAnchorSpan(
-    spot,
     sizes.maxReachUsd,
-    spec.maxPainAnchorPct,
+    spec.strikeGridUsd,
   );
 
   const nearTermOiFloor = Math.max(
@@ -804,7 +778,6 @@ export async function computeOptionsZones(
     maxReachUsd: sizes.maxReachUsd,
     zoneHalfWidthUsd: sizes.halfWidthUsd,
     day0MaxPain,
-    maxPainMinDistanceUsd,
     minClusterOi: spec.minClusterOi,
     maxPainAnchorSpanUsd,
   });
@@ -876,22 +849,13 @@ export async function computeOptionsZones(
 
   // ── TP targets (= day-0 max pain when room allows) ───────────────────
   // TP-room reference point is the zone CENTER (`bullStrike` /
-  // `bearStrike`), not the zone edge, because the bot enters around
-  // center after the confirmation window holds — measuring from the
-  // far edge built in an extra 1 × halfWidth that the trade never
-  // actually has to traverse. The required gap is
-  //     max(TP_ROOM_PCT_OF_HALFWIDTH × halfWidth, maxPainMinDistanceUsd)
-  // The first half is dynamic — wider TP-room when IV is high. The
-  // second half is the per-asset operator floor configured via the
-  // "Min strike ↔ max-pain distance" input on the Heatmap Auto-Switch
-  // panel (BTC default 1000, ETH/SOL/XRP set independently when those
-  // zone bots ship). Whichever is larger wins, so the floor only
-  // kicks in during low-IV periods where the dynamic part shrinks
-  // below an asset's natural noise budget.
-  const minTpRoomUsd = Math.max(
-    TP_ROOM_PCT_OF_HALFWIDTH * sizes.halfWidthUsd,
-    maxPainMinDistanceUsd,
-  );
+  // `bearStrike`), not the zone edge — bot enters around center, so
+  // measuring from the far edge would build in an extra 1 × halfWidth
+  // the trade never actually has to traverse. Required gap = 2 ×
+  // halfWidth (auto-tunes to IV via halfWidth; previously had an
+  // operator-configured floor on top, removed 2026-05-22 — see
+  // MAX_PAIN_GAP_HALFWIDTHS).
+  const minTpRoomUsd = maxPainGap;
 
   const bullTpTarget =
     bullStrike !== null && day0MaxPain !== null &&
@@ -960,13 +924,8 @@ export async function computeOptionsZones(
       const room = day0MaxPain !== null
         ? Math.abs(day0MaxPain - center)
         : 0;
-      const dynamic = TP_ROOM_PCT_OF_HALFWIDTH * sizes.halfWidthUsd;
-      const need    = minTpRoomUsd;
-      const floorClause = maxPainMinDistanceUsd > dynamic
-        ? `min-distance ${fmtUsd(maxPainMinDistanceUsd)}`
-        : `${TP_ROOM_PCT_OF_HALFWIDTH}× halfWidth ${fmtUsd(dynamic)}`;
       notActionableReason =
-        `TP room ${fmtUsd(room)} from ${side} zone $${center.toLocaleString()} to max pain ${fmtUsd(day0MaxPain ?? 0)} — need ${fmtUsd(need)} (${floorClause})`;
+        `TP room ${fmtUsd(room)} from ${side} zone $${center.toLocaleString()} to max pain ${fmtUsd(day0MaxPain ?? 0)} — need ${fmtUsd(minTpRoomUsd)} (${MAX_PAIN_GAP_HALFWIDTHS}× halfWidth)`;
     }
   }
 
@@ -1012,12 +971,3 @@ export async function computeOptionsZones(
   };
 }
 
-// ── Back-compat re-exports for callers that still reference these ────────
-// Removing them breaks `suggest-zones/route.ts` until it's updated, so we
-// keep the names alive as no-op anchors. Callers should migrate to the
-// new signature; these will be removed in a follow-up.
-
-/** @deprecated Half-width is now auto-derived per call from ATM IV. */
-export const DEFAULT_ZONE_HALF_WIDTH_USD = 500;
-/** @deprecated Max-pain-min-distance default is now `2 × halfWidth`. */
-export const DEFAULT_MAX_PAIN_MIN_DISTANCE_USD = 1000;

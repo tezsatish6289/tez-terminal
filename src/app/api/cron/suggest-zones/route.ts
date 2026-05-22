@@ -17,9 +17,7 @@ import { getAdminFirestore } from "@/firebase/admin";
 import { computeOptionsZones } from "@/lib/options-zones";
 import { zoneBandSnapshotFromSuggested } from "@/lib/options-zone-sticky";
 import { deserializePrices } from "@/lib/exchanges";
-import { parseZones } from "@/lib/heatmap-zones-settings";
-import { loadSimBotSettings } from "@/lib/sim-bot-settings";
-import { zoneBotSettingsDoc, type ZoneBotAsset } from "@/lib/zone-bot-config";
+import { type ZoneBotAsset } from "@/lib/zone-bot-config";
 import { recordCronHeartbeat } from "@/lib/cron-health";
 
 export const dynamic     = "force-dynamic";
@@ -99,23 +97,6 @@ async function suggestForAsset(
 
   if (!spot) throw new Error(`${asset.toUpperCase()} price unavailable`);
 
-  let maxPainMinDistanceUsd: number | null = null;
-  try {
-    if (asset === "btc") {
-      const snap = await db.doc(zoneBotSettingsDoc(asset)).get();
-      if (snap.exists) {
-        maxPainMinDistanceUsd = parseZones(snap.data() ?? {}).maxPainMinDistanceUsd;
-      }
-      const sim = await loadSimBotSettings(db, "btc");
-      if (sim.maxPainMinDistanceUsd != null) {
-        maxPainMinDistanceUsd = sim.maxPainMinDistanceUsd;
-      }
-    } else {
-      const sim = await loadSimBotSettings(db, asset);
-      maxPainMinDistanceUsd = sim.maxPainMinDistanceUsd ?? null;
-    }
-  } catch {}
-
   const prevSnap = await db.doc(`config/suggested_zones_${asset}`).get();
   const previousBands = prevSnap.exists
     ? zoneBandSnapshotFromSuggested(prevSnap.data() as Record<string, unknown>)
@@ -124,7 +105,6 @@ async function suggestForAsset(
   const result = await computeOptionsZones({
     asset,
     currentPrice: spot,
-    maxPainMinDistanceUsd,
     previousBands,
   });
 

@@ -25,7 +25,6 @@ const DEFAULTS: ZoneBotSettings = {
   manualOverride: "AUTO",
   zoneHalfWidthUsd: 500,
   zoneConfirmMinutes: 15,
-  maxPainMinDistanceUsd: 1000,
   maxPainProximityUsd: 200,
 };
 
@@ -193,14 +192,6 @@ export function ZoneBotControls({
           </div>
 
           <div className="grid grid-cols-1 gap-3">
-            <NumField
-              label="Max pain min distance ($)"
-              value={settings.maxPainMinDistanceUsd}
-              onChange={(v) => {
-                setSettings((p) => ({ ...p, maxPainMinDistanceUsd: v }));
-                setDirty(true);
-              }}
-            />
             <NumField
               label="Max pain proximity ($)"
               value={settings.maxPainProximityUsd}

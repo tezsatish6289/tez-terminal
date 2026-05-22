@@ -261,14 +261,12 @@ export function BotCockpit({
             capital,
             liveCount: countBotOpen(openTrades, b.botSource),
             closedCount: countBotClosed(closedTrades, b.botSource),
-            startingCapital:
-              b.id === "crypto" ? startingCapital : ZONE_BOT_STARTING_CAPITAL_USD,
           },
         ];
       }),
     ) as Record<
       CockpitBotId,
-      { capital: number; liveCount: number; closedCount: number; startingCapital: number }
+      { capital: number; liveCount: number; closedCount: number }
     >;
   }, [closedTrades, openTrades, startingCapital, zoneSimById]);
 
@@ -382,9 +380,8 @@ export function BotCockpit({
                 engineDirection={isCrypto ? null : zc?.state?.direction ?? null}
                 simEnabled={isCrypto ? cryptoMacro?.simEnabled : undefined}
                 botEngineLive={engineLive}
-                capital={metrics?.capital ?? 0}
-                startingCapital={metrics?.startingCapital ?? startingCapital}
                 liveCount={metrics?.liveCount ?? 0}
+                closedCount={metrics?.closedCount ?? 0}
                 selected={selectedBotId === bot.id}
                 onSelect={() => onSelectBot(bot.id)}
               />

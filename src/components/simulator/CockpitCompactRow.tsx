@@ -33,9 +33,8 @@ export interface CockpitCompactRowProps {
   /** Crypto Bot only — macro gate simEnabled */
   simEnabled?: boolean | null;
   botEngineLive: boolean;
-  capital: number;
-  startingCapital: number;
   liveCount: number;
+  closedCount: number;
   selected: boolean;
   onSelect: () => void;
 }
@@ -61,9 +60,8 @@ export function CockpitCompactRow({
   engineDirection,
   simEnabled,
   botEngineLive,
-  capital,
-  startingCapital,
   liveCount,
+  closedCount,
   selected,
   onSelect,
 }: CockpitCompactRowProps) {
@@ -93,8 +91,6 @@ export function CockpitCompactRow({
 
   const spot = spotFromSuggested(suggested);
   const ivPct = suggested?.atmIV != null ? suggested.atmIV * 100 : null;
-  const delta = capital - startingCapital;
-  const deltaPct = startingCapital > 0 ? (delta / startingCapital) * 100 : 0;
   const isModeOff = manualOverride === "OFF";
 
   return (
@@ -165,24 +161,20 @@ export function CockpitCompactRow({
         )}
       </div>
 
-      {/* Row 4 — capital + live count + Δ */}
+      {/* Row 4 — live trades focus (the field a trader actually scans for) */}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-mono font-bold text-foreground/75 tabular-nums">
-          ${capital.toFixed(2)}
-          {liveCount > 0 && (
-            <span className="ml-1.5 text-accent/85 font-black">
-              · {liveCount} live
-            </span>
-          )}
-        </span>
-        <span
-          className={cn(
-            "text-[9px] font-mono font-bold tabular-nums",
-            delta >= 0 ? "text-emerald-300/90" : "text-rose-300/90",
-          )}
-        >
-          {delta >= 0 ? "▲" : "▼"} {delta >= 0 ? "+" : ""}
-          {deltaPct.toFixed(2)}%
+        {liveCount > 0 ? (
+          <span className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-md border border-accent/35 bg-accent/[0.12] text-[9px] font-black uppercase tracking-wider text-accent">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+            {liveCount} live {liveCount === 1 ? "trade" : "trades"}
+          </span>
+        ) : (
+          <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/45">
+            No live trades
+          </span>
+        )}
+        <span className="text-[9px] font-mono text-muted-foreground/45 tabular-nums">
+          {closedCount} closed
         </span>
       </div>
     </button>

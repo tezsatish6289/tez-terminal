@@ -1,6 +1,15 @@
 /**
- * Re-enable live mirroring for FreedomBot users stuck after legacy daily-loss
- * kill switch (autoTradeEnabled flipped false while deployment stayed active).
+ * Re-enable live mirroring for FreedomBot users whose `dailyLossHaltedUtcDate`
+ * is now in the past (yesterday's daily-loss halt rolls over at UTC midnight).
+ *
+ * The legacy "kill-switch flipped autoTradeEnabled false" recovery path was
+ * removed 2026-05-23 along with the legacy `/api/settings/kill-switch` route.
+ * Kill switches are now strictly trade-level (close one sim + its live
+ * mirrors via `/api/sim/force-close`) and never disable a user's bot, so
+ * there's no orphaned `autoTradeEnabled: false` state left to recover from.
+ * The only remaining writers of `autoTradeEnabled: false` are explicit user
+ * actions (pause / stop deployment, fresh credential setup) — none of which
+ * should be silently undone by a cron.
  */
 import type { Firestore } from "firebase-admin/firestore";
 import { getSecretDocIds, docMatchesExchange, type ExchangeName } from "@/lib/exchanges";
@@ -132,43 +141,14 @@ export async function autoResumeStaleDailyLossHalts(db: Firestore): Promise<numb
       .limit(1)
       .get();
 
-    const patch: Record<string, unknown> = { ...clearDailyLossHaltPatch() };
-    if (deploySnap.empty) {
-      await doc.ref.update(patch);
-      count++;
-      continue;
-    }
-
-    if (data.autoTradeEnabled !== true) {
-      patch.autoTradeEnabled = true;
-    }
-    await doc.ref.update(patch);
+    // Only clear the stale halt date. Do NOT mutate `autoTradeEnabled` —
+    // the daily-loss circuit-breaker never writes that flag, so if it's
+    // currently `false` here it's because the user explicitly disabled
+    // their bot (Settings → Pause / Stop deployment). A cron silently
+    // flipping it back to `true` would override user intent, which is
+    // exactly what the kill-switch audit (2026-05-23) forbade.
+    await doc.ref.update({ ...clearDailyLossHaltPatch() });
     count++;
-  }
-
-  return count;
-}
-
-/**
- * Legacy recovery: active FreedomBot deployment but autoTradeEnabled false
- * (old kill switch). Re-enable when no halt today.
- */
-export async function autoResumeLegacyKillSwitchUsers(db: Firestore): Promise<number> {
-  const activeSnap = await db
-    .collection("bot_deployments")
-    .where("status", "==", "active")
-    .get();
-
-  let count = 0;
-  for (const deployDoc of activeSnap.docs) {
-    const uid = String(deployDoc.data().uid ?? "");
-    const exchange = String(deployDoc.data().exchange ?? "");
-    if (!uid || !exchange) continue;
-
-    const result = await resumeLiveMirroringForDeployment(db, uid, exchange, {
-      requireActiveDeployment: false,
-    });
-    if (result.resumed) count++;
   }
 
   return count;

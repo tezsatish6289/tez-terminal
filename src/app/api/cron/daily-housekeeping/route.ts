@@ -3,9 +3,7 @@
  *
  * Owns once-per-day maintenance work that used to bloat `sync-live-trades`
  * every minute. By definition these scans only need to fire at UTC day
- * boundaries (stale daily-loss halts roll over at midnight UTC; legacy
- * kill-switch users only need a single re-enable pass once they're back on
- * an active deployment).
+ * boundaries (stale daily-loss halts roll over at midnight UTC).
  *
  * Recommended cadence: once daily at 00:05 UTC via cron-job.org.
  *
@@ -16,19 +14,20 @@
  * for a job that runs every 24 hours.
  *
  * Responsibilities:
- *   1. `autoResumeStaleDailyLossHalts` — clear halt date + re-enable
- *      `autoTradeEnabled` for active deployments whose halt is now in the
- *      past (i.e. yesterday or earlier).
- *   2. `autoResumeLegacyKillSwitchUsers` — re-enable mirroring for active
- *      deployments where `autoTradeEnabled` was flipped off by the old
- *      kill-switch path and no halt is active today.
+ *   1. `autoResumeStaleDailyLossHalts` — clear `dailyLossHaltedUtcDate` for
+ *      active deployments whose halt date is now in the past. Does NOT
+ *      touch `autoTradeEnabled` — crons must never override an explicit
+ *      user pause/stop decision.
+ *
+ * Note: `autoResumeLegacyKillSwitchUsers` was removed 2026-05-23 along with
+ * the legacy `/api/settings/kill-switch` route. The kill switch is now
+ * strictly trade-level (close one sim + cascade live mirrors) and never
+ * disables a user's bot, so there's no orphaned `autoTradeEnabled: false`
+ * state left to recover from.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
-import {
-  autoResumeLegacyKillSwitchUsers,
-  autoResumeStaleDailyLossHalts,
-} from "@/lib/freedombot/auto-resume-mirroring";
+import { autoResumeStaleDailyLossHalts } from "@/lib/freedombot/auto-resume-mirroring";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -50,13 +49,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const staleHaltsCleared = await autoResumeStaleDailyLossHalts(db);
-    const legacyResumed = await autoResumeLegacyKillSwitchUsers(db);
 
     const durationMs = Date.now() - startedAt;
-    if (staleHaltsCleared > 0 || legacyResumed > 0) {
+    if (staleHaltsCleared > 0) {
       console.log(
-        `[DailyHousekeeping] ${staleHaltsCleared} stale halt(s) cleared, ` +
-          `${legacyResumed} legacy kill-switch user(s) re-enabled (${durationMs}ms)`,
+        `[DailyHousekeeping] ${staleHaltsCleared} stale halt(s) cleared (${durationMs}ms)`,
       );
     } else {
       console.log(`[DailyHousekeeping] nothing to do (${durationMs}ms)`);
@@ -65,7 +62,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       staleHaltsCleared,
-      legacyResumed,
       durationMs,
     });
   } catch (e) {

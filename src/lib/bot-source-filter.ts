@@ -1,4 +1,13 @@
 import { CRYPTO_BOTS } from "@/lib/crypto-bots";
+import {
+  BOT_SOURCE_BTC_ZONE,
+  BOT_SOURCE_ETH_ZONE,
+  BOT_SOURCE_PATTERN,
+  BOT_SOURCE_SOL_ZONE,
+  BOT_SOURCE_XRP_ZONE,
+  classifyBotSource,
+  type BotSourceFilter,
+} from "@/lib/bot-source-constants";
 
 /**
  * Bot Source filter — shared helpers for the per-bot performance filter
@@ -16,23 +25,22 @@ import { CRYPTO_BOTS } from "@/lib/crypto-bots";
  * equity curve — "what would have happened if only this bot ran,
  * starting from `simState.startingCapital`?". See `docs/zone-bots.md`
  * §"Performance tracking" for the rationale.
+ *
+ * The bot-source constants, `BotSourceFilter` type, and
+ * `classifyBotSource` helper live in `bot-source-constants.ts` to keep
+ * this file's `CRYPTO_BOTS` dependency from creating a circular import.
+ * They're re-exported below so existing call sites keep working.
  */
 
-// Discriminator values — must match `SimTrade.botSource` writes.
-export const BOT_SOURCE_PATTERN = "PATTERN";
-export const BOT_SOURCE_BTC_ZONE = "BTC_ZONE";
-export const BOT_SOURCE_ETH_ZONE = "ETH_ZONE";
-export const BOT_SOURCE_SOL_ZONE = "SOL_ZONE";
-export const BOT_SOURCE_XRP_ZONE = "XRP_ZONE";
-
-/** Filter pill values. "ALL" includes every trade regardless of source. */
-export type BotSourceFilter =
-  | "ALL"
-  | "PATTERN"
-  | "BTC_ZONE"
-  | "ETH_ZONE"
-  | "SOL_ZONE"
-  | "XRP_ZONE";
+export {
+  BOT_SOURCE_PATTERN,
+  BOT_SOURCE_BTC_ZONE,
+  BOT_SOURCE_ETH_ZONE,
+  BOT_SOURCE_SOL_ZONE,
+  BOT_SOURCE_XRP_ZONE,
+  classifyBotSource,
+};
+export type { BotSourceFilter };
 
 /** Pills rendered, in display order. Add ETH/SOL/XRP entries here when
  *  their bots ship — every page picks them up automatically. */
@@ -56,19 +64,6 @@ export const BOT_SOURCE_PILLS: BotSourcePillOption[] = [
     short: b.shortLabel,
   })),
 ];
-
-/** Normalise an optional `botSource` field to a canonical bucket so the
- *  filter pill set stays stable even as new bot types appear. Any
- *  unknown value (e.g. a future "ETH_ZONE" before its pill is added)
- *  collapses to "PATTERN" so trades are never silently hidden. */
-export function classifyBotSource(raw: string | null | undefined): Exclude<BotSourceFilter, "ALL"> {
-  if (raw === BOT_SOURCE_BTC_ZONE) return "BTC_ZONE";
-  if (raw === BOT_SOURCE_ETH_ZONE) return "ETH_ZONE";
-  if (raw === BOT_SOURCE_SOL_ZONE) return "SOL_ZONE";
-  if (raw === BOT_SOURCE_XRP_ZONE) return "XRP_ZONE";
-  // Anything else — including null/undefined/legacy values — is pattern.
-  return "PATTERN";
-}
 
 /** Predicate factory used by the dashboards to filter their full trade
  *  list before passing it into `buildEquityCurve` / table renderers /

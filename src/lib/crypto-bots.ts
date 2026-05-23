@@ -10,7 +10,7 @@ import {
   BOT_SOURCE_XRP_ZONE,
   type BotSourceFilter,
   classifyBotSource,
-} from "@/lib/bot-source-filter";
+} from "@/lib/bot-source-constants";
 
 export type CryptoBotId = "crypto" | "btc" | "eth" | "sol" | "xrp";
 

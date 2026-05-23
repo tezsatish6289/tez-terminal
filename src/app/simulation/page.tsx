@@ -360,6 +360,8 @@ export default function SimulationPage() {
       const userCount = typeof data.userCount === "number" ? data.userCount : 0;
       const byExchange = (data.byExchange ?? {}) as Record<string, number>;
       const mode = data.mode === "live-only" ? "live-only" : "default";
+      const isNoop = data.noop === true;
+      const wasRaced = data.raced === true;
 
       const exchangeSummary = Object.entries(byExchange)
         .sort((a, b) => b[1] - a[1])
@@ -369,7 +371,15 @@ export default function SimulationPage() {
         ? ` across ${userCount} user${userCount === 1 ? "" : "s"}`
         : "";
 
-      if (liveErrors.length > 0) {
+      if (isNoop) {
+        // P2: sim already closed + all mirrors reconciled. Benign info,
+        // not an error — the system is already in the desired state.
+        toast({
+          title: "Nothing to close",
+          description:
+            data.message ?? "Sim is already closed and all mirrors are reconciled.",
+        });
+      } else if (liveErrors.length > 0) {
         // sync-live-trades retry net catches anything that didn't confirm
         // inline (KILL_SWITCH is NOT in the NON_MIRRORED whitelist), so
         // this is a heads-up — not a dead-end. Loud so the operator can
@@ -383,6 +393,15 @@ export default function SimulationPage() {
               : `Sim closed — ${liveErrors.length} live mirror${liveErrors.length === 1 ? "" : "s"} didn't confirm`,
           description:
             `${liveClosed}/${liveAttempted} closed${userPhrase}${exchangeSummary ? ` (${exchangeSummary})` : ""}. ${remaining > 0 ? `${remaining} will retry within 60s. ` : ""}Failures: ${liveErrors.slice(0, 3).join("; ")}${liveErrors.length > 3 ? "; …" : ""}`,
+        });
+      } else if (wasRaced) {
+        // Branch B lost the race to a concurrent kill switch (admin
+        // double-clicked, two tabs, etc.). The other request already
+        // closed the sim atomically; we ran the live-only sweep so
+        // mirrors are reconciled.
+        toast({
+          title: "Already closing — picked up the live sweep",
+          description: `Sim was already being closed concurrently. ${liveClosed} live mirror${liveClosed === 1 ? "" : "s"} reconciled${userPhrase}${exchangeSummary ? ` (${exchangeSummary})` : ""}.`,
         });
       } else if (mode === "live-only") {
         toast({

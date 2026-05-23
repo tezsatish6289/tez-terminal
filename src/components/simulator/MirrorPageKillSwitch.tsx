@@ -92,13 +92,11 @@ export function MirrorPageKillSwitch({
       }
       liveAttemptedTotal += data.liveAttempted ?? 0;
       liveClosedTotal += data.liveClosed ?? 0;
-      // userCount is per-sim; we'd need user IDs to dedupe across sims.
-      // The endpoint doesn't return user IDs in the POST response, so we
-      // approximate with a sum — this is fine for "X users impacted" UX,
-      // and the slight overcount across multi-sim closes is harmless.
-      if (typeof data.userCount === "number") {
-        for (let i = 0; i < data.userCount; i++) {
-          userSet.add(`${id}#${i}`);
+      // Real dedupe via userIds (returned by the endpoint as of 2026-05-23).
+      // A user with mirrors in multiple sim trades is counted exactly once.
+      if (Array.isArray(data.userIds)) {
+        for (const uid of data.userIds) {
+          if (typeof uid === "string" && uid) userSet.add(uid);
         }
       }
       if (data.byExchange && typeof data.byExchange === "object") {
@@ -118,6 +116,13 @@ export function MirrorPageKillSwitch({
       .sort((a, b) => b[1] - a[1])
       .map(([ex, n]) => `${ex} ×${n}`)
       .join(", ");
+
+    // Note: if ALL of the per-sim POSTs return `noop: true` (everything
+    // already reconciled) and no errors, the toast below falls through
+    // to the success branch with liveClosedTotal === 0, which renders
+    // "Sim record(s) closed. No live mirrors were open." That phrasing
+    // is correct for the noop case too — the mirror sweep just found
+    // nothing to do.
 
     if (errors.length > 0) {
       const remaining = liveAttemptedTotal - liveClosedTotal;

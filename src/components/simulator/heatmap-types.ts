@@ -148,6 +148,53 @@ export function formatSpot(n: number | null | undefined): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 
+/**
+ * Build a human-readable explainer for the IV badge — used as the
+ * `title` tooltip on both the rail row and detail card so the same
+ * math + wording surfaces everywhere.
+ *
+ * Implied volatility is annualized (Deribit convention — 365-day
+ * year because crypto markets never close). We project that down
+ * to daily / weekly / monthly 1σ expected moves so the trader can
+ * eyeball the price-range intuitively. We also tag the volatility
+ * regime — calm / moderate / panic — which is what gates the bot's
+ * entry behavior (see deriveCockpitCardStatus + position sizing).
+ */
+export function formatIvExplainer(
+  ivPctAnnual: number,
+  spot: number | null,
+  assetSymbol: string,
+): string {
+  const sigma = ivPctAnnual / 100;
+  const regime =
+    ivPctAnnual >= 70
+      ? "Panic regime — new entries blocked"
+      : ivPctAnnual >= 50
+        ? "Elevated — position sizes shrink"
+        : "Calm — entries unrestricted, sizes full";
+
+  const lines: string[] = [
+    `Implied volatility ${ivPctAnnual.toFixed(1)}% — option market's annual ±1σ forecast for ${assetSymbol}.`,
+  ];
+
+  if (spot != null && spot > 0) {
+    const dailyMove = (sigma * spot) / Math.sqrt(365);
+    const weeklyMove = sigma * spot * Math.sqrt(7 / 365);
+    const monthlyMove = sigma * spot * Math.sqrt(30 / 365);
+    const fmt = (n: number) =>
+      `±$${n.toLocaleString(undefined, {
+        maximumFractionDigits: n < 10 ? 2 : 0,
+      })}`;
+    lines.push(
+      `Expected 1σ move: ${fmt(dailyMove)}/day · ${fmt(weeklyMove)}/week · ${fmt(monthlyMove)}/month.`,
+    );
+  }
+
+  lines.push(`Regime: ${regime}.`);
+
+  return lines.join("\n");
+}
+
 export function zoneStatusLine(s: SuggestedZonesSnapshot | null): string {
   if (!s) return "No zone data — refresh";
   if (s.signalConflict) return "Signal conflict";

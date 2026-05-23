@@ -8,6 +8,7 @@ import {
   type CockpitCardStatus,
 } from "@/lib/cockpit-card-status";
 import {
+  formatIvExplainer,
   formatSpot,
   spotFromSuggested,
   type SuggestedZonesSnapshot,
@@ -43,6 +44,14 @@ const POWER_DOT: Record<CockpitCardStatus["power"], string> = {
   on: "bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.55)]",
   idle: "bg-amber-300/90 shadow-[0_0_8px_rgba(252,211,77,0.45)]",
   off: "bg-rose-400/90 shadow-[0_0_8px_rgba(251,113,133,0.45)]",
+};
+
+const ASSET_TAG: Record<CockpitBotId, string> = {
+  crypto: "BTC",
+  btc: "BTC",
+  eth: "ETH",
+  sol: "SOL",
+  xrp: "XRP",
 };
 
 export function CockpitCompactRow({
@@ -133,7 +142,10 @@ export function CockpitCompactRow({
           ${formatSpot(spot)}
         </span>
         {ivPct != null && (
-          <span className="text-[9px] font-mono font-bold text-muted-foreground/55 tabular-nums">
+          <span
+            className="text-[9px] font-mono font-bold text-muted-foreground/55 tabular-nums cursor-help"
+            title={formatIvExplainer(ivPct, spot, ASSET_TAG[botId])}
+          >
             IV {ivPct.toFixed(0)}%
           </span>
         )}

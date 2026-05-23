@@ -10,6 +10,7 @@ import {
   type CockpitCardStatus,
 } from "@/lib/cockpit-card-status";
 import {
+  formatIvExplainer,
   formatSpot,
   noClusterLine,
   spotFromSuggested,
@@ -180,7 +181,12 @@ export function HeatmapAssetCard({
             <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/45 px-1.5 py-0.5 rounded border border-white/[0.08] bg-white/[0.03]">
               {ASSET_TAG[botId]}
             </span>
-            {ivPct != null && <IvBadge pct={ivPct} />}
+            {ivPct != null && (
+              <IvBadge
+                pct={ivPct}
+                title={formatIvExplainer(ivPct, spot, ASSET_TAG[botId])}
+              />
+            )}
           </div>
           {settingsSlot && (
             <div
@@ -317,17 +323,18 @@ function LastRanInline({
   );
 }
 
-function IvBadge({ pct }: { pct: number }) {
+function IvBadge({ pct, title }: { pct: number; title?: string }) {
   return (
     <span
       className={cn(
-        "text-[8px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0",
+        "text-[8px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 cursor-help",
         pct >= 70
           ? "border-rose-500/30 text-rose-300 bg-rose-500/10"
           : pct >= 50
             ? "border-amber-500/30 text-amber-200 bg-amber-500/10"
             : "border-emerald-500/25 text-emerald-300/90 bg-emerald-500/5",
       )}
+      title={title}
     >
       IV {pct.toFixed(0)}%
     </span>

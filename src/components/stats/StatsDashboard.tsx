@@ -48,6 +48,7 @@ import {
 import type { PerformanceMetrics } from "@/lib/performance-metrics";
 import { botSourceLabel } from "@/lib/bot-source-filter";
 import { StatsSocialShareCard } from "@/components/stats/StatsSocialShareCard";
+import { RiskRatioDrilldowns } from "@/components/stats/RiskRatioDrilldowns";
 
 // ── Formatting helpers (mirrored from /simulation so the two pages
 //    cannot drift apart). Intentionally local — these are presentation
@@ -512,6 +513,12 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
           />
         </div>
       </div>
+
+      <RiskRatioDrilldowns
+        trades={filteredClosedTrades}
+        startingCapital={simState.startingCapital}
+        assetType={assetType}
+      />
     </div>
   );
 }

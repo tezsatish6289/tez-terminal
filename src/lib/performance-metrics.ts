@@ -195,3 +195,69 @@ export function calcPerformanceMetrics(
     tradingDays,
   };
 }
+
+export type RatioSeriesMode = "trade" | "day";
+
+export interface RatioSeriesPoint {
+  x: number | string;
+  sharpe: number | null;
+  sortino: number | null;
+  calmar: number | null;
+  tooltip: string;
+}
+
+function finiteRatio(n: number): number | null {
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Expanding-window Sharpe / Sortino / Calmar after each trade or each
+ * active calendar day — same closed-trade basis as {@link calcPerformanceMetrics}.
+ */
+export function buildRatioSeries(
+  trades: SimTrade[],
+  startingCapital: number,
+  riskFreeRateAnnual = 0,
+  mode: RatioSeriesMode,
+): RatioSeriesPoint[] {
+  const closed = trades
+    .filter((t) => t.closedAt && t.status === "CLOSED")
+    .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
+
+  if (closed.length < 5) return [];
+
+  const points: RatioSeriesPoint[] = [];
+
+  if (mode === "trade") {
+    for (let i = 4; i < closed.length; i++) {
+      const subset = closed.slice(0, i + 1);
+      const m = calcPerformanceMetrics(subset, startingCapital, riskFreeRateAnnual);
+      if (!m) continue;
+      const t = closed[i];
+      points.push({
+        x: i + 1,
+        sharpe: finiteRatio(m.sharpeRatio),
+        sortino: finiteRatio(m.sortinoRatio),
+        calmar: finiteRatio(m.calmarRatio),
+        tooltip: `${t.symbol ?? "Trade"} · ${t.closedAt!.slice(0, 10)}`,
+      });
+    }
+    return points;
+  }
+
+  const days = [...new Set(closed.map((t) => t.closedAt!.slice(0, 10)))].sort();
+  for (const day of days) {
+    const subset = closed.filter((t) => t.closedAt!.slice(0, 10) <= day);
+    if (subset.length < 5) continue;
+    const m = calcPerformanceMetrics(subset, startingCapital, riskFreeRateAnnual);
+    if (!m) continue;
+    points.push({
+      x: day.slice(5),
+      sharpe: finiteRatio(m.sharpeRatio),
+      sortino: finiteRatio(m.sortinoRatio),
+      calmar: finiteRatio(m.calmarRatio),
+      tooltip: day,
+    });
+  }
+  return points;
+}

@@ -45,6 +45,9 @@ import {
   compoundReturnOverPeriod,
   MIN_DAYS_FOR_RELIABLE_ANNUALIZATION,
 } from "@/lib/performance-metrics";
+import type { PerformanceMetrics } from "@/lib/performance-metrics";
+import { botSourceLabel } from "@/lib/bot-source-filter";
+import { StatsSocialShareCard } from "@/components/stats/StatsSocialShareCard";
 
 // ── Formatting helpers (mirrored from /simulation so the two pages
 //    cannot drift apart). Intentionally local — these are presentation
@@ -231,9 +234,11 @@ function PerformanceMetricsPanel({
 
 export interface StatsDashboardProps {
   assetType: "CRYPTO" | "INDIAN_STOCKS";
+  /** LinkedIn screenshot layout — FreedomBot branded card only */
+  shareView?: boolean;
 }
 
-export function StatsDashboard({ assetType }: StatsDashboardProps) {
+export function StatsDashboard({ assetType, shareView = false }: StatsDashboardProps) {
   const cs = assetType === "INDIAN_STOCKS" ? "₹" : "$";
   const { user } = useUser();
   const firestore = useFirestore();
@@ -356,6 +361,25 @@ export function StatsDashboard({ assetType }: StatsDashboardProps) {
     };
   }, [simState, runningDays, derivedCapital]);
 
+  const riskMetrics: PerformanceMetrics | null = useMemo(
+    () =>
+      simState && filteredClosedTrades.length > 0
+        ? calcPerformanceMetrics(
+            filteredClosedTrades,
+            simState.startingCapital,
+            assetType === "INDIAN_STOCKS" ? 0.065 : 0,
+          )
+        : null,
+    [filteredClosedTrades, simState, assetType],
+  );
+
+  const pnlUsd = simState ? derivedCapital - simState.startingCapital : 0;
+
+  const shareBotSubtitle =
+    isBotFiltered && botSourceFilter !== "ALL"
+      ? botSourceLabel(botSourceFilter)
+      : undefined;
+
   if (stateLoading || tradesLoading) {
     return (
       <div className="flex items-center justify-center h-40">
@@ -372,6 +396,29 @@ export function StatsDashboard({ assetType }: StatsDashboardProps) {
         <p className="text-[11px] text-muted-foreground/30 mt-1">
           Stats will appear after the first trade closes.
         </p>
+      </div>
+    );
+  }
+
+  if (shareView) {
+    return (
+      <div className="flex flex-col items-center gap-4">
+        <BotSourceFilter value={botSourceFilter} onChange={setBotSourceFilter} />
+        {isBotFiltered && (
+          <span className="text-[10px] font-medium" style={{ color: "#94a3b8" }}>
+            Card shows: {botSourceLabel(botSourceFilter)} (counterfactual)
+          </span>
+        )}
+        <StatsSocialShareCard
+          runningDays={runningDays}
+          startingCapital={simState.startingCapital}
+          totalReturnPct={totalReturn}
+          pnlUsd={pnlUsd}
+          monthlyReturnPct={monthlyPnl.pct}
+          monthlyIsProjected={monthlyPnl.isProjected}
+          metrics={riskMetrics}
+          botSubtitle={shareBotSubtitle}
+        />
       </div>
     );
   }

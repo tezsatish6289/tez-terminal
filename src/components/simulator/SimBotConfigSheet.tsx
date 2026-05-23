@@ -261,7 +261,92 @@ export function SimBotConfigSheet({
 
   const isForcedOff = settings?.manualOverride === "OFF";
 
+  const publicLiveDialogBody = publicLiveDialog != null && (
+    <AlertDialog
+      open
+      onOpenChange={(open) => {
+        if (!open) {
+          setPublicLiveDialog(null);
+          setPublicLivePassphrase("");
+          setPublicLiveError(null);
+        }
+      }}
+    >
+      <AlertDialogContent className="border-white/20 bg-[#0f1118] text-white shadow-2xl sm:max-w-md">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="text-base font-black text-white tracking-tight">
+            {publicLiveDialog.next ? "Go live on FreedomBot?" : "Hide from public?"}
+          </AlertDialogTitle>
+          <AlertDialogDescription className="text-sm text-slate-300 leading-relaxed">
+            {publicLiveDialog.next
+              ? `${label} will appear on freedombot.ai performance, records, and deploy. Simulator trading is unchanged.`
+              : `${label} will be hidden from freedombot.ai and marked Coming Soon. Existing user deployments are not changed.`}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-2 py-1">
+          <label
+            htmlFor={`public-live-pass-${botId}`}
+            className="text-[10px] font-bold uppercase tracking-wider text-slate-200"
+          >
+            Public-live passphrase
+          </label>
+          <input
+            id={`public-live-pass-${botId}`}
+            type="password"
+            autoComplete="off"
+            autoFocus
+            value={publicLivePassphrase}
+            onChange={(e) => {
+              setPublicLivePassphrase(e.target.value);
+              setPublicLiveError(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && publicLivePassphrase.trim() && !publicLiveSaving) {
+                e.preventDefault();
+                void handlePublicLiveConfirm();
+              }
+            }}
+            placeholder="Enter passphrase"
+            className="w-full px-3 py-2.5 rounded-lg border border-white/25 bg-[#1a1f2e] text-sm font-mono text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-accent/50"
+          />
+          {publicLiveError && (
+            <p className="text-[11px] font-semibold text-rose-400">{publicLiveError}</p>
+          )}
+        </div>
+
+        <AlertDialogFooter className="gap-2 sm:gap-2">
+          <AlertDialogCancel className="border-white/20 bg-transparent text-slate-200 hover:bg-white/10 hover:text-white">
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            disabled={publicLiveSaving || !publicLivePassphrase.trim()}
+            className={cn(
+              "text-white font-bold",
+              publicLiveDialog.next
+                ? "bg-emerald-600 hover:bg-emerald-500"
+                : "bg-rose-600 hover:bg-rose-500",
+            )}
+            onClick={(e) => {
+              e.preventDefault();
+              void handlePublicLiveConfirm();
+            }}
+          >
+            {publicLiveSaving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : publicLiveDialog.next ? (
+              "Publish"
+            ) : (
+              "Hide"
+            )}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   return (
+    <>
     <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
       <BotCardToolbarTrigger
         isForcedOff={isForcedOff}
@@ -330,80 +415,6 @@ export function SimBotConfigSheet({
                   ))}
                 </div>
               </div>
-
-              <AlertDialog
-                open={publicLiveDialog != null}
-                onOpenChange={(open) => {
-                  if (!open) {
-                    setPublicLiveDialog(null);
-                    setPublicLivePassphrase("");
-                    setPublicLiveError(null);
-                  }
-                }}
-              >
-                <AlertDialogContent className="bg-[#0a0a0c] border-white/10">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="text-white">
-                      {publicLiveDialog?.next ? "Go live on FreedomBot?" : "Hide from public?"}
-                    </AlertDialogTitle>
-                    <AlertDialogDescription asChild>
-                      <div className="space-y-3 text-sm text-muted-foreground">
-                        <p>
-                          {publicLiveDialog?.next
-                            ? `${label} will appear on freedombot.ai performance, records, and deploy. Simulator trading is unchanged.`
-                            : `${label} will be hidden from freedombot.ai and marked Coming Soon. Existing user deployments are not changed.`}
-                        </p>
-                        <div className="space-y-1.5">
-                          <label
-                            htmlFor={`public-live-pass-${botId}`}
-                            className="text-[10px] font-bold uppercase tracking-wider text-foreground/70"
-                          >
-                            Public-live passphrase
-                          </label>
-                          <input
-                            id={`public-live-pass-${botId}`}
-                            type="password"
-                            autoComplete="off"
-                            value={publicLivePassphrase}
-                            onChange={(e) => {
-                              setPublicLivePassphrase(e.target.value);
-                              setPublicLiveError(null);
-                            }}
-                            placeholder="Required"
-                            className="w-full px-3 py-2 rounded-lg border border-white/[0.12] bg-white/[0.03] text-[12px] font-mono text-foreground"
-                          />
-                        </div>
-                        {publicLiveError && (
-                          <p className="text-[11px] font-semibold text-rose-400">{publicLiveError}</p>
-                        )}
-                      </div>
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel className="border-white/10">Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      disabled={publicLiveSaving || !publicLivePassphrase.trim()}
-                      className={cn(
-                        publicLiveDialog?.next
-                          ? "bg-emerald-600 hover:bg-emerald-500"
-                          : "bg-rose-600 hover:bg-rose-500",
-                      )}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        void handlePublicLiveConfirm();
-                      }}
-                    >
-                      {publicLiveSaving ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : publicLiveDialog?.next ? (
-                        "Publish"
-                      ) : (
-                        "Hide"
-                      )}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
 
               <div className="flex gap-2">
                 {(["AUTO", "OFF"] as const).map((mode) => (
@@ -527,5 +538,7 @@ export function SimBotConfigSheet({
         </div>
       </SheetContent>
     </Sheet>
+    {publicLiveDialogBody}
+    </>
   );
 }

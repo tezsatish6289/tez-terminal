@@ -18,9 +18,9 @@ export function PublicBotTabs({
 }) {
   if (variant === "performance") {
     return (
-      <div className="w-full overflow-x-auto pb-1">
+      <div className="w-full overflow-x-auto pb-2 -mx-1 px-1">
         <div
-          className="flex items-center gap-0 rounded-xl p-1 w-fit mx-auto"
+          className="flex items-center gap-2 sm:gap-3 rounded-2xl p-2 sm:p-2.5 w-fit mx-auto"
           style={{
             backgroundColor: "rgba(255,255,255,0.03)",
             border: "1px solid rgba(90,140,220,0.1)",
@@ -35,7 +35,7 @@ export function PublicBotTabs({
                 type="button"
                 onClick={() => canSelect && onSelect(bot.id)}
                 disabled={!canSelect}
-                className="relative flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap"
+                className="relative flex items-center gap-2.5 sm:gap-3 px-4 sm:px-6 py-3 sm:py-3.5 rounded-xl text-sm sm:text-base font-bold transition-all whitespace-nowrap"
                 style={
                   isActive
                     ? {
@@ -51,26 +51,25 @@ export function PublicBotTabs({
                 }
               >
                 {bot.logo ? (
-                  <div className="h-4 w-4 rounded-full bg-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
+                  <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
                     <Image
                       src={bot.logo}
                       alt={bot.shortLabel}
-                      width={14}
-                      height={14}
+                      width={28}
+                      height={28}
                       className="object-contain rounded-full"
                     />
                   </div>
                 ) : (
-                  <span>{bot.icon}</span>
+                  <span className="text-lg sm:text-xl leading-none">{bot.icon}</span>
                 )}
-                <span className="hidden sm:inline">{bot.label}</span>
-                <span className="sm:hidden">{bot.shortLabel}</span>
+                <span>{bot.label}</span>
                 {bot.publicLive && isActive && (
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
                 )}
                 {!bot.publicLive && (
                   <span
-                    className="text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded"
+                    className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md ml-0.5"
                     style={{
                       backgroundColor: "rgba(96,165,250,0.08)",
                       color: "#334155",

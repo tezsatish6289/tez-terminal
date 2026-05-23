@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { EquityChart } from "@/components/charts/EquityChart";
-import { BotSourceFilter } from "@/components/dashboard/BotSourceFilter";
+import { StatsBotTabs } from "@/components/stats/StatsBotTabs";
 import {
   matchesBotSource,
   type BotSourceFilter as BotSourceFilterValue,
@@ -403,12 +403,16 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
 
   if (shareView) {
     return (
-      <div className="flex flex-col items-center gap-4">
-        <BotSourceFilter value={botSourceFilter} onChange={setBotSourceFilter} />
+      <div className="flex flex-col items-center gap-8 w-full max-w-[1200px]">
+        <StatsBotTabs
+          value={botSourceFilter}
+          onChange={setBotSourceFilter}
+          className="w-full"
+        />
         {isBotFiltered && (
-          <span className="text-[10px] font-medium" style={{ color: "#94a3b8" }}>
-            Card shows: {botSourceLabel(botSourceFilter)} (counterfactual)
-          </span>
+          <p className="text-sm font-medium text-amber-400/80 text-center -mt-2">
+            Share card: {botSourceLabel(botSourceFilter)} (counterfactual view)
+          </p>
         )}
         <StatsSocialShareCard
           runningDays={runningDays}
@@ -428,9 +432,30 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
+      <StatsBotTabs value={botSourceFilter} onChange={setBotSourceFilter} />
+
+      <div className="flex flex-col items-center gap-3 text-center px-2 -mt-2">
+        <p className="text-lg sm:text-xl font-black text-foreground tracking-tight">
+          {isBotFiltered ? botSourceLabel(botSourceFilter) : "All Bots"}
+          <span className="text-muted-foreground/50 font-semibold"> · </span>
+          <span className="text-muted-foreground/70 font-bold text-base sm:text-lg">
+            performance
+          </span>
+        </p>
+        {isBotFiltered ? (
+          <p className="text-sm text-amber-400/75 max-w-lg leading-relaxed">
+            Counterfactual view — metrics show what would have happened if only this bot ran from the starting capital.
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground/50 max-w-lg leading-relaxed">
+            Shared capital across all bots — actual combined simulator performance.
+          </p>
+        )}
+      </div>
+
       {/* Headline cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <SummaryCard
           label="Running"
           value={`${runningDays} Day${runningDays !== 1 ? "s" : ""}`}
@@ -485,18 +510,8 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
         />
       </div>
 
-      {/* Bot-source filter + counterfactual chip */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <BotSourceFilter value={botSourceFilter} onChange={setBotSourceFilter} />
-        {isBotFiltered && (
-          <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400/70 px-2 py-1 rounded-md border border-amber-400/20 bg-amber-400/[0.06]">
-            Counterfactual — &ldquo;if only this bot ran from start&rdquo;
-          </span>
-        )}
-      </div>
-
       {/* Equity curve + risk ratios side-by-side */}
-      <div className="flex flex-col lg:flex-row gap-3 items-stretch">
+      <div className="flex flex-col lg:flex-row gap-5 items-stretch">
         <div className="flex-1 min-w-0">
           <EquityChart
             trades={filteredClosedTrades}

@@ -56,12 +56,12 @@ export default function StatsPage() {
         <div
           className={cn(
             "flex-1 overflow-y-auto",
-            shareView ? "p-6 flex items-center justify-center" : "p-4 space-y-4",
+            shareView ? "p-6 flex items-center justify-center" : "p-5 sm:p-6 space-y-6",
           )}
         >
           <div
             className={cn(
-              shareView ? "flex flex-col items-center gap-4" : "max-w-[1400px] mx-auto space-y-4 w-full",
+              shareView ? "flex flex-col items-center gap-6" : "max-w-[1400px] mx-auto space-y-6 w-full",
             )}
           >
             <div className="flex items-center justify-between gap-4 flex-wrap w-full max-w-[1400px]">
@@ -93,12 +93,6 @@ export default function StatsPage() {
                 {shareView ? "Exit share view" : "Social share view"}
               </button>
             </div>
-
-            {!shareView && (
-              <p className="text-[10px] text-muted-foreground/45 max-w-[1400px]">
-                Use bot tabs below for per-bot performance · shared capital in production
-              </p>
-            )}
 
             <StatsDashboard assetType="CRYPTO" shareView={shareView} />
           </div>

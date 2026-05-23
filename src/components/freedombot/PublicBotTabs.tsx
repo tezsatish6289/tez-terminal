@@ -18,6 +18,10 @@ export function PublicBotTabs({
 }) {
   if (variant === "performance") {
     return (
+      <div className="w-full flex flex-col items-center gap-5 py-2">
+        <p className="text-sm font-semibold tracking-wide" style={{ color: "#64748b" }}>
+          Select bot to view performance
+        </p>
       <div className="w-full overflow-x-auto pb-2 -mx-1 px-1">
         <div
           className="flex items-center gap-2 sm:gap-3 rounded-2xl p-2 sm:p-2.5 w-fit mx-auto"
@@ -82,6 +86,7 @@ export function PublicBotTabs({
             );
           })}
         </div>
+      </div>
       </div>
     );
   }

@@ -26,6 +26,8 @@ import { PublicBotTabs } from "@/components/freedombot/PublicBotTabs";
 import { usePublicBots } from "@/hooks/use-public-bots";
 import type { CryptoBotId } from "@/lib/crypto-bots";
 import { tradeMatchesSelectedPublicBot } from "@/lib/public-bot-flags";
+import { RiskRatioDrilldowns } from "@/components/stats/RiskRatioDrilldowns";
+import type { SimTrade } from "@/lib/simulator";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -333,10 +335,10 @@ export default function PerformancePage() {
   return (
     <div className="min-h-screen font-sans antialiased overflow-x-hidden" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 space-y-10">
 
         {/* ── Hero header ── */}
-        <div className="text-center py-6 sm:py-10 space-y-4">
+        <div className="text-center py-4 sm:py-8 space-y-4">
           <div
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest"
             style={{ backgroundColor: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.2)", color: "#60a5fa" }}
@@ -363,13 +365,38 @@ export default function PerformancePage() {
           </Link>
         </div>
 
-        {/* ── Bot selector (all crypto; asset type not shown) ── */}
+        {/* ── Bot selector (matches /stats layout) ── */}
         {!publicBotsLoading && bots.length > 0 && (
           <PublicBotTabs
             bots={bots}
             selectedId={selectedBotId}
             onSelect={setSelectedBotId}
           />
+        )}
+
+        {/* ── Selected bot context (matches /stats) ── */}
+        {!publicBotsLoading && selectedBot && (
+          <div className="flex flex-col items-center gap-3 text-center px-2 -mt-2">
+            <p className="text-lg sm:text-xl font-black tracking-tight text-white">
+              {selectedBot.label}
+              <span style={{ color: "#475569" }} className="font-semibold">
+                {" "}
+                ·{" "}
+              </span>
+              <span style={{ color: "#94a3b8" }} className="font-bold text-base sm:text-lg">
+                performance
+              </span>
+            </p>
+            {selectedIsLive ? (
+              <p className="text-sm max-w-lg leading-relaxed" style={{ color: "#64748b" }}>
+                Live public performance — every number is from real closed trades, not a backtest.
+              </p>
+            ) : (
+              <p className="text-sm max-w-lg leading-relaxed" style={{ color: "#64748b" }}>
+                This bot is not live on the public page yet. Select Crypto Bot for live metrics.
+              </p>
+            )}
+          </div>
         )}
 
         {/* ── Coming soon for bots not publicLive ── */}
@@ -400,14 +427,16 @@ export default function PerformancePage() {
             </a>
           </div>
         ) : loading || publicBotsLoading ? (
-          /* loading skeletons for live asset */
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="rounded-xl animate-pulse h-[100px]" style={{ backgroundColor: "#0a1628" }} />
-            ))}
+          <div className="space-y-8">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="rounded-xl animate-pulse h-[100px]" style={{ backgroundColor: "#0a1628" }} />
+              ))}
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="space-y-8">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             <SummaryCard
               label="Running"
               value={`${runningDays} Day${runningDays !== 1 ? "s" : ""}`}
@@ -461,11 +490,9 @@ export default function PerformancePage() {
               badge={yearlyIsProjected ? { text: "Projected", variant: "projected" } : { text: "Actual", variant: "actual" }}
             />
           </div>
-        )}
 
-        {/* ── Chart + Performance Panel — same side-by-side as simulator ── */}
-        {selectedIsLive && !loading && !publicBotsLoading && closedTrades.length >= 2 && (
-          <div className="flex flex-col lg:flex-row gap-3 items-stretch">
+        {closedTrades.length >= 2 && (
+          <div className="flex flex-col lg:flex-row gap-5 items-stretch">
             <div className="flex-1 min-w-0">
               <EquityChart
                 trades={closedTrades}
@@ -480,23 +507,31 @@ export default function PerformancePage() {
           </div>
         )}
 
-        {/* ── Methodology CTA ── */}
+        <RiskRatioDrilldowns
+          trades={closedTrades as SimTrade[]}
+          startingCapital={startCap}
+          assetType="CRYPTO"
+        />
+          </div>
+        )}
+
+        {/* ── Methodology CTA (public promise — kept on this page only) ── */}
         <div
-          className="rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+          className="rounded-2xl p-8 sm:p-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mt-4"
           style={{ backgroundColor: "rgba(96,165,250,0.04)", border: "1px solid rgba(96,165,250,0.1)" }}
         >
-          <div>
-            <p className="font-bold text-white mb-1">
+          <div className="space-y-3 max-w-2xl">
+            <p className="text-base sm:text-lg font-bold text-white leading-relaxed">
               What we promise is not profit —{" "}
               <span style={{ color: "#60a5fa" }}>we promise transparency and control.</span>
             </p>
-            <p className="text-sm" style={{ color: "#475569" }}>
+            <p className="text-sm sm:text-base leading-relaxed" style={{ color: "#475569" }}>
               Entry rules, stop-loss logic, position sizing — fully documented.
             </p>
           </div>
           <Link
             href="/methodology"
-            className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap transition-colors hover:text-blue-300"
+            className="flex items-center gap-1.5 text-sm sm:text-base font-semibold whitespace-nowrap transition-colors hover:text-blue-300 shrink-0"
             style={{ color: "#60a5fa" }}
           >
             Methodology →

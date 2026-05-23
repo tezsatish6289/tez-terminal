@@ -9,7 +9,6 @@ import {
   TrendingUp,
   TrendingDown,
   BarChart3,
-  Shield,
   CheckCircle2,
 } from "lucide-react";
 import { EquityChart } from "@/components/charts/EquityChart";
@@ -27,6 +26,7 @@ import { usePublicBots } from "@/hooks/use-public-bots";
 import type { CryptoBotId } from "@/lib/crypto-bots";
 import { tradeMatchesSelectedPublicBot } from "@/lib/public-bot-flags";
 import { RiskRatioDrilldowns } from "@/components/stats/RiskRatioDrilldowns";
+import { PerformanceMetricsInsight } from "@/components/freedombot/PerformanceMetricsInsight";
 import type { SimTrade } from "@/lib/simulator";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -72,12 +72,6 @@ function fmtPct(n: number | null | undefined, dp = 2) {
 function fmtMoney(n: number | null | undefined) {
   if (n == null) return "—";
   return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function fmtRatio(n: number, dp = 2) {
-  if (!isFinite(n)) return "∞";
-  const sign = n >= 0 ? "+" : "";
-  return `${sign}${n.toFixed(dp)}`;
 }
 
 // ─── SummaryCard — identical to simulator ─────────────────────────────────────
@@ -126,63 +120,6 @@ function SummaryCard({
     </div>
   );
 }
-
-// ─── MetricTile — identical to simulator ─────────────────────────────────────
-
-function MetricTile({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
-  return (
-    <div
-      className="flex flex-col gap-1 px-4 py-3 rounded-lg"
-      style={{ backgroundColor: "rgba(255,255,255,0.02)", border: "1px solid rgba(90,140,220,0.08)" }}
-    >
-      <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#334155" }}>{label}</span>
-      <span className="text-xl font-mono font-bold" style={{ color }}>{value}</span>
-      {sub && <span className="text-[10px]" style={{ color: "#334155" }}>{sub}</span>}
-    </div>
-  );
-}
-
-// ─── PerformanceMetricsPanel — identical layout to simulator ──────────────────
-
-function PerformanceMetricsPanel({ metrics }: { metrics: PerformanceMetrics | null }) {
-  if (!metrics) return null;
-
-  const ratioColor = (n: number) =>
-    !isFinite(n) || n >= 1.5 ? "#34d399" : n >= 0.5 ? "#fbbf24" : "#f87171";
-
-  return (
-    <div
-      className="rounded-lg p-4 flex flex-col gap-3 h-full"
-      style={{ backgroundColor: "rgba(255,255,255,0.02)", border: "1px solid rgba(90,140,220,0.08)" }}
-    >
-      <div className="flex items-center justify-between flex-wrap gap-1">
-        <div className="flex items-center gap-2">
-          <Shield className="w-4 h-4" style={{ color: "#60a5fa" }} />
-          <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "#475569" }}>Performance</span>
-        </div>
-        <span className="text-[9px]" style={{ color: "#334155" }}>{metrics.tradingDays}d · annualised</span>
-      </div>
-
-      <div className="flex flex-col gap-2 flex-1">
-        <MetricTile label="Sharpe Ratio" value={fmtRatio(metrics.sharpeRatio)} sub="Higher › 1 is good" color={ratioColor(metrics.sharpeRatio)} />
-        <MetricTile label="Sortino Ratio" value={fmtRatio(metrics.sortinoRatio)} sub="Downside-adjusted" color={ratioColor(metrics.sortinoRatio)} />
-        <MetricTile label="Calmar Ratio" value={fmtRatio(metrics.calmarRatio)} sub="Return / Max DD" color={ratioColor(metrics.calmarRatio)} />
-        <MetricTile
-          label="Max Drawdown"
-          value={`-${metrics.maxDrawdownPct.toFixed(2)}%`}
-          sub="Peak-to-trough (closed)"
-          color={metrics.maxDrawdownPct < 15 ? "#34d399" : metrics.maxDrawdownPct < 30 ? "#fbbf24" : "#f87171"}
-        />
-      </div>
-
-      <p className="text-[10px] leading-relaxed" style={{ color: "#1e3a5f" }}>
-        Based on <span style={{ color: "#334155", fontWeight: 600 }}>closed trades only</span>. Ratios are annualised. Risk-free: 0% (crypto).
-      </p>
-    </div>
-  );
-}
-
-// ─── EquityCurve — delegates to shared EquityChart component ─────────────────
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -492,18 +429,14 @@ export default function PerformancePage() {
           </div>
 
         {closedTrades.length >= 2 && (
-          <div className="flex flex-col lg:flex-row gap-5 items-stretch">
-            <div className="flex-1 min-w-0">
-              <EquityChart
-                trades={closedTrades}
-                startingCapital={startCap}
-                cs="$"
-                theme="blue"
-              />
-            </div>
-            <div className="lg:w-72 xl:w-80 shrink-0 flex flex-col">
-              <PerformanceMetricsPanel metrics={metrics} />
-            </div>
+          <div className="space-y-6">
+            <EquityChart
+              trades={closedTrades}
+              startingCapital={startCap}
+              cs="$"
+              theme="blue"
+            />
+            <PerformanceMetricsInsight metrics={metrics} />
           </div>
         )}
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { TrendingDown, TrendingUp, Clock } from "lucide-react";
+import { TrendingDown, TrendingUp, Clock, Globe, EyeOff } from "lucide-react";
 import { useIsoTimeLabel } from "@/hooks/use-auto-refresh";
 import { cn } from "@/lib/utils";
 import type { CockpitBotId } from "@/lib/sim-cockpit-bots";
@@ -46,6 +46,8 @@ export function HeatmapAssetCard({
   suggested,
   liveSpot,
   manualOverride,
+  publicLive,
+  liveMirroringEnabled,
   engineReason,
   engineDirection,
   simEnabled,
@@ -73,6 +75,17 @@ export function HeatmapAssetCard({
    *  left rail now shows only the dot (replaces the AUTO/OFF badge),
    *  so the right pane owns the headline + detail commentary. */
   manualOverride?: string | null;
+  /** Public-discovery state — drives the small badge next to IV. When
+   *  true, this bot is listed on freedombot.ai. When false, hidden from
+   *  the catalog (existing subscribers are unaffected; the per-user
+   *  opt-in stays on). Toggle lives in the Config sheet behind the
+   *  passphrase. */
+  publicLive?: boolean;
+  /** Whether NEW sim entries fan out to live mirrors. Drives the small
+   *  "Live mirror" status pip next to the IV badge — purely informational
+   *  on the card; the actual toggle is the 3-state pill in the toolbar.
+   *  `undefined` is treated as enabled (legacy compat). */
+  liveMirroringEnabled?: boolean;
   engineReason?: string | null;
   engineDirection?: ZoneBotDirection | null;
   simEnabled?: boolean | null;
@@ -196,6 +209,8 @@ export function HeatmapAssetCard({
                 title={formatIvExplainer(ivPct, spot, ASSET_TAG[botId])}
               />
             )}
+            <DiscoveryBadge publicLive={publicLive === true} />
+            {liveMirroringEnabled === false && <SimOnlyBadge />}
           </div>
           {settingsSlot && (
             <div
@@ -328,6 +343,54 @@ function LastRanInline({
       <Clock className="w-3 h-3 text-muted-foreground/45" />
       <span className="font-bold">{label}</span>
       <span className="text-accent/85 font-black">{primary.relative}</span>
+    </span>
+  );
+}
+
+/**
+ * Public-discovery indicator. Two states:
+ *   • publicLive === true  → emerald pill "Public" — bot is listed on
+ *                            freedombot.ai catalog.
+ *   • publicLive === false → muted pill "Hidden" — bot is admin-only.
+ *
+ * Existing subscribers continue receiving signals regardless of this
+ * flag (per the agreed semantic: pure visibility, cleanly orthogonal
+ * to the live-mirroring toggle). The flag is changed via the Config
+ * sheet's passphrase-gated dialog; this badge is read-only.
+ */
+function DiscoveryBadge({ publicLive }: { publicLive: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-0.5 text-[8px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0",
+        publicLive
+          ? "text-emerald-300/90 border-emerald-500/25 bg-emerald-500/10"
+          : "text-muted-foreground/55 border-white/[0.08] bg-white/[0.02]",
+      )}
+      title={
+        publicLive
+          ? "Public on freedombot.ai — listed in the catalog. Existing subscribers continue regardless."
+          : "Hidden from freedombot.ai catalog. Existing subscribers are unaffected; admin-only visibility."
+      }
+    >
+      {publicLive ? <Globe className="w-2.5 h-2.5" /> : <EyeOff className="w-2.5 h-2.5" />}
+      {publicLive ? "Public" : "Hidden"}
+    </span>
+  );
+}
+
+/**
+ * Shown only when the bot is explicitly in SIM_ONLY mode (admin set
+ * `liveMirroringEnabled: false`). Legacy bots with the field unset
+ * default to mirroring on and do not render this badge.
+ */
+function SimOnlyBadge() {
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 text-[8px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 text-amber-300/90 border-amber-500/30 bg-amber-500/10"
+      title="Sim only — new sim trades will NOT fan out to live mirrors. Existing open live trades continue their lifecycle (SL/TP/kill switch all cascade through)."
+    >
+      Sim only
     </span>
   );
 }

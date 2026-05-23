@@ -170,6 +170,27 @@ export function BotCockpit({
   const { data: solSuggestedData, refetch: refetchSolSuggested } = useDoc(suggestedRefs.sol ?? null);
   const { data: xrpSuggestedData, refetch: refetchXrpSuggested } = useDoc(suggestedRefs.xrp ?? null);
 
+  // Per-bot trading policy (discovery + sim/live mode). Subscribing here so
+  // a flip in the Config sheet propagates to every card instantly without
+  // a page refresh. Each doc is `config/sim_bot_<id>_settings`; the parser
+  // (`parseSimBotSettings`) lives server-side, so on the client we just
+  // read the raw boolean fields.
+  const policyRefs = useMemo(() => {
+    if (!firestore) return {} as Record<CockpitBotId, ReturnType<typeof doc>>;
+    return Object.fromEntries(
+      SIM_COCKPIT_BOTS.map((b) => [
+        b.id,
+        doc(firestore, "config", `sim_bot_${b.id}_settings`),
+      ]),
+    ) as Record<CockpitBotId, ReturnType<typeof doc>>;
+  }, [firestore]);
+
+  const { data: cryptoPolicyData, refetch: refetchCryptoPolicy } = useDoc(policyRefs.crypto ?? null);
+  const { data: btcPolicyData, refetch: refetchBtcPolicy } = useDoc(policyRefs.btc ?? null);
+  const { data: ethPolicyData, refetch: refetchEthPolicy } = useDoc(policyRefs.eth ?? null);
+  const { data: solPolicyData, refetch: refetchSolPolicy } = useDoc(policyRefs.sol ?? null);
+  const { data: xrpPolicyData, refetch: refetchXrpPolicy } = useDoc(policyRefs.xrp ?? null);
+
   const refetchAll = useCallback(() => {
     void refetchMacro();
     void refetchHeatmapZones();
@@ -190,6 +211,11 @@ export function BotCockpit({
     void refetchEthSuggested();
     void refetchSolSuggested();
     void refetchXrpSuggested();
+    void refetchCryptoPolicy();
+    void refetchBtcPolicy();
+    void refetchEthPolicy();
+    void refetchSolPolicy();
+    void refetchXrpPolicy();
     Object.values(refetchersRef.current).forEach((fn) => void fn());
   }, [
     refetchMacro,
@@ -207,6 +233,11 @@ export function BotCockpit({
     refetchSolSim,
     refetchXrpSim,
     refetchCryptoSuggested,
+    refetchCryptoPolicy,
+    refetchBtcPolicy,
+    refetchEthPolicy,
+    refetchSolPolicy,
+    refetchXrpPolicy,
     refetchBtcSuggested,
     refetchEthSuggested,
     refetchSolSuggested,
@@ -268,6 +299,32 @@ export function BotCockpit({
     }),
     [btcSimData, ethSimData, solSimData, xrpSimData],
   );
+
+  // Per-bot trading policy — the two boolean fields the card needs to
+  // render. Centralised here so the left rail (compact row) and the
+  // right pane (detail card) can both read from one source. Missing /
+  // unset field semantics:
+  //   • publicLive            → undefined treated as false (privacy-safe)
+  //   • liveMirroringEnabled  → undefined treated as TRUE (legacy bots
+  //                              keep mirroring on deploy with no
+  //                              migration; only an explicit false from
+  //                              the cockpit UI opts into SIM_ONLY).
+  const policyByBot = useMemo(() => {
+    const read = (raw: unknown): { publicLive: boolean; liveMirroringEnabled: boolean } => {
+      const r = (raw ?? {}) as { publicLive?: unknown; liveMirroringEnabled?: unknown };
+      return {
+        publicLive: r.publicLive === true,
+        liveMirroringEnabled: r.liveMirroringEnabled !== false,
+      };
+    };
+    return {
+      crypto: read(cryptoPolicyData),
+      btc: read(btcPolicyData),
+      eth: read(ethPolicyData),
+      sol: read(solPolicyData),
+      xrp: read(xrpPolicyData),
+    } as Record<CockpitBotId, { publicLive: boolean; liveMirroringEnabled: boolean }>;
+  }, [cryptoPolicyData, btcPolicyData, ethPolicyData, solPolicyData, xrpPolicyData]);
 
   const botMetrics = useMemo(() => {
     return Object.fromEntries(
@@ -428,6 +485,8 @@ export function BotCockpit({
             suggested={selectedSuggested}
             liveSpot={liveSpotByBot[selectedBot.id]}
             manualOverride={selectedZone?.settings?.manualOverride ?? null}
+            publicLive={policyByBot[selectedBot.id]?.publicLive ?? false}
+            liveMirroringEnabled={policyByBot[selectedBot.id]?.liveMirroringEnabled ?? true}
             engineReason={
               selectedBot.id === "crypto"
                 ? cryptoMacro?.reason ?? null

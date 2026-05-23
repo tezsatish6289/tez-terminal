@@ -102,17 +102,20 @@ export function ZoneBotControls({
   }, [apiBase, settings]);
 
   const isForcedOff = settings.manualOverride === "OFF";
+  // Legacy 2-state mapping. This sheet predates the SIM_ONLY mode
+  // and the new cockpit no longer mounts it; the unified SimBotConfigSheet
+  // is the live entry point. Kept compilable for the historical render path.
+  const tradingMode = isForcedOff ? "OFF" : "SIM_LIVE";
 
   return (
     <Sheet>
       <SheetTrigger asChild>
         <BotCardToolbarTrigger
-          isForcedOff={isForcedOff}
+          tradingMode={tradingMode}
           power={status.power}
           sheetLabel="Config"
-          onAutoToggle={(e) => {
-            e.stopPropagation();
-            void handleOverride(isForcedOff ? "AUTO" : "OFF");
+          onTradingModeChange={(next) => {
+            void handleOverride(next === "OFF" ? "OFF" : "AUTO");
           }}
         />
       </SheetTrigger>

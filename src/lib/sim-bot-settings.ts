@@ -19,6 +19,14 @@ export type SimBotOverride = "AUTO" | "OFF";
 export interface SimBotSettings {
   /** When true, bot appears on freedombot.ai (performance, records, deploy). */
   publicLive?: boolean;
+  /** Whether NEW sim entries should also fan out to live mirrors. Existing
+   *  open live trades are unaffected — the cascade for SL/TP/manual close
+   *  always follows sim regardless of this flag. Undefined = legacy true
+   *  (no migration needed for bots that have been mirroring all along);
+   *  new bots should explicitly set false until they're cleared for live.
+   *  Read at fan-out time in `live-execution.ts`, so toggling this mid-
+   *  session takes effect on the very next signal. */
+  liveMirroringEnabled?: boolean;
   manualOverride: SimBotOverride;
   /** Max concurrent OPEN sim trades for this bot only. */
   maxOpenTrades: number;
@@ -127,6 +135,13 @@ export function parseSimBotSettings(
   const base: SimBotSettings = {
     publicLive:
       typeof raw.publicLive === "boolean" ? raw.publicLive : publicLiveDefault,
+    liveMirroringEnabled:
+      // Undefined = legacy true (bots that were live-mirroring before
+      // this field existed keep doing so). Only an explicit `false`
+      // turns SIM_ONLY mode on.
+      typeof raw.liveMirroringEnabled === "boolean"
+        ? raw.liveMirroringEnabled
+        : undefined,
     manualOverride: readOverride(raw.manualOverride ?? d.manualOverride),
     maxOpenTrades: maxOpen,
     riskPerTradePct: risk,
@@ -240,6 +255,7 @@ export function simBotSettingsToPartialUpdate(
   };
   const keys: (keyof SimBotSettings)[] = [
     "publicLive",
+    "liveMirroringEnabled",
     "manualOverride",
     "maxOpenTrades",
     "riskPerTradePct",

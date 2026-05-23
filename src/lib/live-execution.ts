@@ -21,6 +21,7 @@ import { refreshDeploymentWalletBalance } from "./freedombot/wallet-balance";
 import { userOptedIntoBot } from "./freedombot/zone-bot-subscription";
 import { resolveRiskPerTrade } from "./freedombot/trading-prefs-shared";
 import { isDailyLossHaltedToday } from "./freedombot/daily-loss-gate";
+import { isLiveMirroringEnabledForBotSource } from "./bot-policy";
 
 /**
  * Execute a trade for ALL users who have autoTradeEnabled on any supported exchange.
@@ -49,6 +50,35 @@ export async function executeForAllUsers(
   botSource: string = "PATTERN",
 ) {
   const isStock = isStockExchange(signalExchange);
+
+  // ── Bot-level live mirroring gate ─────────────────────────────────
+  // Read the bot's "SIM ONLY vs SIM + LIVE" policy at fan-out time.
+  // CRITICAL: this check must live here (in the dispatch function),
+  // not upstream where the sim trade was decided. Otherwise an admin
+  // who flips the toggle OFF between sim-trade creation and live
+  // dispatch would still see live mirrors fire because the decision
+  // would have been baked in earlier. Running trades are unaffected:
+  // SL/TP/TRAILING/KILL_SWITCH cascades always follow sim regardless
+  // of this flag (see `sync-live-trades` and `sim/force-close`).
+  //
+  // Backwards compat: `isLiveMirroringEnabledForBotSource` defaults to
+  // true for any unknown bot or missing field, so existing bots that
+  // were live-mirroring before this gate existed keep doing so.
+  const liveMirroringAllowed = await isLiveMirroringEnabledForBotSource(
+    db,
+    botSource,
+  );
+  if (!liveMirroringAllowed) {
+    await db.collection("live_trade_logs").add({
+      timestamp: new Date().toISOString(),
+      action: "BOT_POLICY_SIM_ONLY",
+      details: `${symbol} ${signalType} — live mirroring is disabled for ${botSource} (SIM ONLY mode). No live entries dispatched. Existing open mirrors remain on their normal lifecycle.`,
+      signalId,
+      symbol,
+      assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
+    });
+    return;
+  }
 
   // Block new Indian stock entries after 2:30 PM IST
   if (isStock && !isIndianMarketEntryAllowed()) {

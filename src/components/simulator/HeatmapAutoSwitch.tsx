@@ -361,12 +361,11 @@ export function HeatmapAutoSwitch({
     <Sheet>
       <SheetTrigger asChild>
         <BotCardToolbarTrigger
-          isForcedOff={isForcedOff}
+          tradingMode={isForcedOff ? "OFF" : "SIM_LIVE"}
           power={cardPower}
           sheetLabel="Config"
-          onAutoToggle={(e) => {
-            e.stopPropagation();
-            void handleOverride(isForcedOff ? "AUTO" : "OFF");
+          onTradingModeChange={(next) => {
+            void handleOverride(next === "OFF" ? "OFF" : "AUTO");
           }}
         />
       </SheetTrigger>

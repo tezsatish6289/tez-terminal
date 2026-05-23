@@ -26,10 +26,39 @@ import {
 import type { CockpitBotId } from "@/lib/sim-cockpit-bots";
 import type { SimBotSettings } from "@/lib/sim-bot-settings";
 import { cryptoBotStatus, zoneBotStatus, type CockpitBotStatus } from "@/lib/cockpit-bot-status";
-import { BotCardToolbarTrigger } from "@/components/simulator/BotCardToolbarTrigger";
+import {
+  BotCardToolbarTrigger,
+  type TradingMode,
+} from "@/components/simulator/BotCardToolbarTrigger";
 import type { ZoneBotState } from "@/lib/zone-bot-state";
 
-type ManualOverride = "AUTO" | "OFF";
+/**
+ * Three states the cockpit lets the admin pick from. Map both ways:
+ *   tradingModeFromSettings — UI state from current Firestore values
+ *   settingsFromTradingMode — partial payload sent to PUT /sim-bot/[id]
+ *
+ * `liveMirroringEnabled === undefined` is treated as `true` (legacy
+ * compat): an existing bot that was mirroring before the field was
+ * introduced keeps mirroring. Only an explicit `false` opts into
+ * SIM_ONLY mode.
+ */
+function tradingModeFromSettings(s: SimBotSettings | null): TradingMode {
+  if (!s) return "SIM_LIVE";
+  if (s.manualOverride === "OFF") return "OFF";
+  return s.liveMirroringEnabled === false ? "SIM_ONLY" : "SIM_LIVE";
+}
+
+function settingsFromTradingMode(
+  next: TradingMode,
+): Partial<SimBotSettings> {
+  if (next === "OFF") {
+    return { manualOverride: "OFF" };
+  }
+  return {
+    manualOverride: "AUTO",
+    liveMirroringEnabled: next === "SIM_LIVE",
+  };
+}
 
 function ZoneEntryFields({
   settings,
@@ -209,18 +238,23 @@ export function SimBotConfigSheet({
     setDirty(true);
   }, []);
 
-  const handleOverride = useCallback(
-    async (override: ManualOverride) => {
-      patch({ manualOverride: override });
+  // Sets BOTH manualOverride and liveMirroringEnabled in a single
+  // payload so the cockpit's tri-state pill resolves atomically and
+  // there's no in-between state where (say) manualOverride flipped to
+  // AUTO but liveMirroringEnabled hadn't been written yet.
+  const handleTradingModeChange = useCallback(
+    async (next: TradingMode) => {
+      const partial = settingsFromTradingMode(next);
+      patch(partial);
       try {
         await fetch(apiBase, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ manualOverride: override }),
+          body: JSON.stringify(partial),
         });
         setDirty(false);
       } catch (err) {
-        console.error(`[SimBotConfig ${botId}] override failed:`, err);
+        console.error(`[SimBotConfig ${botId}] trading mode update failed:`, err);
       }
     },
     [apiBase, botId, patch],
@@ -288,7 +322,7 @@ export function SimBotConfigSheet({
     }
   }, [apiBase, settings, botId]);
 
-  const isForcedOff = settings?.manualOverride === "OFF";
+  const tradingMode = tradingModeFromSettings(settings);
 
   const publicLiveDialogBody = publicLiveDialog != null && (
     <AlertDialog
@@ -384,12 +418,12 @@ export function SimBotConfigSheet({
     <>
     <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
       <BotCardToolbarTrigger
-        isForcedOff={isForcedOff}
+        tradingMode={tradingMode}
         power={status.power}
         sheetLabel="Config"
         onConfigClick={() => setSheetOpen(true)}
-        onAutoToggle={() => {
-          void handleOverride(isForcedOff ? "AUTO" : "OFF");
+        onTradingModeChange={(next) => {
+          void handleTradingModeChange(next);
         }}
       />
 
@@ -481,24 +515,39 @@ export function SimBotConfigSheet({
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                {(["AUTO", "OFF"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => void handleOverride(mode)}
-                    className={cn(
-                      "flex-1 py-2.5 rounded-lg border text-[10px] font-black uppercase tracking-wider transition-all",
-                      settings.manualOverride === mode
-                        ? mode === "AUTO"
-                          ? "bg-accent/15 border-accent/30 text-accent"
-                          : "bg-rose-500/10 border-rose-500/25 text-rose-400"
-                        : "border-white/[0.08] text-muted-foreground/50 hover:bg-white/[0.04]",
-                    )}
-                  >
-                    {mode === "AUTO" ? "Auto" : "Force off"}
-                  </button>
-                ))}
+              <div className="space-y-2 rounded-lg border border-white/[0.08] bg-white/[0.02] p-3">
+                <div className="flex items-center gap-1.5">
+                  <Sliders className="w-3.5 h-3.5 text-accent/60" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-accent/80">
+                    Trading mode
+                  </span>
+                </div>
+                <p className="text-[9px] text-muted-foreground/50 leading-relaxed">
+                  <span className="text-rose-300/80 font-bold">Off</span> stops new sim and live entries.{" "}
+                  <span className="text-amber-300/80 font-bold">Sim only</span> runs the simulator but stops new live mirrors — existing live trades still follow sim through to close.{" "}
+                  <span className="text-emerald-300/80 font-bold">Sim + Live</span> is full production.
+                </p>
+                <div className="flex gap-2">
+                  {(["OFF", "SIM_ONLY", "SIM_LIVE"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => void handleTradingModeChange(mode)}
+                      className={cn(
+                        "flex-1 py-2.5 rounded-lg border text-[10px] font-black uppercase tracking-wider transition-all",
+                        tradingMode === mode
+                          ? mode === "OFF"
+                            ? "bg-rose-500/15 border-rose-500/30 text-rose-300"
+                            : mode === "SIM_ONLY"
+                              ? "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                              : "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                          : "border-white/[0.08] text-muted-foreground/50 hover:bg-white/[0.04]",
+                      )}
+                    >
+                      {mode === "OFF" ? "Off" : mode === "SIM_ONLY" ? "Sim only" : "Sim + Live"}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {zoneState?.reason && isZone && (

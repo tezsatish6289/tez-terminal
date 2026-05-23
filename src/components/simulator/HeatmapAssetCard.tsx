@@ -6,18 +6,12 @@ import { useIsoTimeLabel } from "@/hooks/use-auto-refresh";
 import { cn } from "@/lib/utils";
 import type { CockpitBotId } from "@/lib/sim-cockpit-bots";
 import {
-  deriveCockpitCardStatus,
-  type CockpitCardStatus,
-  type CockpitStatusBucket,
-} from "@/lib/cockpit-card-status";
-import {
   formatSpot,
   noClusterLine,
   spotFromSuggested,
   type SuggestedZonesSnapshot,
 } from "@/components/simulator/heatmap-types";
 import { SIM_CARD } from "@/components/simulator/simulator-surfaces";
-import type { ZoneBotDirection } from "@/lib/zone-bot-state";
 
 const ASSET_TAG: Record<CockpitBotId, string> = {
   crypto: "BTC",
@@ -32,16 +26,10 @@ export function HeatmapAssetCard({
   botId,
   label,
   suggested,
-  manualOverride,
-  engineReason,
-  engineDirection,
-  simEnabled,
-  botEngineLive,
   botLastRanAt,
   zonesRefreshedAt,
   capital,
-  liveCount,
-  closedCount,
+  startingCapital,
   cs,
   settingsSlot,
   footerSlot,
@@ -51,19 +39,13 @@ export function HeatmapAssetCard({
   botId: CockpitBotId;
   label: string;
   suggested: SuggestedZonesSnapshot | null;
-  manualOverride?: string | null;
-  engineReason?: string | null;
-  engineDirection?: ZoneBotDirection | null;
-  simEnabled?: boolean | null;
-  botEngineLive?: boolean;
   /** sync-simulator / sync-zone-bots last tick */
   botLastRanAt?: string | null;
   /** suggest-zones cron (Deribit OI snapshot) */
   zonesRefreshedAt?: string | null;
   capital: number;
-  /** OPEN simulator_trades for this bot right now */
-  liveCount: number;
-  closedCount: number;
+  /** Seed capital — used for the Δ% pill in the header */
+  startingCapital: number;
   cs: string;
   settingsSlot?: React.ReactNode;
   /** Slot rendered inside the same card, below the BULL/BEAR section. Used
@@ -76,31 +58,11 @@ export function HeatmapAssetCard({
 }) {
   const spot = spotFromSuggested(suggested);
   const ivPct = suggested?.atmIV != null ? suggested.atmIV * 100 : null;
-  const maxPainDays = suggested?.maxPainByExpiry ?? [];
 
-  const cardStatus = useMemo(
-    () =>
-      deriveCockpitCardStatus({
-        botId,
-        suggested,
-        manualOverride,
-        engineReason,
-        engineDirection,
-        simEnabled,
-        botEngineLive,
-        liveCount,
-      }),
-    [
-      botId,
-      suggested,
-      manualOverride,
-      engineReason,
-      engineDirection,
-      simEnabled,
-      botEngineLive,
-      liveCount,
-    ],
-  );
+  // Δ% vs seed capital — shown in the header alongside the capital figure.
+  const delta = capital - startingCapital;
+  const deltaPct =
+    startingCapital > 0 ? (delta / startingCapital) * 100 : 0;
 
   return (
     <div
@@ -134,9 +96,18 @@ export function HeatmapAssetCard({
         onSelect && !selected && "hover:ring-1 hover:ring-white/20",
       )}
     >
-      {/* ── Header: title row + controls ── */}
-      <div className="shrink-0 px-3 pt-3 pb-2 border-b border-white/[0.1] bg-[#1c1c21]">
-        <div className="flex items-start justify-between gap-2 min-h-[36px]">
+      {/* ── Header — one compact bar carrying everything the user
+           still wants visible at the top: identity (title + asset tag
+           + IV), bot health (capital + Δ%), freshness (last ran), and
+           the manual / config / auto controls.
+
+           Status banner, last-ran sub-bar and Capital/Live/Closed
+           three-up tile were all retired here: the status pill lives
+           on the left-rail row (visible whenever this card is
+           selected), and live/closed counts now ride as badges on
+           the Open / History tabs in the embedded footer below. */}
+      <div className="shrink-0 px-3 pt-2.5 pb-2 border-b border-white/[0.1] bg-[#1c1c21]">
+        <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
             <span className="text-[13px] font-black tracking-tight truncate">
               {label}
@@ -156,41 +127,31 @@ export function HeatmapAssetCard({
             </div>
           )}
         </div>
-      </div>
-
-      {/* ── Unified status (one hierarchy) ── */}
-      <div className="shrink-0 px-3 py-2 border-b border-white/[0.08] bg-[#141418] min-h-[52px] flex items-center">
-        <CardStatusBar status={cardStatus} />
-      </div>
-
-      {/* ── Last ran — fixed height, always visible ── */}
-      <LastRanBar
-        botId={botId}
-        botLastRanAt={botLastRanAt}
-        zonesRefreshedAt={zonesRefreshedAt}
-      />
-
-      {/* ── Capital / live / closed — fixed height ── */}
-      <div className="shrink-0 px-3 py-2 border-b border-white/[0.08] bg-[#121214] h-[52px] grid grid-cols-3 gap-1.5">
-        <BotStatChip
-          label="Capital"
-          value={`${cs}${capital.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}`}
-          accent
-        />
-        <BotStatChip
-          label="Live now"
-          value={String(liveCount)}
-          sub={liveCount === 1 ? "trade open" : "trades open"}
-          live={liveCount > 0}
-        />
-        <BotStatChip
-          label="Closed"
-          value={String(closedCount)}
-          sub="all time"
-        />
+        <div className="mt-1.5 flex items-baseline justify-between gap-2 flex-wrap">
+          <div className="flex items-baseline gap-2 min-w-0">
+            <span className="text-[14px] font-mono font-black tabular-nums text-foreground leading-none">
+              {cs}
+              {capital.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </span>
+            <span
+              className={cn(
+                "text-[10px] font-mono font-bold tabular-nums leading-none",
+                delta >= 0 ? "text-emerald-300/90" : "text-rose-300/90",
+              )}
+            >
+              {delta >= 0 ? "▲" : "▼"} {delta >= 0 ? "+" : ""}
+              {deltaPct.toFixed(2)}%
+            </span>
+          </div>
+          <LastRanInline
+            botId={botId}
+            botLastRanAt={botLastRanAt}
+            zonesRefreshedAt={zonesRefreshedAt}
+          />
+        </div>
       </div>
 
       {/* ── Body: vertical price ladder — bear band on top, bull on
@@ -220,8 +181,15 @@ export function HeatmapAssetCard({
   );
 }
 
-function LastRanBar({
-  botId,
+/**
+ * Compact "updated 1m ago" tag for the card header — replaces the
+ * heavier `LastRanBar` row that used to sit between the status banner
+ * and the Capital/Live/Closed tile. Carries the bot's most recent tick
+ * (or zones-refreshed timestamp as fallback) in one short line. Full
+ * "Last ran X · Zones refreshed Y" stays available as a hover title.
+ */
+function LastRanInline({
+  botId: _botId,
   botLastRanAt,
   zonesRefreshedAt,
 }: {
@@ -232,46 +200,34 @@ function LastRanBar({
   const botTick = useIsoTimeLabel(botLastRanAt);
   const zones = useIsoTimeLabel(zonesRefreshedAt);
   const primary = botTick ?? zones;
-  const label = botTick ? "Last ran" : "Zones";
-  const showZonesSub =
-    zones != null &&
-    botTick != null &&
-    zonesRefreshedAt !== botLastRanAt &&
-    zones.relative !== botTick.relative;
+  const label = botTick ? "Updated" : "Zones";
+  const title = (() => {
+    const parts: string[] = [];
+    if (botTick) parts.push(`Last ran ${botTick.relative} (${botTick.clock})`);
+    if (zones && (!botTick || zonesRefreshedAt !== botLastRanAt))
+      parts.push(`Zones refreshed ${zones.relative} (${zones.clock})`);
+    return parts.join(" · ");
+  })();
 
+  if (!primary) {
+    return (
+      <span
+        className="text-[9px] text-muted-foreground/40 leading-none shrink-0"
+        title="No bot tick or zone data yet"
+      >
+        —
+      </span>
+    );
+  }
   return (
-    <div
-      className="shrink-0 px-3 py-2 border-b border-white/[0.08] bg-[#16161a] min-h-[44px] flex flex-col justify-center"
-      title={
-        primary
-          ? `${label} ${primary.relative} (${primary.clock})`
-          : "No bot tick or zone data yet"
-      }
+    <span
+      className="inline-flex items-center gap-1 text-[9px] text-muted-foreground/55 leading-none shrink-0 tabular-nums"
+      title={title}
     >
-      <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-        <Clock className="w-3.5 h-3.5 text-accent/60 shrink-0" />
-        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 shrink-0">
-          {label}
-        </span>
-        {primary ? (
-          <>
-            <span className="text-[12px] font-black text-accent tabular-nums">
-              {primary.relative}
-            </span>
-            <span className="text-[10px] font-mono text-foreground/50 tabular-nums">
-              {primary.clock}
-            </span>
-          </>
-        ) : (
-          <span className="text-[10px] text-muted-foreground/40">—</span>
-        )}
-      </div>
-      {showZonesSub && zones && (
-        <p className="text-[9px] text-muted-foreground/45 mt-0.5 pl-5 truncate">
-          Zones refreshed {zones.relative} · {zones.clock}
-        </p>
-      )}
-    </div>
+      <Clock className="w-3 h-3 text-muted-foreground/45" />
+      <span className="font-bold">{label}</span>
+      <span className="text-accent/85 font-black">{primary.relative}</span>
+    </span>
   );
 }
 
@@ -289,72 +245,6 @@ function IvBadge({ pct }: { pct: number }) {
     >
       IV {pct.toFixed(0)}%
     </span>
-  );
-}
-
-const BUCKET_STYLES: Record<
-  CockpitStatusBucket,
-  { bar: string; dot: string; bucket: string; headline: string }
-> = {
-  blocked: {
-    bar: "border-white/[0.12] bg-white/[0.04]",
-    dot: "bg-muted-foreground/45",
-    bucket: "text-muted-foreground/55",
-    headline: "text-foreground/75",
-  },
-  waiting: {
-    bar: "border-amber-500/25 bg-amber-500/10",
-    dot: "bg-amber-400",
-    bucket: "text-amber-400/80",
-    headline: "text-amber-200/90",
-  },
-  ready: {
-    bar: "border-emerald-500/35 bg-emerald-500/15",
-    dot: "bg-emerald-400 animate-pulse",
-    bucket: "text-emerald-400/80",
-    headline: "text-emerald-300",
-  },
-};
-
-function CardStatusBar({ status }: { status: CockpitCardStatus }) {
-  const s = BUCKET_STYLES[status.bucket];
-  const title = [status.bucketLabel, status.headline, status.detail]
-    .filter(Boolean)
-    .join(" — ");
-
-  return (
-    <div
-      className={cn(
-        "w-full flex flex-col gap-0.5 px-2.5 py-1.5 rounded-lg border min-h-[44px] justify-center",
-        s.bar,
-      )}
-      title={title}
-    >
-      <div className="flex items-center gap-2 min-w-0">
-        <span className={cn("h-2 w-2 rounded-full shrink-0", s.dot)} />
-        <span
-          className={cn(
-            "text-[8px] font-black uppercase tracking-widest shrink-0",
-            s.bucket,
-          )}
-        >
-          {status.bucketLabel}
-        </span>
-        <span
-          className={cn(
-            "text-[10px] font-bold truncate min-w-0",
-            s.headline,
-          )}
-        >
-          {status.headline}
-        </span>
-      </div>
-      {status.detail && (
-        <p className="text-[9px] text-muted-foreground/50 pl-4 truncate leading-snug">
-          {status.detail}
-        </p>
-      )}
-    </div>
   );
 }
 
@@ -612,55 +502,3 @@ function ZonePriceLadder({
     </div>
   );
 }
-
-function BotStatChip({
-  label,
-  value,
-  sub,
-  accent,
-  live,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  accent?: boolean;
-  live?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-lg border px-1.5 py-1.5 h-full flex flex-col justify-center min-w-0",
-        live
-          ? "border-emerald-500/35 bg-emerald-500/10"
-          : accent
-            ? "border-accent/20 bg-accent/[0.06]"
-            : "border-white/[0.08] bg-[#1a1a1f]",
-      )}
-    >
-      <div className="flex items-center gap-1">
-        {live && (
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-        )}
-        <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/45 leading-none truncate">
-          {label}
-        </span>
-      </div>
-      <div
-        className={cn(
-          "text-[11px] font-black font-mono tabular-nums leading-tight mt-0.5",
-          live
-            ? "text-emerald-400"
-            : accent
-              ? "text-accent"
-              : "text-foreground/85",
-        )}
-      >
-        {value}
-      </div>
-      <div className="text-[8px] text-muted-foreground/40 leading-none mt-0.5 h-3">
-        {sub ?? "\u00A0"}
-      </div>
-    </div>
-  );
-}
-

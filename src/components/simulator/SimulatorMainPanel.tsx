@@ -18,18 +18,23 @@ export function SimulatorMainPanel({
   tab,
   onTabChange,
   openCount,
+  closedCount,
   logsCount,
   children,
 }: {
   tab: SimTab;
   onTabChange: (t: SimTab) => void;
   openCount: number;
+  /** Total closed trades for the selected bot — surfaced as the
+   *  HISTORY tab badge so users can see the lifetime count without a
+   *  separate stat tile on the detail card. */
+  closedCount: number;
   logsCount: number;
   children: React.ReactNode;
 }) {
   const tabs: { id: SimTab; label: string; count?: number }[] = [
     { id: "overview", label: "Open", count: openCount },
-    { id: "trades", label: "History" },
+    { id: "trades", label: "History", count: closedCount },
     { id: "logs", label: "Logs", count: logsCount },
   ];
 

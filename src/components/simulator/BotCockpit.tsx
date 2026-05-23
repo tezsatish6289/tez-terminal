@@ -395,25 +395,6 @@ export function BotCockpit({
             botId={selectedBot.id}
             label={selectedBot.label}
             suggested={selectedSuggested}
-            manualOverride={selectedZone?.settings?.manualOverride ?? null}
-            engineReason={
-              selectedBot.id === "crypto"
-                ? cryptoMacro?.reason ?? null
-                : selectedZone?.state?.reason ?? null
-            }
-            engineDirection={
-              selectedBot.id === "crypto"
-                ? null
-                : selectedZone?.state?.direction ?? null
-            }
-            simEnabled={
-              selectedBot.id === "crypto" ? cryptoMacro?.simEnabled : undefined
-            }
-            botEngineLive={
-              selectedBot.id === "crypto"
-                ? !!cryptoMacro?.updatedAt
-                : !!selectedZone?.state?.updatedAt
-            }
             botLastRanAt={
               selectedBot.id === "crypto"
                 ? cryptoMacro?.updatedAt ?? null
@@ -421,8 +402,7 @@ export function BotCockpit({
             }
             zonesRefreshedAt={selectedSuggested?.computedAt ?? null}
             capital={selectedMetrics?.capital ?? startingCapital}
-            liveCount={selectedMetrics?.liveCount ?? 0}
-            closedCount={selectedMetrics?.closedCount ?? 0}
+            startingCapital={startingCapital}
             cs={cs}
             settingsSlot={
               <BotCardControls

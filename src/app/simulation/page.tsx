@@ -484,6 +484,7 @@ export default function SimulationPage() {
                 tab={tab}
                 onTabChange={setTab}
                 openCount={openTrades.length}
+                closedCount={filteredClosedTrades.length}
                 logsCount={logs.length}
               >
                 {tab === "overview" && (

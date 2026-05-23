@@ -193,8 +193,11 @@ export function HeatmapAssetCard({
         />
       </div>
 
-      {/* ── Body: single-column scannable stat rows ──
-           price · today MP · D+1 MP · D+2 MP · bull · bear */}
+      {/* ── Body: vertical price ladder — bear band on top, bull on
+           bottom, max-pain lines between, current price as the yellow
+           anchor. The actual price-vs-level distance is drawn to scale
+           so traders can perceive "how far above bull / below bear" by
+           eye instead of reading numbers and subtracting in their head. */}
       <div className="flex-1 flex flex-col min-h-0">
         {!suggested ? (
           <div className="flex-1 flex items-center justify-center px-3 py-6">
@@ -203,14 +206,7 @@ export function HeatmapAssetCard({
             </p>
           </div>
         ) : (
-          <>
-            <ZoneStatRows suggested={suggested} spot={spot} />
-            {suggested.halfWidthUsd != null && (
-              <p className="shrink-0 text-[9px] text-center text-muted-foreground/35 font-mono px-3 py-2">
-                ±${Math.round(suggested.halfWidthUsd)} half-width
-              </p>
-            )}
-          </>
+          <ZonePriceLadder suggested={suggested} spot={spot} />
         )}
       </div>
 
@@ -363,237 +359,257 @@ function CardStatusBar({ status }: { status: CockpitCardStatus }) {
 }
 
 /**
- * Single-column scannable stat table — replaces the older 3-row max-pain
- * tile + 2-col bull/bear grid. Each row is one horizontal line with a
- * label on the left and the value (+ optional Δ-vs-spot or OI detail)
- * on the right, so the eye runs top-to-bottom without jumping columns.
+ * Vertical price ladder — replaces the row-by-row table with a spatial
+ * visualization where each level (bull/bear bands, max-pain lines,
+ * current price) sits at its actual price on a shared y-axis. Price is
+ * inherently vertical for traders, so this lets the eye perceive
+ * "how far above bull am I" instinctively instead of reading numbers
+ * and subtracting them in your head.
  *
- * Rows:  Price → Today MP → D+1 MP → D+2 MP → Bull zone → Bear zone
+ * No candles — just the levels — but the spatial relationship is what
+ * matters: bull band at the bottom (green), bear band at the top (red),
+ * max-pain magnet lines in between (white), spot as the yellow anchor.
+ * Left-side label tags carry the metadata (strike, OI, half-width, TP);
+ * right-side tags show the raw price number per level.
  */
-function ZoneStatRows({
+function ZonePriceLadder({
   suggested,
   spot,
 }: {
   suggested: SuggestedZonesSnapshot;
   spot: number | null;
 }) {
-  const maxPainDays = suggested.maxPainByExpiry ?? [];
-  const day0 = maxPainDays.find((e) => e.dayIndex === 0);
-  const day1 = maxPainDays.find((e) => e.dayIndex === 1);
-  const day2 = maxPainDays.find((e) => e.dayIndex === 2);
+  const bullLow = suggested.bullZoneLow;
+  const bullHigh = suggested.bullZoneHigh;
+  const bullStrike = suggested.bullStrike;
+  const bullOI = suggested.bullOI;
+  const bullShare = suggested.bullClusterShare;
+  const bullTp = suggested.bullTpTarget;
+  const bullActionable = suggested.bullActionable;
+  const bullLocked = suggested.bullLocked;
 
-  return (
-    <div className="divide-y divide-white/[0.05]">
-      {/* anchor row — spot price for the bot's perp */}
-      <StatRow
-        label="Price"
-        value={spot != null ? `$${formatSpot(spot)}` : "—"}
-        emphasis
-      />
+  const bearLow = suggested.bearZoneLow;
+  const bearHigh = suggested.bearZoneHigh;
+  const bearStrike = suggested.bearStrike;
+  const bearOI = suggested.bearOI;
+  const bearShare = suggested.bearClusterShare;
+  const bearTp = suggested.bearTpTarget;
+  const bearActionable = suggested.bearActionable;
+  const bearLocked = suggested.bearLocked;
 
-      <MaxPainRow label="Today max pain" entry={day0 ?? null} spot={spot} accent />
-      <MaxPainRow label="D+1 max pain" entry={day1 ?? null} spot={spot} />
-      <MaxPainRow label="D+2 max pain" entry={day2 ?? null} spot={spot} />
+  const halfWidth = suggested.halfWidthUsd;
 
-      <ZoneRow side="bull" suggested={suggested} />
-      <ZoneRow side="bear" suggested={suggested} />
-    </div>
-  );
-}
+  const days = suggested.maxPainByExpiry ?? [];
 
-function StatRow({
-  label,
-  value,
-  detail,
-  emphasis,
-  className,
-}: {
-  label: React.ReactNode;
-  value: React.ReactNode;
-  /** Right-aligned secondary text (Δ vs spot, OI %, etc.) */
-  detail?: React.ReactNode;
-  /** Bigger / brighter primary value for the anchor (Price) row */
-  emphasis?: boolean;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "px-3 py-2 flex items-center justify-between gap-3 min-w-0",
-        className,
-      )}
-    >
-      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/55 shrink-0 min-w-[6.5rem]">
-        {label}
-      </span>
-      <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
-        <span
-          className={cn(
-            "font-mono font-bold tabular-nums truncate text-right",
-            emphasis
-              ? "text-[13px] text-foreground"
-              : "text-[11px] text-foreground/85",
-          )}
-        >
-          {value}
-        </span>
-        {detail && (
-          <span className="text-[9px] font-mono text-muted-foreground/50 tabular-nums shrink-0">
-            {detail}
-          </span>
-        )}
+  // Group max-pain entries that share the same magnet price — common
+  // case is Today+Tomorrow both pinning to the same expiry's pain. Keeps
+  // labels from stacking on top of each other on the ladder.
+  const mpGroups = useMemo(() => {
+    const buckets = new Map<number, { price: number; labels: string[] }>();
+    for (const e of days) {
+      const key = Math.round(e.maxPain * 100) / 100;
+      const dayLabel =
+        e.dayIndex === 0 ? "Today" : e.dayIndex === 1 ? "D+1" : "D+2";
+      const existing = buckets.get(key);
+      if (existing) {
+        existing.labels.push(dayLabel);
+      } else {
+        buckets.set(key, { price: e.maxPain, labels: [dayLabel] });
+      }
+    }
+    return Array.from(buckets.values()).sort((a, b) => b.price - a.price);
+  }, [days]);
+
+  // Compute the visualization range — every level we'll plot, plus padding.
+  const prices: number[] = [];
+  if (spot != null) prices.push(spot);
+  if (bullLow != null) prices.push(bullLow);
+  if (bullHigh != null) prices.push(bullHigh);
+  if (bearLow != null) prices.push(bearLow);
+  if (bearHigh != null) prices.push(bearHigh);
+  for (const g of mpGroups) prices.push(g.price);
+
+  if (prices.length < 2) {
+    return (
+      <div className="px-3 py-6 text-center">
+        <p className="text-[10px] text-muted-foreground/40">
+          Not enough zone data to render ladder
+        </p>
       </div>
-    </div>
-  );
-}
-
-function MaxPainRow({
-  label,
-  entry,
-  spot,
-  accent,
-}: {
-  label: string;
-  entry: NonNullable<SuggestedZonesSnapshot["maxPainByExpiry"]>[number] | null;
-  spot: number | null;
-  /** Today's row gets the accent tint (the magnet that matters most) */
-  accent?: boolean;
-}) {
-  if (!entry) {
-    return (
-      <StatRow
-        label={label}
-        value={<span className="text-muted-foreground/35">—</span>}
-      />
     );
   }
-  const mp = entry.maxPain;
-  let detail: React.ReactNode = null;
-  if (spot != null && spot > 0) {
-    const deltaPct = ((mp - spot) / spot) * 100;
-    const above = deltaPct >= 0;
-    detail = (
-      <span
-        className={cn(above ? "text-emerald-300/70" : "text-rose-300/70")}
+
+  const minP = Math.min(...prices);
+  const maxP = Math.max(...prices);
+  const span = Math.max(maxP - minP, 1);
+  const padPx = span * 0.12;
+  const renderMin = minP - padPx;
+  const renderMax = maxP + padPx;
+  const renderSpan = renderMax - renderMin;
+
+  const HEIGHT_PX = 280;
+  const yFor = (price: number): number =>
+    HEIGHT_PX * (1 - (price - renderMin) / renderSpan);
+
+  const fmt = (p: number): string =>
+    p >= 1000
+      ? Math.round(p).toLocaleString()
+      : p.toLocaleString(undefined, {
+          minimumFractionDigits: p < 10 ? 3 : 2,
+          maximumFractionDigits: p < 10 ? 3 : 2,
+        });
+
+  const bullBandStyle: React.CSSProperties | null =
+    bullLow != null && bullHigh != null
+      ? { top: yFor(bullHigh), height: yFor(bullLow) - yFor(bullHigh) }
+      : null;
+  const bearBandStyle: React.CSSProperties | null =
+    bearLow != null && bearHigh != null
+      ? { top: yFor(bearHigh), height: yFor(bearLow) - yFor(bearHigh) }
+      : null;
+
+  // Detail strings — match the user's chart annotation style.
+  const bullDetail = (() => {
+    const bits: string[] = [];
+    if (bullStrike != null) bits.push(`@ ${fmt(bullStrike)}`);
+    if (halfWidth != null) bits.push(`HW ${Math.round(halfWidth)}`);
+    if (bullOI != null && bullOI > 0)
+      bits.push(`OI ${Math.round(bullOI).toLocaleString()}`);
+    if (bullShare != null && bullShare > 0)
+      bits.push(`${Math.round(bullShare * 100)}%`);
+    if (bullTp != null) bits.push(`TP ${fmt(bullTp)}`);
+    if (bullLocked) bits.push("LOCKED");
+    return bits.join(" · ");
+  })();
+  const bearDetail = (() => {
+    const bits: string[] = [];
+    if (bearStrike != null) bits.push(`@ ${fmt(bearStrike)}`);
+    if (halfWidth != null) bits.push(`HW ${Math.round(halfWidth)}`);
+    if (bearOI != null && bearOI > 0)
+      bits.push(`OI ${Math.round(bearOI).toLocaleString()}`);
+    if (bearShare != null && bearShare > 0)
+      bits.push(`${Math.round(bearShare * 100)}%`);
+    if (bearTp != null) bits.push(`TP ${fmt(bearTp)}`);
+    if (bearLocked) bits.push("LOCKED");
+    return bits.join(" · ");
+  })();
+
+  const bullIdle = bullBandStyle != null && bullActionable === false;
+  const bearIdle = bearBandStyle != null && bearActionable === false;
+
+  return (
+    <div className="px-3 py-3">
+      <div
+        className="relative w-full rounded-lg border border-white/[0.06] bg-[#0a0a0c] overflow-hidden"
+        style={{ height: HEIGHT_PX }}
       >
-        {above ? "+" : ""}
-        {deltaPct.toFixed(1)}% {above ? "above" : "below"}
-      </span>
-    );
-  }
-  return (
-    <StatRow
-      label={
-        <span className={cn(accent && "text-accent/70")}>{label}</span>
-      }
-      value={
-        <span className={cn(accent && "text-accent")}>
-          ${mp.toLocaleString()}
-        </span>
-      }
-      detail={detail}
-      className={cn(accent && "bg-accent/[0.04]")}
-    />
-  );
-}
-
-function ZoneRow({
-  side,
-  suggested,
-}: {
-  side: "bull" | "bear";
-  suggested: SuggestedZonesSnapshot;
-}) {
-  const isBull = side === "bull";
-  const strike = isBull ? suggested.bullStrike : suggested.bearStrike;
-  const low = isBull ? suggested.bullZoneLow : suggested.bearZoneLow;
-  const high = isBull ? suggested.bullZoneHigh : suggested.bearZoneHigh;
-  const tp = isBull ? suggested.bullTpTarget : suggested.bearTpTarget;
-  const tpConf = isBull ? suggested.bullTpConfidence : suggested.bearTpConfidence;
-  const actionable = isBull ? suggested.bullActionable : suggested.bearActionable;
-  const oi = isBull ? suggested.bullOI : suggested.bearOI;
-  const share = isBull ? suggested.bullClusterShare : suggested.bearClusterShare;
-  const locked = isBull ? suggested.bullLocked : suggested.bearLocked;
-
-  const hasZone = low != null && high != null;
-  const idle = hasZone && actionable === false;
-
-  const labelText = isBull ? "Bull zone" : "Bear zone";
-  const labelEl = (
-    <span
-      className={cn(
-        "flex items-center gap-1",
-        isBull ? "text-emerald-400/80" : "text-rose-400/80",
-      )}
-    >
-      {isBull ? (
-        <TrendingUp className="w-3 h-3 shrink-0" />
-      ) : (
-        <TrendingDown className="w-3 h-3 shrink-0" />
-      )}
-      <span>{labelText}</span>
-    </span>
-  );
-
-  if (!hasZone) {
-    return (
-      <StatRow
-        label={labelEl}
-        value={
-          <span className="text-[10px] font-normal text-muted-foreground/45 italic">
-            {noClusterLine(side, suggested)}
-          </span>
-        }
-        className={cn(
-          isBull ? "bg-emerald-500/[0.04]" : "bg-rose-500/[0.04]",
-        )}
-      />
-    );
-  }
-
-  const detailBits: string[] = [];
-  if (strike != null) detailBits.push(`@${strike.toLocaleString()}`);
-  if (oi != null && oi > 0) {
-    detailBits.push(`${Math.round(oi).toLocaleString()} OI`);
-  }
-  if (share != null && share > 0) {
-    detailBits.push(`${Math.round(share * 100)}%`);
-  }
-  if (tp != null) {
-    detailBits.push(`TP $${tp.toLocaleString()}${tpConf ? ` · ${tpConf}` : ""}`);
-  }
-  if (locked) detailBits.push("LOCKED");
-
-  return (
-    <StatRow
-      label={labelEl}
-      value={
-        <span
-          className={cn(
-            idle && "opacity-60",
-            isBull ? "text-emerald-300/95" : "text-rose-300/95",
-          )}
-          title={`$${low.toLocaleString()}–$${high.toLocaleString()}`}
-        >
-          ${low.toLocaleString()}–${high.toLocaleString()}
-        </span>
-      }
-      detail={
-        detailBits.length > 0 ? (
-          <span
+        {/* ── Bear band ── */}
+        {bearBandStyle && (
+          <div
             className={cn(
-              "text-[9px] font-mono tabular-nums",
-              isBull ? "text-emerald-300/55" : "text-rose-300/55",
+              "absolute left-0 right-0 border-y border-rose-500/40 bg-rose-500/[0.14]",
+              bearIdle && "opacity-60",
             )}
+            style={bearBandStyle}
           >
-            {detailBits.join(" · ")}
-          </span>
-        ) : null
-      }
-      className={cn(
-        isBull ? "bg-emerald-500/[0.04]" : "bg-rose-500/[0.04]",
+            <span className="absolute top-0.5 left-2 text-[9px] font-mono font-bold text-rose-300/95 whitespace-nowrap">
+              Bear zone {bearDetail}
+            </span>
+            <span className="absolute top-0.5 right-2 text-[9px] font-mono font-bold text-rose-300/90 tabular-nums">
+              ${bearHigh != null ? fmt(bearHigh) : "—"}
+            </span>
+            <span className="absolute bottom-0.5 right-2 text-[9px] font-mono text-rose-300/55 tabular-nums">
+              ${bearLow != null ? fmt(bearLow) : "—"}
+            </span>
+          </div>
+        )}
+
+        {/* ── Max-pain lines (between bands) ── */}
+        {mpGroups.map((g) => {
+          const isToday = g.labels.includes("Today");
+          return (
+            <div
+              key={`mp-${g.price}`}
+              className={cn(
+                "absolute left-0 right-0 border-t border-dashed",
+                isToday ? "border-accent/70" : "border-white/35",
+              )}
+              style={{ top: yFor(g.price) }}
+            >
+              <span
+                className={cn(
+                  "absolute left-2 -top-3 text-[9px] font-mono font-bold whitespace-nowrap",
+                  isToday ? "text-accent" : "text-foreground/75",
+                )}
+              >
+                Max pain ({g.labels.join(" & ")})
+              </span>
+              <span
+                className={cn(
+                  "absolute right-2 -top-3 text-[9px] font-mono font-bold tabular-nums",
+                  isToday ? "text-accent" : "text-foreground/75",
+                )}
+              >
+                ${fmt(g.price)}
+              </span>
+            </div>
+          );
+        })}
+
+        {/* ── Current price (the anchor) ── */}
+        {spot != null && (
+          <div
+            className="absolute left-0 right-0 border-t-2 border-amber-300"
+            style={{ top: yFor(spot) }}
+          >
+            <span className="absolute left-2 -top-3.5 text-[10px] font-mono font-black text-amber-300 whitespace-nowrap drop-shadow">
+              Current price
+            </span>
+            <span className="absolute right-2 -top-3.5 text-[10px] font-mono font-black text-amber-300 tabular-nums">
+              ${fmt(spot)}
+            </span>
+          </div>
+        )}
+
+        {/* ── Bull band ── */}
+        {bullBandStyle && (
+          <div
+            className={cn(
+              "absolute left-0 right-0 border-y border-emerald-500/40 bg-emerald-500/[0.14]",
+              bullIdle && "opacity-60",
+            )}
+            style={bullBandStyle}
+          >
+            <span className="absolute top-0.5 right-2 text-[9px] font-mono font-bold text-emerald-300/90 tabular-nums">
+              ${bullHigh != null ? fmt(bullHigh) : "—"}
+            </span>
+            <span className="absolute bottom-0.5 left-2 text-[9px] font-mono font-bold text-emerald-300/95 whitespace-nowrap">
+              Bull zone {bullDetail}
+            </span>
+            <span className="absolute bottom-0.5 right-2 text-[9px] font-mono text-emerald-300/55 tabular-nums">
+              ${bullLow != null ? fmt(bullLow) : "—"}
+            </span>
+          </div>
+        )}
+
+        {/* ── Range bookend tags (top / bottom of the visible window) ── */}
+        <span className="absolute top-1 right-2 text-[8px] font-mono text-muted-foreground/30 tabular-nums pointer-events-none">
+          {!bearBandStyle && `${fmt(renderMax)}`}
+        </span>
+        <span className="absolute bottom-1 right-2 text-[8px] font-mono text-muted-foreground/30 tabular-nums pointer-events-none">
+          {!bullBandStyle && `${fmt(renderMin)}`}
+        </span>
+      </div>
+
+      {/* ── Missing-side fallback text (e.g. "No bull setup") ── */}
+      {(!bullBandStyle || !bearBandStyle) && (
+        <p className="text-[9px] text-muted-foreground/45 italic mt-2 text-center">
+          {!bullBandStyle && noClusterLine("bull", suggested)}
+          {!bullBandStyle && !bearBandStyle ? " · " : ""}
+          {!bearBandStyle && noClusterLine("bear", suggested)}
+        </p>
       )}
-    />
+    </div>
   );
 }
 

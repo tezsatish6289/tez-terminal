@@ -82,35 +82,37 @@ export function RatioDrilldownChart({
   };
 
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 flex flex-col gap-3 h-full min-h-[280px]">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2">
-          <LineChart className="w-4 h-4 text-accent" />
-          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/75">
-            {RATIO_LABELS[ratioKey]}
+    <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-6 py-6 flex flex-col gap-5 h-full min-h-[340px]">
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-2.5">
+            <LineChart className="w-4 h-4 text-accent shrink-0" />
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
+              {RATIO_LABELS[ratioKey]}
+            </span>
+          </div>
+          <span
+            className="text-2xl font-mono font-black tabular-nums leading-none"
+            style={{ color: stroke }}
+          >
+            {fmtRatio(headlineValue)}
           </span>
         </div>
-        <span
-          className="text-xl font-mono font-black tabular-nums"
-          style={{ color: stroke }}
-        >
-          {fmtRatio(headlineValue)}
-        </span>
+        <p className="text-[11px] text-muted-foreground/50 leading-relaxed">
+          {view === "trade" ? "Tradewise" : "Daywise"} · expanding window (all history to each point)
+        </p>
       </div>
-      <p className="text-[10px] text-muted-foreground/50 -mt-1">
-        {view === "trade" ? "Tradewise" : "Daywise"} · expanding window (all history to each point)
-      </p>
 
       {chartData.length < 2 ? (
-        <div className="flex-1 flex items-center justify-center text-center py-8">
-          <p className="text-[10px] font-bold text-muted-foreground/40">
+        <div className="flex-1 flex items-center justify-center text-center py-12 px-4">
+          <p className="text-[11px] font-medium text-muted-foreground/45 leading-relaxed max-w-[220px]">
             Need at least 5 closed trades for ratio history
           </p>
         </div>
       ) : (
-        <div className="h-[240px] flex-1">
+        <div className="h-[260px] sm:h-[280px] flex-1 mt-1">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <AreaChart data={chartData} margin={{ top: 12, right: 12, left: 4, bottom: 8 }}>
               <defs>
                 <linearGradient id={`ratioFill-${ratioKey}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={stroke} stopOpacity={0.35} />

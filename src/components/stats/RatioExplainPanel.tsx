@@ -64,29 +64,31 @@ export function RatioExplainPanel({
   return (
     <div
       className={cn(
-        "rounded-xl border border-white/[0.07] bg-white/[0.02] p-5 flex flex-col gap-4 h-full justify-center",
+        "rounded-xl border border-white/[0.07] bg-white/[0.02] px-7 py-8 flex flex-col gap-7 h-full min-h-[340px] justify-center",
         className,
       )}
     >
-      <div>
-        <h3 className="text-sm font-black text-foreground tracking-tight">{c.title}</h3>
-        <p className="text-[12px] font-semibold text-accent/90 mt-1">{c.tagline}</p>
+      <div className="space-y-3">
+        <h3 className="text-base font-black text-foreground tracking-tight leading-snug">
+          {c.title}
+        </h3>
+        <p className="text-[13px] font-semibold text-accent/90 leading-relaxed">{c.tagline}</p>
       </div>
-      <ul className="space-y-2.5">
+      <ul className="space-y-4">
         {c.bullets.map((b) => (
           <li
             key={b}
-            className="text-[11px] text-muted-foreground/70 leading-relaxed pl-3 border-l-2 border-white/[0.08]"
+            className="text-[12px] text-muted-foreground/70 leading-[1.65] pl-4 border-l-2 border-white/[0.1]"
           >
             {b}
           </li>
         ))}
       </ul>
-      <p className="text-[11px] text-muted-foreground/55 leading-relaxed border-t border-white/[0.06] pt-3">
-        <span className="font-bold text-muted-foreground/75">How to read it: </span>
+      <p className="text-[12px] text-muted-foreground/55 leading-[1.65] border-t border-white/[0.06] pt-6 mt-1">
+        <span className="font-bold text-muted-foreground/80 block mb-2">How to read it</span>
         {c.interpret}
       </p>
-      <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">
+      <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider pt-2">
         {tradingDays != null ? `${tradingDays} active trading days · ` : ""}
         {riskFreeLabel}
       </p>

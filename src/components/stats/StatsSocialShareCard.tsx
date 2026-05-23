@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 
-/** LinkedIn landscape — 1200×720 for six KPI tiles + Sharpe + footer */
+/** LinkedIn landscape — 1200×720 */
 const CARD_W = 1200;
 const CARD_H = 720;
 
@@ -30,7 +30,6 @@ function fmtRatio(n: number): string {
 function CinematicBackground() {
   return (
     <div className="absolute inset-0 overflow-hidden" aria-hidden>
-      {/* Deep space base */}
       <div
         className="absolute inset-0"
         style={{
@@ -38,7 +37,6 @@ function CinematicBackground() {
             "radial-gradient(ellipse 120% 80% at 50% 120%, #1e3a5f 0%, #0a1628 35%, #050810 70%, #020408 100%)",
         }}
       />
-      {/* Nebula — right */}
       <div
         className="absolute -right-[10%] top-[5%] w-[55%] h-[70%] opacity-70"
         style={{
@@ -47,7 +45,6 @@ function CinematicBackground() {
           filter: "blur(40px)",
         }}
       />
-      {/* Nebula — left accent */}
       <div
         className="absolute -left-[15%] bottom-[10%] w-[50%] h-[50%] opacity-50"
         style={{
@@ -56,7 +53,6 @@ function CinematicBackground() {
           filter: "blur(50px)",
         }}
       />
-      {/* Earth horizon glow */}
       <div
         className="absolute bottom-0 left-0 right-0 h-[38%]"
         style={{
@@ -64,14 +60,6 @@ function CinematicBackground() {
             "radial-gradient(ellipse 90% 100% at 50% 100%, rgba(59,130,246,0.35) 0%, rgba(15,23,42,0.6) 45%, transparent 72%)",
         }}
       />
-      <div
-        className="absolute bottom-0 left-0 right-0 h-[22%] opacity-40"
-        style={{
-          background:
-            "linear-gradient(to top, rgba(34,197,94,0.08) 0%, transparent 100%)",
-        }}
-      />
-      {/* Stars */}
       <div
         className="absolute inset-0 opacity-60"
         style={{
@@ -89,32 +77,15 @@ function CinematicBackground() {
           `,
         }}
       />
-      {/* Subtle launch streaks (abstract, not branded rockets) */}
-      <svg className="absolute left-[4%] bottom-[18%] w-28 h-48 opacity-25" viewBox="0 0 80 140" fill="none">
-        <path d="M40 10 L48 90 L40 130 L32 90 Z" fill="url(#rocketGrad)" />
-        <ellipse cx="40" cy="125" rx="18" ry="28" fill="url(#flameGrad)" opacity="0.8" />
-        <defs>
-          <linearGradient id="rocketGrad" x1="40" y1="10" x2="40" y2="130">
-            <stop stopColor="#94a3b8" />
-            <stop offset="1" stopColor="#475569" />
-          </linearGradient>
-          <radialGradient id="flameGrad" cx="0.5" cy="0.2" r="0.8">
-            <stop stopColor="#fbbf24" />
-            <stop offset="1" stopColor="#f97316" stopOpacity="0" />
-          </radialGradient>
-        </defs>
+      <svg className="absolute left-[4%] bottom-[12%] w-32 h-52 opacity-25" viewBox="0 0 80 140" fill="none">
+        <path d="M40 10 L48 90 L40 130 L32 90 Z" fill="#94a3b8" />
+        <ellipse cx="40" cy="125" rx="18" ry="28" fill="#f97316" opacity="0.6" />
       </svg>
-      <svg className="absolute right-[6%] bottom-[22%] w-24 h-40 opacity-20" viewBox="0 0 80 140" fill="none">
+      <svg className="absolute right-[5%] bottom-[14%] w-28 h-44 opacity-20" viewBox="0 0 80 140" fill="none">
         <path d="M40 10 L48 90 L40 130 L32 90 Z" fill="#64748b" />
         <ellipse cx="40" cy="125" rx="16" ry="24" fill="#fb923c" opacity="0.5" />
       </svg>
-      {/* Vignette */}
-      <div
-        className="absolute inset-0"
-        style={{
-          boxShadow: "inset 0 0 120px rgba(0,0,0,0.55)",
-        }}
-      />
+      <div className="absolute inset-0" style={{ boxShadow: "inset 0 0 100px rgba(0,0,0,0.5)" }} />
     </div>
   );
 }
@@ -134,45 +105,45 @@ function KpiTile({
 }) {
   return (
     <div
-      className="flex flex-col gap-1.5 rounded-xl px-3 py-3.5 min-h-[108px]"
+      className="flex flex-col justify-between rounded-2xl px-4 py-5 h-full min-h-[168px]"
       style={{
-        background: "rgba(8,15,30,0.72)",
-        border: "1px solid rgba(96,165,250,0.18)",
-        backdropFilter: "blur(8px)",
+        background: "rgba(8,15,30,0.82)",
+        border: "1px solid rgba(96,165,250,0.22)",
+        backdropFilter: "blur(10px)",
       }}
     >
       <span
-        className="text-[9px] font-bold uppercase tracking-widest leading-tight"
-        style={{ color: "#64748b" }}
+        className="text-[11px] font-bold uppercase tracking-widest leading-tight"
+        style={{ color: "#94a3b8" }}
       >
         {label}
       </span>
       <span
-        className="text-[22px] font-black tabular-nums leading-none tracking-tight"
+        className="text-[34px] font-black tabular-nums leading-none tracking-tight my-2"
         style={{ color: valueColor }}
       >
         {value}
       </span>
-      <div className="flex flex-col gap-1 mt-auto">
+      <div className="flex flex-col gap-1.5">
         {sub && (
-          <span className="text-[9px] leading-snug" style={{ color: "#64748b" }}>
+          <span className="text-[11px] font-medium leading-snug" style={{ color: "#64748b" }}>
             {sub}
           </span>
         )}
         {badge && (
           <span
-            className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded w-fit"
+            className="text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-md w-fit"
             style={
               badge.tone === "live"
                 ? {
-                    backgroundColor: "rgba(34,197,94,0.2)",
+                    backgroundColor: "rgba(34,197,94,0.22)",
                     color: "#34d399",
-                    border: "1px solid rgba(34,197,94,0.35)",
+                    border: "1px solid rgba(34,197,94,0.4)",
                   }
                 : {
-                    backgroundColor: "rgba(251,191,36,0.15)",
+                    backgroundColor: "rgba(251,191,36,0.18)",
                     color: "#fbbf24",
-                    border: "1px solid rgba(251,191,36,0.3)",
+                    border: "1px solid rgba(251,191,36,0.35)",
                   }
             }
           >
@@ -195,7 +166,6 @@ export interface StatsSocialShareCardProps {
   yearlyReturnPct: number;
   yearlyIsProjected: boolean;
   sharpeRatio: number | null;
-  /** e.g. "Crypto Bot" when a per-bot filter is active */
   botSubtitle?: string;
 }
 
@@ -212,9 +182,9 @@ export function StatsSocialShareCard({
   sharpeRatio,
   botSubtitle,
 }: StatsSocialShareCardProps) {
-  const title = botSubtitle
-    ? `FreedomBot · ${botSubtitle} · Day ${runningDays}`
-    : `FreedomBot · Day ${runningDays}`;
+  const headline = botSubtitle
+    ? `${botSubtitle} · Day ${runningDays}`
+    : `Day ${runningDays}`;
 
   const positive = currentCapital >= startingCapital;
   const green = "#34d399";
@@ -230,36 +200,31 @@ export function StatsSocialShareCard({
     >
       <CinematicBackground />
 
-      <div className="relative z-10 flex flex-col h-full px-10 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-3">
+      <div className="relative z-10 flex flex-col h-full px-8 py-7">
+        {/* Header — brand once (logo + .ai), headline without repeating FreedomBot */}
+        <div className="flex items-center justify-between gap-6 mb-6 shrink-0">
+          <div className="flex items-center gap-4">
             <Image
               src="/freedombot/icon.png"
               alt="FreedomBot"
-              width={40}
-              height={40}
-              className="rounded-xl shadow-lg shadow-blue-500/20"
+              width={56}
+              height={56}
+              className="rounded-2xl shadow-lg shadow-blue-500/25"
             />
-            <div>
-              <span className="text-[20px] font-black tracking-tight block" style={{ color: "#f0f4ff" }}>
-                FreedomBot<span style={{ color: "#60a5fa" }}>.ai</span>
-              </span>
-              <span className="text-[11px] font-medium" style={{ color: "#64748b" }}>
-                Live simulator performance
-              </span>
-            </div>
+            <span className="text-[32px] font-black tracking-tight" style={{ color: "#f0f4ff" }}>
+              FreedomBot<span style={{ color: "#60a5fa" }}>.ai</span>
+            </span>
           </div>
           <h1
-            className="text-[26px] font-black tracking-tight text-right max-w-[480px] leading-tight"
+            className="text-[38px] font-black tracking-tight text-right leading-none"
             style={{ color: "#ffffff" }}
           >
-            {title}
+            {headline}
           </h1>
         </div>
 
-        {/* Six KPIs — same story as /stats */}
-        <div className="grid grid-cols-6 gap-2.5 mb-4">
+        {/* Six KPIs — fill vertical space */}
+        <div className="grid grid-cols-6 gap-3 flex-1 min-h-0 mb-4">
           <KpiTile
             label="Running"
             value={`${runningDays} Day${runningDays !== 1 ? "s" : ""}`}
@@ -286,45 +251,36 @@ export function StatsSocialShareCard({
           <KpiTile
             label="Monthly Return"
             value={fmtPct(monthlyReturnPct)}
-            sub={monthlyIsProjected ? `compounded from ${runningDays}-day live` : "this calendar month"}
+            sub={monthlyIsProjected ? `from ${runningDays}-day track` : "this calendar month"}
             valueColor={monthlyReturnPct >= 0 ? green : "#f87171"}
             badge={monthlyIsProjected ? { text: "Projected", tone: "projected" } : undefined}
           />
           <KpiTile
             label="Annualized Return"
             value={fmtPct(yearlyReturnPct)}
-            sub={
-              yearlyIsProjected
-                ? `compounded from ${runningDays}-day live`
-                : "actual 12-month"
-            }
+            sub={yearlyIsProjected ? `from ${runningDays}-day track` : "actual 12-month"}
             valueColor={yearlyReturnPct >= 0 ? green : "#f87171"}
             badge={yearlyIsProjected ? { text: "Projected", tone: "projected" } : undefined}
           />
         </div>
 
-        {/* Sharpe only */}
+        {/* Sharpe */}
         <div
-          className="flex items-center justify-between rounded-xl px-6 py-4 mb-5"
+          className="flex items-center justify-between rounded-2xl px-8 py-6 mb-4 shrink-0"
           style={{
-            background: "rgba(8,15,30,0.78)",
-            border: "1px solid rgba(52,211,153,0.25)",
-            backdropFilter: "blur(8px)",
+            background: "rgba(8,15,30,0.85)",
+            border: "1px solid rgba(52,211,153,0.3)",
+            backdropFilter: "blur(10px)",
           }}
         >
-          <div>
-            <span
-              className="text-[10px] font-bold uppercase tracking-widest"
-              style={{ color: "#64748b" }}
-            >
-              Sharpe Ratio
-            </span>
-            <p className="text-[11px] mt-1" style={{ color: "#94a3b8" }}>
-              Risk-adjusted return · annualised · closed trades only
-            </p>
-          </div>
           <span
-            className="text-[40px] font-black tabular-nums"
+            className="text-[14px] font-bold uppercase tracking-widest"
+            style={{ color: "#94a3b8" }}
+          >
+            Sharpe Ratio
+          </span>
+          <span
+            className="text-[52px] font-black tabular-nums leading-none"
             style={{ color: green }}
           >
             {sharpeRatio != null ? fmtRatio(sharpeRatio) : "—"}
@@ -332,11 +288,11 @@ export function StatsSocialShareCard({
         </div>
 
         {/* Footer */}
-        <div className="text-center space-y-2 mt-auto pt-2">
-          <p className="text-[16px] font-bold leading-snug" style={{ color: "#f0f4ff" }}>
+        <div className="text-center space-y-2 shrink-0">
+          <p className="text-[18px] font-bold leading-snug" style={{ color: "#f0f4ff" }}>
             Transparent performance. Verifiable trades. You stay in control.
           </p>
-          <p className="text-[12px] font-medium" style={{ color: "#64748b" }}>
+          <p className="text-[14px] font-semibold" style={{ color: "#64748b" }}>
             Available on Bybit · CoinDCX · Hyperliquid
           </p>
         </div>

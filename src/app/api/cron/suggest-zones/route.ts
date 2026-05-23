@@ -73,7 +73,6 @@ function serializeSuggested(
     expiryUsed:        result.expiryUsed,
     expiriesUsed:      result.expiriesUsed,
     expiryOI:          result.expiryOI,
-    insufficientGap:   result.insufficientGap,
     maxPainAnchorSpanUsd: result.maxPainAnchorSpanUsd,
     bullLocked:        result.bullLocked,
     bearLocked:        result.bearLocked,

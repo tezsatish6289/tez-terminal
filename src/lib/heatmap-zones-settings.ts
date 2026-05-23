@@ -157,15 +157,21 @@ export async function loadEffectiveHeatmapZones(db: Firestore): Promise<Effectiv
         const isStale = ageMs > 12 * 60 * 60 * 1000;
 
         // A zone is valid if at least one side (bull OR bear) is fully configured.
-        // One-sided zones are intentional — e.g. bear zone rejected due to no TP target.
+        // One-sided zones are intentional — e.g. bear zone rejected due to no
+        // TP target (zone center too close to today's max pain, ≥ 2 × halfWidth
+        // gap required — see options-zones.ts `minTpRoomUsd`).
+        //
+        // The bull-vs-bear-bottom corridor gate (`insufficientGap`) was removed
+        // on 2026-05-23: the per-side TP-room check already guarantees enough
+        // runway from each zone to max pain, which is the substantive concern.
+        // A separate hardcoded $2,500 corridor check on top was BTC-centric,
+        // didn't scale to ETH/SOL/XRP, and was geometrically redundant when
+        // both sides satisfy 2 × halfWidth to max pain.
         const hasBullZone = !!(s.bullZoneLow && s.bullZoneHigh);
         const hasBearZone = !!(s.bearZoneLow && s.bearZoneHigh);
         const hasZones = hasBullZone || hasBearZone;
 
-        // Gap check only applies when both sides are present.
-        const sufficientGap = !(s.insufficientGap && hasBullZone && hasBearZone);
-
-        if (!isStale && hasZones && sufficientGap) {
+        if (!isStale && hasZones) {
           heatmapZones = {
             ...heatmapZones,
             bullZoneLow: s.bullZoneLow as number,
@@ -185,7 +191,6 @@ export async function loadEffectiveHeatmapZones(db: Firestore): Promise<Effectiv
           };
         } else {
           if (!hasZones) autoZoneClearReason = "missing_suggested";
-          else if (!sufficientGap) autoZoneClearReason = "insufficient_gap";
           else if (isStale) autoZoneClearReason = "stale";
           else autoZoneClearReason = "stale";
 

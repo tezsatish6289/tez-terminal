@@ -130,7 +130,6 @@ interface SuggestedZones {
   expiryUsed:        string  | null;
   expiriesUsed:      string[] | null;
   expiryOI:          number | null;
-  insufficientGap:   boolean | null;
   btcPrice:          number | null;
   deribitIndexPrice: number | null;
   source:            string;
@@ -417,16 +416,15 @@ export function HeatmapAutoSwitch({
                 BTC <span className="font-bold">${status.btcPrice?.toLocaleString() ?? "—"}</span>
                 {" · "}
                 {/* Banner-line rendering. Dedicated alert cards still own
-                    the signalConflict + insufficientGap explanations (they
-                    need the full paragraph), so we short-circuit those to
-                    a "see alert below" pointer. For every other case the
-                    banner now also absorbs what used to live in the "No
-                    actionable side right now" card — combined form is:
+                    the signalConflict explanation (it needs the full
+                    paragraph), so we short-circuit it to a "see alert
+                    below" pointer. For every other case the banner now
+                    also absorbs what used to live in the "No actionable
+                    side right now" card — combined form is:
                        BTC $X · {compact status} · no <side> setup (<short reason>)
                     e.g.  BTC $76,951.8 · OFF — bull zone exited above · no bear setup (max pain too close) */}
                 {(() => {
                   if (suggested?.signalConflict)  return "Signal conflict — entries suppressed (see alert below)";
-                  if (suggested?.insufficientGap) return "Zones too close — see alert below";
                   const compact = compactStatusReason(status.reason);
                   const bothDead =
                     suggested?.bullActionable === false &&
@@ -593,16 +591,6 @@ export function HeatmapAutoSwitch({
                       <p className="text-[10px] font-bold text-amber-400/90">Signal Conflict — expiry disagreement</p>
                       <p className="text-[9px] text-muted-foreground/55 mt-0.5">
                         Day 0 and Day 1 max pain are on opposite sides of current price. MMs have competing incentives. Trade with extra caution.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Insufficient gap warning */}
-                  {suggested.insufficientGap && (
-                    <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.05] px-3 py-2.5">
-                      <p className="text-[10px] font-bold text-amber-400/80">Zones too close — no trades</p>
-                      <p className="text-[9px] text-muted-foreground/50 mt-0.5">
-                        Put and call clusters are less than $2,500 apart. Simulator stays OFF until zones widen.
                       </p>
                     </div>
                   )}

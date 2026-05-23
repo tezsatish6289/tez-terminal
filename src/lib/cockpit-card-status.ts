@@ -142,9 +142,6 @@ function fromSuggester(s: SuggestedZonesSnapshot): CockpitCardStatus | null {
       "Day-0 and day-1 max pain on opposite sides of spot",
     );
   }
-  if (s.insufficientGap) {
-    return blocked("Zones too close", "Bull and bear bands under $2,500 apart");
-  }
   if (s.notActionableReason?.startsWith("No un-expired")) {
     return blocked("No option data", shortDetail(s.notActionableReason));
   }

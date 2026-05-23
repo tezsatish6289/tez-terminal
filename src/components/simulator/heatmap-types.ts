@@ -34,7 +34,6 @@ export interface SuggestedZonesSnapshot {
   bullActionable?: boolean | null;
   bearActionable?: boolean | null;
   notActionableReason?: string | null;
-  insufficientGap?: boolean | null;
   maxPainAnchorSpanUsd?: number | null;
   bullLocked?: boolean | null;
   bearLocked?: boolean | null;
@@ -110,8 +109,6 @@ export function normalizeSuggestedZones(
       raw.bearActionable === true ? true : raw.bearActionable === false ? false : null,
     notActionableReason:
       typeof raw.notActionableReason === "string" ? raw.notActionableReason : null,
-    insufficientGap:
-      raw.insufficientGap === true ? true : raw.insufficientGap === false ? false : null,
     maxPainAnchorSpanUsd: readNum(raw.maxPainAnchorSpanUsd),
     bullLocked: raw.bullLocked === true ? true : raw.bullLocked === false ? false : null,
     bearLocked: raw.bearLocked === true ? true : raw.bearLocked === false ? false : null,
@@ -198,7 +195,6 @@ export function formatIvExplainer(
 export function zoneStatusLine(s: SuggestedZonesSnapshot | null): string {
   if (!s) return "No zone data — refresh";
   if (s.signalConflict) return "Signal conflict";
-  if (s.insufficientGap) return "Zones too close";
   if (s.inPanicRegime) return "Panic regime";
   if (s.bullActionable && s.bearActionable) return "Bull & bear active";
   if (s.bullActionable) return "Bull zone active";

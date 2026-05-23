@@ -352,7 +352,6 @@ export interface OptionsZones {
   expiryOI:          number | null;        // day-0 expiry total OI
   bullOI:            number | null;        // all-expiry OI at chosen bull strike
   bearOI:            number | null;        // all-expiry OI at chosen bear strike
-  insufficientGap:   boolean;
   /** USD span used to search for walls near day-0 max pain. */
   maxPainAnchorSpanUsd: number;
   /** Prior band held because spot is still inside it. */
@@ -698,7 +697,6 @@ export async function computeOptionsZones(
     bullClusterShare: null, bearClusterShare: null,
     expiryUsed: null, expiriesUsed: [], expiryOI: null,
     bullOI: null, bearOI: null,
-    insufficientGap: false,
     maxPainAnchorSpanUsd: deriveMaxPainAnchorSpan(
       sizes.maxReachUsd,
       spec.strikeGridUsd,
@@ -893,14 +891,6 @@ export async function computeOptionsZones(
   bearExitBelow = stickyBands.bearExitBelow;
   bearOI = stickyBands.bearOI;
 
-  // Gap check between bull-top and bear-bottom — informational, retained
-  // for UI continuity. The new algorithm picks zones from "closest big
-  // cluster"; both sides being too close is generally caught by the
-  // dominance filter, but the explicit flag is still useful.
-  const gap = bullZoneHigh !== null && bearZoneLow !== null
-    ? bearZoneLow - bullZoneHigh : 0;
-  const insufficientGap = gap > 0 && gap < 2500;
-
   // ── TP targets (= day-0 max pain when room allows) ───────────────────
   // TP-room reference point is the zone CENTER (`bullStrike` /
   // `bearStrike`), not the zone edge — bot enters around center, so
@@ -1015,7 +1005,6 @@ export async function computeOptionsZones(
     expiryOI:     day0?.totalOI ?? null,
     bullOI,
     bearOI,
-    insufficientGap,
     maxPainAnchorSpanUsd,
     bullLocked: stickyMeta.bullLocked,
     bearLocked: stickyMeta.bearLocked,

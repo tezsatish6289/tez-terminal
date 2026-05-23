@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { Globe, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SIM_CARD } from "@/components/simulator/simulator-surfaces";
 import {
@@ -40,6 +41,18 @@ export interface CockpitCompactRowProps {
   botEngineLive: boolean;
   liveCount: number;
   closedCount: number;
+  /** Read-only mirror of the bot's discovery state. Drives the small
+   *  Public/Hidden badge next to IV so the rail can answer "is this
+   *  bot on freedombot.ai?" at a glance. The actual toggle lives on
+   *  the detail card's Config sheet (passphrase-gated). */
+  publicLive?: boolean;
+  /** Read-only mirror of the bot's live-mirroring flag. When explicitly
+   *  false, the row shows a small "Sim only" pill so you can scan all
+   *  five bots and instantly see which ones aren't fanning out to live
+   *  exchanges. Undefined is treated as enabled (legacy compat) and
+   *  renders no badge. The actual toggle lives in the detail card's
+   *  3-state Off/Sim/Live pill. */
+  liveMirroringEnabled?: boolean;
   selected: boolean;
   onSelect: () => void;
 }
@@ -70,6 +83,8 @@ export function CockpitCompactRow({
   botEngineLive,
   liveCount,
   closedCount,
+  publicLive,
+  liveMirroringEnabled,
   selected,
   onSelect,
 }: CockpitCompactRowProps) {
@@ -144,19 +159,49 @@ export function CockpitCompactRow({
         </span>
       </div>
 
-      {/* Row 2 — price + IV */}
+      {/* Row 2 — price + IV + policy badges (Public/Hidden, Sim only).
+          Badges are read-only mirrors of the detail-card state — they
+          let you scan the rail for "which bots are public?" and "which
+          bots are live-mirroring?" without selecting each one. The
+          actual toggles live in the detail card. */}
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[13px] font-mono font-bold tabular-nums text-foreground/90 leading-none">
           ${formatSpot(spot)}
         </span>
-        {ivPct != null && (
+        <div className="flex items-center gap-1 shrink-0">
+          {liveMirroringEnabled === false && (
+            <span
+              className="text-[8px] font-mono font-bold px-1 py-0.5 rounded border text-amber-300/90 border-amber-500/30 bg-amber-500/10 leading-none"
+              title="Sim only — new sim entries are NOT mirrored to live exchanges. Existing live trades still follow sim through to close."
+            >
+              SIM
+            </span>
+          )}
           <span
-            className="text-[9px] font-mono font-bold text-muted-foreground/55 tabular-nums cursor-help"
-            title={formatIvExplainer(ivPct, spot, ASSET_TAG[botId])}
+            className={cn(
+              "inline-flex items-center gap-0.5 text-[8px] font-mono font-bold px-1 py-0.5 rounded border leading-none",
+              publicLive
+                ? "text-emerald-300/90 border-emerald-500/25 bg-emerald-500/10"
+                : "text-muted-foreground/55 border-white/[0.08] bg-white/[0.02]",
+            )}
+            title={
+              publicLive
+                ? "Public on freedombot.ai — listed in the catalog."
+                : "Hidden from freedombot.ai catalog — admin-only."
+            }
           >
-            IV {ivPct.toFixed(0)}%
+            {publicLive ? <Globe className="w-2 h-2" /> : <EyeOff className="w-2 h-2" />}
+            {publicLive ? "PUB" : "HID"}
           </span>
-        )}
+          {ivPct != null && (
+            <span
+              className="text-[9px] font-mono font-bold text-muted-foreground/55 tabular-nums cursor-help"
+              title={formatIvExplainer(ivPct, spot, ASSET_TAG[botId])}
+            >
+              IV {ivPct.toFixed(0)}%
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Row 3 — live trades focus (the field a trader actually scans for) */}

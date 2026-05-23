@@ -470,6 +470,8 @@ export function BotCockpit({
                 botEngineLive={engineLive}
                 liveCount={metrics?.liveCount ?? 0}
                 closedCount={metrics?.closedCount ?? 0}
+                publicLive={policyByBot[bot.id]?.publicLive ?? false}
+                liveMirroringEnabled={policyByBot[bot.id]?.liveMirroringEnabled ?? true}
                 selected={selectedBotId === bot.id}
                 onSelect={() => onSelectBot(bot.id)}
               />

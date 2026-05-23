@@ -36,7 +36,6 @@ export interface SimBotSettings {
 
   // ── Zone bots only ────────────────────────────────────────────────────
   zoneConfirmMinutes?: number;
-  maxPainProximityUsd?: number;
   /** Legacy field — ignored by suggester, kept for doc compat. */
   zoneHalfWidthUsd?: number;
 }
@@ -67,7 +66,6 @@ const DEFAULTS: Record<CockpitBotId, SimBotSettings> = {
     maxOpenTradesStreakCap: SIM_CONFIG.MAX_OPEN_TRADES_CAP,
     // BTC macro gate (stored in heatmap_zones; synced on save)
     zoneConfirmMinutes: 15,
-    maxPainProximityUsd: 200,
     zoneHalfWidthUsd: 500,
   },
   btc: {
@@ -75,7 +73,6 @@ const DEFAULTS: Record<CockpitBotId, SimBotSettings> = {
     maxOpenTrades: 1,
     riskPerTradePct: SIM_CONFIG.RISK_PER_TRADE_BASE,
     zoneConfirmMinutes: 15,
-    maxPainProximityUsd: 200,
     zoneHalfWidthUsd: 500,
   },
   eth: {
@@ -83,7 +80,6 @@ const DEFAULTS: Record<CockpitBotId, SimBotSettings> = {
     maxOpenTrades: 1,
     riskPerTradePct: SIM_CONFIG.RISK_PER_TRADE_BASE,
     zoneConfirmMinutes: 15,
-    maxPainProximityUsd: 10,
     zoneHalfWidthUsd: 25,
   },
   sol: {
@@ -91,7 +87,6 @@ const DEFAULTS: Record<CockpitBotId, SimBotSettings> = {
     maxOpenTrades: 1,
     riskPerTradePct: SIM_CONFIG.RISK_PER_TRADE_BASE,
     zoneConfirmMinutes: 15,
-    maxPainProximityUsd: 0.5,
     zoneHalfWidthUsd: 1.5,
   },
   xrp: {
@@ -99,7 +94,6 @@ const DEFAULTS: Record<CockpitBotId, SimBotSettings> = {
     maxOpenTrades: 1,
     riskPerTradePct: SIM_CONFIG.RISK_PER_TRADE_BASE,
     zoneConfirmMinutes: 15,
-    maxPainProximityUsd: 0.015,
     zoneHalfWidthUsd: 0.03,
   },
 };
@@ -167,7 +161,6 @@ export function parseSimBotSettings(
           ? clamp(Math.round(raw.maxOpenTradesStreakCap), maxOpen, MAX_OPEN_MAX)
           : d.maxOpenTradesStreakCap!,
       zoneConfirmMinutes: zone.zoneConfirmMinutes,
-      maxPainProximityUsd: zone.maxPainProximityUsd,
       zoneHalfWidthUsd: zone.zoneHalfWidthUsd,
     };
   }
@@ -178,7 +171,6 @@ export function parseSimBotSettings(
     maxOpenTrades: maxOpen,
     riskPerTradePct: risk,
     zoneConfirmMinutes: zone.zoneConfirmMinutes,
-    maxPainProximityUsd: zone.maxPainProximityUsd,
     zoneHalfWidthUsd: zone.zoneHalfWidthUsd,
   };
 }
@@ -189,7 +181,6 @@ export function toZoneBotSettings(s: SimBotSettings): ZoneBotSettings {
     manualOverride: s.manualOverride,
     zoneHalfWidthUsd: s.zoneHalfWidthUsd ?? 500,
     zoneConfirmMinutes: s.zoneConfirmMinutes ?? 15,
-    maxPainProximityUsd: s.maxPainProximityUsd ?? 200,
   };
 }
 
@@ -210,7 +201,6 @@ export async function loadSimBotSettings(
           ...data,
           manualOverride: h.manualOverride ?? data.manualOverride,
           zoneConfirmMinutes: h.zoneConfirmMinutes ?? data.zoneConfirmMinutes,
-          maxPainProximityUsd: h.maxPainProximityUsd ?? data.maxPainProximityUsd,
           zoneHalfWidthUsd: h.zoneHalfWidthUsd ?? data.zoneHalfWidthUsd,
         };
       }
@@ -226,7 +216,6 @@ export async function loadSimBotSettings(
       return parseSimBotSettings("crypto", {
         manualOverride: h.manualOverride,
         zoneConfirmMinutes: h.zoneConfirmMinutes,
-        maxPainProximityUsd: h.maxPainProximityUsd,
         zoneHalfWidthUsd: h.zoneHalfWidthUsd,
       });
     }
@@ -261,7 +250,6 @@ export function simBotSettingsToPartialUpdate(
     "streakWinsToScale",
     "maxOpenTradesStreakCap",
     "zoneConfirmMinutes",
-    "maxPainProximityUsd",
     "zoneHalfWidthUsd",
   ];
   const parsed = parseSimBotSettings(botId, { ...DEFAULTS[botId], ...body });

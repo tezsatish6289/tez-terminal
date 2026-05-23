@@ -850,11 +850,11 @@ function classifyTrade(t: SimTrade): { bucket: ScoreBucket; closeScore: number |
 // is real. Splits exits into FIVE groups so user-initiated closes don't
 // contaminate the strategy-level read of system-driven exits:
 //   - tp     : `TP1` / `TP2` / `TP3` → price hit a take-profit (winning exit)
-//   - sl     : `SL` → price hit the hard stop, locked-in loss. THIS is the
-//              bucket score-floor exit could have prevented.
+//   - sl     : `SL` → price hit the hard stop, locked-in loss.
 //   - early  : `TRAILING_SL`, `MARKET_TURN`, `SCORE_DEGRADED`, `PATTERN_BREAK`,
-//              `ZONE_FLIP`, `MAX_PAIN_EXIT`, `EOD_SQUARE_OFF` → sim/bot
-//              decided to close before SL fired. System already caught these.
+//              `ZONE_FLIP`, `EOD_SQUARE_OFF`, `ZONE_BOT_FLIP_BLOCKED`, plus
+//              legacy `MAX_PAIN_EXIT` / `ZONE_BOT_MAX_PAIN_EXIT` (retired
+//              2026-05-23) → sim/bot decided to close before SL fired.
 //   - manual : `KILL_SWITCH` (force-close from UI/API), `SYNCED_FROM_EXCHANGE`
 //              (admin synced an off-platform fill). NOT a strategy decision;
 //              should not skew EV math.
@@ -878,8 +878,9 @@ function classifyCloseReason(reason: string | null): CloseReasonGroup {
     case "PATTERN_BREAK":
     case "ZONE_FLIP":
     case "ZONE_BOT_FLIP":
-    case "MAX_PAIN_EXIT":
-    case "ZONE_BOT_MAX_PAIN_EXIT":
+    case "ZONE_BOT_FLIP_BLOCKED":
+    case "MAX_PAIN_EXIT":            // retired 2026-05-23, kept for legacy data
+    case "ZONE_BOT_MAX_PAIN_EXIT":   // retired 2026-05-23, kept for legacy data
     case "EOD_SQUARE_OFF":
       return "early";
     case "KILL_SWITCH":

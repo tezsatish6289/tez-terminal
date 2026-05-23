@@ -97,9 +97,8 @@ export interface LiveTradeEvent {
     | "TRAILING_SL"
     | "PATTERN_BREAK"
     | "ZONE_BOT_FLIP"
-    | "ZONE_BOT_MAX_PAIN_EXIT"
-    | "ZONE_FLIP"
-    | "MAX_PAIN_EXIT";
+    | "ZONE_BOT_FLIP_BLOCKED"
+    | "ZONE_FLIP";
   price: number;
   pnl: number;
   fee: number;
@@ -692,9 +691,8 @@ export async function protectiveClose(
     | "TRAILING_SL"
     | "PATTERN_BREAK"
     | "ZONE_BOT_FLIP"
-    | "ZONE_BOT_MAX_PAIN_EXIT"
+    | "ZONE_BOT_FLIP_BLOCKED"
     | "ZONE_FLIP"
-    | "MAX_PAIN_EXIT"
     | "SCORE_FLOOR_EXIT",
   currentPrice: number,
   creds: Credentials

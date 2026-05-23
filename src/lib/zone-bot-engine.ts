@@ -23,14 +23,17 @@
  *
  * ACTIVE(BULL) (trade open)
  *   └─ opposite (BEAR) confirms → action=FLIP (close BULL, open BEAR)
+ *   └─ opposite (BEAR) confirms BUT new flip-trade SL would exceed
+ *      MAX_SL_DISTANCE_PCT → action=CLOSE (kill the dying side without
+ *      re-opening in a bad shape)
  *   └─ price exits zone (above bullExitAbove OR between zones)
  *      → action=NONE, trade keeps running on its trailing SL / TPs
- *   └─ one-sided zone + spot near day-0 max pain
- *      → action=CLOSE (take profit at max-pain target)
  *
  * SL hits / TP3 hits etc. are managed by the existing sync-simulator
  * (or sync-live-trades) — the engine just tracks whether a trade is
- * open via `state.openTradeId`.
+ * open via `state.openTradeId`. Max-pain proximity exit was removed
+ * 2026-05-23: lifecycle is uniform across bots and trades exit on
+ * their own SL / TP / trailing-SL only.
  */
 
 import type { ZoneBotAsset, ZoneBotSettings } from "./zone-bot-config";
@@ -52,7 +55,9 @@ export interface ZoneBotSuggestedZones {
   bearZoneHigh:  number | null;
   bearZoneLow:   number | null;
   bearExitBelow: number | null;
-  /** Day-0 (today's) max pain price, used for one-sided exit logic. */
+  /** Day-0 (today's) max pain price. Kept on the snapshot so the UI's
+   *  price ladder can label it; the engine no longer reads it for exit
+   *  decisions (max-pain proximity exit was retired 2026-05-23). */
   maxPain:       number | null;
   /** ISO timestamp when the suggester computed these zones. */
   computedAt:    string;
@@ -428,30 +433,11 @@ export function evaluateZoneBot(input: EvaluateZoneBotInput): EvaluateZoneBotRes
     const openSide   = state.direction === "BEAR" ? "SELL" : "BUY";
     const openSideLabel = state.direction === "BEAR" ? "BEAR" : "BULL";
 
-    // 3a. One-sided zone + max-pain exit. Mirrors the existing
-    //     `maxPainProximityUsd` behaviour on the BTC heatmap.
-    const oneSidedBull = zones.hasBull && !zones.hasBear;
-    const oneSidedBear = !zones.hasBull && zones.hasBear;
-    const sideAlignsWithSoleZone =
-      (openSide === "BUY"  && oneSidedBull) ||
-      (openSide === "SELL" && oneSidedBear);
+    // (Max-pain proximity exit retired 2026-05-23. Open trades now ride
+    //  to their own SL / TP / trailing-SL, applied by sync-simulator's
+    //  universal lifecycle loop. The engine only decides flips below.)
 
-    if (
-      sideAlignsWithSoleZone &&
-      zones.maxPain != null &&
-      Math.abs(spot - zones.maxPain) <= settings.maxPainProximityUsd
-    ) {
-      next.direction   = "IDLE";
-      next.confirming  = null;
-      next.openTradeId = null; // caller will perform the close
-      next.reason = `${openSideLabel} — closing near max pain target ${fmtUsd(zones.maxPain)} (one-sided zone)`;
-      return {
-        nextState: next,
-        action: { type: "CLOSE", reason: next.reason },
-      };
-    }
-
-    // 3b. Opposite side may be priming for a flip.
+    // 3a. Opposite side may be priming for a flip.
     const oppositeInZone = openSide === "BUY" ? zones.priceInBear : zones.priceInBull;
     if (oppositeInZone) {
       const oppositeDir: "BULL" | "BEAR" = openSide === "BUY" ? "BEAR" : "BULL";
@@ -540,7 +526,7 @@ export function evaluateZoneBot(input: EvaluateZoneBotInput): EvaluateZoneBotRes
       return { nextState: next, action: { type: "NONE", reason: next.reason } };
     }
 
-    // 3c. Price is back inside the active side's zone, or somewhere
+    // 3b. Price is back inside the active side's zone, or somewhere
     //     between zones, or above bullExitAbove (happy trail). Trade keeps
     //     running on its trailing SL / TPs.
     next.confirming = null; // cancel any pending opposite confirmation

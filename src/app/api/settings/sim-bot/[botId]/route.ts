@@ -42,7 +42,6 @@ export async function GET(
         ...(docData ?? {}),
         manualOverride: h.manualOverride ?? docData?.manualOverride,
         zoneConfirmMinutes: h.zoneConfirmMinutes ?? docData?.zoneConfirmMinutes,
-        maxPainProximityUsd: h.maxPainProximityUsd ?? docData?.maxPainProximityUsd,
         zoneHalfWidthUsd: h.zoneHalfWidthUsd ?? docData?.zoneHalfWidthUsd,
       };
     }
@@ -96,9 +95,6 @@ export async function PUT(
     if ("zoneConfirmMinutes" in body) {
       zoneFields.zoneConfirmMinutes = update.zoneConfirmMinutes;
     }
-    if ("maxPainProximityUsd" in body) {
-      zoneFields.maxPainProximityUsd = update.maxPainProximityUsd;
-    }
     if ("zoneHalfWidthUsd" in body) {
       zoneFields.zoneHalfWidthUsd = update.zoneHalfWidthUsd;
     }
@@ -111,9 +107,6 @@ export async function PUT(
     if ("manualOverride" in body) zUpdate.manualOverride = update.manualOverride;
     if ("zoneConfirmMinutes" in body) {
       zUpdate.zoneConfirmMinutes = update.zoneConfirmMinutes;
-    }
-    if ("maxPainProximityUsd" in body) {
-      zUpdate.maxPainProximityUsd = update.maxPainProximityUsd;
     }
     if (Object.keys(zUpdate).length > 1) {
       const legacy =

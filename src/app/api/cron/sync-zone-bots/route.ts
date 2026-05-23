@@ -61,7 +61,7 @@
  *     bot trades are completely unaffected.
  *   - sync-live-trades mirrors the eventual zone-bot SIM close to live
  *     by extending its closeReason whitelist (`ZONE_BOT_FLIP`,
- *     `ZONE_BOT_MAX_PAIN_EXIT`).
+ *     `ZONE_BOT_FLIP_BLOCKED`).
  *
  * See `docs/zone-bots.md` for the full design.
  */
@@ -598,12 +598,13 @@ async function tickAsset(
 
       case "CLOSE": {
         if (prevState.openTradeId) {
-          // Max-pain-proximity exit: zone bot wants the position FULLY
-          // out, so use SL (100% close), not TP1 (20%). The closeReason
-          // tag tells humans/downstream what actually triggered it.
+          // Engine-driven flip ABORT: opposite side confirmed but the new
+          // flip-trade SL would exceed MAX_SL_DISTANCE_PCT. Close the
+          // dying side without re-opening in a bad shape. Full 100% close
+          // (exitType: "SL") since the original thesis is dead.
           const closed = await closeZoneBotTrade({
             db, asset, tradeId: prevState.openTradeId, state: workingSimState, simConfig, spot,
-            reason: "ZONE_BOT_MAX_PAIN_EXIT", exitType: "SL",
+            reason: "ZONE_BOT_FLIP_BLOCKED", exitType: "SL",
           });
           workingSimState = closed.updatedState;
           if (closed.log) await saveZoneSimState(db, asset, workingSimState);

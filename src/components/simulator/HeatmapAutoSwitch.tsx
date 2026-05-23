@@ -30,7 +30,6 @@ interface HeatmapZones {
   momentumLookbackMin: number | null; // legacy — removed, kept for type compat during migration
   zoneConfirmMinutes:  number | null;
   zoneHalfWidthUsd:    number | null;
-  maxPainProximityUsd: number | null;
 }
 
 interface AutoStatus {
@@ -166,7 +165,6 @@ const EMPTY_ZONES: HeatmapZones = {
   momentumLookbackMin: null,
   zoneConfirmMinutes: 15,
   zoneHalfWidthUsd: null,
-  maxPainProximityUsd: null,
 };
 
 function PriceInput({
@@ -784,21 +782,13 @@ export function HeatmapAutoSwitch({
                   The manual input was removed 2026-05-19. The actual value
                   is shown in the Regime card at the top of this panel. */}
 
-              {/* MAX PAIN EXIT PROXIMITY input removed 2026-05-19.
-                  The pattern-bot and zone-bot engines still honour their
-                  built-in $200 default — `heatmapZones.maxPainProximityUsd
-                  ?? 200` (sync-simulator) and the parser default in
-                  zone-bot-config.ts both fall through cleanly when the
-                  field is absent. If we ever want this configurable
-                  again, re-add the <div> block and re-introduce the
-                  `maxPainProximityUsd` field to the local HeatmapZones
-                  interface — the upstream parser still understands it. */}
-
-              {/* "Min strike ↔ max-pain distance" was removed 2026-05-22.
-                  The picker now uses 2 × halfWidth for that gap, which
-                  auto-tunes to ATM IV via the suggester. See
-                  `MAX_PAIN_GAP_HALFWIDTHS` in options-zones.ts for the
-                  rationale. */}
+              {/* Max-pain exit logic (and the proximity input) was retired
+                  2026-05-23. Open trades now exit purely on their own
+                  SL / TP / trailing-SL via sync-simulator's universal
+                  lifecycle loop. The "Min strike ↔ max-pain distance"
+                  ENTRY gate was removed 2026-05-22 — the picker uses
+                  `2 × halfWidth` (auto-tunes to ATM IV) for that gap.
+                  See `MAX_PAIN_GAP_HALFWIDTHS` in options-zones.ts. */}
 
               <ZoneConfirmationWindow value={zones.zoneConfirmMinutes} onChange={(v) => handleChange("zoneConfirmMinutes", v)} />
             </div>

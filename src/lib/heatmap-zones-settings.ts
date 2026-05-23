@@ -23,8 +23,6 @@ export interface HeatmapZones {
    *  from ATM IV. This field is preserved for back-compat with old Firestore docs
    *  and the UI input but the value is ignored by `computeOptionsZones`. */
   zoneHalfWidthUsd:    number | null;
-  /** Close open trades when BTC is within this many $ of today's max pain (one-sided zones only). null → default 200. */
-  maxPainProximityUsd: number | null;
 
   // ── v2 regime context (read from suggester; not user-editable) ─────────
   /** Suggester's verdict on whether BULL entries are safe right now. Pulled
@@ -63,7 +61,6 @@ export function parseZones(data: Record<string, unknown>): HeatmapZones {
     manualOverride: "AUTO",
     zoneConfirmMinutes: 15,
     zoneHalfWidthUsd: null,
-    maxPainProximityUsd: null,
   };
   for (const key of ZONE_KEYS) {
     const v = data[key];
@@ -82,9 +79,6 @@ export function parseZones(data: Record<string, unknown>): HeatmapZones {
   const zh = data.zoneHalfWidthUsd;
   zones.zoneHalfWidthUsd =
     typeof zh === "number" && zh >= 50 && zh <= 3000 ? zh : null;
-  const mp = data.maxPainProximityUsd;
-  zones.maxPainProximityUsd =
-    typeof mp === "number" && mp >= 50 && mp <= 2000 ? mp : null;
   return zones;
 }
 

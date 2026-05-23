@@ -68,13 +68,6 @@ function ZoneEntryFields({
         onChange={(e) => patch({ zoneConfirmMinutes: parseInt(e.target.value, 10) })}
         className="w-full accent-accent"
       />
-      <NumField
-        label="Max pain proximity ($)"
-        hint="One-sided zones: close at TP when spot is within this $ of max pain"
-        value={settings.maxPainProximityUsd ?? 0}
-        min={0}
-        onChange={(v) => patch({ maxPainProximityUsd: v })}
-      />
     </div>
   );
 }

@@ -25,7 +25,6 @@ const DEFAULTS: ZoneBotSettings = {
   manualOverride: "AUTO",
   zoneHalfWidthUsd: 500,
   zoneConfirmMinutes: 15,
-  maxPainProximityUsd: 200,
 };
 
 /** Per-asset zone bot config (BTC / ETH / SOL) — heatmap-only, no manual strikes. */
@@ -191,17 +190,6 @@ export function ZoneBotControls({
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3">
-            <NumField
-              label="Max pain proximity ($)"
-              value={settings.maxPainProximityUsd}
-              onChange={(v) => {
-                setSettings((p) => ({ ...p, maxPainProximityUsd: v }));
-                setDirty(true);
-              }}
-            />
-          </div>
-
           <button
             type="button"
             disabled={!dirty || saving || loading}
@@ -217,31 +205,3 @@ export function ZoneBotControls({
   );
 }
 
-function NumField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-}) {
-  const [raw, setRaw] = useState(String(value));
-  useEffect(() => setRaw(String(value)), [value]);
-
-  return (
-    <div className="space-y-1">
-      <label className="text-[11px] font-bold text-foreground/80">{label}</label>
-      <input
-        type="number"
-        value={raw}
-        onChange={(e) => {
-          setRaw(e.target.value);
-          const n = parseFloat(e.target.value);
-          if (!isNaN(n) && n >= 0) onChange(n);
-        }}
-        className="w-full px-3 py-2 rounded-lg border border-white/[0.08] bg-white/[0.03] text-[12px] font-mono"
-      />
-    </div>
-  );
-}

@@ -11,11 +11,14 @@ import {
   type ZoneBotSettings,
 } from "@/lib/zone-bot-config";
 import { SIM_CONFIG } from "@/lib/simulator";
+import { CRYPTO_BOTS } from "@/lib/crypto-bots";
 
 export type SimBotOverride = "AUTO" | "OFF";
 
 /** Trading + gates stored per bot (crypto + each zone bot). */
 export interface SimBotSettings {
+  /** When true, bot appears on freedombot.ai (performance, records, deploy). */
+  publicLive?: boolean;
   manualOverride: SimBotOverride;
   /** Max concurrent OPEN sim trades for this bot only. */
   maxOpenTrades: number;
@@ -124,7 +127,12 @@ export function parseSimBotSettings(
       ? clamp(raw.riskPerTradePct, RISK_MIN, RISK_MAX)
       : d.riskPerTradePct;
 
+  const botDef = CRYPTO_BOTS.find((b) => b.id === botId);
+  const publicLiveDefault = botDef?.defaultPublicLive ?? false;
+
   const base: SimBotSettings = {
+    publicLive:
+      typeof raw.publicLive === "boolean" ? raw.publicLive : publicLiveDefault,
     manualOverride: readOverride(raw.manualOverride ?? d.manualOverride),
     maxOpenTrades: maxOpen,
     riskPerTradePct: risk,
@@ -242,6 +250,7 @@ export function simBotSettingsToPartialUpdate(
     updatedAt: new Date().toISOString(),
   };
   const keys: (keyof SimBotSettings)[] = [
+    "publicLive",
     "manualOverride",
     "maxOpenTrades",
     "riskPerTradePct",

@@ -409,6 +409,29 @@ export default function FreedomBotPage() {
   const [stats, setStats] = useState<BotStats | null>(null);
   const [waitlistBot, setWaitlistBot] = useState<string | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [comingSoonBots, setComingSoonBots] = useState<
+    { logo: string; ticker: string; name: string }[]
+  >([]);
+
+  useEffect(() => {
+    fetch("/api/freedombot/public-bots")
+      .then((r) => r.json())
+      .then((data) => {
+        const hidden = (data.bots ?? []).filter(
+          (b: { publicLive: boolean }) => !b.publicLive,
+        );
+        setComingSoonBots(
+          hidden
+            .filter((b: { logo: string | null }) => b.logo)
+            .map((b: { logo: string; shortLabel: string; label: string }) => ({
+              logo: b.logo,
+              ticker: b.shortLabel,
+              name: b.label,
+            })),
+        );
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/freedombot/stats")
@@ -601,13 +624,8 @@ export default function FreedomBotPage() {
               </a>
             </div>
 
-            {/* Coming Soon cards */}
-            {[
-              { logo: "/freedombot/coins/btc.png", ticker: "BTC", name: "Bitcoin Bot" },
-              { logo: "/freedombot/coins/eth.png", ticker: "ETH", name: "Ethereum Bot" },
-              { logo: "/freedombot/coins/sol.png", ticker: "SOL", name: "Solana Bot" },
-              { logo: "/freedombot/coins/xrp.png", ticker: "XRP", name: "XRP Bot" },
-            ].map((bot) => (
+            {/* Coming Soon cards — non–public-live crypto bots */}
+            {comingSoonBots.map((bot) => (
               <div key={bot.ticker} className="rounded-2xl p-5 flex flex-col gap-4" style={{ backgroundColor: "#0d1b2e", border: "1px solid rgba(90,140,220,0.12)", opacity: 0.75 }}>
                 <div className="flex items-start justify-between">
                   <div className="h-9 w-9 rounded-full bg-white/5 flex items-center justify-center overflow-hidden p-0.5 flex-shrink-0">

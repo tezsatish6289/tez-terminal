@@ -22,8 +22,10 @@ import {
 } from "@/lib/performance-metrics";
 import type { PerformanceMetrics } from "@/lib/performance-metrics";
 import { buildEquityCurve } from "@/lib/equity-curve";
-import { BotSourceFilter } from "@/components/dashboard/BotSourceFilter";
-import { matchesBotSource, type BotSourceFilter as BotSourceFilterValue } from "@/lib/bot-source-filter";
+import { PublicBotTabs } from "@/components/freedombot/PublicBotTabs";
+import { usePublicBots } from "@/hooks/use-public-bots";
+import type { CryptoBotId } from "@/lib/crypto-bots";
+import { tradeMatchesSelectedPublicBot } from "@/lib/public-bot-flags";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -189,8 +191,6 @@ interface SimState {
   startingCapital: number;
 }
 
-type AssetKey = "CRYPTO" | "BTC" | "ETH" | "SOL" | "XRP";
-
 // Fallback running-days calc from trade openedAt (used when stats API is unavailable)
 function useFallbackRunningDays(openTrades: ApiTrade[], closedTrades: ApiTrade[]) {
   return useMemo(() => {
@@ -203,16 +203,16 @@ function useFallbackRunningDays(openTrades: ApiTrade[], closedTrades: ApiTrade[]
   }, [openTrades, closedTrades]);
 }
 
-const ASSETS: { key: AssetKey; label: string; icon: string; logo?: string; live: boolean; cs: string }[] = [
-  { key: "CRYPTO", label: "Crypto Bot",   icon: "₿",  live: true,  cs: "$" },
-  { key: "BTC",    label: "Bitcoin Bot",  icon: "BTC", logo: "/freedombot/coins/btc.png", live: false, cs: "$" },
-  { key: "ETH",    label: "Ethereum Bot", icon: "ETH", logo: "/freedombot/coins/eth.png", live: false, cs: "$" },
-  { key: "SOL",    label: "Solana Bot",   icon: "SOL", logo: "/freedombot/coins/sol.png", live: false, cs: "$" },
-  { key: "XRP",    label: "XRP Bot",      icon: "XRP", logo: "/freedombot/coins/xrp.png", live: false, cs: "$" },
-];
-
 export default function PerformancePage() {
-  const [assetType, setAssetType] = useState<AssetKey>("CRYPTO");
+  const { bots, flags, defaultBotId, loading: publicBotsLoading } = usePublicBots();
+  const [selectedBotId, setSelectedBotId] = useState<CryptoBotId>("crypto");
+
+  useEffect(() => {
+    if (!publicBotsLoading) setSelectedBotId(defaultBotId);
+  }, [defaultBotId, publicBotsLoading]);
+
+  const selectedBot = bots.find((b) => b.id === selectedBotId);
+  const selectedIsLive = selectedBot?.publicLive ?? false;
   const [simState,  setSimState]  = useState<SimState | null>(null);
   const [trades,    setTrades]    = useState<ApiTrade[]>([]);
   const [loading,   setLoading]   = useState(true);
@@ -232,10 +232,8 @@ export default function PerformancePage() {
     setStatsData(null);
     // Fetch chart/metrics data and headline stats in parallel
     Promise.all([
-      fetch(`/api/freedombot/perf-data?assetType=${assetType}`).then((r) => r.json()),
-      assetType === "CRYPTO"
-        ? fetch(`/api/freedombot/stats`).then((r) => r.json())
-        : Promise.resolve(null),
+      fetch(`/api/freedombot/perf-data?assetType=CRYPTO`).then((r) => r.json()),
+      fetch(`/api/freedombot/stats`).then((r) => r.json()),
     ])
       .then(([perfData, stats]) => {
         if (perfData.state)  setSimState(perfData.state as SimState);
@@ -243,25 +241,22 @@ export default function PerformancePage() {
         if (stats?.startingCapital != null) setStatsData(stats);
       })
       .finally(() => setLoading(false));
-  }, [assetType]);
+  }, []);
 
-  const cs = ASSETS.find((a) => a.key === assetType)?.cs ?? "$";
+  const cs = "$";
 
-  // Bot-source filter (PR #6). "ALL" mirrors the actual shared-capital
-  // numbers we get from /api/freedombot/stats. Per-bot filters render
-  // a counterfactual ("if only this bot ran from start") so the user can
-  // race bots head-to-head.
-  const [botSourceFilter, setBotSourceFilter] = useState<BotSourceFilterValue>("ALL");
-  const botSourcePredicate = useMemo(() => matchesBotSource(botSourceFilter), [botSourceFilter]);
-  const isBotFiltered = botSourceFilter !== "ALL";
+  const matchesSelected = useMemo(
+    () => (t: ApiTrade) => tradeMatchesSelectedPublicBot(t, selectedBotId, flags),
+    [selectedBotId, flags],
+  );
 
   const openTrades   = useMemo(
-    () => trades.filter((t) => t.status === "OPEN").filter(botSourcePredicate),
-    [trades, botSourcePredicate],
+    () => trades.filter((t) => t.status === "OPEN").filter(matchesSelected),
+    [trades, matchesSelected],
   );
   const closedTrades = useMemo(
-    () => trades.filter((t) => t.status === "CLOSED").filter(botSourcePredicate),
-    [trades, botSourcePredicate],
+    () => trades.filter((t) => t.status === "CLOSED").filter(matchesSelected),
+    [trades, matchesSelected],
   );
 
   const startCap = simState?.startingCapital ?? 1000;
@@ -277,14 +272,13 @@ export default function PerformancePage() {
 
   const derivedCapital = useMemo(() => {
     if (closedTrades.length === 0) {
-      // Per-bot view with no trades yet → starting capital (the
-      // counterfactual baseline). For "All" with no trades, fall back
-      // to the live ledger so the headline still reads sensibly.
-      if (isBotFiltered) return startCap;
-      return statsData?.currentCapital ?? simState?.capital ?? startCap;
+      if (selectedBotId === "crypto") {
+        return statsData?.currentCapital ?? simState?.capital ?? startCap;
+      }
+      return startCap;
     }
     return closedEquity;
-  }, [closedTrades.length, closedEquity, statsData, simState, startCap, isBotFiltered]);
+  }, [closedTrades.length, closedEquity, statsData, simState, startCap, selectedBotId]);
 
   const fallbackRunningDays = useFallbackRunningDays(openTrades, closedTrades);
   const runningDays = statsData?.runningDays ?? fallbackRunningDays;
@@ -369,68 +363,30 @@ export default function PerformancePage() {
           </Link>
         </div>
 
-        {/* ── Asset selector — same style as dashboard ── */}
-        <div className="w-full overflow-x-auto pb-1">
-        <div className="flex items-center gap-0 rounded-xl p-1 w-fit mx-auto"
-          style={{ backgroundColor: "rgba(255,255,255,0.03)", border: "1px solid rgba(90,140,220,0.1)" }}
-        >
-          {ASSETS.map((a) => {
-            const isActive = assetType === a.key;
-            return (
-              <button
-                key={a.key}
-                onClick={() => a.live && setAssetType(a.key)}
-                disabled={!a.live}
-                className="relative flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap"
-                style={isActive
-                  ? { backgroundColor: "rgba(96,165,250,0.15)", color: "#60a5fa", border: "1px solid rgba(96,165,250,0.25)" }
-                  : { color: "#475569", border: "1px solid transparent", cursor: a.live ? "pointer" : "default" }
-                }
-              >
-                {a.logo ? (
-                  <div className="h-4 w-4 rounded-full bg-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
-                    <Image src={a.logo} alt={a.icon} width={14} height={14} className="object-contain rounded-full" />
-                  </div>
-                ) : (
-                  <span>{a.icon}</span>
-                )}
-                <span className="hidden sm:inline">{a.label}</span>
-                <span className="sm:hidden">{a.label.split(" ")[0]}</span>
-                {a.live && isActive && (
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                )}
-                {!a.live && (
-                  <span
-                    className="text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded"
-                    style={{ backgroundColor: "rgba(96,165,250,0.08)", color: "#334155" }}
-                  >
-                    Soon
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-        </div>
+        {/* ── Bot selector (all crypto; asset type not shown) ── */}
+        {!publicBotsLoading && bots.length > 0 && (
+          <PublicBotTabs
+            bots={bots}
+            selectedId={selectedBotId}
+            onSelect={setSelectedBotId}
+          />
+        )}
 
-        {/* ── Coming soon state for non-live assets ── */}
-        {!ASSETS.find((a) => a.key === assetType)?.live ? (
+        {/* ── Coming soon for bots not publicLive ── */}
+        {!selectedIsLive ? (
           <div
             className="rounded-2xl p-12 text-center"
             style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.1)" }}
           >
-            {(() => {
-              const asset = ASSETS.find((a) => a.key === assetType);
-              return asset?.logo ? (
-                <div className="h-14 w-14 rounded-full bg-white/5 flex items-center justify-center overflow-hidden mx-auto mb-4">
-                  <Image src={asset.logo} alt={asset.icon} width={48} height={48} className="object-contain rounded-full" />
-                </div>
-              ) : (
-                <div className="text-4xl mb-4">{asset?.icon}</div>
-              );
-            })()}
+            {selectedBot?.logo ? (
+              <div className="h-14 w-14 rounded-full bg-white/5 flex items-center justify-center overflow-hidden mx-auto mb-4">
+                <Image src={selectedBot.logo} alt={selectedBot.shortLabel} width={48} height={48} className="object-contain rounded-full" />
+              </div>
+            ) : (
+              <div className="text-4xl mb-4">{selectedBot?.icon ?? "₿"}</div>
+            )}
             <h3 className="text-lg font-black text-white mb-2">
-              {ASSETS.find((a) => a.key === assetType)?.label} — Coming Soon
+              {selectedBot?.label ?? "Bot"} — Coming Soon
             </h3>
             <p className="text-sm" style={{ color: "#475569" }}>
               We&apos;re actively building this bot. Join the waitlist to get early access.
@@ -443,7 +399,7 @@ export default function PerformancePage() {
               Join Waitlist
             </a>
           </div>
-        ) : loading ? (
+        ) : loading || publicBotsLoading ? (
           /* loading skeletons for live asset */
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -507,20 +463,8 @@ export default function PerformancePage() {
           </div>
         )}
 
-        {/* ── Bot-source filter — only meaningful on live assets ── */}
-        {ASSETS.find((a) => a.key === assetType)?.live && !loading && (
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <BotSourceFilter value={botSourceFilter} onChange={setBotSourceFilter} />
-            {isBotFiltered && (
-              <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border" style={{ color: "#fbbf24", borderColor: "rgba(251,191,36,0.25)", backgroundColor: "rgba(251,191,36,0.06)" }}>
-                Counterfactual — &ldquo;if only this bot ran from start&rdquo;
-              </span>
-            )}
-          </div>
-        )}
-
         {/* ── Chart + Performance Panel — same side-by-side as simulator ── */}
-        {ASSETS.find((a) => a.key === assetType)?.live && !loading && closedTrades.length >= 2 && (
+        {selectedIsLive && !loading && !publicBotsLoading && closedTrades.length >= 2 && (
           <div className="flex flex-col lg:flex-row gap-3 items-stretch">
             <div className="flex-1 min-w-0">
               <EquityChart

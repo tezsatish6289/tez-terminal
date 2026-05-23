@@ -1,3 +1,5 @@
+import { CRYPTO_BOTS } from "@/lib/crypto-bots";
+
 /**
  * Bot Source filter — shared helpers for the per-bot performance filter
  * pills shown on `/simulation`, `/freedombot/records`, and
@@ -47,12 +49,12 @@ export interface BotSourcePillOption {
 // the UI labels track the product brand ("Crypto Bot"), so renames
 // here are display-only and don't touch the data model.
 export const BOT_SOURCE_PILLS: BotSourcePillOption[] = [
-  { id: "ALL",       label: "All Bots",    short: "All" },
-  { id: "PATTERN",   label: "Crypto Bot",  short: "Crypto" },
-  { id: "BTC_ZONE",  label: "BTC Zone",    short: "BTC" },
-  { id: "ETH_ZONE",  label: "ETH Zone",    short: "ETH" },
-  { id: "SOL_ZONE",  label: "SOL Zone",    short: "SOL" },
-  { id: "XRP_ZONE",  label: "XRP Zone",    short: "XRP" },
+  { id: "ALL", label: "All Bots", short: "All" },
+  ...CRYPTO_BOTS.map((b) => ({
+    id: b.botSource as Exclude<BotSourceFilter, "ALL">,
+    label: b.label,
+    short: b.shortLabel,
+  })),
 ];
 
 /** Normalise an optional `botSource` field to a canonical bucket so the

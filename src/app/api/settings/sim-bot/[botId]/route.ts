@@ -68,6 +68,17 @@ export async function PUT(
   }
 
   const body = (await request.json()) as Partial<SimBotSettings>;
+
+  if ("publicLive" in body) {
+    return NextResponse.json(
+      {
+        error:
+          "publicLive cannot be changed here. Use POST …/public-live with admin auth and passphrase.",
+      },
+      { status: 403 },
+    );
+  }
+
   const db = getAdminFirestore();
   const docPath = SIM_BOT_SETTINGS_DOC[botId];
   const snap = await db.doc(docPath).get();

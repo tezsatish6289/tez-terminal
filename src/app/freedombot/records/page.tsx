@@ -16,8 +16,10 @@ import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { useRouter } from "next/navigation";
 import { buildEquityCurve } from "@/lib/equity-curve";
-import { BotSourceFilter } from "@/components/dashboard/BotSourceFilter";
-import { matchesBotSource, type BotSourceFilter as BotSourceFilterValue } from "@/lib/bot-source-filter";
+import { PublicBotTabs } from "@/components/freedombot/PublicBotTabs";
+import { usePublicBots } from "@/hooks/use-public-bots";
+import type { CryptoBotId } from "@/lib/crypto-bots";
+import { tradeMatchesSelectedPublicBot } from "@/lib/public-bot-flags";
 import {
   annualizeReturn,
   compoundReturnOverPeriod,
@@ -414,14 +416,6 @@ function TradeTable({ trades, assetType, balanceAfterMap }: { trades: Trade[]; a
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-const BOTS = [
-  { key: "CRYPTO", logo: null,                              label: "Crypto Bot",   ticker: "₿",  live: true  },
-  { key: "BTC",    logo: "/freedombot/coins/btc.png",      label: "Bitcoin Bot",  ticker: "BTC", live: false },
-  { key: "ETH",    logo: "/freedombot/coins/eth.png",      label: "Ethereum Bot", ticker: "ETH", live: false },
-  { key: "SOL",    logo: "/freedombot/coins/sol.png",      label: "Solana Bot",   ticker: "SOL", live: false },
-  { key: "XRP",    logo: "/freedombot/coins/xrp.png",      label: "XRP Bot",      ticker: "XRP", live: false },
-] as const;
-
 const CARD_BG = "#0a1628";
 const CARD_BORDER = "rgba(90,140,220,0.18)";
 
@@ -430,7 +424,15 @@ export default function RecordsPage() {
   const auth = useAuth();
   const router = useRouter();
 
-  const [activeBot, setActiveBot] = useState<string>("CRYPTO");
+  const { bots, flags, defaultBotId, loading: publicBotsLoading } = usePublicBots();
+  const [selectedBotId, setSelectedBotId] = useState<CryptoBotId>("crypto");
+
+  useEffect(() => {
+    if (!publicBotsLoading) setSelectedBotId(defaultBotId);
+  }, [defaultBotId, publicBotsLoading]);
+
+  const selectedBot = bots.find((b) => b.id === selectedBotId);
+  const selectedIsLive = selectedBot?.publicLive ?? false;
   const [stats, setStats] = useState<BotStats | null>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -467,17 +469,17 @@ export default function RecordsPage() {
     }
   }, [auth, isLoggingIn]);
 
-  // Bot-source filter (PR #6). "ALL" = the actual shared-capital
-  // numbers reported by /api/freedombot/stats. Per-bot filters render
-  // a counterfactual ("if only this bot ran from start") so visitors
-  // can race bots head-to-head before signing up.
-  const [botSourceFilter, setBotSourceFilter] = useState<BotSourceFilterValue>("ALL");
-  const botSourcePredicate = useMemo(() => matchesBotSource(botSourceFilter), [botSourceFilter]);
-  const isBotFiltered = botSourceFilter !== "ALL";
+  const matchesSelected = useMemo(
+    () => (t: Trade) => tradeMatchesSelectedPublicBot(t, selectedBotId, flags),
+    [selectedBotId, flags],
+  );
 
   const activeTrades = useMemo(
-    () => trades.filter((t) => t.assetType === activeBot).filter(botSourcePredicate),
-    [trades, activeBot, botSourcePredicate]
+    () =>
+      trades
+        .filter((t) => t.assetType === "CRYPTO")
+        .filter(matchesSelected),
+    [trades, matchesSelected],
   );
 
   // Per-trade running balance (same shared helper as /simulation, /performance,
@@ -496,7 +498,7 @@ export default function RecordsPage() {
   // age (a 2-day-old bot in a 60-day-old simulator extrapolates "what
   // would 60 days of this bot have produced", not "2 days").
   const filteredStats = useMemo(() => {
-    if (!isBotFiltered || !stats) return null;
+    if (!stats) return null;
     const startCap = stats.startingCapital;
     const currentCapital = equityCurve.finalCapital;
     const totalReturnPct = startCap > 0
@@ -515,12 +517,11 @@ export default function RecordsPage() {
       profitPerMonth,
       profitPerYear,
     } as BotStats;
-  }, [isBotFiltered, stats, equityCurve.finalCapital]);
+  }, [stats, equityCurve.finalCapital]);
 
   const displayStats = filteredStats ?? stats;
 
-  const activeIsLive = BOTS.find((b) => b.key === activeBot)?.live ?? false;
-  const isLoading = statsLoading || tradesLoading;
+  const isLoading = statsLoading || tradesLoading || publicBotsLoading;
 
   return (
     <div
@@ -552,51 +553,14 @@ export default function RecordsPage() {
           </div>
         ) : (
           <div>
-            {/* ── Bot tabs ── */}
-            <div className="flex items-end gap-0 overflow-x-auto">
-              {BOTS.map((bot) => {
-                const isActive = activeBot === bot.key;
-                return (
-                  <button
-                    key={bot.key}
-                    onClick={() => setActiveBot(bot.key)}
-                    className="flex items-center gap-2 px-5 py-3 text-sm font-bold whitespace-nowrap transition-all relative flex-shrink-0"
-                    style={{
-                      backgroundColor: isActive ? CARD_BG : "transparent",
-                      color: isActive ? "#f0f4ff" : "#334155",
-                      borderTop: `2px solid ${isActive ? (bot.live ? "#22c55e" : CARD_BORDER) : "transparent"}`,
-                      borderLeft: `1px solid ${isActive ? CARD_BORDER : "transparent"}`,
-                      borderRight: `1px solid ${isActive ? CARD_BORDER : "transparent"}`,
-                      borderBottom: `1px solid ${isActive ? CARD_BG : "transparent"}`,
-                      borderRadius: "10px 10px 0 0",
-                      marginBottom: isActive ? "-1px" : "0",
-                      zIndex: isActive ? 1 : 0,
-                    }}
-                  >
-                    {bot.logo ? (
-                      <div className="h-5 w-5 rounded-full bg-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
-                        <Image src={bot.logo} alt={bot.ticker} width={18} height={18} className="object-contain rounded-full" />
-                      </div>
-                    ) : (
-                      <span className="text-base">{bot.ticker}</span>
-                    )}
-                    <span>{bot.label}</span>
-                    {bot.live ? (
-                      <span className="flex items-center gap-1">
-                        <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-                      </span>
-                    ) : (
-                      <span
-                        className="text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider"
-                        style={{ backgroundColor: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}
-                      >
-                        Soon
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+            {bots.length > 0 && (
+              <PublicBotTabs
+                bots={bots}
+                selectedId={selectedBotId}
+                onSelect={setSelectedBotId}
+                variant="records"
+              />
+            )}
 
             {/* ── Stats card + table, connected to active tab ── */}
             <div
@@ -604,7 +568,7 @@ export default function RecordsPage() {
               style={{ border: `1px solid ${CARD_BORDER}`, position: "relative", zIndex: 0 }}
             >
               {/* Stats panel */}
-              {activeIsLive ? (
+              {selectedIsLive ? (
                 <>
                   <div
                     className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-5"
@@ -668,8 +632,8 @@ export default function RecordsPage() {
                   style={{ backgroundColor: CARD_BG }}
                 >
                   <div className="text-center">
-                    <span className="text-4xl mb-3 block">{BOTS.find((b) => b.key === activeBot)?.emoji}</span>
-                    <p className="text-base font-black text-white mb-2">{BOTS.find((b) => b.key === activeBot)?.label}</p>
+                    <span className="text-4xl mb-3 block">{selectedBot?.icon ?? "₿"}</span>
+                    <p className="text-base font-black text-white mb-2">{selectedBot?.label}</p>
                     <span
                       className="text-[9px] font-black px-2.5 py-1 rounded uppercase tracking-wider"
                       style={{ backgroundColor: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}
@@ -680,26 +644,10 @@ export default function RecordsPage() {
                 </div>
               )}
 
-              {/* Bot-source filter — controls headline tiles + trade
-                  table + per-row Fund Balance simultaneously. */}
-              {activeIsLive && (
-                <div
-                  className="flex items-center justify-between gap-3 flex-wrap px-5 py-3"
-                  style={{ backgroundColor: "#080f1e", borderTop: `1px solid ${CARD_BORDER}` }}
-                >
-                  <BotSourceFilter value={botSourceFilter} onChange={setBotSourceFilter} size="sm" />
-                  {isBotFiltered && (
-                    <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border" style={{ color: "#fbbf24", borderColor: "rgba(251,191,36,0.25)", backgroundColor: "rgba(251,191,36,0.06)" }}>
-                      Counterfactual — &ldquo;if only this bot ran from start&rdquo;
-                    </span>
-                  )}
-                </div>
-              )}
-
               {/* Trade table — sits inside the card panel */}
-              {activeIsLive && (
+              {selectedIsLive && (
                 <div style={{ backgroundColor: "#080f1e", borderTop: `1px solid ${CARD_BORDER}` }}>
-                  <TradeTable trades={activeTrades} assetType={activeBot} balanceAfterMap={balanceAfterMap} />
+                  <TradeTable trades={activeTrades} assetType="CRYPTO" balanceAfterMap={balanceAfterMap} />
                 </div>
               )}
             </div>

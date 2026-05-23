@@ -1,8 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Activity, Loader2, Save, Sliders } from "lucide-react";
-import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
+import { Activity, Globe, Loader2, Save, Sliders } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useFirestore, useDoc, useMemoFirebase, useUser } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import {
@@ -121,13 +131,21 @@ export function SimBotConfigSheet({
   onStatusChange?: (status: CockpitBotStatus) => void;
 }) {
   const firestore = useFirestore();
+  const { user } = useUser();
   const [settings, setSettings] = useState<SimBotSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [publicLiveDialog, setPublicLiveDialog] = useState<{
+    next: boolean;
+  } | null>(null);
+  const [publicLiveSaving, setPublicLiveSaving] = useState(false);
+  const [publicLivePassphrase, setPublicLivePassphrase] = useState("");
+  const [publicLiveError, setPublicLiveError] = useState<string | null>(null);
 
   const apiBase = `/api/settings/sim-bot/${botId}`;
+  const publicLiveApi = `${apiBase}/public-live`;
   const isCrypto = botId === "crypto";
   const isZone = botId !== "crypto";
 
@@ -186,14 +204,57 @@ export function SimBotConfigSheet({
     [apiBase, botId, patch],
   );
 
+  const handlePublicLiveConfirm = useCallback(async () => {
+    if (!settings || publicLiveDialog == null) return;
+    if (!user) {
+      setPublicLiveError("Sign in as an admin to change public visibility.");
+      return;
+    }
+    if (!publicLivePassphrase.trim()) {
+      setPublicLiveError("Enter the public-live passphrase.");
+      return;
+    }
+
+    setPublicLiveSaving(true);
+    setPublicLiveError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(publicLiveApi, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          publicLive: publicLiveDialog.next,
+          passphrase: publicLivePassphrase,
+        }),
+      });
+      const data = (await res.json()) as SimBotSettings & { error?: string };
+      if (!res.ok) {
+        setPublicLiveError(data.error ?? "Could not update public visibility.");
+        return;
+      }
+      setSettings(data);
+      setPublicLiveDialog(null);
+      setPublicLivePassphrase("");
+    } catch (err) {
+      console.error(`[SimBotConfig ${botId}] publicLive failed:`, err);
+      setPublicLiveError("Request failed. Try again.");
+    } finally {
+      setPublicLiveSaving(false);
+    }
+  }, [user, publicLiveApi, botId, publicLiveDialog, publicLivePassphrase, settings]);
+
   const handleSave = useCallback(async () => {
     if (!settings) return;
     setSaving(true);
     try {
+      const { publicLive: _omit, ...tradingSettings } = settings;
       const res = await fetch(apiBase, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
+        body: JSON.stringify(tradingSettings),
       });
       const merged = (await res.json()) as SimBotSettings;
       setSettings(merged);
@@ -241,6 +302,116 @@ export function SimBotConfigSheet({
             </div>
           ) : (
             <>
+              <div className="space-y-2 rounded-lg border border-white/[0.08] bg-white/[0.02] p-3">
+                <div className="flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-accent/60" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-accent/80">
+                    FreedomBot public
+                  </span>
+                </div>
+                <p className="text-[9px] text-muted-foreground/50 leading-relaxed">
+                  When on, {label} appears on freedombot.ai performance, records, and
+                  deploy. Requires admin sign-in and passphrase to change.
+                </p>
+                <div className="flex gap-2">
+                  {([true, false] as const).map((live) => (
+                    <button
+                      key={live ? "on" : "off"}
+                      type="button"
+                      disabled={publicLiveSaving}
+                      onClick={() => {
+                        if (settings.publicLive === live) return;
+                        setPublicLiveDialog({ next: live });
+                      }}
+                      className={cn(
+                        "flex-1 py-2.5 rounded-lg border text-[10px] font-black uppercase tracking-wider transition-all",
+                        settings.publicLive === live
+                          ? live
+                            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
+                            : "bg-white/[0.04] border-white/[0.12] text-muted-foreground/70"
+                          : "border-white/[0.08] text-muted-foreground/50 hover:bg-white/[0.04]",
+                      )}
+                    >
+                      {live ? "Live" : "Hidden"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <AlertDialog
+                open={publicLiveDialog != null}
+                onOpenChange={(open) => {
+                  if (!open) {
+                    setPublicLiveDialog(null);
+                    setPublicLivePassphrase("");
+                    setPublicLiveError(null);
+                  }
+                }}
+              >
+                <AlertDialogContent className="bg-[#0a0a0c] border-white/10">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-white">
+                      {publicLiveDialog?.next ? "Go live on FreedomBot?" : "Hide from public?"}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription asChild>
+                      <div className="space-y-3 text-sm text-muted-foreground">
+                        <p>
+                          {publicLiveDialog?.next
+                            ? `${label} will appear on freedombot.ai performance, records, and deploy. Simulator trading is unchanged.`
+                            : `${label} will be hidden from freedombot.ai and marked Coming Soon. Existing user deployments are not changed.`}
+                        </p>
+                        <div className="space-y-1.5">
+                          <label
+                            htmlFor={`public-live-pass-${botId}`}
+                            className="text-[10px] font-bold uppercase tracking-wider text-foreground/70"
+                          >
+                            Public-live passphrase
+                          </label>
+                          <input
+                            id={`public-live-pass-${botId}`}
+                            type="password"
+                            autoComplete="off"
+                            value={publicLivePassphrase}
+                            onChange={(e) => {
+                              setPublicLivePassphrase(e.target.value);
+                              setPublicLiveError(null);
+                            }}
+                            placeholder="Required"
+                            className="w-full px-3 py-2 rounded-lg border border-white/[0.12] bg-white/[0.03] text-[12px] font-mono text-foreground"
+                          />
+                        </div>
+                        {publicLiveError && (
+                          <p className="text-[11px] font-semibold text-rose-400">{publicLiveError}</p>
+                        )}
+                      </div>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="border-white/10">Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      disabled={publicLiveSaving || !publicLivePassphrase.trim()}
+                      className={cn(
+                        publicLiveDialog?.next
+                          ? "bg-emerald-600 hover:bg-emerald-500"
+                          : "bg-rose-600 hover:bg-rose-500",
+                      )}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        void handlePublicLiveConfirm();
+                      }}
+                    >
+                      {publicLiveSaving ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : publicLiveDialog?.next ? (
+                        "Publish"
+                      ) : (
+                        "Hide"
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
               <div className="flex gap-2">
                 {(["AUTO", "OFF"] as const).map((mode) => (
                   <button

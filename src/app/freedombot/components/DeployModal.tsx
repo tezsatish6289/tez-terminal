@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { usePublicBots } from "@/hooks/use-public-bots";
+import { CRYPTO_BOTS } from "@/lib/crypto-bots";
 import Image from "next/image";
 import {
   X,
@@ -43,13 +45,13 @@ const STEP_LABELS: Record<Step, string> = {
   "success": "Done",
 };
 
-const BOTS = [
-  { key: "CRYPTO", emoji: "₿",  logo: null,                             name: "Crypto Bot",   description: "Trade BTC, ETH, SOL, XRP & more with one bot", live: true  },
-  { key: "BTC",    emoji: "BTC", logo: "/freedombot/coins/btc.png",     name: "Bitcoin Bot",  description: "BTC perpetual futures trading", live: false },
-  { key: "ETH",    emoji: "ETH", logo: "/freedombot/coins/eth.png",     name: "Ethereum Bot", description: "ETH perpetual futures trading", live: false },
-  { key: "SOL",    emoji: "SOL", logo: "/freedombot/coins/sol.png",     name: "Solana Bot",   description: "SOL perpetual futures trading", live: false },
-  { key: "XRP",    emoji: "XRP", logo: "/freedombot/coins/xrp.png",     name: "XRP Bot",      description: "XRP perpetual futures trading", live: false },
-] as const;
+const BOT_DESCRIPTIONS: Record<string, string> = {
+  CRYPTO: "Trade BTC, ETH, SOL, XRP & more with one bot",
+  BTC: "BTC perpetual futures trading",
+  ETH: "ETH perpetual futures trading",
+  SOL: "SOL perpetual futures trading",
+  XRP: "XRP perpetual futures trading",
+};
 
 interface Field {
   key: string;
@@ -279,6 +281,31 @@ interface DeployModalProps {
 }
 
 export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
+  const { bots: publicBots, defaultBotId } = usePublicBots();
+  const deployBots = useMemo(
+    () =>
+      (publicBots.length > 0 ? publicBots : CRYPTO_BOTS.map((b) => ({
+        deployKey: b.deployKey,
+        icon: b.icon,
+        logo: b.logo,
+        label: b.label,
+        publicLive: b.defaultPublicLive,
+      }))).map((b) => ({
+        key: b.deployKey,
+        emoji: b.icon,
+        logo: b.logo,
+        name: b.label,
+        description: BOT_DESCRIPTIONS[b.deployKey] ?? "",
+        live: b.publicLive,
+      })),
+    [publicBots],
+  );
+  const defaultDeployKey = useMemo(() => {
+    const fromId = CRYPTO_BOTS.find((b) => b.id === defaultBotId)?.deployKey;
+    if (fromId) return fromId;
+    return deployBots.find((b) => b.live)?.key ?? "CRYPTO";
+  }, [defaultBotId, deployBots]);
+
   const [step, setStep]                 = useState<Step>("sign-in");
   const [selectedBot, setSelectedBot]   = useState<string>("CRYPTO");
   const [selectedExchange, setSelectedExchange] = useState<string | null>(null);
@@ -294,7 +321,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
   useEffect(() => {
     if (isOpen) {
       setStep(user ? "choose-bot" : "sign-in");
-      setSelectedBot("CRYPTO");
+      setSelectedBot(defaultDeployKey);
       setSelectedExchange(null);
       setCredentials({});
       setShowPwd({});
@@ -302,7 +329,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
       setError("");
       setTradingPrefs(DEFAULT_TRADING_PREFS);
     }
-  }, [isOpen, user]);
+  }, [isOpen, user, defaultDeployKey]);
 
   // Advance past sign-in once auth resolves inside modal
   useEffect(() => {
@@ -317,7 +344,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
     ? EXCHANGES[selectedBot]?.find((e) => e.key === selectedExchange) ?? null
     : null;
 
-  const botName = BOTS.find((b) => b.key === selectedBot)?.name ?? selectedBot;
+  const botName = deployBots.find((b) => b.key === selectedBot)?.name ?? selectedBot;
 
   const handleSignIn = async () => {
     if (!auth || isSigningIn) return;
@@ -487,7 +514,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
               <h2 className="text-xl font-black text-white mb-1 tracking-tight">Choose your bot</h2>
               <p className="text-sm mb-5" style={{ color: "#64748b" }}>Select the trading bot you want to deploy.</p>
               <div className="space-y-2.5">
-                {BOTS.map((bot) => {
+                {deployBots.map((bot) => {
                   const isSelected = selectedBot === bot.key;
                   return (
                     <button

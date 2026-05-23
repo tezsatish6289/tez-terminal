@@ -35,12 +35,12 @@ export const ZONE_BOT_PERP_SYMBOL: Record<ZoneBotAsset, string> = {
   xrp: "XRPUSDT",
 };
 
-/** Human-friendly label shown in the UI ("BTC Zone", etc.). */
+/** Product label — same names as cockpit / freedombot.ai. */
 export const ZONE_BOT_LABEL: Record<ZoneBotAsset, string> = {
-  btc: "BTC Zone",
-  eth: "ETH Zone",
-  sol: "SOL Zone",
-  xrp: "XRP Zone",
+  btc: "Bitcoin Bot",
+  eth: "Ethereum Bot",
+  sol: "Solana Bot",
+  xrp: "XRP Bot",
 };
 
 /** `botSource` value stamped on trades from this bot. */

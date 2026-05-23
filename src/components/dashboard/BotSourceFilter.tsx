@@ -25,19 +25,26 @@ export function BotSourceFilter({
   onChange,
   className,
   size = "md",
+  /** When set, only these pills are shown (plus ALL if included in the list). */
+  visibleIds,
 }: {
   value:    BotSourceFilter;
   onChange: (v: BotSourceFilter) => void;
   className?: string;
   /** "sm" = compact for densely packed dashboards; "md" = default. */
   size?: "sm" | "md";
+  visibleIds?: BotSourceFilter[];
 }) {
+  const pills = visibleIds
+    ? BOT_SOURCE_PILLS.filter((p) => visibleIds.includes(p.id))
+    : BOT_SOURCE_PILLS;
+
   return (
     <div className={cn(
       "inline-flex items-center gap-0 rounded-lg border border-white/[0.12] bg-[#0a0a0c] p-0.5 w-fit shadow-[inset_0_2px_6px_rgba(0,0,0,0.45)]",
       className,
     )}>
-      {BOT_SOURCE_PILLS.map((pill) => {
+      {pills.map((pill) => {
         const active = pill.id === value;
         return (
           <button

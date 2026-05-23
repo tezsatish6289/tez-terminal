@@ -44,6 +44,7 @@ export function HeatmapAssetCard({
   botId,
   label,
   suggested,
+  liveSpot,
   manualOverride,
   engineReason,
   engineDirection,
@@ -63,6 +64,11 @@ export function HeatmapAssetCard({
   botId: CockpitBotId;
   label: string;
   suggested: SuggestedZonesSnapshot | null;
+  /** Fresh per-bot spot from `config/exchange_prices` (1-min cron).
+   *  Falls back to `spotFromSuggested(suggested)` if the live feed is
+   *  missing. Drives both the ladder's "Current price" line and the
+   *  IV explainer math. */
+  liveSpot?: number | null;
   /** Status inputs — used by the dot+reason row in the header. The
    *  left rail now shows only the dot (replaces the AUTO/OFF badge),
    *  so the right pane owns the headline + detail commentary. */
@@ -90,7 +96,10 @@ export function HeatmapAssetCard({
   selected?: boolean;
   onSelect?: () => void;
 }) {
-  const spot = spotFromSuggested(suggested);
+  // Prefer the 1-min live spot from `config/exchange_prices`; fall
+  // back to the 15-min `suggested_zones_*` snapshot if the live feed
+  // is missing (e.g. sync-prices cron blip).
+  const spot = liveSpot ?? spotFromSuggested(suggested);
   const ivPct = suggested?.atmIV != null ? suggested.atmIV * 100 : null;
 
   const delta = capital - startingCapital;

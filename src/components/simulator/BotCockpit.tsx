@@ -24,7 +24,9 @@ import { HeatmapAssetCard } from "@/components/simulator/HeatmapAssetCard";
 import { CockpitCompactRow } from "@/components/simulator/CockpitCompactRow";
 import { BotCardControls } from "@/components/simulator/BotCardControls";
 import {
+  liveSpotFromExchangePrices,
   normalizeSuggestedZones,
+  spotFromSuggested,
   type SuggestedZonesSnapshot,
 } from "@/components/simulator/heatmap-types";
 
@@ -90,6 +92,18 @@ export function BotCockpit({
   }, [firestore]);
   const { data: heatmapZonesData, refetch: refetchHeatmapZones } = useDoc(heatmapZonesRef);
   const heatmapZones = heatmapZonesData as ZoneBotSettings | null;
+
+  // Live spot feed — `sync-prices` cron writes every 1 min, contains
+  // BYBIT / BINANCE / etc. per-symbol LTPs. The old code derived spot
+  // from `suggested_zones_*.deribitIndexPrice`, which only refreshes
+  // every 15 min (or on Refresh All). Subscribing here gives every
+  // card a price that ticks once per minute via Firestore push.
+  const exchangePricesRef = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return doc(firestore, "config", "exchange_prices");
+  }, [firestore]);
+  const { data: exchangePricesData, refetch: refetchExchangePrices } = useDoc(exchangePricesRef);
+  const exchangePrices = exchangePricesData as Record<string, unknown> | null;
 
   // ── Per-bot Firestore refs (4 zone bots × 3 docs + 5 suggested-zones)
   const zoneStateRefs = useMemo(() => {
@@ -159,6 +173,7 @@ export function BotCockpit({
   const refetchAll = useCallback(() => {
     void refetchMacro();
     void refetchHeatmapZones();
+    void refetchExchangePrices();
     void refetchBtcState();
     void refetchEthState();
     void refetchSolState();
@@ -179,6 +194,7 @@ export function BotCockpit({
   }, [
     refetchMacro,
     refetchHeatmapZones,
+    refetchExchangePrices,
     refetchBtcState,
     refetchEthState,
     refetchSolState,
@@ -228,6 +244,20 @@ export function BotCockpit({
     solSuggestedData,
     xrpSuggestedData,
   ]);
+
+  // Per-bot live spot — fresh from `config/exchange_prices` (1-min cron)
+  // with a fallback to whatever `suggested_zones_*` last cached. Without
+  // this fallback, a missing exchange feed during cron downtime would
+  // blank the price; with it, we degrade gracefully to the 15-min snapshot.
+  const liveSpotByBot = useMemo(() => {
+    return Object.fromEntries(
+      SIM_COCKPIT_BOTS.map((b) => [
+        b.id,
+        liveSpotFromExchangePrices(exchangePrices, b.id) ??
+          spotFromSuggested(suggestedByBot[b.id]),
+      ]),
+    ) as Record<CockpitBotId, number | null>;
+  }, [exchangePrices, suggestedByBot]);
 
   const zoneSimById = useMemo(
     () => ({
@@ -371,6 +401,7 @@ export function BotCockpit({
                 botId={bot.id}
                 label={bot.label}
                 suggested={suggestedByBot[bot.id]}
+                liveSpot={liveSpotByBot[bot.id]}
                 manualOverride={zc?.settings?.manualOverride ?? null}
                 engineReason={
                   isCrypto
@@ -395,6 +426,7 @@ export function BotCockpit({
             botId={selectedBot.id}
             label={selectedBot.label}
             suggested={selectedSuggested}
+            liveSpot={liveSpotByBot[selectedBot.id]}
             manualOverride={selectedZone?.settings?.manualOverride ?? null}
             engineReason={
               selectedBot.id === "crypto"

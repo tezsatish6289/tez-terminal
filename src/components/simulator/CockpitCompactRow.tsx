@@ -28,6 +28,10 @@ export interface CockpitCompactRowProps {
   botId: CockpitBotId;
   label: string;
   suggested: SuggestedZonesSnapshot | null;
+  /** Fresh per-bot spot from `config/exchange_prices` (1-min cron),
+   *  preferred over the 15-min snapshot in `suggested.deribitIndexPrice`.
+   *  null when both feeds are missing — row falls back to the snapshot. */
+  liveSpot?: number | null;
   manualOverride: string | null;
   engineReason: string | null;
   engineDirection: ZoneBotDirection | null;
@@ -58,6 +62,7 @@ export function CockpitCompactRow({
   botId,
   label,
   suggested,
+  liveSpot,
   manualOverride,
   engineReason,
   engineDirection,
@@ -92,7 +97,10 @@ export function CockpitCompactRow({
     ],
   );
 
-  const spot = spotFromSuggested(suggested);
+  // Prefer the 1-min live spot from `config/exchange_prices`; fall
+  // back to the 15-min `suggested_zones_*` snapshot if the live feed
+  // is missing (e.g. sync-prices cron blip).
+  const spot = liveSpot ?? spotFromSuggested(suggested);
   const ivPct = suggested?.atmIV != null ? suggested.atmIV * 100 : null;
 
   // Status hover title — the dot is now the only status cue on the row,

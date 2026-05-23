@@ -138,6 +138,49 @@ export function spotFromSuggested(s: SuggestedZonesSnapshot | null): number | nu
   return s.deribitIndexPrice ?? s.btcPrice ?? null;
 }
 
+/**
+ * Live spot lookup from the 1-min `config/exchange_prices` doc.
+ *
+ * This is the *fresh* price source — `suggest-zones` (the cron that
+ * writes `suggested_zones_*` and thus feeds `spotFromSuggested`) only
+ * runs every 15 min, so the UI was displaying stale spots between
+ * runs even though `sync-prices` had written fresh BYBIT/BINANCE
+ * quotes to Firestore every minute. The cockpit subscribes to
+ * `config/exchange_prices` and uses this helper to pick the right
+ * symbol per bot, falling back to BINANCE if BYBIT is missing.
+ *
+ * Shape of the doc (written by sync-prices via serializePrices):
+ *   { BYBIT: { BTCUSDT: 75276, ETHUSDT: 2065, ... }, BINANCE: {...}, ... }
+ */
+const BOT_PERP_SYMBOL: Record<string, string> = {
+  crypto: "BTCUSDT",
+  btc: "BTCUSDT",
+  eth: "ETHUSDT",
+  sol: "SOLUSDT",
+  xrp: "XRPUSDT",
+};
+
+export function liveSpotFromExchangePrices(
+  raw: Record<string, unknown> | null | undefined,
+  botId: string,
+): number | null {
+  if (!raw || typeof raw !== "object") return null;
+  const symbol = BOT_PERP_SYMBOL[botId];
+  if (!symbol) return null;
+  for (const venue of ["BYBIT", "BINANCE", "MEXC", "HYPERLIQUID"] as const) {
+    const venueMap = raw[venue];
+    if (venueMap && typeof venueMap === "object") {
+      const p = (venueMap as Record<string, unknown>)[symbol];
+      if (typeof p === "number" && Number.isFinite(p) && p > 0) return p;
+      if (typeof p === "string") {
+        const n = Number(p);
+        if (Number.isFinite(n) && n > 0) return n;
+      }
+    }
+  }
+  return null;
+}
+
 export function formatSpot(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
   if (n >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 0 });

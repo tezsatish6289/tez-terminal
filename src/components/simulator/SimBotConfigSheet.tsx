@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Activity, Globe, Loader2, Save, Sliders } from "lucide-react";
+import { Activity, Copy, Globe, Loader2, Save, Sliders } from "lucide-react";
+import { isAdminEmail } from "@/lib/admin-emails-client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -136,6 +137,8 @@ export function SimBotConfigSheet({
   const [publicLiveSaving, setPublicLiveSaving] = useState(false);
   const [publicLivePassphrase, setPublicLivePassphrase] = useState("");
   const [publicLiveError, setPublicLiveError] = useState<string | null>(null);
+  const [serverPassphrase, setServerPassphrase] = useState<string | null>(null);
+  const [passphraseConfigured, setPassphraseConfigured] = useState<boolean | null>(null);
 
   const apiBase = `/api/settings/sim-bot/${botId}`;
   const publicLiveApi = `${apiBase}/public-live`;
@@ -164,6 +167,32 @@ export function SimBotConfigSheet({
       })
       .catch(() => setLoading(false));
   }, [apiBase]);
+
+  useEffect(() => {
+    if (!sheetOpen || !user || !isAdminEmail(user.email)) {
+      setServerPassphrase(null);
+      setPassphraseConfigured(null);
+      return;
+    }
+    void (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch("/api/settings/public-live-meta", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = (await res.json()) as {
+          configured?: boolean;
+          passphrase?: string | null;
+        };
+        if (res.ok) {
+          setPassphraseConfigured(data.configured === true);
+          setServerPassphrase(data.passphrase ?? null);
+        }
+      } catch {
+        setPassphraseConfigured(false);
+      }
+    })();
+  }, [sheetOpen, user]);
 
   const status: CockpitBotStatus = settings
     ? isCrypto
@@ -293,7 +322,7 @@ export function SimBotConfigSheet({
           </label>
           <input
             id={`public-live-pass-${botId}`}
-            type="password"
+            type="text"
             autoComplete="off"
             autoFocus
             value={publicLivePassphrase}
@@ -310,6 +339,12 @@ export function SimBotConfigSheet({
             placeholder="Enter passphrase"
             className="w-full px-3 py-2.5 rounded-lg border border-white/25 bg-[#1a1f2e] text-sm font-mono text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-accent/50"
           />
+          {serverPassphrase && (
+            <p className="text-[10px] text-slate-400">
+              Use:{" "}
+              <code className="font-mono text-emerald-300 break-all">{serverPassphrase}</code>
+            </p>
+          )}
           {publicLiveError && (
             <p className="text-[11px] font-semibold text-rose-400">{publicLiveError}</p>
           )}
@@ -391,6 +426,35 @@ export function SimBotConfigSheet({
                   When on, {label} appears on freedombot.ai performance, records, and
                   deploy. Requires admin sign-in and passphrase to change.
                 </p>
+                {isAdminEmail(user?.email) && passphraseConfigured === false && (
+                  <p className="text-[9px] font-semibold text-amber-400/90 leading-relaxed">
+                    Server passphrase not set — add PUBLIC_LIVE_PASSPHRASE in Firebase App
+                    Hosting, then redeploy.
+                  </p>
+                )}
+                {isAdminEmail(user?.email) && serverPassphrase && (
+                  <div className="rounded-lg border border-white/15 bg-[#1a1f2e] px-3 py-2 space-y-1">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-slate-300">
+                      Passphrase to type
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-[11px] font-mono text-emerald-300 break-all">
+                        {serverPassphrase}
+                      </code>
+                      <button
+                        type="button"
+                        className="shrink-0 p-1.5 rounded-md border border-white/15 text-slate-300 hover:bg-white/10"
+                        title="Copy passphrase"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(serverPassphrase);
+                          setPublicLivePassphrase(serverPassphrase);
+                        }}
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   {([true, false] as const).map((live) => (
                     <button
@@ -399,6 +463,7 @@ export function SimBotConfigSheet({
                       disabled={publicLiveSaving}
                       onClick={() => {
                         if (settings.publicLive === live) return;
+                        if (serverPassphrase) setPublicLivePassphrase(serverPassphrase);
                         setPublicLiveDialog({ next: live });
                       }}
                       className={cn(

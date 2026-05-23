@@ -64,3 +64,7 @@ env:
     secret: LIQUIDITY_WS_SECRET
     availability:
       - RUNTIME
+  - variable: PUBLIC_LIVE_PASSPHRASE
+    secret: PUBLIC_LIVE_PASSPHRASE
+    availability:
+      - RUNTIME

@@ -41,14 +41,8 @@ export interface CockpitCompactRowProps {
 
 const POWER_DOT: Record<CockpitCardStatus["power"], string> = {
   on: "bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.55)]",
-  idle: "bg-amber-300/85 shadow-[0_0_8px_rgba(252,211,77,0.45)]",
-  off: "bg-rose-400/85 shadow-[0_0_8px_rgba(251,113,133,0.45)]",
-};
-
-const POWER_TEXT: Record<CockpitCardStatus["power"], string> = {
-  on: "text-emerald-300",
-  idle: "text-amber-200",
-  off: "text-rose-300",
+  idle: "bg-amber-300/90 shadow-[0_0_8px_rgba(252,211,77,0.45)]",
+  off: "bg-rose-400/90 shadow-[0_0_8px_rgba(251,113,133,0.45)]",
 };
 
 export function CockpitCompactRow({
@@ -91,13 +85,23 @@ export function CockpitCompactRow({
 
   const spot = spotFromSuggested(suggested);
   const ivPct = suggested?.atmIV != null ? suggested.atmIV * 100 : null;
-  const isModeOff = manualOverride === "OFF";
+
+  // Status hover title — the dot is now the only status cue on the row,
+  // so the full headline+detail moves into the tooltip for users who
+  // want the reason without clicking into the detail card. The same
+  // reason text is also rendered on the right pane's header so the
+  // info isn't lost — see HeatmapAssetCard.
+  const statusTitle = [cardStatus.bucketLabel, cardStatus.headline, cardStatus.detail]
+    .filter(Boolean)
+    .join(" — ");
 
   return (
     <button
       type="button"
       onClick={onSelect}
       aria-pressed={selected}
+      aria-label={`${label} — ${statusTitle}`}
+      title={statusTitle}
       className={cn(
         SIM_CARD,
         "w-full text-left px-3 py-2.5 space-y-1.5 transition-all",
@@ -106,20 +110,20 @@ export function CockpitCompactRow({
           : "hover:ring-1 hover:ring-white/15 hover:border-white/[0.18]",
       )}
     >
-      {/* Row 1 — title + mode badge */}
-      <div className="flex items-center justify-between gap-2 min-w-0">
-        <span className="text-[12px] font-black tracking-tight truncate text-foreground/95">
-          {label}
-        </span>
+      {/* Row 1 — status dot + title. The dot replaces the old AUTO/OFF
+          mode badge: green = ready/trading, amber = waiting, rose = off
+          (manual OFF, panic regime, no data, etc.). The reason text
+          moved to the right-pane detail card. */}
+      <div className="flex items-center gap-2 min-w-0">
         <span
           className={cn(
-            "shrink-0 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border",
-            isModeOff
-              ? "border-rose-400/30 bg-rose-500/10 text-rose-300"
-              : "border-emerald-400/30 bg-emerald-500/10 text-emerald-300",
+            "shrink-0 inline-block w-2 h-2 rounded-full",
+            POWER_DOT[cardStatus.power],
           )}
-        >
-          {isModeOff ? "OFF" : "AUTO"}
+          aria-hidden
+        />
+        <span className="text-[12px] font-black tracking-tight truncate text-foreground/95">
+          {label}
         </span>
       </div>
 
@@ -135,33 +139,7 @@ export function CockpitCompactRow({
         )}
       </div>
 
-      {/* Row 3 — status pill + truncated reason */}
-      <div className="flex items-center gap-1.5 min-w-0">
-        <span
-          className={cn(
-            "shrink-0 inline-block w-1.5 h-1.5 rounded-full",
-            POWER_DOT[cardStatus.power],
-          )}
-        />
-        <span
-          className={cn(
-            "shrink-0 text-[9px] font-black uppercase tracking-wider",
-            POWER_TEXT[cardStatus.power],
-          )}
-        >
-          {cardStatus.headline}
-        </span>
-        {cardStatus.detail && (
-          <>
-            <span className="shrink-0 text-muted-foreground/30">·</span>
-            <span className="text-[9px] text-muted-foreground/55 truncate">
-              {cardStatus.detail}
-            </span>
-          </>
-        )}
-      </div>
-
-      {/* Row 4 — live trades focus (the field a trader actually scans for) */}
+      {/* Row 3 — live trades focus (the field a trader actually scans for) */}
       <div className="flex items-center justify-between gap-2">
         {liveCount > 0 ? (
           <span className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-md border border-accent/35 bg-accent/[0.12] text-[9px] font-black uppercase tracking-wider text-accent">

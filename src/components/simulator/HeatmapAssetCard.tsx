@@ -6,12 +6,29 @@ import { useIsoTimeLabel } from "@/hooks/use-auto-refresh";
 import { cn } from "@/lib/utils";
 import type { CockpitBotId } from "@/lib/sim-cockpit-bots";
 import {
+  deriveCockpitCardStatus,
+  type CockpitCardStatus,
+} from "@/lib/cockpit-card-status";
+import {
   formatSpot,
   noClusterLine,
   spotFromSuggested,
   type SuggestedZonesSnapshot,
 } from "@/components/simulator/heatmap-types";
 import { SIM_CARD } from "@/components/simulator/simulator-surfaces";
+import type { ZoneBotDirection } from "@/lib/zone-bot-state";
+
+const POWER_DOT: Record<CockpitCardStatus["power"], string> = {
+  on: "bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.55)]",
+  idle: "bg-amber-300/90 shadow-[0_0_8px_rgba(252,211,77,0.45)]",
+  off: "bg-rose-400/90 shadow-[0_0_8px_rgba(251,113,133,0.45)]",
+};
+
+const POWER_TEXT: Record<CockpitCardStatus["power"], string> = {
+  on: "text-emerald-300",
+  idle: "text-amber-200",
+  off: "text-rose-300",
+};
 
 const ASSET_TAG: Record<CockpitBotId, string> = {
   crypto: "BTC",
@@ -26,10 +43,16 @@ export function HeatmapAssetCard({
   botId,
   label,
   suggested,
+  manualOverride,
+  engineReason,
+  engineDirection,
+  simEnabled,
+  botEngineLive,
   botLastRanAt,
   zonesRefreshedAt,
   capital,
   startingCapital,
+  liveCount,
   cs,
   settingsSlot,
   footerSlot,
@@ -39,6 +62,14 @@ export function HeatmapAssetCard({
   botId: CockpitBotId;
   label: string;
   suggested: SuggestedZonesSnapshot | null;
+  /** Status inputs — used by the dot+reason row in the header. The
+   *  left rail now shows only the dot (replaces the AUTO/OFF badge),
+   *  so the right pane owns the headline + detail commentary. */
+  manualOverride?: string | null;
+  engineReason?: string | null;
+  engineDirection?: ZoneBotDirection | null;
+  simEnabled?: boolean | null;
+  botEngineLive?: boolean;
   /** sync-simulator / sync-zone-bots last tick */
   botLastRanAt?: string | null;
   /** suggest-zones cron (Deribit OI snapshot) */
@@ -46,6 +77,8 @@ export function HeatmapAssetCard({
   capital: number;
   /** Seed capital — used for the Δ% pill in the header */
   startingCapital: number;
+  /** Open simulator trades — feeds the "Managing trade" status */
+  liveCount?: number;
   cs: string;
   settingsSlot?: React.ReactNode;
   /** Slot rendered inside the same card, below the BULL/BEAR section. Used
@@ -59,10 +92,36 @@ export function HeatmapAssetCard({
   const spot = spotFromSuggested(suggested);
   const ivPct = suggested?.atmIV != null ? suggested.atmIV * 100 : null;
 
-  // Δ% vs seed capital — shown in the header alongside the capital figure.
   const delta = capital - startingCapital;
   const deltaPct =
     startingCapital > 0 ? (delta / startingCapital) * 100 : 0;
+
+  // Same status derivation as the left-rail row — keeps the dot color
+  // identical on both sides of the master-detail layout. The headline
+  // + detail get rendered here instead of the rail.
+  const cardStatus = useMemo(
+    () =>
+      deriveCockpitCardStatus({
+        botId,
+        suggested,
+        manualOverride,
+        engineReason,
+        engineDirection,
+        simEnabled,
+        botEngineLive,
+        liveCount,
+      }),
+    [
+      botId,
+      suggested,
+      manualOverride,
+      engineReason,
+      engineDirection,
+      simEnabled,
+      botEngineLive,
+      liveCount,
+    ],
+  );
 
   return (
     <div
@@ -96,19 +155,25 @@ export function HeatmapAssetCard({
         onSelect && !selected && "hover:ring-1 hover:ring-white/20",
       )}
     >
-      {/* ── Header — one compact bar carrying everything the user
-           still wants visible at the top: identity (title + asset tag
-           + IV), bot health (capital + Δ%), freshness (last ran), and
-           the manual / config / auto controls.
+      {/* ── Header — three tight rows:
+           1) status dot + title + tags · mode buttons
+           2) capital + Δ% · updated time
+           3) status reason (one-liner that used to sit on the left rail)
 
-           Status banner, last-ran sub-bar and Capital/Live/Closed
-           three-up tile were all retired here: the status pill lives
-           on the left-rail row (visible whenever this card is
-           selected), and live/closed counts now ride as badges on
-           the Open / History tabs in the embedded footer below. */}
+           The dot mirrors the left rail's dot exactly (same color +
+           same status derivation). The reason text is what we just
+           pulled off the rail row — it gets full width here so it
+           never truncates mid-thought. */}
       <div className="shrink-0 px-3 pt-2.5 pb-2 border-b border-white/[0.1] bg-[#1c1c21]">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+            <span
+              className={cn(
+                "shrink-0 inline-block w-2 h-2 rounded-full",
+                POWER_DOT[cardStatus.power],
+              )}
+              aria-hidden
+            />
             <span className="text-[13px] font-black tracking-tight truncate">
               {label}
             </span>
@@ -151,6 +216,27 @@ export function HeatmapAssetCard({
             botLastRanAt={botLastRanAt}
             zonesRefreshedAt={zonesRefreshedAt}
           />
+        </div>
+        <div className="mt-1.5 flex items-center gap-1.5 min-w-0">
+          <span
+            className={cn(
+              "shrink-0 text-[9px] font-black uppercase tracking-widest",
+              POWER_TEXT[cardStatus.power],
+            )}
+          >
+            {cardStatus.headline}
+          </span>
+          {cardStatus.detail && (
+            <>
+              <span className="shrink-0 text-muted-foreground/35">·</span>
+              <span
+                className="text-[10px] text-muted-foreground/70 truncate min-w-0"
+                title={cardStatus.detail}
+              >
+                {cardStatus.detail}
+              </span>
+            </>
+          )}
         </div>
       </div>
 

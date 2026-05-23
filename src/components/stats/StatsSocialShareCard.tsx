@@ -2,9 +2,12 @@
 
 import Image from "next/image";
 
-/** LinkedIn landscape — 1200×720 */
 const CARD_W = 1200;
 const CARD_H = 720;
+const GREEN = "#34d399";
+const GREEN_GLOW = "0 0 28px rgba(52,211,153,0.55), 0 0 56px rgba(52,211,153,0.2)";
+const CARD_BG = "rgba(6,12,24,0.88)";
+const CARD_BORDER = "1px solid rgba(52,211,153,0.22)";
 
 function fmtMoneyUsd(val: number): string {
   if (!Number.isFinite(val)) return "$0.00";
@@ -27,6 +30,138 @@ function fmtRatio(n: number): string {
   return `${sign}${n.toFixed(2)}`;
 }
 
+function Panel({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`relative overflow-hidden rounded-2xl ${className}`}
+      style={{
+        background: CARD_BG,
+        border: CARD_BORDER,
+        backdropFilter: "blur(12px)",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Label({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="text-[12px] font-bold uppercase tracking-[0.14em] block mb-2"
+      style={{ color: "#94a3b8" }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function GlowValue({
+  children,
+  size = "lg",
+}: {
+  children: React.ReactNode;
+  size?: "xl" | "lg" | "md";
+}) {
+  const sizes = { xl: "56px", lg: "42px", md: "32px" };
+  return (
+    <span
+      className="font-black tabular-nums leading-none block"
+      style={{
+        fontSize: sizes[size],
+        color: GREEN,
+        textShadow: GREEN_GLOW,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** Decorative area fill inside Current Capital card only */
+function MiniEquitySparkline() {
+  return (
+    <svg
+      className="absolute bottom-0 left-0 right-0 h-[55%] w-full pointer-events-none"
+      viewBox="0 0 400 120"
+      preserveAspectRatio="none"
+      aria-hidden
+    >
+      <defs>
+        <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#34d399" stopOpacity="0.45" />
+          <stop offset="100%" stopColor="#34d399" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M0,90 L40,85 L90,70 L140,75 L200,50 L260,45 L320,30 L400,15 L400,120 L0,120 Z"
+        fill="url(#sparkFill)"
+      />
+      <path
+        d="M0,90 L40,85 L90,70 L140,75 L200,50 L260,45 L320,30 L400,15"
+        fill="none"
+        stroke="#34d399"
+        strokeWidth="2.5"
+        opacity="0.7"
+      />
+    </svg>
+  );
+}
+
+function SharpeGauge({ value }: { value: number }) {
+  const clamped = Math.min(Math.max(value, 0), 4);
+  const pct = clamped / 4;
+  const r = 58;
+  const c = 2 * Math.PI * r;
+  const dash = pct * c * 0.75;
+  return (
+    <div className="flex flex-col items-center justify-center flex-1 py-2">
+      <svg width="150" height="150" viewBox="0 0 150 150" className="drop-shadow-[0_0_12px_rgba(52,211,153,0.4)]">
+        <circle
+          cx="75"
+          cy="75"
+          r={r}
+          fill="none"
+          stroke="rgba(52,211,153,0.15)"
+          strokeWidth="10"
+          strokeLinecap="round"
+          transform="rotate(135 75 75)"
+          strokeDasharray={`${c * 0.75} ${c}`}
+        />
+        <circle
+          cx="75"
+          cy="75"
+          r={r}
+          fill="none"
+          stroke="#34d399"
+          strokeWidth="10"
+          strokeLinecap="round"
+          transform="rotate(135 75 75)"
+          strokeDasharray={`${dash} ${c}`}
+          style={{ filter: "drop-shadow(0 0 8px rgba(52,211,153,0.6))" }}
+        />
+        <text
+          x="75"
+          y="82"
+          textAnchor="middle"
+          fill="#34d399"
+          fontSize="28"
+          fontWeight="800"
+          style={{ textShadow: "0 0 12px rgba(52,211,153,0.5)" }}
+        >
+          {fmtRatio(value)}
+        </text>
+      </svg>
+    </div>
+  );
+}
+
 function CinematicBackground() {
   return (
     <div className="absolute inset-0 overflow-hidden" aria-hidden>
@@ -34,123 +169,28 @@ function CinematicBackground() {
         className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(ellipse 120% 80% at 50% 120%, #1e3a5f 0%, #0a1628 35%, #050810 70%, #020408 100%)",
+            "radial-gradient(ellipse 100% 90% at 50% 110%, #0f2847 0%, #060d18 45%, #030508 100%)",
         }}
       />
       <div
-        className="absolute -right-[10%] top-[5%] w-[55%] h-[70%] opacity-70"
-        style={{
-          background:
-            "radial-gradient(ellipse at 60% 40%, rgba(139,92,246,0.45) 0%, rgba(59,130,246,0.25) 35%, transparent 70%)",
-          filter: "blur(40px)",
-        }}
-      />
-      <div
-        className="absolute -left-[15%] bottom-[10%] w-[50%] h-[50%] opacity-50"
-        style={{
-          background:
-            "radial-gradient(ellipse at 40% 60%, rgba(96,165,250,0.35) 0%, transparent 65%)",
-          filter: "blur(50px)",
-        }}
-      />
-      <div
-        className="absolute bottom-0 left-0 right-0 h-[38%]"
-        style={{
-          background:
-            "radial-gradient(ellipse 90% 100% at 50% 100%, rgba(59,130,246,0.35) 0%, rgba(15,23,42,0.6) 45%, transparent 72%)",
-        }}
-      />
-      <div
-        className="absolute inset-0 opacity-60"
+        className="absolute inset-0 opacity-50"
         style={{
           backgroundImage: `
-            radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.9) 0%, transparent 100%),
-            radial-gradient(1px 1px at 25% 65%, rgba(255,255,255,0.7) 0%, transparent 100%),
-            radial-gradient(1.5px 1.5px at 40% 15%, rgba(255,255,255,0.85) 0%, transparent 100%),
-            radial-gradient(1px 1px at 55% 45%, rgba(255,255,255,0.6) 0%, transparent 100%),
-            radial-gradient(1px 1px at 70% 25%, rgba(255,255,255,0.75) 0%, transparent 100%),
-            radial-gradient(1.5px 1.5px at 85% 55%, rgba(255,255,255,0.8) 0%, transparent 100%),
-            radial-gradient(1px 1px at 92% 12%, rgba(255,255,255,0.65) 0%, transparent 100%),
-            radial-gradient(1px 1px at 15% 88%, rgba(255,255,255,0.5) 0%, transparent 100%),
-            radial-gradient(1px 1px at 48% 78%, rgba(255,255,255,0.55) 0%, transparent 100%),
-            radial-gradient(1px 1px at 78% 82%, rgba(255,255,255,0.45) 0%, transparent 100%)
+            radial-gradient(1px 1px at 12% 18%, rgba(255,255,255,0.8) 0%, transparent 100%),
+            radial-gradient(1px 1px at 78% 22%, rgba(255,255,255,0.6) 0%, transparent 100%),
+            radial-gradient(1.5px 1.5px at 45% 8%, rgba(255,255,255,0.7) 0%, transparent 100%),
+            radial-gradient(1px 1px at 88% 70%, rgba(255,255,255,0.45) 0%, transparent 100%)
           `,
         }}
       />
-      <svg className="absolute left-[4%] bottom-[12%] w-32 h-52 opacity-25" viewBox="0 0 80 140" fill="none">
-        <path d="M40 10 L48 90 L40 130 L32 90 Z" fill="#94a3b8" />
-        <ellipse cx="40" cy="125" rx="18" ry="28" fill="#f97316" opacity="0.6" />
-      </svg>
-      <svg className="absolute right-[5%] bottom-[14%] w-28 h-44 opacity-20" viewBox="0 0 80 140" fill="none">
-        <path d="M40 10 L48 90 L40 130 L32 90 Z" fill="#64748b" />
-        <ellipse cx="40" cy="125" rx="16" ry="24" fill="#fb923c" opacity="0.5" />
-      </svg>
-      <div className="absolute inset-0" style={{ boxShadow: "inset 0 0 100px rgba(0,0,0,0.5)" }} />
-    </div>
-  );
-}
-
-function KpiTile({
-  label,
-  value,
-  sub,
-  valueColor = "#f0f4ff",
-  badge,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  valueColor?: string;
-  badge?: { text: string; tone: "live" | "projected" };
-}) {
-  return (
-    <div
-      className="flex flex-col justify-between rounded-2xl px-4 py-5 h-full min-h-[168px]"
-      style={{
-        background: "rgba(8,15,30,0.82)",
-        border: "1px solid rgba(96,165,250,0.22)",
-        backdropFilter: "blur(10px)",
-      }}
-    >
-      <span
-        className="text-[11px] font-bold uppercase tracking-widest leading-tight"
-        style={{ color: "#94a3b8" }}
-      >
-        {label}
-      </span>
-      <span
-        className="text-[34px] font-black tabular-nums leading-none tracking-tight my-2"
-        style={{ color: valueColor }}
-      >
-        {value}
-      </span>
-      <div className="flex flex-col gap-1.5">
-        {sub && (
-          <span className="text-[11px] font-medium leading-snug" style={{ color: "#64748b" }}>
-            {sub}
-          </span>
-        )}
-        {badge && (
-          <span
-            className="text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-md w-fit"
-            style={
-              badge.tone === "live"
-                ? {
-                    backgroundColor: "rgba(34,197,94,0.22)",
-                    color: "#34d399",
-                    border: "1px solid rgba(34,197,94,0.4)",
-                  }
-                : {
-                    backgroundColor: "rgba(251,191,36,0.18)",
-                    color: "#fbbf24",
-                    border: "1px solid rgba(251,191,36,0.35)",
-                  }
-            }
-          >
-            {badge.text}
-          </span>
-        )}
-      </div>
+      <div
+        className="absolute -right-[5%] top-0 w-[45%] h-[60%] opacity-40"
+        style={{
+          background:
+            "radial-gradient(ellipse at 50% 50%, rgba(139,92,246,0.4) 0%, transparent 70%)",
+          filter: "blur(60px)",
+        }}
+      />
     </div>
   );
 }
@@ -182,12 +222,7 @@ export function StatsSocialShareCard({
   sharpeRatio,
   botSubtitle,
 }: StatsSocialShareCardProps) {
-  const headline = botSubtitle
-    ? `${botSubtitle} · Day ${runningDays}`
-    : `Day ${runningDays}`;
-
-  const positive = currentCapital >= startingCapital;
-  const green = "#34d399";
+  const pnlPositive = pnlUsd >= 0;
 
   return (
     <div
@@ -200,99 +235,149 @@ export function StatsSocialShareCard({
     >
       <CinematicBackground />
 
-      <div className="relative z-10 flex flex-col h-full px-8 py-7">
-        {/* Header — brand once (logo + .ai), headline without repeating FreedomBot */}
-        <div className="flex items-center justify-between gap-6 mb-6 shrink-0">
-          <div className="flex items-center gap-4">
+      <div className="relative z-10 flex flex-col h-full p-7 gap-4">
+        {/* Header */}
+        <div className="flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
             <Image
               src="/freedombot/icon.png"
               alt="FreedomBot"
-              width={56}
-              height={56}
-              className="rounded-2xl shadow-lg shadow-blue-500/25"
+              width={52}
+              height={52}
+              className="rounded-xl"
             />
-            <span className="text-[32px] font-black tracking-tight" style={{ color: "#f0f4ff" }}>
+            <span className="text-[30px] font-black tracking-tight" style={{ color: "#f8fafc" }}>
               FreedomBot<span style={{ color: "#60a5fa" }}>.ai</span>
             </span>
           </div>
-          <h1
-            className="text-[38px] font-black tracking-tight text-right leading-none"
-            style={{ color: "#ffffff" }}
-          >
-            {headline}
-          </h1>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <span className="text-[32px] font-black leading-none" style={{ color: "#f8fafc" }}>
+                Day {runningDays}
+              </span>
+              {botSubtitle && (
+                <span
+                  className="block text-[13px] font-semibold mt-1"
+                  style={{ color: "#64748b" }}
+                >
+                  {botSubtitle}
+                </span>
+              )}
+            </div>
+            <span
+              className="text-[13px] font-black uppercase tracking-wider px-4 py-2 rounded-full"
+              style={{
+                color: GREEN,
+                backgroundColor: "rgba(34,197,94,0.15)",
+                border: `1px solid rgba(52,211,153,0.45)`,
+                boxShadow: "0 0 16px rgba(52,211,153,0.25)",
+              }}
+            >
+              Live
+            </span>
+          </div>
         </div>
 
-        {/* Six KPIs — fill vertical space */}
-        <div className="grid grid-cols-6 gap-3 flex-1 min-h-0 mb-4">
-          <KpiTile
-            label="Running"
-            value={`${runningDays} Day${runningDays !== 1 ? "s" : ""}`}
-            sub="simulator active"
-            badge={{ text: "Live", tone: "live" }}
-          />
-          <KpiTile
-            label="Starting Capital"
-            value={fmtMoneyUsd(startingCapital)}
-            sub="initial investment"
-          />
-          <KpiTile
-            label="Current Capital"
-            value={fmtMoneyUsd(currentCapital)}
-            sub={`${pnlUsd >= 0 ? "+" : ""}${fmtMoneyUsd(pnlUsd)} overall`}
-            valueColor={positive ? green : "#f87171"}
-          />
-          <KpiTile
-            label="Total Return"
-            value={fmtPct(totalReturnPct)}
-            sub={`across ${runningDays} day${runningDays !== 1 ? "s" : ""}`}
-            valueColor={totalReturnPct >= 0 ? green : "#f87171"}
-          />
-          <KpiTile
-            label="Monthly Return"
-            value={fmtPct(monthlyReturnPct)}
-            sub={monthlyIsProjected ? `from ${runningDays}-day track` : "this calendar month"}
-            valueColor={monthlyReturnPct >= 0 ? green : "#f87171"}
-            badge={monthlyIsProjected ? { text: "Projected", tone: "projected" } : undefined}
-          />
-          <KpiTile
-            label="Annualized Return"
-            value={fmtPct(yearlyReturnPct)}
-            sub={yearlyIsProjected ? `from ${runningDays}-day track` : "actual 12-month"}
-            valueColor={yearlyReturnPct >= 0 ? green : "#f87171"}
-            badge={yearlyIsProjected ? { text: "Projected", tone: "projected" } : undefined}
-          />
-        </div>
-
-        {/* Sharpe */}
+        {/* Bento body */}
         <div
-          className="flex items-center justify-between rounded-2xl px-8 py-6 mb-4 shrink-0"
+          className="flex-1 grid gap-3 min-h-0"
           style={{
-            background: "rgba(8,15,30,0.85)",
-            border: "1px solid rgba(52,211,153,0.3)",
-            backdropFilter: "blur(10px)",
+            gridTemplateColumns: "248px 1fr",
+            gridTemplateRows: "1fr 196px",
           }}
         >
-          <span
-            className="text-[14px] font-bold uppercase tracking-widest"
-            style={{ color: "#94a3b8" }}
-          >
-            Sharpe Ratio
-          </span>
-          <span
-            className="text-[52px] font-black tabular-nums leading-none"
-            style={{ color: green }}
-          >
-            {sharpeRatio != null ? fmtRatio(sharpeRatio) : "—"}
-          </span>
+          {/* Left column — Running + Starting */}
+          <div className="flex flex-col gap-3 row-span-2 min-h-0">
+            <Panel className="flex-1 flex flex-col justify-center px-6 py-5">
+              <div
+                className="absolute inset-0 opacity-20 pointer-events-none"
+                style={{
+                  background:
+                    "radial-gradient(ellipse at 50% 100%, rgba(52,211,153,0.3) 0%, transparent 70%)",
+                }}
+              />
+              <Label>Running</Label>
+              <GlowValue size="xl">{runningDays}</GlowValue>
+              <span className="text-[22px] font-bold mt-1" style={{ color: "#e2e8f0" }}>
+                Days
+              </span>
+            </Panel>
+            <Panel className="flex flex-col justify-center px-6 py-5">
+              <Label>Starting Capital</Label>
+              <span className="text-[36px] font-black tabular-nums leading-none text-white">
+                {fmtMoneyUsd(startingCapital)}
+              </span>
+              <span className="text-[12px] font-medium mt-2" style={{ color: "#64748b" }}>
+                Initial investment
+              </span>
+            </Panel>
+          </div>
+
+          {/* Current capital — hero */}
+          <Panel className="flex flex-col justify-between px-8 py-6 min-h-0">
+            <MiniEquitySparkline />
+            <div className="relative z-10">
+              <Label>Current Capital</Label>
+              <GlowValue size="xl">{fmtMoneyUsd(currentCapital)}</GlowValue>
+              <p className="text-[18px] font-bold mt-3 tabular-nums" style={{ color: GREEN }}>
+                {pnlPositive ? "+" : ""}
+                {fmtMoneyUsd(pnlUsd)} overall ({fmtPct(totalReturnPct)})
+              </p>
+            </div>
+          </Panel>
+
+          {/* Bottom row */}
+          <div className="grid grid-cols-[220px_1fr] gap-3 min-h-0">
+            <Panel className="flex flex-col px-4 py-3">
+              <Label>Sharpe Ratio</Label>
+              {sharpeRatio != null ? (
+                <SharpeGauge value={sharpeRatio} />
+              ) : (
+                <span className="text-3xl font-black text-center py-8" style={{ color: GREEN }}>
+                  —
+                </span>
+              )}
+            </Panel>
+
+            <Panel className="flex flex-col px-6 py-5 justify-between">
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <Label>Total Return</Label>
+                  <GlowValue size="md">{fmtPct(totalReturnPct)}</GlowValue>
+                </div>
+                <div>
+                  <Label>Monthly Return</Label>
+                  <GlowValue size="md">{fmtPct(monthlyReturnPct)}</GlowValue>
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-white/[0.08]">
+                <div className="flex items-center gap-3 mb-2">
+                  <Label>Annualized Return</Label>
+                  {yearlyIsProjected && (
+                    <span
+                      className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md"
+                      style={{
+                        color: "#94a3b8",
+                        backgroundColor: "rgba(255,255,255,0.06)",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                      }}
+                    >
+                      Projected
+                    </span>
+                  )}
+                </div>
+                <GlowValue size="lg">{fmtPct(yearlyReturnPct)}</GlowValue>
+              </div>
+            </Panel>
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="text-center space-y-2 shrink-0">
-          <p className="text-[18px] font-bold leading-snug" style={{ color: "#f0f4ff" }}>
+        <div className="text-center shrink-0 pt-1">
+          <p className="text-[17px] font-bold leading-snug" style={{ color: "#f1f5f9" }}>
             Transparent performance. Verifiable trades. You stay in control.
           </p>
-          <p className="text-[14px] font-semibold" style={{ color: "#64748b" }}>
+          <p className="text-[13px] font-semibold mt-1.5" style={{ color: "#64748b" }}>
             Available on Bybit · CoinDCX · Hyperliquid
           </p>
         </div>

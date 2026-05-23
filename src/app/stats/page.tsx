@@ -75,7 +75,7 @@ export default function StatsPage() {
                 </Link>
               ) : (
                 <span className="text-[11px] font-medium" style={{ color: "#64748b" }}>
-                  Screenshot this card for LinkedIn (1200×675) · use bot filter before toggling for per-bot stats
+                  Screenshot this card for LinkedIn (1200×720) · pick bot filter first for per-bot stats
                 </span>
               )}
 

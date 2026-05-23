@@ -412,11 +412,14 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
         <StatsSocialShareCard
           runningDays={runningDays}
           startingCapital={simState.startingCapital}
+          currentCapital={derivedCapital}
           totalReturnPct={totalReturn}
           pnlUsd={pnlUsd}
           monthlyReturnPct={monthlyPnl.pct}
           monthlyIsProjected={monthlyPnl.isProjected}
-          metrics={riskMetrics}
+          yearlyReturnPct={yearlyPnl.pct}
+          yearlyIsProjected={yearlyPnl.isProjected}
+          sharpeRatio={riskMetrics?.sharpeRatio ?? null}
           botSubtitle={shareBotSubtitle}
         />
       </div>

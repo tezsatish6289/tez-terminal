@@ -9,6 +9,7 @@ import {
   protectiveClose,
   cancelResidualExitOrders,
   type LiveTrade,
+  type LiveTradeEvent,
   type Credentials,
 } from "@/lib/trade-engine";
 import { type SimTrade } from "@/lib/simulator";
@@ -421,8 +422,99 @@ async function syncUserTrades(
     // so live_trade.status stays OPEN and we retry on the next cron cycle
     // (the sim doc still shows CLOSED).
     const openForSimSync = liveTrades.filter((t) => t.status === "OPEN" && !!t.simTradeId);
+
+    // ── Orphan pre-check ────────────────────────────────────
+    // Before any close retry, ask the exchange which symbols actually have
+    // an open position. If our Firestore row says OPEN but the venue says
+    // "no position", we short-circuit to SYNCED_FROM_EXCHANGE instead of
+    // calling protectiveClose against a phantom. Closes two real failure
+    // modes that previously looped forever (and on some venues could
+    // OPEN a reverse position):
+    //   (a) previous close cycle filled on the venue but the Firestore
+    //       update failed (network blip, write contention, etc.)
+    //   (b) the user manually closed the position via the exchange's UI
+    // Bybit and Hyperliquid are already safe via `reduceOnly`, and the
+    // CoinDCX connector pre-checks `active_pos` before calling
+    // `/positions/exit`. This block adds defence-in-depth for venues
+    // without those guards (Dhan F&O places a plain side-flipped market
+    // order; MEXC's reduceOnly behaviour is unverified) and standardises
+    // the cleanup path across all exchanges.
+    //
+    // Soft-fail: if `getPositions` itself errors (exchange API down,
+    // rate-limit, etc.) we skip the pre-check and stay on the legacy
+    // protectiveClose path — never block the close on a position-query
+    // outage.
+    const connector = getConnector(exchange);
+    let venueOpenSymbols: Set<string> | null = null;
+    if (openForSimSync.length > 0) {
+      try {
+        const positions = await connector.getPositions(creds);
+        venueOpenSymbols = new Set(
+          positions
+            .filter((p) => Math.abs(parseFloat(p.positionAmt || "0")) > 1e-12)
+            .map((p) => p.symbol),
+        );
+      } catch (e) {
+        console.warn(
+          `[LiveSync] getPositions(${exchange}) failed; orphan pre-check skipped this tick:`,
+          e instanceof Error ? e.message : String(e),
+        );
+      }
+    }
+
     for (const lt of openForSimSync) {
       try {
+        // Orphan short-circuit: venue confirms no open position for this
+        // symbol → mark Firestore CLOSED with SYNCED_FROM_EXCHANGE and
+        // skip the protectiveClose call entirely. See the "Orphan
+        // pre-check" comment block above the loop for the why.
+        if (venueOpenSymbols && !venueOpenSymbols.has(lt.symbol)) {
+          const cleanup = await cancelResidualExitOrders(connector, lt.symbol, creds);
+          const residualPending = !cleanup.success;
+          const nowIso = new Date().toISOString();
+          const syncedEvent: LiveTradeEvent = {
+            type: "SYNCED_FROM_EXCHANGE",
+            price: getPrice(allPrices, lt.signalSymbol, exchange) ?? lt.entryPrice,
+            pnl: 0,
+            fee: 0,
+            closePct: 0,
+            quantity: lt.remainingQty,
+            orderId: null,
+            timestamp: nowIso,
+          };
+          const syncedEvents = [...(lt.events || []), syncedEvent];
+          const syncedAggBefore: TradeAggregateSnapshot = { ...lt };
+          const syncedPatch = {
+            status: "CLOSED" as const,
+            closedAt: nowIso,
+            closeReason: "SYNCED_FROM_EXCHANGE",
+            residualOrdersPendingCleanup: residualPending,
+            slOrderId: null,
+            tp1OrderId: null,
+            tp2OrderId: null,
+            tp3OrderId: null,
+            events: syncedEvents,
+          };
+          await db.collection("live_trades").doc(lt.id!).update(syncedPatch);
+          await applyTradeChangeToAggregates(db, syncedAggBefore, {
+            ...syncedAggBefore,
+            ...syncedPatch,
+          });
+          await db.collection("live_trade_logs").add({
+            timestamp: nowIso,
+            action: "SYNCED_FROM_EXCHANGE",
+            details: `${lt.signalSymbol} ${lt.side} reconciled — venue shows no open position. Likely closed via the exchange UI or by a previous cycle whose Firestore write failed. Skipped protectiveClose to avoid a phantom (reverse) order.`,
+            symbol: lt.signalSymbol,
+            userId,
+            exchange,
+            assetType: exchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
+          });
+          Object.assign(lt, syncedPatch);
+          result.simCloseSynced++;
+          await reconcileClosedTradePnlBestEffort(db, lt.id!, lt, exchange, creds);
+          continue;
+        }
+
         const simDoc = await db.collection("simulator_trades").doc(lt.simTradeId!).get();
 
         // If the sim trade no longer exists, the live trade is orphaned — close it.

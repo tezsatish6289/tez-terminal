@@ -98,7 +98,13 @@ export interface LiveTradeEvent {
     | "PATTERN_BREAK"
     | "ZONE_BOT_FLIP"
     | "ZONE_BOT_FLIP_BLOCKED"
-    | "ZONE_FLIP";
+    | "ZONE_FLIP"
+    // Written by the retry net (sync-live-trades) and admin reconcile
+    // endpoints when the exchange shows no open position but Firestore
+    // still says OPEN. NOT a strategy decision; means our books are
+    // catching up to the venue. Used for audit trail; aggregates treat
+    // it as "manual" (see classifyCloseReason in /simulation page).
+    | "SYNCED_FROM_EXCHANGE";
   price: number;
   pnl: number;
   fee: number;

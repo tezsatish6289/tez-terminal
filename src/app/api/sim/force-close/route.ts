@@ -13,7 +13,9 @@ import {
 } from "@/lib/simulator";
 import {
   protectiveClose,
+  cancelResidualExitOrders,
   type LiveTrade,
+  type LiveTradeEvent,
   type Credentials,
 } from "@/lib/trade-engine";
 import { decrypt } from "@/lib/crypto";
@@ -22,9 +24,14 @@ import {
   deserializePrices,
   getSecretDocIds,
   docMatchesExchange,
+  getConnector,
   type AllExchangePrices,
   type ExchangeName,
 } from "@/lib/exchanges";
+import {
+  applyTradeChangeToAggregates,
+  type TradeAggregateSnapshot,
+} from "@/lib/freedombot/aggregates";
 import { markTradeForBlockchain } from "@/lib/blockchain-logger";
 
 export const dynamic = "force-dynamic";
@@ -114,6 +121,74 @@ async function closeSingleMirror(
 
     const livePrice =
       getPrice(allPrices, lt.signalSymbol, ltExchange) ?? fallbackPrice;
+
+    // Orphan pre-check: ask the exchange whether the position is still
+    // open before we issue a close. If the venue already has zero size
+    // we short-circuit to SYNCED_FROM_EXCHANGE — kill-switch's user
+    // intent ("no open position") is already satisfied, and we avoid
+    // a phantom close that on some connectors (Dhan F&O places a plain
+    // side-flipped market order; MEXC reduce-only behaviour is
+    // unverified) could OPEN a reverse position. Bybit, Hyperliquid,
+    // and CoinDCX already guard against this at the connector level;
+    // this check standardises the safety across every exchange.
+    //
+    // Soft-fail: if the position query itself errors we fall through
+    // to the legacy protectiveClose path rather than blocking the
+    // kill switch on a position-API outage.
+    try {
+      const connector = getConnector(ltExchange as ExchangeName);
+      const livePos = await connector.getPosition(lt.symbol, creds);
+      const venueQty = livePos ? Math.abs(parseFloat(livePos.positionAmt || "0")) : 0;
+      if (!livePos || venueQty < 1e-12) {
+        const cleanup = await cancelResidualExitOrders(connector, lt.symbol, creds);
+        const residualPending = !cleanup.success;
+        const nowIso = new Date().toISOString();
+        const syncedEvent: LiveTradeEvent = {
+          type: "SYNCED_FROM_EXCHANGE",
+          price: livePrice,
+          pnl: 0,
+          fee: 0,
+          closePct: 0,
+          quantity: lt.remainingQty,
+          orderId: null,
+          timestamp: nowIso,
+        };
+        const syncedEvents = [...(lt.events || []), syncedEvent];
+        const syncedAggBefore: TradeAggregateSnapshot = { ...lt };
+        const syncedPatch = {
+          status: "CLOSED" as const,
+          closedAt: nowIso,
+          closeReason: "SYNCED_FROM_EXCHANGE",
+          residualOrdersPendingCleanup: residualPending,
+          slOrderId: null,
+          tp1OrderId: null,
+          tp2OrderId: null,
+          tp3OrderId: null,
+          events: syncedEvents,
+        };
+        await db.collection("live_trades").doc(liveDocId).update(syncedPatch);
+        await applyTradeChangeToAggregates(db, syncedAggBefore, {
+          ...syncedAggBefore,
+          ...syncedPatch,
+        });
+        await db.collection("live_trade_logs").add({
+          timestamp: nowIso,
+          action: "SYNCED_FROM_EXCHANGE",
+          details: `${lt.signalSymbol} ${lt.side} reconciled (sim cascade) — venue shows no open position. Skipped protectiveClose to avoid phantom reverse order.`,
+          symbol: lt.signalSymbol,
+          userId,
+          exchange: ltExchange,
+          assetType: ltExchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
+        });
+        return { ok: true, exchange: ltExchange, userId };
+      }
+    } catch (preErr) {
+      console.warn(
+        `[ForceClose] orphan pre-check failed for ${lt.signalSymbol} [${ltExchange}]; falling through to protectiveClose:`,
+        preErr instanceof Error ? preErr.message : String(preErr),
+      );
+    }
+
     const closeResult = await protectiveClose(lt, "KILL_SWITCH", livePrice, creds);
 
     if (closeResult.updatedFields.status === "CLOSED") {

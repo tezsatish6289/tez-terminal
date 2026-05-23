@@ -16,7 +16,7 @@ import {
   spotFromSuggested,
   type SuggestedZonesSnapshot,
 } from "@/components/simulator/heatmap-types";
-import { SIM_CARD, SIM_INSET_TILE } from "@/components/simulator/simulator-surfaces";
+import { SIM_CARD } from "@/components/simulator/simulator-surfaces";
 import type { ZoneBotDirection } from "@/lib/zone-bot-state";
 
 const ASSET_TAG: Record<CockpitBotId, string> = {
@@ -156,10 +156,6 @@ export function HeatmapAssetCard({
             </div>
           )}
         </div>
-
-        <p className="text-[12px] font-mono font-bold text-foreground/85 mt-2 tabular-nums leading-none">
-          ${formatSpot(spot)}
-        </p>
       </div>
 
       {/* ── Unified status (one hierarchy) ── */}
@@ -197,23 +193,20 @@ export function HeatmapAssetCard({
         />
       </div>
 
-      {/* ── Body: fixed slots (alert · max pain · zones · footer) ── */}
-      <div className="flex-1 flex flex-col px-3 py-2.5 gap-2 min-h-0">
+      {/* ── Body: single-column scannable stat rows ──
+           price · today MP · D+1 MP · D+2 MP · bull · bear */}
+      <div className="flex-1 flex flex-col min-h-0">
         {!suggested ? (
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex-1 flex items-center justify-center px-3 py-6">
             <p className="text-[10px] text-muted-foreground/40 text-center">
               Tap Refresh all to load zones
             </p>
           </div>
         ) : (
           <>
-            <MaxPainDays entries={maxPainDays} />
-            <div className="grid grid-cols-2 gap-2 min-h-[100px]">
-              <ZoneClusterTile side="bull" suggested={suggested} />
-              <ZoneClusterTile side="bear" suggested={suggested} />
-            </div>
+            <ZoneStatRows suggested={suggested} spot={spot} />
             {suggested.halfWidthUsd != null && (
-              <p className="shrink-0 text-[9px] text-center text-muted-foreground/35 font-mono h-4 leading-4">
+              <p className="shrink-0 text-[9px] text-center text-muted-foreground/35 font-mono px-3 py-2">
                 ±${Math.round(suggested.halfWidthUsd)} half-width
               </p>
             )}
@@ -369,61 +362,238 @@ function CardStatusBar({ status }: { status: CockpitCardStatus }) {
   );
 }
 
-function MaxPainDays({
-  entries,
+/**
+ * Single-column scannable stat table — replaces the older 3-row max-pain
+ * tile + 2-col bull/bear grid. Each row is one horizontal line with a
+ * label on the left and the value (+ optional Δ-vs-spot or OI detail)
+ * on the right, so the eye runs top-to-bottom without jumping columns.
+ *
+ * Rows:  Price → Today MP → D+1 MP → D+2 MP → Bull zone → Bear zone
+ */
+function ZoneStatRows({
+  suggested,
+  spot,
 }: {
-  entries: NonNullable<SuggestedZonesSnapshot["maxPainByExpiry"]>;
+  suggested: SuggestedZonesSnapshot;
+  spot: number | null;
 }) {
-  if (entries.length === 0) {
-    return (
-      <div className="shrink-0 rounded-lg border border-white/[0.06] bg-white/[0.02] px-2 py-1.5 h-8 flex items-center justify-center">
-        <span className="text-[9px] text-muted-foreground/25">Max pain —</span>
+  const maxPainDays = suggested.maxPainByExpiry ?? [];
+  const day0 = maxPainDays.find((e) => e.dayIndex === 0);
+  const day1 = maxPainDays.find((e) => e.dayIndex === 1);
+  const day2 = maxPainDays.find((e) => e.dayIndex === 2);
+
+  return (
+    <div className="divide-y divide-white/[0.05]">
+      {/* anchor row — spot price for the bot's perp */}
+      <StatRow
+        label="Price"
+        value={spot != null ? `$${formatSpot(spot)}` : "—"}
+        emphasis
+      />
+
+      <MaxPainRow label="Today max pain" entry={day0 ?? null} spot={spot} accent />
+      <MaxPainRow label="D+1 max pain" entry={day1 ?? null} spot={spot} />
+      <MaxPainRow label="D+2 max pain" entry={day2 ?? null} spot={spot} />
+
+      <ZoneRow side="bull" suggested={suggested} />
+      <ZoneRow side="bear" suggested={suggested} />
+    </div>
+  );
+}
+
+function StatRow({
+  label,
+  value,
+  detail,
+  emphasis,
+  className,
+}: {
+  label: React.ReactNode;
+  value: React.ReactNode;
+  /** Right-aligned secondary text (Δ vs spot, OI %, etc.) */
+  detail?: React.ReactNode;
+  /** Bigger / brighter primary value for the anchor (Price) row */
+  emphasis?: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "px-3 py-2 flex items-center justify-between gap-3 min-w-0",
+        className,
+      )}
+    >
+      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/55 shrink-0 min-w-[6.5rem]">
+        {label}
+      </span>
+      <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
+        <span
+          className={cn(
+            "font-mono font-bold tabular-nums truncate text-right",
+            emphasis
+              ? "text-[13px] text-foreground"
+              : "text-[11px] text-foreground/85",
+          )}
+        >
+          {value}
+        </span>
+        {detail && (
+          <span className="text-[9px] font-mono text-muted-foreground/50 tabular-nums shrink-0">
+            {detail}
+          </span>
+        )}
       </div>
+    </div>
+  );
+}
+
+function MaxPainRow({
+  label,
+  entry,
+  spot,
+  accent,
+}: {
+  label: string;
+  entry: NonNullable<SuggestedZonesSnapshot["maxPainByExpiry"]>[number] | null;
+  spot: number | null;
+  /** Today's row gets the accent tint (the magnet that matters most) */
+  accent?: boolean;
+}) {
+  if (!entry) {
+    return (
+      <StatRow
+        label={label}
+        value={<span className="text-muted-foreground/35">—</span>}
+      />
+    );
+  }
+  const mp = entry.maxPain;
+  let detail: React.ReactNode = null;
+  if (spot != null && spot > 0) {
+    const deltaPct = ((mp - spot) / spot) * 100;
+    const above = deltaPct >= 0;
+    detail = (
+      <span
+        className={cn(above ? "text-emerald-300/70" : "text-rose-300/70")}
+      >
+        {above ? "+" : ""}
+        {deltaPct.toFixed(1)}% {above ? "above" : "below"}
+      </span>
+    );
+  }
+  return (
+    <StatRow
+      label={
+        <span className={cn(accent && "text-accent/70")}>{label}</span>
+      }
+      value={
+        <span className={cn(accent && "text-accent")}>
+          ${mp.toLocaleString()}
+        </span>
+      }
+      detail={detail}
+      className={cn(accent && "bg-accent/[0.04]")}
+    />
+  );
+}
+
+function ZoneRow({
+  side,
+  suggested,
+}: {
+  side: "bull" | "bear";
+  suggested: SuggestedZonesSnapshot;
+}) {
+  const isBull = side === "bull";
+  const strike = isBull ? suggested.bullStrike : suggested.bearStrike;
+  const low = isBull ? suggested.bullZoneLow : suggested.bearZoneLow;
+  const high = isBull ? suggested.bullZoneHigh : suggested.bearZoneHigh;
+  const tp = isBull ? suggested.bullTpTarget : suggested.bearTpTarget;
+  const tpConf = isBull ? suggested.bullTpConfidence : suggested.bearTpConfidence;
+  const actionable = isBull ? suggested.bullActionable : suggested.bearActionable;
+  const oi = isBull ? suggested.bullOI : suggested.bearOI;
+  const share = isBull ? suggested.bullClusterShare : suggested.bearClusterShare;
+  const locked = isBull ? suggested.bullLocked : suggested.bearLocked;
+
+  const hasZone = low != null && high != null;
+  const idle = hasZone && actionable === false;
+
+  const labelText = isBull ? "Bull zone" : "Bear zone";
+  const labelEl = (
+    <span
+      className={cn(
+        "flex items-center gap-1",
+        isBull ? "text-emerald-400/80" : "text-rose-400/80",
+      )}
+    >
+      {isBull ? (
+        <TrendingUp className="w-3 h-3 shrink-0" />
+      ) : (
+        <TrendingDown className="w-3 h-3 shrink-0" />
+      )}
+      <span>{labelText}</span>
+    </span>
+  );
+
+  if (!hasZone) {
+    return (
+      <StatRow
+        label={labelEl}
+        value={
+          <span className="text-[10px] font-normal text-muted-foreground/45 italic">
+            {noClusterLine(side, suggested)}
+          </span>
+        }
+        className={cn(
+          isBull ? "bg-emerald-500/[0.04]" : "bg-rose-500/[0.04]",
+        )}
+      />
     );
   }
 
+  const detailBits: string[] = [];
+  if (strike != null) detailBits.push(`@${strike.toLocaleString()}`);
+  if (oi != null && oi > 0) {
+    detailBits.push(`${Math.round(oi).toLocaleString()} OI`);
+  }
+  if (share != null && share > 0) {
+    detailBits.push(`${Math.round(share * 100)}%`);
+  }
+  if (tp != null) {
+    detailBits.push(`TP $${tp.toLocaleString()}${tpConf ? ` · ${tpConf}` : ""}`);
+  }
+  if (locked) detailBits.push("LOCKED");
+
   return (
-    <div className="shrink-0 rounded-lg border border-accent/20 bg-accent/[0.05] overflow-hidden">
-      <div className="px-2 py-1 border-b border-accent/10">
-        <span className="text-[8px] font-bold uppercase tracking-widest text-accent/55">
-          Max pain (3 days)
+    <StatRow
+      label={labelEl}
+      value={
+        <span
+          className={cn(
+            idle && "opacity-60",
+            isBull ? "text-emerald-300/95" : "text-rose-300/95",
+          )}
+          title={`$${low.toLocaleString()}–$${high.toLocaleString()}`}
+        >
+          ${low.toLocaleString()}–${high.toLocaleString()}
         </span>
-      </div>
-      <div className="divide-y divide-white/[0.04]">
-        {entries.map((entry) => {
-          const label =
-            entry.dayIndex === 0
-              ? "Today"
-              : entry.dayIndex === 1
-                ? "D+1"
-                : "D+2";
-          const isDay0 = entry.dayIndex === 0;
-          return (
-            <div
-              key={entry.expiry}
-              className="flex items-center justify-between px-2 py-1 gap-1"
-            >
-              <span
-                className={cn(
-                  "text-[8px] font-bold uppercase tracking-wider shrink-0",
-                  isDay0 ? "text-accent/70" : "text-muted-foreground/45",
-                )}
-              >
-                {label}
-              </span>
-              <span
-                className={cn(
-                  "text-[10px] font-mono font-bold tabular-nums",
-                  isDay0 ? "text-accent" : "text-foreground/55",
-                )}
-              >
-                ${entry.maxPain.toLocaleString()}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+      }
+      detail={
+        detailBits.length > 0 ? (
+          <span
+            className={cn(
+              "text-[9px] font-mono tabular-nums",
+              isBull ? "text-emerald-300/55" : "text-rose-300/55",
+            )}
+          >
+            {detailBits.join(" · ")}
+          </span>
+        ) : null
+      }
+      className={cn(
+        isBull ? "bg-emerald-500/[0.04]" : "bg-rose-500/[0.04]",
+      )}
+    />
   );
 }
 
@@ -478,109 +648,3 @@ function BotStatChip({
   );
 }
 
-function ZoneClusterTile({
-  side,
-  suggested,
-}: {
-  side: "bull" | "bear";
-  suggested: SuggestedZonesSnapshot;
-}) {
-  const isBull = side === "bull";
-  const strike = isBull ? suggested.bullStrike : suggested.bearStrike;
-  const low = isBull ? suggested.bullZoneLow : suggested.bearZoneLow;
-  const high = isBull ? suggested.bullZoneHigh : suggested.bearZoneHigh;
-  const tp = isBull ? suggested.bullTpTarget : suggested.bearTpTarget;
-  const tpConf = isBull ? suggested.bullTpConfidence : suggested.bearTpConfidence;
-  const actionable = isBull ? suggested.bullActionable : suggested.bearActionable;
-  const oi = isBull ? suggested.bullOI : suggested.bearOI;
-  const share = isBull ? suggested.bullClusterShare : suggested.bearClusterShare;
-  const locked = isBull ? suggested.bullLocked : suggested.bearLocked;
-
-  const hasZone = low != null && high != null;
-  const idle = hasZone && actionable === false;
-
-  return (
-    <div
-      className={cn(
-        SIM_INSET_TILE,
-        "px-2 py-2 h-full min-h-[100px] flex flex-col gap-1",
-        isBull
-          ? "border-emerald-500/30 bg-emerald-500/[0.08]"
-          : "border-rose-500/30 bg-rose-500/[0.08]",
-        idle && "opacity-70",
-      )}
-    >
-      <div className="flex items-center gap-1 shrink-0">
-        {isBull ? (
-          <TrendingUp className="w-3 h-3 text-emerald-400/70" />
-        ) : (
-          <TrendingDown className="w-3 h-3 text-rose-400/70" />
-        )}
-        <span
-          className={cn(
-            "text-[9px] font-black uppercase tracking-wider",
-            isBull ? "text-emerald-400/80" : "text-rose-400/80",
-          )}
-        >
-          {isBull ? "Bull" : "Bear"}
-        </span>
-        {locked && (
-          <span className="text-[7px] font-bold uppercase text-amber-300/80 ml-auto shrink-0">
-            locked
-          </span>
-        )}
-        {!locked && share != null && share > 0 && (
-          <span
-            className={cn(
-              "text-[7px] font-bold px-1 py-0.5 rounded ml-auto shrink-0",
-              isBull
-                ? "bg-emerald-500/20 text-emerald-300/90"
-                : "bg-rose-500/20 text-rose-300/90",
-            )}
-          >
-            {Math.round(share * 100)}% OI
-          </span>
-        )}
-        {!locked && idle && share == null && (
-          <span className="text-[7px] font-bold uppercase text-muted-foreground/50 ml-auto">
-            idle
-          </span>
-        )}
-      </div>
-
-      {hasZone ? (
-        <div className="flex-1 flex flex-col justify-center gap-0.5 min-h-0">
-          <p
-            className={cn(
-              "text-[10px] font-mono font-bold leading-tight",
-              isBull ? "text-emerald-300/90" : "text-rose-300/90",
-            )}
-            title={`$${low.toLocaleString()}–$${high.toLocaleString()}`}
-          >
-            ${low.toLocaleString()}–${high.toLocaleString()}
-          </p>
-          {strike != null && (
-            <p className="text-[8px] font-mono text-muted-foreground/45 truncate">
-              @{strike.toLocaleString()}
-            </p>
-          )}
-          {oi != null && oi > 0 && (
-            <p className="text-[8px] text-muted-foreground/40 truncate">
-              {Math.round(oi).toLocaleString()} contracts OI
-            </p>
-          )}
-          {tp != null && (
-            <p className="text-[8px] font-mono text-muted-foreground/50 truncate">
-              TP ${tp.toLocaleString()}
-              {tpConf ? ` · ${tpConf}` : ""}
-            </p>
-          )}
-        </div>
-      ) : (
-        <p className="text-[9px] text-muted-foreground/45 leading-snug flex-1 flex items-center">
-          {noClusterLine(side, suggested)}
-        </p>
-      )}
-    </div>
-  );
-}

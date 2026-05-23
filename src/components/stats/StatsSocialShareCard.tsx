@@ -5,7 +5,7 @@ import Image from "next/image";
 const CARD_W = 1200;
 const CARD_H = 720;
 const GREEN = "#34d399";
-const GREEN_GLOW = "0 0 28px rgba(52,211,153,0.55), 0 0 56px rgba(52,211,153,0.2)";
+const GREEN_GLOW = "0 0 16px rgba(52,211,153,0.4), 0 0 32px rgba(52,211,153,0.12)";
 const CARD_BG = "rgba(6,12,24,0.88)";
 const CARD_BORDER = "1px solid rgba(52,211,153,0.22)";
 
@@ -54,7 +54,7 @@ function Panel({
 function Label({ children }: { children: React.ReactNode }) {
   return (
     <span
-      className="text-[12px] font-bold uppercase tracking-[0.14em] block mb-2"
+      className="text-[10px] font-bold uppercase tracking-[0.12em] block mb-1.5"
       style={{ color: "#94a3b8" }}
     >
       {children}
@@ -67,12 +67,12 @@ function GlowValue({
   size = "lg",
 }: {
   children: React.ReactNode;
-  size?: "xl" | "lg" | "md";
+  size?: "xl" | "lg" | "md" | "sm";
 }) {
-  const sizes = { xl: "56px", lg: "42px", md: "32px" };
+  const sizes = { xl: "46px", lg: "28px", md: "22px", sm: "18px" };
   return (
     <span
-      className="font-black tabular-nums leading-none block"
+      className="font-black tabular-nums leading-tight block mt-0.5"
       style={{
         fontSize: sizes[size],
         color: GREEN,
@@ -117,19 +117,19 @@ function MiniEquitySparkline() {
 function SharpeGauge({ value }: { value: number }) {
   const clamped = Math.min(Math.max(value, 0), 4);
   const pct = clamped / 4;
-  const r = 58;
+  const r = 44;
   const c = 2 * Math.PI * r;
   const dash = pct * c * 0.75;
   return (
-    <div className="flex flex-col items-center justify-center flex-1 py-2">
-      <svg width="150" height="150" viewBox="0 0 150 150" className="drop-shadow-[0_0_12px_rgba(52,211,153,0.4)]">
+    <div className="flex flex-col items-center justify-center flex-1 py-1">
+      <svg width="118" height="118" viewBox="0 0 150 150" className="drop-shadow-[0_0_8px_rgba(52,211,153,0.35)]">
         <circle
           cx="75"
           cy="75"
           r={r}
           fill="none"
           stroke="rgba(52,211,153,0.15)"
-          strokeWidth="10"
+          strokeWidth="8"
           strokeLinecap="round"
           transform="rotate(135 75 75)"
           strokeDasharray={`${c * 0.75} ${c}`}
@@ -140,7 +140,7 @@ function SharpeGauge({ value }: { value: number }) {
           r={r}
           fill="none"
           stroke="#34d399"
-          strokeWidth="10"
+          strokeWidth="8"
           strokeLinecap="round"
           transform="rotate(135 75 75)"
           strokeDasharray={`${dash} ${c}`}
@@ -151,7 +151,7 @@ function SharpeGauge({ value }: { value: number }) {
           y="82"
           textAnchor="middle"
           fill="#34d399"
-          fontSize="28"
+          fontSize="22"
           fontWeight="800"
           style={{ textShadow: "0 0 12px rgba(52,211,153,0.5)" }}
         >
@@ -283,7 +283,7 @@ export function StatsSocialShareCard({
           className="flex-1 grid gap-3 min-h-0"
           style={{
             gridTemplateColumns: "248px 1fr",
-            gridTemplateRows: "1fr 196px",
+            gridTemplateRows: "1fr 210px",
           }}
         >
           {/* Left column — Running + Starting */}
@@ -297,14 +297,14 @@ export function StatsSocialShareCard({
                 }}
               />
               <Label>Running</Label>
-              <GlowValue size="xl">{runningDays}</GlowValue>
-              <span className="text-[22px] font-bold mt-1" style={{ color: "#e2e8f0" }}>
+              <GlowValue size="lg">{runningDays}</GlowValue>
+              <span className="text-[18px] font-bold mt-1" style={{ color: "#e2e8f0" }}>
                 Days
               </span>
             </Panel>
             <Panel className="flex flex-col justify-center px-6 py-5">
               <Label>Starting Capital</Label>
-              <span className="text-[36px] font-black tabular-nums leading-none text-white">
+              <span className="text-[28px] font-black tabular-nums leading-none text-white">
                 {fmtMoneyUsd(startingCapital)}
               </span>
               <span className="text-[12px] font-medium mt-2" style={{ color: "#64748b" }}>
@@ -318,8 +318,8 @@ export function StatsSocialShareCard({
             <MiniEquitySparkline />
             <div className="relative z-10">
               <Label>Current Capital</Label>
-              <GlowValue size="xl">{fmtMoneyUsd(currentCapital)}</GlowValue>
-              <p className="text-[18px] font-bold mt-3 tabular-nums" style={{ color: GREEN }}>
+              <GlowValue size="lg">{fmtMoneyUsd(currentCapital)}</GlowValue>
+              <p className="text-[15px] font-semibold mt-2 tabular-nums" style={{ color: GREEN }}>
                 {pnlPositive ? "+" : ""}
                 {fmtMoneyUsd(pnlUsd)} overall ({fmtPct(totalReturnPct)})
               </p>
@@ -327,8 +327,8 @@ export function StatsSocialShareCard({
           </Panel>
 
           {/* Bottom row */}
-          <div className="grid grid-cols-[220px_1fr] gap-3 min-h-0">
-            <Panel className="flex flex-col px-4 py-3">
+          <div className="grid grid-cols-[200px_1fr] gap-3 min-h-0">
+            <Panel className="flex flex-col px-4 py-4">
               <Label>Sharpe Ratio</Label>
               {sharpeRatio != null ? (
                 <SharpeGauge value={sharpeRatio} />
@@ -339,23 +339,23 @@ export function StatsSocialShareCard({
               )}
             </Panel>
 
-            <Panel className="flex flex-col px-6 py-5 justify-between">
-              <div className="grid grid-cols-2 gap-6">
+            <Panel className="flex flex-col px-6 py-4 justify-between gap-2">
+              <div className="grid grid-cols-2 gap-8">
                 <div>
                   <Label>Total Return</Label>
-                  <GlowValue size="md">{fmtPct(totalReturnPct)}</GlowValue>
+                  <GlowValue size="sm">{fmtPct(totalReturnPct)}</GlowValue>
                 </div>
                 <div>
                   <Label>Monthly Return</Label>
-                  <GlowValue size="md">{fmtPct(monthlyReturnPct)}</GlowValue>
+                  <GlowValue size="sm">{fmtPct(monthlyReturnPct)}</GlowValue>
                 </div>
               </div>
-              <div className="mt-4 pt-4 border-t border-white/[0.08]">
-                <div className="flex items-center gap-3 mb-2">
+              <div className="mt-2 pt-3 border-t border-white/[0.08]">
+                <div className="flex items-center gap-2 mb-1.5">
                   <Label>Annualized Return</Label>
                   {yearlyIsProjected && (
                     <span
-                      className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md"
+                      className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md"
                       style={{
                         color: "#94a3b8",
                         backgroundColor: "rgba(255,255,255,0.06)",
@@ -366,7 +366,7 @@ export function StatsSocialShareCard({
                     </span>
                   )}
                 </div>
-                <GlowValue size="lg">{fmtPct(yearlyReturnPct)}</GlowValue>
+                <GlowValue size="md">{fmtPct(yearlyReturnPct)}</GlowValue>
               </div>
             </Panel>
           </div>

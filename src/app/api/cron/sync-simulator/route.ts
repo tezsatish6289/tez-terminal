@@ -728,39 +728,101 @@ export async function GET(request: NextRequest) {
 
           let simState2 = await loadSimState(tradeAsset);
 
+          // ── Universal SL/TP/TP1/TP2/TP3 catch-up ─────────────
+          // Two sources, merged into one missedExits list:
+          //   (a) Signal-event catch-up — pattern-bot trades whose signal
+          //       has already flagged tp1Hit / slHitAt in Firestore.
+          //   (b) Raw price check — works for ANY trade (pattern OR zone
+          //       bot, with or without a signal doc) using the trade's
+          //       OWN stopLoss/tp1/tp2/tp3 fields vs livePrice.
+          //
+          // Zone-bot trades have no `signals` row, so before this block
+          // they only had (a) — meaning a raw SL hit pre-TP1 left the
+          // trade orphaned. (b) makes the trade lifecycle universal:
+          // any trade whose own SL/TP is crossed by livePrice gets
+          // closed, matching the architectural principle that entry
+          // criteria can differ per bot but lifecycle is shared.
+          //
+          // Order matters: TP1 → TP2 → TP3 → SL so a volatile cycle that
+          // crossed both TP1 and SL books the partial first.
+          const missedExits: { type: "TP1" | "TP2" | "TP3" | "SL"; price: number }[] = [];
+
           if (signal) {
-            const missedExits: { type: "TP1" | "TP2" | "TP3" | "SL"; price: number }[] = [];
             if (signal.tp1Hit && !t.tp1Hit) missedExits.push({ type: "TP1", price: signal.tp1 ?? t.tp1 });
             if (signal.tp2Hit && !t.tp2Hit) missedExits.push({ type: "TP2", price: signal.tp2 ?? t.tp2 });
             if (signal.tp3Hit && !t.tp3Hit) missedExits.push({ type: "TP3", price: signal.tp3 ?? t.tp3 });
             if (signal.slHitAt && !t.slHit) missedExits.push({ type: "SL", price: signal.currentPrice ?? t.stopLoss });
+          }
 
-            if (missedExits.length > 0) {
-              let currentTrade: SimTrade = { ...t, id: simDoc.id };
-              for (const exit of missedExits) {
-                if (currentTrade.status === "CLOSED") break;
-                const result = processTradeExit({
-                  trade: currentTrade,
-                  state: simState2,
-                  exitType: exit.type,
-                  exitPrice: exit.price,
-                  simConfig,
-                  ...closingScoreParams(currentTrade.signalId),
-                });
-                if (result) {
-                  currentTrade = result.updatedTrade;
-                  simState2 = result.updatedState;
-                  updateSimState(tradeAsset, simState2);
-                  await db.collection("simulator_logs").add(result.log);
-                }
+          // Universal raw-price check (zone-bot AND pattern-bot fallback).
+          // Pushes only events not already added by the signal branch, so
+          // we never double-process the same hit.
+          if (livePrice != null) {
+            const isBuy = t.side === "BUY";
+            const has = (type: "TP1" | "TP2" | "TP3" | "SL") =>
+              missedExits.some((e) => e.type === type);
+
+            const tp1Crossed =
+              typeof t.tp1 === "number" &&
+              t.tp1 > 0 &&
+              (isBuy ? livePrice >= t.tp1 : livePrice <= t.tp1);
+            if (tp1Crossed && !t.tp1Hit && !has("TP1")) {
+              missedExits.push({ type: "TP1", price: t.tp1 });
+            }
+            const tp2Crossed =
+              typeof t.tp2 === "number" &&
+              t.tp2 > 0 &&
+              (isBuy ? livePrice >= t.tp2 : livePrice <= t.tp2);
+            if (tp2Crossed && !t.tp2Hit && !has("TP2")) {
+              missedExits.push({ type: "TP2", price: t.tp2 });
+            }
+            const tp3Crossed =
+              typeof t.tp3 === "number" &&
+              t.tp3 > 0 &&
+              (isBuy ? livePrice >= t.tp3 : livePrice <= t.tp3);
+            if (tp3Crossed && !t.tp3Hit && !has("TP3")) {
+              missedExits.push({ type: "TP3", price: t.tp3 });
+            }
+            // SL uses the trailing SL when set (post-TP1 BE/trail), else
+            // the original stopLoss. Mirrors computeTrailingSl's intent.
+            const effectiveSl =
+              typeof t.trailingSl === "number" && t.trailingSl > 0
+                ? t.trailingSl
+                : t.stopLoss;
+            const slCrossed =
+              typeof effectiveSl === "number" &&
+              effectiveSl > 0 &&
+              (isBuy ? livePrice <= effectiveSl : livePrice >= effectiveSl);
+            if (slCrossed && !t.slHit && !has("SL")) {
+              missedExits.push({ type: "SL", price: effectiveSl });
+            }
+          }
+
+          if (missedExits.length > 0) {
+            let currentTrade: SimTrade = { ...t, id: simDoc.id };
+            for (const exit of missedExits) {
+              if (currentTrade.status === "CLOSED") break;
+              const result = processTradeExit({
+                trade: currentTrade,
+                state: simState2,
+                exitType: exit.type,
+                exitPrice: exit.price,
+                simConfig,
+                ...closingScoreParams(currentTrade.signalId),
+              });
+              if (result) {
+                currentTrade = result.updatedTrade;
+                simState2 = result.updatedState;
+                updateSimState(tradeAsset, simState2);
+                await db.collection("simulator_logs").add(result.log);
               }
+            }
             const { id: _cid, ...catchUpUpdate } = currentTrade;
             await db.collection("simulator_trades").doc(simDoc.id).update(catchUpUpdate);
             if (currentTrade.status === "CLOSED") {
               await markTradeForBlockchain(db, simDoc.id);
             }
             continue;
-            }
           }
 
           if (livePrice != null) {

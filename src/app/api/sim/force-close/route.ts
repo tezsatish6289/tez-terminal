@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminFirestore, getAdminAuth } from "@/firebase/admin";
+import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
 import type { Firestore } from "firebase-admin/firestore";
 import {
@@ -32,18 +32,26 @@ export const dynamic = "force-dynamic";
 interface CascadeResult {
   liveClosed: number;
   liveErrors: string[];
+  /** Total live mirrors found OPEN at the start of the cascade. */
+  liveAttempted: number;
+  /** Distinct user IDs touched by the cascade (closed OR attempted). */
+  userCount: number;
+  /** Per-exchange close counts (only successful closes). */
+  byExchange: Record<string, number>;
 }
 
 /**
  * Closes every OPEN live_trades doc linked to this sim trade via
  * `simTradeId`, using `protectiveClose` (the same path sync-live-trades
- * uses for sim-driven closes). Returns the count closed and any per-mirror
- * errors. Never throws — failures roll up into `liveErrors`.
+ * uses for sim-driven closes). Returns counts + per-mirror errors and
+ * per-exchange / per-user aggregates so the kill-switch UI can show a
+ * detailed success toast. Never throws — failures roll up into
+ * `liveErrors`.
  *
  * Shared between two call sites in the same endpoint:
  *   • the standard "close OPEN sim + cascade" path
  *   • the "live-only" recovery path for an already-closed sim whose
- *     original inline cascade failed (admin-gated)
+ *     original inline cascade failed
  */
 async function cascadeCloseLiveMirrors(
   db: Firestore,
@@ -53,14 +61,19 @@ async function cascadeCloseLiveMirrors(
 ): Promise<CascadeResult> {
   let liveClosed = 0;
   const liveErrors: string[] = [];
+  const byExchange: Record<string, number> = {};
+  const userIds = new Set<string>();
 
   const liveSnap = await db.collection("live_trades")
     .where("simTradeId", "==", simTradeId)
     .where("status", "==", "OPEN")
     .get();
 
+  const liveAttempted = liveSnap.docs.length;
+
   for (const liveDoc of liveSnap.docs) {
     const lt = { id: liveDoc.id, ...liveDoc.data() } as LiveTrade;
+    if (lt.userId) userIds.add(lt.userId);
     try {
       const userId = lt.userId;
       const ltExchange = lt.exchange;
@@ -110,17 +123,24 @@ async function cascadeCloseLiveMirrors(
           assetType: ltExchange === "DHAN" ? "INDIAN_STOCKS" : "CRYPTO",
         });
         liveClosed++;
+        byExchange[lt.exchange] = (byExchange[lt.exchange] ?? 0) + 1;
       } else if (closeResult.warning) {
-        liveErrors.push(`${lt.signalSymbol}: ${closeResult.warning}`);
+        liveErrors.push(`${lt.signalSymbol} [${lt.exchange}]: ${closeResult.warning}`);
       } else {
-        liveErrors.push(`${lt.signalSymbol}: close did not fill`);
+        liveErrors.push(`${lt.signalSymbol} [${lt.exchange}]: close did not fill`);
       }
     } catch (err) {
-      liveErrors.push(`${lt.signalSymbol}: ${err instanceof Error ? err.message : String(err)}`);
+      liveErrors.push(`${lt.signalSymbol} [${lt.exchange}]: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
-  return { liveClosed, liveErrors };
+  return {
+    liveClosed,
+    liveErrors,
+    liveAttempted,
+    userCount: userIds.size,
+    byExchange,
+  };
 }
 
 async function loadAllPrices(db: Firestore): Promise<AllExchangePrices> {
@@ -132,31 +152,109 @@ async function loadAllPrices(db: Firestore): Promise<AllExchangePrices> {
 }
 
 /**
+ * GET /api/sim/force-close?simTradeId=...
+ * Auth: admin only.
+ *
+ * Read-only preflight. Returns the blast-radius the caller would inflict
+ * if they POSTed to this endpoint with the same `simTradeId`:
+ *   • sim trade summary (status, symbol, side, current price)
+ *   • every linked live mirror (id, userId, exchange, side, qty, status)
+ *   • aggregate counts: mirrors total, distinct users, breakdown by
+ *     exchange
+ *
+ * Never writes. Never closes anything. Lets the kill-switch dialog show
+ * "you are about to close X positions for Y users" before the operator
+ * is asked to type the safety phrase.
+ */
+export async function GET(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const simTradeId = searchParams.get("simTradeId");
+  if (!simTradeId || typeof simTradeId !== "string") {
+    return NextResponse.json({ error: "Missing simTradeId" }, { status: 400 });
+  }
+
+  const db = getAdminFirestore();
+  const simDoc = await db.collection("simulator_trades").doc(simTradeId).get();
+  if (!simDoc.exists) {
+    return NextResponse.json({ error: "Sim trade not found" }, { status: 404 });
+  }
+  const simTrade = { id: simDoc.id, ...simDoc.data() } as SimTrade;
+
+  const liveSnap = await db
+    .collection("live_trades")
+    .where("simTradeId", "==", simTradeId)
+    .where("status", "==", "OPEN")
+    .get();
+
+  type MirrorRow = {
+    id: string;
+    userId: string;
+    exchange: string;
+    side: string;
+    qty: number;
+    status: string;
+  };
+  const liveMirrors: MirrorRow[] = liveSnap.docs.map((d) => {
+    const data = d.data() as Record<string, unknown>;
+    return {
+      id: d.id,
+      userId: String(data.userId ?? ""),
+      exchange: String(data.exchange ?? ""),
+      side: String(data.side ?? ""),
+      qty: Number(data.positionSize ?? data.quantity ?? 0),
+      status: String(data.status ?? "OPEN"),
+    };
+  });
+
+  const userIds = new Set(liveMirrors.map((m) => m.userId).filter(Boolean));
+  const byExchange: Record<string, number> = {};
+  for (const m of liveMirrors) {
+    byExchange[m.exchange] = (byExchange[m.exchange] ?? 0) + 1;
+  }
+
+  return NextResponse.json({
+    simTrade: {
+      id: simTrade.id,
+      symbol: simTrade.symbol,
+      side: simTrade.side,
+      status: simTrade.status,
+      currentPrice: simTrade.currentPrice ?? simTrade.entryPrice,
+      entryPrice: simTrade.entryPrice,
+    },
+    liveMirrors,
+    summary: {
+      liveMirrorCount: liveMirrors.length,
+      userCount: userIds.size,
+      byExchange,
+    },
+  });
+}
+
+/**
  * POST /api/sim/force-close
  * Body: { simTradeId: string }
- * Auth: Firebase ID token in Authorization header
+ * Auth: admin only (Firebase ID token + admin_user_roles membership).
  *
  * Two behaviours, picked from the sim trade's current state:
  *
  *   • Sim is OPEN → close the sim at market + cascade live mirrors.
- *     Any signed-in user can trigger this (existing behaviour).
  *
- *   • Sim is CLOSED but still has OPEN linked live_trades → admin-only
- *     "live-only" recovery cascade. Sim doc is NOT touched. Returns the
- *     same `{ liveClosed, liveErrors }` shape so the caller can show a
+ *   • Sim is CLOSED but still has OPEN linked live_trades → "live-only"
+ *     recovery cascade. Sim doc is NOT touched. Returns the same
+ *     `{ liveClosed, liveErrors }` shape so the caller can show a
  *     toast and retry until clean.
  *
  *   • Sim is CLOSED with zero open mirrors → 400 (nothing to do).
  */
 export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  try {
-    await getAdminAuth().verifyIdToken(authHeader.slice(7));
-  } catch {
-    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+  const auth = await requireAdmin(request);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   const { simTradeId } = await request.json();
@@ -173,12 +271,8 @@ export async function POST(request: NextRequest) {
   }
   const simTrade = { id: simDoc.id, ...simDoc.data() } as SimTrade;
 
-  // Branch A — sim already CLOSED → admin-only "live-only" cascade.
+  // Branch A — sim already CLOSED → "live-only" cascade.
   if (simTrade.status !== "OPEN") {
-    const auth = await requireAdmin(request);
-    if (!auth.ok) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
-    }
 
     const allPricesAdmin = await loadAllPrices(db);
     const exchangeAdmin = (simTrade as any).exchange ?? "BINANCE";
@@ -214,7 +308,10 @@ export async function POST(request: NextRequest) {
         symbol: simTrade.symbol,
         side: simTrade.side,
       },
+      liveAttempted: recovery.liveAttempted,
       liveClosed: recovery.liveClosed,
+      userCount: recovery.userCount,
+      byExchange: recovery.byExchange,
       liveErrors: recovery.liveErrors.length > 0 ? recovery.liveErrors : undefined,
     });
   }
@@ -317,7 +414,10 @@ export async function POST(request: NextRequest) {
       closePrice: currentPrice,
       pnl: netPnl,
     },
+    liveAttempted: cascade.liveAttempted,
     liveClosed: cascade.liveClosed,
+    userCount: cascade.userCount,
+    byExchange: cascade.byExchange,
     liveErrors: cascade.liveErrors.length > 0 ? cascade.liveErrors : undefined,
   });
 }

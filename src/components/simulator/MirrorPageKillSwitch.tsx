@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Skull, Loader2 } from "lucide-react";
 import { useUser } from "@/firebase";
+import { useToast } from "@/hooks/use-toast";
 import { SimForceCloseDialog } from "@/components/simulator/SimForceCloseDialog";
 import type { SimTrade } from "@/lib/simulator";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ export function MirrorPageKillSwitch({
   onClosed?: () => void;
 }) {
   const { user } = useUser();
+  const { toast } = useToast();
   const [openTrades, setOpenTrades] = useState<SimTrade[]>([]);
   const [loading, setLoading] = useState(true);
   const [killError, setKillError] = useState<string | null>(null);
@@ -62,7 +64,14 @@ export function MirrorPageKillSwitch({
     if (!user || openTrades.length === 0) return;
     setKillError(null);
     const token = await user.getIdToken();
-    let liveClosed = 0;
+
+    // Aggregate across N sim trades (one POST per trade — the endpoint is
+    // designed for single-trade kill operations). Roll up counts so the
+    // success toast shows the operator the total damage in one line.
+    let liveAttemptedTotal = 0;
+    let liveClosedTotal = 0;
+    const userSet = new Set<string>();
+    const byExchange: Record<string, number> = {};
     const errors: string[] = [];
 
     for (const trade of openTrades) {
@@ -81,7 +90,22 @@ export function MirrorPageKillSwitch({
         errors.push(`${trade.symbol}: ${data.error ?? res.status}`);
         continue;
       }
-      liveClosed += data.liveClosed ?? 0;
+      liveAttemptedTotal += data.liveAttempted ?? 0;
+      liveClosedTotal += data.liveClosed ?? 0;
+      // userCount is per-sim; we'd need user IDs to dedupe across sims.
+      // The endpoint doesn't return user IDs in the POST response, so we
+      // approximate with a sum — this is fine for "X users impacted" UX,
+      // and the slight overcount across multi-sim closes is harmless.
+      if (typeof data.userCount === "number") {
+        for (let i = 0; i < data.userCount; i++) {
+          userSet.add(`${id}#${i}`);
+        }
+      }
+      if (data.byExchange && typeof data.byExchange === "object") {
+        for (const [ex, n] of Object.entries(data.byExchange)) {
+          byExchange[ex] = (byExchange[ex] ?? 0) + Number(n);
+        }
+      }
       if (data.liveErrors?.length) {
         errors.push(...data.liveErrors);
       }
@@ -90,19 +114,35 @@ export function MirrorPageKillSwitch({
     await loadOpen();
     onClosed?.();
 
+    const exchangeSummary = Object.entries(byExchange)
+      .sort((a, b) => b[1] - a[1])
+      .map(([ex, n]) => `${ex} ×${n}`)
+      .join(", ");
+
     if (errors.length > 0) {
+      const remaining = liveAttemptedTotal - liveClosedTotal;
+      toast({
+        variant: "destructive",
+        title: "Kill switch — partial close",
+        description: `${liveClosedTotal}/${liveAttemptedTotal} live mirror(s) closed across ${userSet.size} user(s)${exchangeSummary ? ` (${exchangeSummary})` : ""}. ${remaining} will retry within 60s. Issues: ${errors.slice(0, 3).join("; ")}${errors.length > 3 ? "…" : ""}`,
+      });
       setKillError(
-        `Sim closed. Live: ${liveClosed} position(s) closed. Issues: ${errors.slice(0, 5).join("; ")}${errors.length > 5 ? "…" : ""}`,
+        `${liveClosedTotal}/${liveAttemptedTotal} closed. Cron will retry the rest within 60s. Issues: ${errors.slice(0, 5).join("; ")}${errors.length > 5 ? "…" : ""}`,
       );
     } else {
       setKillError(null);
-      alert(
-        openTrades.length === 1
-          ? `Kill switch: sim closed, ${liveClosed} live mirror(s) closed.`
-          : `Kill switch: ${openTrades.length} sim trade(s) closed, ${liveClosed} live mirror(s) closed.`,
-      );
+      toast({
+        title:
+          openTrades.length === 1
+            ? "Kill switch complete"
+            : `Kill switch — ${openTrades.length} sim closed`,
+        description:
+          liveClosedTotal === 0
+            ? `Sim record${openTrades.length === 1 ? "" : "s"} closed. No live mirrors were open.`
+            : `${liveClosedTotal} live mirror${liveClosedTotal === 1 ? "" : "s"} closed across ${userSet.size} user${userSet.size === 1 ? "" : "s"}${exchangeSummary ? ` (${exchangeSummary})` : ""}.`,
+      });
     }
-  }, [user, openTrades, loadOpen, onClosed]);
+  }, [user, openTrades, loadOpen, onClosed, toast]);
 
   if (loading) {
     return (

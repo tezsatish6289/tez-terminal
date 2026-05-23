@@ -355,14 +355,26 @@ export default function SimulationPage() {
         return;
       }
       const liveErrors: string[] = Array.isArray(data.liveErrors) ? data.liveErrors : [];
+      const liveAttempted = typeof data.liveAttempted === "number" ? data.liveAttempted : 0;
       const liveClosed = typeof data.liveClosed === "number" ? data.liveClosed : 0;
+      const userCount = typeof data.userCount === "number" ? data.userCount : 0;
+      const byExchange = (data.byExchange ?? {}) as Record<string, number>;
       const mode = data.mode === "live-only" ? "live-only" : "default";
 
+      const exchangeSummary = Object.entries(byExchange)
+        .sort((a, b) => b[1] - a[1])
+        .map(([ex, n]) => `${ex} ×${n}`)
+        .join(", ");
+      const userPhrase = userCount > 0
+        ? ` across ${userCount} user${userCount === 1 ? "" : "s"}`
+        : "";
+
       if (liveErrors.length > 0) {
-        // Cron will retry within ~60s now that KILL_SWITCH is no longer in
-        // the sync-live-trades blacklist, so this is a heads-up — not a
-        // dead-end. Make it loud anyway so the operator can verify on the
-        // users' panels.
+        // sync-live-trades retry net catches anything that didn't confirm
+        // inline (KILL_SWITCH is NOT in the NON_MIRRORED whitelist), so
+        // this is a heads-up — not a dead-end. Loud so the operator can
+        // verify on the users' panels.
+        const remaining = Math.max(0, liveAttempted - liveClosed);
         toast({
           variant: "destructive",
           title:
@@ -370,18 +382,22 @@ export default function SimulationPage() {
               ? `Live recovery: ${liveErrors.length} mirror${liveErrors.length === 1 ? "" : "s"} still open`
               : `Sim closed — ${liveErrors.length} live mirror${liveErrors.length === 1 ? "" : "s"} didn't confirm`,
           description:
-            (liveClosed > 0 ? `${liveClosed} closed OK. ` : "") +
-            `Failures: ${liveErrors.slice(0, 4).join("; ")}${liveErrors.length > 4 ? "; …" : ""}. sync-live-trades will retry on the next tick.`,
+            `${liveClosed}/${liveAttempted} closed${userPhrase}${exchangeSummary ? ` (${exchangeSummary})` : ""}. ${remaining > 0 ? `${remaining} will retry within 60s. ` : ""}Failures: ${liveErrors.slice(0, 3).join("; ")}${liveErrors.length > 3 ? "; …" : ""}`,
         });
       } else if (mode === "live-only") {
         toast({
           title: "Live mirrors closed",
-          description: `Reconciled ${liveClosed} orphaned mirror${liveClosed === 1 ? "" : "s"} on the exchange.`,
+          description: `Reconciled ${liveClosed} orphaned mirror${liveClosed === 1 ? "" : "s"}${userPhrase}${exchangeSummary ? ` (${exchangeSummary})` : ""}.`,
         });
       } else if (liveClosed > 0) {
         toast({
-          title: "Sim + live closed",
-          description: `${liveClosed} live mirror${liveClosed === 1 ? "" : "s"} cascaded successfully.`,
+          title: "Kill switch complete",
+          description: `Sim ${data.simTrade?.symbol ?? "trade"} closed. ${liveClosed} live mirror${liveClosed === 1 ? "" : "s"} cascaded${userPhrase}${exchangeSummary ? ` (${exchangeSummary})` : ""}.`,
+        });
+      } else {
+        toast({
+          title: "Sim closed",
+          description: "No live mirrors were open — sim record closed cleanly.",
         });
       }
 

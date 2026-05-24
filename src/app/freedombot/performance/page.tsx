@@ -429,14 +429,18 @@ export default function PerformancePage() {
           </div>
 
         {closedTrades.length >= 2 && (
-          <div className="space-y-6">
-            <EquityChart
-              trades={closedTrades}
-              startingCapital={startCap}
-              cs="$"
-              theme="blue"
-            />
-            <PerformanceMetricsInsight metrics={metrics} />
+          <div className="flex flex-col lg:flex-row gap-5 items-stretch">
+            <div className="flex-1 min-w-0">
+              <EquityChart
+                trades={closedTrades}
+                startingCapital={startCap}
+                cs="$"
+                theme="blue"
+              />
+            </div>
+            <div className="lg:w-72 xl:w-80 shrink-0 flex flex-col">
+              <PerformanceMetricsInsight metrics={metrics} variant="sidebar" />
+            </div>
           </div>
         )}
 

@@ -91,9 +91,11 @@ export async function GET(req: NextRequest) {
       const agg = await getDeploymentAggregates(db, {
         uid,
         exchange: exchangeKey,
+        bot: String(dep.bot ?? "CRYPTO"),
         openTradeCount: dep.openTradeCount as number | undefined,
         closedTradeCount: dep.closedTradeCount as number | undefined,
         lifetimeRealizedPnl: dep.lifetimeRealizedPnl as number | undefined,
+        aggregatesBot: dep.aggregatesBot as string | undefined,
       });
       return {
         id: dep.id,

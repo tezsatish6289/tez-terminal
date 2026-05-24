@@ -44,6 +44,7 @@ export interface Trade {
   blockchainTxHash?: string | null;
   openedAt: string | null;
   closedAt: string | null;
+  botSource?: string | null;
 }
 
 // ── Formatters ──────────────────────────────────────────────────────────────

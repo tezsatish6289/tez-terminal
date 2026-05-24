@@ -39,6 +39,7 @@ export async function POST(
     const dep = deployDoc.data()!;
     const uid = String(dep.uid ?? "");
     const exchange = String(dep.exchange ?? "").toUpperCase() as ExchangeName;
+    const deployBot = String(dep.bot ?? "CRYPTO");
     if (!uid || !exchange) {
       return NextResponse.json({ error: "Invalid deployment data" }, { status: 400 });
     }
@@ -48,9 +49,11 @@ export async function POST(
       const agg = await getDeploymentAggregates(db, {
         uid,
         exchange,
+        bot: deployBot,
         openTradeCount: dep.openTradeCount as number | undefined,
         closedTradeCount: dep.closedTradeCount as number | undefined,
         lifetimeRealizedPnl: dep.lifetimeRealizedPnl as number | undefined,
+        aggregatesBot: dep.aggregatesBot as string | undefined,
       });
       return NextResponse.json({
         ok: true,
@@ -84,9 +87,11 @@ export async function POST(
     const agg = await getDeploymentAggregates(db, {
       uid,
       exchange,
+      bot: deployBot,
       openTradeCount: refreshed.openTradeCount as number | undefined,
       closedTradeCount: refreshed.closedTradeCount as number | undefined,
       lifetimeRealizedPnl: refreshed.lifetimeRealizedPnl as number | undefined,
+      aggregatesBot: refreshed.aggregatesBot as string | undefined,
     });
 
     return NextResponse.json({

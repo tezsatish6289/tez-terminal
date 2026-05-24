@@ -83,6 +83,7 @@ export async function GET(request: NextRequest) {
       cachedOpenTradeCount?: number;
       cachedClosedTradeCount?: number;
       cachedLifetimeRealizedPnl?: number;
+      cachedAggregatesBot?: string;
       // Cached wallet snapshot — set by deploy/cron/manual-refresh. Optional
       // because legacy rows predate this field; UI must tolerate undefined.
       walletTotal?: number;
@@ -107,6 +108,7 @@ export async function GET(request: NextRequest) {
         cachedOpenTradeCount: x.openTradeCount as number | undefined,
         cachedClosedTradeCount: x.closedTradeCount as number | undefined,
         cachedLifetimeRealizedPnl: x.lifetimeRealizedPnl as number | undefined,
+        cachedAggregatesBot: x.aggregatesBot as string | undefined,
         walletTotal: typeof x.walletTotal === "number" ? x.walletTotal : undefined,
         walletAvailable: typeof x.walletAvailable === "number" ? x.walletAvailable : undefined,
         walletCurrency: typeof x.walletCurrency === "string" ? x.walletCurrency : undefined,
@@ -141,9 +143,11 @@ export async function GET(request: NextRequest) {
       const aggregates = await getDeploymentAggregates(db, {
         uid: dep.uid,
         exchange: dep.exchange,
+        bot: dep.bot,
         openTradeCount: dep.cachedOpenTradeCount,
         closedTradeCount: dep.cachedClosedTradeCount,
         lifetimeRealizedPnl: dep.cachedLifetimeRealizedPnl,
+        aggregatesBot: dep.cachedAggregatesBot,
       });
       const currency = pnlCurrencyLabel(dep.bot, dep.exchange);
       const createdIso = dep.createdAt?.toDate?.()?.toISOString() ?? null;

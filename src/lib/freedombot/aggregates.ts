@@ -2,30 +2,24 @@
  * Per-deployment aggregates: cached counts + lifetime realised P&L.
  *
  * Stored on `bot_deployments/{id}`:
- *   - openTradeCount         number          OPEN trades for (uid, exchange)
- *   - closedTradeCount       number          CLOSED trades for (uid, exchange)
+ *   - openTradeCount         number          OPEN trades for this deployment
+ *   - closedTradeCount       number          CLOSED trades for this deployment
  *   - lifetimeRealizedPnl    number          Σ bestRealizedPnl(t) for closed trades
+ *   - aggregatesBot          string          deploy key scope (CRYPTO, BTC, …)
  *   - aggregatesUpdatedAt    ISO string      last write time (delta or rebuild)
  *   - aggregatesBootstrappedAt ISO string    last full rebuild (drift heal anchor)
  *
- * Source of truth is still the `live_trades` collection. These are caches that
- * make read paths O(1):
- *
- *   - Hot path: atomic FieldValue.increment on trade open / close, plus a
- *     delta when reconciliation flips a per-trade `bestRealizedPnl` value.
- *   - Cold path: full recompute walks every closed trade and overwrites the
- *     cache. Heals drift from manual overrides, dropped writes, etc.
- *   - Reads bootstrap themselves: if any cache field is missing, the reader
- *     calls `rebuildDeploymentAggregates` once and persists the result.
- *
- * Aggregates are scoped by (uid, exchange) — same scope as
- * `sumLifetimeRealizedPnlForUserExchange`. We mirror the cache onto every
- * deployment doc that matches the pair, so any of the page handlers can read
- * the right number with a single `doc().get()`.
+ * Scoped by (uid, exchange, bot) — each deployment only counts live_trades whose
+ * `botSource` matches that bot's catalog source (PATTERN for Crypto Bot, etc.).
  */
 
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
-
+import { classifyBotSource } from "@/lib/bot-source-constants";
+import {
+  cryptoBotByBotSource,
+  cryptoBotByDeployKey,
+  type DeployBotKey,
+} from "@/lib/crypto-bots";
 import { bestRealizedPnl, type TradeForPnl } from "./compute-best-pnl";
 
 // ── Cached fields on bot_deployments ───────────────────────────────────────
@@ -34,6 +28,7 @@ export interface DeploymentAggregateFields {
   openTradeCount?: number;
   closedTradeCount?: number;
   lifetimeRealizedPnl?: number;
+  aggregatesBot?: string;
   aggregatesUpdatedAt?: string;
   aggregatesBootstrappedAt?: string;
 }
@@ -59,8 +54,11 @@ function hasFullCache(d: DeploymentAggregateFields): boolean {
 
 function pickCachedAggregates(
   d: DeploymentAggregateFields,
+  deployBot: string,
 ): ResolvedDeploymentAggregates | null {
   if (!hasFullCache(d)) return null;
+  // Legacy rows cached exchange-wide (no bot scope) must rebuild per deployment.
+  if (d.aggregatesBot == null || d.aggregatesBot !== deployBot) return null;
   return {
     openTradeCount: Number(d.openTradeCount ?? 0),
     closedTradeCount: Number(d.closedTradeCount ?? 0),
@@ -77,7 +75,24 @@ export type TradeAggregateSnapshot = TradeForPnl & {
   status?: string | null;
   exchange?: string | null;
   testnet?: boolean | null;
+  botSource?: string | null;
 };
+
+export function botSourceForDeployKey(deployKey: string): string {
+  try {
+    return cryptoBotByDeployKey(deployKey as DeployBotKey).botSource;
+  } catch {
+    return "PATTERN";
+  }
+}
+
+export function tradeMatchesDeployBot(
+  trade: { botSource?: string | null },
+  deployBot: string,
+): boolean {
+  const expected = botSourceForDeployKey(deployBot);
+  return classifyBotSource(trade.botSource) === expected;
+}
 
 function isClosed(t: TradeAggregateSnapshot | null | undefined): boolean {
   if (!t) return false;
@@ -97,34 +112,32 @@ function pnlContribution(t: TradeAggregateSnapshot | null | undefined): number {
 
 // ── Deployment lookup ──────────────────────────────────────────────────────
 
-/**
- * Returns every deployment doc that matches (uid, exchange).
- *
- * In practice there's usually exactly one (deploy creates one row per pair),
- * but a user could have stale rows after delete + redeploy. We update all of
- * them so any of the page handlers reading a doc by id sees a consistent
- * cache. Skips docs whose update would be wasted.
- */
-async function findMatchingDeploymentRefs(
+async function findDeploymentRefsForBot(
   db: Firestore,
   uid: string,
   exchange: string,
+  deployBot: string,
 ): Promise<FirebaseFirestore.DocumentReference[]> {
-  if (!uid || !exchange) return [];
+  if (!uid || !exchange || !deployBot) return [];
   const snap = await db
     .collection("bot_deployments")
     .where("uid", "==", uid)
     .where("exchange", "==", exchange)
+    .where("bot", "==", deployBot)
     .get();
   return snap.docs.map((d) => d.ref);
+}
+
+function deployBotFromTradeSource(botSource: string | null | undefined): string {
+  return cryptoBotByBotSource(botSource)?.deployKey ?? "CRYPTO";
 }
 
 // ── Hot path: atomic increments ────────────────────────────────────────────
 
 interface CountDelta {
-  closed: number;          // +1 / -1 / 0
-  open: number;            // +1 / -1 / 0
-  pnl: number;             // signed delta in USD
+  closed: number;
+  open: number;
+  pnl: number;
 }
 
 function diffSnapshots(
@@ -145,23 +158,14 @@ function diffSnapshots(
 }
 
 /**
- * Apply the (before → after) trade transition to every matching deployment's
- * cached aggregates. Safe to call after every Firestore write that touches a
- * `live_trades` doc — diff comes out to 0/0/0 when nothing aggregate-relevant
- * changed (e.g. a pure unrealizedPnl tick), which we skip.
- *
- * Pass `before = null` only for brand-new trade docs.
+ * Apply the (before → after) trade transition to matching deployment(s) for
+ * this trade's bot source only.
  */
 export async function applyTradeChangeToAggregates(
   db: Firestore,
   before: TradeAggregateSnapshot | null,
   after: TradeAggregateSnapshot,
 ): Promise<void> {
-  // Production-only. Match the cold-path filter exactly
-  // (`where("testnet", "==", false)`) so hot deltas and rebuilds agree:
-  //   - undefined `testnet` (legacy rows) → not counted
-  //   - true `testnet` (testnet trades) → not counted
-  //   - false `testnet` (production) → counted
   if (after.testnet !== false) return;
   if (before != null && before.testnet !== false) return;
 
@@ -172,12 +176,14 @@ export async function applyTradeChangeToAggregates(
   const delta = diffSnapshots(before, after);
   if (delta.closed === 0 && delta.open === 0 && delta.pnl === 0) return;
 
-  const refs = await findMatchingDeploymentRefs(db, uid, exchange);
+  const deployBot = deployBotFromTradeSource(after.botSource ?? before?.botSource);
+  const refs = await findDeploymentRefsForBot(db, uid, exchange, deployBot);
   if (refs.length === 0) return;
 
   const nowIso = new Date().toISOString();
   const updates: Record<string, unknown> = {
     aggregatesUpdatedAt: nowIso,
+    aggregatesBot: deployBot,
   };
   if (delta.closed !== 0) {
     updates.closedTradeCount = FieldValue.increment(delta.closed);
@@ -194,8 +200,6 @@ export async function applyTradeChangeToAggregates(
   await Promise.all(
     refs.map((ref) =>
       ref.update(updates).catch((err) => {
-        // Aggregate updates must never block the underlying trade write —
-        // log + ignore. Cold-path rebuild will reconcile any drift.
         console.warn(
           `[aggregates] increment failed for ${ref.id}: ${err instanceof Error ? err.message : String(err)}`,
         );
@@ -212,11 +216,12 @@ interface RebuildTotals {
   lifetimeRealizedPnl: number;
 }
 
-/** Pull every production trade for (uid, exchange) and recompute totals from scratch. */
+/** Pull production trades for (uid, exchange, bot) and recompute totals. */
 export async function computeAggregatesFromTrades(
   db: Firestore,
   uid: string,
   exchange: string,
+  deployBot: string,
 ): Promise<RebuildTotals> {
   let openTradeCount = 0;
   let closedTradeCount = 0;
@@ -236,6 +241,7 @@ export async function computeAggregatesFromTrades(
     const snap = await q.get();
     for (const doc of snap.docs) {
       const t = doc.data() as TradeAggregateSnapshot;
+      if (!tradeMatchesDeployBot(t, deployBot)) continue;
       if (isClosed(t)) {
         closedTradeCount++;
         const best = bestRealizedPnl(t);
@@ -255,18 +261,20 @@ export async function computeAggregatesFromTrades(
   };
 }
 
-/** Compute totals once and persist them to every matching deployment doc. */
+/** Rebuild and persist aggregates for one bot on an exchange. */
 export async function rebuildDeploymentAggregates(
   db: Firestore,
   uid: string,
   exchange: string,
+  deployBot: string,
 ): Promise<RebuildTotals> {
-  const totals = await computeAggregatesFromTrades(db, uid, exchange);
-  const refs = await findMatchingDeploymentRefs(db, uid, exchange);
+  const totals = await computeAggregatesFromTrades(db, uid, exchange, deployBot);
+  const refs = await findDeploymentRefsForBot(db, uid, exchange, deployBot);
   if (refs.length === 0) return totals;
   const nowIso = new Date().toISOString();
   const patch = {
     ...totals,
+    aggregatesBot: deployBot,
     aggregatesUpdatedAt: nowIso,
     aggregatesBootstrappedAt: nowIso,
   };
@@ -274,21 +282,39 @@ export async function rebuildDeploymentAggregates(
   return totals;
 }
 
+/** Rebuild every distinct bot deployment on an exchange (e.g. after bulk reconcile). */
+export async function rebuildAllDeploymentsOnExchange(
+  db: Firestore,
+  uid: string,
+  exchange: string,
+): Promise<void> {
+  const snap = await db
+    .collection("bot_deployments")
+    .where("uid", "==", uid)
+    .where("exchange", "==", exchange)
+    .get();
+  const bots = new Set(
+    snap.docs.map((d) => String(d.data().bot ?? "CRYPTO")).filter(Boolean),
+  );
+  await Promise.all(
+    [...bots].map((bot) => rebuildDeploymentAggregates(db, uid, exchange, bot)),
+  );
+}
+
 // ── Read path: cache-first with bootstrap fallback ─────────────────────────
 
-/**
- * Resolve aggregates for one deployment.
- *
- *   - If the deployment doc already carries a complete cache, return it (O(1)).
- *   - Otherwise rebuild from the live_trades collection, persist back to every
- *     matching deployment, and return the fresh totals.
- */
 export async function getDeploymentAggregates(
   db: Firestore,
-  deployment: { uid: string; exchange: string } & DeploymentAggregateFields,
+  deployment: { uid: string; exchange: string; bot?: string } & DeploymentAggregateFields,
 ): Promise<ResolvedDeploymentAggregates> {
-  const cached = pickCachedAggregates(deployment);
+  const deployBot = String(deployment.bot ?? "CRYPTO");
+  const cached = pickCachedAggregates(deployment, deployBot);
   if (cached) return cached;
-  const fresh = await rebuildDeploymentAggregates(db, deployment.uid, deployment.exchange);
+  const fresh = await rebuildDeploymentAggregates(
+    db,
+    deployment.uid,
+    deployment.exchange,
+    deployBot,
+  );
   return { ...fresh, source: "rebuilt" };
 }

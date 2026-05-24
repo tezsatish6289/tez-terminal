@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
 import { bestRealizedPnl } from "@/lib/freedombot/compute-best-pnl";
-import { getDeploymentAggregates } from "@/lib/freedombot/aggregates";
+import { getDeploymentAggregates, tradeMatchesDeployBot } from "@/lib/freedombot/aggregates";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +43,7 @@ export async function GET(
     const dep = deployDoc.data()!;
     const uid = String(dep.uid ?? "");
     const exchange = String(dep.exchange ?? "");
+    const deployBot = String(dep.bot ?? "CRYPTO");
     if (!uid || !exchange) {
       return NextResponse.json({ error: "Invalid deployment data" }, { status: 400 });
     }
@@ -72,9 +73,11 @@ export async function GET(
       : getDeploymentAggregates(db, {
           uid,
           exchange,
+          bot: deployBot,
           openTradeCount: dep.openTradeCount as number | undefined,
           closedTradeCount: dep.closedTradeCount as number | undefined,
           lifetimeRealizedPnl: dep.lifetimeRealizedPnl as number | undefined,
+          aggregatesBot: dep.aggregatesBot as string | undefined,
         }).catch((err) => {
           console.warn(
             `[admin trades] aggregate resolve failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -85,6 +88,9 @@ export async function GET(
     const [snap, aggregates] = await Promise.all([q.get(), aggregatesPromise]);
     const hasMore = snap.size > pageSize;
     const docs = hasMore ? snap.docs.slice(0, pageSize) : snap.docs;
+    const filteredDocs = docs.filter((d) =>
+      tradeMatchesDeployBot(d.data(), deployBot),
+    );
     const totalCount = aggregates
       ? aggregates.openTradeCount + aggregates.closedTradeCount
       : null;
@@ -93,7 +99,7 @@ export async function GET(
     // share rendering logic with the user dashboard. The shared
     // `bestRealizedPnl` resolver picks the most-trustworthy PnL value (and a
     // source label) so per-row, cumulative, and lifetime figures all agree.
-    const trades = docs.map((d) => {
+    const trades = filteredDocs.map((d) => {
       const t = d.data();
       const isOpen = t.status === "OPEN";
       const internal = Number(t.realizedPnl ?? 0);
@@ -131,6 +137,7 @@ export async function GET(
         blockchainTxHash: t.blockchainTxHash ?? null,
         openedAt: (t.openedAt as string) ?? null,
         closedAt: (t.closedAt as string) ?? null,
+        botSource: typeof t.botSource === "string" ? t.botSource : null,
       };
     });
 

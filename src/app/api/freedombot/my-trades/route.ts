@@ -8,7 +8,7 @@ import {
 } from "@/lib/freedombot/reconcile-exchange-pnl";
 import { isExchangeSupported, type ExchangeName } from "@/lib/exchanges";
 import { bestRealizedPnl } from "@/lib/freedombot/compute-best-pnl";
-import { getDeploymentAggregates } from "@/lib/freedombot/aggregates";
+import { getDeploymentAggregates, tradeMatchesDeployBot } from "@/lib/freedombot/aggregates";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +37,16 @@ export async function GET(req: NextRequest) {
     const wantReconcile =
       searchParams.get("reconcile") === "1" || searchParams.get("reconcile") === "true";
     const exchangeParam = searchParams.get("exchange")?.trim().toUpperCase() ?? "";
+    const deploymentIdParam = searchParams.get("deploymentId")?.trim() ?? "";
+    const botParam = searchParams.get("bot")?.trim().toUpperCase() ?? "";
+
+    let scopeBot: string | null = botParam || null;
+    if (deploymentIdParam) {
+      const depDoc = await db.collection("bot_deployments").doc(deploymentIdParam).get();
+      if (depDoc.exists && depDoc.data()?.uid === uid) {
+        scopeBot = String(depDoc.data()?.bot ?? "CRYPTO");
+      }
+    }
 
     let reconciliation: {
       reconciled: number;
@@ -121,6 +131,7 @@ export async function GET(req: NextRequest) {
           blockchainTxHash: t.blockchainTxHash ?? null,
           openedAt: t.openedAt ?? null,
           closedAt: t.closedAt ?? null,
+          botSource: typeof t.botSource === "string" ? t.botSource : null,
         };
       })
       .filter(Boolean)
@@ -128,6 +139,10 @@ export async function GET(req: NextRequest) {
         if (!scopeToVenue) return true;
         const t = row!;
         return tradeBelongsToVenue(t.exchange as string | undefined | null, scopeToVenue);
+      })
+      .filter((row) => {
+        if (!scopeBot) return true;
+        return tradeMatchesDeployBot(row!, scopeBot);
       })
       .sort((a, b) => {
         const A = a!;
@@ -158,46 +173,71 @@ export async function GET(req: NextRequest) {
       source: "cache" | "rebuilt" | "mixed";
     } | null = null;
     try {
-      let depQuery: FirebaseFirestore.Query = db
-        .collection("bot_deployments")
-        .where("uid", "==", uid);
-      if (scopeToVenue) {
-        depQuery = depQuery.where("exchange", "==", scopeToVenue);
-      }
-      const depSnap = await depQuery.get();
-      if (!depSnap.empty) {
-        const seen = new Set<string>();
-        let lifetime = 0;
-        let openCount = 0;
-        let closedCount = 0;
-        let anyRebuilt = false;
-        for (const d of depSnap.docs) {
-          const data = d.data();
+      if (deploymentIdParam) {
+        const depDoc = await db.collection("bot_deployments").doc(deploymentIdParam).get();
+        if (depDoc.exists && depDoc.data()?.uid === uid) {
+          const data = depDoc.data()!;
           const exch = String(data.exchange ?? "");
-          if (!exch) continue;
-          // Only the first deployment per (uid, exchange) — aggregates are
-          // mirrored across siblings, summing them would double-count.
-          const key = `${uid}::${exch}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
+          const bot = String(data.bot ?? "CRYPTO");
           const agg = await getDeploymentAggregates(db, {
             uid,
             exchange: exch,
+            bot,
             openTradeCount: data.openTradeCount as number | undefined,
             closedTradeCount: data.closedTradeCount as number | undefined,
             lifetimeRealizedPnl: data.lifetimeRealizedPnl as number | undefined,
+            aggregatesBot: data.aggregatesBot as string | undefined,
           });
-          lifetime += agg.lifetimeRealizedPnl;
-          openCount += agg.openTradeCount;
-          closedCount += agg.closedTradeCount;
-          if (agg.source === "rebuilt") anyRebuilt = true;
+          aggregates = {
+            lifetimeRealizedPnl: agg.lifetimeRealizedPnl,
+            openTradeCount: agg.openTradeCount,
+            closedTradeCount: agg.closedTradeCount,
+            source: agg.source,
+          };
         }
-        aggregates = {
-          lifetimeRealizedPnl: Number(lifetime.toFixed(6)),
-          openTradeCount: openCount,
-          closedTradeCount: closedCount,
-          source: anyRebuilt ? (seen.size > 1 ? "mixed" : "rebuilt") : "cache",
-        };
+      } else {
+        let depQuery: FirebaseFirestore.Query = db
+          .collection("bot_deployments")
+          .where("uid", "==", uid);
+        if (scopeToVenue) {
+          depQuery = depQuery.where("exchange", "==", scopeToVenue);
+        }
+        const depSnap = await depQuery.get();
+        if (!depSnap.empty) {
+          const seen = new Set<string>();
+          let lifetime = 0;
+          let openCount = 0;
+          let closedCount = 0;
+          let anyRebuilt = false;
+          for (const d of depSnap.docs) {
+            const data = d.data();
+            const exch = String(data.exchange ?? "");
+            const bot = String(data.bot ?? "CRYPTO");
+            if (!exch) continue;
+            const key = `${uid}::${exch}::${bot}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const agg = await getDeploymentAggregates(db, {
+              uid,
+              exchange: exch,
+              bot,
+              openTradeCount: data.openTradeCount as number | undefined,
+              closedTradeCount: data.closedTradeCount as number | undefined,
+              lifetimeRealizedPnl: data.lifetimeRealizedPnl as number | undefined,
+              aggregatesBot: data.aggregatesBot as string | undefined,
+            });
+            lifetime += agg.lifetimeRealizedPnl;
+            openCount += agg.openTradeCount;
+            closedCount += agg.closedTradeCount;
+            if (agg.source === "rebuilt") anyRebuilt = true;
+          }
+          aggregates = {
+            lifetimeRealizedPnl: Number(lifetime.toFixed(6)),
+            openTradeCount: openCount,
+            closedTradeCount: closedCount,
+            source: anyRebuilt ? (seen.size > 1 ? "mixed" : "rebuilt") : "cache",
+          };
+        }
       }
     } catch (e) {
       console.warn(

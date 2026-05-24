@@ -26,7 +26,7 @@ import {
 } from "@/lib/exchanges";
 import {
   applyTradeChangeToAggregates,
-  rebuildDeploymentAggregates,
+  rebuildAllDeploymentsOnExchange,
   type TradeAggregateSnapshot,
 } from "@/lib/freedombot/aggregates";
 
@@ -597,7 +597,7 @@ export async function reconcileUserExchangeClosedPnl(
   // cached deployment aggregates from the (now up-to-date) live_trades. This
   // heals any drift from missed deltas, manual overrides, or legacy rows.
   try {
-    await rebuildDeploymentAggregates(db, uid, exchange);
+    await rebuildAllDeploymentsOnExchange(db, uid, exchange);
   } catch (e) {
     result.errors.push(
       `aggregate-rebuild: ${e instanceof Error ? e.message : String(e)}`,

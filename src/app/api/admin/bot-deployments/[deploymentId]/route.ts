@@ -77,9 +77,11 @@ export async function GET(
     const aggregates = await getDeploymentAggregates(db, {
       uid,
       exchange,
+      bot,
       openTradeCount: x.openTradeCount as number | undefined,
       closedTradeCount: x.closedTradeCount as number | undefined,
       lifetimeRealizedPnl: x.lifetimeRealizedPnl as number | undefined,
+      aggregatesBot: x.aggregatesBot as string | undefined,
     });
     const currency = pnlCurrencyLabel(bot, exchange);
     const createdAt = (x.createdAt as { toDate?: () => Date } | null) ?? null;

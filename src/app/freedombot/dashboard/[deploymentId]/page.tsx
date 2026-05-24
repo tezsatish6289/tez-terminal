@@ -29,6 +29,7 @@ import {
   cumulativeBestPnlByTradeId,
   sortTradesForDashboard,
 } from "@/lib/freedombot/trade-display";
+import { tradeMatchesDeployBot } from "@/lib/freedombot/aggregates";
 
 interface Deployment {
   id: string;
@@ -48,8 +49,9 @@ interface Deployment {
 const FREEDOMBOT_CRYPTO_EXCHANGES = ["BYBIT", "COINDCX", "HYPERLIQUID"] as const;
 
 function tradeMatchesDeployment(t: Trade, dep: Deployment): boolean {
-  if (t.exchange) return t.exchange === dep.exchange;
-  return dep.exchange === "BYBIT";
+  if (t.exchange && t.exchange !== dep.exchange) return false;
+  if (t.exchange == null && dep.exchange !== "BYBIT") return false;
+  return tradeMatchesDeployBot(t, dep.bot);
 }
 
 function botLabel(deployKey: string, publicBots: ReturnType<typeof usePublicBots>["bots"]): string {
@@ -127,6 +129,7 @@ export default function BotDetailPage() {
             exU as (typeof FREEDOMBOT_CRYPTO_EXCHANGES)[number],
           );
         if (isCryptoTab) params.set("exchange", exU);
+        params.set("deploymentId", deploymentId);
         if (withReconcile && isCryptoTab) params.set("reconcile", "1");
         const qs = params.toString();
         const res = await fetch(`/api/freedombot/my-trades${qs ? `?${qs}` : ""}`, {
@@ -152,7 +155,7 @@ export default function BotDetailPage() {
         }
       }
     },
-    [user],
+    [user, deploymentId],
   );
 
   useEffect(() => {

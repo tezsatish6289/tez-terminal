@@ -13,6 +13,7 @@ interface RiskRatioDrilldownsProps {
   trades: SimTrade[];
   startingCapital: number;
   assetType: string;
+  /** @deprecated — styling is unified with /stats */
   theme?: "terminal" | "performance";
 }
 
@@ -20,7 +21,6 @@ export function RiskRatioDrilldowns({
   trades,
   startingCapital,
   assetType,
-  theme = "terminal",
 }: RiskRatioDrilldownsProps) {
   const [view, setView] = useState<"trade" | "day">("trade");
   const riskFree = assetType === "INDIAN_STOCKS" ? 0.065 : 0;
@@ -37,31 +37,13 @@ export function RiskRatioDrilldowns({
 
   if (!headline) return null;
 
-  const isPerf = theme === "performance";
-  const borderCol = isPerf ? "rgba(90,140,220,0.12)" : "rgba(255,255,255,0.06)";
-
   return (
-    <section
-      className={isPerf ? "mt-8 pt-8 space-y-6" : "mt-10 pt-10 border-t border-white/[0.06] space-y-6"}
-      style={isPerf ? { borderTop: `1px solid ${borderCol}` } : undefined}
-    >
+    <section className="mt-10 pt-10 border-t border-white/[0.06] space-y-5">
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h2
-          className={cn(
-            "text-[11px] font-bold uppercase tracking-wider",
-            !isPerf && "text-muted-foreground/75",
-          )}
-          style={isPerf ? { color: "#64748b" } : undefined}
-        >
+        <h2 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/75">
           Ratio history
         </h2>
-        <div
-          className="flex items-center gap-1 rounded-lg p-1"
-          style={{
-            backgroundColor: "rgba(255,255,255,0.03)",
-            border: `1px solid ${borderCol}`,
-          }}
-        >
+        <div className="flex items-center gap-1 rounded-lg p-1 bg-white/[0.03] border border-white/[0.06]">
           {(
             [
               { key: "trade" as const, label: "Tradewise" },
@@ -75,12 +57,8 @@ export function RiskRatioDrilldowns({
               className={cn(
                 "px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
                 view === v.key
-                  ? isPerf
-                    ? "bg-[rgba(96,165,250,0.2)] text-[#60a5fa]"
-                    : "bg-accent/20 text-accent"
-                  : isPerf
-                    ? "text-[#475569] hover:text-[#64748b]"
-                    : "text-muted-foreground/50 hover:text-muted-foreground/75",
+                  ? "bg-accent/20 text-accent"
+                  : "text-muted-foreground/50 hover:text-muted-foreground/75",
               )}
             >
               {v.label}
@@ -95,21 +73,18 @@ export function RiskRatioDrilldowns({
           series={series}
           view={view}
           headlineValue={headline.sharpeRatio}
-          theme={theme}
         />
         <RatioDrilldownChart
           ratioKey="sortino"
           series={series}
           view={view}
           headlineValue={headline.sortinoRatio}
-          theme={theme}
         />
         <RatioDrilldownChart
           ratioKey="calmar"
           series={series}
           view={view}
           headlineValue={headline.calmarRatio}
-          theme={theme}
         />
       </div>
     </section>

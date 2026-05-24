@@ -12,7 +12,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { LineChart } from "lucide-react";
 import type { RatioSeriesPoint } from "@/lib/performance-metrics";
 import {
   formatRatioValue,
@@ -32,6 +31,7 @@ interface RatioDrilldownChartProps {
   series: RatioSeriesPoint[];
   view: "trade" | "day";
   headlineValue: number | null;
+  /** @deprecated — all charts use compact terminal styling */
   theme?: "terminal" | "performance";
 }
 
@@ -39,20 +39,14 @@ function statusAtValue(ratioKey: RatioKey, v: number): MetricStatus {
   return statusForRatio(ratioKey, v);
 }
 
-function valueTextShadow(color: string): string {
-  return `0 0 20px ${color}44`;
-}
-
 export function RatioDrilldownChart({
   ratioKey,
   series,
   view,
   headlineValue,
-  theme = "terminal",
 }: RatioDrilldownChartProps) {
   const insight = insightForRatio(ratioKey);
   const tiers = ratioChartTiers(ratioKey);
-  const isPerf = theme === "performance";
 
   const status =
     headlineValue != null && Number.isFinite(headlineValue)
@@ -80,16 +74,10 @@ export function RatioDrilldownChart({
   const yMin = Math.floor(Math.min(dataMin, 0) * 10) / 10 - 0.2;
   const yMax = Math.ceil(Math.max(dataMax, tierCeil) * 10) / 10 + 0.3;
 
-  const borderCol = isPerf ? "rgba(90,140,220,0.12)" : "rgba(255,255,255,0.07)";
-  const bgCard = isPerf ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.02)";
-  const gridCol = isPerf ? "rgba(90,140,220,0.08)" : "rgba(255,255,255,0.06)";
-  const axisCol = isPerf ? "rgba(90,140,220,0.45)" : "rgba(255,255,255,0.45)";
-  const mutedCol = isPerf ? "#475569" : undefined;
-
   const tooltipStyle = {
     contentStyle: {
-      backgroundColor: isPerf ? "#0a1628" : "#1a1a1d",
-      border: `1px solid ${borderCol}`,
+      backgroundColor: "#1a1a1d",
+      border: "1px solid rgba(255,255,255,0.07)",
       borderRadius: "8px",
       fontSize: "11px",
       color: "#e2e8f0",
@@ -112,73 +100,50 @@ export function RatioDrilldownChart({
         ];
 
   return (
-    <div
-      className="rounded-xl border px-5 py-5 sm:px-6 sm:py-6 flex flex-col gap-4 h-full"
-      style={{
-        backgroundColor: bgCard,
-        borderColor: borderCol,
-        boxShadow: status === "exceptional" ? meta.glow : undefined,
-      }}
-    >
-      <header className="space-y-2">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2 min-w-0">
-            <LineChart className="w-4 h-4 shrink-0" style={{ color: "#60a5fa" }} />
-            <div>
-              <span
-                className="text-xs font-bold uppercase tracking-wider block"
-                style={{ color: isPerf ? "#94a3b8" : undefined }}
-              >
-                {insight.title}
-              </span>
-              <span
-                className="text-[10px] font-semibold uppercase tracking-wider"
-                style={{ color: mutedCol ?? "rgba(255,255,255,0.35)" }}
-              >
-                {insight.helperLabel}
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span
-              className="text-2xl font-mono font-black tabular-nums leading-none"
-              style={{ color: stroke, textShadow: valueTextShadow(stroke) }}
-            >
-              {headlineValue != null ? formatRatioValue(headlineValue) : "—"}
-            </span>
-            <span
-              className="text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-md"
-              style={{ backgroundColor: pillSolidBg(status), color: "#fff" }}
-            >
-              {meta.label}
-            </span>
-          </div>
+    <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-4 flex flex-col gap-3 h-full">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/55 block">
+            {insight.title}
+          </span>
+          <p className="text-[10px] text-muted-foreground/45 mt-0.5 leading-snug line-clamp-2">
+            {insight.shortInterpretation}
+          </p>
         </div>
-        <p
-          className="text-[11px] leading-relaxed"
-          style={{ color: mutedCol ?? "rgba(255,255,255,0.5)" }}
-        >
-          {insight.shortInterpretation}
-        </p>
-        <p className="text-[10px]" style={{ color: mutedCol ?? "rgba(255,255,255,0.35)" }}>
-          {view === "trade" ? "Tradewise" : "Daywise"} · expanding window
-        </p>
-      </header>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span
+            className="text-xl font-mono font-bold tabular-nums leading-none"
+            style={{ color: stroke }}
+          >
+            {headlineValue != null ? formatRatioValue(headlineValue) : "—"}
+          </span>
+          <span
+            className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
+            style={{ backgroundColor: pillSolidBg(status), color: "#fff" }}
+          >
+            {meta.label}
+          </span>
+        </div>
+      </div>
+
+      <p className="text-[9px] text-muted-foreground/40">
+        {view === "trade" ? "Tradewise" : "Daywise"} · expanding window
+      </p>
 
       {chartData.length < 2 ? (
-        <div className="flex-1 flex items-center justify-center py-12 text-center">
-          <p className="text-[11px]" style={{ color: mutedCol ?? "rgba(255,255,255,0.4)" }}>
+        <div className="flex-1 flex items-center justify-center py-10 text-center">
+          <p className="text-[10px] text-muted-foreground/45">
             Need at least 5 closed trades for ratio history
           </p>
         </div>
       ) : (
         <>
-          <div className="h-[240px] sm:h-[260px]">
+          <div className="h-[200px] sm:h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 8, right: 28, left: 4, bottom: 4 }}>
+              <AreaChart data={chartData} margin={{ top: 6, right: 24, left: 2, bottom: 2 }}>
                 <defs>
-                  <linearGradient id={`ratioFill-${ratioKey}-${theme}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={stroke} stopOpacity={0.4} />
+                  <linearGradient id={`ratioFill-${ratioKey}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={stroke} stopOpacity={0.35} />
                     <stop offset="95%" stopColor={stroke} stopOpacity={0} />
                   </linearGradient>
                 </defs>
@@ -197,21 +162,21 @@ export function RatioDrilldownChart({
                     />
                   );
                 })}
-                <CartesianGrid strokeDasharray="3 3" stroke={gridCol} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                 <XAxis
                   dataKey="x"
-                  tick={{ fontSize: 9, fill: axisCol }}
+                  tick={{ fontSize: 9, fill: "rgba(255,255,255,0.45)" }}
                   tickLine={false}
-                  axisLine={{ stroke: gridCol }}
+                  axisLine={{ stroke: "rgba(255,255,255,0.06)" }}
                   tickFormatter={(v) => (view === "trade" ? `#${v}` : String(v))}
                 />
                 <YAxis
                   domain={[yMin, yMax]}
-                  tick={{ fontSize: 9, fill: axisCol }}
+                  tick={{ fontSize: 9, fill: "rgba(255,255,255,0.45)" }}
                   tickLine={false}
-                  axisLine={{ stroke: gridCol }}
+                  axisLine={{ stroke: "rgba(255,255,255,0.06)" }}
                   tickFormatter={(v: number) => v.toFixed(1)}
-                  width={32}
+                  width={28}
                 />
                 <Tooltip
                   {...tooltipStyle}
@@ -245,12 +210,12 @@ export function RatioDrilldownChart({
                   dataKey="value"
                   stroke={stroke}
                   strokeWidth={2}
-                  fill={`url(#ratioFill-${ratioKey}-${theme})`}
+                  fill={`url(#ratioFill-${ratioKey})`}
                   dot={false}
                   activeDot={{
-                    r: 4,
+                    r: 3,
                     fill: stroke,
-                    stroke: isPerf ? "#080f1e" : "#0f0f11",
+                    stroke: "#0f0f11",
                     strokeWidth: 2,
                   }}
                 />
@@ -258,37 +223,20 @@ export function RatioDrilldownChart({
             </ResponsiveContainer>
           </div>
 
-          {/* Chart band legend — dots + text only (pills reserved for strength badge above) */}
-          <p
-            className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] justify-center sm:justify-start"
-            style={{ color: mutedCol ?? "rgba(255,255,255,0.4)" }}
-          >
-            <span className="font-medium" style={{ color: mutedCol ?? "rgba(255,255,255,0.35)" }}>
-              Chart bands:
-            </span>
+          <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[9px] text-muted-foreground/40">
+            <span className="font-medium text-muted-foreground/35">Chart bands:</span>
             {tiers
               .filter((t) => t.y2 <= yMax && t.y1 >= yMin - 1)
               .map((tier) => (
-                <span
-                  key={tier.chartLabel}
-                  className="inline-flex items-center gap-1"
-                >
+                <span key={tier.chartLabel} className="inline-flex items-center gap-1">
                   <span
-                    className="h-2 w-2 rounded-sm shrink-0 opacity-80"
+                    className="h-1.5 w-1.5 rounded-sm shrink-0 opacity-80"
                     style={{ backgroundColor: tierFillColor(tier.status) }}
                     aria-hidden
                   />
-                  <span style={{ color: tierFillColor(tier.status) }}>
-                    {tier.chartLabel}
-                  </span>
+                  <span style={{ color: tierFillColor(tier.status) }}>{tier.chartLabel}</span>
                 </span>
               ))}
-          </p>
-          <p
-            className="text-[10px] italic text-center sm:text-left"
-            style={{ color: mutedCol ?? "rgba(255,255,255,0.35)" }}
-          >
-            Think of it as: &ldquo;{insight.thinkOfIt}&rdquo;
           </p>
         </>
       )}

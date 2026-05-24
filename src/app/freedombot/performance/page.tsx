@@ -14,19 +14,17 @@ import {
 import { EquityChart } from "@/components/charts/EquityChart";
 import { format } from "date-fns";
 import {
-  calcPerformanceMetrics,
   annualizeReturn,
   compoundReturnOverPeriod,
   MIN_DAYS_FOR_RELIABLE_ANNUALIZATION,
 } from "@/lib/performance-metrics";
-import type { PerformanceMetrics } from "@/lib/performance-metrics";
 import { buildEquityCurve } from "@/lib/equity-curve";
 import { PublicBotTabs } from "@/components/freedombot/PublicBotTabs";
 import { usePublicBots } from "@/hooks/use-public-bots";
 import type { CryptoBotId } from "@/lib/crypto-bots";
 import { tradeMatchesSelectedPublicBot } from "@/lib/public-bot-flags";
 import { RiskRatioDrilldowns } from "@/components/stats/RiskRatioDrilldowns";
-import { PerformanceMetricsInsight } from "@/components/freedombot/PerformanceMetricsInsight";
+import { PerformanceMetricsPanel } from "@/components/stats/PerformanceMetricsPanel";
 import type { SimTrade } from "@/lib/simulator";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -258,21 +256,13 @@ export default function PerformancePage() {
     };
   }, [simState, derivedCapital, startCap, runningDays]);
 
-  // Performance metrics — same function AND same args as simulator
-  const metrics = useMemo(
-    () => closedTrades.length > 0 && startCap > 0
-      ? calcPerformanceMetrics(closedTrades as any, startCap, 0)
-      : null,
-    [closedTrades, startCap]
-  );
-
   const monthlyIsProjected = monthlyPnl.isProjected;
   const yearlyIsProjected  = yearlyPnl.isProjected;
 
   return (
     <div className="min-h-screen font-sans antialiased overflow-x-hidden" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
 
-      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 space-y-10">
+      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 space-y-8">
 
         {/* ── Hero header ── */}
         <div className="text-center py-4 sm:py-8 space-y-4">
@@ -292,14 +282,6 @@ export default function PerformancePage() {
           <p className="text-sm sm:text-base max-w-xl mx-auto leading-relaxed" style={{ color: "#64748b" }}>
             Real data. Real trades. Every number on this page is live — pulled directly from our trading system, not a backtest.
           </p>
-          <Link
-            href="/records"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold transition-colors hover:text-blue-300 mt-1"
-            style={{ color: "#60a5fa" }}
-          >
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            Every trade is permanently recorded on the Solana blockchain — verify independently →
-          </Link>
         </div>
 
         {/* ── Bot selector (matches /stats layout) ── */}
@@ -404,26 +386,40 @@ export default function PerformancePage() {
           </div>
 
         {closedTrades.length >= 2 && (
-          <div className="flex flex-col lg:flex-row gap-5 items-stretch">
-            <div className="flex-1 min-w-0">
-              <EquityChart
-                trades={closedTrades}
-                startingCapital={startCap}
-                cs="$"
-                theme="blue"
-              />
+          <>
+            <div className="flex flex-col lg:flex-row gap-5 items-stretch">
+              <div className="flex-1 min-w-0">
+                <EquityChart
+                  trades={closedTrades}
+                  startingCapital={startCap}
+                  cs="$"
+                  theme="white"
+                />
+              </div>
+              <div className="lg:w-72 xl:w-80 shrink-0 flex flex-col">
+                <PerformanceMetricsPanel
+                  trades={closedTrades as SimTrade[]}
+                  startingCapital={startCap}
+                  assetType="CRYPTO"
+                />
+              </div>
             </div>
-            <div className="lg:w-72 xl:w-80 shrink-0 flex flex-col">
-              <PerformanceMetricsInsight metrics={metrics} variant="sidebar" />
-            </div>
-          </div>
+            <p className="text-center">
+              <Link
+                href="/records"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground/55 transition-colors hover:text-accent"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                Every trade is permanently recorded on the Solana blockchain — verify independently →
+              </Link>
+            </p>
+          </>
         )}
 
         <RiskRatioDrilldowns
           trades={closedTrades as SimTrade[]}
           startingCapital={startCap}
           assetType="CRYPTO"
-          theme="performance"
         />
           </div>
         )}

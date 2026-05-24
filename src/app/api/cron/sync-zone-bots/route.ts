@@ -68,6 +68,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
+import { markTradeForBlockchain } from "@/lib/blockchain-logger";
 import { recordCronHeartbeat } from "@/lib/cron-health";
 import { deserializePrices } from "@/lib/exchanges";
 import { getLeverage } from "@/lib/leverage";
@@ -465,6 +466,10 @@ async function closeZoneBotTrade(args: {
     details: `[${ZONE_BOT_SOURCE[asset]}] ${trade.symbol} ${trade.side} closed @ $${spot} — ${reason}`,
   };
   await db.collection("simulator_logs").add(decoratedLog);
+
+  if (exitResult.updatedTrade.status === "CLOSED") {
+    await markTradeForBlockchain(db, tradeId);
+  }
 
   return { updatedState: exitResult.updatedState, log: decoratedLog };
 }

@@ -148,6 +148,11 @@ export interface SimTrade {
    *  zone bots fully control their own lifecycle. SL/TP fill detection still
    *  applies — that's the same engine and is asset-agnostic. */
   botSource?: string;
+  /** Solana memo publish — set when trade closes. */
+  txHash?: string | null;
+  blockchainStatus?: "pending" | "processing" | "confirmed" | "failed" | null;
+  blockchainError?: string | null;
+  blockchainConfirmedAt?: string | null;
   /** @deprecated Legacy score-floor tracking — no longer written. */
   lastScore?: number | null;
   /** @deprecated Legacy score-floor tracking — no longer written. */

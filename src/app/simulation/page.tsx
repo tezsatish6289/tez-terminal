@@ -30,6 +30,7 @@ import { useState, useMemo, useEffect, useCallback, useRef, Fragment } from "rea
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { BlockchainTxCell } from "@/lib/blockchain-trade-display";
 import { Badge } from "@/components/ui/badge";
 import { PatternBadge, type PatternType } from "@/components/ui/pattern-badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -1397,6 +1398,11 @@ function TradeList({ trades, emptyIcon, emptyLabel, onSelectTrade, onForceClose,
                       <CheckFilter values={uStats} selected={filters.statuses} onChange={(v) => setF("statuses", v)} labelMap={statusLabelMap} />
                     </ColFilter>
                   </TableHead>
+                  {isHistory ? (
+                    <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12 w-[88px]">
+                      On-chain
+                    </TableHead>
+                  ) : null}
                   <TableHead className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/50 h-12 w-[90px] text-right">Date</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1725,27 +1731,14 @@ function DesktopTradeRow({
                 </SimForceCloseDialog>
               )}
             </div>
-            {(trade as any).txHash ? (
-              <a
-                href={`https://solscan.io/tx/${(trade as any).txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="flex items-center gap-1 text-[8px] font-bold text-purple-400/70 hover:text-purple-400 transition-colors"
-                title="View on Solscan"
-              >
-                <Link2 className="h-2.5 w-2.5" />
-                On-chain ↗
-              </a>
-            ) : (trade as any).blockchainStatus === "pending" || (trade as any).blockchainStatus === "processing" ? (
-              <span className="flex items-center gap-1 text-[8px] font-bold text-muted-foreground/30">
-                <Link2 className="h-2.5 w-2.5" />
-                Publishing…
-              </span>
-            ) : null}
           </div>
         )}
       </TableCell>
+      {isHistory ? (
+        <TableCell className={cellPy}>
+          {!isOpen ? <BlockchainTxCell trade={trade} size="md" /> : null}
+        </TableCell>
+      ) : null}
       <TableCell className={cn(cellPy, "text-right")}>
         <div className="flex flex-col items-end gap-0.5">
           <div className="flex items-center gap-1 whitespace-nowrap">
@@ -2035,27 +2028,10 @@ function MobileTradeCard({ trade, onSelect, onForceClose, cs, balance, startingC
             </div>
           </div>
 
-          {/* Blockchain verification link (closed trades only) */}
-          {!isOpen && (trade as any).txHash && (
+          {/* Blockchain verification (closed trades) */}
+          {!isOpen && (
             <div className="pt-2 border-t border-white/[0.04]">
-              <a
-                href={`https://solscan.io/tx/${(trade as any).txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="flex items-center gap-1.5 text-[10px] font-bold text-purple-400/70 hover:text-purple-400 transition-colors"
-              >
-                <Link2 className="h-3 w-3" />
-                Verify on-chain ↗
-              </a>
-            </div>
-          )}
-          {!isOpen && ((trade as any).blockchainStatus === "pending" || (trade as any).blockchainStatus === "processing") && (
-            <div className="pt-2 border-t border-white/[0.04]">
-              <span className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground/30">
-                <Link2 className="h-3 w-3" />
-                Publishing to blockchain…
-              </span>
+              <BlockchainTxCell trade={trade} size="md" />
             </div>
           )}
         </div>

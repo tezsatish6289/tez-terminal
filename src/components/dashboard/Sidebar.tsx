@@ -29,6 +29,7 @@ export function LeftSidebar() {
     { name: "Bot users", icon: Bot, href: "/admin/bot-users" },
     { name: "Waitlist", icon: ClipboardList, href: "/admin/waitlist" },
     { name: "Contact", icon: MessageSquare, href: "/admin/contact" },
+    { name: "Bot records", icon: ShieldCheck, href: "/records" },
     { name: "Bridge Config", icon: Webhook, href: "/webhooks" },
   ];
 

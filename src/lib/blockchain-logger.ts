@@ -12,6 +12,7 @@ import { sendMemoTransaction } from "./solana-wallet";
 
 interface TradePayload {
   asset: string;
+  botSource?: string;
   entryTime: string;
   exitTime: string;
   symbol: string;
@@ -27,6 +28,7 @@ interface TradePayload {
 function buildPayload(trade: SimTrade): string {
   const payload: TradePayload = {
     asset: trade.assetType ?? "CRYPTO",
+    botSource: trade.botSource ?? undefined,
     entryTime: trade.openedAt ?? new Date().toISOString(),
     exitTime: trade.closedAt ?? new Date().toISOString(),
     symbol: trade.symbol,

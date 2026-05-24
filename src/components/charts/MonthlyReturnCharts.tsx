@@ -31,7 +31,7 @@ export interface MonthlyReturnChartsProps {
 }
 
 const MONTHLY_BAR = "#2dd4bf";
-const CUMULATIVE_LINE = "#3b82f6";
+const CUMULATIVE_BAR = "#3b82f6";
 
 function fmtPct(v: number, dp = 1): string {
   const sign = v > 0 ? "+" : "";
@@ -54,7 +54,8 @@ function portfolioTitle(data: MonthlyReturnPoint[]): string {
   return `Portfolio Performance Summary — ${m0} to ${m1} ${year}`;
 }
 
-function BarValueLabel(props: {
+/** Label inside monthly (teal) bar */
+function MonthlyBarLabel(props: {
   x?: number;
   y?: number;
   width?: number;
@@ -64,11 +65,10 @@ function BarValueLabel(props: {
   const { x = 0, y = 0, width = 0, height = 0, value } = props;
   if (value == null || !Number.isFinite(value)) return null;
   const inside = Math.abs(height) > 18;
-  const cy = y + height / 2;
   return (
     <text
       x={x + width / 2}
-      y={cy}
+      y={y + height / 2}
       fill={inside ? "#042f2e" : "#e2e8f0"}
       textAnchor="middle"
       dominantBaseline="middle"
@@ -80,38 +80,26 @@ function BarValueLabel(props: {
   );
 }
 
-function LineValueLabel(props: {
+/** Label above cumulative (blue) bar peak */
+function CumulativeBarLabel(props: {
   x?: number;
   y?: number;
+  width?: number;
   value?: number;
 }) {
-  const { x = 0, y = 0, value } = props;
+  const { x = 0, y = 0, width = 0, value } = props;
   if (value == null || !Number.isFinite(value)) return null;
-  const label = fmtPct(value);
-  const w = Math.max(40, label.length * 6.5);
   return (
-    <g>
-      <rect
-        x={x - w / 2}
-        y={y - 22}
-        width={w}
-        height={16}
-        rx={4}
-        fill="#0f0f11"
-        stroke="rgba(255,255,255,0.12)"
-        strokeWidth={1}
-      />
-      <text
-        x={x}
-        y={y - 11}
-        fill="#f8fafc"
-        textAnchor="middle"
-        fontSize={9}
-        fontWeight={700}
-      >
-        {label}
-      </text>
-    </g>
+    <text
+      x={x + width / 2}
+      y={y - 6}
+      fill="#f8fafc"
+      textAnchor="middle"
+      fontSize={9}
+      fontWeight={700}
+    >
+      {fmtPct(value)}
+    </text>
   );
 }
 
@@ -171,16 +159,12 @@ export function MonthlyReturnCharts({
 
   return (
     <section
-      className={cn(
-        "rounded-lg border p-4 sm:p-5 space-y-4",
-        className,
-      )}
+      className={cn("rounded-lg border p-4 sm:p-5 space-y-4", className)}
       style={{
         backgroundColor: "rgba(255,255,255,0.02)",
         borderColor: isBlue ? "rgba(90,140,220,0.08)" : "rgba(255,255,255,0.06)",
       }}
     >
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="space-y-1 min-w-0">
           <h2
@@ -192,10 +176,7 @@ export function MonthlyReturnCharts({
             {portfolioTitle(data)}
           </h2>
           <p
-            className={cn(
-              "text-[11px]",
-              !isBlue && "text-muted-foreground/50",
-            )}
+            className={cn("text-[11px]", !isBlue && "text-muted-foreground/50")}
             style={isBlue ? { color: "#475569" } : undefined}
           >
             Monthly vs Cumulative Returns (Closed Trades)
@@ -208,7 +189,10 @@ export function MonthlyReturnCharts({
             backgroundColor: "rgba(255,255,255,0.03)",
           }}
         >
-          <span style={{ color: isBlue ? "#64748b" : undefined }} className={!isBlue ? "text-muted-foreground/55" : undefined}>
+          <span
+            className={!isBlue ? "text-muted-foreground/55" : undefined}
+            style={isBlue ? { color: "#64748b" } : undefined}
+          >
             Total Return:{" "}
           </span>
           <span
@@ -219,22 +203,29 @@ export function MonthlyReturnCharts({
           >
             {fmtPct(totalReturn)}
           </span>
-          <span className={cn("mx-1.5", !isBlue && "text-muted-foreground/35")} style={isBlue ? { color: "#334155" } : undefined}>
+          <span
+            className={cn("mx-1.5", !isBlue && "text-muted-foreground/35")}
+            style={isBlue ? { color: "#334155" } : undefined}
+          >
             |
           </span>
-          <span style={{ color: isBlue ? "#64748b" : undefined }} className={!isBlue ? "text-muted-foreground/55" : undefined}>
+          <span
+            className={!isBlue ? "text-muted-foreground/55" : undefined}
+            style={isBlue ? { color: "#64748b" } : undefined}
+          >
             Best Month:{" "}
           </span>
           <span className="font-semibold text-white/90">{bestMonth}</span>
         </div>
       </div>
 
-      {/* Combo chart */}
-      <div className="h-[280px] sm:h-[320px]">
+      <div className="h-[300px] sm:h-[340px]">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={data}
-            margin={{ top: 28, right: 8, left: 4, bottom: 4 }}
+            margin={{ top: 32, right: 12, left: 4, bottom: 4 }}
+            barCategoryGap="18%"
+            barGap={4}
           >
             <CartesianGrid strokeDasharray="3 3" stroke={gridCol} vertical={false} />
             <XAxis
@@ -267,7 +258,7 @@ export function MonthlyReturnCharts({
                 cumDomainMin < 0 ? Math.floor(cumDomainMin * 1.1) : 0,
                 Math.ceil(cumDomainMax * 1.12) || cumulativeMax,
               ]}
-              tick={{ fontSize: 9, fill: CUMULATIVE_LINE }}
+              tick={{ fontSize: 9, fill: CUMULATIVE_BAR }}
               tickLine={false}
               axisLine={{ stroke: axisLn }}
               tickFormatter={pctAxis}
@@ -277,7 +268,7 @@ export function MonthlyReturnCharts({
                 angle: 90,
                 position: "insideRight",
                 offset: 12,
-                style: { fill: CUMULATIVE_LINE, fontSize: 9, fontWeight: 600 },
+                style: { fill: CUMULATIVE_BAR, fontSize: 9, fontWeight: 600 },
               }}
             />
             <Tooltip
@@ -288,75 +279,106 @@ export function MonthlyReturnCharts({
                   cs === "₹"
                     ? `₹${Math.abs(row.monthPnl).toLocaleString("en-IN")}`
                     : `$${Math.abs(row.monthPnl).toFixed(2)}`;
-                if (name === "monthlyReturnPct") {
+                if (name === "Monthly Return") {
                   return [fmtPct(value, 2), `Monthly · ${row.monthPnl >= 0 ? "+" : ""}${money}`];
                 }
-                return [fmtPct(value, 2), "Cumulative vs start"];
+                if (name === "Cumulative Return") {
+                  return [fmtPct(value, 2), "Cumulative vs start"];
+                }
+                return [fmtPct(value, 2), name];
               }}
             />
             <ReferenceLine yAxisId="monthly" y={0} stroke={refCol} />
+
+            {/* Monthly bar (left in each pair) */}
             <Bar
               yAxisId="monthly"
               dataKey="monthlyReturnPct"
-              maxBarSize={56}
+              name="Monthly Return"
+              barSize={26}
               radius={[4, 4, 0, 0]}
               activeBar={false}
             >
               {data.map((entry, i) => (
                 <Cell
-                  key={i}
+                  key={`m-${i}`}
                   fill={entry.monthlyReturnPct >= 0 ? MONTHLY_BAR : "#f87171"}
-                  fillOpacity={0.85}
+                  fillOpacity={0.88}
                 />
               ))}
-              <LabelList dataKey="monthlyReturnPct" content={BarValueLabel} />
+              <LabelList dataKey="monthlyReturnPct" content={MonthlyBarLabel} />
             </Bar>
+
+            {/* Cumulative bar (right in each pair) — same blue as connecting line */}
+            <Bar
+              yAxisId="cumulative"
+              dataKey="cumulativeReturnPct"
+              name="Cumulative Return"
+              barSize={26}
+              radius={[4, 4, 0, 0]}
+              fill={CUMULATIVE_BAR}
+              fillOpacity={0.88}
+              activeBar={false}
+            >
+              {data.map((entry, i) => (
+                <Cell
+                  key={`c-${i}`}
+                  fill={entry.cumulativeReturnPct >= 0 ? CUMULATIVE_BAR : "#f87171"}
+                  fillOpacity={0.88}
+                />
+              ))}
+              <LabelList dataKey="cumulativeReturnPct" content={CumulativeBarLabel} />
+            </Bar>
+
+            {/* Line through cumulative bar peaks */}
             <Line
               yAxisId="cumulative"
               type="monotone"
               dataKey="cumulativeReturnPct"
-              stroke={CUMULATIVE_LINE}
+              stroke={CUMULATIVE_BAR}
               strokeWidth={2.5}
-              dot={{
-                r: 5,
-                fill: CUMULATIVE_LINE,
-                stroke: "#0f0f11",
-                strokeWidth: 2,
-              }}
-              activeDot={{
-                r: 6,
-                fill: CUMULATIVE_LINE,
-                stroke: "#fff",
-                strokeWidth: 2,
-              }}
-            >
-              <LabelList dataKey="cumulativeReturnPct" content={LineValueLabel} />
-            </Line>
+              dot={false}
+              activeDot={false}
+              legendType="none"
+              tooltipType="none"
+              isAnimationActive={false}
+            />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center justify-center gap-6 text-[10px] font-semibold">
+      <div className="flex flex-wrap items-center justify-center gap-6 text-[10px] font-semibold">
         <span className="inline-flex items-center gap-1.5">
           <span
-            className="h-2.5 w-2.5 rounded-full shrink-0"
+            className="h-2.5 w-2.5 rounded-sm shrink-0"
             style={{ backgroundColor: MONTHLY_BAR }}
             aria-hidden
           />
-          <span className={!isBlue ? "text-muted-foreground/70" : undefined} style={isBlue ? { color: "#94a3b8" } : undefined}>
+          <span
+            className={!isBlue ? "text-muted-foreground/70" : undefined}
+            style={isBlue ? { color: "#94a3b8" } : undefined}
+          >
             Monthly Return
           </span>
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span
-            className="h-2.5 w-2.5 rounded-full shrink-0"
-            style={{ backgroundColor: CUMULATIVE_LINE }}
+            className="h-2.5 w-2.5 rounded-sm shrink-0"
+            style={{ backgroundColor: CUMULATIVE_BAR }}
             aria-hidden
           />
-          <span className={!isBlue ? "text-muted-foreground/70" : undefined} style={isBlue ? { color: "#94a3b8" } : undefined}>
+          <span
+            className={!isBlue ? "text-muted-foreground/70" : undefined}
+            style={isBlue ? { color: "#94a3b8" } : undefined}
+          >
             Cumulative Return
           </span>
+        </span>
+        <span
+          className={cn("text-[9px] font-normal", !isBlue && "text-muted-foreground/40")}
+          style={isBlue ? { color: "#475569" } : undefined}
+        >
+          Blue line connects cumulative bar peaks
         </span>
       </div>
     </section>

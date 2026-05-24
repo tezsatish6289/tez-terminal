@@ -22,6 +22,7 @@ import {
 } from "@/lib/monthly-returns";
 import type { ClosedTradeLike } from "@/lib/equity-curve";
 import { useAnimatedNumber, useChartMotion } from "@/hooks/use-chart-motion";
+import { brandMetricColor } from "@/lib/chart-brand-colors";
 
 export interface MonthlyReturnChartsProps {
   trades: ClosedTradeLike[];
@@ -243,7 +244,7 @@ export function MonthlyReturnCharts({
           <span
             className={cn(
               "font-bold",
-              totalReturn >= 0 ? "text-emerald-400" : "text-rose-400",
+              brandMetricColor(totalReturn >= 0),
             )}
           >
             {fmtPct(animatedTotal)}

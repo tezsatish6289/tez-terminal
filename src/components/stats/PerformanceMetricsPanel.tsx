@@ -5,6 +5,7 @@ import { Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SimTrade } from "@/lib/simulator";
 import { calcPerformanceMetrics } from "@/lib/performance-metrics";
+import { BRAND_METRIC_POSITIVE } from "@/lib/chart-brand-colors";
 import { formatDrawdownValue } from "@/lib/metric-insight-config";
 
 function MetricTile({
@@ -60,7 +61,7 @@ export function PerformanceMetricsPanel({
 
   const ratioColor = (n: number) =>
     !isFinite(n) || n >= 1.5
-      ? "text-emerald-400"
+      ? BRAND_METRIC_POSITIVE
       : n >= 0.5
         ? "text-amber-400"
         : "text-rose-400";
@@ -109,7 +110,7 @@ export function PerformanceMetricsPanel({
           sub="Peak-to-trough (closed)"
           color={
             metrics.maxDrawdownPct < 15
-              ? "text-emerald-400"
+              ? BRAND_METRIC_POSITIVE
               : metrics.maxDrawdownPct < 30
                 ? "text-amber-400"
                 : "text-rose-400"

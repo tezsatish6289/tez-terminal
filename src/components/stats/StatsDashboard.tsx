@@ -56,6 +56,10 @@ import {
   DASHBOARD_SECTION_STACK,
 } from "@/components/stats/dashboard-section-spacing";
 import {
+  brandMetricColor,
+  BRAND_LIVE_BADGE,
+} from "@/lib/chart-brand-colors";
+import {
   runningDaysForStatsFilter,
   startingCapitalForStatsFilter,
   type ZoneSimStatesMap,
@@ -124,7 +128,7 @@ function SummaryCard({
           <span className={cn(
             "text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full",
             badge.variant === "projected" ? "bg-amber-500/15 text-amber-400" :
-            badge.variant === "live"      ? "bg-emerald-500/15 text-emerald-400" :
+            badge.variant === "live"      ? BRAND_LIVE_BADGE :
                                             "bg-white/[0.05] text-muted-foreground/60"
           )}>
             {badge.text}
@@ -418,21 +422,21 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
           value={formatMoney(derivedCapital, cs)}
           sub={`${pnlUsd >= 0 ? "+" : ""}${formatMoney(pnlUsd, cs)} overall`}
           icon={assetType === "INDIAN_STOCKS" ? <IndianRupee className="w-3.5 h-3.5" /> : <DollarSign className="w-3.5 h-3.5" />}
-          color={derivedCapital >= effectiveStartingCapital ? "text-positive" : "text-negative"}
+          color={brandMetricColor(derivedCapital >= effectiveStartingCapital)}
         />
         <SummaryCard
           label="Total Return"
           value={formatPct(totalReturn)}
           sub={`across ${runningDays} day${runningDays !== 1 ? "s" : ""}`}
           icon={totalReturn >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-          color={totalReturn >= 0 ? "text-positive" : "text-negative"}
+          color={brandMetricColor(totalReturn >= 0)}
         />
         <SummaryCard
           label="Monthly Return"
           value={formatPct(monthlyPnl.pct)}
           sub={monthlyPnl.isProjected ? `compounded from ${runningDays}-day live performance` : "this calendar month"}
           icon={monthlyPnl.pct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-          color={monthlyPnl.pct >= 0 ? "text-positive" : "text-negative"}
+          color={brandMetricColor(monthlyPnl.pct >= 0)}
           badge={monthlyPnl.isProjected ? { text: "Projected", variant: "projected" } : undefined}
         />
         <SummaryCard
@@ -447,7 +451,7 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
           }
           subTone={yearlyPnl.isProjected && !yearlyPnl.isReliable ? "warn" : "muted"}
           icon={yearlyPnl.pct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-          color={yearlyPnl.pct >= 0 ? "text-positive" : "text-negative"}
+          color={brandMetricColor(yearlyPnl.pct >= 0)}
           badge={yearlyPnl.isProjected ? { text: "Projected", variant: "projected" } : { text: "Actual", variant: "actual" }}
         />
       </div>

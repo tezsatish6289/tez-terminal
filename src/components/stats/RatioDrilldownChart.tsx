@@ -114,13 +114,21 @@ export function RatioDrilldownChart({
         <div className="flex items-center gap-1.5 shrink-0">
           <span
             className="text-xl font-mono font-bold tabular-nums leading-none"
-            style={{ color: meta.valueColor }}
+            style={{ color: curveStroke }}
           >
             {headlineValue != null ? formatRatioValue(headlineValue) : "—"}
           </span>
           <span
             className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
-            style={{ backgroundColor: pillSolidBg(status), color: "#fff" }}
+            style={{
+              backgroundColor:
+                status === "weak"
+                  ? pillSolidBg(status)
+                  : status === "healthy"
+                    ? pillSolidBg(status)
+                    : "#2563eb",
+              color: "#fff",
+            }}
           >
             {meta.label}
           </span>

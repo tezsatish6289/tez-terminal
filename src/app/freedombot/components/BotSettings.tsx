@@ -545,7 +545,7 @@ export function BotSettings({
                   className="text-sm font-black"
                   style={{ color: isPaused ? "#fbbf24" : "#22c55e" }}
                 >
-                  {isPaused ? "Paused" : "Live"}
+                  {isPaused ? "Paused" : "Running"}
                 </span>
               </div>
               <p className="text-xs leading-relaxed mb-4" style={{ color: "#64748b" }}>

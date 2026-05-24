@@ -66,7 +66,7 @@ const STATUS_META: Record<
   { label: string; color: string; bg: string; border: string; pulse?: boolean }
 > = {
   live: {
-    label: "Live",
+    label: "Running",
     color: "#22c55e",
     bg: "rgba(34,197,94,0.1)",
     border: "rgba(34,197,94,0.25)",

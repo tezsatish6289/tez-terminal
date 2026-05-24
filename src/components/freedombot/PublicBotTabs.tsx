@@ -18,13 +18,9 @@ export function PublicBotTabs({
 }) {
   if (variant === "performance") {
     return (
-      <div className="w-full flex flex-col items-center gap-5 py-2">
-        <p className="text-sm font-semibold tracking-wide" style={{ color: "#64748b" }}>
-          Select bot to view performance
-        </p>
-      <div className="w-full overflow-x-auto pb-2 -mx-1 px-1">
+      <div className="w-full overflow-x-auto pb-1">
         <div
-          className="flex items-center gap-2 sm:gap-3 rounded-2xl p-2 sm:p-2.5 w-fit mx-auto"
+          className="flex items-center gap-1.5 sm:gap-2 rounded-xl p-1 w-fit mx-auto"
           style={{
             backgroundColor: "rgba(255,255,255,0.03)",
             border: "1px solid rgba(90,140,220,0.1)",
@@ -39,7 +35,7 @@ export function PublicBotTabs({
                 type="button"
                 onClick={() => canSelect && onSelect(bot.id)}
                 disabled={!canSelect}
-                className="relative flex items-center gap-2.5 sm:gap-3 px-4 sm:px-6 py-3 sm:py-3.5 rounded-xl text-sm sm:text-base font-bold transition-all whitespace-nowrap"
+                className="relative flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap"
                 style={
                   isActive
                     ? {
@@ -55,17 +51,17 @@ export function PublicBotTabs({
                 }
               >
                 {bot.logo ? (
-                  <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
+                  <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-full bg-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
                     <Image
                       src={bot.logo}
                       alt={bot.shortLabel}
-                      width={28}
-                      height={28}
+                      width={22}
+                      height={22}
                       className="object-contain rounded-full"
                     />
                   </div>
                 ) : (
-                  <span className="text-lg sm:text-xl leading-none">{bot.icon}</span>
+                  <span className="text-base leading-none">{bot.icon}</span>
                 )}
                 <span>{bot.label}</span>
                 {bot.publicLive && isActive && (
@@ -86,7 +82,6 @@ export function PublicBotTabs({
             );
           })}
         </div>
-      </div>
       </div>
     );
   }

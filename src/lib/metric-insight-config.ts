@@ -108,6 +108,52 @@ export function drawdownStatus(maxDrawdownPct: number): MetricStatus {
   return "weak";
 }
 
+/** Y-axis bands drawn behind ratio history charts */
+export interface RatioChartTier {
+  y1: number;
+  y2: number;
+  status: MetricStatus;
+  chartLabel: string;
+}
+
+export function ratioChartTiers(ratioId: "sharpe" | "sortino" | "calmar"): RatioChartTier[] {
+  if (ratioId === "calmar") {
+    return [
+      { y1: -50, y2: 1, status: "weak", chartLabel: "Weak" },
+      { y1: 1, y2: 2, status: "healthy", chartLabel: "Acceptable" },
+      { y1: 2, y2: 5, status: "strong", chartLabel: "Strong" },
+      { y1: 5, y2: 50, status: "exceptional", chartLabel: "Exceptional" },
+    ];
+  }
+  return [
+    { y1: -50, y2: 1, status: "weak", chartLabel: "Volatile" },
+    { y1: 1, y2: 2, status: "healthy", chartLabel: "Solid" },
+    { y1: 2, y2: 3, status: "strong", chartLabel: "Strong" },
+    { y1: 3, y2: 50, status: "exceptional", chartLabel: "Exceptional" },
+  ];
+}
+
+export function insightForRatio(ratioId: "sharpe" | "sortino" | "calmar"): MetricInsightDefinition {
+  if (ratioId === "sortino") return SORTINO_INSIGHT;
+  if (ratioId === "calmar") return CALMAR_INSIGHT;
+  return SHARPE_INSIGHT;
+}
+
+export function statusForRatio(ratioId: "sharpe" | "sortino" | "calmar", n: number): MetricStatus {
+  if (ratioId === "calmar") return ratioStatusCalmar(n);
+  return ratioStatusSharpeSortino(n);
+}
+
+export function tierFillColor(status: MetricStatus): string {
+  return STATUS_META[status].valueColor;
+}
+
+export function pillSolidBg(status: MetricStatus): string {
+  if (status === "weak") return "#dc2626";
+  if (status === "healthy") return "#ca8a04";
+  return status === "exceptional" ? "#16a34a" : "#2563eb";
+}
+
 export const STATUS_META: Record<
   MetricStatus,
   { label: string; valueColor: string; badgeBg: string; badgeText: string; border: string; glow?: string }

@@ -435,25 +435,6 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
     <div className="space-y-8">
       <StatsBotTabs value={botSourceFilter} onChange={setBotSourceFilter} />
 
-      <div className="flex flex-col items-center gap-3 text-center px-2 -mt-2">
-        <p className="text-lg sm:text-xl font-black text-foreground tracking-tight">
-          {isBotFiltered ? botSourceLabel(botSourceFilter) : "All Bots"}
-          <span className="text-muted-foreground/50 font-semibold"> · </span>
-          <span className="text-muted-foreground/70 font-bold text-base sm:text-lg">
-            performance
-          </span>
-        </p>
-        {isBotFiltered ? (
-          <p className="text-sm text-amber-400/75 max-w-lg leading-relaxed">
-            Counterfactual view — metrics show what would have happened if only this bot ran from the starting capital.
-          </p>
-        ) : (
-          <p className="text-sm text-muted-foreground/50 max-w-lg leading-relaxed">
-            Shared capital across all bots — actual combined simulator performance.
-          </p>
-        )}
-      </div>
-
       {/* Headline cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <SummaryCard

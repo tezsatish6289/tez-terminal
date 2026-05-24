@@ -311,31 +311,6 @@ export default function PerformancePage() {
           />
         )}
 
-        {/* ── Selected bot context (matches /stats) ── */}
-        {!publicBotsLoading && selectedBot && (
-          <div className="flex flex-col items-center gap-3 text-center px-2 -mt-2">
-            <p className="text-lg sm:text-xl font-black tracking-tight text-white">
-              {selectedBot.label}
-              <span style={{ color: "#475569" }} className="font-semibold">
-                {" "}
-                ·{" "}
-              </span>
-              <span style={{ color: "#94a3b8" }} className="font-bold text-base sm:text-lg">
-                performance
-              </span>
-            </p>
-            {selectedIsLive ? (
-              <p className="text-sm max-w-lg leading-relaxed" style={{ color: "#64748b" }}>
-                Live public performance — every number is from real closed trades, not a backtest.
-              </p>
-            ) : (
-              <p className="text-sm max-w-lg leading-relaxed" style={{ color: "#64748b" }}>
-                This bot is not live on the public page yet. Select Crypto Bot for live metrics.
-              </p>
-            )}
-          </div>
-        )}
-
         {/* ── Coming soon for bots not publicLive ── */}
         {!selectedIsLive ? (
           <div
@@ -448,6 +423,7 @@ export default function PerformancePage() {
           trades={closedTrades as SimTrade[]}
           startingCapital={startCap}
           assetType="CRYPTO"
+          theme="performance"
         />
           </div>
         )}

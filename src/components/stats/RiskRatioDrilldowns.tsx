@@ -1,32 +1,29 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BookOpen } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { SimTrade } from "@/lib/simulator";
 import {
   buildRatioSeries,
   calcPerformanceMetrics,
 } from "@/lib/performance-metrics";
 import { RatioDrilldownChart } from "./RatioDrilldownChart";
-import { RatioExplainPanel } from "./RatioExplainPanel";
 
 interface RiskRatioDrilldownsProps {
   trades: SimTrade[];
   startingCapital: number;
   assetType: string;
+  theme?: "terminal" | "performance";
 }
 
 export function RiskRatioDrilldowns({
   trades,
   startingCapital,
   assetType,
+  theme = "terminal",
 }: RiskRatioDrilldownsProps) {
   const [view, setView] = useState<"trade" | "day">("trade");
   const riskFree = assetType === "INDIAN_STOCKS" ? 0.065 : 0;
-  const riskFreeLabel =
-    assetType === "INDIAN_STOCKS"
-      ? "Risk-free: 6.5% (RBI)"
-      : "Risk-free: 0% (crypto)";
 
   const headline = useMemo(
     () => calcPerformanceMetrics(trades, startingCapital, riskFree),
@@ -40,21 +37,31 @@ export function RiskRatioDrilldowns({
 
   if (!headline) return null;
 
+  const isPerf = theme === "performance";
+  const borderCol = isPerf ? "rgba(90,140,220,0.12)" : "rgba(255,255,255,0.06)";
+
   return (
-    <section className="mt-10 pt-10 border-t border-white/[0.06] space-y-10">
-      <div className="flex items-start justify-between gap-6 flex-wrap pb-2">
-        <div className="flex items-start gap-3">
-          <BookOpen className="w-5 h-5 text-accent mt-0.5 shrink-0" />
-          <div className="space-y-2">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
-              Risk ratio drill-down
-            </h2>
-            <p className="text-[12px] text-muted-foreground/55 leading-relaxed max-w-xl">
-              How Sharpe, Sortino, and Calmar evolved over your track record
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-1 rounded-lg p-1 bg-white/[0.03] border border-white/[0.06]">
+    <section
+      className={isPerf ? "mt-8 pt-8 space-y-6" : "mt-10 pt-10 border-t border-white/[0.06] space-y-6"}
+      style={isPerf ? { borderTop: `1px solid ${borderCol}` } : undefined}
+    >
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <h2
+          className={cn(
+            "text-[11px] font-bold uppercase tracking-wider",
+            !isPerf && "text-muted-foreground/75",
+          )}
+          style={isPerf ? { color: "#64748b" } : undefined}
+        >
+          Ratio history
+        </h2>
+        <div
+          className="flex items-center gap-1 rounded-lg p-1"
+          style={{
+            backgroundColor: "rgba(255,255,255,0.03)",
+            border: `1px solid ${borderCol}`,
+          }}
+        >
           {(
             [
               { key: "trade" as const, label: "Tradewise" },
@@ -65,11 +72,16 @@ export function RiskRatioDrilldowns({
               key={v.key}
               type="button"
               onClick={() => setView(v.key)}
-              className={
+              className={cn(
+                "px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
                 view === v.key
-                  ? "px-4 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider bg-accent/20 text-accent"
-                  : "px-4 py-2 rounded-md text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 hover:text-muted-foreground/75"
-              }
+                  ? isPerf
+                    ? "bg-[rgba(96,165,250,0.2)] text-[#60a5fa]"
+                    : "bg-accent/20 text-accent"
+                  : isPerf
+                    ? "text-[#475569] hover:text-[#64748b]"
+                    : "text-muted-foreground/50 hover:text-muted-foreground/75",
+              )}
             >
               {v.label}
             </button>
@@ -77,51 +89,27 @@ export function RiskRatioDrilldowns({
         </div>
       </div>
 
-      {/* Sharpe: chart left, explain right */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-5">
         <RatioDrilldownChart
           ratioKey="sharpe"
           series={series}
           view={view}
           headlineValue={headline.sharpeRatio}
+          theme={theme}
         />
-        <RatioExplainPanel
-          ratioKey="sharpe"
-          tradingDays={headline.tradingDays}
-          riskFreeLabel={riskFreeLabel}
-        />
-      </div>
-
-      {/* Sortino: explain left, chart right */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 pt-4">
-        <RatioExplainPanel
+        <RatioDrilldownChart
           ratioKey="sortino"
-          className="order-2 lg:order-1"
-          tradingDays={headline.tradingDays}
-          riskFreeLabel={riskFreeLabel}
+          series={series}
+          view={view}
+          headlineValue={headline.sortinoRatio}
+          theme={theme}
         />
-        <div className="order-1 lg:order-2">
-          <RatioDrilldownChart
-            ratioKey="sortino"
-            series={series}
-            view={view}
-            headlineValue={headline.sortinoRatio}
-          />
-        </div>
-      </div>
-
-      {/* Calmar: chart left, explain right */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 pt-4">
         <RatioDrilldownChart
           ratioKey="calmar"
           series={series}
           view={view}
           headlineValue={headline.calmarRatio}
-        />
-        <RatioExplainPanel
-          ratioKey="calmar"
-          tradingDays={headline.tradingDays}
-          riskFreeLabel={riskFreeLabel}
+          theme={theme}
         />
       </div>
     </section>

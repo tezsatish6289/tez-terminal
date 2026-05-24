@@ -116,18 +116,19 @@ export function MonthlyReturnCharts({
     [trades, startingCapital],
   );
 
-  const { monthlyMax, cumulativeMax, totalReturn, bestMonth } = useMemo(() => {
+  const { yMin, yMax, totalReturn, bestMonth } = useMemo(() => {
     if (!data.length) {
-      return { monthlyMax: 10, cumulativeMax: 10, totalReturn: 0, bestMonth: "—" };
+      return { yMin: 0, yMax: 10, totalReturn: 0, bestMonth: "—" };
     }
-    const monthlyVals = data.map((d) => d.monthlyReturnPct);
-    const cumVals = data.map((d) => d.cumulativeReturnPct);
+    const allPct = data.flatMap((d) => [d.monthlyReturnPct, d.cumulativeReturnPct]);
+    const rawMin = Math.min(...allPct, 0);
+    const rawMax = Math.max(...allPct, 0);
     const best = data.reduce((a, b) =>
       b.monthlyReturnPct > a.monthlyReturnPct ? b : a,
     );
     return {
-      monthlyMax: Math.ceil(Math.max(...monthlyVals.map(Math.abs), 1) * 1.2),
-      cumulativeMax: Math.ceil(Math.max(...cumVals.map(Math.abs), 1) * 1.15),
+      yMin: rawMin < 0 ? Math.floor(rawMin * 1.1) : 0,
+      yMax: Math.ceil(Math.max(rawMax, 1) * 1.12),
       totalReturn: data[data.length - 1].cumulativeReturnPct,
       bestMonth: format(new Date(`${best.monthKey}-01T12:00:00`), "MMMM"),
     };
@@ -153,9 +154,6 @@ export function MonthlyReturnCharts({
     labelStyle: { color: "#94a3b8", marginBottom: "4px" },
     itemStyle: { color: "#e2e8f0" },
   };
-
-  const cumDomainMin = Math.min(0, ...data.map((d) => d.cumulativeReturnPct));
-  const cumDomainMax = Math.max(0, ...data.map((d) => d.cumulativeReturnPct));
 
   return (
     <section
@@ -234,42 +232,15 @@ export function MonthlyReturnCharts({
               tickLine={false}
               axisLine={{ stroke: axisLn }}
             />
+            {/* Single scale — both bar series share y=0 baseline */}
             <YAxis
-              yAxisId="monthly"
-              orientation="left"
-              domain={[-monthlyMax, monthlyMax]}
-              tick={{ fontSize: 9, fill: MONTHLY_BAR }}
+              yAxisId="main"
+              domain={[yMin, yMax]}
+              tick={{ fontSize: 9, fill: axisCol }}
               tickLine={false}
               axisLine={{ stroke: axisLn }}
               tickFormatter={pctAxis}
               width={48}
-              label={{
-                value: "Monthly Return %",
-                angle: -90,
-                position: "insideLeft",
-                offset: 12,
-                style: { fill: MONTHLY_BAR, fontSize: 9, fontWeight: 600 },
-              }}
-            />
-            <YAxis
-              yAxisId="cumulative"
-              orientation="right"
-              domain={[
-                cumDomainMin < 0 ? Math.floor(cumDomainMin * 1.1) : 0,
-                Math.ceil(cumDomainMax * 1.12) || cumulativeMax,
-              ]}
-              tick={{ fontSize: 9, fill: CUMULATIVE_BAR }}
-              tickLine={false}
-              axisLine={{ stroke: axisLn }}
-              tickFormatter={pctAxis}
-              width={52}
-              label={{
-                value: "Cumulative Return %",
-                angle: 90,
-                position: "insideRight",
-                offset: 12,
-                style: { fill: CUMULATIVE_BAR, fontSize: 9, fontWeight: 600 },
-              }}
             />
             <Tooltip
               {...tooltipStyle}
@@ -288,11 +259,11 @@ export function MonthlyReturnCharts({
                 return [fmtPct(value, 2), name];
               }}
             />
-            <ReferenceLine yAxisId="monthly" y={0} stroke={refCol} />
+            <ReferenceLine yAxisId="main" y={0} stroke={refCol} strokeWidth={1.5} />
 
             {/* Monthly bar (left in each pair) */}
             <Bar
-              yAxisId="monthly"
+              yAxisId="main"
               dataKey="monthlyReturnPct"
               name="Monthly Return"
               barSize={26}
@@ -309,9 +280,9 @@ export function MonthlyReturnCharts({
               <LabelList dataKey="monthlyReturnPct" content={MonthlyBarLabel} />
             </Bar>
 
-            {/* Cumulative bar (right in each pair) — same blue as connecting line */}
+            {/* Cumulative bar (right in each pair) — grounded to same zero line */}
             <Bar
-              yAxisId="cumulative"
+              yAxisId="main"
               dataKey="cumulativeReturnPct"
               name="Cumulative Return"
               barSize={26}
@@ -332,7 +303,7 @@ export function MonthlyReturnCharts({
 
             {/* Line through cumulative bar peaks */}
             <Line
-              yAxisId="cumulative"
+              yAxisId="main"
               type="monotone"
               dataKey="cumulativeReturnPct"
               stroke={CUMULATIVE_BAR}

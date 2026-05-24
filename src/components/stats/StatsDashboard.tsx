@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
+  BarChart3,
   DollarSign,
   IndianRupee,
   Loader2,
@@ -55,6 +56,7 @@ import {
   DASHBOARD_SECTION_STACK,
 } from "@/components/stats/dashboard-section-spacing";
 import {
+  runningDaysForStatsFilter,
   startingCapitalForStatsFilter,
   type ZoneSimStatesMap,
 } from "@/lib/stats-dashboard-capital";
@@ -223,28 +225,38 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
 
   const derivedCapital = useMemo(() => {
     if (!simState) return 0;
-    if (tradesLoading || allClosedTrades.length === 0) {
+    if (tradesLoading) return effectiveStartingCapital;
+    if (isBotFiltered) return closedEquity;
+    if (allClosedTrades.length === 0) {
       return simState.capital ?? simState.startingCapital;
     }
     return closedEquity;
-  }, [simState, allClosedTrades.length, tradesLoading, closedEquity]);
+  }, [
+    simState,
+    allClosedTrades.length,
+    tradesLoading,
+    closedEquity,
+    isBotFiltered,
+    effectiveStartingCapital,
+  ]);
 
   const totalReturn =
     effectiveStartingCapital > 0
       ? ((derivedCapital - effectiveStartingCapital) / effectiveStartingCapital) * 100
       : 0;
 
-  const runningDays = useMemo(() => {
-    if (serverStats?.runningDays) return serverStats.runningDays;
-    if (!filteredClosedTrades.length) return 0;
-    const earliest = filteredClosedTrades.reduce((a, b) =>
-      new Date(a.openedAt).getTime() < new Date(b.openedAt).getTime() ? a : b,
-    );
-    return Math.max(
-      1,
-      Math.ceil((Date.now() - new Date(earliest.openedAt).getTime()) / 86_400_000),
-    );
-  }, [serverStats, filteredClosedTrades]);
+  const runningDays = useMemo(
+    () =>
+      runningDaysForStatsFilter(
+        botSourceFilter,
+        serverStats?.runningDays,
+        filteredClosedTrades,
+      ),
+    [botSourceFilter, serverStats?.runningDays, filteredClosedTrades],
+  );
+
+  const closedTradeCount = filteredClosedTrades.length;
+  const lowSample = isBotFiltered && closedTradeCount < 8;
 
   // Monthly: actual when >30 days, else compounded projection from CAGR.
   const monthlyPnl = useMemo(() => {
@@ -363,9 +375,19 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
       />
 
       {isBotFiltered && (
-        <p className="text-[11px] text-center text-muted-foreground/50 -mt-2">
-          Internal only — {botSourceLabel(botSourceFilter)} is not published on freedombot.ai yet.
-        </p>
+        <div className="text-center space-y-1 -mt-2">
+          <p className="text-[11px] text-muted-foreground/50">
+            Internal only — {botSourceLabel(botSourceFilter)} is not published on freedombot.ai yet.
+          </p>
+          {lowSample && (
+            <p className="text-[11px] text-amber-400/85 font-medium">
+              Early track record — {closedTradeCount} closed trade
+              {closedTradeCount !== 1 ? "s" : ""} so far
+              {runningDays > 0 ? ` · ${runningDays} day${runningDays !== 1 ? "s" : ""} of history` : ""}.
+              Charts show each closed trade, not every calendar day.
+            </p>
+          )}
+        </div>
       )}
 
       <div className={DASHBOARD_SECTION_STACK}>
@@ -375,7 +397,11 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
         <SummaryCard
           label="Running"
           value={`${runningDays} Day${runningDays !== 1 ? "s" : ""}`}
-          sub="simulator active"
+          sub={
+            isBotFiltered
+              ? `${closedTradeCount} closed trade${closedTradeCount !== 1 ? "s" : ""}`
+              : "simulator active"
+          }
           icon={<Activity className="w-3.5 h-3.5" />}
           color="text-muted-foreground/70"
           badge={{ text: "Live", variant: "live" }}
@@ -429,12 +455,24 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
       {/* Equity curve + risk ratios side-by-side */}
       <div className="flex flex-col lg:flex-row gap-5 items-stretch">
         <div className="flex-1 min-w-0">
-          <EquityChart
-            trades={filteredClosedTrades}
-            startingCapital={effectiveStartingCapital}
-            cs={cs}
-            theme="white"
-          />
+          {closedTradeCount >= 2 ? (
+            <EquityChart
+              trades={filteredClosedTrades}
+              startingCapital={effectiveStartingCapital}
+              cs={cs}
+              theme="white"
+            />
+          ) : (
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-8 text-center h-full min-h-[280px] flex flex-col items-center justify-center gap-2">
+              <BarChart3 className="w-8 h-8 text-muted-foreground/25" />
+              <p className="text-sm font-bold text-muted-foreground/55">Fund value chart</p>
+              <p className="text-[11px] text-muted-foreground/45 max-w-sm">
+                {closedTradeCount === 0
+                  ? "No closed trades for this bot yet. Stats will populate after the first position fully closes."
+                  : "Need at least 2 closed trades to draw the equity curve. Tradewise view plots one point per close."}
+              </p>
+            </div>
+          )}
         </div>
         <div className="lg:w-72 xl:w-80 shrink-0 flex flex-col">
           <PerformanceMetricsPanel

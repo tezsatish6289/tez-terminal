@@ -29,7 +29,7 @@ import {
   cumulativeBestPnlByTradeId,
   sortTradesForDashboard,
 } from "@/lib/freedombot/trade-display";
-import { tradeMatchesDeployBot } from "@/lib/freedombot/aggregates";
+import { tradeMatchesDeployBot } from "@/lib/freedombot/trade-bot-match";
 
 interface Deployment {
   id: string;

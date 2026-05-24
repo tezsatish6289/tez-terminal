@@ -14,13 +14,13 @@
  */
 
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
-import { classifyBotSource } from "@/lib/bot-source-constants";
 import {
-  cryptoBotByBotSource,
-  cryptoBotByDeployKey,
-  type DeployBotKey,
-} from "@/lib/crypto-bots";
+  deployBotFromTradeSource,
+  tradeMatchesDeployBot,
+} from "@/lib/freedombot/trade-bot-match";
 import { bestRealizedPnl, type TradeForPnl } from "./compute-best-pnl";
+
+export { botSourceForDeployKey, tradeMatchesDeployBot } from "@/lib/freedombot/trade-bot-match";
 
 // ── Cached fields on bot_deployments ───────────────────────────────────────
 
@@ -78,22 +78,6 @@ export type TradeAggregateSnapshot = TradeForPnl & {
   botSource?: string | null;
 };
 
-export function botSourceForDeployKey(deployKey: string): string {
-  try {
-    return cryptoBotByDeployKey(deployKey as DeployBotKey).botSource;
-  } catch {
-    return "PATTERN";
-  }
-}
-
-export function tradeMatchesDeployBot(
-  trade: { botSource?: string | null },
-  deployBot: string,
-): boolean {
-  const expected = botSourceForDeployKey(deployBot);
-  return classifyBotSource(trade.botSource) === expected;
-}
-
 function isClosed(t: TradeAggregateSnapshot | null | undefined): boolean {
   if (!t) return false;
   return String(t.status ?? "").toUpperCase() === "CLOSED";
@@ -126,10 +110,6 @@ async function findDeploymentRefsForBot(
     .where("bot", "==", deployBot)
     .get();
   return snap.docs.map((d) => d.ref);
-}
-
-function deployBotFromTradeSource(botSource: string | null | undefined): string {
-  return cryptoBotByBotSource(botSource)?.deployKey ?? "CRYPTO";
 }
 
 // ── Hot path: atomic increments ────────────────────────────────────────────

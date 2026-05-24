@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { usePublicBots } from "@/hooks/use-public-bots";
-import { CRYPTO_BOTS } from "@/lib/crypto-bots";
+import { CRYPTO_BOTS, isCryptoPerpDeployKey } from "@/lib/crypto-bots";
 import Image from "next/image";
 import {
   X,
@@ -341,8 +341,13 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   const currentExchangeDef = selectedExchange
-    ? EXCHANGES[selectedBot]?.find((e) => e.key === selectedExchange) ?? null
+    ? (isCryptoPerpDeployKey(selectedBot) ? EXCHANGES.CRYPTO : EXCHANGES[selectedBot] ?? [])
+        .find((e) => e.key === selectedExchange) ?? null
     : null;
+
+  const availableExchanges = isCryptoPerpDeployKey(selectedBot)
+    ? EXCHANGES.CRYPTO
+    : EXCHANGES[selectedBot] ?? [];
 
   const botName = deployBots.find((b) => b.key === selectedBot)?.name ?? selectedBot;
 
@@ -580,7 +585,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                 Select the exchange or broker your bot will trade on.
               </p>
               <div className="space-y-2.5">
-                {(EXCHANGES[selectedBot] ?? []).map((exchange) => {
+                {(availableExchanges).map((exchange) => {
                   const isSelected = selectedExchange === exchange.key;
                   return (
                     <button
@@ -733,7 +738,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                 </div>
               </div>
 
-              {selectedBot === "CRYPTO" && (
+              {isCryptoPerpDeployKey(selectedBot) && (
                 <div
                   className="rounded-2xl p-4 mb-5 space-y-3"
                   style={{

@@ -118,3 +118,24 @@ export const ZONE_BOT_PRODUCT_LABEL: Record<
   sol: getCryptoBot("sol").label,
   xrp: getCryptoBot("xrp").label,
 };
+
+/** Perp bots that trade on crypto exchanges (Bybit, CoinDCX, Hyperliquid). */
+export const CRYPTO_PERP_DEPLOY_KEYS: readonly DeployBotKey[] = CRYPTO_BOTS.map(
+  (b) => b.deployKey,
+);
+
+export const CRYPTO_PERP_EXCHANGES = ["BYBIT", "COINDCX", "HYPERLIQUID"] as const;
+
+export function isCryptoPerpDeployKey(key: string): key is DeployBotKey {
+  return (CRYPTO_PERP_DEPLOY_KEYS as readonly string[]).includes(key);
+}
+
+/** Zone-bot field on secrets `zoneBotsEnabled` — null for pattern / Crypto Bot. */
+export function zoneFieldFromDeployKey(
+  deployKey: string,
+): "btc" | "eth" | "sol" | "xrp" | null {
+  if (!isCryptoPerpDeployKey(deployKey)) return null;
+  const def = cryptoBotByDeployKey(deployKey);
+  if (def.id === "crypto") return null;
+  return def.id;
+}

@@ -8,6 +8,12 @@ import {
   DEFAULT_TRADING_PREFS,
   validateTradingPrefsUpdate,
 } from "@/lib/freedombot/trading-prefs";
+import {
+  CRYPTO_PERP_DEPLOY_KEYS,
+  CRYPTO_PERP_EXCHANGES,
+  zoneFieldFromDeployKey,
+} from "@/lib/crypto-bots";
+import { zoneBotsEnabledFieldKey } from "@/lib/freedombot/zone-bot-subscription";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -27,11 +33,18 @@ function computeFingerprint(
 
 // ─── Validation ──────────────────────────────────────────────────────────────
 
-const ALLOWED_BOTS = new Set(["CRYPTO", "INDIAN_STOCKS", "GOLD", "SILVER"]);
+const ALLOWED_BOTS = new Set([
+  ...CRYPTO_PERP_DEPLOY_KEYS,
+  "INDIAN_STOCKS",
+  "GOLD",
+  "SILVER",
+]);
 const ALLOWED_EXCHANGES: Record<string, string[]> = {
-  CRYPTO:        ["BYBIT", "COINDCX", "HYPERLIQUID"],
   INDIAN_STOCKS: ["ZERODHA", "UPSTOX", "ANGEL_ONE", "DHAN"],
 };
+for (const key of CRYPTO_PERP_DEPLOY_KEYS) {
+  ALLOWED_EXCHANGES[key] = [...CRYPTO_PERP_EXCHANGES];
+}
 
 // ─── Route handler ───────────────────────────────────────────────────────────
 
@@ -212,7 +225,8 @@ export async function POST(req: NextRequest) {
 
     // ── Write credentials into the trading engine's secrets collection ─────────
     const docId = getSecretDocId(exchange as ExchangeName);
-    await db.collection("users").doc(uid).collection("secrets").doc(docId).set({
+    const secretRef = db.collection("users").doc(uid).collection("secrets").doc(docId);
+    await secretRef.set({
       exchange,
       encryptedKey: encrypt(credentials.apiKey),
       encryptedSecret: encrypt(credentials.apiSecret),
@@ -224,6 +238,13 @@ export async function POST(req: NextRequest) {
       useTestnet: false,
       savedAt: new Date().toISOString(),
     });
+
+    const zoneField = zoneFieldFromDeployKey(bot);
+    if (zoneField) {
+      await secretRef.update({
+        [zoneBotsEnabledFieldKey(zoneField)]: true,
+      });
+    }
 
     // ── Create new deployment record ──────────────────────────────────────────
     const docRef = await db.collection("bot_deployments").add({

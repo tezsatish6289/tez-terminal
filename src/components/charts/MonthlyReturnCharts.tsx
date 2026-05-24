@@ -34,6 +34,8 @@ export interface MonthlyReturnChartsProps {
 const MONTHLY_BAR = "#2dd4bf";
 const CUMULATIVE_BAR = "#3b82f6";
 
+type ChartRow = MonthlyReturnPoint;
+
 function fmtPct(v: number, dp = 1): string {
   const sign = v > 0 ? "+" : "";
   return `${sign}${v.toFixed(dp)}%`;
@@ -55,8 +57,8 @@ function portfolioTitle(data: MonthlyReturnPoint[]): string {
   return `Portfolio Performance Summary — ${m0} to ${m1} ${year}`;
 }
 
-/** Label inside monthly (teal) bar */
-function MonthlyBarLabel(props: {
+/** High-contrast pill label above each bar */
+function BarPctLabel(props: {
   x?: number;
   y?: number;
   width?: number;
@@ -66,44 +68,46 @@ function MonthlyBarLabel(props: {
 }) {
   const { x = 0, y = 0, width = 0, height = 0, value, visible = true } = props;
   if (!visible || value == null || !Number.isFinite(value)) return null;
-  const inside = Math.abs(height) > 18;
+
+  const label = fmtPct(value);
+  const pillW = Math.max(46, label.length * 7.2);
+  const cx = x + width / 2;
+  const positive = height >= 0;
+  const pillY = positive ? y - 20 : y + height - 6;
+  const textY = positive ? y - 9 : y + height + 5;
+
   return (
-    <text
-      x={x + width / 2}
-      y={y + height / 2}
-      fill={inside ? "#042f2e" : "#e2e8f0"}
-      textAnchor="middle"
-      dominantBaseline="middle"
-      fontSize={10}
-      fontWeight={700}
-    >
-      {fmtPct(value)}
-    </text>
+    <g>
+      <rect
+        x={cx - pillW / 2}
+        y={pillY}
+        width={pillW}
+        height={14}
+        rx={4}
+        fill="rgba(15,15,17,0.94)"
+        stroke="rgba(255,255,255,0.18)"
+        strokeWidth={1}
+      />
+      <text
+        x={cx}
+        y={textY}
+        fill="#ffffff"
+        textAnchor="middle"
+        fontSize={10}
+        fontWeight={700}
+      >
+        {label}
+      </text>
+    </g>
   );
 }
 
-/** Label above cumulative (blue) bar peak */
-function CumulativeBarLabel(props: {
-  x?: number;
-  y?: number;
-  width?: number;
-  value?: number;
-  visible?: boolean;
-}) {
-  const { x = 0, y = 0, width = 0, value, visible = true } = props;
-  if (!visible || value == null || !Number.isFinite(value)) return null;
-  return (
-    <text
-      x={x + width / 2}
-      y={y - 6}
-      fill="#f8fafc"
-      textAnchor="middle"
-      fontSize={9}
-      fontWeight={700}
-    >
-      {fmtPct(value)}
-    </text>
-  );
+function zeroedSeries(data: ChartRow[]): ChartRow[] {
+  return data.map((d) => ({
+    ...d,
+    monthlyReturnPct: 0,
+    cumulativeReturnPct: 0,
+  }));
 }
 
 export function MonthlyReturnCharts({
@@ -121,16 +125,34 @@ export function MonthlyReturnCharts({
   );
   const chartKey = useMemo(() => data.map((d) => d.monthKey).join("|"), [data]);
 
+  const [displayData, setDisplayData] = useState<ChartRow[]>(() =>
+    motion.enabled ? zeroedSeries(data) : data,
+  );
   const [showBarLabels, setShowBarLabels] = useState(!motion.enabled);
+
   useEffect(() => {
+    if (!data.length) return;
+
     if (!motion.enabled) {
+      setDisplayData(data);
       setShowBarLabels(true);
       return;
     }
+
     setShowBarLabels(false);
-    const t = window.setTimeout(() => setShowBarLabels(true), motion.labelDelay);
-    return () => window.clearTimeout(t);
-  }, [chartKey, motion.enabled, motion.labelDelay]);
+    setDisplayData(zeroedSeries(data));
+
+    let labelTimer: number | undefined;
+    const growTimer = window.setTimeout(() => {
+      setDisplayData(data);
+      labelTimer = window.setTimeout(() => setShowBarLabels(true), motion.labelDelay);
+    }, 32);
+
+    return () => {
+      window.clearTimeout(growTimer);
+      if (labelTimer != null) window.clearTimeout(labelTimer);
+    };
+  }, [chartKey, data, motion.enabled, motion.labelDelay]);
 
   const { yMin, yMax, totalReturn, bestMonth } = useMemo(() => {
     if (!data.length) {
@@ -246,8 +268,8 @@ export function MonthlyReturnCharts({
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             key={chartKey}
-            data={data}
-            margin={{ top: 32, right: 12, left: 4, bottom: 4 }}
+            data={displayData}
+            margin={{ top: 36, right: 12, left: 4, bottom: 4 }}
             barCategoryGap="18%"
             barGap={4}
           >
@@ -258,7 +280,6 @@ export function MonthlyReturnCharts({
               tickLine={false}
               axisLine={{ stroke: axisLn }}
             />
-            {/* Single scale — both bar series share y=0 baseline */}
             <YAxis
               yAxisId="main"
               domain={[yMin, yMax]}
@@ -287,7 +308,6 @@ export function MonthlyReturnCharts({
             />
             <ReferenceLine yAxisId="main" y={0} stroke={refCol} strokeWidth={1.5} />
 
-            {/* Monthly bar (left in each pair) */}
             <Bar
               yAxisId="main"
               dataKey="monthlyReturnPct"
@@ -295,23 +315,23 @@ export function MonthlyReturnCharts({
               barSize={26}
               radius={[4, 4, 0, 0]}
               activeBar={false}
+              animationId="monthly"
               animationBegin={0}
               {...anim}
             >
-              {data.map((entry, i) => (
+              {displayData.map((entry, i) => (
                 <Cell
                   key={`m-${i}`}
                   fill={entry.monthlyReturnPct >= 0 ? MONTHLY_BAR : "#f87171"}
-                  fillOpacity={0.88}
+                  fillOpacity={0.9}
                 />
               ))}
               <LabelList
                 dataKey="monthlyReturnPct"
-                content={(props) => <MonthlyBarLabel {...props} visible={showBarLabels} />}
+                content={(props) => <BarPctLabel {...props} visible={showBarLabels} />}
               />
             </Bar>
 
-            {/* Cumulative bar (right in each pair) — grounded to same zero line */}
             <Bar
               yAxisId="main"
               dataKey="cumulativeReturnPct"
@@ -319,25 +339,25 @@ export function MonthlyReturnCharts({
               barSize={26}
               radius={[4, 4, 0, 0]}
               fill={CUMULATIVE_BAR}
-              fillOpacity={0.88}
+              fillOpacity={0.9}
               activeBar={false}
-              animationBegin={motion.enabled ? 120 : 0}
+              animationId="cumulative"
+              animationBegin={motion.enabled ? 100 : 0}
               {...anim}
             >
-              {data.map((entry, i) => (
+              {displayData.map((entry, i) => (
                 <Cell
                   key={`c-${i}`}
                   fill={entry.cumulativeReturnPct >= 0 ? CUMULATIVE_BAR : "#f87171"}
-                  fillOpacity={0.88}
+                  fillOpacity={0.9}
                 />
               ))}
               <LabelList
                 dataKey="cumulativeReturnPct"
-                content={(props) => <CumulativeBarLabel {...props} visible={showBarLabels} />}
+                content={(props) => <BarPctLabel {...props} visible={showBarLabels} />}
               />
             </Bar>
 
-            {/* Line through cumulative bar peaks */}
             <Line
               yAxisId="main"
               type="monotone"
@@ -348,7 +368,8 @@ export function MonthlyReturnCharts({
               activeDot={false}
               legendType="none"
               tooltipType="none"
-              animationBegin={motion.enabled ? 280 : 0}
+              animationId="cumulative-line"
+              animationBegin={motion.enabled ? 200 : 0}
               {...anim}
             />
           </ComposedChart>

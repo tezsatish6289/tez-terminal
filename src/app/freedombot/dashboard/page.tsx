@@ -17,6 +17,10 @@ import {
   RunningBotCards,
   type DashboardDeployment,
 } from "@/components/freedombot/dashboard/RunningBotCards";
+import {
+  DashboardSummary,
+  type DashboardSummaryData,
+} from "@/components/freedombot/dashboard/DashboardSummary";
 import { freedombotDashboardBase } from "@/lib/freedombot/dashboard-path";
 
 interface Deployment extends DashboardDeployment {
@@ -100,15 +104,26 @@ function NotConnected({ onDeploy }: { onDeploy: () => void }) {
 
 function ConnectedDashboard({
   deployments,
+  summary,
+  user,
   onDeploy,
 }: {
   deployments: Deployment[];
+  summary: DashboardSummaryData;
+  user: NonNullable<ReturnType<typeof useUser>["user"]>;
   onDeploy: () => void;
 }) {
   const { bots: publicBots } = usePublicBots();
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-10">
+      <DashboardSummary
+        user={user}
+        deployments={deployments}
+        summary={summary}
+        publicBots={publicBots}
+      />
+
       <section>
         <DashboardSectionHeader
           title="Running Bots"
@@ -144,6 +159,7 @@ function FreedomBotDashboardInner() {
   const searchParams = useSearchParams();
   const [deployOpen, setDeployOpen] = useState(false);
   const [deployments, setDeployments] = useState<Deployment[] | undefined>(undefined);
+  const [summary, setSummary] = useState<DashboardSummaryData | undefined>(undefined);
 
   useEffect(() => {
     if (searchParams.get("deploy") !== "1") return;
@@ -181,8 +197,18 @@ function FreedomBotDashboardInner() {
           ? [data.deployment]
           : [];
       setDeployments(list);
+      const apiSummary = data.summary as DashboardSummaryData | undefined;
+      setSummary({
+        lifetimeRealizedPnl:
+          typeof apiSummary?.lifetimeRealizedPnl === "number"
+            ? apiSummary.lifetimeRealizedPnl
+            : list.reduce((sum, d) => sum + (d.lifetimeRealizedPnl ?? 0), 0),
+        firstBot: apiSummary?.firstBot ?? null,
+        exchanges: Array.isArray(apiSummary?.exchanges) ? apiSummary.exchanges : [],
+      });
     } catch {
       setDeployments([]);
+      setSummary({ lifetimeRealizedPnl: 0, firstBot: null, exchanges: [] });
     }
   }, [user]);
 
@@ -247,7 +273,7 @@ function FreedomBotDashboardInner() {
     void fetchDeployment();
   }, [fetchDeployment]);
 
-  if (isUserLoading || deployments === undefined) {
+  if (isUserLoading || deployments === undefined || summary === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#080f1e" }}>
         <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#3b82f6" }} />
@@ -270,6 +296,8 @@ function FreedomBotDashboardInner() {
       ) : (
         <ConnectedDashboard
           deployments={deployments}
+          summary={summary}
+          user={user}
           onDeploy={() => setDeployOpen(true)}
         />
       )}

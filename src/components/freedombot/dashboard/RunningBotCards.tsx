@@ -8,6 +8,7 @@ import { CRYPTO_BOTS } from "@/lib/crypto-bots";
 import { BotExchangeIcons } from "@/components/freedombot/dashboard/BotExchangeIcons";
 import { ExchangeIcon } from "@/components/freedombot/dashboard/ExchangeIcon";
 import { exchangeLabel } from "@/components/freedombot/dashboard/exchange-labels";
+import { BRAND_CURVE_STROKE } from "@/lib/chart-brand-colors";
 import { freedombotBotDetailPath } from "@/lib/freedombot/dashboard-path";
 
 export interface DashboardDeployment {
@@ -262,7 +263,10 @@ function RunningBotCard({
                 <p className="text-base font-black text-white truncate" title={title}>
                   {exchangeName}
                 </p>
-                <p className="text-[11px] font-semibold truncate mt-0.5" style={{ color: "#64748b" }}>
+                <p
+                  className="text-[11px] font-semibold truncate mt-0.5"
+                  style={{ color: BRAND_CURVE_STROKE }}
+                >
                   {label}
                 </p>
               </>

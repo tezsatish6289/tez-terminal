@@ -5,6 +5,7 @@ import {
   loadTradingPrefs,
 } from "@/lib/freedombot/trading-prefs";
 import { getDeploymentAggregates } from "@/lib/freedombot/aggregates";
+import { sumLifetimeRealizedPnlForUser, listUserTradeExchanges } from "@/lib/freedombot/sum-lifetime-realized-pnl";
 
 export const dynamic = "force-dynamic";
 
@@ -132,6 +133,59 @@ export async function GET(req: NextRequest) {
 
     const deployments = await Promise.all(visible.map(mapDep));
 
+    const userDoc = await db.collection("users").doc(uid).get();
+    const storedFirstBot = userDoc.data()?.freedombotFirstBot as
+      | { bot?: string; exchange?: string; deployedAt?: string }
+      | undefined;
+
+    let firstBot: { bot: string; exchange: string; deployedAt: string | null } | null = null;
+    if (storedFirstBot?.bot && storedFirstBot?.exchange) {
+      firstBot = {
+        bot: String(storedFirstBot.bot),
+        exchange: String(storedFirstBot.exchange),
+        deployedAt: typeof storedFirstBot.deployedAt === "string" ? storedFirstBot.deployedAt : null,
+      };
+    } else {
+      const earliest = [...snap.docs]
+        .map((d) => ({ id: d.id, ...d.data() } as Row))
+        .filter((d) => normalizeStatus(d.status) !== "other")
+        .sort((a, b) => {
+          const aMs = (a.createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+          const bMs = (b.createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+          return aMs - bMs;
+        })[0];
+      if (earliest?.bot && earliest?.exchange) {
+        firstBot = {
+          bot: String(earliest.bot),
+          exchange: String(earliest.exchange),
+          deployedAt:
+            (earliest.createdAt as { toDate?: () => Date })?.toDate?.()?.toISOString() ?? null,
+        };
+      }
+    }
+
+    let lifetimeRealizedPnl = 0;
+    let exchanges: string[] = [];
+    try {
+      lifetimeRealizedPnl = await sumLifetimeRealizedPnlForUser(db, uid);
+      exchanges = await listUserTradeExchanges(db, uid);
+    } catch (e) {
+      console.warn(
+        `[my-deployment] lifetime P&L resolve failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+      lifetimeRealizedPnl = deployments.reduce(
+        (sum, d) => sum + (d.lifetimeRealizedPnl ?? 0),
+        0,
+      );
+      exchanges = [...new Set(deployments.map((d) => String(d.exchange ?? "")).filter(Boolean))].sort();
+    }
+
+    const exchangeSet = new Set(exchanges);
+    for (const d of deployments) {
+      if (d.exchange) exchangeSet.add(String(d.exchange));
+    }
+    exchanges = [...exchangeSet].sort();
+
     // `deployment` (singular) stays for backward-compat with older client
     // code paths. Prefer the most recent ACTIVE deployment; fall back to
     // the most recent paused one if there are no active rows. This way a
@@ -143,6 +197,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       deployment: deployments.find((d) => d.id === primary.id) ?? deployments[0],
       deployments,
+      summary: {
+        lifetimeRealizedPnl,
+        firstBot,
+        exchanges,
+      },
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unexpected error";

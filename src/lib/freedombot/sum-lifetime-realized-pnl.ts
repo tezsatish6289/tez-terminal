@@ -43,3 +43,52 @@ export async function sumLifetimeRealizedPnlForUserExchange(
 
   return Math.round(total * 10000) / 10000;
 }
+
+/** All closed production trades for a user — includes P&L from deleted deployments. */
+export async function sumLifetimeRealizedPnlForUser(
+  db: Firestore,
+  userId: string,
+): Promise<number> {
+  let total = 0;
+  let lastDoc: QueryDocumentSnapshot | null = null;
+  const PAGE = 400;
+
+  while (true) {
+    let q: Query = db
+      .collection("live_trades")
+      .where("userId", "==", userId)
+      .where("status", "==", "CLOSED")
+      .orderBy("openedAt", "asc")
+      .limit(PAGE);
+
+    if (lastDoc) {
+      q = q.startAfter(lastDoc);
+    }
+
+    const snap = await q.get();
+    for (const doc of snap.docs) {
+      if (doc.data().testnet === true) continue;
+      const best = bestRealizedPnl(doc.data());
+      if (best) total += best.value;
+    }
+    if (snap.size < PAGE) break;
+    lastDoc = snap.docs[snap.docs.length - 1];
+  }
+
+  return Math.round(total * 10000) / 10000;
+}
+
+/** Distinct production exchanges a user has traded on (includes deleted deployments). */
+export async function listUserTradeExchanges(
+  db: Firestore,
+  userId: string,
+): Promise<string[]> {
+  const snap = await db.collection("live_trades").where("userId", "==", userId).get();
+  const exchanges = new Set<string>();
+  for (const doc of snap.docs) {
+    if (doc.data().testnet === true) continue;
+    const exchange = String(doc.data().exchange ?? "").trim();
+    if (exchange) exchanges.add(exchange);
+  }
+  return [...exchanges].sort();
+}

@@ -348,6 +348,22 @@ export async function POST(req: NextRequest) {
       createdAt: new Date(),
     });
     const deploymentId = docRef.id;
+    const deployedAt = new Date().toISOString();
+
+    const userRef = db.collection("users").doc(uid);
+    const userSnap = await userRef.get();
+    if (!userSnap.data()?.freedombotFirstBot) {
+      await userRef.set(
+        {
+          freedombotFirstBot: {
+            bot,
+            exchange,
+            deployedAt,
+          },
+        },
+        { merge: true },
+      );
+    }
 
     // ── Seed wallet snapshot from the balance we fetched during validation ────
     // Lets the admin dashboard show the live wallet balance the moment the

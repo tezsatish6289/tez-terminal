@@ -27,17 +27,7 @@ interface Deployment extends DashboardDeployment {
   closedTradeCount?: number;
 }
 
-interface BotStats {
-  runningDays: number;
-  currentCapital?: number;
-  startingCapital?: number;
-  totalReturnPct: number | null;
-  profitPerMonth: number | null;
-  profitPerYear: number | null;
-  isAnnualizationReliable?: boolean;
-}
-
-function NotConnected({ stats, onDeploy }: { stats: BotStats | null; onDeploy: () => void }) {
+function NotConnected({ onDeploy }: { onDeploy: () => void }) {
   const { bots: publicBots } = usePublicBots();
 
   return (
@@ -102,18 +92,16 @@ function NotConnected({ stats, onDeploy }: { stats: BotStats | null; onDeploy: (
         </div>
       </div>
 
-      <BotDiscoverySection publicBots={publicBots} stats={stats} onDeploy={onDeploy} showHeading={false} />
+      <BotDiscoverySection publicBots={publicBots} onDeploy={onDeploy} showHeading={false} />
     </div>
   );
 }
 
 function ConnectedDashboard({
   deployments,
-  stats,
   onDeploy,
 }: {
   deployments: Deployment[];
-  stats: BotStats | null;
   onDeploy: () => void;
 }) {
   const { bots: publicBots } = usePublicBots();
@@ -125,7 +113,7 @@ function ConnectedDashboard({
         <RunningBotCards deployments={deployments} publicBots={publicBots} />
       </section>
 
-      <BotDiscoverySection publicBots={publicBots} stats={stats} onDeploy={onDeploy} />
+      <BotDiscoverySection publicBots={publicBots} onDeploy={onDeploy} />
     </div>
   );
 }
@@ -152,7 +140,6 @@ function FreedomBotDashboardInner() {
   const searchParams = useSearchParams();
   const [deployOpen, setDeployOpen] = useState(false);
   const [deployments, setDeployments] = useState<Deployment[] | undefined>(undefined);
-  const [stats, setStats] = useState<BotStats | null>(null);
 
   useEffect(() => {
     if (searchParams.get("deploy") !== "1") return;
@@ -250,14 +237,6 @@ function FreedomBotDashboardInner() {
     void fetchDeployment();
   }, [fetchDeployment]);
 
-  useEffect(() => {
-    if (!user) return;
-    fetch("/api/freedombot/stats")
-      .then((r) => r.json())
-      .then(setStats)
-      .catch(() => {});
-  }, [user]);
-
   const handleDeployClose = useCallback(() => {
     setDeployOpen(false);
     autoTestedDeploymentsRef.current.clear();
@@ -283,11 +262,10 @@ function FreedomBotDashboardInner() {
   return (
     <div className="min-h-screen font-sans antialiased" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
       {!deployments.length ? (
-        <NotConnected stats={stats} onDeploy={() => setDeployOpen(true)} />
+        <NotConnected onDeploy={() => setDeployOpen(true)} />
       ) : (
         <ConnectedDashboard
           deployments={deployments}
-          stats={stats}
           onDeploy={() => setDeployOpen(true)}
         />
       )}

@@ -61,6 +61,38 @@ interface Trade {
   botSource?: string | null;
 }
 
+interface SimState {
+  startingCapital: number;
+  capital?: number;
+}
+
+/** perf-data uses `txHash`; records UI expects `blockchainTxHash`. */
+function mapPerfDataTrade(raw: Record<string, unknown>): Trade {
+  return {
+    id: String(raw.id ?? ""),
+    symbol: String(raw.symbol ?? "—"),
+    side: (raw.side as Trade["side"]) ?? "BUY",
+    assetType: String(raw.assetType ?? "CRYPTO"),
+    timeframe: (raw.timeframe as string | null) ?? null,
+    leverage: typeof raw.leverage === "number" ? raw.leverage : 1,
+    entryPrice: typeof raw.entryPrice === "number" ? raw.entryPrice : 0,
+    currentPrice: typeof raw.currentPrice === "number" ? raw.currentPrice : null,
+    tp1Hit: Boolean(raw.tp1Hit),
+    tp2Hit: Boolean(raw.tp2Hit),
+    tp3Hit: Boolean(raw.tp3Hit),
+    slHit: Boolean(raw.slHit),
+    status: (raw.status as Trade["status"]) ?? "OPEN",
+    realizedPnl: typeof raw.realizedPnl === "number" ? raw.realizedPnl : 0,
+    unrealizedPnl: typeof raw.unrealizedPnl === "number" ? raw.unrealizedPnl : 0,
+    positionSize: typeof raw.positionSize === "number" ? raw.positionSize : null,
+    closeReason: (raw.closeReason as string | null) ?? null,
+    openedAt: String(raw.openedAt ?? ""),
+    closedAt: (raw.closedAt as string | null) ?? null,
+    blockchainTxHash: (raw.txHash as string | null) ?? null,
+    botSource: typeof raw.botSource === "string" ? raw.botSource : null,
+  };
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const tfLabels: Record<string, string> = {
@@ -434,6 +466,7 @@ export default function RecordsPage() {
   const selectedBot = bots.find((b) => b.id === selectedBotId);
   const selectedIsLive = selectedBot?.publicLive ?? false;
   const [stats, setStats] = useState<BotStats | null>(null);
+  const [simState, setSimState] = useState<SimState | null>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
   const [tradesLoading, setTradesLoading] = useState(true);
@@ -444,17 +477,25 @@ export default function RecordsPage() {
   }, [user, router]);
 
   useEffect(() => {
-    fetch("/api/freedombot/stats")
-      .then((r) => r.json())
-      .then(setStats)
+    setStatsLoading(true);
+    setTradesLoading(true);
+    Promise.all([
+      fetch("/api/freedombot/stats").then((r) => r.json()),
+      fetch("/api/freedombot/perf-data?assetType=CRYPTO").then((r) => r.json()),
+    ])
+      .then(([statsJson, perfData]) => {
+        setStats(statsJson);
+        if (perfData.state) {
+          setSimState(perfData.state as SimState);
+        }
+        const mapped = (perfData.trades ?? []).map(mapPerfDataTrade);
+        setTrades(mapped);
+      })
       .catch(() => {})
-      .finally(() => setStatsLoading(false));
-
-    fetch("/api/freedombot/trades")
-      .then((r) => r.json())
-      .then((d) => setTrades(d.trades ?? []))
-      .catch(() => {})
-      .finally(() => setTradesLoading(false));
+      .finally(() => {
+        setStatsLoading(false);
+        setTradesLoading(false);
+      });
   }, []);
 
   const handleSignIn = useCallback(async () => {
@@ -482,12 +523,14 @@ export default function RecordsPage() {
     [trades, matchesSelected],
   );
 
+  const startCap = simState?.startingCapital ?? stats?.startingCapital ?? 1000;
+
   // Per-trade running balance (same shared helper as /simulation, /performance,
   // and the headline stats API) — guarantees the Fund Balance column matches
   // the chart and the Current Capital tile.
   const equityCurve = useMemo(
-    () => buildEquityCurve(activeTrades, stats?.startingCapital ?? 0),
-    [activeTrades, stats?.startingCapital],
+    () => buildEquityCurve(activeTrades, startCap),
+    [activeTrades, startCap],
   );
   const balanceAfterMap = equityCurve.balanceAfterMap;
 
@@ -499,7 +542,6 @@ export default function RecordsPage() {
   // would 60 days of this bot have produced", not "2 days").
   const filteredStats = useMemo(() => {
     if (!stats) return null;
-    const startCap = stats.startingCapital;
     const currentCapital = equityCurve.finalCapital;
     const totalReturnPct = startCap > 0
       ? ((currentCapital - startCap) / startCap) * 100
@@ -512,12 +554,13 @@ export default function RecordsPage() {
       : annualizeReturn(totalReturnDecimal, runningDays) * 100;
     return {
       ...stats,
+      startingCapital: startCap,
       currentCapital,
       totalReturnPct,
       profitPerMonth,
       profitPerYear,
     } as BotStats;
-  }, [stats, equityCurve.finalCapital]);
+  }, [stats, equityCurve.finalCapital, startCap]);
 
   const displayStats = filteredStats ?? stats;
 

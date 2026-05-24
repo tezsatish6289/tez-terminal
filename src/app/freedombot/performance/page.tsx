@@ -12,6 +12,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { EquityChart } from "@/components/charts/EquityChart";
+import { MonthlyReturnCharts } from "@/components/charts/MonthlyReturnCharts";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import {
@@ -426,6 +427,12 @@ export default function PerformancePage() {
                 Every trade is permanently recorded on the Solana blockchain — verify independently →
               </Link>
             </p>
+            <MonthlyReturnCharts
+              trades={closedTrades}
+              startingCapital={startCap}
+              cs="$"
+              theme="white"
+            />
           </>
         )}
 

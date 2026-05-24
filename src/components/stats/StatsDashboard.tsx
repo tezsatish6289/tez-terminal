@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { EquityChart } from "@/components/charts/EquityChart";
+import { MonthlyReturnCharts } from "@/components/charts/MonthlyReturnCharts";
 import { StatsBotTabs } from "@/components/stats/StatsBotTabs";
 import {
   matchesBotSource,
@@ -401,6 +402,13 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
           />
         </div>
       </div>
+
+      <MonthlyReturnCharts
+        trades={filteredClosedTrades}
+        startingCapital={simState.startingCapital}
+        cs={cs}
+        theme="white"
+      />
 
       <RiskRatioDrilldowns
         trades={filteredClosedTrades}

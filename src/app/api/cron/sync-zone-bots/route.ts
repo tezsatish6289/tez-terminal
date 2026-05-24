@@ -180,6 +180,7 @@ async function loadSuggestedZones(
         bearZoneHigh:        typeof d.bearZoneHigh  === "number" ? d.bearZoneHigh  : null,
         bearZoneLow:         typeof d.bearZoneLow   === "number" ? d.bearZoneLow   : null,
         bearExitBelow:       typeof d.bearExitBelow === "number" ? d.bearExitBelow : null,
+        halfWidthUsd:        typeof d.halfWidthUsd  === "number" ? d.halfWidthUsd  : null,
         maxPain:             typeof d.maxPain       === "number" ? d.maxPain       : null,
         computedAt:          typeof d.computedAt    === "string" ? d.computedAt    : "",
         bullActionable:      typeof d.bullActionable === "boolean" ? d.bullActionable : undefined,

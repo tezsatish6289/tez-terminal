@@ -38,7 +38,7 @@ For each of the 4 coins:
 3. Trade params (zone-derived):
    - Side: BUY (bull) / SELL (bear)
    - Entry: market price at the tick the zone confirms
-   - SL: `bullZoneLow × 0.99` (bull) / `bearZoneHigh × 1.01` (bear)
+   - SL: `bullZoneLow − halfWidth` (bull) / `bearZoneHigh + halfWidth` (bear)
    - TP1/TP2/TP3: `entry ± 1R / 2R / 3R` where `R = |entry − SL|`
    - Position size: existing risk model
      (`risk% × capital / SL_distance × leverage`)

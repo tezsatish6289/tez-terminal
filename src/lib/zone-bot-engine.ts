@@ -76,6 +76,9 @@ export interface ZoneBotSuggestedZones {
   /** Human-readable explanation surfaced into `state.reason` when neither
    *  side is actionable. */
   notActionableReason?: string | null;
+  /** IV-scaled band half-width from the suggester — anchors SL one HW
+   *  outside the zone edge (see `computeZoneSlAnchors`). */
+  halfWidthUsd?: number | null;
 }
 
 export type ZoneBotAction =
@@ -142,24 +145,15 @@ const SUGGESTED_STALE_MS = 12 * 60 * 60 * 1000; // 12h
  *  the 2%-of-spot cap), so worst-case entry at the top of the band
  *  gives slDistance ~2.5% — comfortably under both the old and new
  *  gates. ETH and SOL hit the strike-grid floor in `options-zones.ts`,
- *  which forces half-width to be 1–1.5% of spot. Combined with the 1%
- *  `BULL_SL_MULT`/`BEAR_SL_MULT` buffer below the zone edge, the worst-
- *  case slDistance (entry at zone top, SL just outside zone bottom)
- *  legitimately reaches ~3.4% (ETH) and ~3.9% (SOL). At 5% gate, every
- *  realistic entry across BTC/ETH/SOL passes; position-sizing still
- *  caps risk-per-trade so a 5% SL just means a smaller notional, not
- *  more dollar risk.
+ *  which forces half-width to be 1–1.5% of spot. SL sits one half-width
+ *  below the bull band (or above the bear band), so worst-case slDistance
+ *  at band top is ~3 × halfWidth (~2–4% on majors). Position-sizing
+ *  still caps risk-per-trade.
  *
  *  Still tighter than the pattern bot's full-confidence trades use
  *  (capped at SIM_CONFIG.MAX_SL_DISTANCE_PCT = 0.10) — this is the
  *  zone-bot-specific cap. */
 const MAX_SL_DISTANCE_PCT = 0.05;
-
-/** SL anchor multipliers. SL = zoneLow × 0.99 for BULL,
- *  zoneHigh × 1.01 for BEAR. Pulled out as constants so a tuning change
- *  is a one-line edit. */
-const BULL_SL_MULT = 0.99;
-const BEAR_SL_MULT = 1.01;
 
 /** Noise tolerance (fraction of spot) applied to the zone-floor / no-new-
  *  lows checks. With BTC at $76k that's $53 — a single 1-sec wick that
@@ -171,6 +165,60 @@ const BEAR_SL_MULT = 1.01;
 const CONFIRMATION_NOISE_PCT_OF_SPOT = 0.0007;
 
 // ── Trade-parameter math ─────────────────────────────────────────────────
+
+/** Resolve half-width for SL anchoring — prefer suggester field, else infer
+ *  from symmetric band geometry on legacy Firestore docs. */
+export function resolveZoneHalfWidthUsd(input: {
+  halfWidthUsd?: number | null;
+  bullZoneLow?: number | null;
+  bullZoneHigh?: number | null;
+  bearZoneLow?: number | null;
+  bearZoneHigh?: number | null;
+}): number | null {
+  const { halfWidthUsd, bullZoneLow, bullZoneHigh, bearZoneLow, bearZoneHigh } =
+    input;
+  if (
+    halfWidthUsd != null &&
+    Number.isFinite(halfWidthUsd) &&
+    halfWidthUsd > 0
+  ) {
+    return halfWidthUsd;
+  }
+  if (bullZoneLow != null && bullZoneHigh != null) {
+    const w = (bullZoneHigh - bullZoneLow) / 2;
+    if (Number.isFinite(w) && w > 0) return w;
+  }
+  if (bearZoneLow != null && bearZoneHigh != null) {
+    const w = (bearZoneHigh - bearZoneLow) / 2;
+    if (Number.isFinite(w) && w > 0) return w;
+  }
+  return null;
+}
+
+/** SL anchors one half-width outside the zone band — matches
+ *  `options-zones.ts` TP-room design (2× HW to max pain ⇒ ≥2R when
+ *  entry is near band center). Exported for UI ladder + live mirror. */
+export function computeZoneSlAnchors(input: {
+  halfWidthUsd?: number | null;
+  bullZoneLow?: number | null;
+  bullZoneHigh?: number | null;
+  bearZoneLow?: number | null;
+  bearZoneHigh?: number | null;
+}): { bullSl: number | null; bearSl: number | null; halfWidthUsd: number | null } {
+  const half = resolveZoneHalfWidthUsd(input);
+  if (half == null) {
+    return { bullSl: null, bearSl: null, halfWidthUsd: null };
+  }
+  const bullSl =
+    input.bullZoneLow != null && Number.isFinite(input.bullZoneLow)
+      ? input.bullZoneLow - half
+      : null;
+  const bearSl =
+    input.bearZoneHigh != null && Number.isFinite(input.bearZoneHigh)
+      ? input.bearZoneHigh + half
+      : null;
+  return { bullSl, bearSl, halfWidthUsd: half };
+}
 
 export interface ZoneTradeParams {
   side:           "BUY" | "SELL";
@@ -193,12 +241,25 @@ export function computeZoneTradeParams(
   entryPrice:    number,
   bullZoneLow:   number | null,
   bearZoneHigh:  number | null,
+  halfWidthUsd?: number | null,
+  bandGeometry?: {
+    bullZoneHigh?: number | null;
+    bearZoneLow?: number | null;
+  },
 ): ZoneTradeParams | null {
   if (!Number.isFinite(entryPrice) || entryPrice <= 0) return null;
 
+  const { bullSl, bearSl } = computeZoneSlAnchors({
+    halfWidthUsd,
+    bullZoneLow,
+    bullZoneHigh: bandGeometry?.bullZoneHigh ?? null,
+    bearZoneLow: bandGeometry?.bearZoneLow ?? null,
+    bearZoneHigh,
+  });
+
   if (side === "BUY") {
-    if (bullZoneLow == null) return null;
-    const stopLoss  = bullZoneLow * BULL_SL_MULT;
+    if (bullSl == null) return null;
+    const stopLoss  = bullSl;
     const rDistance = entryPrice - stopLoss;
     if (rDistance <= 0) return null; // SL not actually below entry — bail
     return {
@@ -212,8 +273,8 @@ export function computeZoneTradeParams(
       slDistancePct: rDistance / entryPrice,
     };
   } else {
-    if (bearZoneHigh == null) return null;
-    const stopLoss  = bearZoneHigh * BEAR_SL_MULT;
+    if (bearSl == null) return null;
+    const stopLoss  = bearSl;
     const rDistance = stopLoss - entryPrice;
     if (rDistance <= 0) return null; // SL not above entry — bail
     return {
@@ -348,10 +409,13 @@ interface ZonesView {
   priceInBull:    boolean;
   priceInBear:    boolean;
   bullZoneLow:    number | null;
+  bullZoneHigh:   number | null;
   bullExitAbove:  number | null;
   bearZoneHigh:   number | null;
+  bearZoneLow:    number | null;
   bearExitBelow:  number | null;
   maxPain:        number | null;
+  halfWidthUsd:   number | null | undefined;
 }
 
 function deriveZones(spot: number, s: ZoneBotSuggestedZones): ZonesView {
@@ -368,10 +432,13 @@ function deriveZones(spot: number, s: ZoneBotSuggestedZones): ZonesView {
       spot <= (s.bearZoneHigh  as number) &&
       spot >= (s.bearExitBelow as number),
     bullZoneLow:   s.bullZoneLow,
+    bullZoneHigh:  s.bullZoneHigh ?? null,
     bullExitAbove: s.bullExitAbove,
     bearZoneHigh:  s.bearZoneHigh,
+    bearZoneLow:   s.bearZoneLow ?? null,
     bearExitBelow: s.bearExitBelow,
     maxPain:       s.maxPain,
+    halfWidthUsd:  s.halfWidthUsd,
   };
 }
 
@@ -474,6 +541,11 @@ export function evaluateZoneBot(input: EvaluateZoneBotInput): EvaluateZoneBotRes
           spot,
           zones.bullZoneLow,
           zones.bearZoneHigh,
+          zones.halfWidthUsd,
+          {
+            bullZoneHigh: zones.bullZoneHigh,
+            bearZoneLow: zones.bearZoneLow,
+          },
         );
         if (params && params.slDistancePct <= MAX_SL_DISTANCE_PCT) {
           next.direction     = oppositeDir;
@@ -654,6 +726,11 @@ function tryOpen(
     spot,
     zones.bullZoneLow,
     zones.bearZoneHigh,
+    zones.halfWidthUsd,
+    {
+      bullZoneHigh: zones.bullZoneHigh,
+      bearZoneLow: zones.bearZoneLow,
+    },
   );
 
   if (!params) {

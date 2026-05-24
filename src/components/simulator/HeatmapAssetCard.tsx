@@ -18,6 +18,7 @@ import {
 } from "@/components/simulator/heatmap-types";
 import { SIM_CARD } from "@/components/simulator/simulator-surfaces";
 import type { ZoneBotDirection } from "@/lib/zone-bot-state";
+import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
 
 const POWER_DOT: Record<CockpitCardStatus["power"], string> = {
   on: "bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.55)]",
@@ -283,7 +284,11 @@ export function HeatmapAssetCard({
             </p>
           </div>
         ) : (
-          <ZonePriceLadder suggested={suggested} spot={spot} />
+          <ZonePriceLadder
+            suggested={suggested}
+            spot={spot}
+            engineDirection={engineDirection}
+          />
         )}
       </div>
 
@@ -430,9 +435,11 @@ function IvBadge({ pct, title }: { pct: number; title?: string }) {
 function ZonePriceLadder({
   suggested,
   spot,
+  engineDirection,
 }: {
   suggested: SuggestedZonesSnapshot;
   spot: number | null;
+  engineDirection?: ZoneBotDirection | null;
 }) {
   const bullLow = suggested.bullZoneLow;
   const bullHigh = suggested.bullZoneHigh;
@@ -453,6 +460,18 @@ function ZonePriceLadder({
   const bearLocked = suggested.bearLocked;
 
   const halfWidth = suggested.halfWidthUsd;
+
+  const { bullSl, bearSl } = useMemo(
+    () =>
+      computeZoneSlAnchors({
+        halfWidthUsd: halfWidth,
+        bullZoneLow: bullLow,
+        bullZoneHigh: bullHigh,
+        bearZoneLow: bearLow,
+        bearZoneHigh: bearHigh,
+      }),
+    [halfWidth, bullLow, bullHigh, bearLow, bearHigh],
+  );
 
   const days = suggested.maxPainByExpiry ?? [];
 
@@ -483,6 +502,8 @@ function ZonePriceLadder({
   if (bearLow != null) prices.push(bearLow);
   if (bearHigh != null) prices.push(bearHigh);
   for (const g of mpGroups) prices.push(g.price);
+  if (bullSl != null) prices.push(bullSl);
+  if (bearSl != null) prices.push(bearSl);
 
   if (prices.length < 2) {
     return (
@@ -523,11 +544,18 @@ function ZonePriceLadder({
       ? { top: yFor(bearHigh), height: yFor(bearLow) - yFor(bearHigh) }
       : null;
 
+  const fmtHalfWidth = (hw: number): string => {
+    if (hw >= 1000) return Math.round(hw).toLocaleString();
+    if (hw >= 10) return hw.toFixed(0);
+    if (hw >= 1) return hw.toFixed(2);
+    return hw.toFixed(3);
+  };
+
   // Detail strings — match the user's chart annotation style.
   const bullDetail = (() => {
     const bits: string[] = [];
     if (bullStrike != null) bits.push(`@ ${fmt(bullStrike)}`);
-    if (halfWidth != null) bits.push(`HW ${Math.round(halfWidth)}`);
+    if (halfWidth != null) bits.push(`HW ${fmtHalfWidth(halfWidth)}`);
     if (bullOI != null && bullOI > 0)
       bits.push(`OI ${Math.round(bullOI).toLocaleString()}`);
     if (bullShare != null && bullShare > 0)
@@ -539,7 +567,7 @@ function ZonePriceLadder({
   const bearDetail = (() => {
     const bits: string[] = [];
     if (bearStrike != null) bits.push(`@ ${fmt(bearStrike)}`);
-    if (halfWidth != null) bits.push(`HW ${Math.round(halfWidth)}`);
+    if (halfWidth != null) bits.push(`HW ${fmtHalfWidth(halfWidth)}`);
     if (bearOI != null && bearOI > 0)
       bits.push(`OI ${Math.round(bearOI).toLocaleString()}`);
     if (bearShare != null && bearShare > 0)
@@ -611,6 +639,28 @@ function ZonePriceLadder({
           );
         })}
 
+        {/* ── Stop-loss anchors (one HW outside each band) ── */}
+        {bullSl != null && (
+          <SlAnchorLine
+            price={bullSl}
+            label="Bull SL"
+            active={engineDirection === "BULL"}
+            tone="emerald"
+            yFor={yFor}
+            fmt={fmt}
+          />
+        )}
+        {bearSl != null && (
+          <SlAnchorLine
+            price={bearSl}
+            label="Bear SL"
+            active={engineDirection === "BEAR"}
+            tone="rose"
+            yFor={yFor}
+            fmt={fmt}
+          />
+        )}
+
         {/* ── Current price (the anchor) ── */}
         {spot != null && (
           <div
@@ -664,6 +714,70 @@ function ZonePriceLadder({
           {!bearBandStyle && noClusterLine("bear", suggested)}
         </p>
       )}
+    </div>
+  );
+}
+
+/** Dotted SL level — one half-width outside the zone band. */
+function SlAnchorLine({
+  price,
+  label,
+  active,
+  tone,
+  yFor,
+  fmt,
+}: {
+  price: number;
+  label: string;
+  active?: boolean;
+  tone: "emerald" | "rose";
+  yFor: (price: number) => number;
+  fmt: (p: number) => string;
+}) {
+  const isEmerald = tone === "emerald";
+  return (
+    <div
+      className={cn(
+        "absolute left-0 right-0 border-t border-dotted",
+        active
+          ? isEmerald
+            ? "border-emerald-400/90"
+            : "border-rose-400/90"
+          : isEmerald
+            ? "border-emerald-500/45"
+            : "border-rose-500/45",
+      )}
+      style={{ top: yFor(price) }}
+    >
+      <span
+        className={cn(
+          "absolute left-2 -top-3 text-[9px] font-mono font-bold whitespace-nowrap",
+          active
+            ? isEmerald
+              ? "text-emerald-300"
+              : "text-rose-300"
+            : isEmerald
+              ? "text-emerald-400/75"
+              : "text-rose-400/75",
+        )}
+      >
+        {label}
+        {active ? " · active" : ""}
+      </span>
+      <span
+        className={cn(
+          "absolute right-2 -top-3 text-[9px] font-mono font-bold tabular-nums",
+          active
+            ? isEmerald
+              ? "text-emerald-300"
+              : "text-rose-300"
+            : isEmerald
+              ? "text-emerald-400/75"
+              : "text-rose-400/75",
+        )}
+      >
+        ${fmt(price)}
+      </span>
     </div>
   );
 }

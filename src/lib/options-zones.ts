@@ -157,8 +157,8 @@ const HALFWIDTH_HORIZON_HOURS = 4;
 const HALFWIDTH_FLOOR_CONFIRMATION_MIN = 15;
 const HALFWIDTH_FLOOR_SIGMA_MULT = 2.0;
 
-/** Half-width cap = 2% of spot. Beyond this, `bullZoneLow × 0.99` puts SL
- *  distance over 3%, which `zone-bot-engine.MAX_SL_DISTANCE_PCT` rejects.
+/** Half-width cap = 2% of spot. Beyond this, SL one HW below the band can
+ *  exceed `zone-bot-engine.MAX_SL_DISTANCE_PCT` for entries at band top.
  *  Wider bands are dead weight. */
 const HALFWIDTH_CAP_PCT_OF_SPOT = 0.02;
 

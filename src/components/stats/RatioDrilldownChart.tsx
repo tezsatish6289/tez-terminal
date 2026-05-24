@@ -13,6 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import type { RatioSeriesPoint } from "@/lib/performance-metrics";
+import { BRAND_CURVE_STROKE } from "@/lib/chart-brand-colors";
 import {
   formatRatioValue,
   insightForRatio,
@@ -53,7 +54,7 @@ export function RatioDrilldownChart({
       ? statusForRatio(ratioKey, headlineValue)
       : "weak";
   const meta = STATUS_META[status];
-  const stroke = meta.valueColor;
+  const curveStroke = BRAND_CURVE_STROKE;
 
   const chartData = useMemo(
     () =>
@@ -113,7 +114,7 @@ export function RatioDrilldownChart({
         <div className="flex items-center gap-1.5 shrink-0">
           <span
             className="text-xl font-mono font-bold tabular-nums leading-none"
-            style={{ color: stroke }}
+            style={{ color: meta.valueColor }}
           >
             {headlineValue != null ? formatRatioValue(headlineValue) : "—"}
           </span>
@@ -143,8 +144,8 @@ export function RatioDrilldownChart({
               <AreaChart data={chartData} margin={{ top: 6, right: 24, left: 2, bottom: 2 }}>
                 <defs>
                   <linearGradient id={`ratioFill-${ratioKey}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={stroke} stopOpacity={0.35} />
-                    <stop offset="95%" stopColor={stroke} stopOpacity={0} />
+                    <stop offset="5%" stopColor={curveStroke} stopOpacity={0.35} />
+                    <stop offset="95%" stopColor={curveStroke} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 {tiers.map((tier) => {
@@ -208,13 +209,13 @@ export function RatioDrilldownChart({
                 <Area
                   type="monotone"
                   dataKey="value"
-                  stroke={stroke}
+                  stroke={curveStroke}
                   strokeWidth={2}
                   fill={`url(#ratioFill-${ratioKey})`}
                   dot={false}
                   activeDot={{
                     r: 3,
-                    fill: stroke,
+                    fill: curveStroke,
                     stroke: "#0f0f11",
                     strokeWidth: 2,
                   }}

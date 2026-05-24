@@ -4,10 +4,12 @@ import Image from "next/image";
 
 const CARD_W = 1200;
 const CARD_H = 720;
-const GREEN = "#34d399";
-const GREEN_GLOW = "0 0 22px rgba(52,211,153,0.48), 0 0 44px rgba(52,211,153,0.16)";
+import { BRAND_CURVE_STROKE } from "@/lib/chart-brand-colors";
+
+const BRAND_GLOW =
+  "0 0 22px rgba(96,165,250,0.48), 0 0 44px rgba(96,165,250,0.16)";
 const CARD_BG = "rgba(6,12,24,0.88)";
-const CARD_BORDER = "1px solid rgba(52,211,153,0.22)";
+const CARD_BORDER = "1px solid rgba(96,165,250,0.22)";
 
 function fmtMoneyUsd(val: number): string {
   if (!Number.isFinite(val)) return "$0.00";
@@ -75,8 +77,8 @@ function GlowValue({
       className="font-black tabular-nums leading-snug block mt-0.5"
       style={{
         fontSize: sizes[size],
-        color: GREEN,
-        textShadow: GREEN_GLOW,
+        color: BRAND_CURVE_STROKE,
+        textShadow: BRAND_GLOW,
       }}
     >
       {children}
@@ -95,8 +97,8 @@ function MiniEquitySparkline() {
     >
       <defs>
         <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#34d399" stopOpacity="0.45" />
-          <stop offset="100%" stopColor="#34d399" stopOpacity="0" />
+          <stop offset="0%" stopColor={BRAND_CURVE_STROKE} stopOpacity="0.45" />
+          <stop offset="100%" stopColor={BRAND_CURVE_STROKE} stopOpacity="0" />
         </linearGradient>
       </defs>
       <path
@@ -106,7 +108,7 @@ function MiniEquitySparkline() {
       <path
         d="M0,90 L40,85 L90,70 L140,75 L200,50 L260,45 L320,30 L400,15"
         fill="none"
-        stroke="#34d399"
+        stroke={BRAND_CURVE_STROKE}
         strokeWidth="2.5"
         opacity="0.7"
       />
@@ -122,13 +124,13 @@ function SharpeGauge({ value }: { value: number }) {
   const dash = pct * c * 0.75;
   return (
     <div className="flex flex-col items-center justify-center flex-1 py-1.5">
-      <svg width="134" height="134" viewBox="0 0 150 150" className="drop-shadow-[0_0_10px_rgba(52,211,153,0.38)]">
+      <svg width="134" height="134" viewBox="0 0 150 150" className="drop-shadow-[0_0_10px_rgba(96,165,250,0.38)]">
         <circle
           cx="75"
           cy="75"
           r={r}
           fill="none"
-          stroke="rgba(52,211,153,0.15)"
+          stroke="rgba(96,165,250,0.15)"
           strokeWidth="9"
           strokeLinecap="round"
           transform="rotate(135 75 75)"
@@ -139,21 +141,21 @@ function SharpeGauge({ value }: { value: number }) {
           cy="75"
           r={r}
           fill="none"
-          stroke="#34d399"
+          stroke={BRAND_CURVE_STROKE}
           strokeWidth="9"
           strokeLinecap="round"
           transform="rotate(135 75 75)"
           strokeDasharray={`${dash} ${c}`}
-          style={{ filter: "drop-shadow(0 0 8px rgba(52,211,153,0.6))" }}
+          style={{ filter: "drop-shadow(0 0 8px rgba(96,165,250,0.6))" }}
         />
         <text
           x="75"
           y="82"
           textAnchor="middle"
-          fill="#34d399"
+          fill={BRAND_CURVE_STROKE}
           fontSize="25"
           fontWeight="800"
-          style={{ textShadow: "0 0 12px rgba(52,211,153,0.5)" }}
+          style={{ textShadow: "0 0 12px rgba(96,165,250,0.5)" }}
         >
           {fmtRatio(value)}
         </text>
@@ -267,10 +269,10 @@ export function StatsSocialShareCard({
             <span
               className="text-[13px] font-black uppercase tracking-wider px-4 py-2 rounded-full"
               style={{
-                color: GREEN,
-                backgroundColor: "rgba(34,197,94,0.15)",
-                border: `1px solid rgba(52,211,153,0.45)`,
-                boxShadow: "0 0 16px rgba(52,211,153,0.25)",
+                color: BRAND_CURVE_STROKE,
+                backgroundColor: "rgba(96,165,250,0.15)",
+                border: "1px solid rgba(96,165,250,0.45)",
+                boxShadow: "0 0 16px rgba(96,165,250,0.25)",
               }}
             >
               Live
@@ -293,7 +295,7 @@ export function StatsSocialShareCard({
                 className="absolute inset-0 opacity-20 pointer-events-none"
                 style={{
                   background:
-                    "radial-gradient(ellipse at 50% 100%, rgba(52,211,153,0.3) 0%, transparent 70%)",
+                    "radial-gradient(ellipse at 50% 100%, rgba(96,165,250,0.3) 0%, transparent 70%)",
                 }}
               />
               <Label>Running</Label>
@@ -319,7 +321,7 @@ export function StatsSocialShareCard({
             <div className="relative z-10">
               <Label>Current Capital</Label>
               <GlowValue size="lg">{fmtMoneyUsd(currentCapital)}</GlowValue>
-              <p className="text-[17px] font-semibold mt-2 tabular-nums" style={{ color: GREEN }}>
+              <p className="text-[17px] font-semibold mt-2 tabular-nums" style={{ color: BRAND_CURVE_STROKE }}>
                 {pnlPositive ? "+" : ""}
                 {fmtMoneyUsd(pnlUsd)} overall ({fmtPct(totalReturnPct)})
               </p>
@@ -333,7 +335,7 @@ export function StatsSocialShareCard({
               {sharpeRatio != null ? (
                 <SharpeGauge value={sharpeRatio} />
               ) : (
-                <span className="text-3xl font-black text-center py-8" style={{ color: GREEN }}>
+                <span className="text-3xl font-black text-center py-8" style={{ color: BRAND_CURVE_STROKE }}>
                   —
                 </span>
               )}

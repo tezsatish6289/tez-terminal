@@ -11,10 +11,15 @@
  *   - "pnl"    → green/red bars, one bar per calendar day
  *
  * theme="blue"  → performance page blue tints
- * theme="white" → simulator white tints + green/red gradient split at baseline
+ * theme="white" → simulator white tints (curve stroke is brand blue on both)
  */
 
 import { useState, useMemo } from "react";
+import {
+  BRAND_CURVE_FILL_OPACITY,
+  BRAND_CURVE_MUTED,
+  BRAND_CURVE_STROKE,
+} from "@/lib/chart-brand-colors";
 import { BarChart3 } from "lucide-react";
 import {
   AreaChart,
@@ -58,7 +63,7 @@ export interface EquityChartProps {
   cs?: string;
   /**
    * "blue"  → performance page dark-blue tints (default)
-   * "white" → simulator dark theme with white tints + baseline gradient split
+   * "white" → simulator dark theme with white tints
    */
   theme?: "blue" | "white";
 }
@@ -151,14 +156,10 @@ export function EquityChart({
 
   // ── Curve view metrics ──
   const curveData  = view === "trade" ? tradeData : dayData;
-  const lastVal    = curveData[curveData.length - 1]?.value ?? startingCapital;
   const allValues  = curveData.map((d) => d.value);
   const yMin       = Math.floor(Math.min(...allValues) * 0.995);
   const yMax       = Math.ceil(Math.max(...allValues) * 1.005);
-  const splitPct   = Math.max(0, Math.min(100,
-    yMax === yMin ? 50 : ((yMax - startingCapital) / (yMax - yMin)) * 100,
-  ));
-  const blueColor  = lastVal >= startingCapital ? "#34d399" : "#f87171";
+  const curveColor = BRAND_CURVE_STROKE;
 
   // ── PnL bar view metrics (exclude "Start" point) ──
   const pnlData    = dayData.slice(1);
@@ -221,25 +222,18 @@ export function EquityChart({
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart key={chartKey} data={curveData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                 <defs>
-                  {isBlue ? (
-                    <linearGradient id="ecGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor={blueColor} stopOpacity={0.3} />
-                      <stop offset="95%" stopColor={blueColor} stopOpacity={0}   />
-                    </linearGradient>
-                  ) : (
-                    <>
-                      <linearGradient id="ecStroke" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset={`${splitPct}%`} stopColor="#34d399" />
-                        <stop offset={`${splitPct}%`} stopColor="#f87171" />
-                      </linearGradient>
-                      <linearGradient id="ecFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%"             stopColor="#34d399" stopOpacity={0.28} />
-                        <stop offset={`${splitPct}%`} stopColor="#34d399" stopOpacity={0.06} />
-                        <stop offset={`${splitPct}%`} stopColor="#f87171" stopOpacity={0.06} />
-                        <stop offset="100%"           stopColor="#f87171" stopOpacity={0}    />
-                      </linearGradient>
-                    </>
-                  )}
+                  <linearGradient id="ecGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop
+                      offset="5%"
+                      stopColor={curveColor}
+                      stopOpacity={BRAND_CURVE_FILL_OPACITY.top}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor={curveColor}
+                      stopOpacity={BRAND_CURVE_FILL_OPACITY.bottom}
+                    />
+                  </linearGradient>
                 </defs>
 
                 <CartesianGrid strokeDasharray="3 3" stroke={gridCol} />
@@ -266,11 +260,16 @@ export function EquityChart({
                 <Area
                   type="monotone"
                   dataKey="value"
-                  stroke={isBlue ? blueColor : "url(#ecStroke)"}
+                  stroke={curveColor}
                   strokeWidth={2}
-                  fill={isBlue ? "url(#ecGradient)" : "url(#ecFill)"}
+                  fill="url(#ecGradient)"
                   dot={false}
-                  activeDot={{ r: 4, fill: isBlue ? blueColor : "#ffffff", stroke: isBlue ? "#080f1e" : "#0f0f11", strokeWidth: 2 }}
+                  activeDot={{
+                    r: 4,
+                    fill: curveColor,
+                    stroke: isBlue ? "#080f1e" : "#0f0f11",
+                    strokeWidth: 2,
+                  }}
                   {...anim}
                 />
               </AreaChart>
@@ -325,7 +324,7 @@ export function EquityChart({
                   {pnlData.map((entry, i) => (
                     <Cell
                       key={i}
-                      fill={entry.dailyPnl >= 0 ? "#34d399" : "#f87171"}
+                      fill={entry.dailyPnl >= 0 ? BRAND_CURVE_STROKE : BRAND_CURVE_MUTED}
                       fillOpacity={0.75}
                     />
                   ))}

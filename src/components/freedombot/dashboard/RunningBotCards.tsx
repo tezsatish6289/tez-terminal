@@ -5,9 +5,9 @@ import { usePathname } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import type { PublicBotApiRow } from "@/hooks/use-public-bots";
 import { CRYPTO_BOTS } from "@/lib/crypto-bots";
-import { freedombotBotDetailPath } from "@/lib/freedombot/dashboard-path";
+import { BotExchangeIcons } from "@/components/freedombot/dashboard/BotExchangeIcons";
 import { exchangeLabel } from "@/components/freedombot/dashboard/exchange-labels";
-import { BotIcon } from "@/components/freedombot/dashboard/BotDiscoverySection";
+import { freedombotBotDetailPath } from "@/lib/freedombot/dashboard-path";
 
 export interface DashboardDeployment {
   id: string;
@@ -113,7 +113,9 @@ export function RunningBotCards({ deployments, publicBots }: RunningBotCardsProp
         const pnl = dep.lifetimeRealizedPnl ?? 0;
         const pnlPositive = pnl >= 0;
         const href = freedombotBotDetailPath(pathname, dep.id);
-        const title = `${botLabel(dep.bot, publicBots)} × ${exchangeLabel(dep.exchange)}`;
+        const label = botLabel(dep.bot, publicBots);
+        const exchangeName = exchangeLabel(dep.exchange);
+        const title = `${label} on ${exchangeName}`;
 
         return (
           <Link
@@ -134,12 +136,15 @@ export function RunningBotCards({ deployments, publicBots }: RunningBotCardsProp
           >
             <div className="flex items-start justify-between gap-3 mb-4">
               <div className="flex items-center gap-3 min-w-0">
-                <BotIcon bot={bot} size={36} />
+                <BotExchangeIcons bot={bot} exchange={dep.exchange} size={40} />
                 <div className="min-w-0">
                   <p className="text-sm font-black text-white truncate" title={title}>
-                    {title}
+                    {label}
                   </p>
-                  <div className="flex items-center gap-1.5 mt-1">
+                  <p className="text-[11px] font-semibold truncate mt-0.5" style={{ color: "#64748b" }}>
+                    {exchangeName}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-1.5">
                     {meta.pulse && (
                       <span
                         className="h-1.5 w-1.5 rounded-full animate-pulse flex-shrink-0"

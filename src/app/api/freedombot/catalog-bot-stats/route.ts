@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
-import { AggregateField } from "firebase-admin/firestore";
+import { buildEquityCurve } from "@/lib/equity-curve";
+import { classifyBotSource } from "@/lib/bot-source-constants";
 import { CRYPTO_BOTS, type CryptoBotId } from "@/lib/crypto-bots";
 import {
+  runningDaysForStatsFilter,
+  startingCapitalForStatsFilter,
+  type ZoneSimStatesMap,
+} from "@/lib/stats-dashboard-capital";
+import {
   ZONE_BOT_REGISTRY,
+  ZONE_BOT_STARTING_CAPITAL_USD,
   type ZoneBotAsset,
 } from "@/lib/zone-bot-config";
 import { zoneSimStateDoc } from "@/lib/zone-bot-state";
@@ -23,7 +30,7 @@ function totalReturnPctFromEquity(startingCapital: number, currentCapital: numbe
 }
 
 function ensureMinRunningDays(days: number | null, hasStats: boolean): number | null {
-  if (days != null) return Math.max(1, days);
+  if (days != null && days > 0) return Math.max(1, days);
   if (hasStats) return 1;
   return null;
 }
@@ -32,157 +39,133 @@ type CatalogBotStats = Partial<Record<CryptoBotId, CatalogBotStatRow>>;
 
 const NO_STORE = { "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0" } as const;
 
-function runningDaysFromIso(iso: string | null): number | null {
-  if (!iso) return null;
-  const startMs = new Date(iso).getTime();
-  if (!Number.isFinite(startMs)) return null;
-  return Math.max(1, Math.floor((Date.now() - startMs) / (1000 * 60 * 60 * 24)));
+interface ClosedTradeRow {
+  botSource?: string | null;
+  closedAt?: string | null;
+  realizedPnl?: number | null;
+  openedAt?: string | null;
 }
 
-async function cryptoPlatformStats(db: FirebaseFirestore.Firestore): Promise<CatalogBotStatRow | null> {
-  const [stateDoc, metricsSnap, closedSum] = await Promise.all([
+async function loadClosedCryptoTrades(db: FirebaseFirestore.Firestore): Promise<ClosedTradeRow[]> {
+  const snap = await db
+    .collection("simulator_trades")
+    .where("assetType", "==", "CRYPTO")
+    .where("status", "==", "CLOSED")
+    .select("botSource", "closedAt", "realizedPnl", "openedAt")
+    .get();
+
+  return snap.docs.map((doc) => {
+    const d = doc.data() as ClosedTradeRow;
+    return {
+      botSource: typeof d.botSource === "string" ? d.botSource : null,
+      closedAt: d.closedAt ?? null,
+      realizedPnl: typeof d.realizedPnl === "number" ? d.realizedPnl : 0,
+      openedAt: d.openedAt ?? null,
+    };
+  });
+}
+
+async function loadPlatformContext(db: FirebaseFirestore.Firestore): Promise<{
+  sharedStartingCapital: number;
+  serverRunningDays: number | null;
+  zoneSimStates: ZoneSimStatesMap;
+}> {
+  const [stateDoc, metricsSnap, zoneSnaps] = await Promise.all([
     db.collection("config").doc("simulator_state").get(),
     db.collection("daily_metrics").orderBy("date", "asc").limit(1).get(),
-    db
-      .collection("simulator_trades")
-      .where("assetType", "==", "CRYPTO")
-      .where("status", "==", "CLOSED")
-      .aggregate({ totalRealized: AggregateField.sum("realizedPnl") })
-      .get()
-      .then((snap) => snap.data()?.totalRealized ?? 0)
-      .catch(async () => {
-        const snap = await db
-          .collection("simulator_trades")
-          .where("assetType", "==", "CRYPTO")
-          .where("status", "==", "CLOSED")
-          .select("realizedPnl")
-          .get();
-        let sum = 0;
-        snap.forEach((doc) => {
-          const r = (doc.data() as { realizedPnl?: number }).realizedPnl;
-          if (typeof r === "number") sum += r;
-        });
-        return sum;
+    Promise.all(
+      ZONE_BOT_REGISTRY.map(async (asset) => {
+        const snap = await db.doc(zoneSimStateDoc(asset)).get();
+        if (!snap.exists) return [asset, null] as const;
+        const data = snap.data() as { capital?: number; startingCapital?: number };
+        return [asset, data] as const;
       }),
+    ),
   ]);
 
-  if (!stateDoc.exists) return null;
-  const state = stateDoc.data() as { startingCapital?: number; capital?: number };
-  const startingCapital = Number(state.startingCapital ?? 0);
-  if (!Number.isFinite(startingCapital) || startingCapital <= 0) return null;
+  const state = stateDoc.exists
+    ? (stateDoc.data() as { startingCapital?: number })
+    : null;
+  const sharedStartingCapital = Number(state?.startingCapital ?? ZONE_BOT_STARTING_CAPITAL_USD);
 
-  const liveCapital = Number(state.capital ?? startingCapital);
-  const derivedCapital =
-    typeof closedSum === "number" && Number.isFinite(closedSum)
-      ? startingCapital + closedSum
-      : liveCapital;
+  const earliestMetricDate = metricsSnap.empty
+    ? null
+    : String(metricsSnap.docs[0].data().date ?? "");
+  let serverRunningDays: number | null = null;
+  if (earliestMetricDate) {
+    const startMs = new Date(earliestMetricDate).getTime();
+    if (Number.isFinite(startMs)) {
+      serverRunningDays = Math.max(
+        1,
+        Math.floor((Date.now() - startMs) / (1000 * 60 * 60 * 24)),
+      );
+    }
+  }
 
-  const earliestMetricDate = metricsSnap.empty ? null : String(metricsSnap.docs[0].data().date ?? "");
-
-  return {
-    runningDays: runningDaysFromIso(earliestMetricDate),
-    totalReturnPct: totalReturnPctFromEquity(startingCapital, derivedCapital),
-  };
-}
-
-async function zoneBotStats(
-  db: FirebaseFirestore.Firestore,
-  asset: ZoneBotAsset,
-): Promise<CatalogBotStatRow | null> {
-  const simSnap = await db.doc(zoneSimStateDoc(asset)).get();
-  if (!simSnap.exists) return null;
-  const data = simSnap.data() as {
-    capital?: number;
-    startingCapital?: number;
-    lastUpdated?: string;
-  };
-  const starting = Number(data.startingCapital ?? 0);
-  const capital = Number(data.capital ?? starting);
-  if (!Number.isFinite(starting) || starting <= 0) return null;
-
-  const totalReturnPct = totalReturnPctFromEquity(starting, capital);
-
-  return {
-    runningDays: runningDaysFromIso(data.lastUpdated ?? null),
-    totalReturnPct,
-  };
-}
-
-/** Earliest trade per catalog bot (one query per botSource). */
-async function runningDaysByBotId(
-  db: FirebaseFirestore.Firestore,
-): Promise<Partial<Record<CryptoBotId, number>>> {
-  const out: Partial<Record<CryptoBotId, number>> = {};
-
-  await Promise.all(
-    CRYPTO_BOTS.map(async (bot) => {
-      try {
-        const snap = await db
-          .collection("simulator_trades")
-          .where("assetType", "==", "CRYPTO")
-          .where("botSource", "==", bot.botSource)
-          .orderBy("openedAt", "asc")
-          .limit(1)
-          .select("openedAt")
-          .get();
-        if (snap.empty) return;
-        const openedAt = (snap.docs[0].data() as { openedAt?: string }).openedAt;
-        const days = runningDaysFromIso(typeof openedAt === "string" ? openedAt : null);
-        if (days != null) out[bot.id] = days;
-      } catch (e) {
-        console.warn(
-          `[catalog-bot-stats] running days for ${bot.id}:`,
-          e instanceof Error ? e.message : String(e),
-        );
-      }
-    }),
+  const zoneSimStates: ZoneSimStatesMap = Object.fromEntries(
+    zoneSnaps.filter(([, data]) => data != null).map(([asset, data]) => [asset, data!]),
   );
 
-  return out;
+  return { sharedStartingCapital, serverRunningDays, zoneSimStates };
+}
+
+function statsForBot(
+  botId: CryptoBotId,
+  trades: ClosedTradeRow[],
+  sharedStartingCapital: number,
+  serverRunningDays: number | null,
+  zoneSimStates: ZoneSimStatesMap,
+): CatalogBotStatRow | null {
+  const bot = CRYPTO_BOTS.find((b) => b.id === botId);
+  if (!bot) return null;
+
+  const filtered = trades.filter(
+    (t) => classifyBotSource(t.botSource) === bot.botSource,
+  );
+  if (filtered.length === 0) return null;
+
+  const startingCapital = startingCapitalForStatsFilter(
+    bot.botSource,
+    { startingCapital: sharedStartingCapital },
+    zoneSimStates,
+  );
+  const derivedCapital = buildEquityCurve(filtered, startingCapital).finalCapital;
+  const totalReturnPct = totalReturnPctFromEquity(startingCapital, derivedCapital);
+  const hasStats = totalReturnPct != null;
+
+  const runningDays = ensureMinRunningDays(
+    serverRunningDays ??
+      runningDaysForStatsFilter(bot.botSource, serverRunningDays ?? undefined, filtered),
+    hasStats,
+  );
+
+  return { runningDays, totalReturnPct };
 }
 
 /**
  * GET /api/freedombot/catalog-bot-stats
  *
- * Per-bot headline stats for the dashboard discover cards (published bots).
+ * Per-bot headline stats for dashboard discover cards — same equity-curve
+ * math as /freedombot/performance (filtered by botSource, not all CRYPTO).
  */
 export async function GET() {
   try {
     const db = getAdminFirestore();
-    const stats: CatalogBotStats = {};
-
-    const [cryptoRow, zoneRows, runningByBot] = await Promise.all([
-      cryptoPlatformStats(db),
-      Promise.all(
-        ZONE_BOT_REGISTRY.map(async (asset) => {
-          const row = await zoneBotStats(db, asset);
-          return [asset, row] as const;
-        }),
-      ),
-      runningDaysByBotId(db),
+    const [trades, platform] = await Promise.all([
+      loadClosedCryptoTrades(db),
+      loadPlatformContext(db),
     ]);
 
-    if (cryptoRow) {
-      const hasStats = cryptoRow.totalReturnPct != null;
-      stats.crypto = {
-        ...cryptoRow,
-        runningDays: ensureMinRunningDays(
-          cryptoRow.runningDays ?? runningByBot.crypto ?? null,
-          hasStats,
-        ),
-      };
-    }
-
-    for (const [asset, row] of zoneRows) {
-      if (!row) continue;
-      const hasStats = row.totalReturnPct != null;
-      stats[asset] = {
-        ...row,
-        runningDays: ensureMinRunningDays(
-          runningByBot[asset] ?? row.runningDays,
-          hasStats,
-        ),
-      };
+    const stats: CatalogBotStats = {};
+    for (const bot of CRYPTO_BOTS) {
+      const row = statsForBot(
+        bot.id,
+        trades,
+        platform.sharedStartingCapital,
+        platform.serverRunningDays,
+        platform.zoneSimStates,
+      );
+      if (row) stats[bot.id] = row;
     }
 
     return NextResponse.json({ stats }, { headers: NO_STORE });

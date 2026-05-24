@@ -318,6 +318,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
   const [useExistingCredentials, setUseExistingCredentials] = useState(false);
   const [existingKeyLastFour, setExistingKeyLastFour] = useState<string | null>(null);
   const [error, setError]               = useState("");
+  const [resumedFromPause, setResumedFromPause] = useState(false);
   const [tradingPrefs, setTradingPrefs] = useState<TradingPrefs>(DEFAULT_TRADING_PREFS);
 
   // Reset whenever modal opens
@@ -332,6 +333,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
       setUseExistingCredentials(false);
       setExistingKeyLastFour(null);
       setError("");
+      setResumedFromPause(false);
       setTradingPrefs(DEFAULT_TRADING_PREFS);
     }
   }, [isOpen, user, defaultDeployKey]);
@@ -417,6 +419,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
     if (!useExistingCredentials && !currentExchangeDef) return;
     setIsSubmitting(true);
     setError("");
+    setResumedFromPause(false);
     try {
       const idToken = await user.getIdToken();
       const res = await fetch("/api/freedombot/deploy", {
@@ -432,6 +435,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
+      setResumedFromPause(data.resumed === true);
       setStep("success");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unexpected error");
@@ -1041,11 +1045,26 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
               >
                 <CheckCircle2 className="h-10 w-10" style={{ color: "#34d399" }} />
               </div>
-              <h2 className="text-2xl font-black text-white mb-2 tracking-tight">Bot is Live! 🚀</h2>
+              <h2 className="text-2xl font-black text-white mb-2 tracking-tight">
+                {resumedFromPause ? "Bot is running again" : "Bot is running"}
+              </h2>
               <p className="text-sm mb-2 max-w-xs mx-auto leading-relaxed" style={{ color: "#64748b" }}>
-                Your{" "}
-                <span className="text-white font-semibold">{botName}</span> is connected and trading on{" "}
-                <span className="text-white font-semibold">{currentExchangeDef?.name ?? selectedExchange}</span>.
+                {resumedFromPause ? (
+                  <>
+                    Your paused{" "}
+                    <span className="text-white font-semibold">{botName}</span> on{" "}
+                    <span className="text-white font-semibold">
+                      {currentExchangeDef?.name ?? selectedExchange}
+                    </span>{" "}
+                    is active again — same deployment, no duplicate.
+                  </>
+                ) : (
+                  <>
+                    Your{" "}
+                    <span className="text-white font-semibold">{botName}</span> is connected and trading on{" "}
+                    <span className="text-white font-semibold">{currentExchangeDef?.name ?? selectedExchange}</span>.
+                  </>
+                )}
               </p>
               <p className="text-xs mb-8" style={{ color: "#334155" }}>
                 API keys verified. Your bot will start placing trades on the next signal.

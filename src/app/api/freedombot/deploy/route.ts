@@ -287,6 +287,53 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // ── Re-activate paused deployment (same bot × exchange) instead of duplicating ─
+    const siblingSnap = await db
+      .collection("bot_deployments")
+      .where("uid", "==", uid)
+      .where("exchange", "==", exchange)
+      .where("bot", "==", bot)
+      .get();
+
+    const pausedDocs = siblingSnap.docs
+      .filter((d) => {
+        const s = String(d.data().status ?? "").toLowerCase();
+        return s === "paused" || s === "stopped";
+      })
+      .sort((a, b) => {
+        const aMs = (a.data().createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+        const bMs = (b.data().createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+        return bMs - aMs;
+      });
+
+    if (pausedDocs.length > 0) {
+      const deployRef = pausedDocs[0].ref;
+      await deployRef.update({
+        status: "active",
+        resumedAt: new Date().toISOString(),
+        pausedAt: null,
+        keyFingerprint,
+        keyLastFour: apiKey.slice(-4),
+        ...(exchangeUid ? { exchangeUid } : {}),
+        email: decoded.email ?? null,
+        displayName: decoded.name ?? null,
+      });
+
+      if (validatedBalance) {
+        await persistWalletBalanceSnapshot(deployRef, exchangeName, {
+          ok: true,
+          total: validatedBalance.total,
+          available: validatedBalance.available,
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        deploymentId: deployRef.id,
+        resumed: true,
+      });
+    }
+
     // ── Create new deployment record ──────────────────────────────────────────
     const docRef = await db.collection("bot_deployments").add({
       uid,

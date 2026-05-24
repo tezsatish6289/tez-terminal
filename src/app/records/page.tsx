@@ -10,34 +10,45 @@ import {
   EyeOff,
   Loader2,
   ShieldCheck,
+  TrendingDown,
+  TrendingUp,
 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { BlockchainTxCell } from "@/lib/blockchain-trade-display";
+import { buildEquityCurve } from "@/lib/equity-curve";
 import { cn } from "@/lib/utils";
 import type { CryptoBotId } from "@/lib/crypto-bots";
+import { CRYPTO_BOTS } from "@/lib/crypto-bots";
 
 const ADMIN_EMAIL = "hello@tezterminal.com";
+const PAGE_SIZE = 50;
 
 interface BotMeta {
   id: CryptoBotId;
   label: string;
   shortLabel: string;
   publicLive: boolean;
+  startingCapital: number;
 }
 
 interface RecordTrade {
   id: string;
   symbol: string;
   side: "BUY" | "SELL";
+  botId: CryptoBotId;
   botLabel: string;
   publicLive: boolean;
   entryPrice: number;
   currentPrice: number | null;
   realizedPnl: number;
+  positionSize: number | null;
+  leverage: number;
+  capitalAfter: number | null;
+  openedAt: string;
+  closedAt: string | null;
   blockchainStatus: string | null;
   blockchainError: string | null;
-  closedAt: string | null;
   txHash: string | null;
 }
 
@@ -58,15 +69,339 @@ function fmtPrice(n: number | null) {
   })}`;
 }
 
-function fmtDt(iso: string | null) {
+function fmtDateTime(iso: string | null) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
+  const d = new Date(iso);
+  const date = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const time = d.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   });
+  return `${date}, ${time}`;
+}
+
+function fmtBalance(balance: number | undefined | null) {
+  if (balance == null) return "—";
+  return `$${balance.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function fmtAbsolutePnl(trade: RecordTrade) {
+  const val = trade.realizedPnl ?? 0;
+  const positive = val >= 0;
+  const display = `${positive ? "+" : ""}$${Math.abs(val).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+  return { display, positive };
+}
+
+function RecordsTradeTable({
+  trades,
+  balanceAfterMap,
+}: {
+  trades: RecordTrade[];
+  balanceAfterMap: Map<string, number>;
+}) {
+  const [page, setPage] = useState(0);
+
+  useEffect(() => {
+    setPage(0);
+  }, [trades]);
+
+  const sorted = useMemo(
+    () =>
+      [...trades].sort(
+        (a, b) =>
+          new Date(b.closedAt ?? 0).getTime() -
+          new Date(a.closedAt ?? 0).getTime(),
+      ),
+    [trades],
+  );
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const pageTrades = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  const fundBalance = (t: RecordTrade) =>
+    t.capitalAfter ?? balanceAfterMap.get(t.id);
+
+  const headers = [
+    "Bot",
+    "Entry / Exit Time",
+    "Symbol",
+    "Side",
+    "Position Size",
+    "Leverage",
+    "Entry Price",
+    "Exit Price",
+    "P&L",
+    "Fund Balance",
+    "Publish",
+    "Proof of Trade",
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div className="sm:hidden space-y-2">
+        {pageTrades.length === 0 ? (
+          <p className="text-center py-10 text-sm text-muted-foreground">
+            No closed trades for this filter
+          </p>
+        ) : (
+          pageTrades.map((t) => {
+            const { display: pnlDisplay, positive: pnlPositive } =
+              fmtAbsolutePnl(t);
+            return (
+              <div
+                key={t.id}
+                className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <div className="text-[10px] font-bold text-muted-foreground mb-1">
+                      {t.botLabel}
+                    </div>
+                    <span className="text-base font-black">{t.symbol}</span>
+                    <span
+                      className={cn(
+                        "text-xs font-bold ml-2",
+                        t.side === "BUY" ? "text-emerald-400" : "text-rose-400",
+                      )}
+                    >
+                      {t.side === "BUY" ? "Long" : "Short"}
+                    </span>
+                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded ml-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/15">
+                      {t.leverage}x
+                    </span>
+                  </div>
+                  <div
+                    className={cn(
+                      "flex items-center gap-1 font-mono text-base font-black",
+                      pnlPositive ? "text-emerald-400" : "text-rose-400",
+                    )}
+                  >
+                    {pnlPositive ? (
+                      <TrendingUp className="h-4 w-4" />
+                    ) : (
+                      <TrendingDown className="h-4 w-4" />
+                    )}
+                    {pnlDisplay}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs mb-3">
+                  <div>
+                    <span className="text-[9px] uppercase tracking-wider block mb-0.5 text-muted-foreground/50">
+                      Entry Price
+                    </span>
+                    <span className="font-mono text-muted-foreground">
+                      {fmtPrice(t.entryPrice)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase tracking-wider block mb-0.5 text-muted-foreground/50">
+                      Exit Price
+                    </span>
+                    <span className="font-mono">{fmtPrice(t.currentPrice)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase tracking-wider block mb-0.5 text-muted-foreground/50">
+                      Opened
+                    </span>
+                    <span className="font-mono text-accent">
+                      {fmtDateTime(t.openedAt)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase tracking-wider block mb-0.5 text-muted-foreground/50">
+                      Closed
+                    </span>
+                    <span className="font-mono text-muted-foreground">
+                      {fmtDateTime(t.closedAt)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase tracking-wider block mb-0.5 text-muted-foreground/50">
+                      Position Size
+                    </span>
+                    <span className="font-mono">
+                      {t.positionSize != null
+                        ? `$${t.positionSize.toFixed(2)}`
+                        : "—"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase tracking-wider block mb-0.5 text-muted-foreground/50">
+                      Fund Balance
+                    </span>
+                    <span className="font-mono text-muted-foreground">
+                      {fmtBalance(fundBalance(t))}
+                    </span>
+                  </div>
+                </div>
+                <BlockchainTxCell trade={t} size="md" />
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div className="hidden sm:block rounded-xl border border-white/[0.08] overflow-x-auto">
+        <table className="w-full min-w-[1200px] text-left">
+          <thead>
+            <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+              {headers.map((h) => (
+                <th
+                  key={h}
+                  className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/50 whitespace-nowrap"
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {pageTrades.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={headers.length}
+                  className="px-3 py-12 text-center text-sm text-muted-foreground"
+                >
+                  No closed trades for this filter
+                </td>
+              </tr>
+            ) : (
+              pageTrades.map((t) => {
+                const posSize =
+                  t.positionSize != null
+                    ? `$${t.positionSize.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}`
+                    : "—";
+                const { display: pnlDisplay, positive: pnlPositive } =
+                  fmtAbsolutePnl(t);
+
+                return (
+                  <tr
+                    key={t.id}
+                    className="border-b border-white/[0.04] hover:bg-white/[0.02]"
+                  >
+                    <td className="px-3 py-2.5">
+                      <div className="text-[11px] font-bold">{t.botLabel}</div>
+                      <div className="text-[9px] text-muted-foreground/50 flex items-center gap-1">
+                        {t.publicLive ? (
+                          <>
+                            <Eye className="h-2.5 w-2.5" /> Published
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="h-2.5 w-2.5" /> Hidden
+                          </>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[11px] font-mono text-accent">
+                          {fmtDateTime(t.openedAt)}
+                        </span>
+                        <span className="text-[11px] font-mono text-muted-foreground/50">
+                          → {fmtDateTime(t.closedAt)}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-[11px] font-mono font-bold">
+                      {t.symbol}
+                    </td>
+                    <td
+                      className={cn(
+                        "px-3 py-2.5 text-[11px] font-bold",
+                        t.side === "BUY" ? "text-emerald-400" : "text-rose-400",
+                      )}
+                    >
+                      {t.side === "BUY" ? "Long" : "Short"}
+                    </td>
+                    <td className="px-3 py-2.5 text-[11px] font-mono text-muted-foreground">
+                      {posSize}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/15">
+                        {t.leverage}x
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-[11px] font-mono text-muted-foreground">
+                      {fmtPrice(t.entryPrice)}
+                    </td>
+                    <td className="px-3 py-2.5 text-[11px] font-mono">
+                      {fmtPrice(t.currentPrice)}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div
+                        className={cn(
+                          "flex items-center gap-1 font-mono text-[11px] font-bold",
+                          pnlPositive ? "text-emerald-400" : "text-rose-400",
+                        )}
+                      >
+                        {pnlPositive ? (
+                          <TrendingUp className="h-3.5 w-3.5" />
+                        ) : (
+                          <TrendingDown className="h-3.5 w-3.5" />
+                        )}
+                        {pnlDisplay}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-[11px] font-mono font-bold text-muted-foreground">
+                      {fmtBalance(fundBalance(t))}
+                    </td>
+                    <td className="px-3 py-2.5 text-[10px] font-mono uppercase text-muted-foreground/70">
+                      {t.blockchainStatus ?? "—"}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <BlockchainTxCell trade={t} size="md" />
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-1">
+          <span className="text-[11px] font-bold text-muted-foreground/60">
+            {page * PAGE_SIZE + 1}–
+            {Math.min((page + 1) * PAGE_SIZE, sorted.length)} of {sorted.length}{" "}
+            trades
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => p - 1)}
+              disabled={page === 0}
+              className="px-4 py-1.5 rounded-lg text-xs font-bold border border-white/10 bg-white/[0.03] text-accent transition-all disabled:opacity-30"
+            >
+              ← Prev
+            </button>
+            <span className="text-xs font-bold text-muted-foreground">
+              {page + 1} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => p + 1)}
+              disabled={page >= totalPages - 1}
+              className="px-4 py-1.5 rounded-lg text-xs font-bold border border-white/10 bg-white/[0.03] text-accent transition-all disabled:opacity-30"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function InternalRecordsPage() {
@@ -114,6 +449,33 @@ export default function InternalRecordsPage() {
 
   const tabBots = useMemo(() => (bots.length ? bots : []), [bots]);
 
+  const startingCapitalByBot = useMemo(() => {
+    const map = new Map<CryptoBotId, number>();
+    for (const b of tabBots) {
+      map.set(b.id, b.startingCapital);
+    }
+    for (const b of CRYPTO_BOTS) {
+      if (!map.has(b.id)) map.set(b.id, 1000);
+    }
+    return map;
+  }, [tabBots]);
+
+  const balanceAfterMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (botFilter !== "all") {
+      const cap = startingCapitalByBot.get(botFilter) ?? 1000;
+      return buildEquityCurve(trades, cap).balanceAfterMap;
+    }
+    for (const bot of CRYPTO_BOTS) {
+      const botTrades = trades.filter((t) => t.botId === bot.id);
+      const cap = startingCapitalByBot.get(bot.id) ?? 1000;
+      for (const [k, v] of buildEquityCurve(botTrades, cap).balanceAfterMap) {
+        map.set(k, v);
+      }
+    }
+    return map;
+  }, [trades, botFilter, startingCapitalByBot]);
+
   if (isUserLoading || !user || !isAdmin) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -141,7 +503,7 @@ export default function InternalRecordsPage() {
                 Blockchain records
               </h1>
               <p className="text-[11px] text-muted-foreground max-w-xl">
-                All closed sim trades — published and hidden bots. Same pipeline
+                All closed sim trades — published and hidden bots. Same columns
                 as{" "}
                 <a
                   href="https://freedombot.ai/records"
@@ -169,10 +531,26 @@ export default function InternalRecordsPage() {
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               {[
                 { label: "Closed", value: summary.total },
-                { label: "On-chain", value: summary.confirmed, tone: "text-emerald-400" },
-                { label: "Publishing", value: summary.pending, tone: "text-amber-300" },
-                { label: "Failed", value: summary.failed, tone: "text-rose-400" },
-                { label: "Awaiting queue", value: summary.awaitingQueue, tone: "text-muted-foreground" },
+                {
+                  label: "On-chain",
+                  value: summary.confirmed,
+                  tone: "text-emerald-400",
+                },
+                {
+                  label: "Publishing",
+                  value: summary.pending,
+                  tone: "text-amber-300",
+                },
+                {
+                  label: "Failed",
+                  value: summary.failed,
+                  tone: "text-rose-400",
+                },
+                {
+                  label: "Awaiting queue",
+                  value: summary.awaitingQueue,
+                  tone: "text-muted-foreground",
+                },
               ].map((s) => (
                 <div
                   key={s.label}
@@ -234,98 +612,10 @@ export default function InternalRecordsPage() {
               Loading records…
             </div>
           ) : (
-            <div className="rounded-xl border border-white/[0.08] overflow-x-auto">
-              <table className="w-full min-w-[980px] text-left">
-                <thead>
-                  <tr className="border-b border-white/[0.06] bg-white/[0.02]">
-                    {[
-                      "Bot",
-                      "Symbol",
-                      "Side",
-                      "Entry",
-                      "Exit",
-                      "PnL",
-                      "Closed",
-                      "Publish",
-                      "On-chain",
-                    ].map((h) => (
-                      <th
-                        key={h}
-                        className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/50"
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {trades.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="px-3 py-12 text-center text-sm text-muted-foreground">
-                        No closed trades for this filter
-                      </td>
-                    </tr>
-                  ) : (
-                    trades.map((t) => {
-                      const pnlPos = t.realizedPnl >= 0;
-                      return (
-                        <tr
-                          key={t.id}
-                          className="border-b border-white/[0.04] hover:bg-white/[0.02]"
-                        >
-                          <td className="px-3 py-2.5">
-                            <div className="text-[11px] font-bold">{t.botLabel}</div>
-                            <div className="text-[9px] text-muted-foreground/50 flex items-center gap-1">
-                              {t.publicLive ? (
-                                <>
-                                  <Eye className="h-2.5 w-2.5" /> Published
-                                </>
-                              ) : (
-                                <>
-                                  <EyeOff className="h-2.5 w-2.5" /> Hidden
-                                </>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2.5 text-[11px] font-mono">{t.symbol}</td>
-                          <td
-                            className={cn(
-                              "px-3 py-2.5 text-[11px] font-bold",
-                              t.side === "BUY" ? "text-emerald-400" : "text-rose-400",
-                            )}
-                          >
-                            {t.side}
-                          </td>
-                          <td className="px-3 py-2.5 text-[11px] font-mono text-muted-foreground">
-                            {fmtPrice(t.entryPrice)}
-                          </td>
-                          <td className="px-3 py-2.5 text-[11px] font-mono">
-                            {fmtPrice(t.currentPrice)}
-                          </td>
-                          <td
-                            className={cn(
-                              "px-3 py-2.5 text-[11px] font-mono font-bold",
-                              pnlPos ? "text-emerald-400" : "text-rose-400",
-                            )}
-                          >
-                            {pnlPos ? "+" : ""}${t.realizedPnl.toFixed(2)}
-                          </td>
-                          <td className="px-3 py-2.5 text-[10px] font-mono text-muted-foreground">
-                            {fmtDt(t.closedAt)}
-                          </td>
-                          <td className="px-3 py-2.5 text-[10px] font-mono uppercase text-muted-foreground/70">
-                            {t.blockchainStatus ?? "—"}
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <BlockchainTxCell trade={t} size="md" />
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <RecordsTradeTable
+              trades={trades}
+              balanceAfterMap={balanceAfterMap}
+            />
           )}
         </div>
       </main>

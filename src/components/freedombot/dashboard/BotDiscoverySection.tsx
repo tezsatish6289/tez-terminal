@@ -63,32 +63,43 @@ export function BotDiscoverySection({
       {showHeading && (
         <h2 className="text-lg font-black text-white mb-4">Discover bots</h2>
       )}
-      <div
-        className="rounded-2xl overflow-hidden"
-        style={{ border: "1px solid rgba(90,140,220,0.15)" }}
-      >
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {liveBots.map((bot) => {
           const hasStats = bot.id === "crypto";
           return (
-            <div key={bot.id} style={{ borderBottom: "1px solid rgba(90,140,220,0.1)" }}>
+            <div
+              key={bot.id}
+              className={`rounded-2xl overflow-hidden ${hasStats ? "sm:col-span-2 lg:col-span-3" : ""}`}
+              style={{
+                backgroundColor: "#0a1628",
+                border: "1px solid rgba(90,140,220,0.15)",
+              }}
+            >
               <div
-                className="flex items-center justify-between px-5 py-4"
+                className="flex items-center justify-between gap-3 px-5 py-4"
                 style={{
                   background: "linear-gradient(90deg, rgba(37,99,235,0.08), transparent)",
-                  borderBottom: "1px solid rgba(90,140,220,0.08)",
+                  borderBottom: hasStats ? "1px solid rgba(90,140,220,0.08)" : "none",
                 }}
               >
-                <div className="flex items-center gap-3">
-                  <BotIcon bot={bot} size={28} />
-                  <div>
-                    <p className="text-sm font-black text-white">{bot.label}</p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <div
-                        className="h-1.5 w-1.5 rounded-full animate-pulse"
+                <div className="flex items-center gap-3 min-w-0">
+                  <BotIcon bot={bot} size={36} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-white truncate">{bot.label}</p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span
+                        className="h-1.5 w-1.5 rounded-full animate-pulse flex-shrink-0"
                         style={{ backgroundColor: "#22c55e" }}
                       />
-                      <span className="text-[10px] font-bold" style={{ color: "#22c55e" }}>
-                        Live{hasStats && stats ? ` · ${stats.runningDays} days` : ""}
+                      <span
+                        className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
+                        style={{
+                          color: "#22c55e",
+                          backgroundColor: "rgba(34,197,94,0.1)",
+                          border: "1px solid rgba(34,197,94,0.25)",
+                        }}
+                      >
+                        Live{hasStats && stats ? ` · ${stats.runningDays}d` : ""}
                       </span>
                     </div>
                   </div>
@@ -96,16 +107,17 @@ export function BotDiscoverySection({
                 <button
                   type="button"
                   onClick={onDeploy}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all hover:scale-105"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all hover:scale-105 flex-shrink-0"
                   style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
                 >
                   <Rocket className="h-3.5 w-3.5" /> Deploy
                 </button>
               </div>
+
               {hasStats && (
                 <div
-                  className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 divide-x divide-y"
-                  style={{ backgroundColor: "#060d1a", borderColor: "rgba(90,140,220,0.06)" }}
+                  className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px p-px"
+                  style={{ backgroundColor: "rgba(90,140,220,0.06)" }}
                 >
                   {[
                     { label: "Running", value: stats ? `${stats.runningDays} Days` : "…", color: "#f0f4ff" },
@@ -142,7 +154,11 @@ export function BotDiscoverySection({
                       warn: stats ? stats.isAnnualizationReliable === false || stats.runningDays < 7 : false,
                     },
                   ].map((s) => (
-                    <div key={s.label} className="p-4 text-center">
+                    <div
+                      key={s.label}
+                      className="p-4 text-center"
+                      style={{ backgroundColor: "#060d1a" }}
+                    >
                       <div className="flex items-center justify-center gap-1.5 mb-0.5 flex-wrap">
                         <p className="text-base font-black" style={{ color: s.color }}>
                           {s.value}
@@ -179,35 +195,37 @@ export function BotDiscoverySection({
           );
         })}
 
-        {comingSoonBots.map((bot, i) => (
+        {comingSoonBots.map((bot) => (
           <div
             key={bot.id}
-            className="flex items-center justify-between px-5 py-4"
+            className="rounded-2xl p-5 flex flex-col justify-between min-h-[140px]"
             style={{
-              backgroundColor: "#060d1a",
-              borderBottom: i < comingSoonBots.length - 1 ? "1px solid rgba(90,140,220,0.06)" : "none",
-              opacity: 0.6,
+              backgroundColor: "#0a1628",
+              border: "1px solid rgba(90,140,220,0.12)",
+              opacity: 0.72,
             }}
           >
-            <div className="flex items-center gap-3">
-              <BotIcon bot={bot} size={28} />
-              <div>
-                <p className="text-sm font-black text-white">{bot.label}</p>
-                <p className="text-[10px] mt-0.5" style={{ color: "#475569" }}>
-                  {bot.shortLabel} perpetuals · live launch soon
-                </p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <BotIcon bot={bot} size={36} />
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-white truncate">{bot.label}</p>
+                  <p className="text-[10px] mt-1 leading-relaxed" style={{ color: "#475569" }}>
+                    {bot.shortLabel} perpetuals · live launch soon
+                  </p>
+                </div>
               </div>
+              <span
+                className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider flex-shrink-0"
+                style={{
+                  backgroundColor: "rgba(251,191,36,0.12)",
+                  color: "#fbbf24",
+                  border: "1px solid rgba(251,191,36,0.25)",
+                }}
+              >
+                Coming Soon
+              </span>
             </div>
-            <span
-              className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider"
-              style={{
-                backgroundColor: "rgba(251,191,36,0.12)",
-                color: "#fbbf24",
-                border: "1px solid rgba(251,191,36,0.25)",
-              }}
-            >
-              Coming Soon
-            </span>
           </div>
         ))}
       </div>

@@ -14,6 +14,7 @@ import {
   zoneFieldFromDeployKey,
 } from "@/lib/crypto-bots";
 import { zoneBotsEnabledFieldKey } from "@/lib/freedombot/zone-bot-subscription";
+import { loadUserExchangeSecret } from "@/lib/freedombot/user-exchange-secret";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -63,16 +64,21 @@ export async function POST(req: NextRequest) {
 
     // Parse body
     const body = await req.json();
+    const useExistingCredentials = body.useExistingCredentials === true;
     const { bot, exchange, credentials } = body as {
       bot?: string;
       exchange?: string;
       credentials?: Record<string, string>;
+      useExistingCredentials?: boolean;
       riskPerTrade?: unknown;
       maxConcurrentTrades?: unknown;
       dailyLossLimit?: unknown;
     };
 
-    if (!bot || !exchange || !credentials?.apiKey || !credentials?.apiSecret) {
+    if (!bot || !exchange) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+    if (!useExistingCredentials && (!credentials?.apiKey || !credentials?.apiSecret)) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -101,21 +107,41 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
     }
 
-    const keyFingerprint = computeFingerprint(exchange, credentials.apiKey, encryptionKey);
     const db = getAdminFirestore();
+    const exchangeName = exchange as ExchangeName;
 
-    // ── Block if this user already has an active deployment on this exchange ────
+    let apiKey = credentials?.apiKey ?? "";
+    let apiSecret = credentials?.apiSecret ?? "";
+    let existingSecretRef: FirebaseFirestore.DocumentReference | null = null;
+
+    if (useExistingCredentials) {
+      const loaded = await loadUserExchangeSecret(db, uid, exchangeName);
+      if (!loaded) {
+        return NextResponse.json(
+          { error: "No saved API keys for this exchange. Enter new credentials to continue." },
+          { status: 400 },
+        );
+      }
+      apiKey = loaded.creds.apiKey;
+      apiSecret = loaded.creds.apiSecret;
+      existingSecretRef = loaded.ref;
+    }
+
+    const keyFingerprint = computeFingerprint(exchange, apiKey, encryptionKey);
+
+    // ── Block duplicate active deployment for same bot × exchange ─────────────
     const existingActiveSnap = await db
       .collection("bot_deployments")
       .where("uid", "==", uid)
       .where("exchange", "==", exchange)
+      .where("bot", "==", bot)
       .where("status", "==", "active")
       .limit(1)
       .get();
 
     if (!existingActiveSnap.empty) {
       return NextResponse.json(
-        { error: "You already have an active bot on this exchange. Stop it from your dashboard before deploying a new one." },
+        { error: "You already have this bot running on this exchange." },
         { status: 409 },
       );
     }
@@ -137,8 +163,8 @@ export async function POST(req: NextRequest) {
 
     // ── Validate API keys by calling the exchange ─────────────────────────────
     const liveCreds: ExchangeCredentials = {
-      apiKey: credentials.apiKey,
-      apiSecret: credentials.apiSecret,
+      apiKey,
+      apiSecret,
       testnet: false,
     };
 
@@ -224,20 +250,35 @@ export async function POST(req: NextRequest) {
     );
 
     // ── Write credentials into the trading engine's secrets collection ─────────
-    const docId = getSecretDocId(exchange as ExchangeName);
-    const secretRef = db.collection("users").doc(uid).collection("secrets").doc(docId);
-    await secretRef.set({
-      exchange,
-      encryptedKey: encrypt(credentials.apiKey),
-      encryptedSecret: encrypt(credentials.apiSecret),
-      keyLastFour: credentials.apiKey.slice(-4),
-      autoTradeEnabled: true,
-      riskPerTrade: tradingPrefs.riskPerTrade,
-      maxConcurrentTrades: tradingPrefs.maxConcurrentTrades,
-      dailyLossLimit: tradingPrefs.dailyLossLimit,
-      useTestnet: false,
-      savedAt: new Date().toISOString(),
-    });
+    const docId = getSecretDocId(exchangeName);
+    const secretRef =
+      existingSecretRef ?? db.collection("users").doc(uid).collection("secrets").doc(docId);
+
+    if (!useExistingCredentials) {
+      await secretRef.set({
+        exchange,
+        encryptedKey: encrypt(apiKey),
+        encryptedSecret: encrypt(apiSecret),
+        keyLastFour: apiKey.slice(-4),
+        autoTradeEnabled: true,
+        riskPerTrade: tradingPrefs.riskPerTrade,
+        maxConcurrentTrades: tradingPrefs.maxConcurrentTrades,
+        dailyLossLimit: tradingPrefs.dailyLossLimit,
+        useTestnet: false,
+        savedAt: new Date().toISOString(),
+      });
+    } else {
+      await secretRef.set(
+        {
+          autoTradeEnabled: true,
+          riskPerTrade: tradingPrefs.riskPerTrade,
+          maxConcurrentTrades: tradingPrefs.maxConcurrentTrades,
+          dailyLossLimit: tradingPrefs.dailyLossLimit,
+          savedAt: new Date().toISOString(),
+        },
+        { merge: true },
+      );
+    }
 
     const zoneField = zoneFieldFromDeployKey(bot);
     if (zoneField) {
@@ -254,7 +295,7 @@ export async function POST(req: NextRequest) {
       bot,
       exchange,
       keyFingerprint,
-      keyLastFour: credentials.apiKey.slice(-4),
+      keyLastFour: apiKey.slice(-4),
       ...(exchangeUid ? { exchangeUid } : {}),
       status: "active",
       createdAt: new Date(),

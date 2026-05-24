@@ -133,11 +133,13 @@ function statsForBot(
   const totalReturnPct = totalReturnPctFromEquity(startingCapital, derivedCapital);
   const hasStats = totalReturnPct != null;
 
-  const runningDays = ensureMinRunningDays(
-    serverRunningDays ??
-      runningDaysForStatsFilter(bot.botSource, serverRunningDays ?? undefined, filtered),
-    hasStats,
+  const perBotDays = runningDaysForStatsFilter(
+    bot.botSource,
+    bot.botSource === "PATTERN" ? (serverRunningDays ?? undefined) : undefined,
+    filtered,
   );
+
+  const runningDays = ensureMinRunningDays(perBotDays > 0 ? perBotDays : null, hasStats);
 
   return { runningDays, totalReturnPct };
 }

@@ -33,9 +33,9 @@ import type { Auth, User } from "firebase/auth";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
-type Step = "sign-in" | "choose-bot" | "choose-exchange" | "enter-creds" | "success";
+type Step = "sign-in" | "choose-bot" | "choose-exchange" | "reuse-existing" | "enter-creds" | "success";
 
-const STEP_ORDER: Step[] = ["sign-in", "choose-bot", "choose-exchange", "enter-creds", "success"];
+const STEP_ORDER: Step[] = ["sign-in", "choose-bot", "choose-exchange", "reuse-existing", "enter-creds", "success"];
 const PROGRESS_STEPS: Step[] = ["choose-bot", "choose-exchange", "enter-creds"];
 const STEP_LABELS: Record<Step, string> = {
   "sign-in": "Sign In",
@@ -314,6 +314,9 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
   const [showHelp, setShowHelp]         = useState(false);
   const [isSigningIn, setIsSigningIn]   = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCheckingExisting, setIsCheckingExisting] = useState(false);
+  const [useExistingCredentials, setUseExistingCredentials] = useState(false);
+  const [existingKeyLastFour, setExistingKeyLastFour] = useState<string | null>(null);
   const [error, setError]               = useState("");
   const [tradingPrefs, setTradingPrefs] = useState<TradingPrefs>(DEFAULT_TRADING_PREFS);
 
@@ -326,6 +329,8 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
       setCredentials({});
       setShowPwd({});
       setShowHelp(false);
+      setUseExistingCredentials(false);
+      setExistingKeyLastFour(null);
       setError("");
       setTradingPrefs(DEFAULT_TRADING_PREFS);
     }
@@ -365,8 +370,51 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
     }
   };
 
+  const progressStep = step === "reuse-existing" ? "enter-creds" : step;
+
+  const handleExchangeContinue = async () => {
+    if (!selectedExchange) return;
+    if (!user) {
+      setStep("enter-creds");
+      return;
+    }
+    setIsCheckingExisting(true);
+    setError("");
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/freedombot/check-exchange-connection", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ exchange: selectedExchange }),
+      });
+      const data = await res.json();
+      if (data.hasExisting && data.valid) {
+        setUseExistingCredentials(true);
+        setExistingKeyLastFour(typeof data.keyLastFour === "string" ? data.keyLastFour : null);
+        setCredentials({});
+        setStep("reuse-existing");
+      } else {
+        setUseExistingCredentials(false);
+        setExistingKeyLastFour(null);
+        setCredentials({});
+        setStep("enter-creds");
+      }
+    } catch {
+      setUseExistingCredentials(false);
+      setExistingKeyLastFour(null);
+      setCredentials({});
+      setStep("enter-creds");
+    } finally {
+      setIsCheckingExisting(false);
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!user || !currentExchangeDef) return;
+    if (!user || !selectedExchange) return;
+    if (!useExistingCredentials && !currentExchangeDef) return;
     setIsSubmitting(true);
     setError("");
     try {
@@ -377,7 +425,8 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
         body: JSON.stringify({
           bot: selectedBot,
           exchange: selectedExchange,
-          credentials,
+          useExistingCredentials,
+          ...(useExistingCredentials ? {} : { credentials }),
           ...tradingPrefs,
         }),
       });
@@ -428,7 +477,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
           <div className="px-6 pt-5 pb-0 flex-shrink-0">
             <div className="flex items-center gap-1">
               {PROGRESS_STEPS.map((s, i) => {
-                const current = STEP_ORDER.indexOf(step);
+                const current = STEP_ORDER.indexOf(progressStep);
                 const mine    = STEP_ORDER.indexOf(s);
                 const done    = current > mine;
                 const active  = current === mine;
@@ -691,12 +740,105 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
               )}
 
               <button
-                onClick={() => { setCredentials({}); setShowPwd({}); setStep("enter-creds"); }}
-                disabled={!selectedExchange}
+                onClick={() => void handleExchangeContinue()}
+                disabled={!selectedExchange || isCheckingExisting}
                 className="mt-5 w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
               >
-                Continue <ArrowRight className="h-4 w-4" />
+                {isCheckingExisting ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Checking connection…</>
+                ) : (
+                  <>Continue <ArrowRight className="h-4 w-4" /></>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* ── STEP: Reuse existing API key ── */}
+          {step === "reuse-existing" && currentExchangeDef && (
+            <div>
+              <button
+                onClick={() => {
+                  setUseExistingCredentials(false);
+                  setStep("choose-exchange");
+                }}
+                className="flex items-center gap-1.5 text-xs font-bold mb-5 transition-colors"
+                style={{ color: "#475569" }}
+              >
+                <ArrowLeft className="h-3.5 w-3.5" /> Back
+              </button>
+              <h2 className="text-xl font-black text-white mb-1 tracking-tight">Use saved API key</h2>
+              <p className="text-sm mb-5" style={{ color: "#64748b" }}>
+                You already connected{" "}
+                <span className="text-white font-semibold">{currentExchangeDef.name}</span>.
+                Reuse your saved key to deploy this bot.
+              </p>
+
+              <div
+                className="rounded-2xl p-4 mb-5 flex items-start gap-3"
+                style={{
+                  backgroundColor: "rgba(16,185,129,0.06)",
+                  border: "1px solid rgba(16,185,129,0.2)",
+                }}
+              >
+                <CheckCircle2 className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: "#34d399" }} />
+                <div>
+                  <p className="text-sm font-black text-white">Connection verified</p>
+                  <p className="text-xs mt-1" style={{ color: "#64748b" }}>
+                    API key ending in{" "}
+                    <span className="font-mono text-white">{existingKeyLastFour ?? "••••"}</span>
+                  </p>
+                </div>
+              </div>
+
+              {isCryptoPerpDeployKey(selectedBot) && (
+                <div className="rounded-2xl p-4 mb-5 space-y-3"
+                  style={{
+                    backgroundColor: "rgba(10,22,40,0.6)",
+                    border: "1px solid rgba(90,140,220,0.12)",
+                  }}
+                >
+                  <p className="text-[11px] font-black uppercase tracking-widest" style={{ color: "#94a3b8" }}>
+                    Risk settings
+                  </p>
+                  <RiskControls values={tradingPrefs} onChange={setTradingPrefs} compact />
+                </div>
+              )}
+
+              {error && (
+                <div
+                  className="mb-4 px-4 py-3 rounded-xl text-sm font-medium"
+                  style={{ backgroundColor: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}
+                >
+                  {error}
+                </div>
+              )}
+
+              <button
+                onClick={() => void handleSubmit()}
+                disabled={isSubmitting}
+                className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+              >
+                {isSubmitting ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Deploying…</>
+                ) : (
+                  <><Rocket className="h-4 w-4" /> Deploy with saved key</>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setUseExistingCredentials(false);
+                  setCredentials({});
+                  setShowPwd({});
+                  setStep("enter-creds");
+                }}
+                className="mt-3 w-full px-6 py-3 rounded-2xl text-sm font-bold transition-colors"
+                style={{ color: "#64748b" }}
+              >
+                Use a different API key
               </button>
             </div>
           )}

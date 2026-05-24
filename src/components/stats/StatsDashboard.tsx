@@ -42,8 +42,8 @@ import {
 import { buildEquityCurve } from "@/lib/equity-curve";
 import {
   calcPerformanceMetrics,
-  annualizeReturn,
-  compoundReturnOverPeriod,
+  calcHeadlineMonthlyReturn,
+  calcHeadlineYearlyReturn,
   MIN_DAYS_FOR_RELIABLE_ANNUALIZATION,
 } from "@/lib/performance-metrics";
 import type { PerformanceMetrics } from "@/lib/performance-metrics";
@@ -262,43 +262,27 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
   const closedTradeCount = filteredClosedTrades.length;
   const lowSample = isBotFiltered && closedTradeCount < 8;
 
-  // Monthly: actual when >30 days, else compounded projection from CAGR.
-  const monthlyPnl = useMemo(() => {
-    if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
-    if (runningDays >= 30 && filteredClosedTrades.length > 0) {
-      const monthStart = new Date();
-      monthStart.setDate(1);
-      monthStart.setHours(0, 0, 0, 0);
-      const monthNet = filteredClosedTrades.reduce((sum, t) => {
-        if (!t.closedAt || new Date(t.closedAt) < monthStart) return sum;
-        return sum + (t.realizedPnl ?? 0);
-      }, 0);
-      return { pct: (monthNet / effectiveStartingCapital) * 100, isProjected: false };
-    }
-    const totalReturnDecimal =
-      (derivedCapital - effectiveStartingCapital) / effectiveStartingCapital;
-    return {
-      pct: compoundReturnOverPeriod(totalReturnDecimal, runningDays, 30) * 100,
-      isProjected: true,
-    };
-  }, [simState, runningDays, filteredClosedTrades, derivedCapital, effectiveStartingCapital]);
+  const monthlyPnl = useMemo(
+    () =>
+      calcHeadlineMonthlyReturn(
+        filteredClosedTrades,
+        effectiveStartingCapital,
+        runningDays,
+        derivedCapital,
+      ),
+    [filteredClosedTrades, effectiveStartingCapital, runningDays, derivedCapital],
+  );
 
   // Annualised: actual when >365 days, else CAGR projection.
-  const yearlyPnl = useMemo(() => {
-    if (!simState || runningDays === 0) {
-      return { pct: 0, isProjected: true, isReliable: false };
-    }
-    const totalReturnDecimal =
-      (derivedCapital - effectiveStartingCapital) / effectiveStartingCapital;
-    if (runningDays >= 365) {
-      return { pct: totalReturnDecimal * 100, isProjected: false, isReliable: true };
-    }
-    return {
-      pct: annualizeReturn(totalReturnDecimal, runningDays) * 100,
-      isProjected: true,
-      isReliable: runningDays >= MIN_DAYS_FOR_RELIABLE_ANNUALIZATION,
-    };
-  }, [simState, runningDays, derivedCapital, effectiveStartingCapital]);
+  const yearlyPnl = useMemo(
+    () =>
+      calcHeadlineYearlyReturn(
+        effectiveStartingCapital,
+        runningDays,
+        derivedCapital,
+      ),
+    [effectiveStartingCapital, runningDays, derivedCapital],
+  );
 
   const riskMetrics: PerformanceMetrics | null = useMemo(
     () =>

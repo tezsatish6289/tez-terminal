@@ -52,6 +52,68 @@ export function compoundReturnOverPeriod(
   return compounded;
 }
 
+export interface HeadlineMonthlyReturn {
+  pct: number;
+  isProjected: boolean;
+}
+
+export interface HeadlineYearlyReturn {
+  pct: number;
+  isProjected: boolean;
+  isReliable: boolean;
+}
+
+type ClosedTradePnl = { closedAt?: string | null; realizedPnl?: number | null };
+
+/** Headline "Monthly Return" tile — shared by /performance, /records, /stats. */
+export function calcHeadlineMonthlyReturn(
+  closedTrades: ClosedTradePnl[],
+  startingCapital: number,
+  runningDays: number,
+  derivedCapital: number,
+): HeadlineMonthlyReturn {
+  if (startingCapital <= 0 || runningDays <= 0) return { pct: 0, isProjected: true };
+  if (runningDays >= 30 && closedTrades.length > 0) {
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const monthNet = closedTrades.reduce((sum, t) => {
+      if (!t.closedAt || new Date(t.closedAt) < monthStart) return sum;
+      return sum + (t.realizedPnl ?? 0);
+    }, 0);
+    return { pct: (monthNet / startingCapital) * 100, isProjected: false };
+  }
+  const totalReturnDecimal = (derivedCapital - startingCapital) / startingCapital;
+  return {
+    pct: compoundReturnOverPeriod(totalReturnDecimal, runningDays, 30) * 100,
+    isProjected: true,
+  };
+}
+
+/** Headline "Annualized Return" tile — shared by /performance, /records, /stats. */
+export function calcHeadlineYearlyReturn(
+  startingCapital: number,
+  runningDays: number,
+  derivedCapital: number,
+): HeadlineYearlyReturn {
+  if (startingCapital <= 0 || runningDays <= 0) {
+    return { pct: 0, isProjected: true, isReliable: false };
+  }
+  const totalReturnDecimal = (derivedCapital - startingCapital) / startingCapital;
+  if (runningDays >= 365) {
+    return {
+      pct: totalReturnDecimal * 100,
+      isProjected: false,
+      isReliable: true,
+    };
+  }
+  return {
+    pct: annualizeReturn(totalReturnDecimal, runningDays) * 100,
+    isProjected: true,
+    isReliable: runningDays >= MIN_DAYS_FOR_RELIABLE_ANNUALIZATION,
+  };
+}
+
 /**
  * True net PnL after ALL charges, backward-compatible with both old trades
  * (realizedPnl excludes entry fee) and new trades (realizedPnl includes it).

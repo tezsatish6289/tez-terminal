@@ -8,6 +8,7 @@ import {
   type BotSourceFilter,
 } from "@/lib/bot-source-filter";
 import { CRYPTO_BOTS } from "@/lib/crypto-bots";
+import type { PublicBotFlags } from "@/lib/public-bot-flags";
 
 const BOT_META = new Map(
   CRYPTO_BOTS.map((b) => [b.botSource, b] as const),
@@ -17,10 +18,12 @@ interface StatsBotTabsProps {
   value: BotSourceFilter;
   onChange: (v: BotSourceFilter) => void;
   className?: string;
+  /** When set, non-public bots show a small HID badge (internal /stats only). */
+  publicBotFlags?: PublicBotFlags;
 }
 
 /** Bot selector for /stats — same simple tab row as freedombot performance. */
-export function StatsBotTabs({ value, onChange, className }: StatsBotTabsProps) {
+export function StatsBotTabs({ value, onChange, className, publicBotFlags }: StatsBotTabsProps) {
   return (
     <div className={cn("w-full overflow-x-auto pb-1", className)}>
       <div className="flex items-center gap-1.5 sm:gap-2 rounded-xl p-1 w-fit mx-auto min-w-0 border border-white/[0.08] bg-white/[0.03]">
@@ -65,6 +68,11 @@ export function StatsBotTabs({ value, onChange, className }: StatsBotTabsProps) 
                 </span>
               )}
               <span>{pill.label}</span>
+              {bot && publicBotFlags && !publicBotFlags[bot.id] && (
+                <span className="text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-white/[0.06] text-muted-foreground/45">
+                  HID
+                </span>
+              )}
               {active && (
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" aria-hidden />
               )}

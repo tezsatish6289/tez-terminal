@@ -269,19 +269,27 @@ export default function SimulationPage() {
   const [allClosedTrades, setAllClosedTrades] = useState<SimTrade[]>([]);
   const [allTradesLoading, setAllTradesLoading] = useState(true);
   useEffect(() => {
+    if (!user) return;
     setAllTradesLoading(true);
     setAllClosedTrades([]);
-    fetch(`/api/freedombot/perf-data?assetType=CRYPTO`)
-      .then((r) => r.json())
-      .then((d) => {
+    void (async () => {
+      try {
+        const token = await user.getIdToken();
+        const r = await fetch(`/api/freedombot/perf-data?assetType=CRYPTO`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const d = await r.json();
         const trades: SimTrade[] = (d.trades ?? []).filter(
-          (t: any) => t.status === "CLOSED"
+          (t: { status?: string }) => t.status === "CLOSED",
         );
         setAllClosedTrades(trades);
-      })
-      .catch(() => {})
-      .finally(() => setAllTradesLoading(false));
-  }, []);
+      } catch {
+        /* ignore */
+      } finally {
+        setAllTradesLoading(false);
+      }
+    })();
+  }, [user]);
 
   // Bot-source-aware filtered closed trades — drives the equity curve,
   // metric panel, chart and history table so all four numbers reconcile

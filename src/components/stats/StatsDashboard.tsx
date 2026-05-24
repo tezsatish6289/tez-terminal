@@ -54,6 +54,11 @@ import {
   DASHBOARD_SECTION_INNER,
   DASHBOARD_SECTION_STACK,
 } from "@/components/stats/dashboard-section-spacing";
+import {
+  startingCapitalForStatsFilter,
+  type ZoneSimStatesMap,
+} from "@/lib/stats-dashboard-capital";
+import type { PublicBotFlags } from "@/lib/public-bot-flags";
 
 // ── Formatting helpers (mirrored from /simulation so the two pages
 //    cannot drift apart). Intentionally local — these are presentation
@@ -152,21 +157,33 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
   // Full closed-trade history (perf-data API — same source as
   // /freedombot/performance so the chart matches the public page).
   const [allClosedTrades, setAllClosedTrades] = useState<SimTrade[]>([]);
+  const [zoneSimStates, setZoneSimStates] = useState<ZoneSimStatesMap>({});
+  const [publicBotFlags, setPublicBotFlags] = useState<PublicBotFlags | null>(null);
   const [tradesLoading, setTradesLoading] = useState(true);
   useEffect(() => {
+    if (!user) return;
     setTradesLoading(true);
     setAllClosedTrades([]);
-    fetch(`/api/freedombot/perf-data?assetType=${assetType}`)
-      .then((r) => r.json())
-      .then((d) => {
+    void (async () => {
+      try {
+        const token = await user.getIdToken();
+        const r = await fetch(`/api/freedombot/perf-data?assetType=${assetType}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const d = await r.json();
         const trades: SimTrade[] = (d.trades ?? []).filter(
           (t: { status?: string }) => t.status === "CLOSED",
         );
         setAllClosedTrades(trades);
-      })
-      .catch(() => { /* leave empty — UI shows the placeholder */ })
-      .finally(() => setTradesLoading(false));
-  }, [assetType]);
+        if (d.zoneSimStates) setZoneSimStates(d.zoneSimStates);
+        if (d.publicBotFlags) setPublicBotFlags(d.publicBotFlags);
+      } catch {
+        /* leave empty — UI shows the placeholder */
+      } finally {
+        setTradesLoading(false);
+      }
+    })();
+  }, [assetType, user]);
 
   // Server stats for the authoritative "running days" reading (uses
   // earliest daily_metrics date rather than the earliest trade).
@@ -190,12 +207,17 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
     [allClosedTrades, botSourcePredicate],
   );
 
+  const effectiveStartingCapital = useMemo(
+    () => startingCapitalForStatsFilter(botSourceFilter, simState, zoneSimStates),
+    [botSourceFilter, simState, zoneSimStates],
+  );
+
   // Shared equity-curve calc → drives chart, headline capital, AND keeps
   // both perfectly reconciled. Same helper used by /simulation,
   // /freedombot/performance, /freedombot/records.
   const equityCurve = useMemo(
-    () => buildEquityCurve(filteredClosedTrades, simState?.startingCapital ?? 0),
-    [filteredClosedTrades, simState?.startingCapital],
+    () => buildEquityCurve(filteredClosedTrades, effectiveStartingCapital),
+    [filteredClosedTrades, effectiveStartingCapital],
   );
   const { finalCapital: closedEquity } = equityCurve;
 
@@ -207,9 +229,10 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
     return closedEquity;
   }, [simState, allClosedTrades.length, tradesLoading, closedEquity]);
 
-  const totalReturn = simState
-    ? ((derivedCapital - simState.startingCapital) / simState.startingCapital) * 100
-    : 0;
+  const totalReturn =
+    effectiveStartingCapital > 0
+      ? ((derivedCapital - effectiveStartingCapital) / effectiveStartingCapital) * 100
+      : 0;
 
   const runningDays = useMemo(() => {
     if (serverStats?.runningDays) return serverStats.runningDays;
@@ -234,21 +257,23 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
         if (!t.closedAt || new Date(t.closedAt) < monthStart) return sum;
         return sum + (t.realizedPnl ?? 0);
       }, 0);
-      return { pct: (monthNet / simState.startingCapital) * 100, isProjected: false };
+      return { pct: (monthNet / effectiveStartingCapital) * 100, isProjected: false };
     }
-    const totalReturnDecimal = (derivedCapital - simState.startingCapital) / simState.startingCapital;
+    const totalReturnDecimal =
+      (derivedCapital - effectiveStartingCapital) / effectiveStartingCapital;
     return {
       pct: compoundReturnOverPeriod(totalReturnDecimal, runningDays, 30) * 100,
       isProjected: true,
     };
-  }, [simState, runningDays, filteredClosedTrades, derivedCapital]);
+  }, [simState, runningDays, filteredClosedTrades, derivedCapital, effectiveStartingCapital]);
 
   // Annualised: actual when >365 days, else CAGR projection.
   const yearlyPnl = useMemo(() => {
     if (!simState || runningDays === 0) {
       return { pct: 0, isProjected: true, isReliable: false };
     }
-    const totalReturnDecimal = (derivedCapital - simState.startingCapital) / simState.startingCapital;
+    const totalReturnDecimal =
+      (derivedCapital - effectiveStartingCapital) / effectiveStartingCapital;
     if (runningDays >= 365) {
       return { pct: totalReturnDecimal * 100, isProjected: false, isReliable: true };
     }
@@ -257,21 +282,21 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
       isProjected: true,
       isReliable: runningDays >= MIN_DAYS_FOR_RELIABLE_ANNUALIZATION,
     };
-  }, [simState, runningDays, derivedCapital]);
+  }, [simState, runningDays, derivedCapital, effectiveStartingCapital]);
 
   const riskMetrics: PerformanceMetrics | null = useMemo(
     () =>
       simState && filteredClosedTrades.length > 0
         ? calcPerformanceMetrics(
             filteredClosedTrades,
-            simState.startingCapital,
+            effectiveStartingCapital,
             assetType === "INDIAN_STOCKS" ? 0.065 : 0,
           )
         : null,
-    [filteredClosedTrades, simState, assetType],
+    [filteredClosedTrades, effectiveStartingCapital, assetType],
   );
 
-  const pnlUsd = simState ? derivedCapital - simState.startingCapital : 0;
+  const pnlUsd = derivedCapital - effectiveStartingCapital;
 
   const shareBotSubtitle =
     isBotFiltered && botSourceFilter !== "ALL"
@@ -305,15 +330,16 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
           value={botSourceFilter}
           onChange={setBotSourceFilter}
           className="w-full"
+          publicBotFlags={publicBotFlags ?? undefined}
         />
         {isBotFiltered && (
           <p className="text-sm font-medium text-amber-400/80 text-center -mt-2">
-            Share card: {botSourceLabel(botSourceFilter)} (counterfactual view)
+            Share card: {botSourceLabel(botSourceFilter)} (internal simulator view)
           </p>
         )}
         <StatsSocialShareCard
           runningDays={runningDays}
-          startingCapital={simState.startingCapital}
+          startingCapital={effectiveStartingCapital}
           currentCapital={derivedCapital}
           totalReturnPct={totalReturn}
           pnlUsd={pnlUsd}
@@ -330,7 +356,17 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      <StatsBotTabs value={botSourceFilter} onChange={setBotSourceFilter} />
+      <StatsBotTabs
+        value={botSourceFilter}
+        onChange={setBotSourceFilter}
+        publicBotFlags={publicBotFlags ?? undefined}
+      />
+
+      {isBotFiltered && (
+        <p className="text-[11px] text-center text-muted-foreground/50 -mt-2">
+          Internal only — {botSourceLabel(botSourceFilter)} is not published on freedombot.ai yet.
+        </p>
+      )}
 
       <div className={DASHBOARD_SECTION_STACK}>
       <section className={DASHBOARD_SECTION_INNER}>
@@ -346,7 +382,7 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
         />
         <SummaryCard
           label="Starting Capital"
-          value={formatMoney(simState.startingCapital, cs)}
+          value={formatMoney(effectiveStartingCapital, cs)}
           sub="initial investment"
           icon={assetType === "INDIAN_STOCKS" ? <IndianRupee className="w-3.5 h-3.5" /> : <DollarSign className="w-3.5 h-3.5" />}
           color="text-muted-foreground/70"
@@ -354,9 +390,9 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
         <SummaryCard
           label="Current Capital"
           value={formatMoney(derivedCapital, cs)}
-          sub={`${derivedCapital - simState.startingCapital >= 0 ? "+" : ""}${formatMoney(derivedCapital - simState.startingCapital, cs)} overall`}
+          sub={`${pnlUsd >= 0 ? "+" : ""}${formatMoney(pnlUsd, cs)} overall`}
           icon={assetType === "INDIAN_STOCKS" ? <IndianRupee className="w-3.5 h-3.5" /> : <DollarSign className="w-3.5 h-3.5" />}
-          color={derivedCapital >= simState.startingCapital ? "text-positive" : "text-negative"}
+          color={derivedCapital >= effectiveStartingCapital ? "text-positive" : "text-negative"}
         />
         <SummaryCard
           label="Total Return"
@@ -395,7 +431,7 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
         <div className="flex-1 min-w-0">
           <EquityChart
             trades={filteredClosedTrades}
-            startingCapital={simState.startingCapital}
+            startingCapital={effectiveStartingCapital}
             cs={cs}
             theme="white"
           />
@@ -403,7 +439,7 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
         <div className="lg:w-72 xl:w-80 shrink-0 flex flex-col">
           <PerformanceMetricsPanel
             trades={filteredClosedTrades}
-            startingCapital={simState.startingCapital}
+            startingCapital={effectiveStartingCapital}
             assetType={assetType}
           />
         </div>
@@ -412,14 +448,14 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
 
       <MonthlyReturnCharts
         trades={filteredClosedTrades}
-        startingCapital={simState.startingCapital}
+        startingCapital={effectiveStartingCapital}
         cs={cs}
         theme="white"
       />
 
       <RiskRatioDrilldowns
         trades={filteredClosedTrades}
-        startingCapital={simState.startingCapital}
+        startingCapital={effectiveStartingCapital}
         assetType={assetType}
       />
       </div>

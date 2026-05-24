@@ -15,6 +15,7 @@ import { usePublicBots } from "@/hooks/use-public-bots";
 import { CRYPTO_BOTS } from "@/lib/crypto-bots";
 import { freedombotDashboardBase } from "@/lib/freedombot/dashboard-path";
 import { exchangeLabel } from "@/components/freedombot/dashboard/exchange-labels";
+import { BotExchangeIcons } from "@/components/freedombot/dashboard/BotExchangeIcons";
 import {
   BotSettings,
   type DeploymentWallet,
@@ -52,6 +53,12 @@ function tradeMatchesDeployment(t: Trade, dep: Deployment): boolean {
   if (t.exchange && t.exchange !== dep.exchange) return false;
   if (t.exchange == null && dep.exchange !== "BYBIT") return false;
   return tradeMatchesDeployBot(t, dep.bot);
+}
+
+function runningDays(createdAt: string | null): number {
+  if (!createdAt) return 1;
+  const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24));
+  return Math.max(1, days);
 }
 
 function botLabel(deployKey: string, publicBots: ReturnType<typeof usePublicBots>["bots"]): string {
@@ -239,18 +246,34 @@ export default function BotDetailPage() {
     );
   }
 
-  const title = `${botLabel(deployment.bot, publicBots)} × ${exchangeLabel(deployment.exchange)}`;
-  const runningDays = deployment.createdAt
-    ? Math.floor((Date.now() - new Date(deployment.createdAt).getTime()) / (1000 * 60 * 60 * 24))
-    : 0;
+  const label = botLabel(deployment.bot, publicBots);
+  const exchangeName = exchangeLabel(deployment.exchange);
+  const botForIcons = publicBots.find((b) => b.deployKey === deployment.bot) ?? {
+    id: "crypto" as const,
+    label,
+    shortLabel: deployment.bot,
+    deployKey: deployment.bot,
+    botSource: "",
+    icon: "₿",
+    logo: null,
+    publicLive: true,
+  };
+  const days = runningDays(deployment.createdAt);
   const totalPnl = tradesAggregates?.lifetimeRealizedPnl ?? deployment.lifetimeRealizedPnl ?? 0;
+  const pnlPositive = totalPnl >= 0;
   const isPaused = deployment.status === "paused";
   const isDisconnected = deployment.wallet?.status === "invalid";
   const hasUnverifiedPnl = anyTradeIsPreliminary(dashboardTrades);
 
+  const statusMeta = isDisconnected
+    ? { label: "Disconnected", color: "#f87171", bg: "rgba(248,113,113,0.1)", border: "rgba(248,113,113,0.25)", pulse: false }
+    : isPaused
+      ? { label: "Paused", color: "#fbbf24", bg: "rgba(251,191,36,0.1)", border: "rgba(251,191,36,0.25)", pulse: false }
+      : { label: "Live", color: "#22c55e", bg: "rgba(34,197,94,0.1)", border: "rgba(34,197,94,0.25)", pulse: true };
+
   return (
     <div className="min-h-screen font-sans antialiased" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-4">
         <Link
           href={dashboardHref}
           className="inline-flex items-center gap-2 text-xs font-bold transition-colors hover:text-white"
@@ -261,34 +284,42 @@ export default function BotDetailPage() {
 
         <div
           className="rounded-2xl overflow-hidden"
-          style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.12)" }}
+          style={{ backgroundColor: "#0c1a30", border: "1px solid rgba(59,130,246,0.35)" }}
         >
           <div
-            className="flex items-center justify-between px-5 py-4 gap-4"
+            className="flex items-start justify-between px-5 py-5 gap-4"
             style={{ borderBottom: "1px solid rgba(90,140,220,0.08)" }}
           >
-            <div className="min-w-0">
-              <h1 className="text-lg font-black text-white truncate">{title}</h1>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <span
-                  className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
-                  style={{
-                    color: isDisconnected ? "#f87171" : isPaused ? "#fbbf24" : "#22c55e",
-                    backgroundColor: isDisconnected
-                      ? "rgba(248,113,113,0.1)"
-                      : isPaused
-                        ? "rgba(251,191,36,0.1)"
-                        : "rgba(34,197,94,0.1)",
-                  }}
-                >
-                  {isDisconnected ? "Disconnected" : isPaused ? "Paused" : "Live"}
-                </span>
-                <span className="text-xs" style={{ color: "#475569" }}>
-                  {runningDays} {runningDays === 1 ? "day" : "days"} ·{" "}
-                  <span style={{ color: totalPnl >= 0 ? "#34d399" : "#f87171" }}>
-                    {totalPnl >= 0 ? "+" : "-"}${Math.abs(totalPnl).toFixed(2)} net P&amp;L
+            <div className="flex items-start gap-4 min-w-0">
+              <BotExchangeIcons bot={botForIcons} exchange={deployment.exchange} size={48} />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1
+                    className="text-xl font-black text-white truncate"
+                    title={`${label} on ${exchangeName}`}
+                  >
+                    {label}
+                  </h1>
+                  <span
+                    className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded inline-flex items-center gap-1.5"
+                    style={{
+                      color: statusMeta.color,
+                      backgroundColor: statusMeta.bg,
+                      border: `1px solid ${statusMeta.border}`,
+                    }}
+                  >
+                    {statusMeta.pulse && (
+                      <span
+                        className="h-1.5 w-1.5 rounded-full animate-pulse flex-shrink-0"
+                        style={{ backgroundColor: statusMeta.color }}
+                      />
+                    )}
+                    {statusMeta.label}
                   </span>
-                </span>
+                </div>
+                <p className="text-sm font-semibold mt-0.5 truncate" style={{ color: "#64748b" }}>
+                  {exchangeName}
+                </p>
               </div>
             </div>
             <button
@@ -304,6 +335,34 @@ export default function BotDetailPage() {
               <Settings className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Settings</span>
             </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6 px-5 py-5">
+            <div>
+              <p
+                className="text-[10px] font-bold uppercase tracking-widest mb-1.5"
+                style={{ color: "#334155" }}
+              >
+                Running
+              </p>
+              <p className="text-2xl sm:text-3xl font-black" style={{ color: "#f0f4ff" }}>
+                {days} {days === 1 ? "Day" : "Days"}
+              </p>
+            </div>
+            <div>
+              <p
+                className="text-[10px] font-bold uppercase tracking-widest mb-1.5"
+                style={{ color: "#334155" }}
+              >
+                Cumulative Net P&amp;L
+              </p>
+              <p
+                className="text-2xl sm:text-3xl font-black font-mono"
+                style={{ color: pnlPositive ? "#34d399" : "#f87171" }}
+              >
+                {pnlPositive ? "+" : "−"}${Math.abs(totalPnl).toFixed(2)}
+              </p>
+            </div>
           </div>
         </div>
 

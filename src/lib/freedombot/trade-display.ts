@@ -64,6 +64,28 @@ export function formatSignedUsd(n: number): string {
   return `$${abs}`;
 }
 
+/** Plain USD amount for size / notional columns. */
+export function formatUsd(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  return `$${n.toFixed(2)}`;
+}
+
+/** Notional position value (price × qty) stored as `positionSize`. */
+export function tradeNotionalUsd(t: Trade): number | null {
+  if (typeof t.positionSize !== "number" || Number.isNaN(t.positionSize) || t.positionSize <= 0) {
+    return null;
+  }
+  return t.positionSize;
+}
+
+/** Isolated margin allocated ≈ notional ÷ leverage. */
+export function tradeCapitalAtRiskUsd(t: Trade): number | null {
+  const notional = tradeNotionalUsd(t);
+  const lev = t.leverage;
+  if (notional == null || !lev || lev <= 0) return null;
+  return notional / lev;
+}
+
 // ── Time helpers ────────────────────────────────────────────────────────────
 
 export function closedAtMs(t: Trade): number {

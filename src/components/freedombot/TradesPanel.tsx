@@ -23,22 +23,29 @@ import {
   bestClosedPnl,
   formatPrice,
   formatSignedUsd,
+  formatUsd,
   isPreliminarySource,
   pnlSourceTooltip,
+  tradeCapitalAtRiskUsd,
+  tradeNotionalUsd,
   tradeShowsResyncControl,
 } from "@/lib/freedombot/trade-display";
 
-const COLUMNS = "1.35fr 1.55fr 0.9fr 0.9fr 0.9fr 0.85fr 1fr 0.75fr";
+const COLUMNS = "1.35fr 1.15fr 0.85fr 0.85fr 0.5fr 0.95fr 0.8fr 0.95fr 0.7fr";
 
 const HEADER_LABELS: Array<{ label: string; tip: string }> = [
   { label: "Entry | Exit Time", tip: "" },
   { label: "Side & Symbol", tip: "" },
-  { label: "Size & Leverage", tip: "" },
-  { label: "Entry Price", tip: "" },
-  { label: "Exit Price", tip: "" },
+  { label: "Notional", tip: "Total position value (entry price × quantity)." },
+  {
+    label: "Capital at Risk",
+    tip: "Margin allocated for this trade (notional ÷ leverage). Your configured risk % sizes the position from stop-loss distance — not from leverage alone.",
+  },
+  { label: "Lev", tip: "Leverage multiplier set at entry." },
+  { label: "Entry | Exit Price", tip: "" },
   { label: "P&L", tip: "" },
   {
-    label: "Cumulative",
+    label: "Cumulative PNL",
     tip: "Running total after each close (oldest first by booking time). Uses the exchange's realised P&L when available, otherwise the bot's preliminary calculation. The table sorts closes by latest exit; cumulative follows booking order, so values may not increase top-to-bottom.",
   },
   { label: "Status", tip: "" },
@@ -216,6 +223,8 @@ function TradeRow({ trade, isLast, cumulative, isRefreshing, onRefresh }: TradeR
   const isWin = isOpen ? openPnl >= 0 : closedPnl != null && closedPnl >= 0;
   const isBuy = trade.side === "LONG" || trade.side === "BUY";
   const showResync = !!onRefresh && tradeShowsResyncControl(trade);
+  const notional = tradeNotionalUsd(trade);
+  const capitalAtRisk = tradeCapitalAtRiskUsd(trade);
   const rowStyle = { borderBottom: !isLast ? "1px solid rgba(90,140,220,0.06)" : "none" };
   const winColor = isPreliminary ? "rgba(52,211,153,0.65)" : "#34d399";
   const lossColor = isPreliminary ? "rgba(248,113,113,0.65)" : "#f87171";
@@ -234,9 +243,9 @@ function TradeRow({ trade, isLast, cumulative, isRefreshing, onRefresh }: TradeR
         style={{ backgroundColor: "#0a1628", ...rowStyle }}
       >
         <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex flex-col gap-1 min-w-0">
             <span
-              className="text-[9px] font-black px-1.5 py-0.5 rounded uppercase flex-shrink-0"
+              className="text-[9px] font-black px-1.5 py-0.5 rounded uppercase w-fit"
               style={
                 isBuy
                   ? { backgroundColor: "rgba(34,197,94,0.12)", color: "#34d399" }
@@ -261,6 +270,9 @@ function TradeRow({ trade, isLast, cumulative, isRefreshing, onRefresh }: TradeR
                   minute: "2-digit",
                 })
               : "—"}
+          </span>
+          <span className="text-[10px] font-mono" style={{ color: "#334155" }}>
+            {formatUsd(notional)} notional · {formatUsd(capitalAtRisk)} at risk · {trade.leverage}x
           </span>
         </div>
         <div className="flex flex-col items-end gap-1">
@@ -357,9 +369,9 @@ function TradeRow({ trade, isLast, cumulative, isRefreshing, onRefresh }: TradeR
           )}
         </div>
 
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex flex-col gap-1 min-w-0">
           <span
-            className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wide flex-shrink-0"
+            className="text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wide w-fit"
             style={
               isBuy
                 ? { backgroundColor: "rgba(34,197,94,0.12)", color: "#34d399" }
@@ -369,17 +381,22 @@ function TradeRow({ trade, isLast, cumulative, isRefreshing, onRefresh }: TradeR
             {isBuy ? "Buy" : "Sell"}
           </span>
           <span
-            className="text-sm font-black text-white leading-none truncate min-w-0"
+            className="text-sm font-black text-white leading-tight truncate min-w-0"
             title={trade.symbol}
           >
             {trade.symbol}
           </span>
         </div>
 
-        <div className="flex flex-col gap-0.5">
-          <span className="font-mono text-xs font-bold" style={{ color: "#94a3b8" }}>
-            {trade.positionSize ? `$${trade.positionSize.toFixed(2)}` : "—"}
-          </span>
+        <div className="font-mono text-xs font-bold" style={{ color: "#94a3b8" }}>
+          {formatUsd(notional)}
+        </div>
+
+        <div className="font-mono text-xs font-bold" style={{ color: "#94a3b8" }}>
+          {formatUsd(capitalAtRisk)}
+        </div>
+
+        <div>
           <span
             className="text-[9px] font-bold px-1.5 py-0.5 rounded inline-flex w-fit"
             style={{ backgroundColor: "rgba(96,165,250,0.08)", color: "#60a5fa" }}
@@ -388,16 +405,27 @@ function TradeRow({ trade, isLast, cumulative, isRefreshing, onRefresh }: TradeR
           </span>
         </div>
 
-        <div className="font-mono text-xs font-bold" style={{ color: "rgba(255,255,255,0.45)" }}>
-          ${formatPrice(trade.entryPrice)}
-        </div>
-
-        <div className="font-mono text-xs font-bold" style={{ color: "rgba(255,255,255,0.45)" }}>
-          {isOpen ? (
-            <span style={{ color: "#334155" }}>—</span>
-          ) : (
-            `$${formatPrice(trade.currentPrice)}`
-          )}
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-1">
+            <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: "#334155" }}>
+              In
+            </span>
+            <span className="text-[10px] font-mono font-bold" style={{ color: "rgba(255,255,255,0.45)" }}>
+              ${formatPrice(trade.entryPrice)}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: "#334155" }}>
+              Out
+            </span>
+            <span className="text-[10px] font-mono font-bold" style={{ color: "rgba(255,255,255,0.45)" }}>
+              {isOpen ? (
+                <span style={{ color: "#334155" }}>—</span>
+              ) : (
+                `$${formatPrice(trade.currentPrice)}`
+              )}
+            </span>
+          </div>
         </div>
 
         <div className="font-mono text-xs font-black min-w-0 flex flex-col gap-0.5">

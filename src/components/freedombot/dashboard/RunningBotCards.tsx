@@ -63,14 +63,13 @@ export function sortDeployments(deployments: DashboardDeployment[]): DashboardDe
 
 const STATUS_META: Record<
   DisplayStatus,
-  { label: string; color: string; bg: string; border: string; pulse?: boolean }
+  { label: string; color: string; bg: string; border: string }
 > = {
   live: {
     label: "Running",
     color: "#22c55e",
     bg: "rgba(34,197,94,0.1)",
     border: "rgba(34,197,94,0.25)",
-    pulse: true,
   },
   paused: {
     label: "Paused",
@@ -241,7 +240,7 @@ function RunningBotCard({
       }}
     >
       <div className="flex items-start justify-between gap-3 mb-4">
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           {exchangeForward ? (
             <div
               className="flex-shrink-0 rounded-full flex items-center justify-center"
@@ -277,30 +276,24 @@ function RunningBotCard({
                 </p>
               </>
             )}
-            <div className="flex items-center gap-1.5 mt-1.5">
-              {meta.pulse && (
-                <span
-                  className="h-1.5 w-1.5 rounded-full animate-pulse flex-shrink-0"
-                  style={{ backgroundColor: meta.color }}
-                />
-              )}
-              <span
-                className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
-                style={{
-                  color: meta.color,
-                  backgroundColor: meta.bg,
-                  border: `1px solid ${meta.border}`,
-                }}
-              >
-                {meta.label}
-              </span>
-            </div>
           </div>
         </div>
-        <ExternalLink
-          className="h-4 w-4 flex-shrink-0 opacity-0 group-hover:opacity-60 transition-opacity"
-          style={{ color: "#64748b" }}
-        />
+        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+          <span
+            className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
+            style={{
+              color: meta.color,
+              backgroundColor: meta.bg,
+              border: `1px solid ${meta.border}`,
+            }}
+          >
+            {meta.label}
+          </span>
+          <ExternalLink
+            className="h-4 w-4 opacity-0 group-hover:opacity-60 transition-opacity"
+            style={{ color: "#64748b" }}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

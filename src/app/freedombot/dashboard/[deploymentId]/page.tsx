@@ -266,10 +266,10 @@ export default function BotDetailPage() {
   const hasUnverifiedPnl = anyTradeIsPreliminary(dashboardTrades);
 
   const statusMeta = isDisconnected
-    ? { label: "Disconnected", color: "#f87171", bg: "rgba(248,113,113,0.1)", border: "rgba(248,113,113,0.25)", pulse: false }
+    ? { label: "Disconnected", color: "#f87171", bg: "rgba(248,113,113,0.1)", border: "rgba(248,113,113,0.25)" }
     : isPaused
-      ? { label: "Paused", color: "#fbbf24", bg: "rgba(251,191,36,0.1)", border: "rgba(251,191,36,0.25)", pulse: false }
-      : { label: "Running", color: "#22c55e", bg: "rgba(34,197,94,0.1)", border: "rgba(34,197,94,0.25)", pulse: true };
+      ? { label: "Paused", color: "#fbbf24", bg: "rgba(251,191,36,0.1)", border: "rgba(251,191,36,0.25)" }
+      : { label: "Running", color: "#22c55e", bg: "rgba(34,197,94,0.1)", border: "rgba(34,197,94,0.25)" };
 
   return (
     <div className="min-h-screen font-sans antialiased" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
@@ -290,51 +290,45 @@ export default function BotDetailPage() {
             className="flex items-start justify-between px-5 py-5 gap-4"
             style={{ borderBottom: "1px solid rgba(90,140,220,0.08)" }}
           >
-            <div className="flex items-start gap-4 min-w-0">
+            <div className="flex items-start gap-4 min-w-0 flex-1">
               <BotExchangeIcons bot={botForIcons} exchange={deployment.exchange} size={48} />
               <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h1
-                    className="text-xl font-black text-white truncate"
-                    title={`${label} on ${exchangeName}`}
-                  >
-                    {label}
-                  </h1>
-                  <span
-                    className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded inline-flex items-center gap-1.5"
-                    style={{
-                      color: statusMeta.color,
-                      backgroundColor: statusMeta.bg,
-                      border: `1px solid ${statusMeta.border}`,
-                    }}
-                  >
-                    {statusMeta.pulse && (
-                      <span
-                        className="h-1.5 w-1.5 rounded-full animate-pulse flex-shrink-0"
-                        style={{ backgroundColor: statusMeta.color }}
-                      />
-                    )}
-                    {statusMeta.label}
-                  </span>
-                </div>
+                <h1
+                  className="text-xl font-black text-white truncate"
+                  title={`${label} on ${exchangeName}`}
+                >
+                  {label}
+                </h1>
                 <p className="text-sm font-semibold mt-0.5 truncate" style={{ color: "#64748b" }}>
                   {exchangeName}
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-105 flex-shrink-0"
-              style={{
-                backgroundColor: "rgba(90,140,220,0.08)",
-                color: "#94a3b8",
-                border: "1px solid rgba(90,140,220,0.18)",
-              }}
-            >
-              <Settings className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Settings</span>
-            </button>
+            <div className="flex flex-col items-end gap-2 flex-shrink-0">
+              <span
+                className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
+                style={{
+                  color: statusMeta.color,
+                  backgroundColor: statusMeta.bg,
+                  border: `1px solid ${statusMeta.border}`,
+                }}
+              >
+                {statusMeta.label}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-105"
+                style={{
+                  backgroundColor: "rgba(90,140,220,0.08)",
+                  color: "#94a3b8",
+                  border: "1px solid rgba(90,140,220,0.18)",
+                }}
+              >
+                <Settings className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Settings</span>
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-6 px-5 py-5">

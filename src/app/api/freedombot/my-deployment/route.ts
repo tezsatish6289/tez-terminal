@@ -4,6 +4,7 @@ import {
   DEFAULT_TRADING_PREFS,
   loadTradingPrefs,
 } from "@/lib/freedombot/trading-prefs";
+import { getDeploymentAggregates } from "@/lib/freedombot/aggregates";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +80,7 @@ export async function GET(req: NextRequest) {
       }),
     );
 
-    const mapDep = (dep: Row) => {
+    const mapDep = async (dep: Row) => {
       const status = normalizeStatus(dep.status);
       const walletStatusRaw = String(dep.walletStatus ?? "").toLowerCase();
       const walletStatus =
@@ -87,6 +88,13 @@ export async function GET(req: NextRequest) {
           ? walletStatusRaw
           : null;
       const exchangeKey = String(dep.exchange ?? "");
+      const agg = await getDeploymentAggregates(db, {
+        uid,
+        exchange: exchangeKey,
+        openTradeCount: dep.openTradeCount as number | undefined,
+        closedTradeCount: dep.closedTradeCount as number | undefined,
+        lifetimeRealizedPnl: dep.lifetimeRealizedPnl as number | undefined,
+      });
       return {
         id: dep.id,
         bot: dep.bot,
@@ -96,6 +104,9 @@ export async function GET(req: NextRequest) {
         createdAt:
           (dep.createdAt as { toDate?: () => Date })?.toDate?.()?.toISOString() ?? null,
         pausedAt: typeof dep.pausedAt === "string" ? dep.pausedAt : null,
+        lifetimeRealizedPnl: agg.lifetimeRealizedPnl,
+        openTradeCount: agg.openTradeCount,
+        closedTradeCount: agg.closedTradeCount,
         // Wallet snapshot — null if the deployment pre-dates wallet
         // tracking (the cron + the dashboard's on-load test-connection
         // call will populate it shortly).
@@ -117,7 +128,7 @@ export async function GET(req: NextRequest) {
       };
     };
 
-    const deployments = visible.map(mapDep);
+    const deployments = await Promise.all(visible.map(mapDep));
 
     // `deployment` (singular) stays for backward-compat with older client
     // code paths. Prefer the most recent ACTIVE deployment; fall back to
@@ -128,7 +139,7 @@ export async function GET(req: NextRequest) {
       visible.find((d) => normalizeStatus(d.status) === "active") ?? visible[0];
 
     return NextResponse.json({
-      deployment: mapDep(primary),
+      deployment: deployments.find((d) => d.id === primary.id) ?? deployments[0],
       deployments,
     });
   } catch (err: unknown) {

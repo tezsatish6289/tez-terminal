@@ -38,7 +38,7 @@ export function middleware(request: NextRequest) {
     }
 
     // Marketing site pages → rewrite to /freedombot/* internally
-    if (FREEDOMBOT_SITE_PATHS.has(pathname)) {
+    if (FREEDOMBOT_SITE_PATHS.has(pathname) || pathname.startsWith("/dashboard/")) {
       const newPath =
         pathname === "/" ? "/freedombot" : `/freedombot${pathname}`;
       return NextResponse.rewrite(new URL(newPath, request.url));

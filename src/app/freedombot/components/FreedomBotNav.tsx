@@ -8,10 +8,7 @@ import { Rocket, Loader2 } from "lucide-react";
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 
-/** App dashboard (no marketing site nav). */
-function isFreedomBotDashboardPath(pathname: string) {
-  return pathname === "/freedombot/dashboard" || pathname === "/dashboard";
-}
+import { isFreedomBotDashboardPath, freedombotDashboardBase } from "@/lib/freedombot/dashboard-path";
 
 export function FreedomBotNav() {
   const pathname = usePathname();
@@ -38,7 +35,12 @@ export function FreedomBotNav() {
   };
 
   const handleDeploy = () => {
-    router.push("/?deploy=1");
+    if (isDashboard) {
+      router.push(`${freedombotDashboardBase(pathname)}?deploy=1`);
+      return;
+    }
+    const home = pathBase ? `${pathBase}?deploy=1` : "/?deploy=1";
+    router.push(home);
   };
 
   const navLinks = pathBase

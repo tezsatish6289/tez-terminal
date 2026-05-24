@@ -59,6 +59,10 @@ function mapTradeDoc(doc: QueryDocumentSnapshot) {
     confidenceScoreAtClose: d.confidenceScoreAtClose ?? null,
     scorePatternAtClose: d.scorePatternAtClose ?? null,
     botSource: typeof d.botSource === "string" ? d.botSource : null,
+    txHash: (d.txHash as string) ?? null,
+    blockchainStatus: (d.blockchainStatus as string) ?? null,
+    blockchainError: (d.blockchainError as string) ?? null,
+    blockchainConfirmedAt: (d.blockchainConfirmedAt as string) ?? null,
   };
 }
 

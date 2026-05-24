@@ -1,4 +1,4 @@
-import { Link2, ExternalLink } from "lucide-react";
+import { Link2, ExternalLink, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type BlockchainTradeFields = {
@@ -80,6 +80,22 @@ export function BlockchainTxCell({
             {trade.blockchainError}
           </span>
         ) : null}
+      </span>
+    );
+  }
+
+  if (status === "confirmed") {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 font-bold text-emerald-400/80",
+          text,
+          className,
+        )}
+        title="Confirmed on-chain (tx hash missing from record — refresh or check /records)"
+      >
+        <ShieldCheck className={icon} />
+        On-chain
       </span>
     );
   }

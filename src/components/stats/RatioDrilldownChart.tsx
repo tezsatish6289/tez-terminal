@@ -258,28 +258,32 @@ export function RatioDrilldownChart({
             </ResponsiveContainer>
           </div>
 
-          {/* Integrated scale legend */}
-          <div className="flex flex-wrap gap-1.5 justify-center sm:justify-start">
+          {/* Chart band legend — dots + text only (pills reserved for strength badge above) */}
+          <p
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] justify-center sm:justify-start"
+            style={{ color: mutedCol ?? "rgba(255,255,255,0.4)" }}
+          >
+            <span className="font-medium" style={{ color: mutedCol ?? "rgba(255,255,255,0.35)" }}>
+              Chart bands:
+            </span>
             {tiers
               .filter((t) => t.y2 <= yMax && t.y1 >= yMin - 1)
               .map((tier) => (
                 <span
                   key={tier.chartLabel}
-                  className="inline-flex items-center gap-1.5 text-[9px] font-semibold px-2 py-1 rounded-md"
-                  style={{
-                    backgroundColor: `${tierFillColor(tier.status)}14`,
-                    color: tierFillColor(tier.status),
-                    border: `1px solid ${tierFillColor(tier.status)}33`,
-                  }}
+                  className="inline-flex items-center gap-1"
                 >
                   <span
-                    className="h-1.5 w-1.5 rounded-full shrink-0"
+                    className="h-2 w-2 rounded-sm shrink-0 opacity-80"
                     style={{ backgroundColor: tierFillColor(tier.status) }}
+                    aria-hidden
                   />
-                  {tier.chartLabel}
+                  <span style={{ color: tierFillColor(tier.status) }}>
+                    {tier.chartLabel}
+                  </span>
                 </span>
               ))}
-          </div>
+          </p>
           <p
             className="text-[10px] italic text-center sm:text-left"
             style={{ color: mutedCol ?? "rgba(255,255,255,0.35)" }}

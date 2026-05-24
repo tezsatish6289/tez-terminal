@@ -81,8 +81,9 @@ export function formatRatioValue(n: number, dp = 2): string {
   return `${sign}${n.toFixed(dp)}`;
 }
 
+/** Magnitude only — industry convention (always ≥ 0, no minus sign). */
 export function formatDrawdownValue(pct: number): string {
-  return `−${Math.abs(pct).toFixed(2)}%`;
+  return `${Math.abs(pct).toFixed(2)}%`;
 }
 
 /** Sharpe & Sortino share the same tier boundaries. */

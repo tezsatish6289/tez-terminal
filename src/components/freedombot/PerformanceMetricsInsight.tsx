@@ -79,18 +79,18 @@ export function PerformanceMetricsInsight({
         aria-labelledby="performance-metrics-heading"
       >
         <div
-          className="rounded-lg p-4 flex flex-col gap-3 h-full"
+          className="rounded-lg p-3 flex flex-col gap-2 h-full min-h-0"
           style={{
             backgroundColor: "rgba(255,255,255,0.02)",
             border: "1px solid rgba(90,140,220,0.08)",
           }}
         >
-          <header className="flex items-center justify-between gap-2 shrink-0">
+          <header className="flex items-center justify-between gap-2 shrink-0 pb-0.5">
             <div className="flex items-center gap-2">
-              <Shield className="w-4 h-4" style={{ color: "#60a5fa" }} />
+              <Shield className="w-3.5 h-3.5" style={{ color: "#60a5fa" }} />
               <span
                 id="performance-metrics-heading"
-                className="text-[11px] font-bold uppercase tracking-wider"
+                className="text-[10px] font-bold uppercase tracking-wider"
                 style={{ color: "#475569" }}
               >
                 Performance
@@ -101,9 +101,9 @@ export function PerformanceMetricsInsight({
             </span>
           </header>
 
-          <div className="flex flex-col gap-2 flex-1">{cards}</div>
+          <div className="flex flex-col gap-1.5 flex-1 min-h-0 justify-between">{cards}</div>
 
-          <p className="text-[10px] leading-relaxed shrink-0" style={{ color: "#1e3a5f" }}>
+          <p className="text-[9px] leading-snug shrink-0 pt-0.5" style={{ color: "#1e3a5f" }}>
             Based on{" "}
             <span style={{ color: "#334155", fontWeight: 600 }}>closed trades only</span>.
             Ratios are annualised. Risk-free: 0% (crypto).

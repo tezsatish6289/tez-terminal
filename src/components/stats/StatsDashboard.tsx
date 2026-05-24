@@ -46,6 +46,7 @@ import {
   MIN_DAYS_FOR_RELIABLE_ANNUALIZATION,
 } from "@/lib/performance-metrics";
 import type { PerformanceMetrics } from "@/lib/performance-metrics";
+import { formatDrawdownValue } from "@/lib/metric-insight-config";
 import { botSourceLabel } from "@/lib/bot-source-filter";
 import { StatsSocialShareCard } from "@/components/stats/StatsSocialShareCard";
 import { RiskRatioDrilldowns } from "@/components/stats/RiskRatioDrilldowns";
@@ -211,7 +212,7 @@ function PerformanceMetricsPanel({
         />
         <MetricTile
           label="Max Drawdown"
-          value={`-${metrics.maxDrawdownPct.toFixed(2)}%`}
+          value={formatDrawdownValue(metrics.maxDrawdownPct)}
           sub="Peak-to-trough (closed)"
           color={
             metrics.maxDrawdownPct < 15

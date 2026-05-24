@@ -31,6 +31,7 @@ import {
 } from "recharts";
 import { format } from "date-fns";
 import { buildEquityCurve, type ClosedTradeLike } from "@/lib/equity-curve";
+import { useChartMotion } from "@/hooks/use-chart-motion";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -84,6 +85,14 @@ export function EquityChart({
   theme = "blue",
 }: EquityChartProps) {
   const [view, setView] = useState<ChartView>("trade");
+  const motion = useChartMotion();
+  const anim = motion.enabled
+    ? {
+        isAnimationActive: true as const,
+        animationDuration: motion.duration,
+        animationEasing: "ease-out" as const,
+      }
+    : { isAnimationActive: false as const };
 
   const isBlue  = theme === "blue";
   const gridCol = isBlue ? "rgba(90,140,220,0.06)"  : "rgba(255,255,255,0.06)";
@@ -135,6 +144,8 @@ export function EquityChart({
     }
     return pts;
   }, [curve, startingCapital]);
+
+  const chartKey = `${curve.points.length}-${curve.finalCapital}-${view}`;
 
   if (curve.points.length < 2) return null;
 
@@ -208,7 +219,7 @@ export function EquityChart({
         ) : (
           <div className="h-[340px] sm:h-[440px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={curveData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+              <AreaChart key={chartKey} data={curveData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                 <defs>
                   {isBlue ? (
                     <linearGradient id="ecGradient" x1="0" y1="0" x2="0" y2="1">
@@ -260,6 +271,7 @@ export function EquityChart({
                   fill={isBlue ? "url(#ecGradient)" : "url(#ecFill)"}
                   dot={false}
                   activeDot={{ r: 4, fill: isBlue ? blueColor : "#ffffff", stroke: isBlue ? "#080f1e" : "#0f0f11", strokeWidth: 2 }}
+                  {...anim}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -276,7 +288,7 @@ export function EquityChart({
         ) : (
           <div className="h-[340px] sm:h-[440px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={pnlData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+              <BarChart key={chartKey} data={pnlData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridCol} vertical={false} />
                 <XAxis dataKey="x" tick={{ fontSize: 9, fill: axisCol }} tickLine={false} axisLine={{ stroke: axisLn }} />
                 <YAxis
@@ -308,6 +320,7 @@ export function EquityChart({
                   maxBarSize={20}
                   radius={[2, 2, 0, 0]}
                   activeBar={false}
+                  {...anim}
                 >
                   {pnlData.map((entry, i) => (
                     <Cell

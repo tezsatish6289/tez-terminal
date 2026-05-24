@@ -12,6 +12,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { EquityChart } from "@/components/charts/EquityChart";
+import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import {
   annualizeReturn,
@@ -72,10 +73,17 @@ function fmtMoney(n: number | null | undefined) {
   return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-// ─── SummaryCard — identical to simulator ─────────────────────────────────────
+/** Same width + card treatment as /stats (StatsDashboard). */
+const DASHBOARD_SHELL = "max-w-[1200px] mx-auto w-full px-4 sm:px-6";
 
 function SummaryCard({
-  label, value, sub, subTone = "muted", badge, color, icon,
+  label,
+  value,
+  sub,
+  subTone = "muted",
+  badge,
+  color,
+  icon,
 }: {
   label: string;
   value: string;
@@ -85,31 +93,36 @@ function SummaryCard({
   color: string;
   icon: React.ReactNode;
 }) {
-  const badgeStyle =
-    badge?.variant === "projected" ? { backgroundColor: "rgba(251,191,36,0.15)", color: "#fbbf24" } :
-    badge?.variant === "live"      ? { backgroundColor: "rgba(34,197,94,0.15)",  color: "#22c55e" } :
-                                     { backgroundColor: "rgba(255,255,255,0.05)", color: "#64748b" };
-
-  const subStyle = subTone === "warn"
-    ? { color: "#fbbf24", fontWeight: 600 as const }
-    : { color: "#475569" };
-
   return (
-    <div
-      className="rounded-xl p-4 flex flex-col gap-2 transition-colors hover:brightness-110"
-      style={{ backgroundColor: "#0a1628", border: "1px solid rgba(90,140,220,0.1)" }}
-    >
+    <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 flex flex-col gap-2 hover:bg-white/[0.04] transition-colors">
       <div className="flex items-center gap-1.5">
-        <span style={{ color, opacity: 0.6 }}>{icon}</span>
-        <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "#334155" }}>{label}</span>
+        <span className={cn("opacity-60", color)}>{icon}</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
+          {label}
+        </span>
       </div>
-      <div className="text-2xl font-black tabular-nums leading-none" style={{ color }}>{value}</div>
+      <div className={cn("text-2xl font-black tabular-nums leading-none", color)}>{value}</div>
       <div className="flex items-center gap-1.5 flex-wrap">
-        {sub && <span className="text-[10px]" style={subStyle}>{sub}</span>}
+        {sub && (
+          <span
+            className={cn(
+              "text-[10px]",
+              subTone === "warn" ? "text-amber-400/90 font-semibold" : "text-muted-foreground/50",
+            )}
+          >
+            {sub}
+          </span>
+        )}
         {badge && (
           <span
-            className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-            style={badgeStyle}
+            className={cn(
+              "text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full",
+              badge.variant === "projected"
+                ? "bg-amber-500/15 text-amber-400"
+                : badge.variant === "live"
+                  ? "bg-emerald-500/15 text-emerald-400"
+                  : "bg-white/[0.05] text-muted-foreground/60",
+            )}
           >
             {badge.text}
           </span>
@@ -262,7 +275,7 @@ export default function PerformancePage() {
   return (
     <div className="min-h-screen font-sans antialiased overflow-x-hidden" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
 
-      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 space-y-8">
+      <main className={cn(DASHBOARD_SHELL, "py-8 space-y-6")}>
 
         {/* ── Hero header ── */}
         <div className="text-center py-4 sm:py-8 space-y-4">
@@ -329,14 +342,14 @@ export default function PerformancePage() {
             </div>
           </div>
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             <SummaryCard
               label="Running"
               value={`${runningDays} Day${runningDays !== 1 ? "s" : ""}`}
               sub="live bot active"
               icon={<Activity className="w-3.5 h-3.5" />}
-              color="#94a3b8"
+              color="text-muted-foreground/70"
               badge={{ text: "Live", variant: "live" }}
             />
             <SummaryCard
@@ -344,28 +357,28 @@ export default function PerformancePage() {
               value={fmtMoney(simState?.startingCapital)}
               sub="initial investment"
               icon={<DollarSign className="w-3.5 h-3.5" />}
-              color="#94a3b8"
+              color="text-muted-foreground/70"
             />
             <SummaryCard
               label="Current Capital"
               value={fmtMoney(derivedCapital)}
               sub={`${totalReturn >= 0 ? "+" : ""}${fmtMoney(derivedCapital - startCap)} overall`}
               icon={<DollarSign className="w-3.5 h-3.5" />}
-              color={totalReturn >= 0 ? "#34d399" : "#f87171"}
+              color={totalReturn >= 0 ? "text-positive" : "text-negative"}
             />
             <SummaryCard
               label="Total Return"
               value={fmtPct(totalReturn)}
               sub={`across ${runningDays} day${runningDays !== 1 ? "s" : ""}`}
               icon={totalReturn >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-              color={totalReturn >= 0 ? "#34d399" : "#f87171"}
+              color={totalReturn >= 0 ? "text-positive" : "text-negative"}
             />
             <SummaryCard
               label="Monthly Return"
               value={fmtPct(monthlyPnl.pct)}
               sub={monthlyIsProjected ? `compounded from ${runningDays}-day live performance` : "this calendar month"}
               icon={monthlyPnl.pct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-              color={monthlyPnl.pct >= 0 ? "#34d399" : "#f87171"}
+              color={monthlyPnl.pct >= 0 ? "text-positive" : "text-negative"}
               badge={monthlyIsProjected ? { text: "Projected", variant: "projected" } : undefined}
             />
             <SummaryCard
@@ -380,7 +393,7 @@ export default function PerformancePage() {
               }
               subTone={yearlyIsProjected && !yearlyPnl.isReliable ? "warn" : "muted"}
               icon={yearlyPnl.pct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-              color={yearlyPnl.pct >= 0 ? "#34d399" : "#f87171"}
+              color={yearlyPnl.pct >= 0 ? "text-positive" : "text-negative"}
               badge={yearlyIsProjected ? { text: "Projected", variant: "projected" } : { text: "Actual", variant: "actual" }}
             />
           </div>
@@ -451,7 +464,7 @@ export default function PerformancePage() {
 
       {/* Footer */}
       <footer className="py-8 border-t" style={{ borderColor: "rgba(90,140,220,0.08)" }}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className={cn(DASHBOARD_SHELL, "flex flex-col sm:flex-row items-center justify-between gap-3")}>
           <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-70">
             <Image src="/freedombot/icon.png" alt="FreedomBot.ai" width={24} height={24} className="rounded-lg object-contain" />
             <span className="text-xs font-bold" style={{ color: "#334155" }}>freedombot.ai</span>

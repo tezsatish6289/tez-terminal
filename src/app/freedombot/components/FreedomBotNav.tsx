@@ -76,7 +76,7 @@ export function FreedomBotNav() {
         backdropFilter: "blur(20px)",
       }}
     >
-      <div className="w-full px-4 sm:px-8 h-16 flex items-center justify-between gap-4">
+      <div className="max-w-[1200px] mx-auto w-full px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
         {/* Logo */}
         <Link href={pathBase || "/"} className="flex items-center gap-2.5 flex-shrink-0">
           <Image

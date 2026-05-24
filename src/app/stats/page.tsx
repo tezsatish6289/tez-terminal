@@ -61,10 +61,10 @@ export default function StatsPage() {
         >
           <div
             className={cn(
-              shareView ? "flex flex-col items-center gap-6" : "max-w-[1400px] mx-auto space-y-6 w-full",
+              shareView ? "flex flex-col items-center gap-6" : "max-w-[1200px] mx-auto space-y-6 w-full",
             )}
           >
-            <div className="flex items-center justify-between gap-4 flex-wrap w-full max-w-[1400px]">
+            <div className="flex items-center justify-between gap-4 flex-wrap w-full max-w-[1200px]">
               {!shareView ? (
                 <Link
                   href="/simulation"

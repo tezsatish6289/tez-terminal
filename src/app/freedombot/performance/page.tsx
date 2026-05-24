@@ -27,6 +27,10 @@ import type { CryptoBotId } from "@/lib/crypto-bots";
 import { tradeMatchesSelectedPublicBot } from "@/lib/public-bot-flags";
 import { RiskRatioDrilldowns } from "@/components/stats/RiskRatioDrilldowns";
 import { PerformanceMetricsPanel } from "@/components/stats/PerformanceMetricsPanel";
+import {
+  DASHBOARD_SECTION_INNER,
+  DASHBOARD_SECTION_STACK,
+} from "@/components/stats/dashboard-section-spacing";
 import type { SimTrade } from "@/lib/simulator";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -343,7 +347,8 @@ export default function PerformancePage() {
             </div>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className={DASHBOARD_SECTION_STACK}>
+          <section className={DASHBOARD_SECTION_INNER}>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             <SummaryCard
               label="Running"
@@ -418,7 +423,7 @@ export default function PerformancePage() {
                 />
               </div>
             </div>
-            <p className="text-center">
+            <p className="text-center pt-2">
               <Link
                 href="/records"
                 className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground/55 transition-colors hover:text-accent"
@@ -427,13 +432,17 @@ export default function PerformancePage() {
                 Every trade is permanently recorded on the Solana blockchain — verify independently →
               </Link>
             </p>
-            <MonthlyReturnCharts
-              trades={closedTrades}
-              startingCapital={startCap}
-              cs="$"
-              theme="white"
-            />
           </>
+        )}
+          </section>
+
+        {closedTrades.length >= 2 && (
+          <MonthlyReturnCharts
+            trades={closedTrades}
+            startingCapital={startCap}
+            cs="$"
+            theme="white"
+          />
         )}
 
         <RiskRatioDrilldowns
@@ -446,7 +455,7 @@ export default function PerformancePage() {
 
         {/* ── Methodology CTA (public promise — kept on this page only) ── */}
         <div
-          className="rounded-2xl p-8 sm:p-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mt-4"
+          className="rounded-2xl p-8 sm:p-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mt-12 sm:mt-16"
           style={{ backgroundColor: "rgba(96,165,250,0.04)", border: "1px solid rgba(96,165,250,0.1)" }}
         >
           <div className="space-y-3 max-w-2xl">

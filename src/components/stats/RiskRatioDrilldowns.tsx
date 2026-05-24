@@ -13,6 +13,7 @@ interface RiskRatioDrilldownsProps {
   trades: SimTrade[];
   startingCapital: number;
   assetType: string;
+  className?: string;
   /** @deprecated — styling is unified with /stats */
   theme?: "terminal" | "performance";
 }
@@ -21,6 +22,7 @@ export function RiskRatioDrilldowns({
   trades,
   startingCapital,
   assetType,
+  className,
 }: RiskRatioDrilldownsProps) {
   const [view, setView] = useState<"trade" | "day">("trade");
   const riskFree = assetType === "INDIAN_STOCKS" ? 0.065 : 0;
@@ -38,7 +40,12 @@ export function RiskRatioDrilldowns({
   if (!headline) return null;
 
   return (
-    <section className="mt-10 pt-10 border-t border-white/[0.06] space-y-5">
+    <section
+      className={cn(
+        "space-y-5 border-t border-white/[0.06] pt-10 sm:pt-12",
+        className,
+      )}
+    >
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h2 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/75">
           Ratio history

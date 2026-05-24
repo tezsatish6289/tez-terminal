@@ -50,6 +50,10 @@ import { botSourceLabel } from "@/lib/bot-source-filter";
 import { StatsSocialShareCard } from "@/components/stats/StatsSocialShareCard";
 import { RiskRatioDrilldowns } from "@/components/stats/RiskRatioDrilldowns";
 import { PerformanceMetricsPanel } from "@/components/stats/PerformanceMetricsPanel";
+import {
+  DASHBOARD_SECTION_INNER,
+  DASHBOARD_SECTION_STACK,
+} from "@/components/stats/dashboard-section-spacing";
 
 // ── Formatting helpers (mirrored from /simulation so the two pages
 //    cannot drift apart). Intentionally local — these are presentation
@@ -325,9 +329,11 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       <StatsBotTabs value={botSourceFilter} onChange={setBotSourceFilter} />
 
+      <div className={DASHBOARD_SECTION_STACK}>
+      <section className={DASHBOARD_SECTION_INNER}>
       {/* Headline cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <SummaryCard
@@ -402,6 +408,7 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
           />
         </div>
       </div>
+      </section>
 
       <MonthlyReturnCharts
         trades={filteredClosedTrades}
@@ -415,6 +422,7 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
         startingCapital={simState.startingCapital}
         assetType={assetType}
       />
+      </div>
     </div>
   );
 }

@@ -21,8 +21,8 @@ import { usePublicBots } from "@/hooks/use-public-bots";
 import type { CryptoBotId } from "@/lib/crypto-bots";
 import { tradeMatchesSelectedPublicBot } from "@/lib/public-bot-flags";
 import {
-  annualizeReturn,
-  compoundReturnOverPeriod,
+  calcHeadlineMonthlyReturn,
+  calcHeadlineYearlyReturn,
   MIN_DAYS_FOR_RELIABLE_ANNUALIZATION,
 } from "@/lib/performance-metrics";
 
@@ -34,6 +34,7 @@ interface BotStats {
   startingCapital: number;
   totalReturnPct: number | null;
   profitPerMonth: number | null;
+  profitPerMonthIsActual?: boolean;
   profitPerYear: number | null;
 }
 
@@ -523,6 +524,11 @@ export default function RecordsPage() {
     [trades, matchesSelected],
   );
 
+  const closedTrades = useMemo(
+    () => activeTrades.filter((t) => t.status === "CLOSED" && t.closedAt),
+    [activeTrades],
+  );
+
   const startCap = simState?.startingCapital ?? stats?.startingCapital ?? 1000;
 
   // Per-trade running balance (same shared helper as /simulation, /performance,
@@ -547,20 +553,23 @@ export default function RecordsPage() {
       ? ((currentCapital - startCap) / startCap) * 100
       : 0;
     const runningDays = Math.max(1, stats.runningDays);
-    const totalReturnDecimal = totalReturnPct / 100;
-    const profitPerMonth = compoundReturnOverPeriod(totalReturnDecimal, runningDays, 30) * 100;
-    const profitPerYear  = stats.runningDays >= 365
-      ? totalReturnPct
-      : annualizeReturn(totalReturnDecimal, runningDays) * 100;
+    const monthly = calcHeadlineMonthlyReturn(
+      closedTrades,
+      startCap,
+      runningDays,
+      currentCapital,
+    );
+    const yearly = calcHeadlineYearlyReturn(startCap, runningDays, currentCapital);
     return {
       ...stats,
       startingCapital: startCap,
       currentCapital,
       totalReturnPct,
-      profitPerMonth,
-      profitPerYear,
+      profitPerMonth: monthly.pct,
+      profitPerMonthIsActual: !monthly.isProjected,
+      profitPerYear: yearly.pct,
     } as BotStats;
-  }, [stats, equityCurve.finalCapital, startCap]);
+  }, [stats, equityCurve.finalCapital, startCap, closedTrades]);
 
   const displayStats = filteredStats ?? stats;
 
@@ -654,13 +663,17 @@ export default function RecordsPage() {
                       label="Monthly Return"
                       value={fmt(displayStats?.profitPerMonth ?? null)}
                       color="#60a5fa"
-                      sub={displayStats && displayStats.runningDays < 30 ? "Projected" : undefined}
+                      sub={displayStats && !displayStats.profitPerMonthIsActual ? "Projected" : undefined}
                     />
                     <MetricCard
                       label="Annualized Return"
                       value={fmt(displayStats?.profitPerYear ?? null)}
                       color="#a78bfa"
-                      sub={displayStats && displayStats.runningDays < 365 ? "Projected" : undefined}
+                      sub={
+                        displayStats && (displayStats.runningDays ?? 0) < 365
+                          ? "Projected"
+                          : undefined
+                      }
                       warn={
                         displayStats && displayStats.runningDays < MIN_DAYS_FOR_RELIABLE_ANNUALIZATION
                           ? "Short track record — may be volatile"

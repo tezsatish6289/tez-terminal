@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Rocket } from "lucide-react";
 import type { PublicBotApiRow } from "@/hooks/use-public-bots";
 import type { CryptoBotId } from "@/lib/crypto-bots";
+import { DashboardSectionHeader } from "@/components/freedombot/dashboard/DashboardSectionHeader";
 
 interface CatalogBotStatRow {
   runningDays: number | null;
@@ -15,6 +16,13 @@ function fmtReturnPct(n: number | null | undefined) {
   if (n == null || !Number.isFinite(n)) return "—";
   const sign = n >= 0 ? "+" : "";
   return `${sign}${n.toFixed(2)}%`;
+}
+
+function fmtRunningDays(days: number | null | undefined, isPublished: boolean) {
+  const resolved = days ?? (isPublished ? 1 : null);
+  if (resolved == null) return "—";
+  const n = Math.max(1, resolved);
+  return `${n} ${n === 1 ? "Day" : "Days"}`;
 }
 
 export function BotIcon({ bot, size = 28 }: { bot: PublicBotApiRow; size?: number }) {
@@ -43,6 +51,8 @@ interface BotDiscoverySectionProps {
   publicBots: PublicBotApiRow[];
   onDeploy: () => void;
   showHeading?: boolean;
+  title?: string;
+  description?: string;
 }
 
 type DiscoverMetric = {
@@ -53,23 +63,20 @@ type DiscoverMetric = {
 
 function DiscoverBotCard({
   bot,
-  isLive,
+  isPublished,
   catalogStat,
   onDeploy,
 }: {
   bot: PublicBotApiRow;
-  isLive: boolean;
+  isPublished: boolean;
   catalogStat: CatalogBotStatRow | null;
   onDeploy: () => void;
 }) {
-  const metrics: [DiscoverMetric, DiscoverMetric] = isLive
+  const metrics: [DiscoverMetric, DiscoverMetric] = isPublished
     ? [
         {
           label: "Running",
-          value:
-            catalogStat?.runningDays != null
-              ? `${catalogStat.runningDays} ${catalogStat.runningDays === 1 ? "Day" : "Days"}`
-              : "—",
+          value: fmtRunningDays(catalogStat?.runningDays, true),
           color: "#f0f4ff",
         },
         {
@@ -91,29 +98,13 @@ function DiscoverBotCard({
         },
       ];
 
-  const statusMeta = isLive
-    ? {
-        label: "Live",
-        color: "#22c55e",
-        bg: "rgba(34,197,94,0.1)",
-        border: "rgba(34,197,94,0.25)",
-        pulse: true,
-      }
-    : {
-        label: "Coming Soon",
-        color: "#fbbf24",
-        bg: "rgba(251,191,36,0.12)",
-        border: "rgba(251,191,36,0.25)",
-        pulse: false,
-      };
-
   return (
     <div
-      className="rounded-2xl p-5 flex flex-col"
+      className="rounded-2xl p-5 flex flex-col border border-dashed"
       style={{
-        backgroundColor: "#0a1628",
-        border: `1px solid ${isLive ? "rgba(90,140,220,0.15)" : "rgba(90,140,220,0.12)"}`,
-        opacity: isLive ? 1 : 0.72,
+        backgroundColor: "#080f1e",
+        borderColor: isPublished ? "rgba(90,140,220,0.22)" : "rgba(90,140,220,0.12)",
+        opacity: isPublished ? 1 : 0.72,
       }}
     >
       <div className="flex items-start justify-between gap-3 mb-4">
@@ -121,27 +112,23 @@ function DiscoverBotCard({
           <BotIcon bot={bot} size={36} />
           <div className="min-w-0">
             <p className="text-sm font-black text-white truncate">{bot.label}</p>
-            <div className="flex items-center gap-1.5 mt-1">
-              {statusMeta.pulse && (
+            {!isPublished && (
+              <div className="flex items-center gap-1.5 mt-1">
                 <span
-                  className="h-1.5 w-1.5 rounded-full animate-pulse flex-shrink-0"
-                  style={{ backgroundColor: statusMeta.color }}
-                />
-              )}
-              <span
-                className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
-                style={{
-                  color: statusMeta.color,
-                  backgroundColor: statusMeta.bg,
-                  border: `1px solid ${statusMeta.border}`,
-                }}
-              >
-                {statusMeta.label}
-              </span>
-            </div>
+                  className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
+                  style={{
+                    color: "#fbbf24",
+                    backgroundColor: "rgba(251,191,36,0.12)",
+                    border: "1px solid rgba(251,191,36,0.25)",
+                  }}
+                >
+                  Coming Soon
+                </span>
+              </div>
+            )}
           </div>
         </div>
-        {isLive && (
+        {isPublished && (
           <button
             type="button"
             onClick={onDeploy}
@@ -176,6 +163,8 @@ export function BotDiscoverySection({
   publicBots,
   onDeploy,
   showHeading = true,
+  title = "More Bots",
+  description = "Deploy additional bots to your exchange. Running time and returns reflect each bot's platform track record.",
 }: BotDiscoverySectionProps) {
   const [catalogStats, setCatalogStats] = useState<Partial<Record<CryptoBotId, CatalogBotStatRow>>>(
     {},
@@ -192,15 +181,13 @@ export function BotDiscoverySection({
 
   return (
     <section>
-      {showHeading && (
-        <h2 className="text-lg font-black text-white mb-4">Discover bots</h2>
-      )}
+      {showHeading && <DashboardSectionHeader title={title} description={description} />}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {publicBots.map((bot) => (
           <DiscoverBotCard
             key={bot.id}
             bot={bot}
-            isLive={bot.publicLive}
+            isPublished={bot.publicLive}
             catalogStat={catalogStats[bot.id] ?? null}
             onDeploy={onDeploy}
           />
@@ -209,3 +196,4 @@ export function BotDiscoverySection({
     </section>
   );
 }
+

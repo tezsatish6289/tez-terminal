@@ -16,8 +16,8 @@ import { MonthlyReturnCharts } from "@/components/charts/MonthlyReturnCharts";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import {
-  annualizeReturn,
-  compoundReturnOverPeriod,
+  calcHeadlineMonthlyReturn,
+  calcHeadlineYearlyReturn,
   MIN_DAYS_FOR_RELIABLE_ANNUALIZATION,
 } from "@/lib/performance-metrics";
 import { buildEquityCurve } from "@/lib/equity-curve";
@@ -241,39 +241,23 @@ export default function PerformancePage() {
 
   const totalReturn = startCap > 0 ? ((derivedCapital - startCap) / startCap) * 100 : 0;
 
-  const monthlyPnl = useMemo(() => {
-    if (!simState || runningDays === 0) return { pct: 0, isProjected: true };
-    if (runningDays >= 30 && closedTrades.length > 0) {
-      const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
-      const monthNet = closedTrades.reduce((sum, t) => {
-        if (!t.closedAt || new Date(t.closedAt) < monthStart) return sum;
-        return sum + (t.realizedPnl ?? 0);
-      }, 0);
-      return { pct: (monthNet / simState.startingCapital) * 100, isProjected: false };
-    }
-    const totalReturnDecimal = startCap > 0 ? (derivedCapital - startCap) / startCap : 0;
-    return {
-      pct: compoundReturnOverPeriod(totalReturnDecimal, runningDays, 30) * 100,
-      isProjected: true,
-    };
-  }, [simState, derivedCapital, startCap, runningDays, closedTrades]);
+  const monthlyPnl = useMemo(
+    () =>
+      calcHeadlineMonthlyReturn(
+        closedTrades,
+        startCap,
+        runningDays,
+        derivedCapital,
+      ),
+    [closedTrades, startCap, runningDays, derivedCapital],
+  );
 
   // Annualised return — CAGR shared with calcPerformanceMetrics so Calmar /
   // Sharpe / Sortino and this headline tile stay in lockstep.
-  const yearlyPnl = useMemo(() => {
-    if (!simState || runningDays === 0) {
-      return { pct: 0, isProjected: true, isReliable: false };
-    }
-    const totalReturnDecimal = startCap > 0 ? (derivedCapital - startCap) / startCap : 0;
-    if (runningDays >= 365) {
-      return { pct: totalReturnDecimal * 100, isProjected: false, isReliable: true };
-    }
-    return {
-      pct: annualizeReturn(totalReturnDecimal, runningDays) * 100,
-      isProjected: true,
-      isReliable: runningDays >= MIN_DAYS_FOR_RELIABLE_ANNUALIZATION,
-    };
-  }, [simState, derivedCapital, startCap, runningDays]);
+  const yearlyPnl = useMemo(
+    () => calcHeadlineYearlyReturn(startCap, runningDays, derivedCapital),
+    [startCap, runningDays, derivedCapital],
+  );
 
   const monthlyIsProjected = monthlyPnl.isProjected;
   const yearlyIsProjected  = yearlyPnl.isProjected;

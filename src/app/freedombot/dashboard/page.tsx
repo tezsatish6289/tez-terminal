@@ -12,6 +12,7 @@ import type { TradingPrefs } from "@/lib/freedombot/trading-prefs-shared";
 import {
   BotDiscoverySection,
 } from "@/components/freedombot/dashboard/BotDiscoverySection";
+import { DashboardSectionHeader } from "@/components/freedombot/dashboard/DashboardSectionHeader";
 import {
   RunningBotCards,
   type DashboardDeployment,
@@ -92,7 +93,7 @@ function NotConnected({ onDeploy }: { onDeploy: () => void }) {
         </div>
       </div>
 
-      <BotDiscoverySection publicBots={publicBots} onDeploy={onDeploy} showHeading={false} />
+      <BotDiscoverySection publicBots={publicBots} onDeploy={onDeploy} />
     </div>
   );
 }
@@ -109,7 +110,10 @@ function ConnectedDashboard({
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-10">
       <section>
-        <h2 className="text-lg font-black text-white mb-4">Your bots</h2>
+        <DashboardSectionHeader
+          title="Running Bots"
+          description="Bots you've deployed on your exchange. Click a card to view trades, settings, and performance."
+        />
         <RunningBotCards deployments={deployments} publicBots={publicBots} />
       </section>
 

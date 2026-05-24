@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { AggregateField } from "firebase-admin/firestore";
-import type { CryptoBotId } from "@/lib/crypto-bots";
+import { CRYPTO_BOTS, type CryptoBotId } from "@/lib/crypto-bots";
 import {
   ZONE_BOT_REGISTRY,
   type ZoneBotAsset,
 } from "@/lib/zone-bot-config";
 import { zoneSimStateDoc } from "@/lib/zone-bot-state";
-import { cryptoBotByBotSource } from "@/lib/crypto-bots";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -21,6 +20,12 @@ function totalReturnPctFromEquity(startingCapital: number, currentCapital: numbe
   if (!Number.isFinite(startingCapital) || startingCapital <= 0) return null;
   if (!Number.isFinite(currentCapital)) return null;
   return Math.round(((currentCapital - startingCapital) / startingCapital) * 100 * 100) / 100;
+}
+
+function ensureMinRunningDays(days: number | null, hasStats: boolean): number | null {
+  if (days != null) return Math.max(1, days);
+  if (hasStats) return 1;
+  return null;
 }
 
 type CatalogBotStats = Partial<Record<CryptoBotId, CatalogBotStatRow>>;
@@ -86,51 +91,53 @@ async function zoneBotStats(
 ): Promise<CatalogBotStatRow | null> {
   const simSnap = await db.doc(zoneSimStateDoc(asset)).get();
   if (!simSnap.exists) return null;
-  const data = simSnap.data() as { capital?: number; startingCapital?: number };
+  const data = simSnap.data() as {
+    capital?: number;
+    startingCapital?: number;
+    lastUpdated?: string;
+  };
   const starting = Number(data.startingCapital ?? 0);
   const capital = Number(data.capital ?? starting);
   if (!Number.isFinite(starting) || starting <= 0) return null;
 
+  const totalReturnPct = totalReturnPctFromEquity(starting, capital);
+
   return {
-    runningDays: null,
-    totalReturnPct: totalReturnPctFromEquity(starting, capital),
+    runningDays: runningDaysFromIso(data.lastUpdated ?? null),
+    totalReturnPct,
   };
 }
 
-/** Earliest trade per catalog bot — fills runningDays for zone bots. */
-async function earliestTradeDaysByBot(
+/** Earliest trade per catalog bot (one query per botSource). */
+async function runningDaysByBotId(
   db: FirebaseFirestore.Firestore,
 ): Promise<Partial<Record<CryptoBotId, number>>> {
   const out: Partial<Record<CryptoBotId, number>> = {};
-  try {
-    const snap = await db
-      .collection("simulator_trades")
-      .where("assetType", "==", "CRYPTO")
-      .orderBy("openedAt", "asc")
-      .select("openedAt", "botSource")
-      .limit(500)
-      .get();
 
-    const earliestByBot = new Map<CryptoBotId, string>();
-    for (const doc of snap.docs) {
-      const d = doc.data() as { openedAt?: string; botSource?: string | null };
-      const openedAt = typeof d.openedAt === "string" ? d.openedAt : null;
-      if (!openedAt) continue;
-      const bot = cryptoBotByBotSource(d.botSource);
-      const id = bot?.id ?? "crypto";
-      if (!earliestByBot.has(id)) earliestByBot.set(id, openedAt);
-    }
+  await Promise.all(
+    CRYPTO_BOTS.map(async (bot) => {
+      try {
+        const snap = await db
+          .collection("simulator_trades")
+          .where("assetType", "==", "CRYPTO")
+          .where("botSource", "==", bot.botSource)
+          .orderBy("openedAt", "asc")
+          .limit(1)
+          .select("openedAt")
+          .get();
+        if (snap.empty) return;
+        const openedAt = (snap.docs[0].data() as { openedAt?: string }).openedAt;
+        const days = runningDaysFromIso(typeof openedAt === "string" ? openedAt : null);
+        if (days != null) out[bot.id] = days;
+      } catch (e) {
+        console.warn(
+          `[catalog-bot-stats] running days for ${bot.id}:`,
+          e instanceof Error ? e.message : String(e),
+        );
+      }
+    }),
+  );
 
-    for (const [id, iso] of earliestByBot) {
-      const days = runningDaysFromIso(iso);
-      if (days != null) out[id] = days;
-    }
-  } catch (e) {
-    console.warn(
-      "[catalog-bot-stats] earliest trade scan failed:",
-      e instanceof Error ? e.message : String(e),
-    );
-  }
   return out;
 }
 
@@ -152,21 +159,29 @@ export async function GET() {
           return [asset, row] as const;
         }),
       ),
-      earliestTradeDaysByBot(db),
+      runningDaysByBotId(db),
     ]);
 
     if (cryptoRow) {
+      const hasStats = cryptoRow.totalReturnPct != null;
       stats.crypto = {
         ...cryptoRow,
-        runningDays: cryptoRow.runningDays ?? runningByBot.crypto ?? null,
+        runningDays: ensureMinRunningDays(
+          cryptoRow.runningDays ?? runningByBot.crypto ?? null,
+          hasStats,
+        ),
       };
     }
 
     for (const [asset, row] of zoneRows) {
       if (!row) continue;
+      const hasStats = row.totalReturnPct != null;
       stats[asset] = {
         ...row,
-        runningDays: runningByBot[asset] ?? row.runningDays,
+        runningDays: ensureMinRunningDays(
+          runningByBot[asset] ?? row.runningDays,
+          hasStats,
+        ),
       };
     }
 

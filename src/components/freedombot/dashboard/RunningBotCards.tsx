@@ -31,8 +31,9 @@ function botLabel(deployKey: string, publicBots: PublicBotApiRow[]): string {
 }
 
 function runningDays(createdAt: string | null): number {
-  if (!createdAt) return 0;
-  return Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24));
+  if (!createdAt) return 1;
+  const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24));
+  return Math.max(1, days);
 }
 
 function displayStatus(d: DashboardDeployment): DisplayStatus {
@@ -120,10 +121,14 @@ export function RunningBotCards({ deployments, publicBots }: RunningBotCardsProp
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="group rounded-2xl p-5 transition-all hover:scale-[1.02] hover:shadow-lg"
+            className="group rounded-2xl p-5 transition-all hover:scale-[1.02]"
             style={{
-              backgroundColor: "#0a1628",
-              border: `1px solid ${status === "disconnected" ? "rgba(248,113,113,0.2)" : "rgba(90,140,220,0.15)"}`,
+              backgroundColor: "#0c1a30",
+              border: `1px solid ${status === "disconnected" ? "rgba(248,113,113,0.35)" : "rgba(59,130,246,0.35)"}`,
+              boxShadow:
+                status === "disconnected"
+                  ? "none"
+                  : "0 0 0 1px rgba(59,130,246,0.08), 0 8px 28px rgba(0,0,0,0.25)",
               opacity: status === "disconnected" ? 0.85 : 1,
             }}
           >

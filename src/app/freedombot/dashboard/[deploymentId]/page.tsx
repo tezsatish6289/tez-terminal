@@ -408,7 +408,8 @@ export default function BotDetailPage() {
             } else if (data.pnlReconciled === true) {
               toast({ title: "P&L synced", description: "Updated from the exchange." });
             }
-            await fetchUserTrades(deployment.exchange, false);
+            await fetchUserTrades(deployment.exchange, true);
+            void fetchDeployment();
           }}
           emptyTitle="No trades yet"
           emptySubtitle="Trades will appear here once your bot starts placing orders"

@@ -22,6 +22,9 @@ import {
   type DashboardSummaryData,
 } from "@/components/freedombot/dashboard/DashboardSummary";
 import { freedombotDashboardBase } from "@/lib/freedombot/dashboard-path";
+import { CRYPTO_PERP_EXCHANGES } from "@/lib/crypto-bots";
+
+const CRYPTO_EXCHANGES = new Set<string>(CRYPTO_PERP_EXCHANGES);
 
 interface Deployment extends DashboardDeployment {
   keyLastFour?: string | null;
@@ -182,34 +185,70 @@ function FreedomBotDashboardInner() {
     document.head.appendChild(link);
   }, []);
 
-  const fetchDeployment = useCallback(async () => {
-    if (!user) return;
-    try {
-      const idToken = await user.getIdToken();
-      const res = await fetch("/api/freedombot/my-deployment", {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      const data = await res.json();
-      const list: Deployment[] = Array.isArray(data.deployments)
-        ? data.deployments
-        : data.deployment
-          ? [data.deployment]
-          : [];
-      setDeployments(list);
-      const apiSummary = data.summary as DashboardSummaryData | undefined;
-      setSummary({
-        lifetimeRealizedPnl:
-          typeof apiSummary?.lifetimeRealizedPnl === "number"
-            ? apiSummary.lifetimeRealizedPnl
-            : list.reduce((sum, d) => sum + (d.lifetimeRealizedPnl ?? 0), 0),
-        firstBot: apiSummary?.firstBot ?? null,
-        exchanges: Array.isArray(apiSummary?.exchanges) ? apiSummary.exchanges : [],
-      });
-    } catch {
-      setDeployments([]);
-      setSummary({ lifetimeRealizedPnl: 0, firstBot: null, exchanges: [] });
-    }
-  }, [user]);
+  const applyDeploymentPayload = useCallback((data: Record<string, unknown>) => {
+    const list: Deployment[] = Array.isArray(data.deployments)
+      ? (data.deployments as Deployment[])
+      : data.deployment
+        ? [data.deployment as Deployment]
+        : [];
+    setDeployments(list);
+    const apiSummary = data.summary as DashboardSummaryData | undefined;
+    setSummary({
+      lifetimeRealizedPnl:
+        typeof apiSummary?.lifetimeRealizedPnl === "number"
+          ? apiSummary.lifetimeRealizedPnl
+          : list.reduce((sum, d) => sum + (d.lifetimeRealizedPnl ?? 0), 0),
+      firstBot: apiSummary?.firstBot ?? null,
+      exchanges: Array.isArray(apiSummary?.exchanges) ? apiSummary.exchanges : [],
+    });
+  }, []);
+
+  const fetchDeployment = useCallback(
+    async (options?: { reconcile?: boolean }) => {
+      if (!user) return;
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch("/api/freedombot/my-deployment", {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        const data = await res.json();
+        applyDeploymentPayload(data);
+
+        if (!options?.reconcile) return;
+
+        const list: Deployment[] = Array.isArray(data.deployments)
+          ? (data.deployments as Deployment[])
+          : data.deployment
+            ? [data.deployment as Deployment]
+            : [];
+        const exchanges = [
+          ...new Set(
+            list
+              .map((d) => String(d.exchange ?? "").toUpperCase())
+              .filter((ex) => CRYPTO_EXCHANGES.has(ex)),
+          ),
+        ];
+
+        await Promise.all(
+          exchanges.map((exchange) =>
+            fetch(
+              `/api/freedombot/my-trades?reconcile=1&exchange=${encodeURIComponent(exchange)}`,
+              { headers: { Authorization: `Bearer ${idToken}` } },
+            ).catch(() => null),
+          ),
+        );
+
+        const res2 = await fetch("/api/freedombot/my-deployment", {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        applyDeploymentPayload(await res2.json());
+      } catch {
+        setDeployments([]);
+        setSummary({ lifetimeRealizedPnl: 0, firstBot: null, exchanges: [] });
+      }
+    },
+    [user, applyDeploymentPayload],
+  );
 
   const autoTestedDeploymentsRef = useRef<Set<string>>(new Set());
 
@@ -263,13 +302,28 @@ function FreedomBotDashboardInner() {
   }, [user, deployments, refreshWalletForDeployment]);
 
   useEffect(() => {
-    void fetchDeployment();
+    void fetchDeployment({ reconcile: true });
+  }, [fetchDeployment]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void fetchDeployment({ reconcile: true });
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", refresh);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", refresh);
+    };
   }, [fetchDeployment]);
 
   const handleDeployClose = useCallback(() => {
     setDeployOpen(false);
     autoTestedDeploymentsRef.current.clear();
-    void fetchDeployment();
+    void fetchDeployment({ reconcile: true });
   }, [fetchDeployment]);
 
   if (isUserLoading || deployments === undefined || summary === undefined) {

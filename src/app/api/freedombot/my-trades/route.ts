@@ -9,6 +9,7 @@ import {
 import { isExchangeSupported, type ExchangeName } from "@/lib/exchanges";
 import { bestRealizedPnl } from "@/lib/freedombot/compute-best-pnl";
 import { getDeploymentAggregates, tradeMatchesDeployBot } from "@/lib/freedombot/aggregates";
+import { resolveStopLossByTradeId } from "@/lib/freedombot/resolve-trade-stop-loss";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +81,8 @@ export async function GET(req: NextRequest) {
       .where("userId", "==", uid)
       .get();
 
+    const stopLossByTradeId = await resolveStopLossByTradeId(db, snap.docs);
+
     const scopeToVenue =
       exchangeParam.length > 0 && isExchangeSupported(exchangeParam)
         ? (exchangeParam as ExchangeName)
@@ -127,7 +130,7 @@ export async function GET(req: NextRequest) {
           leverage: t.leverage ?? 1,
           entryPrice: t.entryPrice ?? null,
           currentPrice: t.exchangeAvgExitPrice ?? t.currentPrice ?? null,
-          stopLoss: typeof t.stopLoss === "number" ? t.stopLoss : null,
+          stopLoss: stopLossByTradeId.get(d.id) ?? null,
           trailingSl: typeof t.trailingSl === "number" ? t.trailingSl : null,
           capitalAtEntry: t.capitalAtEntry ?? null,
           blockchainTxHash: t.blockchainTxHash ?? null,

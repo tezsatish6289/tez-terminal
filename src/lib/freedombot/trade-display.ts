@@ -81,25 +81,21 @@ export function tradeNotionalUsd(t: Trade): number | null {
   return t.positionSize;
 }
 
-/** Effective stop for risk: trailing level on open trades, else hard SL. */
-export function tradeEffectiveStopLoss(t: Trade): number | null {
-  if (t.status === "open") {
-    const trail = t.trailingSl;
-    if (typeof trail === "number" && trail > 0 && Number.isFinite(trail)) return trail;
-  }
+/** Original stop at entry (not trailing/breakeven — used for Risk column). */
+export function tradeOriginalStopLoss(t: Trade): number | null {
   const sl = t.stopLoss;
   if (typeof sl === "number" && sl > 0 && Number.isFinite(sl)) return sl;
   return null;
 }
 
 /**
- * Max loss if the position hits the effective stop (same basis as entry sizing:
- * riskAmount = notional × |entry − SL| / entry).
+ * Max loss to the original stop at entry (same basis as position sizing:
+ * riskAmount = notional × |entry − SL| / entry). Ignores trailing SL at breakeven.
  */
 export function tradeCapitalAtRiskUsd(t: Trade): number | null {
   const notional = tradeNotionalUsd(t);
   const entry = t.entryPrice;
-  const sl = tradeEffectiveStopLoss(t);
+  const sl = tradeOriginalStopLoss(t);
   if (notional == null || entry == null || entry <= 0 || sl == null) return null;
 
   const side = String(t.side ?? "").toUpperCase();

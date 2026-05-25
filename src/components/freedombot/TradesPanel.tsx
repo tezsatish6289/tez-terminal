@@ -36,10 +36,10 @@ const COLUMNS = "1.35fr 1.15fr 0.85fr 0.85fr 0.5fr 0.95fr 0.8fr 0.95fr 0.7fr";
 const HEADER_LABELS: Array<{ label: string; tip: string }> = [
   { label: "Entry | Exit Time", tip: "" },
   { label: "Side & Symbol", tip: "" },
-  { label: "Notional", tip: "Total position value (entry price × quantity)." },
+  { label: "Position size", tip: "Total position value in USD (entry price × quantity)." },
   {
-    label: "Capital at Risk",
-    tip: "Maximum loss if the effective stop is hit: notional × distance from entry to stop (uses trailing stop when set). Matches how position size is sized from your risk %.",
+    label: "Risk",
+    tip: "Maximum loss to your original stop at entry (notional × distance from entry to stop). Stays visible even after the stop moves to breakeven on the exchange.",
   },
   { label: "Lev", tip: "Leverage multiplier set at entry." },
   { label: "Entry | Exit Price", tip: "" },
@@ -272,7 +272,7 @@ function TradeRow({ trade, isLast, cumulative, isRefreshing, onRefresh }: TradeR
               : "—"}
           </span>
           <span className="text-[10px] font-mono" style={{ color: "#334155" }}>
-            {formatUsd(notional)} notional · {formatUsd(capitalAtRisk)} at risk · {trade.leverage}x
+            {formatUsd(notional)} size · {formatUsd(capitalAtRisk)} risk · {trade.leverage}x
           </span>
         </div>
         <div className="flex flex-col items-end gap-1">

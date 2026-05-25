@@ -3,6 +3,7 @@ import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
 import { bestRealizedPnl } from "@/lib/freedombot/compute-best-pnl";
 import { getDeploymentAggregates, tradeMatchesDeployBot } from "@/lib/freedombot/aggregates";
+import { resolveStopLossByTradeId } from "@/lib/freedombot/resolve-trade-stop-loss";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +92,7 @@ export async function GET(
     const filteredDocs = docs.filter((d) =>
       tradeMatchesDeployBot(d.data(), deployBot),
     );
+    const stopLossByTradeId = await resolveStopLossByTradeId(db, filteredDocs);
     const totalCount = aggregates
       ? aggregates.openTradeCount + aggregates.closedTradeCount
       : null;
@@ -133,7 +135,7 @@ export async function GET(
         leverage: t.leverage ?? 1,
         entryPrice: t.entryPrice ?? null,
         currentPrice: t.exchangeAvgExitPrice ?? t.currentPrice ?? null,
-        stopLoss: typeof t.stopLoss === "number" ? t.stopLoss : null,
+        stopLoss: stopLossByTradeId.get(d.id) ?? null,
         trailingSl: typeof t.trailingSl === "number" ? t.trailingSl : null,
         capitalAtEntry: t.capitalAtEntry ?? null,
         blockchainTxHash: t.blockchainTxHash ?? null,

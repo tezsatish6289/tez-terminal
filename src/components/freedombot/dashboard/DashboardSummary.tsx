@@ -2,9 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { User } from "firebase/auth";
-import type { PublicBotApiRow } from "@/hooks/use-public-bots";
-import { CRYPTO_BOTS } from "@/lib/crypto-bots";
-import { exchangeLabel } from "@/components/freedombot/dashboard/exchange-labels";
+import { ExchangeIcon } from "@/components/freedombot/dashboard/ExchangeIcon";
 import type { DashboardDeployment } from "@/components/freedombot/dashboard/RunningBotCards";
 
 export interface DashboardSummaryData {
@@ -31,13 +29,6 @@ function formatMonthYear(iso: string | null | undefined): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-}
-
-function botLabel(deployKey: string, publicBots: PublicBotApiRow[]): string {
-  const fromRegistry = publicBots.find((b) => b.deployKey === deployKey);
-  if (fromRegistry) return fromRegistry.label;
-  const fromCatalog = CRYPTO_BOTS.find((b) => b.deployKey === deployKey);
-  return fromCatalog?.label ?? deployKey;
 }
 
 function countRunningBots(deployments: DashboardDeployment[]): number {
@@ -73,9 +64,9 @@ function StatCell({
       >
         {label}
       </p>
-      <p className="text-base sm:text-lg font-black leading-snug" style={{ color: valueColor ?? "#f0f4ff" }}>
+      <div className="text-base sm:text-lg font-black leading-snug" style={{ color: valueColor ?? "#f0f4ff" }}>
         {value}
-      </p>
+      </div>
     </div>
   );
 }
@@ -84,14 +75,12 @@ interface DashboardSummaryProps {
   user: User;
   deployments: DashboardDeployment[];
   summary: DashboardSummaryData;
-  publicBots: PublicBotApiRow[];
 }
 
 export function DashboardSummary({
   user,
   deployments,
   summary,
-  publicBots,
 }: DashboardSummaryProps) {
   const joinedAt = user.metadata?.creationTime ?? null;
   const pnl = summary.lifetimeRealizedPnl;
@@ -102,18 +91,8 @@ export function DashboardSummary({
     summary.exchanges.length > 0
       ? summary.exchanges
       : uniqueExchangesFromDeployments(deployments);
-  const exchangeNames = exchanges.map(exchangeLabel);
 
-  const firstBotLabel = summary.firstBot
-    ? botLabel(summary.firstBot.bot, publicBots)
-    : null;
-  const firstBotExchange = summary.firstBot
-    ? exchangeLabel(summary.firstBot.exchange)
-    : null;
-  const firstBotValue =
-    firstBotLabel && firstBotExchange
-      ? `${firstBotLabel} · ${firstBotExchange} · ${formatMonthYear(summary.firstBot?.deployedAt)}`
-      : "—";
+  const firstBotDate = formatMonthYear(summary.firstBot?.deployedAt);
 
   return (
     <section
@@ -135,11 +114,7 @@ export function DashboardSummary({
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-5">
         <StatCell label="Joined" value={formatMonthYear(joinedAt)} />
-        <StatCell
-          label="First bot"
-          value={firstBotValue}
-          className="col-span-2 sm:col-span-1 lg:col-span-1"
-        />
+        <StatCell label="First bot" value={firstBotDate} />
         <StatCell
           label="Lifetime P&L"
           value={`${pnlPositive ? "+" : "−"}$${Math.abs(pnl).toFixed(2)}`}
@@ -151,11 +126,19 @@ export function DashboardSummary({
         <StatCell
           label="Exchanges"
           value={
-            exchanges.length === 0
-              ? "—"
-              : `${exchanges.length} · ${exchangeNames.join(", ")}`
+            exchanges.length === 0 ? (
+              "—"
+            ) : (
+              <div className="flex items-center gap-2.5 min-h-[28px]">
+                <span>{exchanges.length}</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {exchanges.map((ex) => (
+                    <ExchangeIcon key={ex} exchange={ex} size={26} />
+                  ))}
+                </div>
+              </div>
+            )
           }
-          className="col-span-2 sm:col-span-3 lg:col-span-1"
         />
       </div>
     </section>

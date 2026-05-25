@@ -121,7 +121,6 @@ function ConnectedDashboard({
         user={user}
         deployments={deployments}
         summary={summary}
-        publicBots={publicBots}
       />
 
       <section>

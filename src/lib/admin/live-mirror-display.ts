@@ -55,6 +55,8 @@ export function liveDocToMirrorTrade(
     leverage: (t.leverage as number) ?? 1,
     entryPrice: (t.entryPrice as number) ?? null,
     currentPrice: (t.exchangeAvgExitPrice as number) ?? (t.currentPrice as number) ?? null,
+    stopLoss: typeof t.stopLoss === "number" ? t.stopLoss : null,
+    trailingSl: typeof t.trailingSl === "number" ? t.trailingSl : null,
     capitalAtEntry: (t.capitalAtEntry as number) ?? null,
     blockchainTxHash: (t.blockchainTxHash as string) ?? null,
     openedAt: (t.openedAt as string) ?? null,

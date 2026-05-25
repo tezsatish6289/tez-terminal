@@ -40,6 +40,9 @@ export interface Trade {
   leverage: number;
   entryPrice: number | null;
   currentPrice: number | null;
+  stopLoss?: number | null;
+  /** Active protective stop (breakeven / trailing); used for open-trade risk. */
+  trailingSl?: number | null;
   capitalAtEntry?: number | null;
   blockchainTxHash?: string | null;
   openedAt: string | null;
@@ -78,12 +81,39 @@ export function tradeNotionalUsd(t: Trade): number | null {
   return t.positionSize;
 }
 
-/** Isolated margin allocated ≈ notional ÷ leverage. */
+/** Effective stop for risk: trailing level on open trades, else hard SL. */
+export function tradeEffectiveStopLoss(t: Trade): number | null {
+  if (t.status === "open") {
+    const trail = t.trailingSl;
+    if (typeof trail === "number" && trail > 0 && Number.isFinite(trail)) return trail;
+  }
+  const sl = t.stopLoss;
+  if (typeof sl === "number" && sl > 0 && Number.isFinite(sl)) return sl;
+  return null;
+}
+
+/**
+ * Max loss if the position hits the effective stop (same basis as entry sizing:
+ * riskAmount = notional × |entry − SL| / entry).
+ */
 export function tradeCapitalAtRiskUsd(t: Trade): number | null {
   const notional = tradeNotionalUsd(t);
-  const lev = t.leverage;
-  if (notional == null || !lev || lev <= 0) return null;
-  return notional / lev;
+  const entry = t.entryPrice;
+  const sl = tradeEffectiveStopLoss(t);
+  if (notional == null || entry == null || entry <= 0 || sl == null) return null;
+
+  const side = String(t.side ?? "").toUpperCase();
+  const isLong = side === "LONG" || side === "BUY";
+  let lossFraction: number;
+  if (isLong) {
+    if (sl >= entry) return 0;
+    lossFraction = (entry - sl) / entry;
+  } else {
+    if (sl <= entry) return 0;
+    lossFraction = (sl - entry) / entry;
+  }
+  if (lossFraction <= 0 || !Number.isFinite(lossFraction)) return null;
+  return Math.round(notional * lossFraction * 100) / 100;
 }
 
 // ── Time helpers ────────────────────────────────────────────────────────────

@@ -39,7 +39,7 @@ const HEADER_LABELS: Array<{ label: string; tip: string }> = [
   { label: "Notional", tip: "Total position value (entry price × quantity)." },
   {
     label: "Capital at Risk",
-    tip: "Margin allocated for this trade (notional ÷ leverage). Your configured risk % sizes the position from stop-loss distance — not from leverage alone.",
+    tip: "Maximum loss if the effective stop is hit: notional × distance from entry to stop (uses trailing stop when set). Matches how position size is sized from your risk %.",
   },
   { label: "Lev", tip: "Leverage multiplier set at entry." },
   { label: "Entry | Exit Price", tip: "" },

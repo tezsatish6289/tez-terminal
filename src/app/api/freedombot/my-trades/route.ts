@@ -127,6 +127,8 @@ export async function GET(req: NextRequest) {
           leverage: t.leverage ?? 1,
           entryPrice: t.entryPrice ?? null,
           currentPrice: t.exchangeAvgExitPrice ?? t.currentPrice ?? null,
+          stopLoss: typeof t.stopLoss === "number" ? t.stopLoss : null,
+          trailingSl: typeof t.trailingSl === "number" ? t.trailingSl : null,
           capitalAtEntry: t.capitalAtEntry ?? null,
           blockchainTxHash: t.blockchainTxHash ?? null,
           openedAt: t.openedAt ?? null,

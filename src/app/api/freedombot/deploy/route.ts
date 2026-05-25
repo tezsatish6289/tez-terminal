@@ -320,11 +320,16 @@ export async function POST(req: NextRequest) {
       });
 
       if (validatedBalance) {
-        await persistWalletBalanceSnapshot(deployRef, exchangeName, {
-          ok: true,
-          total: validatedBalance.total,
-          available: validatedBalance.available,
-        });
+        await persistWalletBalanceSnapshot(
+          deployRef,
+          exchangeName,
+          {
+            ok: true,
+            total: validatedBalance.total,
+            available: validatedBalance.available,
+          },
+          db,
+        );
       }
 
       return NextResponse.json({
@@ -369,11 +374,16 @@ export async function POST(req: NextRequest) {
     // Lets the admin dashboard show the live wallet balance the moment the
     // deployment appears, without waiting for the next cron tick.
     if (validatedBalance) {
-      await persistWalletBalanceSnapshot(docRef, exchange as ExchangeName, {
-        ok: true,
-        total: validatedBalance.total,
-        available: validatedBalance.available,
-      });
+      await persistWalletBalanceSnapshot(
+        docRef,
+        exchange as ExchangeName,
+        {
+          ok: true,
+          total: validatedBalance.total,
+          available: validatedBalance.available,
+        },
+        db,
+      );
     }
 
     return NextResponse.json({ success: true, deploymentId });

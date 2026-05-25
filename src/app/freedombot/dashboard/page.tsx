@@ -21,6 +21,7 @@ import {
   DashboardSummary,
   type DashboardSummaryData,
 } from "@/components/freedombot/dashboard/DashboardSummary";
+import { ExchangeCapitalCurve } from "@/components/freedombot/dashboard/ExchangeCapitalCurve";
 import { freedombotDashboardBase } from "@/lib/freedombot/dashboard-path";
 import { CRYPTO_PERP_EXCHANGES } from "@/lib/crypto-bots";
 
@@ -117,6 +118,11 @@ function ConnectedDashboard({
   onDeploy: () => void;
 }) {
   const { bots: publicBots } = usePublicBots();
+  const fetchToken = useCallback(() => user.getIdToken(), [user]);
+  const exchanges =
+    summary.exchanges.length > 0
+      ? summary.exchanges
+      : [...new Set(deployments.map((d) => d.exchange).filter(Boolean))];
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-10">
@@ -125,6 +131,8 @@ function ConnectedDashboard({
         deployments={deployments}
         summary={summary}
       />
+
+      <ExchangeCapitalCurve exchanges={exchanges} fetchToken={fetchToken} />
 
       <section>
         <DashboardSectionHeader

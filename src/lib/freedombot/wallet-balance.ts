@@ -27,6 +27,7 @@
  */
 
 import type { DocumentReference, Firestore } from "firebase-admin/firestore";
+import { appendWalletSnapshot } from "@/lib/freedombot/capital-ledger";
 import {
   getConnector,
   type ExchangeCredentials,
@@ -127,7 +128,6 @@ export async function refreshDeploymentWalletBalance(
   creds: ExchangeCredentials,
   opts?: RefreshWalletOptions,
 ): Promise<RefreshWalletResult> {
-  void db; // reserved for future telemetry; keep signature stable
 
   const currency = walletCurrencyFor(exchange);
 
@@ -192,6 +192,22 @@ export async function refreshDeploymentWalletBalance(
     );
   }
 
+  if (patch.walletStatus === "valid" && patch.walletTotal != null) {
+    try {
+      const depSnap = await deploymentRef.get();
+      const uid = depSnap.data()?.uid as string | undefined;
+      const ex = String(depSnap.data()?.exchange ?? exchange).toUpperCase();
+      if (uid) {
+        await appendWalletSnapshot(db, uid, ex, patch.walletTotal, patch.walletCheckedAt, {
+          deploymentId: deploymentRef.id,
+          source: "wallet_refresh",
+        });
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
   return {
     ok: patch.walletStatus === "valid",
     skipped: false,
@@ -213,6 +229,7 @@ export async function persistWalletBalanceSnapshot(
   result:
     | { ok: true; total: number; available: number }
     | { ok: false; error: string },
+  db?: Firestore,
 ): Promise<DeploymentWalletFields> {
   const patch = buildWalletPatch(exchange, result);
   const writePayload: Record<string, unknown> = {
@@ -234,5 +251,22 @@ export async function persistWalletBalanceSnapshot(
       }`,
     );
   }
+
+  if (db && patch.walletStatus === "valid" && patch.walletTotal != null) {
+    try {
+      const depSnap = await deploymentRef.get();
+      const uid = depSnap.data()?.uid as string | undefined;
+      const ex = String(depSnap.data()?.exchange ?? exchange).toUpperCase();
+      if (uid) {
+        await appendWalletSnapshot(db, uid, ex, patch.walletTotal, patch.walletCheckedAt, {
+          deploymentId: deploymentRef.id,
+          source: "deploy",
+        });
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
   return patch;
 }

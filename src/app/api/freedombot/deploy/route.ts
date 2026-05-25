@@ -308,6 +308,11 @@ export async function POST(req: NextRequest) {
 
     if (pausedDocs.length > 0) {
       const deployRef = pausedDocs[0].ref;
+      // Per-deployment cap lives on the deployment doc itself (was the
+      // secrets doc historically — see `deployment-cap.ts`). We always
+      // persist the user-submitted prefs on resume so an updated
+      // BotSettings change carries through, and we tag the doc as
+      // `user_deploy` so the public dashboard surfaces it.
       await deployRef.update({
         status: "active",
         resumedAt: new Date().toISOString(),
@@ -317,6 +322,8 @@ export async function POST(req: NextRequest) {
         ...(exchangeUid ? { exchangeUid } : {}),
         email: decoded.email ?? null,
         displayName: decoded.name ?? null,
+        tradingPrefs,
+        source: "user_deploy",
       });
 
       if (validatedBalance) {
@@ -340,6 +347,10 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Create new deployment record ──────────────────────────────────────────
+    // `tradingPrefs` and `source` are the per-deployment fields that
+    // replaced the legacy `secrets.{maxConcurrentTrades,riskPerTrade,
+    // dailyLossLimit}` model. See `src/lib/freedombot/deployment-cap.ts`
+    // for the read fallback chain and why they live here.
     const docRef = await db.collection("bot_deployments").add({
       uid,
       email: decoded.email ?? null,
@@ -351,6 +362,8 @@ export async function POST(req: NextRequest) {
       ...(exchangeUid ? { exchangeUid } : {}),
       status: "active",
       createdAt: new Date(),
+      tradingPrefs,
+      source: "user_deploy",
     });
     const deploymentId = docRef.id;
     const deployedAt = new Date().toISOString();

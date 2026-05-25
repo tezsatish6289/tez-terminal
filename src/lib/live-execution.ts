@@ -22,6 +22,11 @@ import { userOptedIntoBot } from "./freedombot/zone-bot-subscription";
 import { resolveRiskPerTrade } from "./freedombot/trading-prefs-shared";
 import { isDailyLossHaltedToday } from "./freedombot/daily-loss-gate";
 import { isLiveMirroringEnabledForBotSource } from "./bot-policy";
+import {
+  defaultMaxConcurrentForBot,
+  deployKeyForBotSource,
+  tradingPrefsFromDeployment,
+} from "./freedombot/deployment-cap";
 
 /**
  * Execute a trade for ALL users who have autoTradeEnabled on any supported exchange.
@@ -98,10 +103,46 @@ export async function executeForAllUsers(
     exchange: ExchangeName;
     creds: Credentials;
     effectiveSimTrade: SimTrade;
-    maxConcurrentTrades?: number;
+    /** Effective per-(user, exchange, bot) cap resolved from the
+     *  deployment doc (or fallback secrets / per-bot default). See
+     *  `src/lib/freedombot/deployment-cap.ts`. */
+    maxConcurrentTrades: number;
   }
 
   const tasks: UserExecutionTask[] = [];
+
+  // ── Batch-load deployments for this bot so cap lookups are O(1) ──
+  // Old model: cap lived on the secrets doc (one number per exchange,
+  // shared across every bot a user ran on that venue). After the
+  // migration, the authoritative value is per-deployment, so we need
+  // to know which deployment doc owns each (uid, exchange) task before
+  // building tasks. One query per signal here beats N queries during
+  // task creation; the index by uid::exchange below stays cheap.
+  const deployKeyForCap = deployKeyForBotSource(botSource);
+  const capDefaultForBot = defaultMaxConcurrentForBot(deployKeyForCap);
+  const deploymentCapByUidExchange = new Map<string, number>();
+  try {
+    const deploySnap = await db
+      .collection("bot_deployments")
+      .where("bot", "==", deployKeyForCap)
+      .get();
+    for (const doc of deploySnap.docs) {
+      const data = doc.data();
+      const status = String(data.status ?? "").toLowerCase();
+      if (status !== "active") continue;
+      const uidVal = String(data.uid ?? "");
+      const exVal = String(data.exchange ?? "");
+      if (!uidVal || !exVal) continue;
+      const prefs = tradingPrefsFromDeployment(data, deployKeyForCap);
+      deploymentCapByUidExchange.set(`${uidVal}::${exVal}`, prefs.maxConcurrentTrades);
+    }
+  } catch (e) {
+    console.warn(
+      `[LiveExec] deployment cap pre-fetch failed (${deployKeyForCap}): ${
+        e instanceof Error ? e.message : String(e)
+      } — falling back to secrets+default per task.`,
+    );
+  }
 
   // Discover auto-trade users via a single collection-group query on the
   // `secrets` subcollection. Iterating `collection("users").get()` and then
@@ -263,6 +304,22 @@ export async function executeForAllUsers(
           ? { ...simTrade, leverage: getDhanLeverage(simTrade.timeframe) }
           : simTrade;
 
+        // Resolve the effective cap for this (uid, exchange, bot)
+        // bucket. Preference order matches `resolveDeploymentCap`:
+        //   1. deployment doc's `tradingPrefs.maxConcurrentTrades`
+        //      (already loaded into `deploymentCapByUidExchange`),
+        //   2. legacy `secrets.maxConcurrentTrades` (one-per-exchange
+        //      number, kept for back-compat until the backfill runs),
+        //   3. per-bot platform default (Crypto=3, zones=1).
+        let resolvedCap = deploymentCapByUidExchange.get(`${userId}::${exchangeName}`);
+        if (resolvedCap == null || resolvedCap <= 0) {
+          if (typeof data.maxConcurrentTrades === "number" && data.maxConcurrentTrades > 0) {
+            resolvedCap = Math.trunc(data.maxConcurrentTrades);
+          } else {
+            resolvedCap = capDefaultForBot;
+          }
+        }
+
         tasks.push({
           userId,
           exchange: exchangeName,
@@ -274,11 +331,7 @@ export async function executeForAllUsers(
             exchangeSegment: isStock ? getExchangeSegment(signalExchange) : undefined,
             riskPerTradePct: resolveRiskPerTrade(data.riskPerTrade),
           },
-          maxConcurrentTrades:
-            typeof data.maxConcurrentTrades === "number" &&
-            data.maxConcurrentTrades > 0
-              ? data.maxConcurrentTrades
-              : undefined,
+          maxConcurrentTrades: resolvedCap,
         });
         seen.add(dedupeKey);
       } catch (e) {
@@ -366,24 +419,29 @@ export async function executeForAllUsers(
 
       const maxOpen = task.maxConcurrentTrades;
       if (maxOpen != null && maxOpen > 0) {
+        // Count OPEN trades only for THIS bot's bucket. Before the
+        // migration the query was per (uid, exchange), which let
+        // Crypto Bot's filled slot block every zone bot's entries on
+        // the same venue. Each bot now has its own quota.
         const openSnap = await db
           .collection("live_trades")
           .where("userId", "==", task.userId)
           .where("exchange", "==", task.exchange)
+          .where("botSource", "==", botSource)
           .where("status", "==", "OPEN")
           .get();
         if (openSnap.size >= maxOpen) {
           await db.collection("live_trade_logs").add({
             timestamp: new Date().toISOString(),
             action: "SKIPPED",
-            details: `${symbol} ${signalType} — max concurrent trades on ${task.exchange} (${openSnap.size}/${maxOpen} open); skipping new entry.`,
+            details: `${symbol} ${signalType} — max concurrent trades on ${task.exchange} for ${botSource} (${openSnap.size}/${maxOpen} open); skipping new entry.`,
             signalId,
             symbol,
             userId: task.userId,
             exchange: task.exchange,
             assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
           }).catch(() => {});
-          return { success: false, error: `Max concurrent trades (${maxOpen}) reached on ${task.exchange}` };
+          return { success: false, error: `Max concurrent trades (${maxOpen}) reached on ${task.exchange} for ${botSource}` };
         }
       }
 

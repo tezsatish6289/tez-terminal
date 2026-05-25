@@ -3,13 +3,9 @@ import type { DocumentData, Firestore } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
 import { getDeploymentAggregates } from "@/lib/freedombot/aggregates";
+import { loadTradingPrefsForDeployment } from "@/lib/freedombot/deployment-cap";
 import { getSecretDocIds, docMatchesExchange } from "@/lib/exchanges";
 import type { ExchangeName } from "@/lib/exchanges";
-import {
-  DEFAULT_TRADING_PREFS,
-  tradingPrefsFromSecret,
-  type TradingPrefs,
-} from "@/lib/freedombot/trading-prefs";
 import { computeMirroringStatus, loadMirroringFieldsForExchange } from "@/lib/freedombot/mirroring-status";
 
 export const dynamic = "force-dynamic";
@@ -92,17 +88,19 @@ export async function GET(
     const walletStatus: "valid" | "invalid" | null =
       walletStatusRaw === "valid" || walletStatusRaw === "invalid" ? walletStatusRaw : null;
 
-    const exchangeName = exchange as ExchangeName;
     const mirroringFields = await loadMirroringFieldsForExchange(db, uid, exchange);
     const mirroring = computeMirroringStatus(status === "active", mirroringFields);
-    let tradingPrefs: TradingPrefs = { ...DEFAULT_TRADING_PREFS };
-    for (const docId of getSecretDocIds(exchangeName)) {
-      const secretDoc = await db.collection("users").doc(uid).collection("secrets").doc(docId).get();
-      if (secretDoc.exists && docMatchesExchange(secretDoc.data()!, exchangeName, docId)) {
-        tradingPrefs = tradingPrefsFromSecret(secretDoc.data()!);
-        break;
-      }
-    }
+    // Per-deployment prefs live on the deployment doc itself now —
+    // see `src/lib/freedombot/deployment-cap.ts`. The resolver still
+    // falls back to the legacy secrets value and per-bot defaults for
+    // deployments that pre-date the migration.
+    const tradingPrefs = await loadTradingPrefsForDeployment(
+      db,
+      uid,
+      exchange,
+      bot,
+      x,
+    );
 
     const deployment = {
       deploymentId: deployDoc.id,

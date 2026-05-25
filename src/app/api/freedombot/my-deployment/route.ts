@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore, getAdminAuth } from "@/firebase/admin";
 import {
-  DEFAULT_TRADING_PREFS,
-  loadTradingPrefs,
-} from "@/lib/freedombot/trading-prefs";
+  loadTradingPrefsForDeployment,
+  defaultTradingPrefsForBot,
+} from "@/lib/freedombot/deployment-cap";
 import { getDeploymentAggregates } from "@/lib/freedombot/aggregates";
 import { sumLifetimeRealizedPnlForUser, listUserTradeExchanges } from "@/lib/freedombot/sum-lifetime-realized-pnl";
 
@@ -60,9 +60,16 @@ export async function GET(req: NextRequest) {
       return "other";
     };
 
+    // `source: "auto"` marks deployment docs created by the backfill /
+    // zone-bot opt-in flow for bots that aren't `publicLive` yet. We
+    // hide them from the public dashboard until the bot ships — they
+    // still exist for `live-execution` to enforce per-bot caps and
+    // for aggregates to land. When a zone bot becomes publicLive, the
+    // filter can be dropped or the doc flag flipped.
     const visible = snap.docs
       .map((d) => ({ id: d.id, ...d.data() } as Row))
       .filter((d) => normalizeStatus(d.status) !== "other")
+      .filter((d) => d.source !== "auto")
       .sort((a, b) => {
         const aMs = (a.createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
         const bMs = (b.createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
@@ -73,14 +80,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ deployment: null, deployments: [] });
     }
 
-    const tradingPrefsByExchange = new Map<string, Awaited<ReturnType<typeof loadTradingPrefs>>>();
-    const uniqueExchanges = [...new Set(visible.map((d) => String(d.exchange ?? "")).filter(Boolean))];
-    await Promise.all(
-      uniqueExchanges.map(async (ex) => {
-        tradingPrefsByExchange.set(ex, await loadTradingPrefs(db, uid, ex));
-      }),
-    );
-
     const mapDep = async (dep: Row) => {
       const status = normalizeStatus(dep.status);
       const walletStatusRaw = String(dep.walletStatus ?? "").toLowerCase();
@@ -89,15 +88,26 @@ export async function GET(req: NextRequest) {
           ? walletStatusRaw
           : null;
       const exchangeKey = String(dep.exchange ?? "");
+      const deployKey = String(dep.bot ?? "CRYPTO");
       const agg = await getDeploymentAggregates(db, {
         uid,
         exchange: exchangeKey,
-        bot: String(dep.bot ?? "CRYPTO"),
+        bot: deployKey,
         openTradeCount: dep.openTradeCount as number | undefined,
         closedTradeCount: dep.closedTradeCount as number | undefined,
         lifetimeRealizedPnl: dep.lifetimeRealizedPnl as number | undefined,
         aggregatesBot: dep.aggregatesBot as string | undefined,
       });
+      // tradingPrefs comes from the deployment doc directly now, with
+      // fallback to secrets and finally per-bot defaults — see
+      // `loadTradingPrefsForDeployment`. Two deployments on the same
+      // exchange (e.g. Crypto Bot + BTC Zone) now genuinely return
+      // their own values instead of sharing one number.
+      const tradingPrefs = dep.tradingPrefs
+        ? await loadTradingPrefsForDeployment(db, uid, exchangeKey, deployKey, dep)
+        : exchangeKey
+          ? await loadTradingPrefsForDeployment(db, uid, exchangeKey, deployKey)
+          : defaultTradingPrefsForBot(deployKey);
       return {
         id: dep.id,
         bot: dep.bot,
@@ -126,8 +136,7 @@ export async function GET(req: NextRequest) {
                 typeof dep.walletCheckedAt === "string" ? dep.walletCheckedAt : null,
             }
           : null,
-        tradingPrefs:
-          tradingPrefsByExchange.get(exchangeKey) ?? { ...DEFAULT_TRADING_PREFS },
+        tradingPrefs,
       };
     };
 

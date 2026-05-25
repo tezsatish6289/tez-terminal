@@ -219,6 +219,25 @@
       ]
     },
     {
+      "collectionGroup": "bot_deployments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "exchange", "order": "ASCENDING" },
+        { "fieldPath": "bot", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "live_trades",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "exchange", "order": "ASCENDING" },
+        { "fieldPath": "botSource", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "live_trades",
       "queryScope": "COLLECTION",
       "fields": [

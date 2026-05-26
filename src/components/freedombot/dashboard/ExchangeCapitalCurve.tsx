@@ -15,6 +15,7 @@ import { Loader2, TrendingUp } from "lucide-react";
 import { BRAND_CURVE_STROKE } from "@/lib/chart-brand-colors";
 import {
   buildCapitalCurveChartRows,
+  computeCapitalCurveYDomain,
   type CapitalCurvePayload,
 } from "@/lib/freedombot/capital-curve-types";
 import { exchangeLabel } from "@/components/freedombot/dashboard/exchange-labels";
@@ -102,6 +103,16 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
     [payload],
   );
 
+  const yDomain = useMemo(
+    () =>
+      payload
+        ? computeCapitalCurveYDomain(chartRows, payload.bots, hiddenBots)
+        : ([0, 100] as [number, number]),
+    [chartRows, payload, hiddenBots],
+  );
+
+  const yTickDecimals = yDomain[1] - yDomain[0] < 20 ? 1 : 0;
+
   const hasChartData = chartRows.some(
     (r) => r.wallet != null || payload?.bots.some((b) => r[`bot_${b.deploymentId}`] != null),
   );
@@ -171,8 +182,8 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
         )}
       </div>
 
-      <div className="flex flex-col lg:flex-row">
-        <div className="flex-1 min-w-0 px-2 py-4 sm:px-4 sm:py-5" style={{ minHeight: 280 }}>
+      <div className="flex flex-col">
+        <div className="w-full min-w-0 px-2 py-4 sm:px-4 sm:py-5" style={{ minHeight: 280 }}>
           {loading && (
             <div className="h-[260px] flex items-center justify-center">
               <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#3b82f6" }} />
@@ -247,11 +258,14 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
                     minTickGap={28}
                   />
                   <YAxis
+                    domain={yDomain}
                     tick={{ fill: "rgba(90,140,220,0.45)", fontSize: 10 }}
                     axisLine={false}
                     tickLine={false}
                     width={52}
-                    tickFormatter={(v) => `${cs}${Number(v).toFixed(0)}`}
+                    tickFormatter={(v) =>
+                      `${cs}${Number(v).toFixed(yTickDecimals)}`
+                    }
                   />
                   <Tooltip
                     contentStyle={{
@@ -309,16 +323,28 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
           )}
         </div>
 
-        <aside
-          className="lg:w-[240px] xl:w-[260px] flex-shrink-0 border-t lg:border-t-0 lg:border-l px-4 py-4 sm:px-5"
+        <div
+          className="border-t px-4 py-4 sm:px-5 sm:py-5"
           style={{ borderColor: "rgba(90,140,220,0.12)" }}
         >
-          <p
-            className="text-[10px] font-bold uppercase tracking-widest mb-3"
-            style={{ color: "#334155" }}
-          >
-            Bot comparison
-          </p>
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-4">
+            <p
+              className="text-[10px] font-bold uppercase tracking-widest"
+              style={{ color: "#334155" }}
+            >
+              Bot comparison
+            </p>
+            {payload?.wallet.latest != null && (
+              <div className="sm:text-right">
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>
+                  Wallet now
+                </p>
+                <p className="text-lg font-black font-mono text-white">
+                  {money(payload.wallet.latest, payload.currency)}
+                </p>
+              </div>
+            )}
+          </div>
           {loading && (
             <p className="text-xs" style={{ color: "#475569" }}>
               Loading…
@@ -329,62 +355,54 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
               No bots on this exchange.
             </p>
           )}
-          {payload?.bots.map((b, i) => {
-            const positive = b.totalPnlUsd >= 0;
-            return (
-              <div
-                key={b.deploymentId}
-                className="mb-4 last:mb-0 pb-4 last:pb-0 border-b last:border-0"
-                style={{ borderColor: "rgba(90,140,220,0.08)" }}
-              >
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: BOT_COLORS[i % BOT_COLORS.length] }}
-                  />
-                  <span className="text-sm font-bold text-white truncate">{b.label}</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {payload?.bots.map((b, i) => {
+              const positive = b.totalPnlUsd >= 0;
+              return (
+                <div
+                  key={b.deploymentId}
+                  className="rounded-xl px-4 py-3"
+                  style={{
+                    backgroundColor: "rgba(15,30,55,0.5)",
+                    border: "1px solid rgba(90,140,220,0.1)",
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: BOT_COLORS[i % BOT_COLORS.length] }}
+                    />
+                    <span className="text-sm font-bold text-white truncate">{b.label}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+                    <span style={{ color: "#475569" }}>P&amp;L</span>
+                    <span
+                      className="font-mono font-bold text-right"
+                      style={{ color: positive ? "#34d399" : "#f87171" }}
+                    >
+                      {positive ? "+" : "−"}
+                      {money(Math.abs(b.totalPnlUsd), payload.currency)}
+                    </span>
+                    <span style={{ color: "#475569" }}>Return</span>
+                    <span className="font-mono font-bold text-right text-white">
+                      {b.returnPct != null ? `${b.returnPct >= 0 ? "+" : ""}${b.returnPct.toFixed(1)}%` : "—"}
+                    </span>
+                    <span style={{ color: "#475569" }}>Deploy</span>
+                    <span className="text-right" style={{ color: "#94a3b8" }}>
+                      {(() => {
+                        try {
+                          return format(parseISO(b.deployedAt), "MMM yyyy");
+                        } catch {
+                          return "—";
+                        }
+                      })()}
+                    </span>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
-                  <span style={{ color: "#475569" }}>P&amp;L</span>
-                  <span
-                    className="font-mono font-bold text-right"
-                    style={{ color: positive ? "#34d399" : "#f87171" }}
-                  >
-                    {positive ? "+" : "−"}
-                    {money(Math.abs(b.totalPnlUsd), payload.currency)}
-                  </span>
-                  <span style={{ color: "#475569" }}>Return</span>
-                  <span className="font-mono font-bold text-right text-white">
-                    {b.returnPct != null ? `${b.returnPct >= 0 ? "+" : ""}${b.returnPct.toFixed(1)}%` : "—"}
-                  </span>
-                  <span style={{ color: "#475569" }}>Deploy</span>
-                  <span className="text-right" style={{ color: "#94a3b8" }}>
-                    {(() => {
-                      try {
-                        return format(parseISO(b.deployedAt), "MMM yyyy");
-                      } catch {
-                        return "—";
-                      }
-                    })()}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-          {payload?.wallet.latest != null && (
-            <div
-              className="mt-4 pt-4 border-t"
-              style={{ borderColor: "rgba(90,140,220,0.12)" }}
-            >
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>
-                Wallet now
-              </p>
-              <p className="text-lg font-black font-mono text-white">
-                {money(payload.wallet.latest, payload.currency)}
-              </p>
-            </div>
-          )}
-        </aside>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </section>
   );

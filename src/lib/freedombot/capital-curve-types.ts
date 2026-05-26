@@ -92,3 +92,33 @@ export function buildCapitalCurveChartRows(payload: CapitalCurvePayload): {
     return row;
   });
 }
+
+/** Zoom Y-axis to visible series so lines diverge instead of stacking at the top. */
+export function computeCapitalCurveYDomain(
+  chartRows: ReturnType<typeof buildCapitalCurveChartRows>,
+  bots: BotCapitalSeries[],
+  hiddenBotIds: Set<string>,
+): [number, number] {
+  const values: number[] = [];
+  for (const row of chartRows) {
+    if (typeof row.wallet === "number") values.push(row.wallet);
+    for (const b of bots) {
+      if (hiddenBotIds.has(b.deploymentId)) continue;
+      const v = row[`bot_${b.deploymentId}`];
+      if (typeof v === "number") values.push(v);
+    }
+  }
+  if (values.length === 0) return [0, 100];
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min;
+  const mid = (min + max) / 2;
+  const effectiveRange = range > 0 ? range : Math.max(Math.abs(mid) * 0.05, 1);
+  const pad = Math.max(effectiveRange * 0.12, Math.abs(mid) * 0.03, 2);
+
+  return [
+    Math.floor((min - pad) * 100) / 100,
+    Math.ceil((max + pad) * 100) / 100,
+  ];
+}

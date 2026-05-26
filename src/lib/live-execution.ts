@@ -19,7 +19,7 @@ import { generateTokenForUser } from "./dhan-token";
 import { applyTradeChangeToAggregates } from "./freedombot/aggregates";
 import { refreshDeploymentWalletBalance } from "./freedombot/wallet-balance";
 import { userOptedIntoBot } from "./freedombot/zone-bot-subscription";
-import { resolveRiskPerTrade } from "./freedombot/trading-prefs-shared";
+import { resolveRiskPerTrade, type TradingPrefs } from "./freedombot/trading-prefs-shared";
 import { isDailyLossHaltedToday } from "./freedombot/daily-loss-gate";
 import { isLiveMirroringEnabledForBotSource } from "./bot-policy";
 import {
@@ -111,16 +111,19 @@ export async function executeForAllUsers(
 
   const tasks: UserExecutionTask[] = [];
 
-  // ── Batch-load deployments for this bot so cap lookups are O(1) ──
-  // Old model: cap lived on the secrets doc (one number per exchange,
-  // shared across every bot a user ran on that venue). After the
-  // migration, the authoritative value is per-deployment, so we need
-  // to know which deployment doc owns each (uid, exchange) task before
-  // building tasks. One query per signal here beats N queries during
-  // task creation; the index by uid::exchange below stays cheap.
+  // ── Batch-load deployments for this bot so prefs lookups are O(1) ──
+  // Old model: tradingPrefs (cap + risk + daily loss) lived on the
+  // secrets doc (one set per exchange, shared across every bot a user
+  // ran on that venue). After the May 26 migration the authoritative
+  // values are per-deployment, so we pre-fetch the (uid, exchange) map
+  // once per signal — beats N queries during task creation, and lets
+  // us read both the cap and the risk% with one lookup. The secrets
+  // fallback below stays in place for any deployment doc that's
+  // missing tradingPrefs (e.g. paused, manually edited, or a future
+  // auto-created zone-bot doc that pre-dates the field).
   const deployKeyForCap = deployKeyForBotSource(botSource);
   const capDefaultForBot = defaultMaxConcurrentForBot(deployKeyForCap);
-  const deploymentCapByUidExchange = new Map<string, number>();
+  const deploymentPrefsByUidExchange = new Map<string, TradingPrefs>();
   try {
     const deploySnap = await db
       .collection("bot_deployments")
@@ -134,11 +137,11 @@ export async function executeForAllUsers(
       const exVal = String(data.exchange ?? "");
       if (!uidVal || !exVal) continue;
       const prefs = tradingPrefsFromDeployment(data, deployKeyForCap);
-      deploymentCapByUidExchange.set(`${uidVal}::${exVal}`, prefs.maxConcurrentTrades);
+      deploymentPrefsByUidExchange.set(`${uidVal}::${exVal}`, prefs);
     }
   } catch (e) {
     console.warn(
-      `[LiveExec] deployment cap pre-fetch failed (${deployKeyForCap}): ${
+      `[LiveExec] deployment prefs pre-fetch failed (${deployKeyForCap}): ${
         e instanceof Error ? e.message : String(e)
       } — falling back to secrets+default per task.`,
     );
@@ -304,14 +307,25 @@ export async function executeForAllUsers(
           ? { ...simTrade, leverage: getDhanLeverage(simTrade.timeframe) }
           : simTrade;
 
-        // Resolve the effective cap for this (uid, exchange, bot)
-        // bucket. Preference order matches `resolveDeploymentCap`:
-        //   1. deployment doc's `tradingPrefs.maxConcurrentTrades`
-        //      (already loaded into `deploymentCapByUidExchange`),
-        //   2. legacy `secrets.maxConcurrentTrades` (one-per-exchange
-        //      number, kept for back-compat until the backfill runs),
-        //   3. per-bot platform default (Crypto=3, zones=1).
-        let resolvedCap = deploymentCapByUidExchange.get(`${userId}::${exchangeName}`);
+        // Resolve effective cap AND risk for this (uid, exchange, bot)
+        // bucket. Same fallback chain for both, matching the read
+        // helpers in `deployment-cap.ts` (`resolveDeploymentCap` /
+        // `loadTradingPrefsForDeployment`):
+        //   1. deployment doc's `tradingPrefs.*` (pre-fetched above),
+        //   2. legacy `secrets.*` (one-per-exchange, kept for back-
+        //      compat until trading-settings stops mirroring),
+        //   3. per-bot platform default (Crypto cap=3, zones cap=1;
+        //      `resolveRiskPerTrade` returns platform-default risk).
+        // Risk used to come from secrets unconditionally — that was
+        // the coherence gap closed by this commit. Behaviour is
+        // unchanged when deployment and secrets agree (they do for
+        // every existing user after the May 26 migration); the
+        // deployment value wins only when the two drift.
+        const deploymentPrefs = deploymentPrefsByUidExchange.get(
+          `${userId}::${exchangeName}`,
+        );
+
+        let resolvedCap = deploymentPrefs?.maxConcurrentTrades;
         if (resolvedCap == null || resolvedCap <= 0) {
           if (typeof data.maxConcurrentTrades === "number" && data.maxConcurrentTrades > 0) {
             resolvedCap = Math.trunc(data.maxConcurrentTrades);
@@ -319,6 +333,14 @@ export async function executeForAllUsers(
             resolvedCap = capDefaultForBot;
           }
         }
+
+        // `tradingPrefsFromDeployment` already applies
+        // `resolveRiskPerTrade` (mapping legacy 0.5% → 1% and falling
+        // back to platform default on invalid values), so the
+        // deployment-derived value is always valid when present.
+        const resolvedRisk = deploymentPrefs
+          ? deploymentPrefs.riskPerTrade
+          : resolveRiskPerTrade(data.riskPerTrade);
 
         tasks.push({
           userId,
@@ -329,7 +351,7 @@ export async function executeForAllUsers(
             apiSecret,
             testnet: data.useTestnet === true,
             exchangeSegment: isStock ? getExchangeSegment(signalExchange) : undefined,
-            riskPerTradePct: resolveRiskPerTrade(data.riskPerTrade),
+            riskPerTradePct: resolvedRisk,
           },
           maxConcurrentTrades: resolvedCap,
         });

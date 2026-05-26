@@ -52,34 +52,10 @@ function parseMs(iso: string): number {
 export interface CapitalCurveChartRow {
   day: string;
   wallet: number | null;
-  /** Net external flow on this day (deposit, withdrawal, manual P&L). */
-  flowAmount: number | null;
-  flowKind: "in" | "out" | null;
-}
-
-function aggregateFlowsByDay(
-  flows: CapitalFlowPoint[],
-): Map<string, { amount: number; kind: "in" | "out" }> {
-  const netByDay = new Map<string, number>();
-  for (const f of flows) {
-    const ms = parseMs(f.at);
-    if (!Number.isFinite(ms)) continue;
-    const day = new Date(ms).toISOString().slice(0, 10);
-    const signed = f.kind === "in" ? f.amount : -f.amount;
-    netByDay.set(day, (netByDay.get(day) ?? 0) + signed);
-  }
-
-  const result = new Map<string, { amount: number; kind: "in" | "out" }>();
-  for (const [day, net] of netByDay) {
-    if (Math.abs(net) < 10) continue;
-    result.set(day, { amount: Math.abs(net), kind: net > 0 ? "in" : "out" });
-  }
-  return result;
 }
 
 export function buildCapitalCurveChartRows(payload: CapitalCurvePayload): CapitalCurveChartRow[] {
   const daySet = new Set<string>();
-  const flowByDay = aggregateFlowsByDay(payload.flows);
 
   const addDays = (iso: string) => {
     const ms = parseMs(iso);
@@ -88,7 +64,6 @@ export function buildCapitalCurveChartRows(payload: CapitalCurvePayload): Capita
   };
 
   for (const p of payload.wallet.points) addDays(p.at);
-  for (const day of flowByDay.keys()) daySet.add(day);
 
   const days = [...daySet].sort();
 
@@ -110,15 +85,10 @@ export function buildCapitalCurveChartRows(payload: CapitalCurvePayload): Capita
     return best;
   };
 
-  return days.map((day) => {
-    const flow = flowByDay.get(day);
-    return {
-      day,
-      wallet: lastValueOnOrBefore(payload.wallet.points, day),
-      flowAmount: flow?.amount ?? null,
-      flowKind: flow?.kind ?? null,
-    };
-  });
+  return days.map((day) => ({
+    day,
+    wallet: lastValueOnOrBefore(payload.wallet.points, day),
+  }));
 }
 
 /** Zoom Y-axis to the wallet line. */

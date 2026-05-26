@@ -2,7 +2,6 @@
  * Build capital-curve series for one user + exchange:
  *   - Wallet line (real ledger snapshots only — no P&L backfill)
  *   - Combined + per-bot lines (baseline at deploy + closed P&L)
- *   - External in/out inferred between wallet snapshots
  */
 
 import type { Firestore, QueryDocumentSnapshot } from "firebase-admin/firestore";
@@ -12,8 +11,6 @@ import { bestRealizedPnl, type TradeForPnl } from "@/lib/freedombot/compute-best
 import { listWalletSnapshots } from "@/lib/freedombot/capital-ledger";
 import { tradeMatchesDeployBot } from "@/lib/freedombot/trade-bot-match";
 import { walletCurrencyFor } from "@/lib/freedombot/wallet-balance";
-
-const EXTERNAL_FLOW_THRESHOLD_USD = 10;
 
 export interface CapitalCurveDeployment {
   id: string;
@@ -126,34 +123,6 @@ async function loadClosedTradesForExchange(
   return rows;
 }
 
-function inferExternalFlows(
-  snapshots: CapitalCurvePoint[],
-  trades: { closedMs: number; pnl: number }[],
-): CapitalFlowPoint[] {
-  const flows: CapitalFlowPoint[] = [];
-  for (let i = 1; i < snapshots.length; i++) {
-    const prev = snapshots[i - 1];
-    const curr = snapshots[i];
-    const t0 = parseMs(prev.at);
-    const t1 = parseMs(curr.at);
-    if (!Number.isFinite(t0) || !Number.isFinite(t1)) continue;
-
-    const delta = curr.value - prev.value;
-    let botPnl = 0;
-    for (const tr of trades) {
-      if (tr.closedMs > t0 && tr.closedMs <= t1) botPnl += tr.pnl;
-    }
-    const residual = roundUsd(delta - botPnl);
-    if (Math.abs(residual) < EXTERNAL_FLOW_THRESHOLD_USD) continue;
-    flows.push({
-      at: curr.at,
-      amount: Math.abs(residual),
-      kind: residual > 0 ? "in" : "out",
-    });
-  }
-  return flows;
-}
-
 export async function buildCapitalCurveForExchange(
   db: Firestore,
   userId: string,
@@ -200,7 +169,11 @@ export async function buildCapitalCurveForExchange(
     walletPoints.push({ at: latestAt, value: roundUsd(latestWallet) });
   }
 
-  const flows = inferExternalFlows(walletPoints, trades);
+  const flows: CapitalFlowPoint[] = [];
+  // External-flow inference disabled: comparing frequent wallet snapshots to
+  // closed-trade P&L produces false deposit/withdrawal signals (open-position
+  // mark moves, fees, refresh timing). Re-enable only with explicit
+  // exchange deposit/withdrawal data or a proven reconciliation model.
 
   const bots: BotCapitalSeries[] = [];
   const sortedDeps = [...deps].sort(

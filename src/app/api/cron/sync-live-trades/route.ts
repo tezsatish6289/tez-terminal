@@ -38,6 +38,7 @@ import { refreshDeploymentWalletBalance } from "@/lib/freedombot/wallet-balance"
 import { recordCronHeartbeat } from "@/lib/cron-health";
 import { resolveDailyLossLimit } from "@/lib/freedombot/trading-prefs-shared";
 import { dailyLossHaltPatchForToday } from "@/lib/freedombot/daily-loss-gate";
+import { retryFailedDispatches } from "@/lib/freedombot/dispatch-retry";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -759,6 +760,33 @@ export async function GET(request: NextRequest) {
 
   const db = getAdminFirestore();
   const startedAt = Date.now();
+
+  // ── 0. Dispatch retry sweeper ────────────────────────────
+  // Piggy-back on the every-1-min cron to replay FAILED
+  // dispatch_state tickets matching a small set of known transient
+  // reasons (network timeout, 5xx, etc.). Bounded to a few retries
+  // per tick and gated by an "ask exchange first" safety check so a
+  // lost-ACK first attempt can never be turned into a duplicate
+  // position. Wrapped in try/catch — a bug in the retry path MUST
+  // NOT block the close-side reconciliation below.
+  try {
+    const retryReport = await retryFailedDispatches(db);
+    if (
+      retryReport.retried > 0 ||
+      retryReport.needsReview > 0 ||
+      retryReport.failed > 0
+    ) {
+      console.log(
+        `[LiveSync] dispatch retry sweeper: scanned=${retryReport.scanned} candidates=${retryReport.candidates} retried=${retryReport.retried} succeeded=${retryReport.succeeded} needsReview=${retryReport.needsReview} failed=${retryReport.failed}`,
+      );
+    }
+  } catch (e) {
+    console.warn(
+      `[LiveSync] dispatch retry sweeper threw: ${
+        e instanceof Error ? e.message : String(e)
+      } — continuing with close-side reconciliation.`,
+    );
+  }
 
   try {
     // ── 1. Read cached prices ───────────────────────────────

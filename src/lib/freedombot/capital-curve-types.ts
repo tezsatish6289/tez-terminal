@@ -22,6 +22,15 @@ export interface BotCapitalSeries {
   points: CapitalCurvePoint[];
 }
 
+/** All bots on one exchange — baseline at first deploy + combined closed P&L. */
+export interface CombinedBotCapitalSeries {
+  baselineUsd: number;
+  totalPnlUsd: number;
+  returnPct: number | null;
+  firstDeployAt: string;
+  points: CapitalCurvePoint[];
+}
+
 export interface CapitalCurvePayload {
   exchange: string;
   currency: string;
@@ -29,6 +38,7 @@ export interface CapitalCurvePayload {
     points: CapitalCurvePoint[];
     latest: number | null;
   };
+  combinedBots: CombinedBotCapitalSeries;
   bots: BotCapitalSeries[];
   flows: CapitalFlowPoint[];
   hasWalletHistory: boolean;
@@ -42,7 +52,7 @@ function parseMs(iso: string): number {
 export function buildCapitalCurveChartRows(payload: CapitalCurvePayload): {
   day: string;
   wallet: number | null;
-  [seriesKey: string]: string | number | null;
+  botsCombined: number | null;
 }[] {
   const daySet = new Set<string>();
 
@@ -53,9 +63,7 @@ export function buildCapitalCurveChartRows(payload: CapitalCurvePayload): {
   };
 
   for (const p of payload.wallet.points) addDays(p.at);
-  for (const b of payload.bots) {
-    for (const p of b.points) addDays(p.at);
-  }
+  for (const p of payload.combinedBots.points) addDays(p.at);
 
   const days = [...daySet].sort();
 
@@ -77,36 +85,21 @@ export function buildCapitalCurveChartRows(payload: CapitalCurvePayload): {
     return best;
   };
 
-  return days.map((day) => {
-    const row: {
-      day: string;
-      wallet: number | null;
-      [seriesKey: string]: string | number | null;
-    } = {
-      day,
-      wallet: lastValueOnOrBefore(payload.wallet.points, day),
-    };
-    for (const b of payload.bots) {
-      row[`bot_${b.deploymentId}`] = lastValueOnOrBefore(b.points, day);
-    }
-    return row;
-  });
+  return days.map((day) => ({
+    day,
+    wallet: lastValueOnOrBefore(payload.wallet.points, day),
+    botsCombined: lastValueOnOrBefore(payload.combinedBots.points, day),
+  }));
 }
 
-/** Zoom Y-axis to visible series so lines diverge instead of stacking at the top. */
+/** Zoom Y-axis to the two chart lines (wallet + combined bots). */
 export function computeCapitalCurveYDomain(
   chartRows: ReturnType<typeof buildCapitalCurveChartRows>,
-  bots: BotCapitalSeries[],
-  hiddenBotIds: Set<string>,
 ): [number, number] {
   const values: number[] = [];
   for (const row of chartRows) {
     if (typeof row.wallet === "number") values.push(row.wallet);
-    for (const b of bots) {
-      if (hiddenBotIds.has(b.deploymentId)) continue;
-      const v = row[`bot_${b.deploymentId}`];
-      if (typeof v === "number") values.push(v);
-    }
+    if (typeof row.botsCombined === "number") values.push(row.botsCombined);
   }
   if (values.length === 0) return [0, 100];
 

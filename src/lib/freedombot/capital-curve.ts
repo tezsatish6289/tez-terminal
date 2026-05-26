@@ -28,6 +28,7 @@ import type {
   CapitalCurvePayload,
   CapitalCurvePoint,
   CapitalFlowPoint,
+  CombinedBotCapitalSeries,
 } from "@/lib/freedombot/capital-curve-types";
 
 export type {
@@ -35,6 +36,7 @@ export type {
   CapitalCurvePayload,
   CapitalCurvePoint,
   CapitalFlowPoint,
+  CombinedBotCapitalSeries,
 } from "@/lib/freedombot/capital-curve-types";
 
 type ClosedTradeRow = TradeForPnl & {
@@ -249,6 +251,38 @@ export async function buildCapitalCurveForExchange(
     anchorWallet ??
     (latestWallet != null ? latestWallet - totalPnl : 0);
 
+  const firstDeploy = sortedDeps[0];
+  const firstDeployAt = firstDeploy?.createdAt ?? new Date().toISOString();
+  const firstDeployMs = parseMs(firstDeployAt);
+  const combinedBaseline =
+    Number.isFinite(firstDeployMs) && walletAnchor != null
+      ? estimateWalletAt(firstDeployMs, walletAnchor, trades)
+      : walletAnchor ?? 0;
+
+  const combinedPoints: CapitalCurvePoint[] = firstDeploy
+    ? [{ at: firstDeployAt, value: combinedBaseline }]
+    : [];
+  let combinedCum = 0;
+  for (const tr of trades) {
+    if (Number.isFinite(firstDeployMs) && tr.closedMs < firstDeployMs) continue;
+    combinedCum += tr.pnl;
+    combinedPoints.push({
+      at: tr.closedAt,
+      value: roundUsd(combinedBaseline + combinedCum),
+    });
+  }
+  const combinedTotalPnl = roundUsd(combinedCum);
+  const combinedBots: CombinedBotCapitalSeries = {
+    baselineUsd: combinedBaseline,
+    totalPnlUsd: combinedTotalPnl,
+    returnPct:
+      combinedBaseline > 0
+        ? roundUsd((combinedTotalPnl / combinedBaseline) * 10000) / 100
+        : null,
+    firstDeployAt,
+    points: combinedPoints,
+  };
+
   for (const dep of sortedDeps) {
     const deployAt = dep.createdAt;
     const deployMs = parseMs(deployAt);
@@ -292,6 +326,7 @@ export async function buildCapitalCurveForExchange(
       points: walletPoints,
       latest: latestWallet != null ? roundUsd(latestWallet) : null,
     },
+    combinedBots,
     bots,
     flows,
     hasWalletHistory: ledgerSnapshots.length > 0,

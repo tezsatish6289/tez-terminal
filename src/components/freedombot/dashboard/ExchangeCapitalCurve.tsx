@@ -23,6 +23,8 @@ import { ExchangeIcon } from "@/components/freedombot/dashboard/ExchangeIcon";
 import { CRYPTO_PERP_EXCHANGES } from "@/lib/crypto-bots";
 import { useChartMotion } from "@/hooks/use-chart-motion";
 
+const BOTS_COMBINED_COLOR = "#a78bfa";
+
 const BOT_COLORS = [
   "#a78bfa",
   "#34d399",
@@ -55,7 +57,6 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
   const [payload, setPayload] = useState<CapitalCurvePayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hiddenBots, setHiddenBots] = useState<Set<string>>(new Set());
   const motion = useChartMotion();
 
   useEffect(() => {
@@ -85,7 +86,6 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
         return;
       }
       setPayload(data as CapitalCurvePayload);
-      setHiddenBots(new Set());
     } catch {
       setError("Failed to load chart");
       setPayload(null);
@@ -104,17 +104,14 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
   );
 
   const yDomain = useMemo(
-    () =>
-      payload
-        ? computeCapitalCurveYDomain(chartRows, payload.bots, hiddenBots)
-        : ([0, 100] as [number, number]),
-    [chartRows, payload, hiddenBots],
+    () => (payload ? computeCapitalCurveYDomain(chartRows) : ([0, 100] as [number, number])),
+    [chartRows, payload],
   );
 
   const yTickDecimals = yDomain[1] - yDomain[0] < 20 ? 1 : 0;
 
   const hasChartData = chartRows.some(
-    (r) => r.wallet != null || payload?.bots.some((b) => r[`bot_${b.deploymentId}`] != null),
+    (r) => r.wallet != null || r.botsCombined != null,
   );
 
   if (cryptoExchanges.length === 0) return null;
@@ -149,8 +146,8 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
               Capital on exchange
             </h2>
             <p className="text-xs mt-0.5 leading-relaxed max-w-xl" style={{ color: "#475569" }}>
-              Shared wallet balance vs each bot&apos;s growth from its deploy day (FreedomBot
-              closed P&amp;L only). Deposits, withdrawals, and manual trades appear in the wallet
+              Your wallet balance on this exchange vs all bots combined (FreedomBot closed P&amp;L
+              from first deploy). Deposits, withdrawals, and manual trades appear in the wallet
               line.
             </p>
           </div>
@@ -207,38 +204,15 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
                     className="inline-block w-3 h-0.5 rounded"
                     style={{ backgroundColor: BRAND_CURVE_STROKE }}
                   />
-                  Wallet
+                  Your capital
                 </span>
-                {payload.bots.map((b, i) => {
-                  const hidden = hiddenBots.has(b.deploymentId);
-                  return (
-                    <button
-                      key={b.deploymentId}
-                      type="button"
-                      onClick={() => {
-                        setHiddenBots((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(b.deploymentId)) next.delete(b.deploymentId);
-                          else next.add(b.deploymentId);
-                          return next;
-                        });
-                      }}
-                      className="flex items-center gap-1.5 transition-opacity"
-                      style={{
-                        color: hidden ? "#334155" : BOT_COLORS[i % BOT_COLORS.length],
-                        opacity: hidden ? 0.45 : 1,
-                      }}
-                    >
-                      <span
-                        className="inline-block w-3 h-0.5 rounded"
-                        style={{
-                          backgroundColor: BOT_COLORS[i % BOT_COLORS.length],
-                        }}
-                      />
-                      {b.label}
-                    </button>
-                  );
-                })}
+                <span className="flex items-center gap-1.5" style={{ color: BOTS_COMBINED_COLOR }}>
+                  <span
+                    className="inline-block w-3 h-0.5 rounded"
+                    style={{ backgroundColor: BOTS_COMBINED_COLOR }}
+                  />
+                  All bots combined
+                </span>
               </div>
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={chartRows} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
@@ -282,9 +256,13 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
                       }
                     }}
                     formatter={(value: number, name: string) => {
-                      if (name === "wallet") return [money(value, payload.currency), "Wallet"];
-                      const bot = payload.bots.find((b) => `bot_${b.deploymentId}` === name);
-                      return [money(value, payload.currency), bot?.label ?? name];
+                      if (name === "wallet") {
+                        return [money(value, payload.currency), "Your capital"];
+                      }
+                      if (name === "botsCombined") {
+                        return [money(value, payload.currency), "All bots combined"];
+                      }
+                      return [money(value, payload.currency), name];
                     }}
                   />
                   <Line
@@ -296,27 +274,22 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
                     connectNulls
                     {...anim}
                   />
-                  {payload.bots.map((b, i) =>
-                    hiddenBots.has(b.deploymentId) ? null : (
-                      <Line
-                        key={b.deploymentId}
-                        type="monotone"
-                        dataKey={`bot_${b.deploymentId}`}
-                        stroke={BOT_COLORS[i % BOT_COLORS.length]}
-                        strokeWidth={1.5}
-                        strokeDasharray="4 3"
-                        dot={false}
-                        connectNulls
-                        {...anim}
-                      />
-                    ),
-                  )}
+                  <Line
+                    type="monotone"
+                    dataKey="botsCombined"
+                    stroke={BOTS_COMBINED_COLOR}
+                    strokeWidth={2}
+                    strokeDasharray="4 3"
+                    dot={false}
+                    connectNulls
+                    {...anim}
+                  />
                 </LineChart>
               </ResponsiveContainer>
               {!payload.hasWalletHistory && (
                 <p className="text-[10px] text-center mt-2 px-4" style={{ color: "#334155" }}>
-                  Wallet history builds from each balance refresh — bot lines use trade history
-                  from deploy day.
+                  Wallet history builds from each balance refresh — the combined bots line uses
+                  closed trade P&amp;L from first deploy day.
                 </p>
               )}
             </>

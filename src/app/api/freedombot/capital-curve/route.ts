@@ -62,6 +62,13 @@ export async function GET(req: NextRequest) {
         exchange,
         currency: "USDT",
         wallet: { points: [], latest: null },
+        combinedBots: {
+          baselineUsd: 0,
+          totalPnlUsd: 0,
+          returnPct: null,
+          firstDeployAt: new Date().toISOString(),
+          points: [],
+        },
         bots: [],
         flows: [],
         hasWalletHistory: false,

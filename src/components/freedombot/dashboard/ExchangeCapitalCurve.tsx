@@ -11,11 +11,13 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { DotProps } from "recharts";
 import { Loader2, TrendingUp } from "lucide-react";
 import { BRAND_CURVE_STROKE } from "@/lib/chart-brand-colors";
 import {
   buildCapitalCurveChartRows,
   computeCapitalCurveYDomain,
+  type CapitalCurveChartRow,
   type CapitalCurvePayload,
 } from "@/lib/freedombot/capital-curve-types";
 import { exchangeLabel } from "@/components/freedombot/dashboard/exchange-labels";
@@ -23,7 +25,8 @@ import { ExchangeIcon } from "@/components/freedombot/dashboard/ExchangeIcon";
 import { CRYPTO_PERP_EXCHANGES } from "@/lib/crypto-bots";
 import { useChartMotion } from "@/hooks/use-chart-motion";
 
-const BOTS_COMBINED_COLOR = "#a78bfa";
+const FLOW_IN_COLOR = "#34d399";
+const FLOW_OUT_COLOR = "#f87171";
 
 const BOT_COLORS = [
   "#a78bfa",
@@ -37,6 +40,78 @@ const BOT_COLORS = [
 function money(v: number, currency: string): string {
   const sym = currency === "INR" ? "₹" : "$";
   return `${sym}${Math.abs(v).toFixed(2)}`;
+}
+
+function WalletFlowDot(props: DotProps & { payload?: CapitalCurveChartRow }) {
+  const { cx, cy, payload } = props;
+  if (cx == null || cy == null || !payload?.flowKind || payload.wallet == null) {
+    return null;
+  }
+  const color = payload.flowKind === "in" ? FLOW_IN_COLOR : FLOW_OUT_COLOR;
+  return (
+    <circle
+      cx={cx}
+      cy={cy}
+      r={5}
+      fill={color}
+      stroke="#0a1628"
+      strokeWidth={2}
+    />
+  );
+}
+
+function CapitalCurveTooltip({
+  active,
+  payload,
+  label,
+  currency,
+}: {
+  active?: boolean;
+  payload?: { payload: CapitalCurveChartRow; value: number }[];
+  label?: string;
+  currency: string;
+}) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0].payload;
+  const wallet = row.wallet;
+
+  return (
+    <div
+      className="px-3 py-2 text-xs"
+      style={{
+        backgroundColor: "#0a1628",
+        border: "1px solid rgba(90,140,220,0.2)",
+        borderRadius: 8,
+      }}
+    >
+      <p className="font-bold text-white mb-1.5">
+        {(() => {
+          try {
+            return format(parseISO(String(label)), "MMM d, yyyy");
+          } catch {
+            return String(label);
+          }
+        })()}
+      </p>
+      {wallet != null && (
+        <p style={{ color: "#93c5fd" }}>
+          Wallet: <span className="font-mono font-bold">{money(wallet, currency)}</span>
+        </p>
+      )}
+      {row.flowKind && row.flowAmount != null && (
+        <p
+          className="mt-1"
+          style={{ color: row.flowKind === "in" ? FLOW_IN_COLOR : FLOW_OUT_COLOR }}
+        >
+          {row.flowKind === "in" ? "Capital in" : "Capital out"}:{" "}
+          <span className="font-mono font-bold">
+            {row.flowKind === "in" ? "+" : "−"}
+            {money(row.flowAmount, currency)}
+          </span>
+        </p>
+      )}
+    </div>
+  );
 }
 
 interface ExchangeCapitalCurveProps {
@@ -110,9 +185,14 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
 
   const yTickDecimals = yDomain[1] - yDomain[0] < 20 ? 1 : 0;
 
-  const hasChartData = chartRows.some(
-    (r) => r.wallet != null || r.botsCombined != null,
-  );
+  const hasChartData = chartRows.some((r) => r.wallet != null);
+
+  const recentFlows = useMemo(() => {
+    if (!payload?.flows.length) return [];
+    return [...payload.flows]
+      .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+      .slice(0, 5);
+  }, [payload?.flows]);
 
   if (cryptoExchanges.length === 0) return null;
 
@@ -146,9 +226,8 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
               Capital on exchange
             </h2>
             <p className="text-xs mt-0.5 leading-relaxed max-w-xl" style={{ color: "#475569" }}>
-              Your wallet balance on this exchange vs all bots combined (FreedomBot closed P&amp;L
-              from first deploy). Deposits, withdrawals, and manual trades appear in the wallet
-              line.
+              Your futures wallet balance over time. Green and red markers flag changes not
+              explained by bot trades — deposits, withdrawals, or manual activity.
             </p>
           </div>
         </div>
@@ -193,7 +272,7 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
           )}
           {!loading && !error && !hasChartData && (
             <p className="text-sm text-center py-16" style={{ color: "#475569" }}>
-              Chart will populate as wallet snapshots and closed trades accumulate.
+              Chart will populate as wallet balance snapshots accumulate.
             </p>
           )}
           {!loading && !error && hasChartData && payload && (
@@ -204,14 +283,21 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
                     className="inline-block w-3 h-0.5 rounded"
                     style={{ backgroundColor: BRAND_CURVE_STROKE }}
                   />
-                  Your capital
+                  Wallet balance
                 </span>
-                <span className="flex items-center gap-1.5" style={{ color: BOTS_COMBINED_COLOR }}>
+                <span className="flex items-center gap-1.5" style={{ color: FLOW_IN_COLOR }}>
                   <span
-                    className="inline-block w-3 h-0.5 rounded"
-                    style={{ backgroundColor: BOTS_COMBINED_COLOR }}
+                    className="inline-block w-2 h-2 rounded-full"
+                    style={{ backgroundColor: FLOW_IN_COLOR }}
                   />
-                  All bots combined
+                  Capital in
+                </span>
+                <span className="flex items-center gap-1.5" style={{ color: FLOW_OUT_COLOR }}>
+                  <span
+                    className="inline-block w-2 h-2 rounded-full"
+                    style={{ backgroundColor: FLOW_OUT_COLOR }}
+                  />
+                  Capital out
                 </span>
               </div>
               <ResponsiveContainer width="100%" height={260}>
@@ -242,45 +328,16 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
                     }
                   />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#0a1628",
-                      border: "1px solid rgba(90,140,220,0.2)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
-                    labelFormatter={(d) => {
-                      try {
-                        return format(parseISO(String(d)), "MMM d, yyyy");
-                      } catch {
-                        return String(d);
-                      }
-                    }}
-                    formatter={(value: number, name: string) => {
-                      if (name === "wallet") {
-                        return [money(value, payload.currency), "Your capital"];
-                      }
-                      if (name === "botsCombined") {
-                        return [money(value, payload.currency), "All bots combined"];
-                      }
-                      return [money(value, payload.currency), name];
-                    }}
+                    content={
+                      <CapitalCurveTooltip currency={payload.currency} />
+                    }
                   />
                   <Line
                     type="monotone"
                     dataKey="wallet"
                     stroke={BRAND_CURVE_STROKE}
                     strokeWidth={2}
-                    dot={false}
-                    connectNulls
-                    {...anim}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="botsCombined"
-                    stroke={BOTS_COMBINED_COLOR}
-                    strokeWidth={2}
-                    strokeDasharray="4 3"
-                    dot={false}
+                    dot={(props) => <WalletFlowDot {...props} />}
                     connectNulls
                     {...anim}
                   />
@@ -288,9 +345,53 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
               </ResponsiveContainer>
               {!payload.hasWalletHistory && (
                 <p className="text-[10px] text-center mt-2 px-4" style={{ color: "#334155" }}>
-                  Wallet history builds from each balance refresh — the combined bots line uses
-                  closed trade P&amp;L from first deploy day.
+                  Wallet history builds from each balance refresh — markers appear once two or
+                  more snapshots exist.
                 </p>
+              )}
+              {recentFlows.length > 0 && (
+                <div className="mt-3 px-3">
+                  <p
+                    className="text-[10px] font-bold uppercase tracking-widest mb-2"
+                    style={{ color: "#334155" }}
+                  >
+                    Recent capital events
+                  </p>
+                  <ul className="space-y-1">
+                    {recentFlows.map((f) => {
+                      const positive = f.kind === "in";
+                      return (
+                        <li
+                          key={f.at}
+                          className="flex items-center justify-between text-xs gap-3"
+                        >
+                          <span style={{ color: "#64748b" }}>
+                            {(() => {
+                              try {
+                                return format(parseISO(f.at), "MMM d, yyyy");
+                              } catch {
+                                return f.at;
+                              }
+                            })()}
+                          </span>
+                          <span
+                            className="font-mono font-bold"
+                            style={{ color: positive ? FLOW_IN_COLOR : FLOW_OUT_COLOR }}
+                          >
+                            {positive ? "+" : "−"}
+                            {money(f.amount, payload.currency)}
+                            <span
+                              className="font-sans font-normal ml-1.5"
+                              style={{ color: "#475569" }}
+                            >
+                              {positive ? "capital in" : "capital out"}
+                            </span>
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
               )}
             </>
           )}

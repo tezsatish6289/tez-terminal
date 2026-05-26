@@ -1,7 +1,7 @@
 /**
  * Build capital-curve series for one user + exchange:
- *   - Wallet line (snapshots + inferred history when sparse)
- *   - Per-bot Option B lines (baseline = shared wallet at deploy, + bot P&L)
+ *   - Wallet line (real ledger snapshots only — no P&L backfill)
+ *   - Combined + per-bot lines (baseline at deploy + closed P&L)
  *   - External in/out inferred between wallet snapshots
  */
 
@@ -185,11 +185,6 @@ export async function buildCapitalCurveForExchange(
       ? ledgerSnapshots[ledgerSnapshots.length - 1].amount
       : latestWallet;
 
-  const anchorMs =
-    ledgerSnapshots.length > 0
-      ? parseMs(ledgerSnapshots[ledgerSnapshots.length - 1].at)
-      : parseMs(latestAt) || Date.now();
-
   const walletPoints: CapitalCurvePoint[] = [];
 
   for (const s of ledgerSnapshots) {
@@ -203,41 +198,6 @@ export async function buildCapitalCurveForExchange(
       parseMs(latestAt) > parseMs(walletPoints[walletPoints.length - 1].at))
   ) {
     walletPoints.push({ at: latestAt, value: roundUsd(latestWallet) });
-  }
-
-  if (walletPoints.length === 0 && anchorWallet != null) {
-    const startMs = Math.min(
-      ...deps.map((d) => parseMs(d.createdAt)).filter(Number.isFinite),
-      ...trades.map((t) => t.closedMs),
-    );
-    const startAt = Number.isFinite(startMs)
-      ? new Date(startMs).toISOString()
-      : new Date().toISOString();
-    walletPoints.push({
-      at: startAt,
-      value: estimateWalletAt(anchorMs, anchorWallet, trades),
-    });
-    if (latestAt && latestWallet != null) {
-      walletPoints.push({ at: latestAt, value: roundUsd(latestWallet) });
-    }
-  } else if (walletPoints.length === 1 && trades.length > 0 && anchorWallet != null) {
-    const first = walletPoints[0];
-    const backValue = estimateWalletAt(parseMs(first.at), first.value, trades);
-    const firstMs = parseMs(first.at);
-    const earliestTradeMs = trades[0]?.closedMs;
-    const deployMs = Math.min(
-      ...deps.map((d) => parseMs(d.createdAt)).filter(Number.isFinite),
-    );
-    const seedMs = Math.min(
-      Number.isFinite(deployMs) ? deployMs : firstMs,
-      Number.isFinite(earliestTradeMs) ? earliestTradeMs : firstMs,
-    );
-    if (Number.isFinite(seedMs) && seedMs < firstMs - 60_000) {
-      walletPoints.unshift({
-        at: new Date(seedMs).toISOString(),
-        value: backValue,
-      });
-    }
   }
 
   const flows = inferExternalFlows(walletPoints, trades);

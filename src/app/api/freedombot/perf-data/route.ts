@@ -59,6 +59,16 @@ function mapTradeDoc(doc: QueryDocumentSnapshot) {
     confidenceScoreAtClose: d.confidenceScoreAtClose ?? null,
     scorePatternAtClose: d.scorePatternAtClose ?? null,
     botSource: typeof d.botSource === "string" ? d.botSource : null,
+    // PR 2a debugging surface — `deliveredAs` is stamped at open time
+    // by sync-simulator / sync-zone-bots / manual-open. Exposing it
+    // here lets the simulation page (and ad-hoc curl) confirm
+    // stamping mid-life without waiting for the trade to close.
+    // Stays null for legacy trades opened before PR 2a.
+    deliveredAs: Array.isArray(d.deliveredAs)
+      ? (d.deliveredAs as unknown[]).filter(
+          (v): v is string => typeof v === "string",
+        )
+      : null,
     txHash: (d.txHash as string) ?? null,
     blockchainStatus: (d.blockchainStatus as string) ?? null,
     blockchainError: (d.blockchainError as string) ?? null,

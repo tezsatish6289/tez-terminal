@@ -148,6 +148,16 @@ export interface SimTrade {
    *  zone bots fully control their own lifecycle. SL/TP fill detection still
    *  applies — that's the same engine and is asset-agnostic. */
   botSource?: string;
+  /** Subscriber pools that received this trade — stamped once at open
+   *  time and treated as immutable. Drives the records-page Crypto tab
+   *  filter so a single trade can appear in both its origin bot's tab
+   *  (e.g. BTC) and the Crypto Bot tab when attach mode is "sim" /
+   *  "live" on `config/sim_bot_crypto_settings.attachedZoneBots`.
+   *  See `crypto-bot-attach.ts` for the full state model and the
+   *  `buildDeliveredAs()` helper that produces this array. Missing /
+   *  undefined = legacy trade closed before attach shipped (treated
+   *  as origin-bot only). */
+  deliveredAs?: string[];
   /** Solana memo publish — set when trade closes. */
   txHash?: string | null;
   blockchainStatus?: "pending" | "processing" | "confirmed" | "failed" | null;

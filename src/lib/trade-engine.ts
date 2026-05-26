@@ -80,6 +80,14 @@ export interface LiveTrade {
    *  are written by zone bots; pattern-bot side-effect branches skip them
    *  so zone bots fully own their own lifecycle. */
   botSource?: string;
+  /** Set ONLY for live trades opened via the silent Crypto Bot attach
+   *  path (see `crypto-bot-attach.ts`). Holds the original zone bot's
+   *  `botSource` (e.g. "BTC_ZONE") for debugging / audit while the
+   *  `botSource` field above is rewritten to "PATTERN" so the trade
+   *  rolls up under Crypto Bot in per-user reporting and shares the
+   *  Crypto cap pool. Undefined = direct trade (pattern signal or solo
+   *  zone subscriber); the cap query and reporting work as today. */
+  attachedFrom?: string;
 }
 
 export interface LiveTradeEvent {

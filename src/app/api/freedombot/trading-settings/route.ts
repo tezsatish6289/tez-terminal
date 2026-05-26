@@ -22,6 +22,7 @@ import {
   validateTradingPrefsUpdate,
 } from "@/lib/freedombot/trading-prefs";
 import { loadTradingPrefsForDeployment } from "@/lib/freedombot/deployment-cap";
+import { clampMaxConcurrentForBot } from "@/lib/freedombot/trading-prefs-shared";
 
 export const dynamic = "force-dynamic";
 
@@ -71,13 +72,26 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Deployment is missing exchange" }, { status: 400 });
     }
 
+    // Apply per-bot bounds to the cap update *before* writing. This
+    // catches an out-of-range value sent by an older/forged client
+    // (the UI dropdown is already filtered per-bot) and snaps it to
+    // the nearest allowed option. We also mirror the clamped value
+    // back to the secrets doc below.
+    const sanitized = { ...validated.updates };
+    if (typeof sanitized.maxConcurrentTrades === "number") {
+      sanitized.maxConcurrentTrades = clampMaxConcurrentForBot(
+        deployKey,
+        sanitized.maxConcurrentTrades,
+      );
+    }
+
     // Write the new values onto the deployment doc — this is the
     // source of truth the live dispatcher reads. We merge over the
     // existing `tradingPrefs` map so a partial update (e.g. cap only)
     // leaves the other fields alone.
     const existingPrefs =
       (deployData.tradingPrefs as Record<string, unknown> | undefined) ?? {};
-    const mergedPrefs = { ...existingPrefs, ...validated.updates };
+    const mergedPrefs = { ...existingPrefs, ...sanitized };
     await deployRef.update({
       tradingPrefs: mergedPrefs,
     });
@@ -90,7 +104,7 @@ export async function PATCH(req: NextRequest) {
     try {
       const secretRef = await findSecretRefForExchange(db, uid, exchange);
       if (secretRef) {
-        await secretRef.update(validated.updates);
+        await secretRef.update(sanitized);
       }
     } catch (mirrorErr) {
       console.warn(

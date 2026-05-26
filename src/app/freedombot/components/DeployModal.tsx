@@ -805,7 +805,12 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                   <p className="text-[11px] font-black uppercase tracking-widest" style={{ color: "#94a3b8" }}>
                     Risk settings
                   </p>
-                  <RiskControls values={tradingPrefs} onChange={setTradingPrefs} compact />
+                  <RiskControls
+                    values={tradingPrefs}
+                    onChange={setTradingPrefs}
+                    compact
+                    bot={selectedBot}
+                  />
                 </div>
               )}
 
@@ -902,6 +907,7 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                     values={tradingPrefs}
                     onChange={setTradingPrefs}
                     compact
+                    bot={selectedBot}
                   />
                 </div>
               )}

@@ -48,6 +48,9 @@ export interface DeploymentWallet {
 
 export interface SettingsDeployment {
   id: string;
+  /** Deploy key — CRYPTO / BTC / ETH / SOL / XRP. Drives per-bot
+   *  filtering of the cap dropdown in `RiskControls`. */
+  bot: string;
   exchange: string;
   status: "active" | "paused";
   keyLastFour: string | null;
@@ -484,6 +487,7 @@ export function BotSettings({
                   setRiskSaveOk(false);
                 }}
                 disabled={riskSaveBusy}
+                bot={deployment.bot}
               />
               {riskSaveError && (
                 <div

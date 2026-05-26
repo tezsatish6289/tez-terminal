@@ -8,6 +8,7 @@ import {
   DEFAULT_TRADING_PREFS,
   validateTradingPrefsUpdate,
 } from "@/lib/freedombot/trading-prefs";
+import { clampMaxConcurrentForBot } from "@/lib/freedombot/trading-prefs-shared";
 import {
   CRYPTO_PERP_DEPLOY_KEYS,
   CRYPTO_PERP_EXCHANGES,
@@ -91,11 +92,25 @@ export async function POST(req: NextRequest) {
     if (!prefsInput.ok) {
       return NextResponse.json({ error: prefsInput.error }, { status: 400 });
     }
-    const tradingPrefs = { ...DEFAULT_TRADING_PREFS, ...prefsInput.updates };
 
     if (!ALLOWED_BOTS.has(bot)) {
       return NextResponse.json({ error: "Invalid bot" }, { status: 400 });
     }
+
+    // Apply per-bot bounds. The Crypto Bot floor (3) means a deploy
+    // request that omits maxConcurrentTrades — falling back to the
+    // legacy platform default of 1 — gets snapped up to 3 here, both
+    // on the new deployment doc and on the mirrored secrets write
+    // below. No other bots are constrained today.
+    const tradingPrefs = {
+      ...DEFAULT_TRADING_PREFS,
+      ...prefsInput.updates,
+      maxConcurrentTrades: clampMaxConcurrentForBot(
+        bot,
+        prefsInput.updates.maxConcurrentTrades ??
+          DEFAULT_TRADING_PREFS.maxConcurrentTrades,
+      ),
+    };
 
     const allowedExchanges = ALLOWED_EXCHANGES[bot] ?? [];
     if (!allowedExchanges.includes(exchange)) {

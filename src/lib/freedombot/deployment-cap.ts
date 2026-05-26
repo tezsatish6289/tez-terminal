@@ -41,6 +41,7 @@ import {
 } from "@/lib/crypto-bots";
 import {
   DEFAULT_TRADING_PREFS,
+  clampMaxConcurrentForBot,
   resolveDailyLossLimit,
   resolveRiskPerTrade,
   type TradingPrefs,
@@ -58,7 +59,12 @@ import { getSecretDocIds, docMatchesExchange, type ExchangeName } from "@/lib/ex
  *  aren't live today but if they ever ship they'll define their own
  *  default here. */
 export function defaultMaxConcurrentForBot(deployKey: string): number {
-  if (deployKey === "CRYPTO") return 3;
+  // Crypto Bot's per-bot bounds (floor 3, ceiling 5) live in
+  // `MAX_CONCURRENT_BOUNDS_BY_BOT`. The default sits at the floor so
+  // newly-deployed bots and unmigrated rows resolve to the lowest
+  // allowed value, never below it. clampMaxConcurrentForBot is the
+  // single source of truth — keep it in lockstep with this default.
+  if (deployKey === "CRYPTO") return clampMaxConcurrentForBot("CRYPTO", 3);
   if (deployKey === "BTC" || deployKey === "ETH" || deployKey === "SOL" || deployKey === "XRP") {
     return 1;
   }
@@ -91,10 +97,18 @@ export function tradingPrefsFromDeployment(
       typeof raw.riskPerTrade === "number"
         ? resolveRiskPerTrade(raw.riskPerTrade)
         : defaults.riskPerTrade,
-    maxConcurrentTrades:
+    // Clamp on read — a stored value below the per-bot floor (e.g. a
+    // legacy Crypto deployment that still carries 1 from the secrets
+    // mirror) gets snapped up to the new minimum here without needing
+    // a Firestore write. The one-shot migration also writes the
+    // clamped value, but this guards against any path that reads
+    // before the migration ran.
+    maxConcurrentTrades: clampMaxConcurrentForBot(
+      deployKey,
       typeof raw.maxConcurrentTrades === "number" && raw.maxConcurrentTrades > 0
-        ? Math.trunc(raw.maxConcurrentTrades)
+        ? raw.maxConcurrentTrades
         : defaults.maxConcurrentTrades,
+    ),
     dailyLossLimit:
       typeof raw.dailyLossLimit === "number"
         ? resolveDailyLossLimit(raw.dailyLossLimit)
@@ -161,6 +175,9 @@ export async function resolveDeploymentCap(
   const deployKey = deployKeyForBotSource(botSource);
   const deployDoc = await findDeploymentForBot(db, uid, exchange, deployKey);
   if (deployDoc) {
+    // tradingPrefsFromDeployment applies the per-bot clamp, so a Crypto
+    // deployment that still stores cap=1 from a pre-migration write
+    // reports its clamped value (3) to the live dispatcher.
     const prefs = tradingPrefsFromDeployment(deployDoc.data(), deployKey);
     if (prefs.maxConcurrentTrades > 0) {
       const raw = (deployDoc.data().tradingPrefs as Record<string, unknown> | undefined)
@@ -176,7 +193,14 @@ export async function resolveDeploymentCap(
   if (secretData) {
     const legacy = secretData.maxConcurrentTrades;
     if (typeof legacy === "number" && legacy > 0) {
-      return { cap: Math.trunc(legacy), source: "secret" };
+      // Legacy secrets value also gets clamped to the per-bot bounds
+      // — without this, a Crypto user whose deployment doc is missing
+      // tradingPrefs but whose secrets carries cap=1 would still trade
+      // with cap=1, defeating the floor.
+      return {
+        cap: clampMaxConcurrentForBot(deployKey, legacy),
+        source: "secret",
+      };
     }
   }
   return { cap: defaultMaxConcurrentForBot(deployKey), source: "default" };
@@ -312,13 +336,16 @@ export async function loadTradingPrefsForDeployment(
       // Cap follows the per-bot default when the secrets doc only has
       // the legacy single number — that's the whole point of the
       // migration. Risk and daily-loss are still platform-wide today,
-      // so the secrets value is honoured for those.
+      // so the secrets value is honoured for those. Clamp the secrets
+      // value to the per-bot bounds so a stale legacy 1 on a Crypto
+      // user still lands at the new floor (3).
+      const legacyCap = (secretDoc.data() as Record<string, unknown>).maxConcurrentTrades;
       return {
         riskPerTrade: fromSecret.riskPerTrade,
-        maxConcurrentTrades:
-          typeof (secretDoc.data() as Record<string, unknown>).maxConcurrentTrades === "number"
-            ? (secretDoc.data() as Record<string, number>).maxConcurrentTrades
-            : defaults.maxConcurrentTrades,
+        maxConcurrentTrades: clampMaxConcurrentForBot(
+          deployKey,
+          typeof legacyCap === "number" ? legacyCap : defaults.maxConcurrentTrades,
+        ),
         dailyLossLimit: fromSecret.dailyLossLimit,
       };
     }

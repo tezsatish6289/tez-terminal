@@ -34,6 +34,17 @@
  *    user could exceed their cap by 1 once. Setting `botSource:
  *    "PATTERN"` on every OPEN trade missing it closes that hole.
  *
+ * 4. **Enforce per-bot Crypto cap bounds on existing docs.**
+ *    Crypto Bot was given a per-bot floor of 3 and ceiling of 5 (see
+ *    `MAX_CONCURRENT_BOUNDS_BY_BOT` in `trading-prefs-shared.ts`).
+ *    The first migration faithfully copied each user's legacy
+ *    `maxConcurrentTrades` from secrets — usually 1, the old
+ *    platform default. This step re-walks every deployment, applies
+ *    `clampMaxConcurrentForBot`, and writes the bumped value to
+ *    both the deployment doc and the legacy secrets mirror.
+ *    Crypto rows at cap=1 → 3; one outlier at cap=5 stays. Other
+ *    bots are unconstrained, so no write.
+ *
  * Modes
  * -----
  * • `GET ?dryRun=1` — returns counts of what would change without
@@ -60,6 +71,7 @@ import {
 } from "@/lib/freedombot/deployment-cap";
 import {
   DEFAULT_TRADING_PREFS,
+  clampMaxConcurrentForBot,
   type TradingPrefs,
 } from "@/lib/freedombot/trading-prefs-shared";
 import type { Firestore } from "firebase-admin/firestore";
@@ -72,6 +84,12 @@ interface MigrationReport {
   deploymentsBackfilled: number;
   zoneDeploymentsCreated: number;
   liveTradesBackfilled: number;
+  /** Existing Crypto deployments whose cap was out of `[3, 5]` and got
+   *  bumped to the nearest allowed value. Step 4 of the migration. */
+  cryptoCapsClamped: number;
+  /** Sample of (oldCap → newCap) pairs from the Crypto clamp step,
+   *  useful for spot-checking on the dry run. */
+  cryptoCapsClampedSample: { deploymentId: string; from: number; to: number }[];
   errors: { context: string; message: string }[];
   /** Newly-created zone-bot deployment ids — only present on a real run. */
   createdDeploymentIds?: string[];
@@ -85,6 +103,8 @@ async function runMigration(db: Firestore, dryRun: boolean): Promise<MigrationRe
     deploymentsBackfilled: 0,
     zoneDeploymentsCreated: 0,
     liveTradesBackfilled: 0,
+    cryptoCapsClamped: 0,
+    cryptoCapsClampedSample: [],
     errors: [],
     ...(dryRun ? {} : { createdDeploymentIds: [] }),
   };
@@ -152,12 +172,17 @@ async function runMigration(db: Firestore, dryRun: boolean): Promise<MigrationRe
     if (secret) {
       const fromSecret = tradingPrefsFromSecret(secret);
       const explicitCap = secret.maxConcurrentTrades;
+      const seedCap =
+        typeof explicitCap === "number" && explicitCap > 0
+          ? Math.trunc(explicitCap)
+          : defaultMaxConcurrentForBot(bot);
       tradingPrefs = {
         riskPerTrade: fromSecret.riskPerTrade,
-        maxConcurrentTrades:
-          typeof explicitCap === "number" && explicitCap > 0
-            ? Math.trunc(explicitCap)
-            : defaultMaxConcurrentForBot(bot),
+        // Clamp the seed value to per-bot bounds. For Crypto Bot
+        // (bounds 3..5) this means a legacy secrets value of 1 lands
+        // on the deployment as 3, not 1 — the whole point of the
+        // bump. Other bots are unconstrained and pass through.
+        maxConcurrentTrades: clampMaxConcurrentForBot(bot, seedCap),
         dailyLossLimit: fromSecret.dailyLossLimit,
       };
     } else {
@@ -281,6 +306,87 @@ async function runMigration(db: Firestore, dryRun: boolean): Promise<MigrationRe
       }
     }
     report.liveTradesBackfilled++;
+  }
+
+  // ── Step 4: enforce per-bot Crypto cap bounds on existing docs ─────
+  // The first migration pass landed `tradingPrefs` on every deployment
+  // doc, but seeded each cap from the user's legacy secrets value —
+  // which for most Crypto users was 1 (the old platform default). With
+  // the per-bot floor of 3 introduced for Crypto, those docs need to
+  // be bumped. We walk *every* deployment doc (cheap — already in
+  // memory from step 1) and clamp `tradingPrefs.maxConcurrentTrades`
+  // to the per-bot bounds via `clampMaxConcurrentForBot`. Anything
+  // already inside the bounds is a no-op; this is what makes a
+  // re-run idempotent. Only writes are emitted for docs that actually
+  // change.
+  for (const doc of deploymentsSnap.docs) {
+    const data = doc.data();
+    const bot = String(data.bot ?? "");
+    if (!bot) continue;
+    const prefs = data.tradingPrefs as Record<string, unknown> | undefined;
+    const currentCap =
+      typeof prefs?.maxConcurrentTrades === "number" ? prefs.maxConcurrentTrades : null;
+    if (currentCap === null) continue;
+    const clamped = clampMaxConcurrentForBot(bot, currentCap);
+    if (clamped === currentCap) continue;
+
+    if (report.cryptoCapsClampedSample.length < 10) {
+      report.cryptoCapsClampedSample.push({
+        deploymentId: doc.id,
+        from: currentCap,
+        to: clamped,
+      });
+    }
+
+    if (!dryRun) {
+      try {
+        await doc.ref.update({
+          // Use dot-path so we don't blow away other tradingPrefs fields.
+          "tradingPrefs.maxConcurrentTrades": clamped,
+        });
+        // Mirror to the legacy secrets value (same write path as
+        // trading-settings) so any remaining reader on that field sees
+        // the bumped value too. Best-effort; errors don't fail the
+        // migration.
+        try {
+          const exchange = String(data.exchange ?? "");
+          const secret = exchange ? await loadSecret(String(data.uid ?? ""), exchange) : null;
+          // Find the actual secret doc ref to update.
+          if (secret) {
+            // We don't track ref in loadSecret's cache; re-walk doc ids
+            // to find the matching ref. Cheap — at most ~7 reads, and
+            // capped by the number of clamp candidates.
+            const docIds = ["bybit", "binance", "binance_futures", "mexc", "coindcx", "hyperliquid", "dhan"];
+            const uid = String(data.uid ?? "");
+            for (const id of docIds) {
+              const ref = db.collection("users").doc(uid).collection("secrets").doc(id);
+              const snap = await ref.get();
+              if (
+                snap.exists &&
+                String(snap.data()?.exchange ?? "").toUpperCase() === exchange.toUpperCase()
+              ) {
+                await ref.update({ maxConcurrentTrades: clamped });
+                break;
+              }
+            }
+          }
+        } catch (mirrorErr) {
+          // Mirror failure isn't fatal — deployment doc is the source
+          // of truth; secrets mirror is transitional.
+          report.errors.push({
+            context: `secrets mirror for deployment ${doc.id} (cap clamp)`,
+            message: mirrorErr instanceof Error ? mirrorErr.message : String(mirrorErr),
+          });
+        }
+      } catch (e) {
+        report.errors.push({
+          context: `clamp cap on deployment ${doc.id} (${bot})`,
+          message: e instanceof Error ? e.message : String(e),
+        });
+        continue;
+      }
+    }
+    report.cryptoCapsClamped++;
   }
 
   return report;

@@ -463,6 +463,7 @@ export default function BotDetailPage() {
         deployment={
           {
             id: deployment.id,
+            bot: deployment.bot,
             exchange: deployment.exchange,
             status: deployment.status,
             keyLastFour: deployment.keyLastFour ?? null,

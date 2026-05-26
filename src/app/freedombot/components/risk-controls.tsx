@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import {
   DAILY_LOSS_OPTIONS,
-  MAX_CONCURRENT_OPTIONS,
   RISK_PER_TRADE_OPTIONS,
+  allowedMaxConcurrentForBot,
+  clampMaxConcurrentForBot,
   type TradingPrefs,
 } from "@/lib/freedombot/trading-prefs-shared";
 
@@ -14,6 +16,13 @@ interface RiskControlsProps {
   onChange: (next: TradingPrefs) => void;
   disabled?: boolean;
   compact?: boolean;
+  /** Bot deploy key — drives the per-bot dropdown filtering for
+   *  `maxConcurrentTrades`. Crypto Bot exposes `[3, 5]`; zone bots
+   *  expose the full `MAX_CONCURRENT_OPTIONS`. Defaults to "CRYPTO"
+   *  because the deploy + bot-settings call sites always have a bot
+   *  in context — defaulting here keeps the prop optional for any
+   *  legacy caller without changing their behaviour. */
+  bot?: string;
 }
 
 const selectStyle: React.CSSProperties = {
@@ -51,8 +60,25 @@ export function RiskControls({
   onChange,
   disabled = false,
   compact = false,
+  bot = "CRYPTO",
 }: RiskControlsProps) {
   const gridClass = compact ? "grid grid-cols-3 gap-2" : "grid grid-cols-3 gap-2.5";
+
+  // Filter the cap dropdown to only the per-bot allowed steps. Crypto
+  // Bot gets `[3, 5]`; zone bots get the full set. If the currently-
+  // selected value is outside the allowed set (stale data from before
+  // the bounds were introduced), snap it to the nearest allowed
+  // option via the same clamp helper the server uses, so the dropdown
+  // never renders a value that isn't in its options list. We also
+  // render the dropdown with the clamped value directly so there's no
+  // "select shows nothing, then jumps" flash before the effect fires.
+  const maxConcurrentOptions = allowedMaxConcurrentForBot(bot);
+  const displayMaxConcurrent = clampMaxConcurrentForBot(bot, values.maxConcurrentTrades);
+  useEffect(() => {
+    if (displayMaxConcurrent !== values.maxConcurrentTrades) {
+      onChange({ ...values, maxConcurrentTrades: displayMaxConcurrent });
+    }
+  }, [displayMaxConcurrent, values, onChange]);
 
   return (
     <div className={gridClass}>
@@ -76,7 +102,7 @@ export function RiskControls({
       <RiskField label="Max open" compact={compact}>
         <select
           disabled={disabled}
-          value={values.maxConcurrentTrades}
+          value={displayMaxConcurrent}
           onChange={(e) =>
             onChange({
               ...values,
@@ -86,7 +112,7 @@ export function RiskControls({
           className="w-full rounded-xl px-2.5 py-2 text-xs font-bold outline-none"
           style={selectStyle}
         >
-          {MAX_CONCURRENT_OPTIONS.map((n) => (
+          {maxConcurrentOptions.map((n) => (
             <option key={n} value={n}>
               {n}
             </option>

@@ -174,6 +174,40 @@ export function tradeBelongsToCryptoTab(
   return deliveredAs.includes(DELIVERED_TO_CRYPTO);
 }
 
+/** Records-page tab filter values. Mirrors `CryptoBotId | "all"`; kept
+ *  here so the filter helper stays in the same module as the predicate
+ *  it composes around. */
+export type RecordsTabFilter = "all" | "crypto" | "btc" | "eth" | "sol" | "xrp";
+
+/** Single source of truth for "does this trade belong in this records
+ *  tab?" — used by `/api/admin/blockchain-records` and the unit test
+ *  for the route. Centralising the rule prevents the production filter
+ *  and the test corpus from silently drifting apart.
+ *
+ *  Semantics:
+ *    • "all"                 → every trade
+ *    • "crypto"              → pattern trades + attached zone trades
+ *                              (anything with "CRYPTO" in deliveredAs,
+ *                              plus the legacy pattern fallback)
+ *    • "btc"/"eth"/"sol"/"xrp" → origin bot only. A zone trade with
+ *                                attach mode "sim"/"live" still shows
+ *                                in its own zone tab AND in Crypto.
+ */
+export function tradeBelongsToRecordsTab(
+  filter: RecordsTabFilter,
+  trade: {
+    botId: string;
+    botSource: string | null | undefined;
+    deliveredAs: readonly string[] | null | undefined;
+  },
+): boolean {
+  if (filter === "all") return true;
+  if (filter === "crypto") {
+    return tradeBelongsToCryptoTab(trade.deliveredAs, trade.botSource);
+  }
+  return trade.botId === filter;
+}
+
 // ── Logging keys ─────────────────────────────────────────────────────
 
 /** Single-source-of-truth log action strings written to

@@ -9,6 +9,7 @@ import {
   type ZoneBotAsset,
 } from "@/lib/zone-bot-config";
 import { zoneSimStateDoc } from "@/lib/zone-bot-state";
+import { tradeBelongsToRecordsTab } from "@/lib/crypto-bot-attach";
 
 export const dynamic = "force-dynamic";
 
@@ -65,15 +66,19 @@ export async function GET(request: NextRequest) {
     const trades = snap.docs
       .map((doc) => {
         const d = doc.data();
-        const bot = cryptoBotByBotSource(
-          typeof d.botSource === "string" ? d.botSource : null,
-        );
+        const botSource = typeof d.botSource === "string" ? d.botSource : null;
+        const bot = cryptoBotByBotSource(botSource);
         const botId = bot?.id ?? "crypto";
+        const deliveredAs = Array.isArray(d.deliveredAs)
+          ? (d.deliveredAs as unknown[]).filter(
+              (v): v is string => typeof v === "string",
+            )
+          : null;
         return {
           id: doc.id,
           symbol: d.symbol as string,
           side: d.side as "BUY" | "SELL",
-          botSource: typeof d.botSource === "string" ? d.botSource : null,
+          botSource,
           botId,
           botLabel: bot?.label ?? "Crypto Bot",
           publicLive: publicFlags[botId as CryptoBotId] ?? false,
@@ -92,12 +97,15 @@ export async function GET(request: NextRequest) {
           blockchainStatus: (d.blockchainStatus as string) ?? null,
           blockchainError: (d.blockchainError as string) ?? null,
           blockchainConfirmedAt: (d.blockchainConfirmedAt as string) ?? null,
+          deliveredAs,
         };
       })
-      .filter((t) => {
-        if (botFilter === "all") return true;
-        return t.botId === botFilter;
-      });
+      // Records-tab routing lives in one shared helper so the filter
+      // here can't drift from the unit tests in
+      // scripts/tests/records-tab-filter.test.ts. Crypto tab pulls in
+      // pattern trades plus any zone trade attached via
+      // `attachedZoneBots`; per-zone tabs stay origin-only.
+      .filter((t) => tradeBelongsToRecordsTab(botFilter, t));
 
     const summary = {
       total: trades.length,

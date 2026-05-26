@@ -73,6 +73,7 @@ import { recordCronHeartbeat } from "@/lib/cron-health";
 import { deserializePrices } from "@/lib/exchanges";
 import { getLeverage } from "@/lib/leverage";
 import { executeForAllUsers } from "@/lib/live-execution";
+import { buildDeliveredAs, loadAttachedZoneBots } from "@/lib/crypto-bot-attach";
 import {
   SIM_CONFIG,
   type SimConfigType,
@@ -344,8 +345,18 @@ async function openZoneBotTrade(args: {
 
   // Stamp botSource so PR #3's guards in sync-simulator skip this trade
   // for zone-flip / max-pain-proximity force-closes (zone bot owns its own
-  // lifecycle decisions).
-  const tradeWithSource: SimTrade = { ...result.trade, botSource: ZONE_BOT_SOURCE[asset] };
+  // lifecycle decisions). `deliveredAs` (PR 2a) marks every subscriber
+  // pool that should see this trade — at minimum the originating zone
+  // (e.g. "BTC"), plus "CRYPTO" when admin has attached this zone bot
+  // to Crypto Bot via `config/sim_bot_crypto_settings.attachedZoneBots`.
+  // Records-page filters route off this field; live execution still
+  // uses `botSource` and `executeForAllUsers` opt-in gating.
+  const attachedZoneBots = await loadAttachedZoneBots(db);
+  const tradeWithSource: SimTrade = {
+    ...result.trade,
+    botSource: ZONE_BOT_SOURCE[asset],
+    deliveredAs: buildDeliveredAs(attachedZoneBots, ZONE_BOT_SOURCE[asset]),
+  };
 
   const docId = `sim-${signalId}`;
 

@@ -10,6 +10,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "test": "tsx scripts/tests/run-all.ts",
     "liquidity:ws": "tsx --env-file=.env.local scripts/liquidity-ws-server.ts",
     "watchlist:generate": "tsx scripts/generate-tv-watchlist.ts"
   },

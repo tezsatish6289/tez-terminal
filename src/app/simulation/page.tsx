@@ -8,7 +8,7 @@ import {
   useDoc,
   useMemoFirebase,
 } from "@/firebase";
-import { collection, query, orderBy, limit, where, doc, getDocs, startAfter, QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
+import { collection, query, orderBy, limit, where, doc, getDocs, onSnapshot, startAfter, QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
 import {
   Loader2,
   TrendingUp,
@@ -219,26 +219,38 @@ export default function SimulationPage() {
     fetchHistPage(0);
   }, [fetchHistPage]);
 
-  // Logs — historical, fetched once on mount / manual refresh.
+  // Logs — live-subscribed via `onSnapshot` so newly-written
+  // ASSESSMENT_SUMMARY / TP / SL / KILL_SWITCH rows show up within
+  // seconds without a manual refresh. Far cheaper than polling for
+  // the "leave the tab open all day" case: Firestore charges per
+  // doc delta, not per snapshot fire — at 1000 users that's the
+  // difference between hundreds of thousands of reads/day vs ~1k.
   const [rawLogs, setRawLogs] = useState<any[] | null>(null);
   const [logsLoading, setLogsLoading] = useState(false);
-  const refetchLogs = useCallback(async () => {
+  // Kept for backwards-compatibility with refresh buttons in the
+  // toolbar; just no-ops the manual loading state now that we have
+  // a live subscription.
+  const refetchLogs = useCallback(async () => {}, []);
+  useEffect(() => {
     if (!firestore || !user) return;
     setLogsLoading(true);
-    try {
-      const snap = await getDocs(query(
+    const unsub = onSnapshot(
+      query(
         collection(firestore, "simulator_logs"),
         orderBy("timestamp", "desc"),
         limit(200),
-      ));
-      setRawLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    } finally {
-      setLogsLoading(false);
-    }
+      ),
+      (snap) => {
+        setRawLogs(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setLogsLoading(false);
+      },
+      (err) => {
+        console.error("[simulation] simulator_logs subscription error:", err);
+        setLogsLoading(false);
+      },
+    );
+    return () => unsub();
   }, [firestore, user]);
-  useEffect(() => {
-    refetchLogs();
-  }, [refetchLogs]);
 
   // Bottom panel is scoped to the heatmap card selected above.
   const botSourcePredicate = useMemo(
@@ -2052,6 +2064,7 @@ function LogRow({ log, cs = "$" }: { log: SimLog; cs?: string }) {
     COOLOFF_ACTIVATED: "text-amber-400",
     DAILY_RESET: "text-accent",
     ASSESSMENT_SUMMARY: "text-sky-400",
+    LIGHT_CYCLE_SKIP: "text-muted-foreground/40",
     PATTERN_BREAK: "text-rose-400",
   };
 

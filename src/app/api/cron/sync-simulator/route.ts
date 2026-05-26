@@ -65,6 +65,15 @@ export const revalidate = 0;
 const lastAssessmentLogAt = new Map<string, number>();
 const ASSESSMENT_LOG_INTERVAL_MS = 5 * 60 * 1000;
 
+// Throttle for LIGHT_CYCLE_SKIP rows. The cron runs every minute and
+// can take the light-cycle early-exit every other minute when BTC is
+// between zones (and the Indian session is closed). Without a throttle
+// the cockpit log feed would be flooded with skip rows. 5 minutes
+// matches the ASSESSMENT_SUMMARY cadence so operators can quickly see
+// "alive but light" vs "alive and assessing" in the same time window.
+let lastLightCycleLogAt = 0;
+const LIGHT_CYCLE_LOG_INTERVAL_MS = 5 * 60 * 1000;
+
 /**
  * CRON 2: SIMULATOR TRADE MANAGEMENT
  *
@@ -219,6 +228,36 @@ export async function GET(request: NextRequest) {
         },
         { merge: true },
       ).catch(() => {});
+
+      // Surface the skip in simulator_logs so the cockpit shows "alive
+      // and intentionally light" rather than going silent. Without this
+      // row the UI looks frozen between heavy-cycle bursts and operators
+      // assume the bot is dead (real incident on 2026-05-26).
+      // Throttled so the every-minute cron can't flood the feed.
+      if (Date.now() - lastLightCycleLogAt >= LIGHT_CYCLE_LOG_INTERVAL_MS) {
+        lastLightCycleLogAt = Date.now();
+        const cryptoReason = throttleHeavyCycle
+          ? `throttle (${cryptoSwitch.reason})`
+          : policySkipHeavy
+          ? `policy (override=${heatmapZones.manualOverride}, autoClear=${autoZoneClearReason}, switch=${cryptoSwitch.reason})`
+          : "no-open + light";
+        const niftyReasonText = niftyThrottle
+          ? `throttle (${niftySwitch.reason})`
+          : niftyPolicySkip
+          ? `policy (override=${niftyZones.manualOverride})`
+          : "no-open + light";
+        await db
+          .collection("simulator_logs")
+          .add({
+            timestamp: new Date().toISOString(),
+            action: "LIGHT_CYCLE_SKIP",
+            assetType: "CRYPTO",
+            capital: null,
+            details: `Heavy cycle skipped this tick — crypto: ${cryptoReason}; nifty: ${niftyReasonText}. Next heavy tick fires when any side gets an open trade or a zone re-enters.`,
+          })
+          .catch(() => {});
+      }
+
       return NextResponse.json({
         success: true,
         skippedHeavyCycle: true,

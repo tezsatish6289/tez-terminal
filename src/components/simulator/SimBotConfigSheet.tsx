@@ -30,6 +30,7 @@ import {
   BotCardToolbarTrigger,
   type TradingMode,
 } from "@/components/simulator/BotCardToolbarTrigger";
+import { AttachedZoneBotsSection } from "@/components/simulator/AttachedZoneBotsSection";
 import type { ZoneBotState } from "@/lib/zone-bot-state";
 
 /**
@@ -633,6 +634,8 @@ export function SimBotConfigSheet({
               {(isCrypto || isZone) && (
                 <ZoneEntryFields settings={settings} patch={patch} botId={botId} />
               )}
+
+              {isCrypto && <AttachedZoneBotsSection />}
 
               <button
                 type="button"

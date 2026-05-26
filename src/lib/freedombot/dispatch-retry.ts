@@ -55,7 +55,12 @@ import {
  * close-side reconciliation logic in sync-live-trades.
  */
 
-const RETRY_WINDOW_MS = 10 * 60 * 1000;
+// Retry window: tickets younger than MIN_AGE_MS get skipped (let the
+// transient settle before we hammer), tickets older than RETRY_WINDOW_MS
+// are considered stale — a signal entry 5+ minutes after it fired is
+// almost never the right price anyway, so we let it die rather than
+// open a position at a worse fill.
+const RETRY_WINDOW_MS = 5 * 60 * 1000;
 const MIN_AGE_MS = 60 * 1000;
 const MAX_ATTEMPTS = 3;
 const MAX_RETRIES_PER_TICK = 5;

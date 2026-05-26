@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { decrypt } from "@/lib/crypto";
 import {
-  getConnector,
+  fetchExchangeWalletBalance,
   isExchangeSupported,
   getSecretDocIds,
   docMatchesExchange,
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     if (!uid) return NextResponse.json({ error: "Missing uid" }, { status: 400 });
 
     const exchangeParam = (searchParams.get("exchange") || "BYBIT").toUpperCase();
-    const exchangeName = isExchangeSupported(exchangeParam) ? exchangeParam as ExchangeName : "BYBIT";
+    const exchangeName = isExchangeSupported(exchangeParam) ? (exchangeParam as ExchangeName) : "BYBIT";
 
     const db = getAdminFirestore();
     const docIds = getSecretDocIds(exchangeName);
@@ -40,13 +40,13 @@ export async function GET(request: NextRequest) {
       testnet: data.useTestnet === true,
     };
 
-    const connector = getConnector(exchangeName);
-    const balance = await connector.getUsdtBalance(creds);
+    const balance = await fetchExchangeWalletBalance(exchangeName, creds);
 
     return NextResponse.json({
       exchange: exchangeName,
       total: balance.total,
       available: balance.available,
+      lockedInUse: balance.lockedInUse,
       testnet: data.useTestnet === true,
     });
   } catch (e) {

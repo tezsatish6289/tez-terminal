@@ -385,20 +385,28 @@ export class CoinDcxConnector implements ExchangeConnector {
       ),
     );
 
-    return rows.map((w) => ({
-      asset: w.currency_short_name,
-      balance: w.balance ?? "0",
-      availableBalance: String(parseFloat(w.balance ?? "0") - parseFloat(w.locked_balance ?? "0")),
-      crossUnPnl: "0",
-    }));
+    return rows.map((w) => {
+      const free = parseFloat(w.balance ?? "0");
+      const locked = parseFloat(w.locked_balance ?? "0");
+      // CoinDCX: `balance` is free USDT; total wallet = balance + locked_balance.
+      // https://docs.coindcx.com/ — futures wallets endpoint.
+      const total = free + locked;
+      return {
+        asset: w.currency_short_name,
+        balance: String(total),
+        availableBalance: String(free),
+        crossUnPnl: "0",
+      };
+    });
   }
 
   async getUsdtBalance(creds: ExchangeCredentials): Promise<{ total: number; available: number }> {
     const balances = await this.getBalance(creds);
     const usdt = balances.find((b) => b.asset === "USDT");
-    const total = parseFloat(usdt?.balance ?? "0");
-    const avail = parseFloat(usdt?.availableBalance ?? "0");
-    return { total, available: avail };
+    return {
+      total: parseFloat(usdt?.balance ?? "0"),
+      available: parseFloat(usdt?.availableBalance ?? "0"),
+    };
   }
 
   /**

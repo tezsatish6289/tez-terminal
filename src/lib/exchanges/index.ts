@@ -62,3 +62,11 @@ export {
   type AllExchangePrices,
   type ExchangePriceMap,
 } from "./price-service";
+
+export {
+  fetchExchangeWalletBalance,
+  normalizeWalletBalance,
+  walletCurrencyFor,
+  walletLockedInUse,
+  type ExchangeWalletBalance,
+} from "./fetch-wallet-balance";

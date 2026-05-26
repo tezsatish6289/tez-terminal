@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth, getAdminFirestore } from "@/firebase/admin";
-import { getConnector, type ExchangeName } from "@/lib/exchanges";
+import { fetchExchangeWalletBalance, type ExchangeName } from "@/lib/exchanges";
 import { loadUserExchangeSecret } from "@/lib/freedombot/user-exchange-secret";
 
 export const dynamic = "force-dynamic";
@@ -35,8 +35,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const connector = getConnector(exchange);
-      const balance = await connector.getUsdtBalance(loaded.creds);
+      const balance = await fetchExchangeWalletBalance(exchange, loaded.creds);
       if (balance.total < 0) throw new Error("Unexpected negative balance");
       if (exchange === "HYPERLIQUID" && balance.total <= 0) {
         throw new Error(
@@ -50,6 +49,7 @@ export async function POST(req: NextRequest) {
         keyLastFour: loaded.keyLastFour,
         total: balance.total,
         available: balance.available,
+        lockedInUse: balance.lockedInUse,
       });
     } catch (e) {
       return NextResponse.json({

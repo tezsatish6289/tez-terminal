@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore, getAdminAuth } from "@/firebase/admin";
 import { encrypt } from "@/lib/crypto";
-import { getConnector, getSecretDocId } from "@/lib/exchanges";
-import type { ExchangeName, ExchangeCredentials } from "@/lib/exchanges";
+import { getConnector, getSecretDocId, fetchExchangeWalletBalance } from "@/lib/exchanges";
+import type { ExchangeName, ExchangeCredentials, ExchangeWalletBalance } from "@/lib/exchanges";
 import { persistWalletBalanceSnapshot } from "@/lib/freedombot/wallet-balance";
 import {
   DEFAULT_TRADING_PREFS,
@@ -186,12 +186,12 @@ export async function POST(req: NextRequest) {
     let exchangeUid: string | null = null;
     // Reuse the validation balance below to seed the deployment's wallet
     // snapshot — saves an extra venue round-trip on the deploy POST.
-    let validatedBalance: { total: number; available: number } | null = null;
+    let validatedBalance: ExchangeWalletBalance | null = null;
     try {
       const connector = getConnector(exchange);
-      const balance = await connector.getUsdtBalance(liveCreds);
+      const balance = await fetchExchangeWalletBalance(exchangeName, liveCreds);
       if (balance.total < 0) throw new Error("Unexpected negative balance");
-      validatedBalance = { total: balance.total, available: balance.available };
+      validatedBalance = balance;
       if (exchange === "HYPERLIQUID" && balance.total <= 0) {
         const describe =
           "describeZeroPerpBalance" in connector
@@ -347,8 +347,7 @@ export async function POST(req: NextRequest) {
           exchangeName,
           {
             ok: true,
-            total: validatedBalance.total,
-            available: validatedBalance.available,
+            balance: validatedBalance,
           },
           db,
         );
@@ -407,8 +406,7 @@ export async function POST(req: NextRequest) {
         exchange as ExchangeName,
         {
           ok: true,
-          total: validatedBalance.total,
-          available: validatedBalance.available,
+          balance: validatedBalance,
         },
         db,
       );

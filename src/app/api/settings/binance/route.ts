@@ -3,6 +3,7 @@ import { getAdminFirestore } from "@/firebase/admin";
 import { encrypt, decrypt } from "@/lib/crypto";
 import {
   getConnector,
+  fetchExchangeWalletBalance,
   isExchangeSupported,
   getSecretDocId,
   getSecretDocIds,
@@ -130,8 +131,11 @@ export async function POST(request: NextRequest) {
 
     // ── Crypto exchanges: validate via balance check ──────────────
     try {
-      const connector = getConnector(exchangeName);
-      const balance = await connector.getUsdtBalance({ apiKey, apiSecret, testnet: useTestnet });
+      const balance = await fetchExchangeWalletBalance(exchangeName, {
+        apiKey,
+        apiSecret,
+        testnet: useTestnet,
+      });
       if (balance.total < 0) throw new Error("Unexpected negative balance");
     } catch (e) {
       return NextResponse.json({

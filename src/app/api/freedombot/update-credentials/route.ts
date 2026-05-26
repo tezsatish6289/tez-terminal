@@ -39,8 +39,10 @@ import { encrypt, decrypt } from "@/lib/crypto";
 import {
   getConnector,
   getSecretDocId,
+  fetchExchangeWalletBalance,
   type ExchangeName,
   type ExchangeCredentials,
+  type ExchangeWalletBalance,
 } from "@/lib/exchanges";
 import { persistWalletBalanceSnapshot } from "@/lib/freedombot/wallet-balance";
 
@@ -140,12 +142,12 @@ export async function PATCH(req: NextRequest) {
       testnet: false,
     };
 
-    let validatedBalance: { total: number; available: number } | null = null;
+    let validatedBalance: ExchangeWalletBalance | null = null;
     try {
       const connector = getConnector(exchange);
-      const balance = await connector.getUsdtBalance(liveCreds);
+      const balance = await fetchExchangeWalletBalance(exchange, liveCreds);
       if (balance.total < 0) throw new Error("Unexpected negative balance");
-      validatedBalance = { total: balance.total, available: balance.available };
+      validatedBalance = balance;
       if (exchange === "HYPERLIQUID" && balance.total <= 0) {
         const describe =
           "describeZeroPerpBalance" in connector
@@ -232,11 +234,15 @@ export async function PATCH(req: NextRequest) {
     // Runs in both paths: even on a no-op submit we want the user to see a
     // fresh balance + "Tested just now" so the click feels productive.
     if (validatedBalance) {
-      await persistWalletBalanceSnapshot(deployRef, exchange, {
-        ok: true,
-        total: validatedBalance.total,
-        available: validatedBalance.available,
-      });
+      await persistWalletBalanceSnapshot(
+        deployRef,
+        exchange,
+        {
+          ok: true,
+          balance: validatedBalance,
+        },
+        db,
+      );
     }
 
     return NextResponse.json({
@@ -247,6 +253,7 @@ export async function PATCH(req: NextRequest) {
         ? {
             total: validatedBalance.total,
             available: validatedBalance.available,
+            lockedInUse: validatedBalance.lockedInUse,
           }
         : null,
     });

@@ -50,45 +50,23 @@ function parseMs(iso: string): number {
 }
 
 export interface CapitalCurveChartRow {
-  day: string;
-  wallet: number | null;
+  /** ISO timestamp of the wallet snapshot (one chart point per save). */
+  at: string;
+  wallet: number;
 }
 
+/** One row per saved snapshot — not collapsed by calendar day. */
 export function buildCapitalCurveChartRows(payload: CapitalCurvePayload): CapitalCurveChartRow[] {
-  const daySet = new Set<string>();
+  const sorted = [...payload.wallet.points].sort(
+    (a, b) => parseMs(a.at) - parseMs(b.at),
+  );
 
-  const addDays = (iso: string) => {
-    const ms = parseMs(iso);
-    if (!Number.isFinite(ms)) return;
-    daySet.add(new Date(ms).toISOString().slice(0, 10));
-  };
-
-  for (const p of payload.wallet.points) addDays(p.at);
-
-  const days = [...daySet].sort();
-
-  const lastValueOnOrBefore = (
-    points: CapitalCurvePoint[],
-    day: string,
-  ): number | null => {
-    const endMs = new Date(`${day}T23:59:59.999Z`).getTime();
-    let best: number | null = null;
-    let bestMs = -Infinity;
-    for (const p of points) {
-      const ms = parseMs(p.at);
-      if (!Number.isFinite(ms) || ms > endMs) continue;
-      if (ms >= bestMs) {
-        bestMs = ms;
-        best = p.value;
-      }
-    }
-    return best;
-  };
-
-  return days.map((day) => ({
-    day,
-    wallet: lastValueOnOrBefore(payload.wallet.points, day),
-  }));
+  const rows: CapitalCurveChartRow[] = [];
+  for (const p of sorted) {
+    if (!Number.isFinite(parseMs(p.at))) continue;
+    rows.push({ at: p.at, wallet: p.value });
+  }
+  return rows;
 }
 
 /** Zoom Y-axis to the wallet line. */

@@ -76,7 +76,7 @@ function CapitalCurveTooltip({
       <p className="font-bold text-white mb-1.5">
         {(() => {
           try {
-            return format(parseISO(String(label)), "MMM d, yyyy");
+            return format(parseISO(String(label)), "MMM d, yyyy · h:mm a");
           } catch {
             return String(label);
           }
@@ -162,7 +162,8 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
 
   const yTickDecimals = yDomain[1] - yDomain[0] < 20 ? 1 : 0;
 
-  const hasChartData = chartRows.some((r) => r.wallet != null);
+  const hasChartData = chartRows.length > 0;
+  const snapshotCount = payload?.wallet.points.length ?? 0;
 
   if (cryptoExchanges.length === 0) return null;
 
@@ -259,7 +260,7 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
                 <LineChart data={chartRows} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="rgba(90,140,220,0.06)" vertical={false} />
                   <XAxis
-                    dataKey="day"
+                    dataKey="at"
                     tick={{ fill: "rgba(90,140,220,0.45)", fontSize: 10 }}
                     tickFormatter={(d) => {
                       try {
@@ -288,7 +289,8 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
                     dataKey="wallet"
                     stroke={BRAND_CURVE_STROKE}
                     strokeWidth={2}
-                    dot={false}
+                    dot={{ r: 2, fill: BRAND_CURVE_STROKE, strokeWidth: 0 }}
+                    activeDot={{ r: 4, fill: BRAND_CURVE_STROKE, stroke: "#0a1628", strokeWidth: 2 }}
                     connectNulls
                     {...anim}
                   />
@@ -302,6 +304,12 @@ export function ExchangeCapitalCurve({ exchanges, fetchToken }: ExchangeCapitalC
                 <br />
                 Includes bot trades, manual trades, deposits, withdrawals, and fees combined.
               </p>
+              {snapshotCount > 0 && snapshotCount < 10 && (
+                <p className="text-[10px] text-center mt-2 px-4" style={{ color: "#334155" }}>
+                  {snapshotCount} balance snapshot{snapshotCount === 1 ? "" : "s"} saved so far — the
+                  line fills in with each refresh (~every 30 min while trading, or after each trade).
+                </p>
+              )}
               {!payload.hasWalletHistory && (
                 <p className="text-[10px] text-center mt-2 px-4" style={{ color: "#334155" }}>
                   History builds as balance refreshes are recorded on this exchange.

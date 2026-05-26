@@ -17,6 +17,7 @@
  * so we can validate plumbing in production before turning on behaviour.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { FieldPath, FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
@@ -131,14 +132,31 @@ export async function POST(request: NextRequest) {
     const db = getAdminFirestore();
     const docRef = db.doc(CRYPTO_BOT_ATTACH_CONFIG_DOC);
 
-    const dottedUpdates: Record<string, unknown> = {
-      attachedZoneBotsUpdatedAt: new Date().toISOString(),
-    };
-    for (const [asset, mode] of Object.entries(update)) {
-      dottedUpdates[`${CRYPTO_BOT_ATTACH_FIELD}.${asset}`] = mode;
-    }
+    // Nested object + merge so Firestore deep-merges into the existing
+    // attachedZoneBots map. Dotted-key strings in .set() are interpreted
+    // as LITERAL field names, not paths — would write a field called
+    // "attachedZoneBots.btc" instead of nesting under it.
+    await docRef.set(
+      {
+        attachedZoneBotsUpdatedAt: new Date().toISOString(),
+        [CRYPTO_BOT_ATTACH_FIELD]: update,
+      },
+      { merge: true },
+    );
 
-    await docRef.set(dottedUpdates, { merge: true });
+    // One-shot self-heal for the buggy previous version of this endpoint
+    // that wrote literal field names like "attachedZoneBots.btc" (the dot
+    // was part of the key, not a path). Address them via FieldPath
+    // constructor with a single segment so the deletion targets the
+    // literal field, not the nested map we just wrote.
+    for (const asset of Object.keys(update)) {
+      const literalPath = new FieldPath(`${CRYPTO_BOT_ATTACH_FIELD}.${asset}`);
+      try {
+        await docRef.update(literalPath, FieldValue.delete());
+      } catch {
+        // Field didn't exist (clean doc, or already cleaned up) — fine.
+      }
+    }
 
     const after = await loadAttachedZoneBots(db);
     return NextResponse.json({

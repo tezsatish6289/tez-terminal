@@ -1,3 +1,4 @@
+import { FieldValue } from "firebase-admin/firestore";
 import { executeTrade as executeExchangeTrade, type Credentials } from "./trade-engine";
 import { decrypt, encrypt } from "./crypto";
 import {
@@ -428,6 +429,104 @@ export async function executeForAllUsers(
 
   const results = await Promise.allSettled(
     tasks.map(async (task) => {
+      // ── Dispatch ticket: claim a slot before any side-effect ─────────
+      // Idempotency guarantee for the fan-out. The key is per
+      // (simTradeId, userId, exchange) so a cron retry / restart /
+      // double-invoke of `executeForAllUsers` with the same simTrade
+      // can't open the same position twice for the same user. `create()`
+      // throws on ALREADY_EXISTS, which we treat as the duplicate
+      // signal and skip silently with a DISPATCH_DUPLICATE_SKIP log.
+      // Any OTHER write failure (Firestore blip, quota, etc.) is logged
+      // but NOT fatal — we proceed without the guard so a transient
+      // infra error never silently drops a real trade. The finalize
+      // helper below is a no-op when `claimed` stayed false.
+      //
+      // The same doc doubles as the A4-lite observability artifact:
+      // status flips DISPATCHING → EXECUTED|FAILED with `reason` and
+      // `liveTradeId` so an operator can answer "what happened to user
+      // X for signal Y" via a single doc lookup. Filter-stage skips
+      // (no creds, paused, daily-loss-halt) are NOT written here yet —
+      // that's the full A4 follow-up. Cap-reached skips ARE written
+      // because they live inside the per-task closure.
+      const dispatchKey = `${simTradeId}__${task.userId}__${task.exchange}`;
+      const dispatchRef = db.collection("dispatch_state").doc(dispatchKey);
+      let dispatchClaimed = false;
+      try {
+        await dispatchRef.create({
+          simTradeId,
+          userId: task.userId,
+          exchange: task.exchange,
+          bot: deployKeyForCap,
+          botSource,
+          symbol: task.effectiveSimTrade.symbol,
+          side: task.effectiveSimTrade.side,
+          status: "DISPATCHING",
+          attemptCount: 1,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        dispatchClaimed = true;
+      } catch (e: unknown) {
+        const err = e as { code?: number | string; message?: string };
+        const code = err?.code;
+        const msg = err?.message ?? String(e);
+        const alreadyExists =
+          code === 6 ||
+          code === "already-exists" ||
+          /already exists/i.test(msg);
+        if (alreadyExists) {
+          await db
+            .collection("live_trade_logs")
+            .add({
+              timestamp: new Date().toISOString(),
+              action: "DISPATCH_DUPLICATE_SKIP",
+              details: `${symbol} ${signalType} — duplicate dispatch for user ${task.userId} on ${task.exchange}; another run already claimed this slot (key=${dispatchKey})`,
+              signalId,
+              symbol,
+              userId: task.userId,
+              exchange: task.exchange,
+              assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
+            })
+            .catch(() => {});
+          return { success: false, error: "duplicate dispatch (idempotency guard)" };
+        }
+        // Some other Firestore error — log loudly, proceed WITHOUT the
+        // guard. Today's behaviour is preserved: trade still opens, we
+        // just lose idempotency for this one task. If this fires
+        // repeatedly across users, it'll be visible as a cluster of
+        // warnings + missing dispatch_state docs.
+        console.warn(
+          `[LiveExec] dispatch_state claim failed for ${dispatchKey}: ${msg} — proceeding without idempotency guard.`,
+        );
+      }
+
+      // Finalize the dispatch ticket from any exit point in this
+      // closure. No-op when `dispatchClaimed` is false (claim failed
+      // non-fatally above, OR another run owns the slot). Always
+      // wrapped in try/catch — a Firestore failure here MUST NOT
+      // affect the trade outcome.
+      const finalizeDispatch = async (
+        status: "EXECUTED" | "FAILED",
+        reason: string | null,
+        liveTradeId: string | null,
+      ) => {
+        if (!dispatchClaimed) return;
+        try {
+          await dispatchRef.update({
+            status,
+            reason,
+            liveTradeId,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        } catch (e) {
+          console.warn(
+            `[LiveExec] dispatch_state finalize failed for ${dispatchKey}: ${
+              e instanceof Error ? e.message : String(e)
+            }`,
+          );
+        }
+      };
+
       await db.collection("live_trade_logs").add({
         timestamp: new Date().toISOString(),
         action: "EVALUATING",
@@ -463,6 +562,7 @@ export async function executeForAllUsers(
             exchange: task.exchange,
             assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
           }).catch(() => {});
+          await finalizeDispatch("FAILED", `CAP_REACHED:${openSnap.size}/${maxOpen}`, null);
           return { success: false, error: `Max concurrent trades (${maxOpen}) reached on ${task.exchange} for ${botSource}` };
         }
       }
@@ -618,6 +718,7 @@ export async function executeForAllUsers(
             exchange: task.exchange,
             assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
           }).catch(() => {});
+          await finalizeDispatch("FAILED", "WRITE_FAILED_CLOSED", null);
           return { ...liveResult, success: false, error: "live_trades write failed after retries — exchange position closed" };
         }
 
@@ -631,6 +732,7 @@ export async function executeForAllUsers(
           exchange: task.exchange,
           assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
         });
+        await finalizeDispatch("EXECUTED", null, liveTradeRef.id);
       } else {
         await db.collection("live_trade_logs").add({
           timestamp: new Date().toISOString(),
@@ -642,6 +744,7 @@ export async function executeForAllUsers(
           exchange: task.exchange,
           assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
         });
+        await finalizeDispatch("FAILED", liveResult.error ?? "execute_failed", null);
       }
 
       return liveResult;

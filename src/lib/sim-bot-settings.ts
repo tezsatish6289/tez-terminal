@@ -46,6 +46,26 @@ export interface SimBotSettings {
   zoneConfirmMinutes?: number;
   /** Legacy field — ignored by suggester, kept for doc compat. */
   zoneHalfWidthUsd?: number;
+  /** Exchange leverage applied to this bot's sim sizing AND its live mirror.
+   *  Must be one of `VALID_ZONE_LEVERAGES`. Defaults to 3 when unset
+   *  (matches the pre-2026-05-27 timeframe-derived value). Crypto pattern
+   *  bot is unaffected — this field is parsed only for zone bots. */
+  leverage?: number;
+}
+
+/** Allowed leverage choices for zone bots and the manual trade sheet. */
+export const VALID_ZONE_LEVERAGES = [3, 5, 10] as const;
+export type ZoneLeverage = (typeof VALID_ZONE_LEVERAGES)[number];
+
+/** Default zone-bot leverage when none has been persisted. Matches the
+ *  legacy timeframe-derived value (`getLeverage("60", "CRYPTO")` = 3). */
+export const DEFAULT_ZONE_LEVERAGE: ZoneLeverage = 3;
+
+function isValidZoneLeverage(n: unknown): n is ZoneLeverage {
+  return (
+    typeof n === "number" &&
+    (VALID_ZONE_LEVERAGES as readonly number[]).includes(n)
+  );
 }
 
 const MAX_OPEN_MIN = 1;
@@ -82,6 +102,7 @@ const DEFAULTS: Record<CockpitBotId, SimBotSettings> = {
     riskPerTradePct: SIM_CONFIG.RISK_PER_TRADE_BASE,
     zoneConfirmMinutes: 15,
     zoneHalfWidthUsd: 500,
+    leverage: DEFAULT_ZONE_LEVERAGE,
   },
   eth: {
     manualOverride: "AUTO",
@@ -89,6 +110,7 @@ const DEFAULTS: Record<CockpitBotId, SimBotSettings> = {
     riskPerTradePct: SIM_CONFIG.RISK_PER_TRADE_BASE,
     zoneConfirmMinutes: 15,
     zoneHalfWidthUsd: 25,
+    leverage: DEFAULT_ZONE_LEVERAGE,
   },
   sol: {
     manualOverride: "AUTO",
@@ -96,6 +118,7 @@ const DEFAULTS: Record<CockpitBotId, SimBotSettings> = {
     riskPerTradePct: SIM_CONFIG.RISK_PER_TRADE_BASE,
     zoneConfirmMinutes: 15,
     zoneHalfWidthUsd: 1.5,
+    leverage: DEFAULT_ZONE_LEVERAGE,
   },
   xrp: {
     manualOverride: "AUTO",
@@ -103,6 +126,7 @@ const DEFAULTS: Record<CockpitBotId, SimBotSettings> = {
     riskPerTradePct: SIM_CONFIG.RISK_PER_TRADE_BASE,
     zoneConfirmMinutes: 15,
     zoneHalfWidthUsd: 0.03,
+    leverage: DEFAULT_ZONE_LEVERAGE,
   },
 };
 
@@ -181,12 +205,18 @@ export function parseSimBotSettings(
   }
 
   const zone = parseZoneBotSettings(botId as ZoneBotAsset, raw);
+  // Out-of-range / non-numeric values silently coerce to the default 3×
+  // (same pattern as zoneConfirmMinutes clamp in `parseZoneBotSettings`).
+  const leverage: ZoneLeverage = isValidZoneLeverage(raw.leverage)
+    ? raw.leverage
+    : DEFAULT_ZONE_LEVERAGE;
   return {
     ...base,
     maxOpenTrades: maxOpen,
     riskPerTradePct: risk,
     zoneConfirmMinutes: zone.zoneConfirmMinutes,
     zoneHalfWidthUsd: zone.zoneHalfWidthUsd,
+    leverage,
   };
 }
 
@@ -267,10 +297,16 @@ export function simBotSettingsToPartialUpdate(
     "maxOpenTradesStreakCap",
     "zoneConfirmMinutes",
     "zoneHalfWidthUsd",
+    "leverage",
   ];
   const parsed = parseSimBotSettings(botId, { ...DEFAULTS[botId], ...body });
   for (const k of keys) {
-    if (k in body) update[k] = parsed[k];
+    if (!(k in body)) continue;
+    // Skip fields that the bot's parse branch doesn't produce (e.g.
+    // `leverage` for the crypto pattern bot). Writing `undefined` would
+    // cause the Firestore Admin SDK to throw on Set().
+    if (parsed[k] === undefined) continue;
+    update[k] = parsed[k];
   }
   return update;
 }

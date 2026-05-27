@@ -24,7 +24,10 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import type { CockpitBotId } from "@/lib/sim-cockpit-bots";
-import type { SimBotSettings } from "@/lib/sim-bot-settings";
+import {
+  VALID_ZONE_LEVERAGES,
+  type SimBotSettings,
+} from "@/lib/sim-bot-settings";
 import { cryptoBotStatus, zoneBotStatus, type CockpitBotStatus } from "@/lib/cockpit-bot-status";
 import {
   BotCardToolbarTrigger,
@@ -59,6 +62,49 @@ function settingsFromTradingMode(
     manualOverride: "AUTO",
     liveMirroringEnabled: next === "SIM_LIVE",
   };
+}
+
+function LeverageField({
+  settings,
+  patch,
+}: {
+  settings: SimBotSettings;
+  patch: (partial: Partial<SimBotSettings>) => void;
+}) {
+  const current = settings.leverage ?? 3;
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-1.5 pb-1 border-b border-white/[0.05]">
+        <Sliders className="w-3.5 h-3.5 text-accent/60" />
+        <span className="text-[10px] font-bold uppercase tracking-widest text-accent/80">
+          Leverage
+        </span>
+      </div>
+      <p className="text-[9px] text-muted-foreground/50 leading-relaxed">
+        Exchange leverage applied to this bot&apos;s sim sizing and its live
+        mirror. Higher leverage frees margin so more parallel positions fit;
+        risk-per-trade in USD is unchanged. Capped to the exchange&apos;s max
+        per symbol at execution.
+      </p>
+      <div className="flex gap-2">
+        {VALID_ZONE_LEVERAGES.map((lev) => (
+          <button
+            key={lev}
+            type="button"
+            onClick={() => patch({ leverage: lev })}
+            className={cn(
+              "flex-1 py-2.5 rounded-lg border text-[10px] font-black uppercase tracking-wider transition-all",
+              current === lev
+                ? "bg-accent/15 border-accent/30 text-accent"
+                : "border-white/[0.08] text-muted-foreground/50 hover:bg-white/[0.04]",
+            )}
+          >
+            {lev}x
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function ZoneEntryFields({
@@ -630,6 +676,8 @@ export function SimBotConfigSheet({
                   />
                 </div>
               )}
+
+              {isZone && <LeverageField settings={settings} patch={patch} />}
 
               {(isCrypto || isZone) && (
                 <ZoneEntryFields settings={settings} patch={patch} botId={botId} />

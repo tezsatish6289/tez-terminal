@@ -237,8 +237,18 @@ function computePositionSize(
   stopLoss:    number,
   timeframe:   string = "60",
   riskPctOverride?: number,
+  leverageOverride?: number,
 ): PositionSizeResult {
-  const leverage = getLeverage(timeframe, "CRYPTO");
+  // Per-bot leverage (user-chosen via Config Sheet, 3/5/10×) overrides the
+  // legacy timeframe-keyed default. When unset we fall back to the original
+  // `getLeverage("60", "CRYPTO")` value (= 3×) so existing bots that haven't
+  // had a leverage saved keep their pre-2026-05-27 behaviour.
+  const leverage =
+    typeof leverageOverride === "number" &&
+    Number.isFinite(leverageOverride) &&
+    leverageOverride > 0
+      ? leverageOverride
+      : getLeverage(timeframe, "CRYPTO");
   const slDist   = Math.abs(entryPrice - stopLoss);
   if (slDist <= 0 || entryPrice <= 0 || leverage <= 0) {
     return { size: 0, leverage, skip: true, reason: "slDist / entryPrice / leverage non-positive" };
@@ -295,9 +305,20 @@ async function openZoneBotTrade(args: {
   action:            Extract<ZoneBotAction, { type: "OPEN" } | { type: "FLIP" }>;
   now:               number;
   riskPerTradePct?:  number;
+  leverageOverride?: number;
   attachedZoneBots:  AttachedZoneBots;
 }): Promise<{ tradeId: string; updatedState: SimulatorState; log: SimLog; sizing: PositionSizeResult }> {
-  const { db, asset, state, simConfig, action, now, riskPerTradePct, attachedZoneBots } = args;
+  const {
+    db,
+    asset,
+    state,
+    simConfig,
+    action,
+    now,
+    riskPerTradePct,
+    leverageOverride,
+    attachedZoneBots,
+  } = args;
 
   // OPEN uses `.side`, FLIP uses `.openSide`; the rest of the trade params
   // share names across both variants of the union.
@@ -311,6 +332,7 @@ async function openZoneBotTrade(args: {
     stopLoss,
     "60",
     riskPerTradePct,
+    leverageOverride,
   );
   if (sizing.skip) {
     // Caller decides what to do — typically just log and keep state.
@@ -354,8 +376,16 @@ async function openZoneBotTrade(args: {
 
   // Stamp botSource so PR #3's guards in sync-simulator skip this trade
   // for zone-flip / max-pain-proximity force-closes (zone bot owns its own
-  // lifecycle decisions).
-  const tradeWithSource: SimTrade = { ...result.trade, botSource: ZONE_BOT_SOURCE[asset] };
+  // lifecycle decisions). Also stamp the chosen leverage (3/5/10×) so the
+  // live mirror in `executeTrade` sets the right exchange leverage and the
+  // sim PnL math in `simulator.ts` uses it. `openTrade()` always derives
+  // leverage from `getLeverage(timeframe, assetType)` (= 3 for our `"60"`
+  // crypto path) — we overwrite it here to match `sizing.leverage`.
+  const tradeWithSource: SimTrade = {
+    ...result.trade,
+    botSource: ZONE_BOT_SOURCE[asset],
+    leverage: sizing.leverage,
+  };
 
   const docId = `sim-${signalId}`;
 
@@ -628,6 +658,7 @@ async function tickAsset(
           action,
           now,
           riskPerTradePct: botSettings.riskPerTradePct,
+          leverageOverride: botSettings.leverage,
           attachedZoneBots,
         });
         if (opened.tradeId) {
@@ -696,6 +727,7 @@ async function tickAsset(
             action,
             now,
             riskPerTradePct: botSettings.riskPerTradePct,
+            leverageOverride: botSettings.leverage,
             attachedZoneBots,
           });
           if (opened.tradeId) {

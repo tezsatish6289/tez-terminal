@@ -5,7 +5,11 @@ import {
   classifyBotSource,
   type BotSourceFilter,
 } from "@/lib/bot-source-filter";
-import type { SimBotSettings } from "@/lib/sim-bot-settings";
+import {
+  VALID_ZONE_LEVERAGES,
+  type SimBotSettings,
+  type ZoneLeverage,
+} from "@/lib/sim-bot-settings";
 import type { SimTrade, SimulatorState } from "@/lib/simulator";
 import type { ZoneBotAsset } from "@/lib/zone-bot-config";
 import { ZONE_BOT_SOURCE } from "@/lib/zone-bot-config";
@@ -26,6 +30,20 @@ export interface ManualOpenTradeInput {
   mirrorMode: ManualMirrorMode;
   timeframe?: string;
   note?: string;
+  /** User-chosen leverage (3/5/10×). When unset or invalid, the API falls
+   *  back to the legacy timeframe-derived default (= 3× for the 60m
+   *  timeframe used by every manual trade). */
+  leverage?: number;
+}
+
+/** Coerce a leverage value from a request body to one of `VALID_ZONE_LEVERAGES`
+ *  or `null` when missing / invalid. Silent coerce — never throws. Mirrors the
+ *  clamp semantics used by `parseZoneBotSettings`. */
+export function coerceManualLeverage(raw: unknown): ZoneLeverage | null {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
+  return (VALID_ZONE_LEVERAGES as readonly number[]).includes(raw)
+    ? (raw as ZoneLeverage)
+    : null;
 }
 
 export interface ManualOpenTradeResult {
@@ -71,8 +89,18 @@ export function computeManualPositionSize(
   entryPrice: number,
   stopLoss: number,
   timeframe: string,
+  /** Optional user-chosen leverage (3/5/10×). When set, overrides the
+   *  legacy timeframe-derived default. Pre-2026-05-27 callers that omit
+   *  it keep getting `getLeverage(timeframe, "CRYPTO")` = 3× for the
+   *  manual sheet's `"60"` timeframe. */
+  leverageOverride?: number,
 ): { size: number; leverage: number; skip: boolean; reason?: string } {
-  const leverage = getLeverage(timeframe, "CRYPTO");
+  const leverage =
+    typeof leverageOverride === "number" &&
+    Number.isFinite(leverageOverride) &&
+    leverageOverride > 0
+      ? leverageOverride
+      : getLeverage(timeframe, "CRYPTO");
   const slDist = Math.abs(entryPrice - stopLoss);
   if (slDist <= 0 || entryPrice <= 0 || leverage <= 0) {
     return { size: 0, leverage, skip: true, reason: "Invalid entry or stop loss" };

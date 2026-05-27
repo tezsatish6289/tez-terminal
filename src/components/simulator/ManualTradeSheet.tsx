@@ -13,7 +13,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import type { CockpitBotId } from "@/lib/sim-cockpit-bots";
-import type { SimBotSettings } from "@/lib/sim-bot-settings";
+import {
+  VALID_ZONE_LEVERAGES,
+  type SimBotSettings,
+  type ZoneLeverage,
+} from "@/lib/sim-bot-settings";
 import {
   computeManualPositionSize,
   defaultSymbolForBot,
@@ -110,6 +114,9 @@ export function ManualTradeSheet({
   const [tp2, setTp2] = useState("");
   const [tp3, setTp3] = useState("");
   const [mirrorMode, setMirrorMode] = useState<"sim" | "sim_and_live">("sim");
+  // Default to 5× across every bot — the form is a transient per-trade
+  // choice, separate from the bot's saved Config leverage. User picks 3/5/10.
+  const [leverage, setLeverage] = useState<ZoneLeverage>(5);
   const [note, setNote] = useState("");
 
   const previewState: SimulatorState = useMemo(
@@ -123,8 +130,8 @@ export function ManualTradeSheet({
     const slN = parseFloat(sl);
     if (!Number.isFinite(entryN) || !Number.isFinite(slN) || entryN <= 0) return null;
     const riskPct = resolveManualRiskPct(botId, settings, previewState);
-    return computeManualPositionSize(previewState, riskPct, entryN, slN, "60");
-  }, [botId, settings, previewState, entry, sl]);
+    return computeManualPositionSize(previewState, riskPct, entryN, slN, "60", leverage);
+  }, [botId, settings, previewState, entry, sl, leverage]);
 
   useEffect(() => {
     if (!open || !isAdmin) return;
@@ -168,6 +175,7 @@ export function ManualTradeSheet({
           tp3: tp3N,
           mirrorMode,
           timeframe: "60",
+          leverage,
           note: note.trim() || undefined,
         }),
       });
@@ -201,6 +209,7 @@ export function ManualTradeSheet({
     tp2,
     tp3,
     mirrorMode,
+    leverage,
     note,
     manualGate.allowed,
     onOpened,
@@ -297,6 +306,27 @@ export function ManualTradeSheet({
             <NumInput label="TP1" value={tp1} onChange={setTp1} />
             <NumInput label="TP2" value={tp2} onChange={setTp2} />
             <NumInput label="TP3" value={tp3} onChange={setTp3} />
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-[11px] font-bold text-foreground/80">Leverage</span>
+            <div className="flex gap-2">
+              {VALID_ZONE_LEVERAGES.map((lev) => (
+                <button
+                  key={lev}
+                  type="button"
+                  onClick={() => setLeverage(lev)}
+                  className={cn(
+                    "flex-1 py-2 rounded-lg border text-[10px] font-black uppercase tracking-wider",
+                    leverage === lev
+                      ? "bg-accent/15 border-accent/30 text-accent"
+                      : "border-white/[0.08] text-muted-foreground/50",
+                  )}
+                >
+                  {lev}x
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-1">

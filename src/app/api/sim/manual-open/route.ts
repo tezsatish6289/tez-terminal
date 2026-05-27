@@ -5,6 +5,7 @@ import { executeForAllUsers } from "@/lib/live-execution";
 import { canBotOpenMore } from "@/lib/sim-slot-policy";
 import {
   botSourceForCockpit,
+  coerceManualLeverage,
   computeManualPositionSize,
   directionFromSide,
   normalizePerpSymbol,
@@ -55,6 +56,12 @@ function parseBody(raw: Record<string, unknown>): ManualOpenTradeInput | null {
 
   const mirrorMode = raw.mirrorMode === "sim_and_live" ? "sim_and_live" : "sim";
 
+  // Silently coerce invalid leverage values to undefined so the
+  // downstream `computeManualPositionSize` falls back to the legacy
+  // timeframe-derived default (3×). Matches the API-side clamp behaviour
+  // documented for the zone-bot config sheet.
+  const leverage = coerceManualLeverage(raw.leverage) ?? undefined;
+
   return {
     botId: botId as CockpitBotId,
     symbol: typeof raw.symbol === "string" ? raw.symbol : "",
@@ -68,6 +75,7 @@ function parseBody(raw: Record<string, unknown>): ManualOpenTradeInput | null {
     mirrorMode,
     timeframe: typeof raw.timeframe === "string" ? raw.timeframe : "60",
     note: typeof raw.note === "string" ? raw.note : undefined,
+    leverage,
   };
 }
 
@@ -171,6 +179,7 @@ export async function POST(request: NextRequest) {
     input.entryPrice,
     input.stopLoss,
     timeframe,
+    input.leverage,
   );
   if (sizing.skip) {
     return NextResponse.json({ error: sizing.reason ?? "Position size too small" }, { status: 400 });
@@ -209,9 +218,15 @@ export async function POST(request: NextRequest) {
     directionBias: bias,
   });
 
+  // Overwrite the leverage stamped by `openTrade()` (which always uses
+  // `getLeverage(timeframe, assetType)` = 3× for our `"60"` crypto path)
+  // with the user-chosen value resolved in `sizing`. This way the sim
+  // doc, the simulator PnL math, AND the live mirror (which reads
+  // `simTrade.leverage` in `executeTrade`) all agree.
   const tradeWithSource: SimTrade = {
     ...result.trade,
     botSource,
+    leverage: sizing.leverage,
   };
 
   const noteSuffix = input.note?.trim() ? ` — ${input.note.trim()}` : "";

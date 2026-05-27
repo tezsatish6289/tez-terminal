@@ -82,6 +82,7 @@ import {
   getEffectiveSimConfig,
   openTrade,
   processTradeExit,
+  rewriteLogLeverage,
 } from "@/lib/simulator";
 import {
   ZONE_BOT_REGISTRY,
@@ -391,9 +392,15 @@ async function openZoneBotTrade(args: {
 
   // Decorate the log so it's easy to grep zone-bot activity in
   // simulator_logs without scrolling through every pattern-signal event.
+  // Also swap the `lev=Nx` substring (which `openTrade()` built from the
+  // timeframe-default 3×) for the actually-applied leverage, matching the
+  // trade doc + live mirror.
   const decoratedLog: SimLog = {
     ...result.log,
-    details: `[${ZONE_BOT_SOURCE[asset]}] ${result.log.details}`,
+    details: rewriteLogLeverage(
+      `[${ZONE_BOT_SOURCE[asset]}] ${result.log.details}`,
+      sizing.leverage,
+    ),
   };
 
   // Surface any Firestore write failure as a simulator_logs entry — the

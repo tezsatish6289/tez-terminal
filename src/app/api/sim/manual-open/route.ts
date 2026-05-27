@@ -25,6 +25,7 @@ import {
   getEffectiveSimConfig,
   getSimStateDocId,
   openTrade,
+  rewriteLogLeverage,
   SIM_CONFIG,
   type SimConfigType,
   type SimTrade,
@@ -230,9 +231,15 @@ export async function POST(request: NextRequest) {
   };
 
   const noteSuffix = input.note?.trim() ? ` — ${input.note.trim()}` : "";
+  // Swap `lev=Nx` (built by openTrade() from the timeframe default) for
+  // the actually-applied leverage so the log agrees with the persisted
+  // trade and the live mirror.
   const decoratedLog = {
     ...result.log,
-    details: `[MANUAL ${botSource}] ${result.log.details}${noteSuffix}`,
+    details: rewriteLogLeverage(
+      `[MANUAL ${botSource}] ${result.log.details}${noteSuffix}`,
+      sizing.leverage,
+    ),
     action: "MANUAL_TRADE_OPENED",
   };
 

@@ -412,7 +412,16 @@ export async function openCryptoMirrorForZoneTrade(args: {
       return { fired: false, reason: gate.reason, detail: gate.detail };
     }
 
-    const leverage = getLeverage(parent.timeframe, parent.assetType);
+    // Follow the parent zone bot's configured leverage (3/5/10×) so the
+    // Crypto-Bot mirror sim trade sizes itself the same way the zone bot
+    // did. Falls back to the legacy timeframe-keyed value if the parent
+    // doc somehow lacks a leverage field (legacy / hand-edited rows).
+    const leverage =
+      typeof parent.leverage === "number" &&
+      Number.isFinite(parent.leverage) &&
+      parent.leverage > 0
+        ? parent.leverage
+        : getLeverage(parent.timeframe, parent.assetType);
     const sizing = computeMirrorPositionSize({
       capital: cryptoState.capital,
       riskPerTradePct: cryptoSettings.riskPerTradePct,
@@ -467,12 +476,17 @@ export async function openCryptoMirrorForZoneTrade(args: {
 
     // Override the trade's botSource so it rolls up under Crypto Bot,
     // and stamp the audit fields so cascade reconciliation can find
-    // the parent and ops can grep for attach activity.
+    // the parent and ops can grep for attach activity. Leverage is also
+    // overwritten — `openTrade()` derives it from the signal's timeframe
+    // (= 3× for the "60" zone-bot path), but we already resolved the
+    // parent's leverage above (3/5/10×) and used it for sizing, so the
+    // persisted mirror doc + its live mirror must agree.
     const mirrorTrade: SimTrade = {
       ...openResult.trade,
       botSource: BOT_SOURCE_PATTERN,
       attachedFrom: parentSource ?? undefined,
       parentSimTradeId,
+      leverage,
     };
 
     // Write trade + bump state inside a transaction so a racing

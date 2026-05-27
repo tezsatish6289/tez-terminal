@@ -1,4 +1,15 @@
 import { getLeverage } from "./leverage";
+
+/**
+ * Replace the `lev=Nx` substring inside a `TRADE_OPENED` `SimLog.details`
+ * string with the actually-applied leverage. Used by callers that override
+ * `trade.leverage` after `openTrade()` returns (zone bots, manual sheet,
+ * Crypto-Bot attach mirror) so the log line, the trade doc, and the live
+ * mirror all agree. Idempotent and safe on logs that lack a `lev=` token.
+ */
+export function rewriteLogLeverage(details: string, leverage: number): string {
+  return details.replace(/lev=\d+(?:\.\d+)?x/, `lev=${leverage}x`);
+}
 import { calcDhanFees } from "./dhan-fees";
 import { countOpenForBotSource } from "./sim-slot-policy";
 import { BOT_SOURCE_PATTERN, classifyBotSource } from "./bot-source-filter";

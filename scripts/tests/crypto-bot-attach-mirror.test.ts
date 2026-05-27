@@ -27,6 +27,7 @@ import {
   mirrorDocIdFor,
   mirrorSignalIdFor,
   planMirrorCascades,
+  resolveMirrorLeverage,
   type MirrorTradeRef,
   type ParentTradeRef,
 } from "../../src/lib/crypto-bot-attach-mirror";
@@ -544,6 +545,116 @@ describe("planMirrorCascades — safety guards", () => {
       new Map([["par-1", P("par-1", "CLOSED", null, 50)]]),
     );
     assertEqual(actions[0]!.reason, "ATTACH_PARENT_CLOSED:UNKNOWN");
+  });
+});
+
+// ─── resolveMirrorLeverage ──────────────────────────────────────────
+
+describe("resolveMirrorLeverage — parent precedence", () => {
+  const FALLBACK_3X = () => 3;
+  const FALLBACK_5X = () => 5;
+
+  test("parent.leverage = 3 → 3 (zone bot configured 3×)", () => {
+    assertEqual(
+      resolveMirrorLeverage({ leverage: 3, timeframe: "60" }, FALLBACK_3X),
+      3,
+    );
+  });
+
+  test("parent.leverage = 5 → 5 (zone bot configured 5×)", () => {
+    assertEqual(
+      resolveMirrorLeverage({ leverage: 5, timeframe: "60" }, FALLBACK_3X),
+      5,
+    );
+  });
+
+  test("parent.leverage = 10 → 10 (zone bot configured 10×)", () => {
+    assertEqual(
+      resolveMirrorLeverage({ leverage: 10, timeframe: "60" }, FALLBACK_3X),
+      10,
+    );
+  });
+
+  test("parent.leverage wins over fallback even when fallback returns a different value", () => {
+    // Lock in precedence: parent's value MUST win, otherwise a 5× zone
+    // bot would silently size its mirror at the legacy default.
+    assertEqual(
+      resolveMirrorLeverage({ leverage: 5, timeframe: "60" }, FALLBACK_3X),
+      5,
+    );
+    assertEqual(
+      resolveMirrorLeverage({ leverage: 3, timeframe: "60" }, FALLBACK_5X),
+      3,
+    );
+  });
+});
+
+describe("resolveMirrorLeverage — fallback branches", () => {
+  test("missing leverage → fallback", () => {
+    assertEqual(
+      resolveMirrorLeverage({ timeframe: "60" }, () => 7),
+      7,
+    );
+  });
+
+  test("undefined leverage explicitly → fallback", () => {
+    assertEqual(
+      resolveMirrorLeverage({ leverage: undefined, timeframe: "60" }, () => 7),
+      7,
+    );
+  });
+
+  test("zero leverage → fallback (treated as garbage)", () => {
+    assertEqual(
+      resolveMirrorLeverage({ leverage: 0, timeframe: "60" }, () => 3),
+      3,
+    );
+  });
+
+  test("negative leverage → fallback", () => {
+    assertEqual(
+      resolveMirrorLeverage({ leverage: -5, timeframe: "60" }, () => 3),
+      3,
+    );
+  });
+
+  test("NaN leverage → fallback", () => {
+    assertEqual(
+      resolveMirrorLeverage({ leverage: NaN, timeframe: "60" }, () => 3),
+      3,
+    );
+  });
+
+  test("Infinity leverage → fallback", () => {
+    assertEqual(
+      resolveMirrorLeverage({ leverage: Infinity, timeframe: "60" }, () => 3),
+      3,
+    );
+  });
+
+  test("fallback receives parent.timeframe + assetType", () => {
+    let captured: { tf: string; asset: string | undefined } | null = null;
+    resolveMirrorLeverage(
+      { timeframe: "240", assetType: "CRYPTO" },
+      (tf, asset) => {
+        captured = { tf, asset };
+        return 0;
+      },
+    );
+    assertEqual(captured!.tf, "240");
+    assertEqual(captured!.asset, "CRYPTO");
+  });
+
+  test("fallback gets timeframe default '60' when parent has no timeframe", () => {
+    let capturedTf: string | null = null;
+    resolveMirrorLeverage(
+      { assetType: "CRYPTO" },
+      (tf) => {
+        capturedTf = tf;
+        return 0;
+      },
+    );
+    assertEqual(capturedTf, "60");
   });
 });
 

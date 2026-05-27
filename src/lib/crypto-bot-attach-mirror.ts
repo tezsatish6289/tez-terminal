@@ -229,6 +229,38 @@ export function computeMirrorPositionSize(
   return { size: notional, leverage, skip: false };
 }
 
+// ─── Leverage resolution (pure) ─────────────────────────────────────
+
+/** Pick the leverage the mirror should size + persist with.
+ *
+ * The mirror MUST follow the parent zone bot's configured leverage
+ * (3/5/10×) so its sizing math matches what the zone bot just did with
+ * its own capital. Falls back to the legacy timeframe-keyed default
+ * only when the parent doc is missing or has a garbage leverage value
+ * (legacy rows from before the per-bot config shipped, hand-edited
+ * rows, schema drift).
+ *
+ * Pure — split out of `openCryptoMirrorForZoneTrade` so the contract
+ * is locked into the unit-test suite. Without this helper, a silent
+ * regression that drops the fallback or flips the precedence (e.g. a
+ * future "simplification" back to always-`getLeverage()`) would only
+ * surface on prod when a 5×/10× zone bot opened and reports showed
+ * mirror sized at 3×. The cost of the regression is wrong notional
+ * for every attached mirror trade until someone notices. */
+export function resolveMirrorLeverage(
+  parent: { leverage?: number; timeframe?: string; assetType?: string },
+  legacyFallback: (timeframe: string, assetType?: string) => number,
+): number {
+  if (
+    typeof parent.leverage === "number" &&
+    Number.isFinite(parent.leverage) &&
+    parent.leverage > 0
+  ) {
+    return parent.leverage;
+  }
+  return legacyFallback(parent.timeframe ?? "60", parent.assetType);
+}
+
 // ─── Cascade planning (pure) ────────────────────────────────────────
 
 export interface MirrorTradeRef {
@@ -413,15 +445,10 @@ export async function openCryptoMirrorForZoneTrade(args: {
     }
 
     // Follow the parent zone bot's configured leverage (3/5/10×) so the
-    // Crypto-Bot mirror sim trade sizes itself the same way the zone bot
-    // did. Falls back to the legacy timeframe-keyed value if the parent
-    // doc somehow lacks a leverage field (legacy / hand-edited rows).
-    const leverage =
-      typeof parent.leverage === "number" &&
-      Number.isFinite(parent.leverage) &&
-      parent.leverage > 0
-        ? parent.leverage
-        : getLeverage(parent.timeframe, parent.assetType);
+    // mirror sizes itself the way the zone bot just did. See
+    // `resolveMirrorLeverage` JSDoc for fallback semantics and why this
+    // is split out — unit-test-locked to prevent silent regressions.
+    const leverage = resolveMirrorLeverage(parent, getLeverage);
     const sizing = computeMirrorPositionSize({
       capital: cryptoState.capital,
       riskPerTradePct: cryptoSettings.riskPerTradePct,

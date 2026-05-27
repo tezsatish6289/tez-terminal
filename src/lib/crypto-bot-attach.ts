@@ -2,48 +2,46 @@
  * Crypto Bot ↔ Zone Bot silent attach configuration.
  *
  * Lets admin "bundle" any zone bot (BTC / ETH / SOL / XRP) into Crypto
- * Bot's subscriber pool. When a zone bot opens a sim trade, that trade
- * can be silently delivered to Crypto Bot subscribers in addition to
- * the zone bot's own solo subscribers.
+ * Bot. When a zone bot opens a sim trade, Crypto Bot opens a parallel
+ * sim trade ("mirror") with its own position sizing, capital tracking,
+ * blockchain memo, and records-tab presence. The mirror is tagged with
+ * `attachedFrom = "<ZONE>_ZONE"` and `parentSimTradeId = "<parent>"` so
+ * its origin is auditable and the parent → mirror close cascade can
+ * find it.
  *
  * ── Three modes per zone bot (default "off") ─────────────────────────
  *
- *   "off"   Zone bot operates exactly as today. Nothing about the bot
- *           is exposed to Crypto Bot subscribers. Records pages, live
- *           execution — all unchanged.
+ *   "off"   Zone bot operates exactly as today. No mirror is opened.
+ *           Records pages, live execution — all unchanged.
  *
- *   "sim"   The sim trade is tagged for Crypto Bot in records pages
- *           (Crypto tab will list it with the same on-chain link as
- *           the BTC tab). NO live execution for Crypto Bot subscribers.
- *           Use this to publish a zone bot's track record under Crypto
- *           Bot before turning on live execution — build trust first.
+ *   "sim"   When the zone bot opens a sim trade, Crypto Bot also opens
+ *           a mirror sim trade. The mirror gets its own memo and shows
+ *           up on the Crypto Bot card / Crypto records tab natively.
+ *           NO live execution for Crypto Bot subscribers (PR 2b scope).
  *
- *   "live"  Everything in "sim" PLUS the silent attach gate in
- *           `executeForAllUsers` fires real live trades for Crypto Bot
- *           subscribers (subject to dedup, symbol guard, and the
- *           Crypto cap pool).
+ *   "live"  Everything in "sim" PLUS the mirror fans out to Crypto Bot
+ *           subscribers on their exchanges (PR 2c — subject to symbol
+ *           dedup + solo-subscriber precedence + per-user cap).
  *
  * ── Trust mechanic ───────────────────────────────────────────────────
  *
  * Solo subscribers of a zone bot ALWAYS win. If a user has explicitly
  * enabled BTC zone bot for themselves (`zoneBotsEnabled.btc = true`),
- * the attach path is skipped for that user — they get exactly one BTC
- * fill via the solo path with zone-bot sizing. Disabling solo later
- * silently re-enables the attach path on the next signal.
+ * the attach path is skipped for that user when live mode fires — they
+ * get exactly one BTC fill via the solo path with zone-bot sizing.
+ * Disabling solo later silently re-enables the attach path on the next
+ * signal.
  *
- * ── PR 1 scope ───────────────────────────────────────────────────────
- *
- * This module is PLUMBING ONLY in the initial commit. No production
- * code reads or writes these settings yet. The decision engine (sim
- * trade tagging, attach gate, dedup, cap pool) ships in PR 2; the
- * records-page filters in PR 3. Until then, attach config defaults to
- * "off" for every bot and has no observable effect.
+ * This module owns only the CONFIG (parsing + lookup helpers). The
+ * mirror open/close orchestration lives in
+ * `src/lib/crypto-bot-attach-mirror.ts`, which is the only place that
+ * touches sim_state, simulator_trades, or blockchain queues for the
+ * attach feature. Keeps this file leaf-shaped and easy to test.
  */
 import type { Firestore } from "firebase-admin/firestore";
 import {
   BOT_SOURCE_BTC_ZONE,
   BOT_SOURCE_ETH_ZONE,
-  BOT_SOURCE_PATTERN,
   BOT_SOURCE_SOL_ZONE,
   BOT_SOURCE_XRP_ZONE,
 } from "@/lib/bot-source-constants";
@@ -72,22 +70,6 @@ export const ATTACHED_ZONE_BOTS_DEFAULT: AttachedZoneBots = {
  *  under a dedicated field so it can't collide with future additions. */
 export const CRYPTO_BOT_ATTACH_CONFIG_DOC = "config/sim_bot_crypto_settings";
 export const CRYPTO_BOT_ATTACH_FIELD = "attachedZoneBots" as const;
-
-// ── Delivery markers (for `deliveredAs` on simulator_trades) ─────────
-
-/** Pushed into `simulator_trades.deliveredAs` when the trade is part
- *  of Crypto Bot's strategy — either a pattern signal (native) or a
- *  zone-bot signal whose attach mode is "sim" / "live". */
-export const DELIVERED_TO_CRYPTO = "CRYPTO";
-
-/** Per-zone-bot marker, kept symmetric so `deliveredAs` always lists
- *  every subscriber pool that received the trade. */
-export const DELIVERED_TO_BY_ASSET: Record<ZoneBotAsset, string> = {
-  btc: "BTC",
-  eth: "ETH",
-  sol: "SOL",
-  xrp: "XRP",
-};
 
 // ── Parsing ──────────────────────────────────────────────────────────
 
@@ -137,84 +119,26 @@ export function attachModeForBotSource(
   return config[asset];
 }
 
-/** Build the `deliveredAs` array to stamp on a sim trade at open time.
- *
- *   • Pattern trades        → ["CRYPTO"]
- *   • Zone trade, attach off → ["BTC"] (or ETH/SOL/XRP)
- *   • Zone trade, attach sim → ["BTC", "CRYPTO"]
- *   • Zone trade, attach live → ["BTC", "CRYPTO"]
- *
- * Used by records-page filters to show the same trade in both the
- * solo bot's tab and the Crypto Bot tab. */
-export function buildDeliveredAs(
-  config: AttachedZoneBots,
-  botSource: string | null | undefined,
-): string[] {
-  if (botSource == null || botSource === BOT_SOURCE_PATTERN) {
-    return [DELIVERED_TO_CRYPTO];
-  }
-  const asset = zoneAssetFromBotSource(botSource);
-  if (!asset) return [];
-  const out: string[] = [DELIVERED_TO_BY_ASSET[asset]];
-  const mode = config[asset];
-  if (mode === "sim" || mode === "live") out.push(DELIVERED_TO_CRYPTO);
-  return out;
-}
-
-/** True when a sim trade should appear in Crypto Bot's records tab.
- *  Pure helper — relies on `deliveredAs` already being stamped at open
- *  time. Historical trades without the field default to "no" so we
- *  never retroactively re-attribute trades that were never delivered. */
-export function tradeBelongsToCryptoTab(
-  deliveredAs: readonly string[] | null | undefined,
-  botSource: string | null | undefined,
-): boolean {
-  if (botSource == null || botSource === BOT_SOURCE_PATTERN) return true;
-  if (!Array.isArray(deliveredAs)) return false;
-  return deliveredAs.includes(DELIVERED_TO_CRYPTO);
-}
-
-/** Records-page tab filter values. Mirrors `CryptoBotId | "all"`; kept
- *  here so the filter helper stays in the same module as the predicate
- *  it composes around. */
-export type RecordsTabFilter = "all" | "crypto" | "btc" | "eth" | "sol" | "xrp";
-
-/** Single source of truth for "does this trade belong in this records
- *  tab?" — used by `/api/admin/blockchain-records` and the unit test
- *  for the route. Centralising the rule prevents the production filter
- *  and the test corpus from silently drifting apart.
- *
- *  Semantics:
- *    • "all"                 → every trade
- *    • "crypto"              → pattern trades + attached zone trades
- *                              (anything with "CRYPTO" in deliveredAs,
- *                              plus the legacy pattern fallback)
- *    • "btc"/"eth"/"sol"/"xrp" → origin bot only. A zone trade with
- *                                attach mode "sim"/"live" still shows
- *                                in its own zone tab AND in Crypto.
- */
-export function tradeBelongsToRecordsTab(
-  filter: RecordsTabFilter,
-  trade: {
-    botId: string;
-    botSource: string | null | undefined;
-    deliveredAs: readonly string[] | null | undefined;
-  },
-): boolean {
-  if (filter === "all") return true;
-  if (filter === "crypto") {
-    return tradeBelongsToCryptoTab(trade.deliveredAs, trade.botSource);
-  }
-  return trade.botId === filter;
-}
-
 // ── Logging keys ─────────────────────────────────────────────────────
 
 /** Single-source-of-truth log action strings written to
- *  `live_trade_logs.action`. Grep on these to validate attach
- *  behavior end-to-end without touching trade data. */
+ *  `simulator_logs.action` (mirror open path) and
+ *  `live_trade_logs.action` (fan-out, PR 2c). Grep on these to validate
+ *  attach behavior end-to-end without touching trade data. */
 export const ATTACH_LOG_KEYS = {
-  /** Sim mode would have fired a live trade — recorded for review. */
+  // ── PR 2b: mirror sim trade open / close ──────────────────────────
+  /** Mirror sim trade successfully opened for Crypto Bot. */
+  mirrorOpened: "ATTACH_MIRROR_OPENED",
+  /** Mirror sim trade open skipped — reason in details. */
+  mirrorSkipped: "ATTACH_MIRROR_SKIPPED",
+  /** Mirror sim trade open threw — parent zone trade is unaffected. */
+  mirrorOpenError: "ATTACH_MIRROR_OPEN_ERROR",
+  /** Parent zone trade closed → mirror cascaded closed. */
+  mirrorCascadeClosed: "ATTACH_MIRROR_CASCADE_CLOSED",
+  /** Cascade close threw on a specific mirror — manual intervention. */
+  mirrorCascadeError: "ATTACH_MIRROR_CASCADE_ERROR",
+  // ── PR 2c: live fan-out (not used in 2b) ──────────────────────────
+  /** Sim mode: would have fired a live trade — recorded for review. */
   shadowWouldFire: "ATTACH_SHADOW_WOULD_FIRE",
   /** Live mode: attach path opened a live trade. */
   pathEntry: "ATTACH_PATH_ENTRY",

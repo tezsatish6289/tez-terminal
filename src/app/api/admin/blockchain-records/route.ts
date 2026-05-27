@@ -9,7 +9,6 @@ import {
   type ZoneBotAsset,
 } from "@/lib/zone-bot-config";
 import { zoneSimStateDoc } from "@/lib/zone-bot-state";
-import { tradeBelongsToRecordsTab } from "@/lib/crypto-bot-attach";
 
 export const dynamic = "force-dynamic";
 
@@ -69,11 +68,6 @@ export async function GET(request: NextRequest) {
         const botSource = typeof d.botSource === "string" ? d.botSource : null;
         const bot = cryptoBotByBotSource(botSource);
         const botId = bot?.id ?? "crypto";
-        const deliveredAs = Array.isArray(d.deliveredAs)
-          ? (d.deliveredAs as unknown[]).filter(
-              (v): v is string => typeof v === "string",
-            )
-          : null;
         return {
           id: doc.id,
           symbol: d.symbol as string,
@@ -97,15 +91,16 @@ export async function GET(request: NextRequest) {
           blockchainStatus: (d.blockchainStatus as string) ?? null,
           blockchainError: (d.blockchainError as string) ?? null,
           blockchainConfirmedAt: (d.blockchainConfirmedAt as string) ?? null,
-          deliveredAs,
+          attachedFrom: typeof d.attachedFrom === "string" ? d.attachedFrom : null,
+          parentSimTradeId:
+            typeof d.parentSimTradeId === "string" ? d.parentSimTradeId : null,
         };
       })
-      // Records-tab routing lives in one shared helper so the filter
-      // here can't drift from the unit tests in
-      // scripts/tests/records-tab-filter.test.ts. Crypto tab pulls in
-      // pattern trades plus any zone trade attached via
-      // `attachedZoneBots`; per-zone tabs stay origin-only.
-      .filter((t) => tradeBelongsToRecordsTab(botFilter, t));
+      // Per-tab filter: trades roll up under whichever bot their
+      // botSource resolves to via `cryptoBotByBotSource`. The Crypto
+      // Bot mirror trade (PR 2b) carries botSource="PATTERN" so it
+      // naturally appears in the crypto tab without any special filter.
+      .filter((t) => botFilter === "all" || t.botId === botFilter);
 
     const summary = {
       total: trades.length,

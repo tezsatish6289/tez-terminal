@@ -1,21 +1,19 @@
 /**
  * Unit tests for the pure helpers in `src/lib/crypto-bot-attach.ts`.
  *
- * These are the small, total functions that drive the whole attach
- * feature — `deliveredAs` stamping, records-tab routing, mode lookup
- * for a given bot source. If any of these flip behaviour, every PR in
- * the attach family is affected. The test set is exhaustive on the
- * matrix (5 bot sources × 4 attach configs × all modes) on purpose;
- * "fast" doesn't matter, "correct in every cell" does.
+ * Scope: config parsing + mode lookup. The dual-tab `deliveredAs`
+ * helpers from PR 2a are gone — PR 2b moved to a separate mirror
+ * sim trade per attach, so records-tab filtering is just botSource →
+ * cryptoBotByBotSource (tested in route + UI integration), and the
+ * attach-config parsing here is the only pure logic worth a unit test.
+ *
+ * The matrix is intentionally exhaustive (5 bot sources × 4 attach
+ * configs) so any flip in `attachModeForBotSource` is loud.
  */
 import {
   ATTACHED_ZONE_BOTS_DEFAULT,
-  DELIVERED_TO_BY_ASSET,
-  DELIVERED_TO_CRYPTO,
   attachModeForBotSource,
-  buildDeliveredAs,
   parseAttachedZoneBots,
-  tradeBelongsToCryptoTab,
   zoneAssetFromBotSource,
   type AttachedZoneBots,
 } from "../../src/lib/crypto-bot-attach";
@@ -29,8 +27,6 @@ import {
 import {
   assertDeepEqual,
   assertEqual,
-  assertFalse,
-  assertTrue,
   describe,
   summary,
   test,
@@ -129,139 +125,6 @@ describe("attachModeForBotSource", () => {
           `${source} with config ${JSON.stringify(config)}`,
         );
       }
-    }
-  });
-});
-
-describe("buildDeliveredAs", () => {
-  test("pattern → [CRYPTO] regardless of config", () => {
-    for (const config of [ALL_OFF, ALL_SIM, ALL_LIVE, MIXED]) {
-      assertDeepEqual(
-        buildDeliveredAs(config, BOT_SOURCE_PATTERN),
-        [DELIVERED_TO_CRYPTO],
-        `pattern with ${JSON.stringify(config)}`,
-      );
-    }
-  });
-
-  test("null botSource → [CRYPTO] (legacy pattern compat)", () => {
-    assertDeepEqual(buildDeliveredAs(ALL_LIVE, null), [DELIVERED_TO_CRYPTO]);
-    assertDeepEqual(buildDeliveredAs(ALL_LIVE, undefined), [DELIVERED_TO_CRYPTO]);
-  });
-
-  test("unknown botSource → empty array (no leak into any tab)", () => {
-    assertDeepEqual(buildDeliveredAs(ALL_LIVE, "DOGE_ZONE"), []);
-  });
-
-  test("zone bot, attach off → [ASSET] only", () => {
-    assertDeepEqual(buildDeliveredAs(ALL_OFF, BOT_SOURCE_BTC_ZONE), [DELIVERED_TO_BY_ASSET.btc]);
-    assertDeepEqual(buildDeliveredAs(ALL_OFF, BOT_SOURCE_ETH_ZONE), [DELIVERED_TO_BY_ASSET.eth]);
-    assertDeepEqual(buildDeliveredAs(ALL_OFF, BOT_SOURCE_SOL_ZONE), [DELIVERED_TO_BY_ASSET.sol]);
-    assertDeepEqual(buildDeliveredAs(ALL_OFF, BOT_SOURCE_XRP_ZONE), [DELIVERED_TO_BY_ASSET.xrp]);
-  });
-
-  test("zone bot, attach sim → [ASSET, CRYPTO]", () => {
-    assertDeepEqual(
-      buildDeliveredAs(ALL_SIM, BOT_SOURCE_BTC_ZONE),
-      [DELIVERED_TO_BY_ASSET.btc, DELIVERED_TO_CRYPTO],
-    );
-    assertDeepEqual(
-      buildDeliveredAs(ALL_SIM, BOT_SOURCE_ETH_ZONE),
-      [DELIVERED_TO_BY_ASSET.eth, DELIVERED_TO_CRYPTO],
-    );
-  });
-
-  test("zone bot, attach live → [ASSET, CRYPTO]", () => {
-    assertDeepEqual(
-      buildDeliveredAs(ALL_LIVE, BOT_SOURCE_BTC_ZONE),
-      [DELIVERED_TO_BY_ASSET.btc, DELIVERED_TO_CRYPTO],
-    );
-  });
-
-  test("mixed: each zone follows its own setting", () => {
-    assertDeepEqual(
-      buildDeliveredAs(MIXED, BOT_SOURCE_BTC_ZONE),
-      [DELIVERED_TO_BY_ASSET.btc, DELIVERED_TO_CRYPTO],
-      "btc=sim → attached",
-    );
-    assertDeepEqual(
-      buildDeliveredAs(MIXED, BOT_SOURCE_ETH_ZONE),
-      [DELIVERED_TO_BY_ASSET.eth, DELIVERED_TO_CRYPTO],
-      "eth=live → attached",
-    );
-    assertDeepEqual(
-      buildDeliveredAs(MIXED, BOT_SOURCE_SOL_ZONE),
-      [DELIVERED_TO_BY_ASSET.sol],
-      "sol=off → solo only",
-    );
-    assertDeepEqual(
-      buildDeliveredAs(MIXED, BOT_SOURCE_XRP_ZONE),
-      [DELIVERED_TO_BY_ASSET.xrp, DELIVERED_TO_CRYPTO],
-      "xrp=live → attached",
-    );
-  });
-});
-
-describe("tradeBelongsToCryptoTab", () => {
-  test("pattern trade always belongs (regardless of deliveredAs)", () => {
-    assertTrue(tradeBelongsToCryptoTab(undefined, BOT_SOURCE_PATTERN), "pattern undefined da");
-    assertTrue(tradeBelongsToCryptoTab(null, BOT_SOURCE_PATTERN), "pattern null da");
-    assertTrue(tradeBelongsToCryptoTab([], BOT_SOURCE_PATTERN), "pattern empty da");
-    assertTrue(tradeBelongsToCryptoTab(["CRYPTO"], BOT_SOURCE_PATTERN));
-  });
-
-  test("null botSource treated as pattern (legacy compat)", () => {
-    assertTrue(tradeBelongsToCryptoTab(undefined, null));
-    assertTrue(tradeBelongsToCryptoTab(undefined, undefined));
-  });
-
-  test("legacy zone trade (no deliveredAs) does NOT belong", () => {
-    assertFalse(tradeBelongsToCryptoTab(undefined, BOT_SOURCE_BTC_ZONE));
-    assertFalse(tradeBelongsToCryptoTab(null, BOT_SOURCE_ETH_ZONE));
-  });
-
-  test("zone trade with attach (deliveredAs includes CRYPTO) belongs", () => {
-    assertTrue(tradeBelongsToCryptoTab(["BTC", "CRYPTO"], BOT_SOURCE_BTC_ZONE));
-    assertTrue(tradeBelongsToCryptoTab(["ETH", "CRYPTO"], BOT_SOURCE_ETH_ZONE));
-  });
-
-  test("zone trade without attach (deliveredAs has only asset) does NOT belong", () => {
-    assertFalse(tradeBelongsToCryptoTab(["BTC"], BOT_SOURCE_BTC_ZONE));
-    assertFalse(tradeBelongsToCryptoTab(["SOL"], BOT_SOURCE_SOL_ZONE));
-  });
-
-  test("empty deliveredAs for zone trade does NOT belong", () => {
-    assertFalse(tradeBelongsToCryptoTab([], BOT_SOURCE_BTC_ZONE));
-  });
-
-  test("unknown botSource with no deliveredAs does NOT belong", () => {
-    assertFalse(tradeBelongsToCryptoTab(undefined, "DOGE_ZONE"));
-  });
-
-  test("end-to-end pipeline: buildDeliveredAs + tradeBelongsToCryptoTab", () => {
-    const sources = [
-      BOT_SOURCE_BTC_ZONE,
-      BOT_SOURCE_ETH_ZONE,
-      BOT_SOURCE_SOL_ZONE,
-      BOT_SOURCE_XRP_ZONE,
-    ];
-    for (const config of [ALL_OFF, ALL_SIM, ALL_LIVE, MIXED]) {
-      for (const src of sources) {
-        const da = buildDeliveredAs(config, src);
-        const inTab = tradeBelongsToCryptoTab(da, src);
-        const asset = src.toLowerCase().replace("_zone", "") as
-          | "btc" | "eth" | "sol" | "xrp";
-        const expected = config[asset] === "sim" || config[asset] === "live";
-        assertEqual(
-          inTab,
-          expected,
-          `${src} with ${JSON.stringify(config)}: deliveredAs=${JSON.stringify(da)}`,
-        );
-      }
-      assertTrue(
-        tradeBelongsToCryptoTab(buildDeliveredAs(config, BOT_SOURCE_PATTERN), BOT_SOURCE_PATTERN),
-        `pattern always in crypto tab (config ${JSON.stringify(config)})`,
-      );
     }
   });
 });

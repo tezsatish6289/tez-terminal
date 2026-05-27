@@ -59,16 +59,12 @@ function mapTradeDoc(doc: QueryDocumentSnapshot) {
     confidenceScoreAtClose: d.confidenceScoreAtClose ?? null,
     scorePatternAtClose: d.scorePatternAtClose ?? null,
     botSource: typeof d.botSource === "string" ? d.botSource : null,
-    // PR 2a debugging surface — `deliveredAs` is stamped at open time
-    // by sync-simulator / sync-zone-bots / manual-open. Exposing it
-    // here lets the simulation page (and ad-hoc curl) confirm
-    // stamping mid-life without waiting for the trade to close.
-    // Stays null for legacy trades opened before PR 2a.
-    deliveredAs: Array.isArray(d.deliveredAs)
-      ? (d.deliveredAs as unknown[]).filter(
-          (v): v is string => typeof v === "string",
-        )
-      : null,
+    // PR 2b attach audit fields — populated only on attach mirror
+    // trades (Crypto Bot side, when a zone bot fired with attach
+    // mode sim/live). Null on every other trade.
+    attachedFrom: typeof d.attachedFrom === "string" ? d.attachedFrom : null,
+    parentSimTradeId:
+      typeof d.parentSimTradeId === "string" ? d.parentSimTradeId : null,
     txHash: (d.txHash as string) ?? null,
     blockchainStatus: (d.blockchainStatus as string) ?? null,
     blockchainError: (d.blockchainError as string) ?? null,

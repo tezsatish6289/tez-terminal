@@ -148,16 +148,22 @@ export interface SimTrade {
    *  zone bots fully control their own lifecycle. SL/TP fill detection still
    *  applies — that's the same engine and is asset-agnostic. */
   botSource?: string;
-  /** Subscriber pools that received this trade — stamped once at open
-   *  time and treated as immutable. Drives the records-page Crypto tab
-   *  filter so a single trade can appear in both its origin bot's tab
-   *  (e.g. BTC) and the Crypto Bot tab when attach mode is "sim" /
-   *  "live" on `config/sim_bot_crypto_settings.attachedZoneBots`.
-   *  See `crypto-bot-attach.ts` for the full state model and the
-   *  `buildDeliveredAs()` helper that produces this array. Missing /
-   *  undefined = legacy trade closed before attach shipped (treated
-   *  as origin-bot only). */
-  deliveredAs?: string[];
+  /** Crypto Bot attach mirror trade pointer. Set ONLY on the mirror
+   *  sim trade opened by `crypto-bot-attach-mirror.ts` when a zone bot
+   *  fires with attach mode "sim" / "live". Holds the originating
+   *  zone bot's `botSource` (e.g. "BTC_ZONE") for audit while the
+   *  mirror's own `botSource` is "PATTERN" so it rolls up under Crypto
+   *  Bot's reporting / cap. Undefined = direct trade (pattern signal
+   *  or solo zone trade). */
+  attachedFrom?: string;
+  /** Parent sim trade doc id when this trade is an attach mirror.
+   *  Drives the cascade-close reconciliation in
+   *  `crypto-bot-attach-mirror.ts` so the mirror always closes when
+   *  the originating zone trade closes for any reason (TP/SL/manual/
+   *  EOD/zone-flip), even when same-prices natural close diverges
+   *  (e.g. trailing-SL mismatch). Undefined on the parent zone trade
+   *  and on all non-mirror sim trades. */
+  parentSimTradeId?: string;
   /** Solana memo publish — set when trade closes. */
   txHash?: string | null;
   blockchainStatus?: "pending" | "processing" | "confirmed" | "failed" | null;

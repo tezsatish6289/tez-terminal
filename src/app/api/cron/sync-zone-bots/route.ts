@@ -73,7 +73,6 @@ import { recordCronHeartbeat } from "@/lib/cron-health";
 import { deserializePrices } from "@/lib/exchanges";
 import { getLeverage } from "@/lib/leverage";
 import { executeForAllUsers } from "@/lib/live-execution";
-import { buildDeliveredAs, loadAttachedZoneBots } from "@/lib/crypto-bot-attach";
 import {
   SIM_CONFIG,
   type SimConfigType,
@@ -92,6 +91,15 @@ import {
 } from "@/lib/zone-bot-config";
 import { canBotOpenMore } from "@/lib/sim-slot-policy";
 import { loadSimBotSettings, toZoneBotSettings } from "@/lib/sim-bot-settings";
+import {
+  ATTACHED_ZONE_BOTS_DEFAULT,
+  loadAttachedZoneBots,
+  type AttachedZoneBots,
+} from "@/lib/crypto-bot-attach";
+import {
+  openCryptoMirrorForZoneTrade,
+  reconcileMirrorCloses,
+} from "@/lib/crypto-bot-attach-mirror";
 import {
   appendZoneBotPriceHistory,
   loadZoneBotState,
@@ -280,15 +288,16 @@ function makeZoneSignalId(asset: ZoneBotAsset, now: number): string {
 }
 
 async function openZoneBotTrade(args: {
-  db:         FirebaseFirestore.Firestore;
-  asset:      ZoneBotAsset;
-  state:      SimulatorState;
-  simConfig:  SimConfigType;
-  action:     Extract<ZoneBotAction, { type: "OPEN" } | { type: "FLIP" }>;
-  now:        number;
-  riskPerTradePct?: number;
+  db:                FirebaseFirestore.Firestore;
+  asset:             ZoneBotAsset;
+  state:             SimulatorState;
+  simConfig:         SimConfigType;
+  action:            Extract<ZoneBotAction, { type: "OPEN" } | { type: "FLIP" }>;
+  now:               number;
+  riskPerTradePct?:  number;
+  attachedZoneBots:  AttachedZoneBots;
 }): Promise<{ tradeId: string; updatedState: SimulatorState; log: SimLog; sizing: PositionSizeResult }> {
-  const { db, asset, state, simConfig, action, now, riskPerTradePct } = args;
+  const { db, asset, state, simConfig, action, now, riskPerTradePct, attachedZoneBots } = args;
 
   // OPEN uses `.side`, FLIP uses `.openSide`; the rest of the trade params
   // share names across both variants of the union.
@@ -345,18 +354,8 @@ async function openZoneBotTrade(args: {
 
   // Stamp botSource so PR #3's guards in sync-simulator skip this trade
   // for zone-flip / max-pain-proximity force-closes (zone bot owns its own
-  // lifecycle decisions). `deliveredAs` (PR 2a) marks every subscriber
-  // pool that should see this trade — at minimum the originating zone
-  // (e.g. "BTC"), plus "CRYPTO" when admin has attached this zone bot
-  // to Crypto Bot via `config/sim_bot_crypto_settings.attachedZoneBots`.
-  // Records-page filters route off this field; live execution still
-  // uses `botSource` and `executeForAllUsers` opt-in gating.
-  const attachedZoneBots = await loadAttachedZoneBots(db);
-  const tradeWithSource: SimTrade = {
-    ...result.trade,
-    botSource: ZONE_BOT_SOURCE[asset],
-    deliveredAs: buildDeliveredAs(attachedZoneBots, ZONE_BOT_SOURCE[asset]),
-  };
+  // lifecycle decisions).
+  const tradeWithSource: SimTrade = { ...result.trade, botSource: ZONE_BOT_SOURCE[asset] };
 
   const docId = `sim-${signalId}`;
 
@@ -416,6 +415,36 @@ async function openZoneBotTrade(args: {
       timestamp: new Date(now).toISOString(),
       action: "ZONE_BOT_LIVE_MIRROR_FAILED",
       details: `[${ZONE_BOT_SOURCE[asset]}] live mirror call threw: ${e instanceof Error ? e.message : String(e)}. Sim trade ${docId} unaffected.`,
+      symbol: tradeWithSource.symbol,
+      capital: result.updatedState.capital,
+      assetType: "CRYPTO",
+    }).catch(() => {});
+  }
+
+  // PR 2b: open a parallel Crypto Bot mirror sim trade when admin has
+  // attached this zone bot via `attachedZoneBots`. Failure is
+  // swallowed inside the helper — parent zone trade is never affected
+  // by mirror open errors. Skipped silently when attach mode is "off",
+  // Crypto Bot is OFF, or Crypto Bot is at cap. See
+  // `crypto-bot-attach-mirror.ts` for the full gate / sizing model.
+  try {
+    await openCryptoMirrorForZoneTrade({
+      db,
+      parent: { ...tradeWithSource, id: docId },
+      parentSimTradeId: docId,
+      attachedZoneBots,
+      simConfig,
+      now,
+    });
+  } catch (e) {
+    // Defence in depth — the helper already wraps everything in
+    // try/catch and writes a log. This second catch is for the
+    // pathological case where the helper itself throws synchronously
+    // before its own try/catch can engage.
+    await db.collection("simulator_logs").add({
+      timestamp: new Date(now).toISOString(),
+      action: "ATTACH_MIRROR_OPEN_ERROR",
+      details: `[CRYPTO_MIRROR] openCryptoMirrorForZoneTrade threw outside helper: ${e instanceof Error ? e.message : String(e)}. Parent ${docId} unaffected.`,
       symbol: tradeWithSource.symbol,
       capital: result.updatedState.capital,
       assetType: "CRYPTO",
@@ -513,11 +542,12 @@ async function reconcileOpenTradeId(
 // ── Per-asset tick ──────────────────────────────────────────────────────
 
 async function tickAsset(
-  db:        FirebaseFirestore.Firestore,
-  asset:     ZoneBotAsset,
-  prices:    PricesView | null,
-  simConfig: SimConfigType,
-  now:       number,
+  db:               FirebaseFirestore.Firestore,
+  asset:            ZoneBotAsset,
+  prices:           PricesView | null,
+  simConfig:        SimConfigType,
+  now:              number,
+  attachedZoneBots: AttachedZoneBots,
 ): Promise<AssetTickResult> {
   try {
     const botSettings = await loadSimBotSettings(db, asset);
@@ -598,6 +628,7 @@ async function tickAsset(
           action,
           now,
           riskPerTradePct: botSettings.riskPerTradePct,
+          attachedZoneBots,
         });
         if (opened.tradeId) {
           workingState.openTradeId = opened.tradeId;
@@ -665,6 +696,7 @@ async function tickAsset(
             action,
             now,
             riskPerTradePct: botSettings.riskPerTradePct,
+            attachedZoneBots,
           });
           if (opened.tradeId) {
             workingState.openTradeId = opened.tradeId;
@@ -720,12 +752,53 @@ async function run(db: FirebaseFirestore.Firestore): Promise<AssetTickResult[]> 
   const prices = await loadSpotPrices(db);
   const now    = Date.now();
 
+  // Read attach config ONCE per cron run. The mirror engine fail-closes
+  // on read error (returns ATTACHED_ZONE_BOTS_DEFAULT = all "off") so a
+  // transient Firestore hiccup just skips mirror opens this tick — zone
+  // bots themselves are unaffected.
+  let attachedZoneBots: AttachedZoneBots;
+  try {
+    attachedZoneBots = await loadAttachedZoneBots(db);
+  } catch {
+    attachedZoneBots = ATTACHED_ZONE_BOTS_DEFAULT;
+  }
+
   // Per-asset ticks run sequentially — each uses its own `zone_sim_state_*`
   // ledger ($1000 starting capital per bot).
   const results: AssetTickResult[] = [];
   for (const asset of ZONE_BOT_REGISTRY) {
-    results.push(await tickAsset(db, asset, prices, simConfig, now));
+    results.push(await tickAsset(db, asset, prices, simConfig, now, attachedZoneBots));
   }
+
+  // After every per-asset tick has finished, sweep the open Crypto Bot
+  // mirror trades and force-close any whose parent zone trade has
+  // already closed for a non-TP/SL reason (FLIP / manual / EOD). The
+  // reconciler is idempotent: TP/SL closes are handled natively by
+  // sync-simulator's raw-price catch-up loop, and a mirror that's
+  // already closed is skipped by the OPEN-status guard in the txn.
+  // Soft-failure: any throw here is swallowed; the next tick will
+  // retry. The mirror engine's own per-mirror try/catch already logs
+  // failures to simulator_logs for ops visibility.
+  try {
+    const recon = await reconcileMirrorCloses({ db, now });
+    if (recon.closed > 0 || recon.errors.length > 0) {
+      await db.collection("simulator_logs").add({
+        timestamp: new Date(now).toISOString(),
+        action: "ATTACH_MIRROR_RECONCILE",
+        details: `scanned=${recon.scanned} closed=${recon.closed} errors=${recon.errors.length}${
+          recon.errors.length > 0 ? ` | ${recon.errors.slice(0, 3).join("; ")}` : ""
+        }`,
+        capital: null,
+        assetType: "CRYPTO",
+      }).catch(() => {});
+    }
+  } catch (e) {
+    console.error(
+      "[SyncZoneBots] reconcileMirrorCloses threw:",
+      e instanceof Error ? e.message : String(e),
+    );
+  }
+
   return results;
 }
 

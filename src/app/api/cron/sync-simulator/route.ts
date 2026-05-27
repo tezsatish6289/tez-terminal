@@ -51,11 +51,6 @@ import { executeForAllUsers } from "@/lib/live-execution";
 import { isMarketOpen, isIndianMarketEntryAllowed, isIndianSquareOffTime } from "@/lib/market-hours";
 import { markTradeForBlockchain } from "@/lib/blockchain-logger";
 import { recordCronHeartbeat } from "@/lib/cron-health";
-import {
-  ATTACHED_ZONE_BOTS_DEFAULT,
-  buildDeliveredAs,
-  loadAttachedZoneBots,
-} from "@/lib/crypto-bot-attach";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -1030,19 +1025,6 @@ export async function GET(request: NextRequest) {
             : cryptoBotSettings.maxOpenTrades
           : undefined;
 
-        // PR 2a stamping: load the Crypto Bot ↔ zone-bot attach config
-        // once per asset tick so every opened sim trade lands with a
-        // canonical `deliveredAs` array. For pattern trades (no
-        // botSource) this is always ["CRYPTO"] regardless of config,
-        // but we still load so that any future refactor that gives
-        // pattern trades a botSource stays correct without revisiting
-        // this file. Non-crypto asset types skip the read entirely and
-        // use the safe default (everything off).
-        const attachedZoneBots =
-          assetType === "CRYPTO"
-            ? await loadAttachedZoneBots(db)
-            : ATTACHED_ZONE_BOTS_DEFAULT;
-
         const { selected, skipped: incubSkipped, cappedByType } = assetSimEnabled
           ? selectIncubatedSignals({
               candidates: assetCandidates,
@@ -1161,18 +1143,10 @@ export async function GET(request: NextRequest) {
           // the second set() simply overwrites with identical data, preventing
           // race-condition duplicate trades for the same symbol.
           const simTradeRef = db.collection("simulator_trades").doc(`sim-${c.id}`);
-          // Stamp `deliveredAs` so records-page filters can route the
-          // trade to the right tab(s). Pattern trades → ["CRYPTO"]; zone
-          // trades opened by the pattern path (shouldn't normally happen)
-          // would also resolve correctly via `buildDeliveredAs`.
-          const tradeToWrite: SimTrade = {
-            ...result.trade,
-            deliveredAs: buildDeliveredAs(attachedZoneBots, result.trade.botSource ?? null),
-          };
           let simWriteOk = false;
           for (let w = 1; w <= 3; w++) {
             try {
-              await simTradeRef.set(tradeToWrite);
+              await simTradeRef.set(result.trade);
               simWriteOk = true;
               break;
             } catch (writeErr) {
@@ -1203,7 +1177,7 @@ export async function GET(request: NextRequest) {
             const signalData = postUpdateDocs.find((d) => d.id === c.id);
             const signalExchange = signalData?.exchange ?? "BINANCE";
             await executeForAllUsers(
-              db, tradeToWrite, simTradeRef.id, simState3.capital,
+              db, result.trade, simTradeRef.id, simState3.capital,
               c.id, c.symbol, c.type, signalExchange, simConfig,
             );
           } catch (liveErr) {

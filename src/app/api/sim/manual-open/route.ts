@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
 import { executeForAllUsers } from "@/lib/live-execution";
-import { buildDeliveredAs, loadAttachedZoneBots } from "@/lib/crypto-bot-attach";
 import { canBotOpenMore } from "@/lib/sim-slot-policy";
 import {
   botSourceForCockpit,
@@ -210,16 +209,9 @@ export async function POST(request: NextRequest) {
     directionBias: bias,
   });
 
-  // `deliveredAs` (PR 2a) marks every subscriber pool that should see
-  // this trade on the records page. Pattern manual → ["CRYPTO"]; zone
-  // manual → ["BTC"] (off) or ["BTC", "CRYPTO"] (sim/live). Manual
-  // trades follow the same admin attach-config switch as cron trades
-  // so a single source of truth drives records-tab routing.
-  const attachedZoneBots = await loadAttachedZoneBots(db);
   const tradeWithSource: SimTrade = {
     ...result.trade,
     botSource,
-    deliveredAs: buildDeliveredAs(attachedZoneBots, botSource),
   };
 
   const noteSuffix = input.note?.trim() ? ` — ${input.note.trim()}` : "";

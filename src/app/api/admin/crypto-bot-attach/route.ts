@@ -3,18 +3,16 @@
  * silent attach feature.
  *
  * GET  → returns the current `attachedZoneBots` config from Firestore
- *        plus computed helper outputs (deliveredAs samples, mode
- *        resolution) so admins can confirm the plumbing is wired up
- *        correctly during rollout.
+ *        plus a per-bot mode-resolution sample so admins can verify
+ *        the loader read the right field after a write.
  *
  * POST → sets one or more bots' attach mode. Validates inputs through
  *        `parseAttachedZoneBots`. Writes to `config/sim_bot_crypto_settings`
  *        under the `attachedZoneBots` field; never touches other fields
  *        on that doc.
  *
- * Until PR 2 ships, flipping a bot to "sim" or "live" has NO observable
- * effect — the decision engine isn't wired yet. This endpoint exists
- * so we can validate plumbing in production before turning on behaviour.
+ * Until PR 2b ships the mirror-trade engine, flipping a bot to "sim"
+ * has NO observable effect; "live" is reserved for PR 2c.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { FieldPath, FieldValue } from "firebase-admin/firestore";
@@ -27,7 +25,6 @@ import {
   CRYPTO_BOT_ATTACH_CONFIG_DOC,
   CRYPTO_BOT_ATTACH_FIELD,
   attachModeForBotSource,
-  buildDeliveredAs,
   loadAttachedZoneBots,
   type AttachMode,
   type AttachedZoneBots,
@@ -68,7 +65,6 @@ export async function GET(request: NextRequest) {
     const helperChecks = SAMPLE_BOT_SOURCES.map((botSource) => ({
       botSource,
       attachMode: attachModeForBotSource(config, botSource),
-      deliveredAs: buildDeliveredAs(config, botSource),
     }));
 
     return NextResponse.json({
@@ -82,8 +78,8 @@ export async function GET(request: NextRequest) {
       logKeys: ATTACH_LOG_KEYS,
       helperChecks,
       note:
-        "PR 1 plumbing only. Flipping modes to 'sim' or 'live' has no" +
-        " observable effect until PR 2 ships the decision engine.",
+        "PR 2b: 'sim' opens a mirror sim trade on Crypto Bot when the" +
+        " zone bot fires; 'live' is reserved for PR 2c.",
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unexpected error";
@@ -165,7 +161,8 @@ export async function POST(request: NextRequest) {
       rejected,
       attachedZoneBots: after,
       note:
-        "Plumbing-only — values are stored but have no effect until PR 2.",
+        "PR 2b active for 'sim'. PR 2c required before 'live' fires" +
+        " for any user.",
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unexpected error";

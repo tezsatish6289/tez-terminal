@@ -101,6 +101,7 @@ import {
   openCryptoMirrorForZoneTrade,
   reconcileMirrorCloses,
 } from "@/lib/crypto-bot-attach-mirror";
+import { fanOutCryptoMirrorLive } from "@/lib/crypto-bot-attach-live";
 import {
   appendZoneBotPriceHistory,
   loadZoneBotState,
@@ -464,8 +465,16 @@ async function openZoneBotTrade(args: {
   // by mirror open errors. Skipped silently when attach mode is "off",
   // Crypto Bot is OFF, or Crypto Bot is at cap. See
   // `crypto-bot-attach-mirror.ts` for the full gate / sizing model.
+  //
+  // PR 2c: when the mirror open succeeded AND attach mode is "sim" or
+  // "live", fan the mirror out via `fanOutCryptoMirrorLive`. "sim"
+  // emits shadow logs only; "live" dispatches via the shared
+  // `executeForAllUsers` engine with an `attachContext` that skips
+  // users already on the solo zone. Errors here are isolated from the
+  // mirror open AND from the parent zone trade — every layer fails
+  // closed independently.
   try {
-    await openCryptoMirrorForZoneTrade({
+    const mirrorOutcome = await openCryptoMirrorForZoneTrade({
       db,
       parent: { ...tradeWithSource, id: docId },
       parentSimTradeId: docId,
@@ -473,6 +482,33 @@ async function openZoneBotTrade(args: {
       simConfig,
       now,
     });
+
+    if (mirrorOutcome.fired) {
+      try {
+        await fanOutCryptoMirrorLive({
+          db,
+          mirror: mirrorOutcome.mirror,
+          mirrorDocId: mirrorOutcome.mirrorDocId,
+          mirrorSignalId: mirrorOutcome.mirrorSignalId,
+          attachedFromAsset: mirrorOutcome.attachedFromAsset,
+          attachMode: mirrorOutcome.attachMode,
+          simConfig,
+          now,
+        });
+      } catch (e) {
+        // fanOutCryptoMirrorLive has its own try/catch and writes its
+        // own ATTACH_SKIP_EVAL_ERROR log; this catch is for the
+        // pathological synchronous-throw-before-internal-catch case.
+        await db.collection("simulator_logs").add({
+          timestamp: new Date(now).toISOString(),
+          action: "ATTACH_MIRROR_LIVE_ERROR",
+          details: `[CRYPTO_MIRROR] fanOutCryptoMirrorLive threw outside helper for mirror=${mirrorOutcome.mirrorDocId}: ${e instanceof Error ? e.message : String(e)}. Mirror sim trade unaffected.`,
+          symbol: tradeWithSource.symbol,
+          capital: result.updatedState.capital,
+          assetType: "CRYPTO",
+        }).catch(() => {});
+      }
+    }
   } catch (e) {
     // Defence in depth — the helper already wraps everything in
     // try/catch and writes a log. This second catch is for the

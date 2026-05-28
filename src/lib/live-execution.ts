@@ -28,6 +28,26 @@ import {
   deployKeyForBotSource,
   tradingPrefsFromDeployment,
 } from "./freedombot/deployment-cap";
+import type { ZoneBotAsset } from "./zone-bot-config";
+import { ATTACH_LOG_KEYS } from "./crypto-bot-attach";
+
+/** Optional context passed by the Crypto Bot ↔ Zone Bot attach engine
+ *  (`src/lib/crypto-bot-attach-live.ts`) when fanning a mirror trade
+ *  out to Crypto Bot subscribers. When set:
+ *
+ *    • Users whose secrets doc has `zoneBotsEnabled[attachedFromAsset]
+ *      === true` are SKIPPED with `ATTACH_SKIP_SYMBOL_ALREADY_OPEN` —
+ *      they will receive (or have already received) the trade via the
+ *      solo-zone fan-out in the same cron tick, so the mirror would
+ *      be a duplicate. Solo always supersedes attach, silently.
+ *
+ *  When `undefined` (default for every existing call site), behaviour
+ *  is byte-for-byte identical to the pre-PR-2c implementation. */
+export interface AttachContext {
+  /** Originating zone bot asset — e.g. "btc". The secrets doc field
+   *  `zoneBotsEnabled.<asset>` is the dedup discriminator. */
+  attachedFromAsset: ZoneBotAsset;
+}
 
 /**
  * Execute a trade for ALL users who have autoTradeEnabled on any supported exchange.
@@ -54,6 +74,12 @@ export async function executeForAllUsers(
    *  on the user's secrets doc (see userOptedIntoBot). Existing pattern-
    *  bot users are NOT auto-enrolled into any zone bot. */
   botSource: string = "PATTERN",
+  /** PR 2c — Crypto Bot ↔ Zone Bot attach hook. When provided, adds
+   *  ONE extra discovery-loop skip: any user already subscribed to the
+   *  originating solo zone (via `zoneBotsEnabled[asset] === true`) is
+   *  filtered out so they don't get a duplicate fill. Undefined for
+   *  every non-attach caller — zero behavioural change. */
+  attachContext?: AttachContext,
 ) {
   const isStock = isStockExchange(signalExchange);
 
@@ -180,6 +206,7 @@ export async function executeForAllUsers(
     bot_opt_out: 0,
     duplicate: 0,
     daily_loss_halt: 0,
+    attach_solo_supersedes: 0,
   };
   try {
     const enabledSnap = await db
@@ -247,6 +274,35 @@ export async function executeForAllUsers(
       if (isDailyLossHaltedToday(data)) {
         discoverySkips.daily_loss_halt++;
         continue;
+      }
+
+      // PR 2c: solo-zone supersession. When a Crypto Bot mirror is
+      // being fanned out (attachContext set) and this user is ALREADY
+      // subscribed to the originating solo zone bot, skip the mirror.
+      // They will receive the trade via the solo zone's own
+      // executeForAllUsers call which runs in the same cron tick. We
+      // emit a per-user log so an admin can audit silent skips, but the
+      // user-facing effect is zero — they get exactly one fill, sized
+      // by the solo zone's risk×capital. Disabling the solo opt-in
+      // later flips them onto the mirror path on the NEXT signal with
+      // no further action needed.
+      if (attachContext) {
+        const zoneMap = data.zoneBotsEnabled as Record<string, boolean> | undefined;
+        if (zoneMap?.[attachContext.attachedFromAsset] === true) {
+          discoverySkips.attach_solo_supersedes++;
+          await db.collection("live_trade_logs").add({
+            timestamp: new Date().toISOString(),
+            action: ATTACH_LOG_KEYS.skipSymbolAlreadyOpen,
+            details: `${symbol} ${signalType} — user ${userId} is subscribed to ${attachContext.attachedFromAsset.toUpperCase()} solo zone; mirror skipped (solo path delivers this trade).`,
+            signalId,
+            symbol,
+            userId,
+            exchange: exchangeName,
+            attachedFromAsset: attachContext.attachedFromAsset,
+            assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
+          }).catch(() => {});
+          continue;
+        }
       }
 
       const dedupeKey = `${userId}::${exchangeName}`;

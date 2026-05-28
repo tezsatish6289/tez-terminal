@@ -82,6 +82,7 @@ import {
   classifyBotSource,
 } from "@/lib/bot-source-constants";
 import { markTradeForBlockchain } from "@/lib/blockchain-logger";
+import type { ZoneBotAsset } from "@/lib/zone-bot-config";
 
 // ─── Gate logic (pure) ──────────────────────────────────────────────
 
@@ -367,6 +368,16 @@ export type MirrorOpenOutcome =
       attachMode: Exclude<AttachMode, "off">;
       capitalAfter: number;
       size: number;
+      /** The full mirror SimTrade as it was persisted (botSource =
+       *  PATTERN, attachedFrom = parent's source, parentSimTradeId set,
+       *  leverage = parent's leverage). PR 2c's live fan-out reads this
+       *  directly so it doesn't have to re-fetch the doc it just
+       *  wrote. `id` is set to `mirrorDocId`. */
+      mirror: SimTrade;
+      /** Zone bot asset that fired the parent — "btc"/"eth"/"sol"/"xrp".
+       *  PR 2c uses this for the solo-subscriber dedup in
+       *  executeForAllUsers's attachContext. */
+      attachedFromAsset: ZoneBotAsset;
     }
   | {
       fired: false;
@@ -579,6 +590,12 @@ export async function openCryptoMirrorForZoneTrade(args: {
       attachMode: gate.attachMode,
       capitalAfter: cryptoState.capital - mirrorTrade.fees,
       size: sizing.size,
+      // Stamp the doc id so PR 2c's executeForAllUsers receives a
+      // SimTrade with a stable `id` that matches the simulator_trades
+      // doc id — same convention every other live-execution call site
+      // uses (the simTradeId arg and trade.id always agree).
+      mirror: { ...mirrorTrade, id: mirrorDocId },
+      attachedFromAsset: asset,
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

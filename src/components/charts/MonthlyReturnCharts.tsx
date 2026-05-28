@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import {
-  Bar,
+  Area,
   CartesianGrid,
-  Cell,
   ComposedChart,
   LabelList,
   Line,
@@ -23,7 +22,11 @@ import {
 import type { BtcMonthlyReturnPoint } from "@/lib/btc-monthly-returns";
 import type { ClosedTradeLike } from "@/lib/equity-curve";
 import { useAnimatedNumber, useChartMotion } from "@/hooks/use-chart-motion";
-import { brandMetricColor } from "@/lib/chart-brand-colors";
+import {
+  BRAND_CURVE_FILL_OPACITY,
+  BRAND_CURVE_STROKE,
+  brandMetricColor,
+} from "@/lib/chart-brand-colors";
 
 export interface MonthlyReturnChartsProps {
   trades: ClosedTradeLike[];
@@ -35,14 +38,12 @@ export interface MonthlyReturnChartsProps {
   showBtcBenchmark?: boolean;
 }
 
-const PORTFOLIO_MONTHLY = "#34d399";
-const CUMULATIVE_LINE = "#3b82f6";
-const BTC_MONTHLY = "#F7931A";
-const BTC_CUMULATIVE = "#F7931A";
-const NEGATIVE_BAR = "#f87171";
+/** Orange-400 — matched brightness to brand blue-400 curve stroke. */
+const BTC_LINE = "#fb923c";
 
 type ChartRow = MonthlyReturnPoint & {
-  btcMonthlyReturnPct?: number;
+  monthAbbr: string;
+  yearLabel: string | null;
   btcCumulativeReturnPct?: number;
 };
 
@@ -52,112 +53,71 @@ function fmtPct(v: number, dp = 1): string {
 }
 
 function pctAxis(v: number): string {
-  if (v === 0) return "0%";
-  const sign = v > 0 ? "+" : "";
-  return `${sign}${v.toFixed(0)}%`;
+  return `${v.toFixed(0)}%`;
+}
+
+function enrichRow(
+  row: MonthlyReturnPoint,
+  dense: boolean,
+  showYear: boolean,
+): ChartRow {
+  const d = new Date(`${row.monthKey}-01T12:00:00`);
+  const monthAbbr = dense ? format(d, "MMM").slice(0, 2) : format(d, "MMM");
+  const yearLabel = showYear ? row.monthKey.slice(0, 4) : null;
+  return { ...row, monthAbbr, yearLabel };
+}
+
+function mergeBtcSeries(
+  portfolio: MonthlyReturnPoint[],
+  btcPoints: BtcMonthlyReturnPoint[],
+  dense: boolean,
+): ChartRow[] {
+  const btcMap = new Map(btcPoints.map((p) => [p.monthKey, p]));
+  return portfolio.map((row, i) => {
+    const year = row.monthKey.slice(0, 4);
+    const prevYear = i > 0 ? portfolio[i - 1].monthKey.slice(0, 4) : null;
+    const showYear = i === 0 || year !== prevYear;
+    const base = enrichRow(row, dense, showYear);
+    const btc = btcMap.get(row.monthKey);
+    if (!btc) return base;
+    return { ...base, btcCumulativeReturnPct: btc.btcCumulativeReturnPct };
+  });
 }
 
 function portfolioTitle(data: MonthlyReturnPoint[]): string {
   if (!data.length) return "Portfolio Performance Summary";
-  const y0 = data[0].monthKey.slice(0, 4);
-  const y1 = data[data.length - 1].monthKey.slice(0, 4);
-  const m0 = format(new Date(`${data[0].monthKey}-01T12:00:00`), "MMMM");
-  const m1 = format(new Date(`${data[data.length - 1].monthKey}-01T12:00:00`), "MMMM");
-  const year = y0 === y1 ? y0 : `${y0}–${y1}`;
-  return `Portfolio Performance Summary — ${m0} to ${m1} ${year}`;
+  const m0 = format(new Date(`${data[0].monthKey}-01T12:00:00`), "MMMM yyyy");
+  const m1 = format(new Date(`${data[data.length - 1].monthKey}-01T12:00:00`), "MMMM yyyy");
+  const months = data.length;
+  return `Portfolio Performance Summary — ${m0} to ${m1} (${months} Month${months !== 1 ? "s" : ""})`;
 }
 
-/** Callout bubble — above bar when +, below bar when −. Works at any bar height. */
-function CalloutBarLabel(props: {
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  value?: number;
-  visible?: boolean;
-  accentColor?: string;
-  textColor?: string;
-}) {
-  const {
-    x = 0,
-    y = 0,
-    width = 0,
-    height = 0,
-    value,
-    visible = true,
-    accentColor = PORTFOLIO_MONTHLY,
-    textColor = "#ffffff",
-  } = props;
-  if (!visible || value == null || !Number.isFinite(value)) return null;
-
-  const positive = value >= 0;
-  const cx = x + width / 2;
-  const h = height;
-  const absH = Math.abs(h);
-  const barTop = h >= 0 ? y : y + h;
-  const barBottom = h >= 0 ? y + absH : y;
-
-  const label = fmtPct(value, 1);
-  const bubbleW = Math.max(44, label.length * 6.8 + 14);
-  const bubbleH = 18;
-  const tail = 5;
-  const gap = 3;
-
-  const bubbleY = positive ? barTop - bubbleH - tail - gap : barBottom + tail + gap;
-  const textY = bubbleY + bubbleH / 2 + 3.5;
-
-  return (
-    <g style={{ pointerEvents: "none" }}>
-      <rect
-        x={cx - bubbleW / 2}
-        y={bubbleY}
-        width={bubbleW}
-        height={bubbleH}
-        rx={5}
-        fill="rgba(12,12,14,0.97)"
-        stroke={positive ? accentColor : NEGATIVE_BAR}
-        strokeWidth={1.5}
-      />
-      {positive ? (
-        <path
-          d={`M ${cx - 4} ${bubbleY + bubbleH} L ${cx + 4} ${bubbleY + bubbleH} L ${cx} ${bubbleY + bubbleH + tail} Z`}
-          fill="rgba(12,12,14,0.97)"
-          stroke={accentColor}
-          strokeWidth={1}
-        />
-      ) : (
-        <path
-          d={`M ${cx - 4} ${bubbleY} L ${cx + 4} ${bubbleY} L ${cx} ${bubbleY - tail} Z`}
-          fill="rgba(12,12,14,0.97)"
-          stroke={NEGATIVE_BAR}
-          strokeWidth={1}
-        />
-      )}
-      <text
-        x={cx}
-        y={textY}
-        textAnchor="middle"
-        fill={textColor}
-        fontSize={10}
-        fontWeight={700}
-      >
-        {label}
-      </text>
-    </g>
-  );
+function xTickInterval(monthCount: number): number | "preserveStartEnd" {
+  if (monthCount <= 8) return 0;
+  if (monthCount <= 16) return 1;
+  if (monthCount <= 28) return 2;
+  return 3;
 }
 
-/** End-of-line callout for cumulative series (portfolio + BTC). */
-function CumulativeEndLabel(props: {
+function niceYMax(maxVal: number): number {
+  if (maxVal <= 10) return 10;
+  if (maxVal <= 25) return Math.ceil(maxVal / 5) * 5;
+  if (maxVal <= 50) return Math.ceil(maxVal / 10) * 10;
+  if (maxVal <= 100) return Math.ceil(maxVal / 20) * 20;
+  return Math.ceil(maxVal / 25) * 25;
+}
+
+/** Simple end-of-line % label (no bubble). */
+function LineEndPctLabel(props: {
   x?: number;
   y?: number;
   value?: number;
   index?: number;
   lastIndex?: number;
   visible?: boolean;
-  accentColor?: string;
-  align?: "left" | "right";
-  yOffset?: number;
+  color?: string;
+  dx?: number;
+  dy?: number;
 }) {
   const {
     x = 0,
@@ -166,53 +126,68 @@ function CumulativeEndLabel(props: {
     index = 0,
     lastIndex = 0,
     visible = true,
-    accentColor = CUMULATIVE_LINE,
-    align = "right",
-    yOffset = 0,
+    color = BRAND_CURVE_STROKE,
+    dx = 8,
+    dy = 0,
   } = props;
   if (!visible || index !== lastIndex || value == null || !Number.isFinite(value)) return null;
 
-  const label = fmtPct(value, 1);
-  const bubbleW = Math.max(48, label.length * 6.8 + 16);
-  const bubbleH = 18;
-  const tail = 5;
-  const offsetX = align === "right" ? 10 : -10;
-  const bubbleX = align === "right" ? x + offsetX : x - bubbleW - offsetX;
-  const anchorY = y + yOffset;
-  const bubbleY = anchorY - bubbleH / 2;
+  return (
+    <text
+      x={x + dx}
+      y={y + dy}
+      fill={color}
+      fontSize={11}
+      fontWeight={700}
+      dominantBaseline="middle"
+      style={{ pointerEvents: "none" }}
+    >
+      {fmtPct(value, 1)}
+    </text>
+  );
+}
+
+function MonthYearAxisTick({
+  x = 0,
+  y = 0,
+  payload,
+  dense,
+  rows,
+}: {
+  x?: number;
+  y?: number;
+  payload?: { value?: string };
+  dense: boolean;
+  rows: ChartRow[];
+}) {
+  const row = rows.find((r) => r.monthKey === payload?.value);
+  if (!row) return null;
 
   return (
-    <g style={{ pointerEvents: "none" }}>
-      <rect
-        x={bubbleX}
-        y={bubbleY}
-        width={bubbleW}
-        height={bubbleH}
-        rx={5}
-        fill="rgba(12,12,14,0.97)"
-        stroke={accentColor}
-        strokeWidth={1.5}
-      />
-      <path
-        d={
-          align === "right"
-            ? `M ${bubbleX} ${anchorY} L ${bubbleX - tail} ${anchorY - 3} L ${bubbleX - tail} ${anchorY + 3} Z`
-            : `M ${bubbleX + bubbleW} ${anchorY} L ${bubbleX + bubbleW + tail} ${anchorY - 3} L ${bubbleX + bubbleW + tail} ${anchorY + 3} Z`
-        }
-        fill="rgba(12,12,14,0.97)"
-        stroke={accentColor}
-        strokeWidth={1}
-      />
+    <g transform={`translate(${x},${y})`}>
       <text
-        x={bubbleX + bubbleW / 2}
-        y={bubbleY + bubbleH / 2 + 3.5}
+        x={0}
+        y={0}
+        dy={8}
         textAnchor="middle"
-        fill="#ffffff"
-        fontSize={10}
-        fontWeight={700}
+        fill="rgba(255,255,255,0.45)"
+        fontSize={dense ? 8 : 9}
       >
-        {label}
+        {row.monthAbbr}
       </text>
+      {row.yearLabel && (
+        <text
+          x={0}
+          y={0}
+          dy={20}
+          textAnchor="middle"
+          fill="rgba(255,255,255,0.28)"
+          fontSize={8}
+          fontWeight={600}
+        >
+          {row.yearLabel}
+        </text>
+      )}
     </g>
   );
 }
@@ -225,58 +200,35 @@ function zeroedSeries(data: MonthlyReturnPoint[]): MonthlyReturnPoint[] {
   }));
 }
 
-function mergeBtcSeries(
-  portfolio: MonthlyReturnPoint[],
-  btcPoints: BtcMonthlyReturnPoint[],
-): ChartRow[] {
-  const btcMap = new Map(btcPoints.map((p) => [p.monthKey, p]));
-  return portfolio.map((row) => {
-    const btc = btcMap.get(row.monthKey);
-    if (!btc) return row;
-    return {
-      ...row,
-      btcMonthlyReturnPct: btc.btcMonthlyReturnPct,
-      btcCumulativeReturnPct: btc.btcCumulativeReturnPct,
-    };
-  });
-}
-
 function SummaryKpi({
   label,
   value,
   valueClassName,
-  valueStyle,
-  highlight,
   isBlue,
 }: {
   label: string;
   value: string;
   valueClassName?: string;
-  valueStyle?: CSSProperties;
-  highlight?: boolean;
   isBlue: boolean;
 }) {
   return (
     <div
-      className={cn(
-        "rounded-lg border px-3 py-2.5 min-w-0",
-        highlight && "ring-1 ring-emerald-500/25",
-      )}
+      className="rounded-lg border px-3 py-2.5 min-w-0"
       style={{
         borderColor: isBlue ? "rgba(90,140,220,0.12)" : "rgba(255,255,255,0.08)",
-        backgroundColor: highlight ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.025)",
+        backgroundColor: "rgba(255,255,255,0.025)",
       }}
     >
       <div
-        className={cn("text-[9px] font-semibold uppercase tracking-wider mb-1", !isBlue && "text-muted-foreground/50")}
+        className={cn(
+          "text-[9px] font-semibold uppercase tracking-wider mb-1",
+          !isBlue && "text-muted-foreground/50",
+        )}
         style={isBlue ? { color: "#64748b" } : undefined}
       >
         {label}
       </div>
-      <div
-        className={cn("text-sm sm:text-base font-black tabular-nums truncate", valueClassName)}
-        style={valueStyle}
-      >
+      <div className={cn("text-sm sm:text-base font-black tabular-nums truncate", valueClassName)}>
         {value}
       </div>
     </div>
@@ -301,6 +253,8 @@ export function MonthlyReturnCharts({
     () => portfolioData.map((d) => d.monthKey).join("|"),
     [portfolioData],
   );
+
+  const dense = portfolioData.length > 12;
 
   const [btcPoints, setBtcPoints] = useState<BtcMonthlyReturnPoint[]>([]);
   useEffect(() => {
@@ -328,8 +282,8 @@ export function MonthlyReturnCharts({
   }, [showBtcBenchmark, chartKey, portfolioData.length]);
 
   const data = useMemo(
-    () => mergeBtcSeries(portfolioData, showBtcBenchmark ? btcPoints : []),
-    [portfolioData, btcPoints, showBtcBenchmark],
+    () => mergeBtcSeries(portfolioData, showBtcBenchmark ? btcPoints : [], dense),
+    [portfolioData, btcPoints, showBtcBenchmark, dense],
   );
 
   const hasBtcData = showBtcBenchmark && data.some((d) => d.btcCumulativeReturnPct != null);
@@ -365,11 +319,11 @@ export function MonthlyReturnCharts({
   }, [chartKey, portfolioData, motion.enabled, motion.labelDelay]);
 
   const displayData = useMemo(
-    () => mergeBtcSeries(displayPortfolio, showBtcBenchmark ? btcPoints : []),
-    [displayPortfolio, btcPoints, showBtcBenchmark],
+    () => mergeBtcSeries(displayPortfolio, showBtcBenchmark ? btcPoints : [], dense),
+    [displayPortfolio, btcPoints, showBtcBenchmark, dense],
   );
 
-  const { yMin, yMax, totalReturn, btcTotalReturn, alpha, bestMonth } = useMemo(() => {
+  const { yMin, yMax, totalReturn, btcTotalReturn, alpha, bestMonthPct } = useMemo(() => {
     if (!data.length) {
       return {
         yMin: 0,
@@ -377,35 +331,33 @@ export function MonthlyReturnCharts({
         totalReturn: 0,
         btcTotalReturn: null as number | null,
         alpha: null as number | null,
-        bestMonth: "—",
+        bestMonthPct: 0,
       };
     }
-    const allPct = data.flatMap((d) => {
-      const vals = [d.monthlyReturnPct, d.cumulativeReturnPct];
-      if (d.btcMonthlyReturnPct != null) vals.push(d.btcMonthlyReturnPct);
+    const cumVals = data.flatMap((d) => {
+      const vals = [d.cumulativeReturnPct];
       if (d.btcCumulativeReturnPct != null) vals.push(d.btcCumulativeReturnPct);
       return vals;
     });
-    const rawMin = Math.min(...allPct, 0);
-    const rawMax = Math.max(...allPct, 0);
-    const best = data.reduce((a, b) =>
-      b.monthlyReturnPct > a.monthlyReturnPct ? b : a,
-    );
+    const rawMin = Math.min(...cumVals, 0);
+    const rawMax = Math.max(...cumVals, 0);
+    const best = data.reduce((a, b) => (b.monthlyReturnPct > a.monthlyReturnPct ? b : a));
     const total = data[data.length - 1].cumulativeReturnPct;
     const lastBtc = [...data].reverse().find((d) => d.btcCumulativeReturnPct != null);
     const btcTotal = lastBtc?.btcCumulativeReturnPct ?? null;
     return {
-      yMin: rawMin < 0 ? Math.floor(rawMin * 1.15) : 0,
-      yMax: Math.ceil(Math.max(rawMax, 1) * 1.15),
+      yMin: rawMin < 0 ? Math.floor(rawMin / 5) * 5 : 0,
+      yMax: niceYMax(rawMax * 1.08),
       totalReturn: total,
       btcTotalReturn: btcTotal,
       alpha: btcTotal != null ? parseFloat((total - btcTotal).toFixed(2)) : null,
-      bestMonth: format(new Date(`${best.monthKey}-01T12:00:00`), "MMMM"),
+      bestMonthPct: best.monthlyReturnPct,
     };
   }, [data]);
 
   const animatedTotal = useAnimatedNumber(totalReturn, { enabled: motion.enabled });
   const animatedAlpha = useAnimatedNumber(alpha ?? 0, { enabled: motion.enabled && alpha != null });
+  const animatedBest = useAnimatedNumber(bestMonthPct, { enabled: motion.enabled });
   const anim = motion.enabled
     ? {
         isAnimationActive: true as const,
@@ -422,6 +374,7 @@ export function MonthlyReturnCharts({
   const refCol = isBlue ? "rgba(90,140,220,0.15)" : "rgba(255,255,255,0.10)";
   const ttBg = isBlue ? "#0a1628" : "#1a1a1d";
   const ttBdr = isBlue ? "rgba(90,140,220,0.2)" : "rgba(255,255,255,0.1)";
+  const gradientId = `portfolio-cum-fill-${chartKey.replace(/[^a-z0-9]/gi, "")}`;
 
   const tooltipStyle = {
     contentStyle: {
@@ -434,6 +387,8 @@ export function MonthlyReturnCharts({
     labelStyle: { color: "#94a3b8", marginBottom: "4px" },
     itemStyle: { color: "#e2e8f0" },
   };
+
+  const kpiCols = hasBtcData ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3";
 
   return (
     <section
@@ -458,12 +413,12 @@ export function MonthlyReturnCharts({
             style={isBlue ? { color: "#475569" } : undefined}
           >
             {hasBtcData
-              ? "Portfolio vs BTC buy & hold (monthly open → close)"
-              : "Monthly returns with cumulative trend (closed trades)"}
+              ? "Portfolio vs BTC Buy & Hold (Cumulative Return)"
+              : "Cumulative return by calendar month (closed trades)"}
           </p>
         </div>
 
-        <div className={cn("grid gap-2 sm:gap-3", hasBtcData ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3")}>
+        <div className={cn("grid gap-2 sm:gap-3", kpiCols)}>
           <SummaryKpi
             label="Total Return"
             value={fmtPct(animatedTotal)}
@@ -474,7 +429,7 @@ export function MonthlyReturnCharts({
             <SummaryKpi
               label="vs BTC"
               value={fmtPct(btcTotalReturn)}
-              valueStyle={{ color: BTC_CUMULATIVE }}
+              valueClassName="text-orange-400"
               isBlue={isBlue}
             />
           )}
@@ -483,34 +438,73 @@ export function MonthlyReturnCharts({
               label="Alpha"
               value={fmtPct(animatedAlpha)}
               valueClassName={brandMetricColor(alpha >= 0)}
-              highlight
               isBlue={isBlue}
             />
           )}
           <SummaryKpi
             label="Best Month"
-            value={bestMonth}
-            valueClassName="text-white/90"
+            value={fmtPct(animatedBest)}
+            valueClassName={brandMetricColor(bestMonthPct >= 0)}
             isBlue={isBlue}
           />
         </div>
       </div>
 
-      <div className="h-[300px] sm:h-[340px]">
+      <div className="flex items-center justify-center gap-5 text-[10px] font-semibold">
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="h-2 w-2 rounded-full shrink-0"
+            style={{ backgroundColor: BRAND_CURVE_STROKE }}
+            aria-hidden
+          />
+          <span
+            className={!isBlue ? "text-muted-foreground/70" : undefined}
+            style={isBlue ? { color: "#94a3b8" } : undefined}
+          >
+            Portfolio
+          </span>
+        </span>
+        {hasBtcData && (
+          <span className="inline-flex items-center gap-1.5">
+            <span
+              className="h-2 w-2 rounded-full shrink-0"
+              style={{ backgroundColor: BTC_LINE }}
+              aria-hidden
+            />
+            <span
+              className={!isBlue ? "text-muted-foreground/70" : undefined}
+              style={isBlue ? { color: "#94a3b8" } : undefined}
+            >
+              BTC Buy & Hold
+            </span>
+          </span>
+        )}
+      </div>
+
+      <div className="h-[280px] sm:h-[320px]">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             key={`${chartKey}-${hasBtcData ? "btc" : "solo"}`}
             data={displayData}
-            margin={{ top: 28, right: hasBtcData ? 72 : 56, left: 4, bottom: 4 }}
-            barCategoryGap={hasBtcData ? "36%" : "28%"}
-            barGap={hasBtcData ? 12 : 8}
+            margin={{ top: 12, right: 52, left: 0, bottom: dense ? 18 : 8 }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke={gridCol} vertical={false} />
+            <defs>
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={BRAND_CURVE_STROKE} stopOpacity={BRAND_CURVE_FILL_OPACITY.top} />
+                <stop offset="100%" stopColor={BRAND_CURVE_STROKE} stopOpacity={BRAND_CURVE_FILL_OPACITY.bottom} />
+              </linearGradient>
+            </defs>
+
+            <CartesianGrid strokeDasharray="3 3" stroke={gridCol} vertical />
             <XAxis
-              dataKey="label"
-              tick={{ fontSize: 10, fill: axisCol }}
+              dataKey="monthKey"
+              interval={xTickInterval(displayData.length)}
+              tick={(props) => (
+                <MonthYearAxisTick {...props} dense={dense} rows={displayData} />
+              )}
               tickLine={false}
               axisLine={{ stroke: axisLn }}
+              height={dense ? 36 : 28}
             />
             <YAxis
               yAxisId="main"
@@ -519,196 +513,93 @@ export function MonthlyReturnCharts({
               tickLine={false}
               axisLine={{ stroke: axisLn }}
               tickFormatter={pctAxis}
-              width={48}
+              width={44}
             />
             <Tooltip
               {...tooltipStyle}
+              labelFormatter={(_, payload) => {
+                const row = payload?.[0]?.payload as ChartRow | undefined;
+                if (!row?.monthKey) return "";
+                return format(new Date(`${row.monthKey}-01T12:00:00`), "MMMM yyyy");
+              }}
               formatter={(value: number, name: string, props) => {
                 const row = props.payload as ChartRow;
                 const money =
                   cs === "₹"
                     ? `₹${Math.abs(row.monthPnl).toLocaleString("en-IN")}`
                     : `$${Math.abs(row.monthPnl).toFixed(2)}`;
-                if (name === "Portfolio Monthly") {
-                  return [fmtPct(value, 2), `Portfolio monthly · ${row.monthPnl >= 0 ? "+" : ""}${money}`];
+                if (name === "Portfolio") {
+                  return [fmtPct(value, 2), `Cumulative · month P&L ${row.monthPnl >= 0 ? "+" : ""}${money}`];
                 }
-                if (name === "Portfolio Cumulative") {
-                  return [fmtPct(value, 2), "Portfolio cumulative vs start"];
-                }
-                if (name === "BTC Monthly") {
-                  return [fmtPct(value, 2), "BTC monthly (open → close)"];
-                }
-                if (name === "BTC Cumulative") {
-                  return [fmtPct(value, 2), "BTC buy & hold vs period start"];
+                if (name === "BTC Buy & Hold") {
+                  return [fmtPct(value, 2), "BTC cumulative vs period start"];
                 }
                 return [fmtPct(value, 2), name];
               }}
             />
             <ReferenceLine yAxisId="main" y={0} stroke={refCol} strokeWidth={1.5} />
 
-            <Line
+            <Area
               yAxisId="main"
               type="monotone"
               dataKey="cumulativeReturnPct"
-              name="Portfolio Cumulative"
-              stroke={CUMULATIVE_LINE}
-              strokeWidth={2.5}
+              name="Portfolio"
+              stroke={BRAND_CURVE_STROKE}
+              strokeWidth={2}
+              fill={`url(#${gradientId})`}
               dot={false}
-              activeDot={false}
-              animationId="cumulative-line"
-              animationBegin={motion.enabled ? 180 : 0}
+              activeDot={{ r: 3, fill: BRAND_CURVE_STROKE, strokeWidth: 0 }}
+              animationId="portfolio-area"
+              animationBegin={0}
               {...anim}
             >
               <LabelList
                 dataKey="cumulativeReturnPct"
                 content={(props) => (
-                  <CumulativeEndLabel
+                  <LineEndPctLabel
                     {...props}
                     lastIndex={lastIndex}
                     visible={showLabels}
-                    accentColor={CUMULATIVE_LINE}
-                    align="right"
+                    color={BRAND_CURVE_STROKE}
+                    dx={8}
                   />
                 )}
               />
-            </Line>
+            </Area>
 
             {hasBtcData && (
               <Line
                 yAxisId="main"
                 type="monotone"
                 dataKey="btcCumulativeReturnPct"
-                name="BTC Cumulative"
-                stroke={BTC_CUMULATIVE}
-                strokeWidth={2.5}
+                name="BTC Buy & Hold"
+                stroke={BTC_LINE}
+                strokeWidth={2}
                 strokeDasharray="6 4"
                 dot={false}
-                activeDot={false}
+                activeDot={{ r: 3, fill: BTC_LINE, strokeWidth: 0 }}
                 connectNulls
-                animationId="btc-cumulative-line"
-                animationBegin={motion.enabled ? 220 : 0}
+                animationId="btc-line"
+                animationBegin={motion.enabled ? 120 : 0}
                 {...anim}
               >
                 <LabelList
                   dataKey="btcCumulativeReturnPct"
                   content={(props) => (
-                  <CumulativeEndLabel
-                    {...props}
-                    lastIndex={lastIndex}
-                    visible={showLabels}
-                    accentColor={BTC_CUMULATIVE}
-                    align="right"
-                    yOffset={22}
-                  />
+                    <LineEndPctLabel
+                      {...props}
+                      lastIndex={lastIndex}
+                      visible={showLabels}
+                      color={BTC_LINE}
+                      dx={8}
+                      dy={14}
+                    />
                   )}
                 />
               </Line>
             )}
-
-            <Bar
-              yAxisId="main"
-              dataKey="monthlyReturnPct"
-              name="Portfolio Monthly"
-              barSize={hasBtcData ? 28 : 32}
-              radius={[4, 4, 0, 0]}
-              activeBar={false}
-              animationId="monthly"
-              animationBegin={0}
-              {...anim}
-            >
-              {displayData.map((entry, i) => (
-                <Cell
-                  key={`m-${i}`}
-                  fill={entry.monthlyReturnPct >= 0 ? PORTFOLIO_MONTHLY : NEGATIVE_BAR}
-                  fillOpacity={0.92}
-                />
-              ))}
-              <LabelList
-                dataKey="monthlyReturnPct"
-                content={(props) => (
-                  <CalloutBarLabel
-                    {...props}
-                    visible={showLabels}
-                    accentColor={PORTFOLIO_MONTHLY}
-                  />
-                )}
-              />
-            </Bar>
-
-            {hasBtcData && (
-              <Bar
-                yAxisId="main"
-                dataKey="btcMonthlyReturnPct"
-                name="BTC Monthly"
-                barSize={28}
-                radius={[4, 4, 0, 0]}
-                activeBar={false}
-                animationId="btc-monthly"
-                animationBegin={motion.enabled ? 80 : 0}
-                {...anim}
-              >
-                {displayData.map((entry, i) => (
-                  <Cell
-                    key={`btc-m-${i}`}
-                    fill={
-                      entry.btcMonthlyReturnPct == null
-                        ? "transparent"
-                        : entry.btcMonthlyReturnPct >= 0
-                          ? BTC_MONTHLY
-                          : NEGATIVE_BAR
-                    }
-                    fillOpacity={entry.btcMonthlyReturnPct == null ? 0 : 0.92}
-                  />
-                ))}
-                <LabelList
-                  dataKey="btcMonthlyReturnPct"
-                  content={(props) => (
-                    <CalloutBarLabel
-                      {...props}
-                      visible={showLabels}
-                      accentColor={BTC_MONTHLY}
-                    />
-                  )}
-                />
-              </Bar>
-            )}
           </ComposedChart>
         </ResponsiveContainer>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[10px] font-semibold">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: PORTFOLIO_MONTHLY }} aria-hidden />
-          <span className={!isBlue ? "text-muted-foreground/70" : undefined} style={isBlue ? { color: "#94a3b8" } : undefined}>
-            Portfolio Monthly
-          </span>
-        </span>
-        {hasBtcData && (
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: BTC_MONTHLY }} aria-hidden />
-            <span className={!isBlue ? "text-muted-foreground/70" : undefined} style={isBlue ? { color: "#94a3b8" } : undefined}>
-              BTC Monthly
-            </span>
-          </span>
-        )}
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-0.5 w-4 shrink-0 rounded-full" style={{ backgroundColor: CUMULATIVE_LINE }} aria-hidden />
-          <span className={!isBlue ? "text-muted-foreground/70" : undefined} style={isBlue ? { color: "#94a3b8" } : undefined}>
-            Portfolio Cumulative
-          </span>
-        </span>
-        {hasBtcData && (
-          <span className="inline-flex items-center gap-1.5">
-            <span
-              className="h-0.5 w-4 shrink-0 border-t-2 border-dashed"
-              style={{ borderColor: BTC_CUMULATIVE }}
-              aria-hidden
-            />
-            <span className={!isBlue ? "text-muted-foreground/70" : undefined} style={isBlue ? { color: "#94a3b8" } : undefined}>
-              BTC Cumulative
-            </span>
-          </span>
-        )}
       </div>
     </section>
   );

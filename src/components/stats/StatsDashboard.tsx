@@ -477,6 +477,7 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
         startingCapital={effectiveStartingCapital}
         cs={cs}
         theme="white"
+        showBtcBenchmark={assetType === "CRYPTO"}
       />
 
       <RiskRatioDrilldowns

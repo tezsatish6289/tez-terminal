@@ -427,6 +427,7 @@ export default function PerformancePage() {
             startingCapital={startCap}
             cs="$"
             theme="white"
+            showBtcBenchmark
           />
         )}
 

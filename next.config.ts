@@ -11,6 +11,17 @@ const nextConfig: NextConfig = {
   // @solana/web3.js and bs58 use Node.js built-ins (crypto, buffer, etc.)
   // that must not be bundled by webpack — load them natively at runtime.
   serverExternalPackages: ["@solana/web3.js", "bs58", "undici"],
+  async headers() {
+    return [
+      {
+        source: '/og.png',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+        ],
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {

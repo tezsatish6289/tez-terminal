@@ -1,14 +1,20 @@
-User-agent: *
-Allow: /
-Disallow: /dashboard
-
+# Facebook/Meta crawlers first (parser is strict; empty Disallow = allow all)
 User-agent: facebookexternalhit
-Allow: /
+Disallow:
+
+User-agent: Facebot
+Disallow:
+
+User-agent: meta-externalagent
+Disallow:
 
 User-agent: LinkedInBot
-Allow: /
+Disallow:
 
 User-agent: Twitterbot
+Disallow:
+
+User-agent: *
 Allow: /
 
 Sitemap: https://freedombot.ai/sitemap.xml

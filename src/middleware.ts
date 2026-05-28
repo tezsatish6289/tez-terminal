@@ -35,10 +35,6 @@ export function middleware(request: NextRequest) {
     if (pathname === "/sitemap.xml") {
       return NextResponse.rewrite(new URL("/freedombot/sitemap.xml", request.url));
     }
-    if (pathname === "/og.png") {
-      return NextResponse.rewrite(new URL("/freedombot/og.png", request.url));
-    }
-
     // FreedomBot LLM discovery file (TezTerminal blocks /llms.txt)
     if (pathname === "/llms.txt") {
       return NextResponse.rewrite(new URL("/freedombot/llms.txt", request.url));

@@ -47,6 +47,9 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "https://freedombot.ai",
   },
+  other: {
+    "og:image:secure_url": "https://freedombot.ai/og.png",
+  },
 };
 
 export default function FreedomBotLayout({

@@ -44,6 +44,7 @@ const BTC_LINE = "#fb923c";
 type ChartRow = MonthlyReturnPoint & {
   monthAbbr: string;
   yearLabel: string | null;
+  btcMonthlyReturnPct?: number;
   btcCumulativeReturnPct?: number;
 };
 
@@ -80,7 +81,11 @@ function mergeBtcSeries(
     const base = enrichRow(row, dense, showYear);
     const btc = btcMap.get(row.monthKey);
     if (!btc) return base;
-    return { ...base, btcCumulativeReturnPct: btc.btcCumulativeReturnPct };
+    return {
+      ...base,
+      btcMonthlyReturnPct: btc.btcMonthlyReturnPct,
+      btcCumulativeReturnPct: btc.btcCumulativeReturnPct,
+    };
   });
 }
 
@@ -203,17 +208,19 @@ function zeroedSeries(data: MonthlyReturnPoint[]): MonthlyReturnPoint[] {
 function SummaryKpi({
   label,
   value,
+  sub,
   valueClassName,
   isBlue,
 }: {
   label: string;
   value: string;
+  sub?: string;
   valueClassName?: string;
   isBlue: boolean;
 }) {
   return (
     <div
-      className="rounded-lg border px-3 py-2.5 min-w-0"
+      className="rounded-xl border px-4 py-3.5 sm:px-5 sm:py-4 min-w-0"
       style={{
         borderColor: isBlue ? "rgba(90,140,220,0.12)" : "rgba(255,255,255,0.08)",
         backgroundColor: "rgba(255,255,255,0.025)",
@@ -221,16 +228,80 @@ function SummaryKpi({
     >
       <div
         className={cn(
-          "text-[9px] font-semibold uppercase tracking-wider mb-1",
+          "text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider mb-1.5",
           !isBlue && "text-muted-foreground/50",
         )}
         style={isBlue ? { color: "#64748b" } : undefined}
       >
         {label}
       </div>
-      <div className={cn("text-sm sm:text-base font-black tabular-nums truncate", valueClassName)}>
+      <div className={cn("text-xl sm:text-2xl font-black tabular-nums leading-none", valueClassName)}>
         {value}
       </div>
+      {sub && (
+        <div
+          className={cn(
+            "text-[10px] sm:text-[11px] font-medium mt-1.5 tabular-nums",
+            !isBlue && "text-muted-foreground/45",
+          )}
+          style={isBlue ? { color: "#475569" } : undefined}
+        >
+          {sub}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PerformanceTooltip({
+  active,
+  payload,
+  hasBtc,
+  isBlue,
+}: {
+  active?: boolean;
+  payload?: { payload?: ChartRow }[];
+  hasBtc: boolean;
+  isBlue: boolean;
+}) {
+  if (!active || !payload?.length) return null;
+
+  const row = payload[0]?.payload as ChartRow | undefined;
+  if (!row?.monthKey) return null;
+
+  const ttBg = isBlue ? "#0a1628" : "#1a1a1d";
+  const ttBdr = isBlue ? "rgba(90,140,220,0.2)" : "rgba(255,255,255,0.1)";
+  const header = format(new Date(`${row.monthKey}-01T12:00:00`), "MMMM yyyy");
+
+  const lines: { label: string; value: number | undefined; color: string }[] = [
+    { label: "Fund Monthly pnl (%)", value: row.monthlyReturnPct, color: BRAND_CURVE_STROKE },
+    { label: "Fund Cumulative pnl (%)", value: row.cumulativeReturnPct, color: BRAND_CURVE_STROKE },
+  ];
+  if (hasBtc) {
+    lines.push(
+      { label: "BTC Monthly pnl (%)", value: row.btcMonthlyReturnPct, color: BTC_LINE },
+      { label: "BTC Cumulative pnl (%)", value: row.btcCumulativeReturnPct, color: BTC_LINE },
+    );
+  }
+
+  return (
+    <div
+      className="rounded-lg px-3 py-2.5 shadow-lg space-y-1.5 min-w-[210px]"
+      style={{
+        backgroundColor: ttBg,
+        border: `1px solid ${ttBdr}`,
+        fontSize: "11px",
+      }}
+    >
+      <div className="text-[#94a3b8] font-semibold pb-1 border-b border-white/[0.06]">{header}</div>
+      {lines.map(({ label, value, color }) => (
+        <div key={label} className="flex items-center justify-between gap-4">
+          <span className="text-[#94a3b8]">{label}</span>
+          <span className="font-bold tabular-nums" style={{ color }}>
+            {value != null && Number.isFinite(value) ? fmtPct(value, 2) : "—"}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -323,7 +394,7 @@ export function MonthlyReturnCharts({
     [displayPortfolio, btcPoints, showBtcBenchmark, dense],
   );
 
-  const { yMin, yMax, totalReturn, btcTotalReturn, alpha, bestMonthPct } = useMemo(() => {
+  const { yMin, yMax, totalReturn, btcTotalReturn, alpha, bestMonthPct, bestMonthLabel } = useMemo(() => {
     if (!data.length) {
       return {
         yMin: 0,
@@ -332,6 +403,7 @@ export function MonthlyReturnCharts({
         btcTotalReturn: null as number | null,
         alpha: null as number | null,
         bestMonthPct: 0,
+        bestMonthLabel: "—",
       };
     }
     const cumVals = data.flatMap((d) => {
@@ -352,6 +424,7 @@ export function MonthlyReturnCharts({
       btcTotalReturn: btcTotal,
       alpha: btcTotal != null ? parseFloat((total - btcTotal).toFixed(2)) : null,
       bestMonthPct: best.monthlyReturnPct,
+      bestMonthLabel: format(new Date(`${best.monthKey}-01T12:00:00`), "MMMM yyyy"),
     };
   }, [data]);
 
@@ -372,21 +445,7 @@ export function MonthlyReturnCharts({
   const axisCol = isBlue ? "rgba(90,140,220,0.45)" : "rgba(255,255,255,0.45)";
   const axisLn = isBlue ? "rgba(90,140,220,0.08)" : "rgba(255,255,255,0.08)";
   const refCol = isBlue ? "rgba(90,140,220,0.15)" : "rgba(255,255,255,0.10)";
-  const ttBg = isBlue ? "#0a1628" : "#1a1a1d";
-  const ttBdr = isBlue ? "rgba(90,140,220,0.2)" : "rgba(255,255,255,0.1)";
   const gradientId = `portfolio-cum-fill-${chartKey.replace(/[^a-z0-9]/gi, "")}`;
-
-  const tooltipStyle = {
-    contentStyle: {
-      backgroundColor: ttBg,
-      border: `1px solid ${ttBdr}`,
-      borderRadius: "8px",
-      fontSize: "11px",
-      color: "#e2e8f0",
-    },
-    labelStyle: { color: "#94a3b8", marginBottom: "4px" },
-    itemStyle: { color: "#e2e8f0" },
-  };
 
   const kpiCols = hasBtcData ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3";
 
@@ -418,7 +477,7 @@ export function MonthlyReturnCharts({
           </p>
         </div>
 
-        <div className={cn("grid gap-2 sm:gap-3", kpiCols)}>
+        <div className={cn("grid gap-3 sm:gap-4", kpiCols)}>
           <SummaryKpi
             label="Total Return"
             value={fmtPct(animatedTotal)}
@@ -444,6 +503,7 @@ export function MonthlyReturnCharts({
           <SummaryKpi
             label="Best Month"
             value={fmtPct(animatedBest)}
+            sub={bestMonthLabel}
             valueClassName={brandMetricColor(bestMonthPct >= 0)}
             isBlue={isBlue}
           />
@@ -481,7 +541,7 @@ export function MonthlyReturnCharts({
         )}
       </div>
 
-      <div className="h-[280px] sm:h-[320px]">
+      <div className="h-[300px] sm:h-[360px]">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             key={`${chartKey}-${hasBtcData ? "btc" : "solo"}`}
@@ -516,26 +576,9 @@ export function MonthlyReturnCharts({
               width={44}
             />
             <Tooltip
-              {...tooltipStyle}
-              labelFormatter={(_, payload) => {
-                const row = payload?.[0]?.payload as ChartRow | undefined;
-                if (!row?.monthKey) return "";
-                return format(new Date(`${row.monthKey}-01T12:00:00`), "MMMM yyyy");
-              }}
-              formatter={(value: number, name: string, props) => {
-                const row = props.payload as ChartRow;
-                const money =
-                  cs === "₹"
-                    ? `₹${Math.abs(row.monthPnl).toLocaleString("en-IN")}`
-                    : `$${Math.abs(row.monthPnl).toFixed(2)}`;
-                if (name === "Portfolio") {
-                  return [fmtPct(value, 2), `Cumulative · month P&L ${row.monthPnl >= 0 ? "+" : ""}${money}`];
-                }
-                if (name === "BTC Buy & Hold") {
-                  return [fmtPct(value, 2), "BTC cumulative vs period start"];
-                }
-                return [fmtPct(value, 2), name];
-              }}
+              content={(props) => (
+                <PerformanceTooltip {...props} hasBtc={hasBtcData} isBlue={isBlue} />
+              )}
             />
             <ReferenceLine yAxisId="main" y={0} stroke={refCol} strokeWidth={1.5} />
 

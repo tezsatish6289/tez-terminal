@@ -507,20 +507,32 @@ export class HyperliquidConnector implements ExchangeConnector {
     return rows.find((r) => r.symbol === internal) ?? null;
   }
 
-  async setMarginType(symbol: string, marginType: "ISOLATED" | "CROSSED", creds: ExchangeCredentials): Promise<void> {
-    const { exchange } = clients(creds);
-    const { assetId, maxLev } = await this.assetRow(symbol, creds.testnet);
-    try {
-      await exchange.updateLeverage({
-        asset: assetId,
-        isCross: marginType === "CROSSED",
-        leverage: 1,
-      });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.toLowerCase().includes("leverage") || msg.toLowerCase().includes("cross")) return;
-    }
-    void maxLev;
+  /**
+   * No-op on Hyperliquid.
+   *
+   * HL's only knob for margin mode is `exchange.updateLeverage(asset, isCross, leverage)`,
+   * which sets BOTH margin mode and leverage atomically — there is no
+   * "set margin mode only" endpoint. The previous implementation called it
+   * with a hard-coded `leverage: 1` to flip the mode, then relied on
+   * `setLeverage` (called immediately after by trade-engine) to restore the
+   * requested leverage. That left the asset at 1x for the short window
+   * between the two calls; if `setLeverage` then silently failed (the old
+   * catch swallowed every error containing the word "leverage"), the
+   * position opened at 1x and our position-sizing math under-required
+   * margin. PnL on the resulting trade was wrong by `desiredLeverage / 1`.
+   *
+   * `setLeverage` below always passes `isCross: false`, so margin mode is
+   * set to ISOLATED in the same single API call that fixes leverage —
+   * making this method redundant. Kept as a no-op (instead of removed) so
+   * the connector still satisfies the `ExchangeConnector` interface and
+   * trade-engine's existing call sequence keeps working unchanged.
+   *
+   * If we ever need CROSSED here, push `marginType` into `setLeverage` via
+   * an optional second parameter (or a dedicated `setMarginAndLeverage`)
+   * rather than restoring the two-call dance.
+   */
+  async setMarginType(_symbol: string, _marginType: "ISOLATED" | "CROSSED", _creds: ExchangeCredentials): Promise<void> {
+    return;
   }
 
   async setLeverage(symbol: string, leverage: number, creds: ExchangeCredentials): Promise<void> {
@@ -528,14 +540,28 @@ export class HyperliquidConnector implements ExchangeConnector {
     const { assetId, maxLev } = await this.assetRow(symbol, creds.testnet);
     const lev = Math.max(1, Math.min(Math.floor(leverage), maxLev, 125));
     try {
+      // `isCross: false` also flips margin mode to ISOLATED in the same
+      // call — see `setMarginType` above for why we don't pre-set it.
       await exchange.updateLeverage({
         asset: assetId,
         isCross: false,
         leverage: lev,
       });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.toLowerCase().includes("leverage")) return;
+      const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
+      // Only swallow benign "no-op" responses — anything else (rate limit,
+      // auth error, exceeds-max-leverage, asset not tradable, etc.) MUST
+      // surface so trade-engine can bail before placing the entry order.
+      // Previously this catch matched any string containing "leverage",
+      // which silently dropped real failures like "Leverage too high" and
+      // let the position open at whatever leverage HL last had for the
+      // asset (often 1x, see `setMarginType` history above).
+      const benign =
+        msg.includes("no change") ||
+        msg.includes("already") ||
+        msg.includes("leverage was unchanged") ||
+        msg.includes("not modified");
+      if (benign) return;
       throw hlError(e, "/exchange");
     }
   }
@@ -933,11 +959,18 @@ export class HyperliquidConnector implements ExchangeConnector {
       if (seen.has(dedupeKey)) continue;
       seen.add(dedupeKey);
 
+      // Hyperliquid fills do NOT carry the original entry-side price on the
+      // closing-side row (entry happened on a different fill). Reporting 0
+      // here would let the metric averager record a literal $0 entry into
+      // Firestore (`exchangeAvgEntryPrice = 0`) and the dashboard would
+      // show "$0 fill" for every Hyperliquid trade. Use NaN so the metric
+      // computation skips this row from entry averaging — we trust the
+      // trade's own `entryPrice` (already stored at open) for display.
       out.push({
         symbol: internal,
         closedPnl: closed,
         qty: Number.isFinite(sz) ? sz : 0,
-        avgEntryPrice: 0,
+        avgEntryPrice: NaN,
         avgExitPrice: Number.isFinite(px) ? px : 0,
         createdTime: ts,
         ...(side ? { side } : {}),

@@ -53,6 +53,36 @@ function internalSymbolFromCoinDcxPair(pair: string): string {
   return pair.replace(/\.P$/i, "").toUpperCase();
 }
 
+/**
+ * Unrealized P&L for a CoinDCX position.
+ *
+ * CoinDCX's positions endpoint does not return an unrealized field, so we
+ * derive it from the fields that ARE returned:
+ *
+ *   pnl = (mark − entry) × active_pos
+ *
+ * `active_pos` is signed — positive=long, negative=short — so the sign of
+ * the result is correct without an explicit side branch.
+ *
+ * Returns "0" if any input is missing/non-finite/zero so we never make the
+ * existing behaviour worse than the previous hard-coded placeholder.
+ * Stringified to match `FuturesPosition.unRealizedProfit` (other connectors
+ * also stringify; the calling code reparses with `parseFloat`).
+ */
+function computeCoinDcxUnrealizedProfit(
+  activePos: number | undefined | null,
+  avgPrice: number | undefined | null,
+  markPrice: number | undefined | null,
+): string {
+  const pos = typeof activePos === "number" && Number.isFinite(activePos) ? activePos : 0;
+  const entry = typeof avgPrice === "number" && Number.isFinite(avgPrice) ? avgPrice : 0;
+  const mark = typeof markPrice === "number" && Number.isFinite(markPrice) ? markPrice : 0;
+  if (pos === 0 || entry <= 0 || mark <= 0) return "0";
+  const pnl = (mark - entry) * pos;
+  if (!Number.isFinite(pnl)) return "0";
+  return String(Number(pnl.toFixed(8)));
+}
+
 // ── HTTPS GET with JSON body (required by futures wallets endpoint) ───────
 
 async function signedGetJsonBody<T>(
@@ -449,7 +479,20 @@ export class CoinDcxConnector implements ExchangeConnector {
         positionAmt: String(p.active_pos ?? 0),
         entryPrice: String(p.avg_price ?? 0),
         markPrice: String(p.mark_price ?? 0),
-        unRealizedProfit: "0",
+        // CoinDCX's positions endpoint does not return an `unrealized` field
+        // directly (the previous "0" placeholder was visible to every code
+        // path that read venue PnL — kill switch, force-close PnL display,
+        // aggregate reconciliation). Compute it ourselves from the fields
+        // that ARE returned: signed P&L = (mark − entry) × active_pos.
+        // `active_pos` is already signed (positive=long, negative=short) so
+        // shorts get the correct negative-on-rally / positive-on-drop sign
+        // for free. Falls back to the safe "0" when either price is
+        // missing — never makes things worse than today.
+        unRealizedProfit: computeCoinDcxUnrealizedProfit(
+          p.active_pos,
+          p.avg_price,
+          p.mark_price,
+        ),
         liquidationPrice: String(p.liquidation_price ?? 0),
         leverage: String(p.leverage ?? 1),
         marginType: p.margin_type === "crossed" ? "cross" : "isolated",
@@ -487,7 +530,12 @@ export class CoinDcxConnector implements ExchangeConnector {
       positionAmt: String(p.active_pos ?? 0),
       entryPrice: String(p.avg_price ?? 0),
       markPrice: String(p.mark_price ?? 0),
-      unRealizedProfit: "0",
+      // See `getPositions` above for why we derive this ourselves.
+      unRealizedProfit: computeCoinDcxUnrealizedProfit(
+        p.active_pos,
+        p.avg_price,
+        p.mark_price,
+      ),
       liquidationPrice: String(p.liquidation_price ?? 0),
       leverage: String(p.leverage ?? 1),
       marginType: p.margin_type === "crossed" ? "cross" : "isolated",
@@ -985,6 +1033,11 @@ export class CoinDcxConnector implements ExchangeConnector {
       parent_type?: string;
       side?: string;
       order_side?: string;
+      // CoinDCX exposes the fill size under one of these keys depending on
+      // the stage / endpoint version. Try them in order.
+      quantity?: number;
+      qty?: number;
+      total_quantity?: number;
     };
 
     const seen = new Set<string>();
@@ -1026,30 +1079,66 @@ export class CoinDcxConnector implements ExchangeConnector {
         if (seen.has(dedupeKey)) continue;
         seen.add(dedupeKey);
 
-        const rawSide = r.side ?? r.order_side;
-        const sideNorm =
-          rawSide != null && String(rawSide).trim() !== ""
-            ? String(rawSide).toUpperCase()
-            : null;
+        // CoinDCX `side` on a transaction row is the SIDE OF THE FILL
+        // (e.g. `sell` when a LONG position is closed by a market sell), not
+        // the side of the parent position. The shared reconciler's optional
+        // side-narrow filter (`selectClosedPnlRecordsForTrade`) compares
+        // against the trade's POSITION side (BUY/SELL of the original
+        // entry), so reporting CoinDCX's order-side here would silently
+        // drop every legitimate exit row whenever `parent_id` matching
+        // misses (CoinDCX indexes parent_id with a few seconds of lag on
+        // `tpsl_exit` rows). Leaving side unset lets the time-window
+        // fallback work as intended; parent_id matching, when it lands,
+        // is exact regardless.
+        // (Contrast Bybit: its closedPnl `side` IS the position side, so
+        // bybit.ts surfaces it as-is.)
 
-        // CoinDCX `amount` is the per-transaction gross PnL (with `fee_amount`
-        // listed separately). We surface it as-is to match Bybit's `closedPnl`
-        // convention (also gross). The previous implementation added fees back
-        // into the value (`gross + fees`) which inflated profits / understated
-        // losses by the fee amount on every reconciliation.
+        // CoinDCX `amount` is the per-transaction P&L credited to the
+        // wallet on this exit (or 0 on entries/funding). `fee_amount` is
+        // recorded as a SEPARATE wallet debit row in the same transaction
+        // ledger, so `amount` is already net of fees from the trader's
+        // perspective — matches what shows up in the user's CoinDCX
+        // dashboard. (The earlier "gross + fee_amount" attempt double-
+        // counted fees against PnL; the current single-field passthrough
+        // is correct.)
+        //
+        // Resolve qty from whichever key CoinDCX populated for this stage.
+        // Default 0 (was every row before this commit) — the metric
+        // averager in reconcile-exchange-pnl now skips zero-qty rows
+        // explicitly so an unresolved qty no longer pollutes the
+        // weighted avg-fill columns.
+        const qtyRaw = r.quantity ?? r.qty ?? r.total_quantity;
+        const qty = typeof qtyRaw === "number" && Number.isFinite(qtyRaw) ? Math.abs(qtyRaw) : 0;
+
+        // CoinDCX transactions do not include the original entry price; the
+        // trade's `entryPrice` (stored at open time) is the source of truth
+        // for entry. Using NaN here signals the metric averager to skip
+        // this row from entry averaging entirely — previously we wrote
+        // `price_in_usdt` for BOTH entry and exit, which made the
+        // dashboard's "Avg entry" column show the exit price.
+        const exitPriceRaw = r.price_in_usdt;
+        const isExitRow =
+          (typeof r.amount === "number" && r.amount !== 0) ||
+          r.stage === "exit" ||
+          r.stage === "tpsl_exit" ||
+          r.stage === "liquidation";
+        const avgExitPrice =
+          isExitRow && typeof exitPriceRaw === "number" && Number.isFinite(exitPriceRaw)
+            ? exitPriceRaw
+            : NaN;
+
         out.push({
           symbol: internal,
           closedPnl: r.amount ?? 0,
-          qty: 0,
-          avgEntryPrice: r.price_in_usdt ?? 0,
-          avgExitPrice: r.price_in_usdt ?? 0,
+          qty,
+          avgEntryPrice: NaN,
+          avgExitPrice,
           createdTime: cms > 0 ? cms : (r.created_at ?? 0),
-          side: sideNorm,
-          // `parent_id` on a CoinDCX transaction == the order ID that produced
-          // the fill (entry, SL, TP, market close, trailing-SL replacement).
-          // Surfacing it as `orderId` lets the shared reconciler match by
-          // exact order id (same path Bybit uses) instead of falling back to
-          // a wide time window.
+          // `parent_id` on a CoinDCX transaction == the order ID that
+          // produced the fill (entry, SL, TP, market close, trailing-SL
+          // replacement). Surfacing it as `orderId` lets the shared
+          // reconciler match by exact order id (same path Bybit uses)
+          // instead of falling back to a wide time window.
           ...(r.parent_id && String(r.parent_id).trim() !== ""
             ? { orderId: String(r.parent_id).trim() }
             : {}),

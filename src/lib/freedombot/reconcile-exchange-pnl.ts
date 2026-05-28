@@ -63,9 +63,29 @@ export const EXCHANGE_PNL_PRE_OPEN_LOOKBACK_MS = EXCHANGE_PNL_TRADE_WINDOW_PRE_M
 /** @deprecated Use EXCHANGE_PNL_TRADE_WINDOW_POST_MS — kept for imports that still reference the old name. */
 export const EXCHANGE_PNL_POST_CLOSE_BUFFER_MS = EXCHANGE_PNL_TRADE_WINDOW_POST_MS;
 
-/** CoinDCX passbook rows often land after `closedAt`; widen window vs ±5m Bybit default. */
+/**
+ * CoinDCX windows used by the TIME-WINDOW FALLBACK only. The primary path
+ * is exact `parent_id` match against the trade's stored order ids — that
+ * lands within seconds of the close on every row we've inspected. The
+ * window matters only when (a) `parent_id` is missing on the venue row
+ * (older endpoint behaviour, transient index lag) AND (b) we're forced to
+ * fall back to time-bracketing.
+ *
+ * Pre-window of 15m absorbs clock skew between Firestore `openedAt` and
+ * CoinDCX `created_at`. Post-window used to be 6h, which over-bracketed
+ * any subsequent close on the same symbol — a fast Crypto Bot can open
+ * and close NIFTY-ish symbols multiple times within that span, and each
+ * transaction got summed into EVERY earlier trade's window, inflating
+ * lifetime PnL by the duplicates. We tighten to 30m: still ~6× wider than
+ * Bybit's default to cover residual index lag, but no longer wide enough
+ * to swallow the next trade's fills.
+ *
+ * If a row genuinely lands outside this envelope, the corresponding trade
+ * stays unreconciled until `parent_id` indexes — leaving a known-stale
+ * row is strictly better than double-attributing PnL.
+ */
 export const EXCHANGE_PNL_COINDCX_WINDOW_PRE_MS = 15 * 60 * 1000;
-export const EXCHANGE_PNL_COINDCX_WINDOW_POST_MS = 6 * 60 * 60 * 1000;
+export const EXCHANGE_PNL_COINDCX_WINDOW_POST_MS = 30 * 60 * 1000;
 
 /** Bybit closed-pnl `createdTime` can trail Firestore `closedAt` beyond ±5m; widen client window + API bounds. */
 export const EXCHANGE_PNL_BYBIT_WINDOW_PRE_MS = 30 * 60 * 1000;
@@ -238,7 +258,18 @@ export interface ClosedTradeExchangePnlMetrics {
   recordCount: number;
 }
 
-/** Prefer Bybit `orderId` match; else sum rows in the trade time window (connector-specific width) with optional side. */
+/**
+ * Prefer Bybit `orderId` match; else sum rows in the trade time window (connector-specific width) with optional side.
+ *
+ * Price/qty averaging tolerates "missing-on-purpose" fields from venues that
+ * don't surface them per fill:
+ *   - Hyperliquid sets `avgEntryPrice = NaN` (closing-side fill carries no
+ *     opening price). NaN/0/negative rows are silently dropped from the
+ *     respective average, so we never persist a misleading `$0 fill` to
+ *     Firestore. `recordCount` and `exchangeRealizedPnl` still see every row.
+ *   - CoinDCX historically returned `qty = 0` for every transaction. Same
+ *     guard applies: zero-qty rows don't pollute the avg-fill average.
+ */
 export function computeClosedTradeExchangePnlMetrics(
   records: ClosedPnlRecord[],
   openedAtMs: number,
@@ -247,7 +278,6 @@ export function computeClosedTradeExchangePnlMetrics(
 ): ClosedTradeExchangePnlMetrics {
   const inWin = selectClosedPnlRecordsForTrade(records, openedAtMs, closedAtMs, windowOpts);
   const totalPnl = inWin.reduce((s, r) => s + r.closedPnl, 0);
-  const totalQty = inWin.reduce((s, r) => s + r.qty, 0);
   if (inWin.length === 0) {
     return {
       exchangeRealizedPnl: totalPnl,
@@ -257,14 +287,31 @@ export function computeClosedTradeExchangePnlMetrics(
       recordCount: 0,
     };
   }
-  const avgEntry =
-    totalQty > 0
-      ? inWin.reduce((s, r) => s + r.avgEntryPrice * r.qty, 0) / totalQty
-      : null;
-  const avgExit =
-    totalQty > 0
-      ? inWin.reduce((s, r) => s + r.avgExitPrice * r.qty, 0) / totalQty
-      : null;
+
+  // Weighted averages: ignore rows whose qty/price is missing or zero —
+  // including them would write a literal "$0 fill" or a divide-by-zero NaN
+  // into the displayed avg-fill columns.
+  let qtySum = 0;
+  let entryWeighted = 0;
+  let entryWeight = 0;
+  let exitWeighted = 0;
+  let exitWeight = 0;
+  for (const r of inWin) {
+    const q = Number.isFinite(r.qty) && r.qty > 0 ? r.qty : 0;
+    if (q > 0) qtySum += q;
+    if (Number.isFinite(r.avgEntryPrice) && r.avgEntryPrice > 0 && q > 0) {
+      entryWeighted += r.avgEntryPrice * q;
+      entryWeight += q;
+    }
+    if (Number.isFinite(r.avgExitPrice) && r.avgExitPrice > 0 && q > 0) {
+      exitWeighted += r.avgExitPrice * q;
+      exitWeight += q;
+    }
+  }
+
+  const avgEntry = entryWeight > 0 ? entryWeighted / entryWeight : null;
+  const avgExit = exitWeight > 0 ? exitWeighted / exitWeight : null;
+
   return {
     exchangeRealizedPnl: totalPnl,
     exchangeAvgEntryPrice:
@@ -272,7 +319,7 @@ export function computeClosedTradeExchangePnlMetrics(
     exchangeAvgExitPrice:
       avgExit != null && Number.isFinite(avgExit) ? Number(avgExit.toFixed(8)) : null,
     exchangeQty:
-      totalQty > 0 && Number.isFinite(totalQty) ? Number(totalQty.toFixed(6)) : null,
+      qtySum > 0 && Number.isFinite(qtySum) ? Number(qtySum.toFixed(6)) : null,
     recordCount: inWin.length,
   };
 }

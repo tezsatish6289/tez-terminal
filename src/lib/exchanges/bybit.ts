@@ -795,8 +795,33 @@ export class BybitConnector implements ExchangeConnector {
     return data.list.map(mapBybitOrder);
   }
 
-  // Returns actual realized PnL records from Bybit for a symbol.
-  // Pass startTime / endTime (ms) to bound `/v5/position/closed-pnl` (≤7d slice per Bybit rules).
+  /**
+   * Realized PnL records from Bybit for a symbol.
+   *
+   * Pass startTime / endTime (ms) to bound `/v5/position/closed-pnl` (≤7d
+   * slice per Bybit rules — caller is expected to chunk wider windows).
+   *
+   * Semantics (important — must match every other connector):
+   *
+   *   - `closedPnl` is **NET of fees**. Bybit defines it as
+   *         cumExitValue − cumEntryValue − openFee − closeFee   (long, signed)
+   *     so the opening and closing trading fees are already deducted from
+   *     the number we return. The `compute-best-pnl` aggregator's
+   *     `"exchange"` priority path treats this as authoritative NET PnL.
+   *
+   *   - `side` is the **position side** (the side of the original entry —
+   *     `Buy` for a long that was later closed by a sell), not the side
+   *     of the closing order. This matches the trade's stored `side`, so
+   *     the shared reconciler's optional side-narrow filter
+   *     (`selectClosedPnlRecordsForTrade`) works as intended.
+   *     (Contrast CoinDCX: positions/transactions reports the order side,
+   *     which is why coindcx.ts deliberately omits `side` to avoid
+   *     dropping legitimate exit rows.)
+   *
+   *   - `qty`, `avgEntryPrice`, `avgExitPrice` are populated for every
+   *     row; the metric averager doesn't need to defensively skip zero
+   *     fields here.
+   */
   async getClosedPnl(
     symbol: string,
     creds: ExchangeCredentials,

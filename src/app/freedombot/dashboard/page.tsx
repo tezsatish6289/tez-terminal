@@ -22,7 +22,7 @@ import {
   type DashboardSummaryData,
 } from "@/components/freedombot/dashboard/DashboardSummary";
 import { ExchangeCapitalCurve } from "@/components/freedombot/dashboard/ExchangeCapitalCurve";
-import { freedombotDashboardBase } from "@/lib/freedombot/dashboard-path";
+import { freedombotDashboardBase, freedombotHomePath } from "@/lib/freedombot/dashboard-path";
 import { CRYPTO_PERP_EXCHANGES } from "@/lib/crypto-bots";
 
 const CRYPTO_EXCHANGES = new Set<string>(CRYPTO_PERP_EXCHANGES);
@@ -179,9 +179,9 @@ function FreedomBotDashboardInner() {
 
   useEffect(() => {
     if (!isUserLoading && !user) {
-      window.location.href = "/";
+      router.replace(freedombotHomePath(pathname));
     }
-  }, [user, isUserLoading]);
+  }, [user, isUserLoading, router, pathname]);
 
   useEffect(() => {
     document.title = "FreedomBot.ai — Dashboard";

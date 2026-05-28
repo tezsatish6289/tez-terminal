@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import {
   Loader2,
   Settings,
@@ -13,7 +13,7 @@ import {
 import { useUser } from "@/firebase";
 import { usePublicBots } from "@/hooks/use-public-bots";
 import { CRYPTO_BOTS } from "@/lib/crypto-bots";
-import { freedombotDashboardBase } from "@/lib/freedombot/dashboard-path";
+import { freedombotDashboardBase, freedombotHomePath } from "@/lib/freedombot/dashboard-path";
 import { exchangeLabel } from "@/components/freedombot/dashboard/exchange-labels";
 import { BotExchangeIcons } from "@/components/freedombot/dashboard/BotExchangeIcons";
 import {
@@ -71,6 +71,7 @@ function botLabel(deployKey: string, publicBots: ReturnType<typeof usePublicBots
 export default function BotDetailPage() {
   const params = useParams();
   const pathname = usePathname();
+  const router = useRouter();
   const deploymentId = String(params.deploymentId ?? "");
   const dashboardHref = freedombotDashboardBase(pathname);
 
@@ -94,9 +95,9 @@ export default function BotDetailPage() {
 
   useEffect(() => {
     if (!isUserLoading && !user) {
-      window.location.href = "/";
+      router.replace(freedombotHomePath(pathname));
     }
-  }, [user, isUserLoading]);
+  }, [user, isUserLoading, router, pathname]);
 
   useEffect(() => {
     document.title = "FreedomBot.ai — Bot trades";

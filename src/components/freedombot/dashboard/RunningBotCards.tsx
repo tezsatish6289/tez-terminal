@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ExternalLink } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import type { PublicBotApiRow } from "@/hooks/use-public-bots";
 import { CRYPTO_BOTS } from "@/lib/crypto-bots";
 import { BotExchangeIcons } from "@/components/freedombot/dashboard/BotExchangeIcons";
@@ -227,8 +227,6 @@ function RunningBotCard({
   return (
     <Link
       href={href}
-      target="_blank"
-      rel="noopener noreferrer"
       className="group rounded-2xl p-5 transition-all hover:scale-[1.02]"
       style={{
         backgroundColor: "#0c1a30",
@@ -293,7 +291,7 @@ function RunningBotCard({
           >
             {meta.label}
           </span>
-          <ExternalLink
+          <ChevronRight
             className="h-4 w-4 opacity-0 group-hover:opacity-60 transition-opacity"
             style={{ color: "#64748b" }}
           />

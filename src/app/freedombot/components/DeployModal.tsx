@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { usePublicBots } from "@/hooks/use-public-bots";
 import { CRYPTO_BOTS, isCryptoPerpDeployKey } from "@/lib/crypto-bots";
 import Image from "next/image";
@@ -23,6 +24,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
+import { freedombotDashboardBase } from "@/lib/freedombot/dashboard-path";
 import { DEFAULT_TRADING_PREFS } from "@/lib/freedombot/trading-prefs-shared";
 import { RiskControls, type TradingPrefs } from "./risk-controls";
 import type { Auth, User } from "firebase/auth";
@@ -281,6 +283,8 @@ interface DeployModalProps {
 }
 
 export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
+  const pathname = usePathname();
+  const router = useRouter();
   const { bots: publicBots, defaultBotId } = usePublicBots();
   const deployBots = useMemo(
     () =>
@@ -1077,7 +1081,10 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
               </p>
               <div className="flex flex-col gap-2">
                 <button
-                  onClick={() => { window.location.href = "/dashboard"; }}
+                  onClick={() => {
+                    onClose();
+                    router.push(freedombotDashboardBase(pathname));
+                  }}
                   className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.01]"
                   style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
                 >

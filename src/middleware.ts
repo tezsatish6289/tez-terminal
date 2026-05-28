@@ -37,6 +37,16 @@ export function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
+    // Social preview images — use FreedomBot assets, not root TezTerminal OG
+    if (pathname === "/opengraph-image" || pathname === "/twitter-image") {
+      return NextResponse.rewrite(new URL(`/freedombot${pathname}`, request.url));
+    }
+
+    // Already on internal /freedombot/* routes (e.g. mistaken links) — serve directly
+    if (pathname === "/freedombot" || pathname.startsWith("/freedombot/")) {
+      return NextResponse.next();
+    }
+
     // Marketing site pages → rewrite to /freedombot/* internally
     if (FREEDOMBOT_SITE_PATHS.has(pathname) || pathname.startsWith("/dashboard/")) {
       const newPath =

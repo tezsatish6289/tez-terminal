@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   Rocket,
@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   X,
   ShieldCheck,
-  ExternalLink,
   ChevronDown,
   Search,
   Plus,
@@ -22,6 +21,7 @@ import {
 import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { DeployModal } from "./components/DeployModal";
+import { freedombotDashboardBase, freedombotSitePath } from "@/lib/freedombot/dashboard-path";
 import { COUNTRIES, POPULAR_COUNTRY_CODES } from "@/lib/countries";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -385,14 +385,15 @@ function DeployParamWatcher({ onDeploy }: { onDeploy: () => void }) {
 export default function FreedomBotPage() {
   const { user } = useUser();
   const auth = useAuth();
+  const pathname = usePathname();
   const router = useRouter();
   const [deployOpen, setDeployOpen] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
 
   // Redirect logged-in users to the FreedomBot dashboard
   useEffect(() => {
-    if (user && !deployOpen) router.replace("/dashboard");
-  }, [user, deployOpen, router]);
+    if (user && !deployOpen) router.replace(freedombotDashboardBase(pathname));
+  }, [user, deployOpen, router, pathname]);
 
   const openDeploy = useCallback(() => setDeployOpen(true), []);
 
@@ -534,13 +535,13 @@ export default function FreedomBotPage() {
             >
               <Rocket className="h-4 w-4" /> Start with $100 <ArrowRight className="h-4 w-4" />
             </button>
-            <a
-              href="/records"
+            <Link
+              href={freedombotSitePath(pathname, "/records")}
               className="h-11 px-7 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105"
               style={{ border: "1px solid rgba(90,140,220,0.22)", color: "#93c5fd", backgroundColor: "rgba(37,99,235,0.05)" }}
             >
-              <ExternalLink className="h-4 w-4" /> View Live Trades
-            </a>
+              <ArrowRight className="h-4 w-4" /> View Live Trades
+            </Link>
           </div>
           <p className="text-xs mt-7" style={{ color: "#334155" }}>
             Trading involves risk. Past performance does not guarantee future results.
@@ -619,9 +620,9 @@ export default function FreedomBotPage() {
                   <p className="text-sm font-bold text-white">{stats?.currentCapital ? `$${stats.currentCapital.toFixed(2)}` : "…"}</p>
                 </div>
               </div>
-              <a href="/performance" className="text-xs font-bold mt-auto transition-colors hover:text-blue-300" style={{ color: "#3b82f6" }}>
+              <Link href={freedombotSitePath(pathname, "/performance")} className="text-xs font-bold mt-auto transition-colors hover:text-blue-300" style={{ color: "#3b82f6" }}>
                 See details →
-              </a>
+              </Link>
             </div>
 
             {/* Coming Soon cards — non–public-live crypto bots */}
@@ -680,13 +681,13 @@ export default function FreedomBotPage() {
               <p className="text-sm font-semibold mb-8" style={{ color: "#e2e8f0" }}>
                 If you can&apos;t verify it, you shouldn&apos;t trust it.
               </p>
-              <a
-                href="/records"
+              <Link
+                href={freedombotSitePath(pathname, "/records")}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105"
                 style={{ backgroundColor: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.3)", color: "#60a5fa" }}
               >
                 Verify Records <ArrowRight className="h-4 w-4" />
-              </a>
+              </Link>
             </div>
 
             {/* Right — real on-chain transaction */}
@@ -779,7 +780,7 @@ export default function FreedomBotPage() {
               Entry rules, stop-loss logic, position sizing — fully documented.
             </p>
             <Link
-              href="/methodology"
+              href={freedombotSitePath(pathname, "/methodology")}
               className="inline-flex items-center gap-1.5 text-sm font-bold transition-colors hover:opacity-80"
               style={{ color: "#3b82f6" }}
             >
@@ -1093,9 +1094,9 @@ export default function FreedomBotPage() {
           {/* CTA below */}
           <p className="text-center mt-10 text-sm" style={{ color: "#475569" }}>
             Want a deeper look?{" "}
-            <a href="/performance" className="font-semibold hover:text-blue-300 transition-colors" style={{ color: "#60a5fa" }}>
+            <Link href={freedombotSitePath(pathname, "/performance")} className="font-semibold hover:text-blue-300 transition-colors" style={{ color: "#60a5fa" }}>
               See the full performance breakdown →
-            </a>
+            </Link>
           </p>
         </div>
       </section>

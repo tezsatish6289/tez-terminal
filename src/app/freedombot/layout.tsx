@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     title: "FreedomBot.ai — Trade with full transparency and control",
     description:
       "Every trade recorded on-chain. Deploy on Bybit in under 5 minutes. No upfront fees.",
-    images: ["/twitter-image"],
+    images: ["/opengraph-image"],
   },
 };
 

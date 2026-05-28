@@ -56,14 +56,15 @@ export default function FreedomBotOGImage() {
         >
           <div
             style={{
+              display: "flex",
               fontSize: 64,
               fontWeight: 900,
-              color: "#f0f4ff",
               letterSpacing: "-2px",
               lineHeight: 1,
             }}
           >
-            FreedomBot<span style={{ color: "#60a5fa" }}>.ai</span>
+            <span style={{ color: "#f0f4ff" }}>FreedomBot</span>
+            <span style={{ color: "#60a5fa" }}>.ai</span>
           </div>
 
           <div

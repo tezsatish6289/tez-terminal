@@ -223,6 +223,14 @@ async function loadOpenCryptoTrades(
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as SimTrade));
 }
 
+// ── Price precision ─────────────────────────────────────────────────────
+
+/** Truncate to 2 decimal places (no round up/down). XRP/SOL need sub-dollar
+ *  precision — `Math.round()` collapses ~$1.36 → $1 and breaks SL/TP logic. */
+function truncatePrice(price: number): number {
+  return Math.trunc(price * 100) / 100;
+}
+
 // ── Position sizing ─────────────────────────────────────────────────────
 
 interface PositionSizeResult {
@@ -359,10 +367,10 @@ async function openZoneBotTrade(args: {
       timeframe:       "60",
       algo:            ZONE_BOT_ALGO,
       price:           entryPrice,
-      stopLoss:        Math.round(stopLoss),
-      tp1:             Math.round(tp1),
-      tp2:             Math.round(tp2),
-      tp3:             Math.round(tp3),
+      stopLoss:        truncatePrice(stopLoss),
+      tp1:             truncatePrice(tp1),
+      tp2:             truncatePrice(tp2),
+      tp3:             truncatePrice(tp3),
       confidenceScore: 75,
       scorePattern:    "none",
       scoreBreakdown:  undefined,

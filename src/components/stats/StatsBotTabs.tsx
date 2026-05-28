@@ -38,8 +38,8 @@ export function StatsBotTabs({ value, onChange, className, publicBotFlags }: Sta
               className={cn(
                 "relative flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg font-bold transition-all whitespace-nowrap text-xs sm:text-sm",
                 active
-                  ? "bg-accent/15 text-accent border border-accent/30"
-                  : "text-muted-foreground/55 border border-transparent hover:text-foreground/80 hover:bg-white/[0.04]",
+                  ? "bg-blue-500/15 text-blue-400 border border-blue-500/30"
+                  : "text-muted-foreground/55 border border-transparent hover:text-muted-foreground/75 hover:bg-white/[0.04]",
               )}
               aria-pressed={active}
             >
@@ -47,13 +47,18 @@ export function StatsBotTabs({ value, onChange, className, publicBotFlags }: Sta
                 <span
                   className={cn(
                     "flex h-6 w-6 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-full",
-                    active ? "bg-accent/20" : "bg-white/[0.06]",
+                    active ? "bg-blue-500/20 text-blue-400" : "bg-white/[0.06] text-muted-foreground/45",
                   )}
                 >
                   <LayoutGrid className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </span>
               ) : bot?.logo ? (
-                <span className="flex h-6 w-6 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-full bg-white/10 overflow-hidden">
+                <span
+                  className={cn(
+                    "flex h-6 w-6 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-full bg-white/10 overflow-hidden",
+                    !active && "opacity-55 grayscale",
+                  )}
+                >
                   <Image
                     src={bot.logo}
                     alt={pill.label}
@@ -63,7 +68,12 @@ export function StatsBotTabs({ value, onChange, className, publicBotFlags }: Sta
                   />
                 </span>
               ) : (
-                <span className="text-base leading-none shrink-0">
+                <span
+                  className={cn(
+                    "text-base leading-none shrink-0",
+                    !active && "opacity-55 grayscale",
+                  )}
+                >
                   {bot?.icon ?? "₿"}
                 </span>
               )}
@@ -74,7 +84,7 @@ export function StatsBotTabs({ value, onChange, className, publicBotFlags }: Sta
                 </span>
               )}
               {active && (
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" aria-hidden />
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-400 shrink-0" aria-hidden />
               )}
             </button>
           );

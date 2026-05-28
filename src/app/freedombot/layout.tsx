@@ -1,4 +1,9 @@
 import type { Metadata } from "next";
+import { JsonLd } from "@/components/seo/JsonLd";
+import {
+  FREEDOMBOT_ORGANIZATION_JSON_LD,
+  FREEDOMBOT_WEBSITE_JSON_LD,
+} from "@/lib/seo/constants";
 import { FreedomBotNav } from "./components/FreedomBotNav";
 
 export const metadata: Metadata = {
@@ -34,6 +39,13 @@ export const metadata: Metadata = {
       "Every trade recorded on-chain. Deploy on Bybit in under 5 minutes. No upfront fees.",
     images: ["/opengraph-image"],
   },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  alternates: {
+    canonical: "https://freedombot.ai",
+  },
 };
 
 export default function FreedomBotLayout({
@@ -43,6 +55,7 @@ export default function FreedomBotLayout({
 }) {
   return (
     <>
+      <JsonLd data={[FREEDOMBOT_ORGANIZATION_JSON_LD, FREEDOMBOT_WEBSITE_JSON_LD]} />
       <FreedomBotNav />
       {children}
     </>

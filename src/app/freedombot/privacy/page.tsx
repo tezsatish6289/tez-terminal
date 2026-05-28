@@ -5,6 +5,7 @@ import { ArrowLeft, Shield, Lock, Eye, Server, Trash2, Mail } from "lucide-react
 export const metadata = {
   title: "Privacy Policy — FreedomBot.ai",
   description: "How FreedomBot.ai collects, encrypts, and protects your data — including full technical details of our API key security model.",
+  alternates: { canonical: "https://freedombot.ai/privacy" },
 };
 
 const LAST_UPDATED = "12 April 2026";

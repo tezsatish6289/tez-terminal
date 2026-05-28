@@ -5,6 +5,7 @@ import { ArrowLeft, FileText, AlertTriangle, Shield, Lock, Ban, DollarSign, Sett
 export const metadata = {
   title: "Terms of Use — FreedomBot.ai",
   description: "Terms of Use for FreedomBot.ai — read before deploying an automated trading bot.",
+  alternates: { canonical: "https://freedombot.ai/terms" },
 };
 
 const LAST_UPDATED = "12 April 2026";

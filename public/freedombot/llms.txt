@@ -1,0 +1,38 @@
+# FreedomBot.ai
+
+> FreedomBot.ai is an algorithmic crypto trading platform where every trade is recorded on-chain for public verification. Deploy a bot on Bybit (and other supported exchanges) in under five minutes. No upfront fees — you keep control of your exchange API keys.
+
+## About
+
+- [Homepage](https://freedombot.ai/): Product overview, transparency promise, and deploy flow
+- [About](https://freedombot.ai/about): Team and mission
+- [Methodology](https://freedombot.ai/methodology): Rule-based playbook — entries, stops, sizing, leverage
+
+## Public data
+
+- [Live records](https://freedombot.ai/records): On-chain verifiable trade history (Solana-backed ledger)
+- [Performance](https://freedombot.ai/performance): Equity curve, monthly returns, and risk metrics for public bots
+
+## How it works
+
+1. **Sign in** — Google sign-in; no credit card required to explore.
+2. **Deploy** — Choose a bot and connect exchange API keys (read/trade permissions you control).
+3. **Verify** — Every closed trade is published on-chain; anyone can audit results on the records page.
+
+## Key features
+
+- **On-chain transparency** — Trade entries, exits, and PnL recorded on Solana for independent verification
+- **User-owned keys** — API credentials stay with you; FreedomBot does not custody funds
+- **Rule-based automation** — Documented stop-loss, position sizing, and market filters (see methodology)
+- **Multi-bot discovery** — BTC, ETH, SOL, XRP zone bots and more on supported perp exchanges
+
+## Legal
+
+- [Privacy](https://freedombot.ai/privacy)
+- [Terms](https://freedombot.ai/terms)
+- [Contact](https://freedombot.ai/contact)
+
+## Contact
+
+- Website: https://freedombot.ai/
+- Contact form: https://freedombot.ai/contact

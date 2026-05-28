@@ -4,6 +4,7 @@ import './globals.css';
 import { FirebaseClientProvider } from '@/firebase';
 import { Toaster } from "@/components/ui/toaster";
 import { ReferralTracker } from "@/components/ReferralTracker";
+import { NOINDEX_ROBOTS } from '@/lib/seo/constants';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -49,10 +50,7 @@ export const metadata: Metadata = {
       'A super advanced AI-powered terminal that scans the global crypto market 24/7, filters noise, and delivers high-probability trade setups.',
   },
   metadataBase: new URL('https://tezterminal.com'),
-  robots: {
-    index: true,
-    follow: true,
-  },
+  robots: NOINDEX_ROBOTS,
 };
 
 export default function RootLayout({

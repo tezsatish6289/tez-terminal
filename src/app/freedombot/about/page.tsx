@@ -6,6 +6,7 @@ export const metadata = {
   title: "About Us — FreedomBot.ai",
   description:
     "A team of 4 — developers, product managers, and chartists — who got tired of losing money and spent 18 months building the bot they wished existed.",
+  alternates: { canonical: "https://freedombot.ai/about" },
 };
 
 export default function AboutPage() {

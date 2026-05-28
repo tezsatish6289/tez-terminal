@@ -17,6 +17,7 @@ export const metadata: Metadata = {
   title: "How It Works — FreedomBot.ai",
   description:
     "Every trade follows a strict, rule-based playbook. Stop losses, position sizing, leverage rules, and market intelligence — fully documented.",
+  alternates: { canonical: "https://freedombot.ai/methodology" },
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────

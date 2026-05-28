@@ -28,6 +28,11 @@ export function middleware(request: NextRequest) {
       return NextResponse.rewrite(new URL("/freedombot/icon.png", request.url));
     }
 
+    // FreedomBot LLM discovery file (TezTerminal uses /llms.txt at project root)
+    if (pathname === "/llms.txt") {
+      return NextResponse.rewrite(new URL("/freedombot/llms.txt", request.url));
+    }
+
     // Always pass through Next.js internals, static files, and API routes
     if (
       pathname.startsWith("/_next") ||
@@ -58,7 +63,20 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  return NextResponse.next();
+  // TezTerminal: not for search/LLM discovery — consumer site is freedombot.ai
+  if (pathname === "/llms.txt" || pathname === "/sitemap.xml") {
+    return new NextResponse("Not found", { status: 404 });
+  }
+
+  const response = NextResponse.next();
+  if (
+    !pathname.startsWith("/api") &&
+    !pathname.startsWith("/_next") &&
+    !pathname.match(/\..+$/)
+  ) {
+    response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+  }
+  return response;
 }
 
 export const config = {

@@ -25,10 +25,11 @@ export const metadata: Metadata = {
     locale: "en_US",
     images: [
       {
-        url: "/opengraph-image",
+        url: "https://freedombot.ai/og.png",
         width: 1200,
         height: 630,
         alt: "FreedomBot.ai — Trade with full transparency and control",
+        type: "image/png",
       },
     ],
   },
@@ -37,7 +38,7 @@ export const metadata: Metadata = {
     title: "FreedomBot.ai — Trade with full transparency and control",
     description:
       "Every trade recorded on-chain. Deploy on Bybit in under 5 minutes. No upfront fees.",
-    images: ["/opengraph-image"],
+    images: ["https://freedombot.ai/og.png"],
   },
   robots: {
     index: true,

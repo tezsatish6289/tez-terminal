@@ -28,12 +28,15 @@ export function middleware(request: NextRequest) {
       return NextResponse.rewrite(new URL("/freedombot/icon.png", request.url));
     }
 
-    // Crawler discovery — static files (robots.ts/sitemap.ts miss x-forwarded-host on App Hosting)
+    // Crawler discovery — static only (never use dynamic robots.ts; host header is unreliable)
     if (pathname === "/robots.txt") {
       return NextResponse.rewrite(new URL("/freedombot/robots.txt", request.url));
     }
     if (pathname === "/sitemap.xml") {
       return NextResponse.rewrite(new URL("/freedombot/sitemap.xml", request.url));
+    }
+    if (pathname === "/og.png") {
+      return NextResponse.rewrite(new URL("/freedombot/og.png", request.url));
     }
 
     // FreedomBot LLM discovery file (TezTerminal blocks /llms.txt)
@@ -72,6 +75,9 @@ export function middleware(request: NextRequest) {
   }
 
   // TezTerminal: not for search/LLM discovery — consumer site is freedombot.ai
+  if (pathname === "/robots.txt") {
+    return NextResponse.rewrite(new URL("/tez-robots.txt", request.url));
+  }
   if (pathname === "/llms.txt" || pathname === "/sitemap.xml") {
     return new NextResponse("Not found", { status: 404 });
   }

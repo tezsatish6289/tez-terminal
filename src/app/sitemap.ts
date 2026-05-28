@@ -1,11 +1,13 @@
 import type { MetadataRoute } from "next";
 import { headers } from "next/headers";
-import { FREEDOMBOT_PUBLIC_PATHS, isFreedomBotHost } from "@/lib/seo/constants";
+import { FREEDOMBOT_PUBLIC_PATHS, isFreedomBotFromHeaders } from "@/lib/seo/constants";
+
+export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const host = (await headers()).get("host") ?? "";
+  const headerStore = await headers();
 
-  if (!isFreedomBotHost(host)) {
+  if (!isFreedomBotFromHeaders(headerStore)) {
     return [];
   }
 

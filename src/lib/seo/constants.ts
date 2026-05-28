@@ -36,6 +36,14 @@ export function isFreedomBotHost(host: string): boolean {
   return h === "freedombot.ai" || h === "www.freedombot.ai";
 }
 
+/** Firebase App Hosting often sets the public hostname on x-forwarded-host, not host. */
+export function isFreedomBotFromHeaders(headerStore: Headers): boolean {
+  const candidates = [headerStore.get("x-forwarded-host"), headerStore.get("host")].filter(
+    (v): v is string => Boolean(v),
+  );
+  return candidates.some((raw) => isFreedomBotHost(raw));
+}
+
 export const FREEDOMBOT_ORGANIZATION_JSON_LD = {
   "@context": "https://schema.org",
   "@type": "Organization",

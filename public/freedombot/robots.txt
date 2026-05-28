@@ -1,0 +1,19 @@
+# FreedomBot.ai — public consumer site
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /dashboard/
+
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: LinkedInBot
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: Slackbot
+Allow: /
+
+Sitemap: https://freedombot.ai/sitemap.xml

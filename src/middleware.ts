@@ -28,7 +28,15 @@ export function middleware(request: NextRequest) {
       return NextResponse.rewrite(new URL("/freedombot/icon.png", request.url));
     }
 
-    // FreedomBot LLM discovery file (TezTerminal uses /llms.txt at project root)
+    // Crawler discovery — static files (robots.ts/sitemap.ts miss x-forwarded-host on App Hosting)
+    if (pathname === "/robots.txt") {
+      return NextResponse.rewrite(new URL("/freedombot/robots.txt", request.url));
+    }
+    if (pathname === "/sitemap.xml") {
+      return NextResponse.rewrite(new URL("/freedombot/sitemap.xml", request.url));
+    }
+
+    // FreedomBot LLM discovery file (TezTerminal blocks /llms.txt)
     if (pathname === "/llms.txt") {
       return NextResponse.rewrite(new URL("/freedombot/llms.txt", request.url));
     }

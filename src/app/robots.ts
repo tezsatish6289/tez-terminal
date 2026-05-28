@@ -1,19 +1,23 @@
 import type { MetadataRoute } from "next";
 import { headers } from "next/headers";
-import { isFreedomBotHost, TEZTERMINAL_BLOCK_ROBOTS } from "@/lib/seo/constants";
+import {
+  isFreedomBotFromHeaders,
+  TEZTERMINAL_BLOCK_ROBOTS,
+} from "@/lib/seo/constants";
+
+export const dynamic = "force-dynamic";
 
 export default async function robots(): Promise<MetadataRoute.Robots> {
-  const host = (await headers()).get("host") ?? "";
+  const headerStore = await headers();
 
-  if (isFreedomBotHost(host)) {
+  if (isFreedomBotFromHeaders(headerStore)) {
     return {
-      rules: { userAgent: "*", allow: "/" },
+      rules: { userAgent: "*", allow: "/", disallow: ["/dashboard", "/dashboard/"] },
       sitemap: "https://freedombot.ai/sitemap.xml",
       host: "https://freedombot.ai",
     };
   }
 
-  // TezTerminal is not a public consumer product — do not crawl or index.
   return {
     rules: TEZTERMINAL_BLOCK_ROBOTS,
   };

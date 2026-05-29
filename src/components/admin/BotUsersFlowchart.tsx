@@ -79,6 +79,9 @@ const PNL_COLORS = {
   awaiting: "#f43f5e",
 } as const;
 
+/** Top-row panels sit in a container at 70% page width (30% narrower than full thirds). */
+const TOP_ROW = "w-full xl:w-[70%] grid grid-cols-1 md:grid-cols-3 gap-4";
+
 type DonutSlice = {
   key: BotUsersSegmentFilter;
   name: string;
@@ -148,6 +151,8 @@ function MiniDonut({
   loading,
   activeKey,
   onSliceClick,
+  layout = "horizontal",
+  size = "md",
 }: {
   slices: DonutSlice[];
   centerLabel: string;
@@ -155,78 +160,109 @@ function MiniDonut({
   loading: boolean;
   activeKey: BotUsersSegmentFilter;
   onSliceClick: (key: BotUsersSegmentFilter) => void;
+  layout?: "horizontal" | "vertical";
+  size?: "md" | "lg";
 }) {
   const filtered = slices.filter((s) => s.value > 0);
   const data = filtered.length > 0 ? filtered : [{ key: null, name: "—", value: 1, color: "#27272a" }];
 
-  return (
-    <div className="flex items-center gap-4">
-      <div className="relative h-[120px] w-[120px] shrink-0">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={data}
-              dataKey="value"
-              cx="50%"
-              cy="50%"
-              innerRadius={38}
-              outerRadius={54}
-              paddingAngle={filtered.length > 1 ? 2 : 0}
-              stroke="none"
-              onClick={(_, index) => {
-                const slice = filtered[index];
-                if (slice?.key) onSliceClick(slice.key);
-              }}
-            >
-              {data.map((entry, i) => (
-                <Cell
-                  key={`${entry.name}-${i}`}
-                  fill={entry.color}
-                  className={entry.key ? "cursor-pointer outline-none" : undefined}
-                  opacity={
-                    activeKey && entry.key && activeKey !== entry.key ? 0.45 : 1
-                  }
-                />
-              ))}
-            </Pie>
-          </PieChart>
-        </ResponsiveContainer>
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/50">
-            {centerLabel}
-          </span>
-          <span className="text-xl font-black font-mono text-white leading-none mt-0.5">
-            {loading ? "…" : centerValue}
-          </span>
-        </div>
-      </div>
+  const chartPx = size === "lg" ? 148 : 120;
+  const innerR = size === "lg" ? 46 : 38;
+  const outerR = size === "lg" ? 66 : 54;
 
-      <div className="flex-1 min-w-0 space-y-2">
-        {slices.map((slice) => (
-          <SegmentButton
-            key={slice.key ?? slice.name}
-            active={activeKey === slice.key}
-            onClick={slice.key ? () => onSliceClick(slice.key!) : undefined}
-            className="w-full px-2.5 py-1.5 bg-white/[0.02]"
-            title={slice.name}
+  const chart = (
+    <div
+      className="relative shrink-0 mx-auto"
+      style={{ width: chartPx, height: chartPx }}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Pie
+            data={data}
+            dataKey="value"
+            cx="50%"
+            cy="50%"
+            innerRadius={innerR}
+            outerRadius={outerR}
+            paddingAngle={filtered.length > 1 ? 2 : 0}
+            stroke="none"
+            onClick={(_, index) => {
+              const slice = filtered[index];
+              if (slice?.key) onSliceClick(slice.key);
+            }}
           >
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <span
-                  className="h-2 w-2 rounded-full shrink-0"
-                  style={{ backgroundColor: slice.color }}
-                />
-                <span className="text-[10px] font-semibold text-muted-foreground truncate">
-                  {slice.name}
-                </span>
-              </div>
-              <span className="text-sm font-black font-mono text-white shrink-0">
-                {loading ? "…" : slice.value}
+            {data.map((entry, i) => (
+              <Cell
+                key={`${entry.name}-${i}`}
+                fill={entry.color}
+                className={entry.key ? "cursor-pointer outline-none" : undefined}
+                opacity={activeKey && entry.key && activeKey !== entry.key ? 0.45 : 1}
+              />
+            ))}
+          </Pie>
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/50 text-center px-1">
+          {centerLabel}
+        </span>
+        <span
+          className={cn(
+            "font-black font-mono text-white leading-none mt-0.5",
+            size === "lg" ? "text-2xl" : "text-xl",
+          )}
+        >
+          {loading ? "…" : centerValue}
+        </span>
+      </div>
+    </div>
+  );
+
+  const legend = (
+    <div className={cn("min-w-0", layout === "vertical" ? "w-full space-y-2.5" : "flex-1 space-y-2")}>
+      {slices.map((slice) => (
+        <SegmentButton
+          key={slice.key ?? slice.name}
+          active={activeKey === slice.key}
+          onClick={slice.key ? () => onSliceClick(slice.key!) : undefined}
+          className={cn(
+            "w-full bg-white/[0.02]",
+            layout === "vertical" ? "px-3 py-2.5" : "px-2.5 py-1.5",
+          )}
+          title={slice.name}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span
+                className="h-2 w-2 rounded-full shrink-0"
+                style={{ backgroundColor: slice.color }}
+              />
+              <span className="text-[10px] font-semibold text-muted-foreground truncate">
+                {slice.name}
               </span>
             </div>
-          </SegmentButton>
-        ))}
+            <span className="text-sm font-black font-mono text-white shrink-0">
+              {loading ? "…" : slice.value}
+            </span>
+          </div>
+        </SegmentButton>
+      ))}
+    </div>
+  );
+
+  if (layout === "vertical") {
+    return (
+      <div className="flex flex-col items-stretch gap-5 py-1">
+        {chart}
+        {legend}
       </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-4">
+      {chart}
+      {legend}
     </div>
   );
 }
@@ -236,24 +272,26 @@ function ActivityBars({
   loading,
   activeKey,
   onItemClick,
+  tall,
 }: {
   items: { key: BotUsersSegmentFilter; label: string; value: number; color: string }[];
   loading: boolean;
   activeKey: BotUsersSegmentFilter;
   onItemClick: (key: BotUsersSegmentFilter) => void;
+  tall?: boolean;
 }) {
   const max = Math.max(...items.map((i) => i.value), 1);
 
   return (
-    <div className="space-y-3">
+    <div className={cn("flex flex-col justify-between", tall ? "gap-5 min-h-[240px] py-1" : "space-y-3")}>
       {items.map((item) => (
         <SegmentButton
           key={item.key}
           active={activeKey === item.key}
           onClick={() => onItemClick(item.key)}
-          className="w-full p-2.5 bg-white/[0.02]"
+          className={cn("w-full bg-white/[0.02]", tall ? "p-3.5 flex-1" : "p-2.5")}
         >
-          <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
               {item.label}
             </span>
@@ -261,7 +299,7 @@ function ActivityBars({
               {loading ? "…" : item.value}
             </span>
           </div>
-          <div className="h-2 rounded-full bg-white/[0.04] overflow-hidden">
+          <div className={cn("rounded-full bg-white/[0.04] overflow-hidden", tall ? "h-2.5" : "h-2")}>
             <div
               className="h-full rounded-full transition-all duration-500"
               style={{
@@ -277,55 +315,174 @@ function ActivityBars({
   );
 }
 
-function CrossCard({
-  label,
-  value,
+function ExchangePanelContent({
+  exchanges,
+  totalCapital,
   loading,
-  active,
-  onClick,
-  variant,
+  segmentFilter,
+  onToggle,
+  v,
+  usdt,
+  exchangeFilterKey,
+  exchangeCapitalKey,
 }: {
-  label: string;
-  value: number;
+  exchanges: ExchangeSegmentMetrics[];
+  totalCapital: number;
   loading: boolean;
-  active: boolean;
-  onClick: () => void;
-  variant: "active-profit" | "active-await" | "active-30d" | "paused-profit" | "paused-await";
+  segmentFilter: BotUsersSegmentFilter;
+  onToggle: (segment: BotUsersSegmentFilter) => void;
+  v: (n: number | undefined) => string;
+  usdt: (n: number | undefined) => string;
+  exchangeFilterKey: (exchange: string) => BotUsersSegmentFilter;
+  exchangeCapitalKey: (exchange: string) => BotUsersSegmentFilter;
 }) {
-  const styles: Record<typeof variant, string> = {
-    "active-profit":
-      "bg-gradient-to-br from-emerald-500/20 via-emerald-500/5 to-transparent",
-    "active-await":
-      "bg-gradient-to-br from-amber-500/25 via-orange-500/10 to-transparent",
-    "active-30d":
-      "bg-gradient-to-br from-white/[0.06] via-white/[0.02] to-transparent",
-    "paused-profit":
-      "bg-gradient-to-br from-emerald-500/10 via-white/[0.03] to-transparent",
-    "paused-await":
-      "bg-gradient-to-br from-rose-500/15 via-amber-500/5 to-transparent",
-  };
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {exchanges.map((ex) => {
+        const capitalPct =
+          totalCapital > 0 ? Math.round((ex.capitalUsdt / totalCapital) * 100) : 0;
+        return (
+          <div key={ex.exchange} className="space-y-2">
+            <SegmentButton
+              active={segmentFilter === exchangeFilterKey(ex.exchange)}
+              onClick={() => onToggle(exchangeFilterKey(ex.exchange))}
+              className="w-full p-3 bg-white/[0.02]"
+            >
+              <div className="text-xs font-black uppercase tracking-wide text-white mb-2">
+                {EXCHANGE_LABELS[ex.exchange] ?? ex.exchange}
+              </div>
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[9px]">
+                <div>
+                  <span className="text-muted-foreground/50">Users </span>
+                  <span className="font-mono font-bold text-white">{v(ex.usersWithDeployment)}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground/50">Active </span>
+                  <span className="font-mono font-bold text-emerald-400">{v(ex.activeDeployments)}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground/50">Paused </span>
+                  <span className="font-mono font-bold text-amber-400">{v(ex.pausedDeployments)}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground/50">Awaiting </span>
+                  <span className="font-mono font-bold text-rose-400">{v(ex.awaitingUsers)}</span>
+                </div>
+              </div>
+            </SegmentButton>
+            <SegmentButton
+              active={segmentFilter === exchangeCapitalKey(ex.exchange)}
+              onClick={() => onToggle(exchangeCapitalKey(ex.exchange))}
+              className="w-full p-3 bg-sky-500/[0.06] border-sky-500/15"
+            >
+              <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/50 block">
+                Capital
+              </span>
+              <span className="text-base font-black font-mono text-sky-400 block">
+                {usdt(ex.capitalUsdt)}
+              </span>
+              <div className="mt-2 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-sky-500 to-emerald-400 transition-all duration-500"
+                  style={{ width: `${capitalPct}%` }}
+                />
+              </div>
+              <span className="text-[9px] text-muted-foreground/40 mt-1 block">
+                {capitalPct}% of platform
+              </span>
+            </SegmentButton>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
-  const valueColors: Record<typeof variant, string> = {
-    "active-profit": "text-emerald-400",
-    "active-await": "text-amber-300",
-    "active-30d": "text-orange-300",
-    "paused-profit": "text-emerald-400/80",
-    "paused-await": "text-rose-300",
-  };
+function PlatformTotalsContent({
+  metrics,
+  loading,
+  segmentFilter,
+  onToggle,
+  v,
+  usdt,
+}: {
+  metrics: FlowchartMetrics | undefined;
+  loading: boolean;
+  segmentFilter: BotUsersSegmentFilter;
+  onToggle: (segment: BotUsersSegmentFilter) => void;
+  v: (n: number | undefined) => string;
+  usdt: (n: number | undefined) => string;
+}) {
+  const items: {
+    key: BotUsersSegmentFilter;
+    label: string;
+    value: string;
+    valueClassName?: string;
+    accent?: boolean;
+  }[] = [
+    {
+      key: "sign_ups",
+      label: "Total users",
+      value: v(metrics?.totalUsers),
+    },
+    {
+      key: "active_deployments",
+      label: "Active bots",
+      value: v(metrics?.activeDeployments),
+      valueClassName: "text-emerald-400",
+    },
+    {
+      key: "capital",
+      label: "Total capital",
+      value: usdt(metrics?.totalCapitalUsdt),
+      valueClassName: "text-sky-400",
+      accent: true,
+    },
+    {
+      key: "volume",
+      label: "Volume traded",
+      value: usdt(metrics?.totalVolumeUsdt),
+    },
+    {
+      key: "profit",
+      label: "Lifetime profit",
+      value: usdt(metrics?.totalProfitUsdt),
+      valueClassName:
+        (metrics?.totalProfitUsdt ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400",
+    },
+    {
+      key: "all_deployments",
+      label: "Deployments",
+      value: v(metrics?.totalDeployments),
+    },
+  ];
 
   return (
-    <SegmentButton
-      active={active}
-      onClick={onClick}
-      className={cn("p-4 min-h-[88px]", styles[variant])}
-    >
-      <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/55 block">
-        {label}
-      </span>
-      <span className={cn("text-3xl font-black font-mono block mt-2", valueColors[variant])}>
-        {loading ? "…" : value}
-      </span>
-    </SegmentButton>
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {items.map((item) => (
+        <SegmentButton
+          key={item.key}
+          active={segmentFilter === item.key}
+          onClick={() => onToggle(item.key)}
+          className={cn(
+            "w-full p-3",
+            item.accent ? "bg-sky-500/[0.06] border-sky-500/15" : "bg-white/[0.02]",
+          )}
+        >
+          <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/50 block">
+            {item.label}
+          </span>
+          <span
+            className={cn(
+              "text-base font-black font-mono block mt-1",
+              item.valueClassName ?? "text-white",
+            )}
+          >
+            {loading ? "…" : item.value}
+          </span>
+        </SegmentButton>
+      ))}
+    </div>
   );
 }
 
@@ -407,8 +564,8 @@ export function BotUsersFlowchart({
 
   return (
     <div className="space-y-4">
-      {/* Row 1 — lifecycle · activity · PnL */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+      {/* Row 1 — narrow lifecycle · activity · PnL (70% combined width) */}
+      <div className={TOP_ROW}>
         <Panel title="Lifecycle — mutually exclusive">
           <MiniDonut
             slices={lifecycleSlices}
@@ -417,6 +574,8 @@ export function BotUsersFlowchart({
             loading={loading}
             activeKey={segmentFilter}
             onSliceClick={toggle}
+            layout="vertical"
+            size="lg"
           />
         </Panel>
 
@@ -425,6 +584,7 @@ export function BotUsersFlowchart({
             loading={loading}
             activeKey={segmentFilter}
             onItemClick={toggle}
+            tall
             items={[
               {
                 key: "active_users",
@@ -456,189 +616,38 @@ export function BotUsersFlowchart({
             loading={loading}
             activeKey={segmentFilter}
             onSliceClick={toggle}
+            layout="vertical"
+            size="lg"
           />
         </Panel>
       </div>
 
-      {/* Row 2 — cross matrix · exchanges */}
+      {/* Row 2 — exchange left · platform totals right */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <Panel title="Activity × PnL">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <CrossCard
-              label="Active + Profitable"
-              value={metrics?.activeProfitable ?? 0}
-              loading={loading}
-              active={segmentFilter === "active_profitable"}
-              onClick={() => toggle("active_profitable")}
-              variant="active-profit"
-            />
-            <CrossCard
-              label="Active + Awaiting"
-              value={metrics?.activeAwaiting ?? 0}
-              loading={loading}
-              active={segmentFilter === "active_awaiting"}
-              onClick={() => toggle("active_awaiting")}
-              variant="active-await"
-            />
-            <CrossCard
-              label="Active >30d awaiting"
-              value={metrics?.activeAwaitingOver30Days ?? 0}
-              loading={loading}
-              active={segmentFilter === "active_awaiting_over_30d"}
-              onClick={() => toggle("active_awaiting_over_30d")}
-              variant="active-30d"
-            />
-            <CrossCard
-              label="Paused + Profitable"
-              value={metrics?.pausedProfitable ?? 0}
-              loading={loading}
-              active={segmentFilter === "paused_profitable"}
-              onClick={() => toggle("paused_profitable")}
-              variant="paused-profit"
-            />
-            <CrossCard
-              label="Paused + Awaiting"
-              value={metrics?.pausedAwaiting ?? 0}
-              loading={loading}
-              active={segmentFilter === "paused_awaiting"}
-              onClick={() => toggle("paused_awaiting")}
-              variant="paused-await"
-            />
-          </div>
-        </Panel>
-
         <Panel title="Exchange — deployments &amp; capital">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {(metrics?.exchanges ?? []).map((ex) => {
-              const capitalPct =
-                totalCapital > 0 ? Math.round((ex.capitalUsdt / totalCapital) * 100) : 0;
-              return (
-                <div key={ex.exchange} className="space-y-2">
-                  <SegmentButton
-                    active={segmentFilter === exchangeFilterKey(ex.exchange)}
-                    onClick={() => toggle(exchangeFilterKey(ex.exchange))}
-                    className="w-full p-3 bg-white/[0.02]"
-                  >
-                    <div className="text-xs font-black uppercase tracking-wide text-white mb-2">
-                      {EXCHANGE_LABELS[ex.exchange] ?? ex.exchange}
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[9px]">
-                      <div>
-                        <span className="text-muted-foreground/50">Users </span>
-                        <span className="font-mono font-bold text-white">{v(ex.usersWithDeployment)}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground/50">Active </span>
-                        <span className="font-mono font-bold text-emerald-400">{v(ex.activeDeployments)}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground/50">Paused </span>
-                        <span className="font-mono font-bold text-amber-400">{v(ex.pausedDeployments)}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground/50">Awaiting </span>
-                        <span className="font-mono font-bold text-rose-400">{v(ex.awaitingUsers)}</span>
-                      </div>
-                    </div>
-                  </SegmentButton>
-                  <SegmentButton
-                    active={segmentFilter === exchangeCapitalKey(ex.exchange)}
-                    onClick={() => toggle(exchangeCapitalKey(ex.exchange))}
-                    className="w-full p-3 bg-sky-500/[0.06] border-sky-500/15"
-                  >
-                    <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/50 block">
-                      Capital
-                    </span>
-                    <span className="text-base font-black font-mono text-sky-400 block">
-                      {usdt(ex.capitalUsdt)}
-                    </span>
-                    <div className="mt-2 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-sky-500 to-emerald-400 transition-all duration-500"
-                        style={{ width: `${capitalPct}%` }}
-                      />
-                    </div>
-                    <span className="text-[9px] text-muted-foreground/40 mt-1 block">
-                      {capitalPct}% of platform
-                    </span>
-                  </SegmentButton>
-                </div>
-              );
-            })}
-          </div>
+          <ExchangePanelContent
+            exchanges={metrics?.exchanges ?? []}
+            totalCapital={totalCapital}
+            loading={loading}
+            segmentFilter={segmentFilter}
+            onToggle={toggle}
+            v={v}
+            usdt={usdt}
+            exchangeFilterKey={exchangeFilterKey}
+            exchangeCapitalKey={exchangeCapitalKey}
+          />
         </Panel>
-      </div>
 
-      {/* Footer strip */}
-      <div className="rounded-2xl border border-white/[0.06] bg-gradient-to-r from-[#141416] via-[#121214] to-[#141416] px-5 py-4">
-        <div className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/40 mb-3">
-          Platform totals
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          <SegmentButton
-            active={segmentFilter === "sign_ups"}
-            onClick={() => toggle("sign_ups")}
-            className="px-3 py-2 bg-white/[0.02]"
-          >
-            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50">
-              Total users
-            </span>
-            <span className="text-xl font-black font-mono text-white block">{v(metrics?.totalUsers)}</span>
-          </SegmentButton>
-          <SegmentButton
-            active={segmentFilter === "active_deployments"}
-            onClick={() => toggle("active_deployments")}
-            className="px-3 py-2 bg-white/[0.02]"
-          >
-            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50">
-              Active bots
-            </span>
-            <span className="text-xl font-black font-mono text-emerald-400 block">
-              {v(metrics?.activeDeployments)}
-            </span>
-          </SegmentButton>
-          <SegmentButton
-            active={segmentFilter === "capital"}
-            onClick={() => toggle("capital")}
-            className="px-3 py-2 bg-white/[0.02]"
-          >
-            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50">
-              Total capital
-            </span>
-            <span className="text-xl font-black font-mono text-sky-400 block">
-              {usdt(metrics?.totalCapitalUsdt)}
-            </span>
-          </SegmentButton>
-          <SegmentButton
-            active={segmentFilter === "volume"}
-            onClick={() => toggle("volume")}
-            className="px-3 py-2 bg-white/[0.02]"
-          >
-            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50">
-              Volume traded
-            </span>
-            <span className="text-xl font-black font-mono text-white block">
-              {usdt(metrics?.totalVolumeUsdt)}
-            </span>
-          </SegmentButton>
-          <SegmentButton
-            active={segmentFilter === "profit"}
-            onClick={() => toggle("profit")}
-            className="px-3 py-2 bg-white/[0.02]"
-          >
-            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50">
-              Lifetime profit
-            </span>
-            <span
-              className={cn(
-                "text-xl font-black font-mono block",
-                (metrics?.totalProfitUsdt ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400",
-              )}
-            >
-              {usdt(metrics?.totalProfitUsdt)}
-            </span>
-          </SegmentButton>
-        </div>
+        <Panel title="Platform totals">
+          <PlatformTotalsContent
+            metrics={metrics}
+            loading={loading}
+            segmentFilter={segmentFilter}
+            onToggle={toggle}
+            v={v}
+            usdt={usdt}
+          />
+        </Panel>
       </div>
     </div>
   );

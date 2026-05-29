@@ -594,7 +594,13 @@ export async function computePlatformSummary(
     awaitingSet.has(uid) && userHasActiveOverDays(uid, scopedDeps, ACTIVE_AWAITING_MIN_DAYS),
   );
   const pausedProfitable = pausedUsers.filter((uid) => profitableSet.has(uid));
-  const pausedAwaiting = pausedUsers.filter((uid) => !profitableSet.has(uid));
+  const pausedAwaiting = pausedUsers.filter((uid) => {
+    if (profitableSet.has(uid)) return false;
+    const user = allUsers.find((u) => u.uid === uid);
+    if (!user) return false;
+    const days = daysSinceFirstDeploy(user, uid, scopedDeps, botFilter);
+    return days != null && days < NEW_ACCOUNT_MAX_DAYS;
+  });
 
   // ── Exchange breakdown ────────────────────────────────────────────────────
   const exchangeDrilldown: Record<string, ExchangeSegmentDrilldown> = {};

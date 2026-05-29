@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
       to: to ?? null,
       rates: summary.rates,
       metrics: summary.metrics,
+      segments: summary.segments,
       userIdsAll: summary.userIdsAll,
       userIdsActive: summary.userIdsActive,
       userIdsStoppedOnly: summary.userIdsStoppedOnly,

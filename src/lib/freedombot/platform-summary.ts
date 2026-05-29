@@ -7,9 +7,13 @@
 
 import type { Firestore } from "firebase-admin/firestore";
 import { bestRealizedPnl } from "./compute-best-pnl";
+import { tradeMatchesDeployBot } from "./trade-bot-match";
 import { convertToUsdt, getUsdtRates, type UsdtRatesSnapshot } from "./usdt-conversion";
 
 export type PlatformSummaryPeriod = "lifetime";
+
+export const PLATFORM_EXCHANGES = ["BYBIT", "COINDCX", "HYPERLIQUID"] as const;
+export type PlatformExchange = (typeof PLATFORM_EXCHANGES)[number];
 
 export interface PlatformSummaryParams {
   bot: string | null;
@@ -25,19 +29,84 @@ export interface AccountRow {
   displayName: string | null;
 }
 
+export interface ExchangeSegmentMetrics {
+  exchange: string;
+  usersWithDeployment: number;
+  activeDeployments: number;
+  pausedDeployments: number;
+  stoppedDeployments: number;
+  capitalUsdt: number;
+  profitableUsers: number;
+  awaitingUsers: number;
+}
+
 export interface PlatformSummaryMetrics {
-  /** All accounts in scope: deployed at least once + never deployed. */
+  /** All Firestore user accounts. */
   totalUsers: number;
-  /** Unique users with ≥1 deployment row in the bot filter. */
-  deployedUsers: number;
+  /** Lifecycle — mutually exclusive. */
+  neverDeployed: number;
+  churned: number;
+  hasBotNow: number;
+  /** Activity — can overlap (users with ≥1 bot in scope). */
   activeUsers: number;
+  pausedUsers: number;
+  stoppedUsers: number;
+  /** PnL — users with ≥1 closed production trade in bot scope. */
+  everDeployedWithTrades: number;
+  profitableUsers: number;
+  awaitingProfitsUsers: number;
+  noClosedTradesUsers: number;
+  /** Activity × PnL cross. */
+  activeProfitable: number;
+  activeAwaiting: number;
+  pausedProfitable: number;
+  pausedAwaiting: number;
+  /** Platform economics. */
   totalCapitalUsdt: number;
   totalVolumeUsdt: number;
   totalProfitUsdt: number;
-  accountsNoBot: number;
-  accountsStoppedOnly: number;
   totalDeployments: number;
   activeDeployments: number;
+  /** @deprecated use hasBotNow */
+  deployedUsers: number;
+  /** @deprecated use neverDeployed + churned */
+  accountsNoBot: number;
+  /** Users with bots but none active. */
+  accountsStoppedOnly: number;
+  exchanges: ExchangeSegmentMetrics[];
+}
+
+export interface ExchangeSegmentDrilldown {
+  userIds: string[];
+  capitalUserIds: string[];
+  profitableUserIds: string[];
+  awaitingUserIds: string[];
+}
+
+export interface PlatformSegments {
+  neverDeployed: AccountRow[];
+  churned: AccountRow[];
+  hasBotNow: AccountRow[];
+  activeUsers: string[];
+  pausedUsers: string[];
+  stoppedUsers: string[];
+  profitableUsers: string[];
+  awaitingProfitsUsers: string[];
+  noClosedTradesUsers: string[];
+  activeProfitable: string[];
+  activeAwaiting: string[];
+  pausedProfitable: string[];
+  pausedAwaiting: string[];
+  exchanges: Record<string, ExchangeSegmentDrilldown>;
+}
+
+export interface UserBotScopeEntry {
+  hasDeployment: boolean;
+  hasActive: boolean;
+  hasPaused: boolean;
+  hasStopped: boolean;
+  deploymentIds: string[];
+  exchanges: string[];
 }
 
 export interface PlatformSummaryResult {
@@ -45,17 +114,13 @@ export interface PlatformSummaryResult {
   bot: string | null;
   rates: UsdtRatesSnapshot;
   metrics: PlatformSummaryMetrics;
-  /** Drill-down: Firebase uids */
+  segments: PlatformSegments;
+  /** Drill-down: Firebase uids with ≥1 deployment in bot scope. */
   userIdsAll: string[];
   userIdsActive: string[];
   userIdsStoppedOnly: string[];
   accountsNoBot: AccountRow[];
-  /** uid → best deployment status for filtered bot scope */
-  userBotScope: Record<
-    string,
-    { hasDeployment: boolean; hasActive: boolean; deploymentIds: string[] }
-  >;
-  /** Per (uid, exchange) deduped totals for profit/volume */
+  userBotScope: Record<string, UserBotScopeEntry>;
   pairTotals: Record<
     string,
     { profitNative: number; profitCurrency: string; volumeNative: number }
@@ -75,6 +140,13 @@ type DepRow = {
   closedTradeCount?: number;
 };
 
+type UserDocRow = {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  freedombotFirstBot?: { bot?: string } | null;
+};
+
 function pairKey(uid: string, exchange: string): string {
   return `${uid}::${String(exchange).toUpperCase()}`;
 }
@@ -91,22 +163,62 @@ function isActiveDeployment(status: string): boolean {
   return String(status).toLowerCase() === "active";
 }
 
+function isPausedDeployment(status: string): boolean {
+  return String(status).toLowerCase() === "paused";
+}
+
+function isStoppedDeployment(status: string): boolean {
+  return String(status).toLowerCase() === "stopped";
+}
+
 function matchesBotFilter(bot: string, filter: string | null): boolean {
   if (!filter) return true;
   return bot === filter;
 }
 
+function roundUsdt(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function accountFromUser(u: UserDocRow): AccountRow {
+  return { userId: u.uid, email: u.email, displayName: u.displayName };
+}
+
+function everDeployedInScope(
+  u: UserDocRow,
+  hasDeployment: boolean,
+  hasClosedTrades: boolean,
+  botFilter: string | null,
+): boolean {
+  if (hasDeployment || hasClosedTrades) return true;
+  const first = u.freedombotFirstBot;
+  if (!first?.bot) return false;
+  if (!botFilter) return true;
+  return String(first.bot).toUpperCase() === botFilter;
+}
+
+interface TradeScanResult {
+  pairProfit: Map<string, { amount: number; currency: string }>;
+  pairVolume: Map<string, number>;
+  userNetPnlUsdt: Map<string, number>;
+  userExchangePnlUsdt: Map<string, number>;
+  usersWithClosedTrades: Set<string>;
+}
+
 /**
- * Walk closed production trades; bucket volume + profit by uid+exchange.
- * Uses `orderBy(openedAt)` only (indexed) and filters status/testnet in memory so
- * we don't require a status+testnet+openedAt composite index.
+ * Walk closed production trades; bucket by uid+exchange and per-user net PnL.
  */
-async function sumClosedTradeVolumeAndProfit(
+async function scanClosedTrades(
   db: Firestore,
-  allowedPairs: Set<string>,
-  pairProfit: Map<string, { amount: number; currency: string }>,
-  pairVolume: Map<string, number>,
-): Promise<void> {
+  botFilter: string | null,
+  rates: UsdtRatesSnapshot,
+): Promise<TradeScanResult> {
+  const pairProfit = new Map<string, { amount: number; currency: string }>();
+  const pairVolume = new Map<string, number>();
+  const userNetPnlUsdt = new Map<string, number>();
+  const userExchangePnlUsdt = new Map<string, number>();
+  const usersWithClosedTrades = new Set<string>();
+
   let lastDoc: FirebaseFirestore.QueryDocumentSnapshot | null = null;
   const PAGE = 400;
 
@@ -124,12 +236,15 @@ async function sumClosedTradeVolumeAndProfit(
       if (!isProductionTrade(t.testnet) || !isClosedTrade(t.status)) continue;
 
       const uid = String(t.userId ?? "");
-      const exchange = String(t.exchange ?? "");
+      const exchange = String(t.exchange ?? "").toUpperCase();
       if (!uid || !exchange) continue;
-      const key = pairKey(uid, exchange);
-      if (!allowedPairs.has(key)) continue;
+
+      if (botFilter && !tradeMatchesDeployBot(t, botFilter)) continue;
+
+      usersWithClosedTrades.add(uid);
 
       const size = typeof t.positionSize === "number" ? t.positionSize : 0;
+      const key = pairKey(uid, exchange);
       if (size > 0) {
         pairVolume.set(key, (pairVolume.get(key) ?? 0) + size);
       }
@@ -137,34 +252,79 @@ async function sumClosedTradeVolumeAndProfit(
       const best = bestRealizedPnl(t);
       if (best) {
         const cur = pairProfit.get(key);
-        const currency = "USDT";
         if (!cur) {
-          pairProfit.set(key, { amount: best.value, currency });
+          pairProfit.set(key, { amount: best.value, currency: "USDT" });
         } else {
           cur.amount += best.value;
         }
+
+        const pnlUsdt = convertToUsdt(best.value, "USDT", rates);
+        userNetPnlUsdt.set(uid, (userNetPnlUsdt.get(uid) ?? 0) + pnlUsdt);
+        userExchangePnlUsdt.set(
+          key,
+          (userExchangePnlUsdt.get(key) ?? 0) + pnlUsdt,
+        );
       }
     }
 
     if (snap.size < PAGE) break;
     lastDoc = snap.docs[snap.docs.length - 1];
   }
+
+  return {
+    pairProfit,
+    pairVolume,
+    userNetPnlUsdt,
+    userExchangePnlUsdt,
+    usersWithClosedTrades,
+  };
 }
 
-/** Fallback when trade scan fails: cached lifetime PnL on deployment docs. */
 function seedProfitFromDeployments(
   scopedDeps: DepRow[],
   pairProfit: Map<string, { amount: number; currency: string }>,
+  userNetPnlUsdt: Map<string, number>,
+  userExchangePnlUsdt: Map<string, number>,
+  rates: UsdtRatesSnapshot,
 ): void {
   for (const dep of scopedDeps) {
     if (typeof dep.lifetimeRealizedPnl !== "number") continue;
     const key = pairKey(dep.uid, dep.exchange);
-    if (pairProfit.has(key)) continue;
-    pairProfit.set(key, {
-      amount: dep.lifetimeRealizedPnl,
-      currency: dep.walletCurrency?.toUpperCase() === "INR" ? "INR" : "USDT",
-    });
+    if (!pairProfit.has(key)) {
+      const currency = dep.walletCurrency?.toUpperCase() === "INR" ? "INR" : "USDT";
+      pairProfit.set(key, { amount: dep.lifetimeRealizedPnl, currency });
+      const pnlUsdt = convertToUsdt(dep.lifetimeRealizedPnl, currency, rates);
+      userNetPnlUsdt.set(
+        dep.uid,
+        (userNetPnlUsdt.get(dep.uid) ?? 0) + pnlUsdt,
+      );
+      userExchangePnlUsdt.set(
+        key,
+        (userExchangePnlUsdt.get(key) ?? 0) + pnlUsdt,
+      );
+    }
   }
+}
+
+function sumCapitalForDeps(
+  deps: DepRow[],
+  rates: UsdtRatesSnapshot,
+  exchangeFilter?: string,
+): number {
+  const seenWallet = new Set<string>();
+  let total = 0;
+  for (const dep of deps) {
+    if (!isActiveDeployment(dep.status)) continue;
+    if (exchangeFilter && dep.exchange !== exchangeFilter) continue;
+    if (String(dep.walletStatus).toLowerCase() !== "valid" || dep.walletTotal == null) {
+      continue;
+    }
+    const walletKey = pairKey(dep.uid, dep.exchange);
+    if (seenWallet.has(walletKey)) continue;
+    seenWallet.add(walletKey);
+    total += convertToUsdt(dep.walletTotal, dep.walletCurrency ?? "USDT", rates);
+  }
+  return total;
 }
 
 export async function computePlatformSummary(
@@ -179,6 +339,16 @@ export async function computePlatformSummary(
     db.collection("bot_deployments").get(),
     db.collection("users").get(),
   ]);
+
+  const allUsers: UserDocRow[] = usersSnap.docs.map((d) => {
+    const u = d.data();
+    return {
+      uid: d.id,
+      email: (u.email as string) ?? null,
+      displayName: (u.displayName as string) ?? null,
+      freedombotFirstBot: (u.freedombotFirstBot as UserDocRow["freedombotFirstBot"]) ?? null,
+    };
+  });
 
   const allDeps: DepRow[] = depSnap.docs.map((d) => {
     const x = d.data();
@@ -203,46 +373,50 @@ export async function computePlatformSummary(
     const entry = userBotScope[dep.uid] ?? {
       hasDeployment: true,
       hasActive: false,
+      hasPaused: false,
+      hasStopped: false,
       deploymentIds: [],
+      exchanges: [],
     };
     entry.deploymentIds.push(dep.id);
     if (isActiveDeployment(dep.status)) entry.hasActive = true;
+    if (isPausedDeployment(dep.status)) entry.hasPaused = true;
+    if (isStoppedDeployment(dep.status)) entry.hasStopped = true;
+    if (!entry.exchanges.includes(dep.exchange)) entry.exchanges.push(dep.exchange);
     userBotScope[dep.uid] = entry;
   }
 
-  const userIdsAll = Object.keys(userBotScope);
-  const userIdsActive = userIdsAll.filter((uid) => userBotScope[uid]!.hasActive);
-  const userIdsStoppedOnly = userIdsAll.filter((uid) => !userBotScope[uid]!.hasActive);
-
-  const accountsNoBot: AccountRow[] = [];
-  for (const userDoc of usersSnap.docs) {
-    const uid = userDoc.id;
-    const u = userDoc.data();
-    const hasScoped = userBotScope[uid]?.hasDeployment ?? false;
-    if (hasScoped) continue;
-    accountsNoBot.push({
-      userId: uid,
-      email: (u.email as string) ?? null,
-      displayName: (u.displayName as string) ?? null,
-    });
-  }
-
-  const allowedPairs = new Set(
-    scopedDeps.map((d) => pairKey(d.uid, d.exchange)),
-  );
-
-  const pairProfit = new Map<string, { amount: number; currency: string }>();
-  const pairVolume = new Map<string, number>();
-
+  let tradeScan: TradeScanResult;
   try {
-    await sumClosedTradeVolumeAndProfit(db, allowedPairs, pairProfit, pairVolume);
+    tradeScan = await scanClosedTrades(db, botFilter, rates);
   } catch (e) {
     console.error(
       "[PlatformSummary] live_trades scan failed, using deployment PnL cache:",
       e instanceof Error ? e.message : e,
     );
-    seedProfitFromDeployments(scopedDeps, pairProfit);
+    tradeScan = {
+      pairProfit: new Map(),
+      pairVolume: new Map(),
+      userNetPnlUsdt: new Map(),
+      userExchangePnlUsdt: new Map(),
+      usersWithClosedTrades: new Set(),
+    };
+    seedProfitFromDeployments(
+      scopedDeps,
+      tradeScan.pairProfit,
+      tradeScan.userNetPnlUsdt,
+      tradeScan.userExchangePnlUsdt,
+      rates,
+    );
+    for (const uid of tradeScan.userNetPnlUsdt.keys()) {
+      tradeScan.usersWithClosedTrades.add(uid);
+    }
   }
+
+  const { pairProfit, pairVolume, userNetPnlUsdt, userExchangePnlUsdt, usersWithClosedTrades } =
+    tradeScan;
+
+  const allowedPairs = new Set(scopedDeps.map((d) => pairKey(d.uid, d.exchange)));
 
   const pairTotals: PlatformSummaryResult["pairTotals"] = {};
   let totalVolumeUsdt = 0;
@@ -261,37 +435,171 @@ export async function computePlatformSummary(
     totalProfitUsdt += convertToUsdt(profit, currency, rates);
   }
 
-  let totalCapitalUsdt = 0;
-  for (const dep of scopedDeps) {
-    if (!isActiveDeployment(dep.status)) continue;
-    if (String(dep.walletStatus).toLowerCase() !== "valid" || dep.walletTotal == null) continue;
-    totalCapitalUsdt += convertToUsdt(
-      dep.walletTotal,
-      dep.walletCurrency ?? "USDT",
-      rates,
-    );
+  const totalCapitalUsdt = sumCapitalForDeps(scopedDeps, rates);
+
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
+  const neverDeployed: AccountRow[] = [];
+  const churned: AccountRow[] = [];
+  const hasBotNow: AccountRow[] = [];
+
+  for (const u of allUsers) {
+    const scope = userBotScope[u.uid];
+    const hasDeployment = scope?.hasDeployment ?? false;
+    const hasClosedTrades = usersWithClosedTrades.has(u.uid);
+    const ever = everDeployedInScope(u, hasDeployment, hasClosedTrades, botFilter);
+
+    if (hasDeployment) {
+      hasBotNow.push(accountFromUser(u));
+    } else if (ever) {
+      churned.push(accountFromUser(u));
+    } else {
+      neverDeployed.push(accountFromUser(u));
+    }
   }
 
+  // ── Activity ──────────────────────────────────────────────────────────────
+  const activeUsers: string[] = [];
+  const pausedUsers: string[] = [];
+  const stoppedUsers: string[] = [];
+
+  for (const [uid, scope] of Object.entries(userBotScope)) {
+    if (scope.hasActive) activeUsers.push(uid);
+    if (scope.hasPaused) pausedUsers.push(uid);
+    if (scope.hasStopped) stoppedUsers.push(uid);
+  }
+
+  const activeSet = new Set(activeUsers);
+  const pausedSet = new Set(pausedUsers);
+
+  // ── PnL ───────────────────────────────────────────────────────────────────
+  const profitableUsers: string[] = [];
+  const awaitingProfitsUsers: string[] = [];
+  const noClosedTradesUsers: string[] = [];
+
+  for (const u of allUsers) {
+    const hasDeployment = userBotScope[u.uid]?.hasDeployment ?? false;
+    const hasClosedTrades = usersWithClosedTrades.has(u.uid);
+    const ever = everDeployedInScope(u, hasDeployment, hasClosedTrades, botFilter);
+    if (!ever) continue;
+
+    if (!hasClosedTrades) {
+      noClosedTradesUsers.push(u.uid);
+      continue;
+    }
+
+    const net = userNetPnlUsdt.get(u.uid) ?? 0;
+    if (net > 0) profitableUsers.push(u.uid);
+    else if (net < 0) awaitingProfitsUsers.push(u.uid);
+  }
+
+  const profitableSet = new Set(profitableUsers);
+  const awaitingSet = new Set(awaitingProfitsUsers);
+
+  const activeProfitable = activeUsers.filter((uid) => profitableSet.has(uid));
+  const activeAwaiting = activeUsers.filter((uid) => awaitingSet.has(uid));
+  const pausedProfitable = pausedUsers.filter((uid) => profitableSet.has(uid));
+  const pausedAwaiting = pausedUsers.filter((uid) => awaitingSet.has(uid));
+
+  // ── Exchange breakdown ────────────────────────────────────────────────────
+  const exchangeDrilldown: Record<string, ExchangeSegmentDrilldown> = {};
+  const exchangeMetrics: ExchangeSegmentMetrics[] = [];
+
+  for (const exchange of PLATFORM_EXCHANGES) {
+    const exchangeDeps = scopedDeps.filter((d) => d.exchange === exchange);
+    const userIds = [...new Set(exchangeDeps.map((d) => d.uid))];
+
+    const capitalUserIds: string[] = [];
+    const seenCapital = new Set<string>();
+    for (const dep of exchangeDeps) {
+      if (!isActiveDeployment(dep.status)) continue;
+      if (String(dep.walletStatus).toLowerCase() !== "valid" || dep.walletTotal == null) continue;
+      const walletKey = pairKey(dep.uid, dep.exchange);
+      if (seenCapital.has(walletKey)) continue;
+      seenCapital.add(walletKey);
+      capitalUserIds.push(dep.uid);
+    }
+
+    const profitableUserIds: string[] = [];
+    const awaitingUserIds: string[] = [];
+    for (const uid of userIds) {
+      const exPnl = userExchangePnlUsdt.get(pairKey(uid, exchange)) ?? 0;
+      if (exPnl > 0) profitableUserIds.push(uid);
+      else if (exPnl < 0) awaitingUserIds.push(uid);
+    }
+
+    exchangeDrilldown[exchange] = {
+      userIds,
+      capitalUserIds,
+      profitableUserIds,
+      awaitingUserIds,
+    };
+
+    exchangeMetrics.push({
+      exchange,
+      usersWithDeployment: userIds.length,
+      activeDeployments: exchangeDeps.filter((d) => isActiveDeployment(d.status)).length,
+      pausedDeployments: exchangeDeps.filter((d) => isPausedDeployment(d.status)).length,
+      stoppedDeployments: exchangeDeps.filter((d) => isStoppedDeployment(d.status)).length,
+      capitalUsdt: roundUsdt(sumCapitalForDeps(scopedDeps, rates, exchange)),
+      profitableUsers: profitableUserIds.length,
+      awaitingUsers: awaitingUserIds.length,
+    });
+  }
+
+  const userIdsAll = Object.keys(userBotScope);
+  const userIdsActive = activeUsers;
+  const userIdsStoppedOnly = userIdsAll.filter((uid) => !activeSet.has(uid));
+  const accountsNoBot = [...neverDeployed, ...churned];
   const activeDeployments = scopedDeps.filter((d) => isActiveDeployment(d.status)).length;
-  const deployedUsers = userIdsAll.length;
-  const totalAccounts = deployedUsers + accountsNoBot.length;
+
+  const segments: PlatformSegments = {
+    neverDeployed,
+    churned,
+    hasBotNow,
+    activeUsers,
+    pausedUsers,
+    stoppedUsers,
+    profitableUsers,
+    awaitingProfitsUsers,
+    noClosedTradesUsers,
+    activeProfitable,
+    activeAwaiting,
+    pausedProfitable,
+    pausedAwaiting,
+    exchanges: exchangeDrilldown,
+  };
 
   return {
     period,
     bot: botFilter,
     rates,
     metrics: {
-      totalUsers: totalAccounts,
-      deployedUsers,
-      activeUsers: userIdsActive.length,
-      totalCapitalUsdt: Math.round(totalCapitalUsdt * 100) / 100,
-      totalVolumeUsdt: Math.round(totalVolumeUsdt * 100) / 100,
-      totalProfitUsdt: Math.round(totalProfitUsdt * 100) / 100,
-      accountsNoBot: accountsNoBot.length,
-      accountsStoppedOnly: userIdsStoppedOnly.length,
+      totalUsers: allUsers.length,
+      neverDeployed: neverDeployed.length,
+      churned: churned.length,
+      hasBotNow: hasBotNow.length,
+      activeUsers: activeUsers.length,
+      pausedUsers: pausedUsers.length,
+      stoppedUsers: stoppedUsers.length,
+      everDeployedWithTrades: profitableUsers.length + awaitingProfitsUsers.length,
+      profitableUsers: profitableUsers.length,
+      awaitingProfitsUsers: awaitingProfitsUsers.length,
+      noClosedTradesUsers: noClosedTradesUsers.length,
+      activeProfitable: activeProfitable.length,
+      activeAwaiting: activeAwaiting.length,
+      pausedProfitable: pausedProfitable.length,
+      pausedAwaiting: pausedAwaiting.length,
+      totalCapitalUsdt: roundUsdt(totalCapitalUsdt),
+      totalVolumeUsdt: roundUsdt(totalVolumeUsdt),
+      totalProfitUsdt: roundUsdt(totalProfitUsdt),
       totalDeployments: scopedDeps.length,
       activeDeployments,
+      deployedUsers: hasBotNow.length,
+      accountsNoBot: accountsNoBot.length,
+      accountsStoppedOnly: userIdsStoppedOnly.length,
+      exchanges: exchangeMetrics,
     },
+    segments,
     userIdsAll,
     userIdsActive,
     userIdsStoppedOnly,

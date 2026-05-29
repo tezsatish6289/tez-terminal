@@ -37,7 +37,11 @@ import { format } from "date-fns";
 import { AdminColumnHeader, AdminInfoTip } from "@/components/admin/AdminInfoTip";
 import { AdminCtaWithInfo } from "@/components/admin/AdminCtaLabel";
 import { RetentionMessagePreviewTip } from "@/components/admin/RetentionMessagePreviewTip";
-import { AdminStatCard, formatUsdtHeadline } from "@/components/admin/AdminStatCard";
+import {
+  BotUsersFlowchart,
+  type BotUsersSegmentFilter,
+  type FlowchartMetrics,
+} from "@/components/admin/BotUsersFlowchart";
 import {
   computeMirroringStatus,
   mirroringStatusColorClass,
@@ -62,43 +66,43 @@ const EXCHANGE_LABELS: Record<string, string> = {
 
 const ADMIN_EMAIL = "hello@tezterminal.com";
 
-/** Drill-down filter for headline stats (lifetime scope). */
-type SegmentFilter =
-  | null
-  | "total_users"
-  | "active_users"
-  | "capital"
-  | "volume"
-  | "profit"
-  | "no_bot"
-  | "stopped_only"
-  | "all_deployments"
-  | "active_deployments";
-
-interface PlatformSummaryMetrics {
-  totalUsers: number;
-  deployedUsers?: number;
-  activeUsers: number;
-  totalCapitalUsdt: number;
-  totalVolumeUsdt: number;
-  totalProfitUsdt: number;
-  accountsNoBot: number;
-  accountsStoppedOnly: number;
-  totalDeployments: number;
-  activeDeployments: number;
-}
-
-interface AccountNoBot {
+interface AccountRow {
   userId: string;
   email: string | null;
   displayName: string | null;
 }
 
+interface PlatformSegments {
+  neverDeployed: AccountRow[];
+  churned: AccountRow[];
+  hasBotNow: AccountRow[];
+  activeUsers: string[];
+  pausedUsers: string[];
+  stoppedUsers: string[];
+  profitableUsers: string[];
+  awaitingProfitsUsers: string[];
+  noClosedTradesUsers: string[];
+  activeProfitable: string[];
+  activeAwaiting: string[];
+  pausedProfitable: string[];
+  pausedAwaiting: string[];
+  exchanges: Record<
+    string,
+    {
+      userIds: string[];
+      capitalUserIds: string[];
+      profitableUserIds: string[];
+      awaitingUserIds: string[];
+    }
+  >;
+}
+
 interface PlatformSummary {
-  metrics: PlatformSummaryMetrics;
+  metrics: FlowchartMetrics;
+  segments: PlatformSegments;
   userIdsActive: string[];
   userIdsStoppedOnly: string[];
-  accountsNoBot: AccountNoBot[];
+  accountsNoBot: AccountRow[];
   rates: { source: string; fetchedAt: string; inrPerUsdt: number };
 }
 
@@ -173,7 +177,7 @@ export default function AdminBotUsersPage() {
   const [summary, setSummary] = useState<PlatformSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState("");
-  const [segmentFilter, setSegmentFilter] = useState<SegmentFilter>(null);
+  const [segmentFilter, setSegmentFilter] = useState<BotUsersSegmentFilter>(null);
   const [retentionStatsByExchange, setRetentionStatsByExchange] = useState<
     Record<string, RetentionExchangeStats>
   >({});
@@ -193,6 +197,22 @@ export default function AdminBotUsersPage() {
       if (!res.ok) throw new Error(data.error ?? "Failed to load summary");
       setSummary({
         metrics: data.metrics,
+        segments: data.segments ?? {
+          neverDeployed: [],
+          churned: [],
+          hasBotNow: [],
+          activeUsers: [],
+          pausedUsers: [],
+          stoppedUsers: [],
+          profitableUsers: [],
+          awaitingProfitsUsers: [],
+          noClosedTradesUsers: [],
+          activeProfitable: [],
+          activeAwaiting: [],
+          pausedProfitable: [],
+          pausedAwaiting: [],
+          exchanges: {},
+        },
         userIdsActive: data.userIdsActive ?? [],
         userIdsStoppedOnly: data.userIdsStoppedOnly ?? [],
         accountsNoBot: data.accountsNoBot ?? [],
@@ -255,30 +275,68 @@ export default function AdminBotUsersPage() {
     setSegmentFilter(null);
   }, [botFilter]);
 
-  const toggleSegment = (next: SegmentFilter) => {
-    setSegmentFilter((prev) => (prev === next ? null : next));
-  };
-
-  const activeUserSet = useMemo(
-    () => new Set(summary?.userIdsActive ?? []),
-    [summary?.userIdsActive],
-  );
-  const stoppedOnlyUserSet = useMemo(
-    () => new Set(summary?.userIdsStoppedOnly ?? []),
-    [summary?.userIdsStoppedOnly],
-  );
+  const segmentUserSet = useMemo((): Set<string> | null => {
+    const seg = summary?.segments;
+    if (!seg || !segmentFilter) return null;
+    switch (segmentFilter) {
+      case "active_users":
+        return new Set(seg.activeUsers);
+      case "paused_users":
+        return new Set(seg.pausedUsers);
+      case "stopped_users":
+        return new Set(seg.stoppedUsers);
+      case "profitable":
+        return new Set(seg.profitableUsers);
+      case "awaiting_profits":
+        return new Set(seg.awaitingProfitsUsers);
+      case "no_closed_trades":
+        return new Set(seg.noClosedTradesUsers);
+      case "active_profitable":
+        return new Set(seg.activeProfitable);
+      case "active_awaiting":
+        return new Set(seg.activeAwaiting);
+      case "paused_profitable":
+        return new Set(seg.pausedProfitable);
+      case "paused_awaiting":
+        return new Set(seg.pausedAwaiting);
+      case "exchange_bybit":
+        return new Set(seg.exchanges.BYBIT?.userIds ?? []);
+      case "exchange_coindcx":
+        return new Set(seg.exchanges.COINDCX?.userIds ?? []);
+      case "exchange_hyperliquid":
+        return new Set(seg.exchanges.HYPERLIQUID?.userIds ?? []);
+      case "exchange_capital_bybit":
+        return new Set(seg.exchanges.BYBIT?.capitalUserIds ?? []);
+      case "exchange_capital_coindcx":
+        return new Set(seg.exchanges.COINDCX?.capitalUserIds ?? []);
+      case "exchange_capital_hyperliquid":
+        return new Set(seg.exchanges.HYPERLIQUID?.capitalUserIds ?? []);
+      default:
+        return null;
+    }
+  }, [summary?.segments, segmentFilter]);
 
   const segmentDeployments = useMemo(() => {
-    if (segmentFilter === "no_bot") return [];
+    const userLifecycleFilters: BotUsersSegmentFilter[] = [
+      "sign_ups",
+      "never_deployed",
+      "churned",
+      "has_bot_now",
+    ];
+    if (segmentFilter && userLifecycleFilters.includes(segmentFilter)) return [];
+
     let rows = deployments;
+    if (segmentUserSet) {
+      rows = rows.filter((d) => segmentUserSet.has(d.userId));
+    }
+
     switch (segmentFilter) {
       case "active_deployments":
         return rows.filter((d) => d.running);
-      case "active_users":
-        return rows.filter((d) => activeUserSet.has(d.userId));
-      case "stopped_only":
-        return rows.filter((d) => stoppedOnlyUserSet.has(d.userId));
       case "capital":
+      case "exchange_capital_bybit":
+      case "exchange_capital_coindcx":
+      case "exchange_capital_hyperliquid":
         return rows.filter(
           (d) =>
             d.running &&
@@ -290,15 +348,61 @@ export default function AdminBotUsersPage() {
         return rows.filter((d) => (d.closedTradeCount ?? 0) > 0);
       case "profit":
         return rows.filter((d) => d.lifetimeRealizedPnl !== 0);
-      case "total_users":
+      case "exchange_bybit":
+        return rows.filter((d) => d.exchange === "BYBIT");
+      case "exchange_coindcx":
+        return rows.filter((d) => d.exchange === "COINDCX");
+      case "exchange_hyperliquid":
+        return rows.filter((d) => d.exchange === "HYPERLIQUID");
       case "all_deployments":
       default:
         return rows;
     }
-  }, [deployments, segmentFilter, activeUserSet, stoppedOnlyUserSet]);
+  }, [deployments, segmentFilter, segmentUserSet]);
 
-  const filteredAccountsNoBot = useMemo(() => {
-    const list = summary?.accountsNoBot ?? [];
+  const segmentUserAccounts = useMemo((): AccountRow[] => {
+    const seg = summary?.segments;
+    if (!seg || !segmentFilter) return [];
+
+    let list: AccountRow[] = [];
+    switch (segmentFilter) {
+      case "sign_ups":
+        list = [...seg.neverDeployed, ...seg.churned, ...seg.hasBotNow];
+        break;
+      case "never_deployed":
+        list = seg.neverDeployed;
+        break;
+      case "churned":
+        list = seg.churned;
+        break;
+      case "has_bot_now":
+        list = seg.hasBotNow;
+        break;
+      case "active_users":
+      case "paused_users":
+      case "stopped_users":
+      case "profitable":
+      case "awaiting_profits":
+      case "no_closed_trades":
+      case "active_profitable":
+      case "active_awaiting":
+      case "paused_profitable":
+      case "paused_awaiting":
+      case "exchange_capital_bybit":
+      case "exchange_capital_coindcx":
+      case "exchange_capital_hyperliquid": {
+        const ids = segmentUserSet ? [...segmentUserSet] : [];
+        const byId = new Map<string, AccountRow>();
+        for (const a of [...seg.neverDeployed, ...seg.churned, ...seg.hasBotNow]) {
+          byId.set(a.userId, a);
+        }
+        list = ids.map((uid) => byId.get(uid) ?? { userId: uid, email: null, displayName: null });
+        break;
+      }
+      default:
+        return [];
+    }
+
     if (!search.trim()) return list;
     const q = search.toLowerCase();
     return list.filter(
@@ -307,7 +411,31 @@ export default function AdminBotUsersPage() {
         a.displayName?.toLowerCase().includes(q) ||
         a.userId.toLowerCase().includes(q),
     );
-  }, [summary?.accountsNoBot, search]);
+  }, [summary?.segments, segmentFilter, segmentUserSet, search]);
+
+  const showUserTable = useMemo(() => {
+    if (!segmentFilter) return false;
+    const userOnly: BotUsersSegmentFilter[] = [
+      "sign_ups",
+      "never_deployed",
+      "churned",
+      "has_bot_now",
+      "active_users",
+      "paused_users",
+      "stopped_users",
+      "profitable",
+      "awaiting_profits",
+      "no_closed_trades",
+      "active_profitable",
+      "active_awaiting",
+      "paused_profitable",
+      "paused_awaiting",
+      "exchange_capital_bybit",
+      "exchange_capital_coindcx",
+      "exchange_capital_hyperliquid",
+    ];
+    return userOnly.includes(segmentFilter);
+  }, [segmentFilter]);
 
   const refreshAllWallets = useCallback(async () => {
     if (!user) return;
@@ -403,7 +531,7 @@ export default function AdminBotUsersPage() {
   }, [segmentDeployments, search]);
 
   /** When the summary API fails, derive headline stats from the deployment list. */
-  const fallbackMetrics = useMemo((): PlatformSummaryMetrics | null => {
+  const fallbackMetrics = useMemo((): FlowchartMetrics | null => {
     if (summary?.metrics || deployments.length === 0) return null;
     const seenPairs = new Set<string>();
     let profit = 0;
@@ -423,26 +551,32 @@ export default function AdminBotUsersPage() {
         capital += d.wallet.total;
       }
     }
-    let stoppedOnly = 0;
-    for (const uid of allUids) {
-      if (!activeUids.has(uid)) stoppedOnly++;
-    }
     return {
       totalUsers: allUids.size,
-      deployedUsers: allUids.size,
+      neverDeployed: 0,
+      churned: 0,
+      hasBotNow: allUids.size,
       activeUsers: activeUids.size,
+      pausedUsers: 0,
+      stoppedUsers: 0,
+      everDeployedWithTrades: 0,
+      profitableUsers: 0,
+      awaitingProfitsUsers: 0,
+      noClosedTradesUsers: 0,
+      activeProfitable: 0,
+      activeAwaiting: 0,
+      pausedProfitable: 0,
+      pausedAwaiting: 0,
       totalCapitalUsdt: Math.round(capital * 100) / 100,
       totalVolumeUsdt: 0,
       totalProfitUsdt: Math.round(profit * 100) / 100,
-      accountsNoBot: 0,
-      accountsStoppedOnly: stoppedOnly,
       totalDeployments: deployments.length,
       activeDeployments: deployments.filter((d) => d.running).length,
+      exchanges: [],
     };
   }, [summary?.metrics, deployments]);
 
   const m = summary?.metrics ?? fallbackMetrics ?? undefined;
-  const showNoBotTable = segmentFilter === "no_bot";
 
   if (isUserLoading) {
     return (
@@ -478,8 +612,8 @@ export default function AdminBotUsersPage() {
               <h1 className="text-3xl font-black text-white tracking-tighter uppercase">Bot users</h1>
             </div>
             <p className="text-muted-foreground text-sm max-w-xl">
-              Lifetime platform metrics (all amounts in USDT). Click a stat to filter the table. Capital uses active
-              deployments only; volume is closed-trade notional (one-sided); profit is production closed trades only.
+              Lifetime platform metrics (all amounts in USDT). Click any box to drill down into users
+              or deployments. Capital uses active deployments only, deduped per wallet.
             </p>
             {summary?.rates && (
               <p className="text-[10px] text-muted-foreground/50 font-mono">
@@ -581,79 +715,12 @@ export default function AdminBotUsersPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-              <AdminStatCard
-                label="Total users"
-                value={summaryLoading ? "…" : String(m?.totalUsers ?? 0)}
-                sublabel={
-                  m
-                    ? `${m.deployedUsers ?? m.activeUsers + m.accountsStoppedOnly} deployed · ${m.accountsNoBot} no bot`
-                    : "All accounts in scope"
-                }
-                active={segmentFilter === "total_users"}
-                onClick={() => toggleSegment("total_users")}
-              />
-              <AdminStatCard
-                label="Active users"
-                value={summaryLoading ? "…" : String(m?.activeUsers ?? 0)}
-                sublabel="≥1 running bot"
-                active={segmentFilter === "active_users"}
-                onClick={() => toggleSegment("active_users")}
-                valueClassName="text-emerald-400"
-              />
-              <AdminStatCard
-                label="Capital deployed"
-                value={summaryLoading ? "…" : formatUsdtHeadline(m?.totalCapitalUsdt ?? 0)}
-                sublabel="Active · wallet balance"
-                active={segmentFilter === "capital"}
-                onClick={() => toggleSegment("capital")}
-                valueClassName="text-sky-400"
-              />
-              <AdminStatCard
-                label="Volume traded"
-                value={summaryLoading ? "…" : formatUsdtHeadline(m?.totalVolumeUsdt ?? 0)}
-                sublabel="Closed · one-sided notional"
-                active={segmentFilter === "volume"}
-                onClick={() => toggleSegment("volume")}
-              />
-              <AdminStatCard
-                label="Profit (lifetime)"
-                value={summaryLoading ? "…" : formatUsdtHeadline(m?.totalProfitUsdt ?? 0)}
-                sublabel="Realized · production"
-                active={segmentFilter === "profit"}
-                onClick={() => toggleSegment("profit")}
-                valueClassName={
-                  (m?.totalProfitUsdt ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400"
-                }
-              />
-              <AdminStatCard
-                label="No bot"
-                value={summaryLoading ? "…" : String(m?.accountsNoBot ?? 0)}
-                sublabel="Accounts · never deployed"
-                active={segmentFilter === "no_bot"}
-                onClick={() => toggleSegment("no_bot")}
-              />
-              <AdminStatCard
-                label="Stopped only"
-                value={summaryLoading ? "…" : String(m?.accountsStoppedOnly ?? 0)}
-                sublabel="Users · no active bot"
-                active={segmentFilter === "stopped_only"}
-                onClick={() => toggleSegment("stopped_only")}
-              />
-              <AdminStatCard
-                label="Deployments"
-                value={summaryLoading ? "…" : String(m?.totalDeployments ?? deployments.length)}
-                active={segmentFilter === "all_deployments"}
-                onClick={() => toggleSegment("all_deployments")}
-              />
-              <AdminStatCard
-                label="Active deployments"
-                value={summaryLoading ? "…" : String(m?.activeDeployments ?? 0)}
-                active={segmentFilter === "active_deployments"}
-                onClick={() => toggleSegment("active_deployments")}
-                valueClassName="text-emerald-400"
-              />
-            </div>
+            <BotUsersFlowchart
+              metrics={m}
+              loading={summaryLoading}
+              segmentFilter={segmentFilter}
+              onSegmentClick={setSegmentFilter}
+            />
 
             <div className="flex flex-col sm:flex-row gap-3 max-w-2xl">
               <div className="relative flex-1">
@@ -681,18 +748,19 @@ export default function AdminBotUsersPage() {
             </div>
 
             <div className="rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 overflow-hidden">
-              {showNoBotTable ? (
+              {showUserTable ? (
                 <>
                   <div className="px-4 py-3 border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-black uppercase tracking-wider text-muted-foreground/50">
-                    Accounts with no bot in this scope
+                    Users in segment
+                    {segmentFilter ? ` · ${segmentFilter.replace(/_/g, " ")}` : ""}
                   </div>
-                  {filteredAccountsNoBot.length === 0 ? (
+                  {segmentUserAccounts.length === 0 ? (
                     <div className="flex flex-col items-center gap-4 py-16 opacity-40">
                       <Bot className="h-12 w-12 text-muted-foreground" />
-                      <p className="text-xs font-bold uppercase tracking-widest text-white">No accounts</p>
+                      <p className="text-xs font-bold uppercase tracking-widest text-white">No users</p>
                     </div>
                   ) : (
-                    filteredAccountsNoBot.map((a) => (
+                    segmentUserAccounts.map((a) => (
                       <div
                         key={a.userId}
                         className="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.04] last:border-0"
@@ -704,9 +772,6 @@ export default function AdminBotUsersPage() {
                           <div className="text-[11px] text-muted-foreground truncate">{a.email ?? "—"}</div>
                           <div className="text-[10px] font-mono text-muted-foreground/50 truncate">{a.userId}</div>
                         </div>
-                        <span className="text-[9px] font-black uppercase text-muted-foreground/60 shrink-0 ml-4">
-                          No deployment
-                        </span>
                       </div>
                     ))
                   )}

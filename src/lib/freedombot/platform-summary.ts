@@ -15,6 +15,9 @@ export type PlatformSummaryPeriod = "lifetime";
 export const PLATFORM_EXCHANGES = ["BYBIT", "COINDCX", "HYPERLIQUID"] as const;
 export type PlatformExchange = (typeof PLATFORM_EXCHANGES)[number];
 
+/** Min consecutive active days for the "active awaiting 30d+" admin segment. */
+export const ACTIVE_AWAITING_MIN_DAYS = 30;
+
 export interface PlatformSummaryParams {
   bot: string | null;
   period?: PlatformSummaryPeriod;
@@ -59,6 +62,8 @@ export interface PlatformSummaryMetrics {
   /** Activity × PnL cross. */
   activeProfitable: number;
   activeAwaiting: number;
+  /** Active bot >30 consecutive days · net PnL < 0 */
+  activeAwaitingOver30Days: number;
   pausedProfitable: number;
   pausedAwaiting: number;
   /** Platform economics. */
@@ -95,6 +100,7 @@ export interface PlatformSegments {
   noClosedTradesUsers: string[];
   activeProfitable: string[];
   activeAwaiting: string[];
+  activeAwaitingOver30Days: string[];
   pausedProfitable: string[];
   pausedAwaiting: string[];
   exchanges: Record<string, ExchangeSegmentDrilldown>;
@@ -133,6 +139,8 @@ type DepRow = {
   bot: string;
   exchange: string;
   status: string;
+  createdAt: string | null;
+  resumedAt: string | null;
   walletTotal?: number;
   walletCurrency?: string;
   walletStatus?: string;
@@ -178,6 +186,41 @@ function matchesBotFilter(bot: string, filter: string | null): boolean {
 
 function roundUsdt(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+function firestoreIso(raw: unknown): string | null {
+  if (typeof raw === "string") return raw;
+  const ts = raw as { toDate?: () => Date };
+  if (typeof ts?.toDate === "function") return ts.toDate().toISOString();
+  return null;
+}
+
+/** Calendar days since the deployment entered its current active stretch. */
+export function consecutiveActiveDays(activeSinceIso: string | null): number {
+  if (!activeSinceIso) return 0;
+  const ms = Date.now() - new Date(activeSinceIso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return 0;
+  return Math.floor(ms / (24 * 60 * 60 * 1000));
+}
+
+function maxConsecutiveActiveDays(activeDeps: DepRow[]): number {
+  let max = 0;
+  for (const dep of activeDeps) {
+    const since = dep.resumedAt ?? dep.createdAt;
+    max = Math.max(max, consecutiveActiveDays(since));
+  }
+  return max;
+}
+
+function userHasActiveOverDays(
+  uid: string,
+  scopedDeps: DepRow[],
+  minDays: number,
+): boolean {
+  const activeDeps = scopedDeps.filter(
+    (d) => d.uid === uid && isActiveDeployment(d.status),
+  );
+  return maxConsecutiveActiveDays(activeDeps) > minDays;
 }
 
 function accountFromUser(u: UserDocRow): AccountRow {
@@ -358,6 +401,8 @@ export async function computePlatformSummary(
       bot: String(x.bot ?? ""),
       exchange: String(x.exchange ?? "").toUpperCase(),
       status: String(x.status ?? ""),
+      createdAt: firestoreIso(x.createdAt),
+      resumedAt: typeof x.resumedAt === "string" ? x.resumedAt : null,
       walletTotal: typeof x.walletTotal === "number" ? x.walletTotal : undefined,
       walletCurrency: typeof x.walletCurrency === "string" ? x.walletCurrency : undefined,
       walletStatus: typeof x.walletStatus === "string" ? x.walletStatus : undefined,
@@ -497,6 +542,9 @@ export async function computePlatformSummary(
 
   const activeProfitable = activeUsers.filter((uid) => profitableSet.has(uid));
   const activeAwaiting = activeUsers.filter((uid) => awaitingSet.has(uid));
+  const activeAwaitingOver30Days = activeAwaiting.filter((uid) =>
+    userHasActiveOverDays(uid, scopedDeps, ACTIVE_AWAITING_MIN_DAYS),
+  );
   const pausedProfitable = pausedUsers.filter((uid) => profitableSet.has(uid));
   const pausedAwaiting = pausedUsers.filter((uid) => awaitingSet.has(uid));
 
@@ -564,6 +612,7 @@ export async function computePlatformSummary(
     noClosedTradesUsers,
     activeProfitable,
     activeAwaiting,
+    activeAwaitingOver30Days,
     pausedProfitable,
     pausedAwaiting,
     exchanges: exchangeDrilldown,
@@ -587,6 +636,7 @@ export async function computePlatformSummary(
       noClosedTradesUsers: noClosedTradesUsers.length,
       activeProfitable: activeProfitable.length,
       activeAwaiting: activeAwaiting.length,
+      activeAwaitingOver30Days: activeAwaitingOver30Days.length,
       pausedProfitable: pausedProfitable.length,
       pausedAwaiting: pausedAwaiting.length,
       totalCapitalUsdt: roundUsdt(totalCapitalUsdt),

@@ -84,6 +84,7 @@ interface PlatformSegments {
   noClosedTradesUsers: string[];
   activeProfitable: string[];
   activeAwaiting: string[];
+  activeAwaitingOver30Days: string[];
   pausedProfitable: string[];
   pausedAwaiting: string[];
   exchanges: Record<
@@ -209,6 +210,7 @@ export default function AdminBotUsersPage() {
           noClosedTradesUsers: [],
           activeProfitable: [],
           activeAwaiting: [],
+          activeAwaitingOver30Days: [],
           pausedProfitable: [],
           pausedAwaiting: [],
           exchanges: {},
@@ -295,6 +297,8 @@ export default function AdminBotUsersPage() {
         return new Set(seg.activeProfitable);
       case "active_awaiting":
         return new Set(seg.activeAwaiting);
+      case "active_awaiting_over_30d":
+        return new Set(seg.activeAwaitingOver30Days);
       case "paused_profitable":
         return new Set(seg.pausedProfitable);
       case "paused_awaiting":
@@ -386,6 +390,7 @@ export default function AdminBotUsersPage() {
       case "no_closed_trades":
       case "active_profitable":
       case "active_awaiting":
+      case "active_awaiting_over_30d":
       case "paused_profitable":
       case "paused_awaiting":
       case "exchange_capital_bybit":
@@ -428,6 +433,7 @@ export default function AdminBotUsersPage() {
       "no_closed_trades",
       "active_profitable",
       "active_awaiting",
+      "active_awaiting_over_30d",
       "paused_profitable",
       "paused_awaiting",
       "exchange_capital_bybit",
@@ -565,6 +571,7 @@ export default function AdminBotUsersPage() {
       noClosedTradesUsers: 0,
       activeProfitable: 0,
       activeAwaiting: 0,
+      activeAwaitingOver30Days: 0,
       pausedProfitable: 0,
       pausedAwaiting: 0,
       totalCapitalUsdt: Math.round(capital * 100) / 100,

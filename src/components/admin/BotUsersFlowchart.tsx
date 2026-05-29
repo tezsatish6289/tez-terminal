@@ -18,6 +18,7 @@ export type BotUsersSegmentFilter =
   | "no_closed_trades"
   | "active_profitable"
   | "active_awaiting"
+  | "active_awaiting_over_30d"
   | "paused_profitable"
   | "paused_awaiting"
   | "exchange_bybit"
@@ -46,6 +47,7 @@ export interface FlowchartMetrics {
   noClosedTradesUsers: number;
   activeProfitable: number;
   activeAwaiting: number;
+  activeAwaitingOver30Days: number;
   pausedProfitable: number;
   pausedAwaiting: number;
   totalCapitalUsdt: number;
@@ -279,6 +281,14 @@ export function BotUsersFlowchart({
               valueClassName="text-rose-400"
             />
             <FlowNode
+              label="Active >30d awaiting"
+              hint="Active bot >30 consecutive days · net PnL < 0"
+              value={v(metrics?.activeAwaitingOver30Days)}
+              active={segmentFilter === "active_awaiting_over_30d"}
+              onClick={() => toggle("active_awaiting_over_30d")}
+              valueClassName="text-orange-400"
+            />
+            <FlowNode
               label="No closed trades"
               hint="Deployed in scope but never closed a trade"
               value={v(metrics?.noClosedTradesUsers)}
@@ -292,7 +302,7 @@ export function BotUsersFlowchart({
       {/* ④ Activity × PnL */}
       <section>
         <SectionLabel>④ Activity × PnL</SectionLabel>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <FlowNode
             label="Active + Profitable"
             value={v(metrics?.activeProfitable)}
@@ -306,6 +316,14 @@ export function BotUsersFlowchart({
             active={segmentFilter === "active_awaiting"}
             onClick={() => toggle("active_awaiting")}
             valueClassName="text-rose-400"
+          />
+          <FlowNode
+            label="Active >30d awaiting"
+            hint="Active >30 consecutive days · still unprofitable"
+            value={v(metrics?.activeAwaitingOver30Days)}
+            active={segmentFilter === "active_awaiting_over_30d"}
+            onClick={() => toggle("active_awaiting_over_30d")}
+            valueClassName="text-orange-400"
           />
           <FlowNode
             label="Paused + Profitable"

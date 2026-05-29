@@ -619,8 +619,7 @@ export default function AdminBotUsersPage() {
               <h1 className="text-3xl font-black text-white tracking-tighter uppercase">Bot users</h1>
             </div>
             <p className="text-muted-foreground text-sm max-w-xl">
-              Lifetime platform metrics (all amounts in USDT). Click any box to drill down into users
-              or deployments. Capital uses active deployments only, deduped per wallet.
+              Lifetime analytics dashboard — click any segment to drill down into users or deployments.
             </p>
             {summary?.rates && (
               <p className="text-[10px] text-muted-foreground/50 font-mono">
@@ -703,23 +702,29 @@ export default function AdminBotUsersPage() {
           </div>
         ) : (
           <>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                Period
-              </span>
-              <span className="px-2.5 py-1 rounded-lg border border-accent/30 bg-accent/10 text-[10px] font-black uppercase text-accent">
-                Lifetime
-              </span>
-              <span className="text-[10px] text-muted-foreground/40">(date range filters coming soon)</span>
-              {segmentFilter && (
-                <button
-                  type="button"
-                  onClick={() => setSegmentFilter(null)}
-                  className="ml-auto text-[10px] font-bold uppercase tracking-wider text-rose-400 hover:text-rose-300"
-                >
-                  Clear filter
-                </button>
-              )}
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-black uppercase tracking-tight text-white">
+                  Lifetime analytics
+                </h2>
+                <p className="text-[10px] text-muted-foreground/45 mt-0.5">
+                  (date range filters coming soon)
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-lg border border-accent/30 bg-accent/10 text-[10px] font-black uppercase text-accent">
+                  Lifetime
+                </span>
+                {segmentFilter && (
+                  <button
+                    type="button"
+                    onClick={() => setSegmentFilter(null)}
+                    className="text-[10px] font-bold uppercase tracking-wider text-rose-400 hover:text-rose-300"
+                  >
+                    Clear filter
+                  </button>
+                )}
+              </div>
             </div>
 
             <BotUsersFlowchart

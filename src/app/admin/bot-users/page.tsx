@@ -80,6 +80,7 @@ interface PlatformSegments {
   pausedUsers: string[];
   stoppedUsers: string[];
   profitableUsers: string[];
+  newAccountUsers: string[];
   awaitingProfitsUsers: string[];
   noClosedTradesUsers: string[];
   activeProfitable: string[];
@@ -206,6 +207,7 @@ export default function AdminBotUsersPage() {
           pausedUsers: [],
           stoppedUsers: [],
           profitableUsers: [],
+          newAccountUsers: [],
           awaitingProfitsUsers: [],
           noClosedTradesUsers: [],
           activeProfitable: [],
@@ -289,6 +291,8 @@ export default function AdminBotUsersPage() {
         return new Set(seg.stoppedUsers);
       case "profitable":
         return new Set(seg.profitableUsers);
+      case "new_account":
+        return new Set(seg.newAccountUsers);
       case "awaiting_profits":
         return new Set(seg.awaitingProfitsUsers);
       case "no_closed_trades":
@@ -386,6 +390,7 @@ export default function AdminBotUsersPage() {
       case "paused_users":
       case "stopped_users":
       case "profitable":
+      case "new_account":
       case "awaiting_profits":
       case "no_closed_trades":
       case "active_profitable":
@@ -429,6 +434,7 @@ export default function AdminBotUsersPage() {
       "paused_users",
       "stopped_users",
       "profitable",
+      "new_account",
       "awaiting_profits",
       "no_closed_trades",
       "active_profitable",
@@ -565,8 +571,9 @@ export default function AdminBotUsersPage() {
       activeUsers: activeUids.size,
       pausedUsers: 0,
       stoppedUsers: 0,
-      everDeployedWithTrades: 0,
+      everDeployedInPnl: 0,
       profitableUsers: 0,
+      newAccountUsers: 0,
       awaitingProfitsUsers: 0,
       noClosedTradesUsers: 0,
       activeProfitable: 0,

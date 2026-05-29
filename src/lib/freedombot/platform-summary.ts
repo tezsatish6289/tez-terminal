@@ -17,6 +17,8 @@ export type PlatformExchange = (typeof PLATFORM_EXCHANGES)[number];
 
 /** Min consecutive active days for the "active awaiting 30d+" admin segment. */
 export const ACTIVE_AWAITING_MIN_DAYS = 30;
+/** First-bot age below this → "new account" in PnL (not yet in long-term awaiting). */
+export const NEW_ACCOUNT_MAX_DAYS = 30;
 
 export interface PlatformSummaryParams {
   bot: string | null;
@@ -54,9 +56,12 @@ export interface PlatformSummaryMetrics {
   activeUsers: number;
   pausedUsers: number;
   stoppedUsers: number;
-  /** PnL — users with ≥1 closed production trade in bot scope. */
-  everDeployedWithTrades: number;
+  /** PnL — ever-deployed users in bot scope. */
+  everDeployedInPnl: number;
   profitableUsers: number;
+  /** First bot &lt;30d ago · not profitable. */
+  newAccountUsers: number;
+  /** First bot ≥30d ago · net PnL &lt; 0. */
   awaitingProfitsUsers: number;
   noClosedTradesUsers: number;
   /** Activity × PnL cross. */
@@ -96,6 +101,7 @@ export interface PlatformSegments {
   pausedUsers: string[];
   stoppedUsers: string[];
   profitableUsers: string[];
+  newAccountUsers: string[];
   awaitingProfitsUsers: string[];
   noClosedTradesUsers: string[];
   activeProfitable: string[];
@@ -152,7 +158,7 @@ type UserDocRow = {
   uid: string;
   email: string | null;
   displayName: string | null;
-  freedombotFirstBot?: { bot?: string } | null;
+  freedombotFirstBot?: { bot?: string; deployedAt?: string } | null;
 };
 
 function pairKey(uid: string, exchange: string): string {
@@ -221,6 +227,32 @@ function userHasActiveOverDays(
     (d) => d.uid === uid && isActiveDeployment(d.status),
   );
   return maxConsecutiveActiveDays(activeDeps) > minDays;
+}
+
+function daysSinceIso(iso: string | null): number {
+  return consecutiveActiveDays(iso);
+}
+
+/** Calendar days since the user's first bot deploy in scope. */
+function daysSinceFirstDeploy(
+  u: UserDocRow,
+  uid: string,
+  scopedDeps: DepRow[],
+  botFilter: string | null,
+): number | null {
+  let earliest: string | null = null;
+  for (const d of scopedDeps) {
+    if (d.uid !== uid || !d.createdAt) continue;
+    if (!earliest || d.createdAt < earliest) earliest = d.createdAt;
+  }
+  const first = u.freedombotFirstBot;
+  if (first?.deployedAt) {
+    if (!botFilter || String(first.bot ?? "").toUpperCase() === botFilter) {
+      if (!earliest || first.deployedAt < earliest) earliest = first.deployedAt;
+    }
+  }
+  if (!earliest) return null;
+  return daysSinceIso(earliest);
 }
 
 function accountFromUser(u: UserDocRow): AccountRow {
@@ -518,8 +550,10 @@ export async function computePlatformSummary(
 
   // ── PnL ───────────────────────────────────────────────────────────────────
   const profitableUsers: string[] = [];
+  const newAccountUsers: string[] = [];
   const awaitingProfitsUsers: string[] = [];
   const noClosedTradesUsers: string[] = [];
+  let everDeployedInPnl = 0;
 
   for (const u of allUsers) {
     const hasDeployment = userBotScope[u.uid]?.hasDeployment ?? false;
@@ -527,26 +561,40 @@ export async function computePlatformSummary(
     const ever = everDeployedInScope(u, hasDeployment, hasClosedTrades, botFilter);
     if (!ever) continue;
 
-    if (!hasClosedTrades) {
-      noClosedTradesUsers.push(u.uid);
+    everDeployedInPnl++;
+    const net = userNetPnlUsdt.get(u.uid) ?? 0;
+    const daysSinceDeploy = daysSinceFirstDeploy(u, u.uid, scopedDeps, botFilter);
+
+    if (net > 0) {
+      profitableUsers.push(u.uid);
       continue;
     }
 
-    const net = userNetPnlUsdt.get(u.uid) ?? 0;
-    if (net > 0) profitableUsers.push(u.uid);
-    else if (net < 0) awaitingProfitsUsers.push(u.uid);
+    if (daysSinceDeploy != null && daysSinceDeploy < NEW_ACCOUNT_MAX_DAYS) {
+      newAccountUsers.push(u.uid);
+      continue;
+    }
+
+    if (net < 0 && daysSinceDeploy != null && daysSinceDeploy >= NEW_ACCOUNT_MAX_DAYS) {
+      awaitingProfitsUsers.push(u.uid);
+      continue;
+    }
+
+    if (!hasClosedTrades) {
+      noClosedTradesUsers.push(u.uid);
+    }
   }
 
   const profitableSet = new Set(profitableUsers);
   const awaitingSet = new Set(awaitingProfitsUsers);
 
   const activeProfitable = activeUsers.filter((uid) => profitableSet.has(uid));
-  const activeAwaiting = activeUsers.filter((uid) => awaitingSet.has(uid));
+  const activeAwaiting = activeUsers.filter((uid) => !profitableSet.has(uid));
   const activeAwaitingOver30Days = activeAwaiting.filter((uid) =>
-    userHasActiveOverDays(uid, scopedDeps, ACTIVE_AWAITING_MIN_DAYS),
+    awaitingSet.has(uid) && userHasActiveOverDays(uid, scopedDeps, ACTIVE_AWAITING_MIN_DAYS),
   );
   const pausedProfitable = pausedUsers.filter((uid) => profitableSet.has(uid));
-  const pausedAwaiting = pausedUsers.filter((uid) => awaitingSet.has(uid));
+  const pausedAwaiting = pausedUsers.filter((uid) => !profitableSet.has(uid));
 
   // ── Exchange breakdown ────────────────────────────────────────────────────
   const exchangeDrilldown: Record<string, ExchangeSegmentDrilldown> = {};
@@ -608,6 +656,7 @@ export async function computePlatformSummary(
     pausedUsers,
     stoppedUsers,
     profitableUsers,
+    newAccountUsers,
     awaitingProfitsUsers,
     noClosedTradesUsers,
     activeProfitable,
@@ -630,8 +679,9 @@ export async function computePlatformSummary(
       activeUsers: activeUsers.length,
       pausedUsers: pausedUsers.length,
       stoppedUsers: stoppedUsers.length,
-      everDeployedWithTrades: profitableUsers.length + awaitingProfitsUsers.length,
+      everDeployedInPnl,
       profitableUsers: profitableUsers.length,
+      newAccountUsers: newAccountUsers.length,
       awaitingProfitsUsers: awaitingProfitsUsers.length,
       noClosedTradesUsers: noClosedTradesUsers.length,
       activeProfitable: activeProfitable.length,

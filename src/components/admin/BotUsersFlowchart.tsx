@@ -15,6 +15,7 @@ export type BotUsersSegmentFilter =
   | "paused_users"
   | "stopped_users"
   | "profitable"
+  | "new_account"
   | "awaiting_profits"
   | "no_closed_trades"
   | "active_profitable"
@@ -42,8 +43,9 @@ export interface FlowchartMetrics {
   activeUsers: number;
   pausedUsers: number;
   stoppedUsers: number;
-  everDeployedWithTrades: number;
+  everDeployedInPnl: number;
   profitableUsers: number;
+  newAccountUsers: number;
   awaitingProfitsUsers: number;
   noClosedTradesUsers: number;
   activeProfitable: number;
@@ -66,14 +68,15 @@ const EXCHANGE_LABELS: Record<string, string> = {
 };
 
 const LIFECYCLE_COLORS = {
-  never_deployed: "#34d399",
-  churned: "#fbbf24",
-  has_bot_now: "#f43f5e",
+  never_deployed: "#fbbf24",
+  churned: "#f43f5e",
+  has_bot_now: "#34d399",
 } as const;
 
 const PNL_COLORS = {
   profitable: "#34d399",
-  awaiting: "#fb923c",
+  new_account: "#71717a",
+  awaiting: "#f43f5e",
 } as const;
 
 type DonutSlice = {
@@ -387,6 +390,12 @@ export function BotUsersFlowchart({
       color: PNL_COLORS.profitable,
     },
     {
+      key: "new_account",
+      name: "New account",
+      value: metrics?.newAccountUsers ?? 0,
+      color: PNL_COLORS.new_account,
+    },
+    {
       key: "awaiting_profits",
       name: "Awaiting profits",
       value: metrics?.awaitingProfitsUsers ?? 0,
@@ -439,43 +448,15 @@ export function BotUsersFlowchart({
           />
         </Panel>
 
-        <Panel title="PnL — closed production trades">
-          <div className="flex flex-col gap-3">
-            <MiniDonut
-              slices={pnlSlices}
-              centerLabel="Ever traded"
-              centerValue={v(metrics?.everDeployedWithTrades)}
-              loading={loading}
-              activeKey={segmentFilter}
-              onSliceClick={toggle}
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <SegmentButton
-                active={segmentFilter === "active_awaiting_over_30d"}
-                onClick={() => toggle("active_awaiting_over_30d")}
-                className="px-3 py-2 bg-orange-500/[0.08] border-orange-500/20"
-              >
-                <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 block">
-                  Active &gt;30d awaiting
-                </span>
-                <span className="text-lg font-black font-mono text-orange-300">
-                  {v(metrics?.activeAwaitingOver30Days)}
-                </span>
-              </SegmentButton>
-              <SegmentButton
-                active={segmentFilter === "no_closed_trades"}
-                onClick={() => toggle("no_closed_trades")}
-                className="px-3 py-2 bg-white/[0.03]"
-              >
-                <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 block">
-                  No closed trades
-                </span>
-                <span className="text-lg font-black font-mono text-white">
-                  {v(metrics?.noClosedTradesUsers)}
-                </span>
-              </SegmentButton>
-            </div>
-          </div>
+        <Panel title="PnL — ever deployed">
+          <MiniDonut
+            slices={pnlSlices}
+            centerLabel="Ever deployed"
+            centerValue={v(metrics?.everDeployedInPnl)}
+            loading={loading}
+            activeKey={segmentFilter}
+            onSliceClick={toggle}
+          />
         </Panel>
       </div>
 

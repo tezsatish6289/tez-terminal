@@ -73,6 +73,12 @@ const LIFECYCLE_COLORS = {
   has_bot_now: "#34d399",
 } as const;
 
+const ACTIVITY_COLORS = {
+  active: "#34d399",
+  paused: "#fbbf24",
+  stopped: "#71717a",
+} as const;
+
 const PNL_COLORS = {
   profitable: "#34d399",
   new_account: "#71717a",
@@ -267,54 +273,6 @@ function MiniDonut({
   );
 }
 
-function ActivityBars({
-  items,
-  loading,
-  activeKey,
-  onItemClick,
-  tall,
-}: {
-  items: { key: BotUsersSegmentFilter; label: string; value: number; color: string }[];
-  loading: boolean;
-  activeKey: BotUsersSegmentFilter;
-  onItemClick: (key: BotUsersSegmentFilter) => void;
-  tall?: boolean;
-}) {
-  const max = Math.max(...items.map((i) => i.value), 1);
-
-  return (
-    <div className={cn("flex flex-col justify-between", tall ? "gap-5 min-h-[240px] py-1" : "space-y-3")}>
-      {items.map((item) => (
-        <SegmentButton
-          key={item.key}
-          active={activeKey === item.key}
-          onClick={() => onItemClick(item.key)}
-          className={cn("w-full bg-white/[0.02]", tall ? "p-3.5 flex-1" : "p-2.5")}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
-              {item.label}
-            </span>
-            <span className="text-lg font-black font-mono" style={{ color: item.color }}>
-              {loading ? "…" : item.value}
-            </span>
-          </div>
-          <div className={cn("rounded-full bg-white/[0.04] overflow-hidden", tall ? "h-2.5" : "h-2")}>
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${(item.value / max) * 100}%`,
-                backgroundColor: item.color,
-                opacity: item.value === 0 ? 0.25 : 1,
-              }}
-            />
-          </div>
-        </SegmentButton>
-      ))}
-    </div>
-  );
-}
-
 function ExchangePanelContent({
   exchanges,
   totalCapital,
@@ -351,7 +309,7 @@ function ExchangePanelContent({
               <div className="text-xs font-black uppercase tracking-wide text-white mb-2">
                 {EXCHANGE_LABELS[ex.exchange] ?? ex.exchange}
               </div>
-              <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[9px]">
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[9px]">
                 <div>
                   <span className="text-muted-foreground/50">Users </span>
                   <span className="font-mono font-bold text-white">{v(ex.usersWithDeployment)}</span>
@@ -365,8 +323,13 @@ function ExchangePanelContent({
                   <span className="font-mono font-bold text-amber-400">{v(ex.pausedDeployments)}</span>
                 </div>
                 <div>
+                  <span className="text-muted-foreground/50">Profitable </span>
+                  <span className="font-mono font-bold text-emerald-400">{v(ex.profitableUsers)}</span>
+                </div>
+                <div className="col-span-2">
                   <span className="text-muted-foreground/50">Awaiting </span>
                   <span className="font-mono font-bold text-rose-400">{v(ex.awaitingUsers)}</span>
+                  <span className="text-muted-foreground/35 ml-1">· active &gt;30d · in loss</span>
                 </div>
               </div>
             </SegmentButton>
@@ -539,6 +502,27 @@ export function BotUsersFlowchart({
     },
   ];
 
+  const activitySlices: DonutSlice[] = [
+    {
+      key: "active_users",
+      name: "Active",
+      value: metrics?.activeUsers ?? 0,
+      color: ACTIVITY_COLORS.active,
+    },
+    {
+      key: "paused_users",
+      name: "Paused",
+      value: metrics?.pausedUsers ?? 0,
+      color: ACTIVITY_COLORS.paused,
+    },
+    {
+      key: "stopped_users",
+      name: "Stopped",
+      value: metrics?.stoppedUsers ?? 0,
+      color: ACTIVITY_COLORS.stopped,
+    },
+  ];
+
   const pnlSlices: DonutSlice[] = [
     {
       key: "profitable",
@@ -580,31 +564,15 @@ export function BotUsersFlowchart({
         </Panel>
 
         <Panel title="Activity — can overlap">
-          <ActivityBars
+          <MiniDonut
+            slices={activitySlices}
+            centerLabel="Has bot"
+            centerValue={v(metrics?.hasBotNow)}
             loading={loading}
             activeKey={segmentFilter}
-            onItemClick={toggle}
-            tall
-            items={[
-              {
-                key: "active_users",
-                label: "Active",
-                value: metrics?.activeUsers ?? 0,
-                color: "#34d399",
-              },
-              {
-                key: "paused_users",
-                label: "Paused",
-                value: metrics?.pausedUsers ?? 0,
-                color: "#fbbf24",
-              },
-              {
-                key: "stopped_users",
-                label: "Stopped",
-                value: metrics?.stoppedUsers ?? 0,
-                color: "#71717a",
-              },
-            ]}
+            onSliceClick={toggle}
+            layout="vertical"
+            size="lg"
           />
         </Panel>
 

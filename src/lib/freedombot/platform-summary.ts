@@ -222,9 +222,13 @@ function userHasActiveOverDays(
   uid: string,
   scopedDeps: DepRow[],
   minDays: number,
+  exchange?: string,
 ): boolean {
   const activeDeps = scopedDeps.filter(
-    (d) => d.uid === uid && isActiveDeployment(d.status),
+    (d) =>
+      d.uid === uid &&
+      isActiveDeployment(d.status) &&
+      (!exchange || d.exchange === exchange),
   );
   return maxConsecutiveActiveDays(activeDeps) > minDays;
 }
@@ -625,8 +629,14 @@ export async function computePlatformSummary(
     const awaitingUserIds: string[] = [];
     for (const uid of userIds) {
       const exPnl = userExchangePnlUsdt.get(pairKey(uid, exchange)) ?? 0;
-      if (exPnl > 0) profitableUserIds.push(uid);
-      else if (exPnl < 0) awaitingUserIds.push(uid);
+      if (exPnl > 0) {
+        profitableUserIds.push(uid);
+      } else if (
+        exPnl < 0 &&
+        userHasActiveOverDays(uid, scopedDeps, ACTIVE_AWAITING_MIN_DAYS, exchange)
+      ) {
+        awaitingUserIds.push(uid);
+      }
     }
 
     exchangeDrilldown[exchange] = {

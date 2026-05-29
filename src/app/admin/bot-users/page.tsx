@@ -42,6 +42,7 @@ import {
   type BotUsersSegmentFilter,
   type FlowchartMetrics,
 } from "@/components/admin/BotUsersFlowchart";
+import { formatUsdtHeadline } from "@/components/admin/AdminStatCard";
 import {
   computeMirroringStatus,
   mirroringStatusColorClass,
@@ -99,12 +100,27 @@ interface PlatformSegments {
   >;
 }
 
+interface UserDrilldownRow {
+  userId: string;
+  firstBotDate: string | null;
+  runningDays: number;
+  runningBots: number;
+  pausedBots: number;
+  exchangeCount: number;
+  capitalUsdt: number;
+  totalTrades: number;
+  netPnlUsdt: number;
+}
+
+interface UserSegmentRow extends AccountRow, Omit<UserDrilldownRow, "userId"> {}
+
 interface PlatformSummary {
   metrics: FlowchartMetrics;
   segments: PlatformSegments;
   userIdsActive: string[];
   userIdsStoppedOnly: string[];
   accountsNoBot: AccountRow[];
+  userDrilldown: Record<string, UserDrilldownRow>;
   rates: { source: string; fetchedAt: string; inrPerUsdt: number };
 }
 
@@ -220,6 +236,7 @@ export default function AdminBotUsersPage() {
         userIdsActive: data.userIdsActive ?? [],
         userIdsStoppedOnly: data.userIdsStoppedOnly ?? [],
         accountsNoBot: data.accountsNoBot ?? [],
+        userDrilldown: data.userDrilldown ?? {},
         rates: data.rates,
       });
     } catch (e: unknown) {
@@ -422,6 +439,66 @@ export default function AdminBotUsersPage() {
         a.userId.toLowerCase().includes(q),
     );
   }, [summary?.segments, segmentFilter, segmentUserSet, search]);
+
+  const segmentUserRows = useMemo((): UserSegmentRow[] => {
+    const drill = summary?.userDrilldown ?? {};
+    return segmentUserAccounts.map((a) => {
+      const d = drill[a.userId];
+      if (d) {
+        return {
+          userId: a.userId,
+          email: a.email,
+          displayName: a.displayName,
+          firstBotDate: d.firstBotDate,
+          runningDays: d.runningDays,
+          runningBots: d.runningBots,
+          pausedBots: d.pausedBots,
+          exchangeCount: d.exchangeCount,
+          capitalUsdt: d.capitalUsdt,
+          totalTrades: d.totalTrades,
+          netPnlUsdt: d.netPnlUsdt,
+        };
+      }
+      const userDeps = deployments.filter((dep) => dep.userId === a.userId);
+      const activeDeps = userDeps.filter((dep) => dep.running);
+      const exchanges = new Set(userDeps.map((dep) => dep.exchange));
+      const seenWallet = new Set<string>();
+      let capital = 0;
+      for (const dep of activeDeps) {
+        const key = `${dep.userId}::${dep.exchange}`;
+        if (seenWallet.has(key)) continue;
+        if (dep.wallet?.status === "valid" && dep.wallet.total != null) {
+          seenWallet.add(key);
+          capital += dep.wallet.total;
+        }
+      }
+      let firstBotDate: string | null = null;
+      for (const dep of userDeps) {
+        if (dep.firstDeployedAt && (!firstBotDate || dep.firstDeployedAt < firstBotDate)) {
+          firstBotDate = dep.firstDeployedAt;
+        }
+      }
+      let runningDays = 0;
+      for (const dep of activeDeps) {
+        runningDays = Math.max(runningDays, runningDaysFromFirstDeploy(dep.firstDeployedAt));
+      }
+      const netPnl = userDeps.reduce((sum, dep) => sum + (dep.lifetimeRealizedPnl ?? 0), 0);
+      const totalTrades = userDeps.reduce((sum, dep) => sum + (dep.closedTradeCount ?? 0), 0);
+      return {
+        userId: a.userId,
+        email: a.email,
+        displayName: a.displayName,
+        firstBotDate,
+        runningDays,
+        runningBots: activeDeps.length,
+        pausedBots: userDeps.filter((dep) => dep.deploymentStatus === "paused").length,
+        exchangeCount: exchanges.size,
+        capitalUsdt: Math.round(capital * 100) / 100,
+        totalTrades,
+        netPnlUsdt: Math.round(netPnl * 100) / 100,
+      };
+    });
+  }, [segmentUserAccounts, summary?.userDrilldown, deployments]);
 
   const showUserTable = useMemo(() => {
     if (!segmentFilter) return false;
@@ -773,26 +850,82 @@ export default function AdminBotUsersPage() {
                     Users in segment
                     {segmentFilter ? ` · ${segmentFilter.replace(/_/g, " ")}` : ""}
                   </div>
-                  {segmentUserAccounts.length === 0 ? (
+                  {segmentUserRows.length === 0 ? (
                     <div className="flex flex-col items-center gap-4 py-16 opacity-40">
                       <Bot className="h-12 w-12 text-muted-foreground" />
                       <p className="text-xs font-bold uppercase tracking-widest text-white">No users</p>
                     </div>
                   ) : (
-                    segmentUserAccounts.map((a) => (
-                      <div
-                        key={a.userId}
-                        className="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.04] last:border-0"
-                      >
-                        <div className="min-w-0">
-                          <div className="text-sm font-bold text-white truncate">
-                            {a.displayName || "—"}
-                          </div>
-                          <div className="text-[11px] text-muted-foreground truncate">{a.email ?? "—"}</div>
-                          <div className="text-[10px] font-mono text-muted-foreground/50 truncate">{a.userId}</div>
+                    <div className="overflow-x-auto">
+                      <div className="min-w-[1048px]">
+                        <div className="grid grid-cols-[minmax(160px,1.4fr)_100px_88px_72px_72px_88px_100px_88px_100px] gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-black uppercase tracking-wider text-muted-foreground/50">
+                          <span>User</span>
+                          <span>First bot</span>
+                          <span className="text-right">Running days</span>
+                          <span className="text-right">Running</span>
+                          <span className="text-right">Paused</span>
+                          <span className="text-right">Exchanges</span>
+                          <span className="text-right">Capital</span>
+                          <span className="text-right">Total trades</span>
+                          <span className="text-right">Lifetime PnL</span>
                         </div>
+                        {segmentUserRows.map((row) => {
+                          const pnlColor =
+                            row.netPnlUsdt > 0
+                              ? "text-emerald-400"
+                              : row.netPnlUsdt < 0
+                                ? "text-rose-400"
+                                : "text-muted-foreground";
+                          return (
+                            <div
+                              key={row.userId}
+                              className="grid grid-cols-[minmax(160px,1.4fr)_100px_88px_72px_72px_88px_100px_88px_100px] gap-2 px-4 py-3.5 border-b border-white/[0.04] last:border-0 items-center hover:bg-white/[0.02]"
+                            >
+                              <div className="min-w-0">
+                                <div className="text-sm font-bold text-white truncate">
+                                  {row.displayName || "—"}
+                                </div>
+                                <div className="text-[11px] text-muted-foreground truncate">
+                                  {row.email ?? "—"}
+                                </div>
+                                <div className="text-[10px] font-mono text-muted-foreground/50 truncate">
+                                  {row.userId}
+                                </div>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {row.firstBotDate
+                                  ? format(new Date(row.firstBotDate), "MMM d, yyyy")
+                                  : "—"}
+                              </div>
+                              <div className="text-right font-mono text-sm text-white">
+                                {row.runningDays > 0 ? row.runningDays : "—"}
+                              </div>
+                              <div className="text-right font-mono text-sm text-emerald-400">
+                                {row.runningBots}
+                              </div>
+                              <div className="text-right font-mono text-sm text-amber-400">
+                                {row.pausedBots}
+                              </div>
+                              <div className="text-right font-mono text-sm text-white">
+                                {row.exchangeCount}
+                              </div>
+                              <div className="text-right font-mono text-sm text-sky-400">
+                                {row.capitalUsdt > 0
+                                  ? formatUsdtHeadline(row.capitalUsdt)
+                                  : "—"}
+                              </div>
+                              <div className="text-right font-mono text-sm text-white">
+                                {row.totalTrades > 0 ? row.totalTrades.toLocaleString() : "—"}
+                              </div>
+                              <div className={cn("text-right font-mono text-sm font-bold", pnlColor)}>
+                                {row.netPnlUsdt >= 0 ? "+" : ""}
+                                {row.netPnlUsdt.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    ))
+                    </div>
                   )}
                 </>
               ) : (

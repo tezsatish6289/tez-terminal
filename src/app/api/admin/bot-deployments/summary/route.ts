@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
       userIdsActive: summary.userIdsActive,
       userIdsStoppedOnly: summary.userIdsStoppedOnly,
       accountsNoBot: summary.accountsNoBot,
+      userDrilldown: summary.userDrilldown,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Unexpected error";

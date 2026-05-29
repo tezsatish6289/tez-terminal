@@ -121,6 +121,19 @@ export interface UserBotScopeEntry {
   exchanges: string[];
 }
 
+export interface UserDrilldownRow {
+  userId: string;
+  firstBotDate: string | null;
+  /** Max consecutive active days across any running bot. */
+  runningDays: number;
+  runningBots: number;
+  pausedBots: number;
+  exchangeCount: number;
+  capitalUsdt: number;
+  totalTrades: number;
+  netPnlUsdt: number;
+}
+
 export interface PlatformSummaryResult {
   period: PlatformSummaryPeriod;
   bot: string | null;
@@ -137,6 +150,7 @@ export interface PlatformSummaryResult {
     string,
     { profitNative: number; profitCurrency: string; volumeNative: number }
   >;
+  userDrilldown: Record<string, UserDrilldownRow>;
 }
 
 type DepRow = {
@@ -259,6 +273,68 @@ function daysSinceFirstDeploy(
   return daysSinceIso(earliest);
 }
 
+function earliestFirstBotDate(
+  u: UserDocRow,
+  deps: DepRow[],
+  botFilter: string | null,
+): string | null {
+  let earliest: string | null = null;
+  const first = u.freedombotFirstBot;
+  if (first?.deployedAt) {
+    if (!botFilter || String(first.bot ?? "").toUpperCase() === botFilter) {
+      earliest = first.deployedAt;
+    }
+  }
+  for (const d of deps) {
+    if (d.createdAt && (!earliest || d.createdAt < earliest)) earliest = d.createdAt;
+  }
+  return earliest;
+}
+
+function buildUserDrilldownMap(
+  allUsers: UserDocRow[],
+  scopedDeps: DepRow[],
+  userNetPnlUsdt: Map<string, number>,
+  userClosedTradeCount: Map<string, number>,
+  rates: UsdtRatesSnapshot,
+  botFilter: string | null,
+): Record<string, UserDrilldownRow> {
+  const depsByUid = new Map<string, DepRow[]>();
+  for (const dep of scopedDeps) {
+    const list = depsByUid.get(dep.uid) ?? [];
+    list.push(dep);
+    depsByUid.set(dep.uid, list);
+  }
+
+  const out: Record<string, UserDrilldownRow> = {};
+  for (const u of allUsers) {
+    const deps = depsByUid.get(u.uid) ?? [];
+    const activeDeps = deps.filter((d) => isActiveDeployment(d.status));
+    const seenWallet = new Set<string>();
+    let capital = 0;
+    for (const d of activeDeps) {
+      if (String(d.walletStatus).toLowerCase() !== "valid" || d.walletTotal == null) continue;
+      const wk = pairKey(d.uid, d.exchange);
+      if (seenWallet.has(wk)) continue;
+      seenWallet.add(wk);
+      capital += convertToUsdt(d.walletTotal, d.walletCurrency ?? "USDT", rates);
+    }
+
+    out[u.uid] = {
+      userId: u.uid,
+      firstBotDate: earliestFirstBotDate(u, deps, botFilter),
+      runningDays: maxConsecutiveActiveDays(activeDeps),
+      runningBots: activeDeps.length,
+      pausedBots: deps.filter((d) => isPausedDeployment(d.status)).length,
+      exchangeCount: new Set(deps.map((d) => d.exchange)).size,
+      capitalUsdt: roundUsdt(capital),
+      totalTrades: userClosedTradeCount.get(u.uid) ?? 0,
+      netPnlUsdt: roundUsdt(userNetPnlUsdt.get(u.uid) ?? 0),
+    };
+  }
+  return out;
+}
+
 function accountFromUser(u: UserDocRow): AccountRow {
   return { userId: u.uid, email: u.email, displayName: u.displayName };
 }
@@ -281,6 +357,7 @@ interface TradeScanResult {
   pairVolume: Map<string, number>;
   userNetPnlUsdt: Map<string, number>;
   userExchangePnlUsdt: Map<string, number>;
+  userClosedTradeCount: Map<string, number>;
   usersWithClosedTrades: Set<string>;
 }
 
@@ -296,6 +373,7 @@ async function scanClosedTrades(
   const pairVolume = new Map<string, number>();
   const userNetPnlUsdt = new Map<string, number>();
   const userExchangePnlUsdt = new Map<string, number>();
+  const userClosedTradeCount = new Map<string, number>();
   const usersWithClosedTrades = new Set<string>();
 
   let lastDoc: FirebaseFirestore.QueryDocumentSnapshot | null = null;
@@ -321,6 +399,7 @@ async function scanClosedTrades(
       if (botFilter && !tradeMatchesDeployBot(t, botFilter)) continue;
 
       usersWithClosedTrades.add(uid);
+      userClosedTradeCount.set(uid, (userClosedTradeCount.get(uid) ?? 0) + 1);
 
       const size = typeof t.positionSize === "number" ? t.positionSize : 0;
       const key = pairKey(uid, exchange);
@@ -355,6 +434,7 @@ async function scanClosedTrades(
     pairVolume,
     userNetPnlUsdt,
     userExchangePnlUsdt,
+    userClosedTradeCount,
     usersWithClosedTrades,
   };
 }
@@ -364,9 +444,16 @@ function seedProfitFromDeployments(
   pairProfit: Map<string, { amount: number; currency: string }>,
   userNetPnlUsdt: Map<string, number>,
   userExchangePnlUsdt: Map<string, number>,
+  userClosedTradeCount: Map<string, number>,
   rates: UsdtRatesSnapshot,
 ): void {
   for (const dep of scopedDeps) {
+    if (typeof dep.closedTradeCount === "number" && dep.closedTradeCount > 0) {
+      userClosedTradeCount.set(
+        dep.uid,
+        (userClosedTradeCount.get(dep.uid) ?? 0) + dep.closedTradeCount,
+      );
+    }
     if (typeof dep.lifetimeRealizedPnl !== "number") continue;
     const key = pairKey(dep.uid, dep.exchange);
     if (!pairProfit.has(key)) {
@@ -480,6 +567,7 @@ export async function computePlatformSummary(
       pairVolume: new Map(),
       userNetPnlUsdt: new Map(),
       userExchangePnlUsdt: new Map(),
+      userClosedTradeCount: new Map(),
       usersWithClosedTrades: new Set(),
     };
     seedProfitFromDeployments(
@@ -487,6 +575,7 @@ export async function computePlatformSummary(
       tradeScan.pairProfit,
       tradeScan.userNetPnlUsdt,
       tradeScan.userExchangePnlUsdt,
+      tradeScan.userClosedTradeCount,
       rates,
     );
     for (const uid of tradeScan.userNetPnlUsdt.keys()) {
@@ -494,7 +583,7 @@ export async function computePlatformSummary(
     }
   }
 
-  const { pairProfit, pairVolume, userNetPnlUsdt, userExchangePnlUsdt, usersWithClosedTrades } =
+  const { pairProfit, pairVolume, userNetPnlUsdt, userExchangePnlUsdt, userClosedTradeCount, usersWithClosedTrades } =
     tradeScan;
 
   const allowedPairs = new Set(scopedDeps.map((d) => pairKey(d.uid, d.exchange)));
@@ -663,6 +752,14 @@ export async function computePlatformSummary(
   const userIdsStoppedOnly = userIdsAll.filter((uid) => !activeSet.has(uid));
   const accountsNoBot = [...neverDeployed, ...churned];
   const activeDeployments = scopedDeps.filter((d) => isActiveDeployment(d.status)).length;
+  const userDrilldown = buildUserDrilldownMap(
+    allUsers,
+    scopedDeps,
+    userNetPnlUsdt,
+    userClosedTradeCount,
+    rates,
+    botFilter,
+  );
 
   const segments: PlatformSegments = {
     neverDeployed,
@@ -722,5 +819,6 @@ export async function computePlatformSummary(
     accountsNoBot,
     userBotScope,
     pairTotals,
+    userDrilldown,
   };
 }

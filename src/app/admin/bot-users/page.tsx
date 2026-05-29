@@ -42,7 +42,7 @@ import {
   type BotUsersSegmentFilter,
   type FlowchartMetrics,
 } from "@/components/admin/BotUsersFlowchart";
-import { formatUsdtHeadline } from "@/components/admin/AdminStatCard";
+import { SegmentUserTable } from "@/components/admin/SegmentUserTable";
 import {
   computeMirroringStatus,
   mirroringStatusColorClass,
@@ -850,83 +850,14 @@ export default function AdminBotUsersPage() {
                     Users in segment
                     {segmentFilter ? ` · ${segmentFilter.replace(/_/g, " ")}` : ""}
                   </div>
-                  {segmentUserRows.length === 0 ? (
-                    <div className="flex flex-col items-center gap-4 py-16 opacity-40">
-                      <Bot className="h-12 w-12 text-muted-foreground" />
-                      <p className="text-xs font-bold uppercase tracking-widest text-white">No users</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <div className="min-w-[1048px]">
-                        <div className="grid grid-cols-[minmax(160px,1.4fr)_100px_88px_72px_72px_88px_100px_88px_100px] gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-black uppercase tracking-wider text-muted-foreground/50">
-                          <span>User</span>
-                          <span>First bot</span>
-                          <span className="text-right">Running days</span>
-                          <span className="text-right">Running</span>
-                          <span className="text-right">Paused</span>
-                          <span className="text-right">Exchanges</span>
-                          <span className="text-right">Capital</span>
-                          <span className="text-right">Total trades</span>
-                          <span className="text-right">Lifetime PnL</span>
-                        </div>
-                        {segmentUserRows.map((row) => {
-                          const pnlColor =
-                            row.netPnlUsdt > 0
-                              ? "text-emerald-400"
-                              : row.netPnlUsdt < 0
-                                ? "text-rose-400"
-                                : "text-muted-foreground";
-                          return (
-                            <div
-                              key={row.userId}
-                              className="grid grid-cols-[minmax(160px,1.4fr)_100px_88px_72px_72px_88px_100px_88px_100px] gap-2 px-4 py-3.5 border-b border-white/[0.04] last:border-0 items-center hover:bg-white/[0.02]"
-                            >
-                              <div className="min-w-0">
-                                <div className="text-sm font-bold text-white truncate">
-                                  {row.displayName || "—"}
-                                </div>
-                                <div className="text-[11px] text-muted-foreground truncate">
-                                  {row.email ?? "—"}
-                                </div>
-                                <div className="text-[10px] font-mono text-muted-foreground/50 truncate">
-                                  {row.userId}
-                                </div>
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {row.firstBotDate
-                                  ? format(new Date(row.firstBotDate), "MMM d, yyyy")
-                                  : "—"}
-                              </div>
-                              <div className="text-right font-mono text-sm text-white">
-                                {row.runningDays > 0 ? row.runningDays : "—"}
-                              </div>
-                              <div className="text-right font-mono text-sm text-emerald-400">
-                                {row.runningBots}
-                              </div>
-                              <div className="text-right font-mono text-sm text-amber-400">
-                                {row.pausedBots}
-                              </div>
-                              <div className="text-right font-mono text-sm text-white">
-                                {row.exchangeCount}
-                              </div>
-                              <div className="text-right font-mono text-sm text-sky-400">
-                                {row.capitalUsdt > 0
-                                  ? formatUsdtHeadline(row.capitalUsdt)
-                                  : "—"}
-                              </div>
-                              <div className="text-right font-mono text-sm text-white">
-                                {row.totalTrades > 0 ? row.totalTrades.toLocaleString() : "—"}
-                              </div>
-                              <div className={cn("text-right font-mono text-sm font-bold", pnlColor)}>
-                                {row.netPnlUsdt >= 0 ? "+" : ""}
-                                {row.netPnlUsdt.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                  {user ? (
+                    <SegmentUserTable
+                      rows={segmentUserRows}
+                      deployments={deployments}
+                      segmentLabel={segmentFilter ?? undefined}
+                      user={user}
+                    />
+                  ) : null}
                 </>
               ) : (
                 <>

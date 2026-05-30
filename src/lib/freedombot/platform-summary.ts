@@ -291,11 +291,77 @@ function earliestFirstBotDate(
   return earliest;
 }
 
+/** Per-user P&L and trade counts rolled up from deployment aggregates (Σ bot-scoped trades). */
+interface DeploymentPnlRollup {
+  userNetPnlUsdt: Map<string, number>;
+  userExchangePnlUsdt: Map<string, number>;
+  userClosedTradeCount: Map<string, number>;
+  usersWithClosedTrades: Set<string>;
+  /** uid::exchange profit for platform pairTotals (native currency when uniform per pair). */
+  pairProfit: Map<string, { amount: number; currency: string }>;
+}
+
+function pnlCurrencyForDep(dep: DepRow): string {
+  return dep.walletCurrency?.toUpperCase() === "INR" ? "INR" : "USDT";
+}
+
+function rollupPnlFromDeployments(
+  scopedDeps: DepRow[],
+  rates: UsdtRatesSnapshot,
+): DeploymentPnlRollup {
+  const userNetPnlUsdt = new Map<string, number>();
+  const userExchangePnlUsdt = new Map<string, number>();
+  const userClosedTradeCount = new Map<string, number>();
+  const usersWithClosedTrades = new Set<string>();
+  const pairProfit = new Map<string, { amount: number; currency: string }>();
+
+  for (const dep of scopedDeps) {
+    const pnl =
+      typeof dep.lifetimeRealizedPnl === "number" ? dep.lifetimeRealizedPnl : 0;
+    const trades =
+      typeof dep.closedTradeCount === "number" ? dep.closedTradeCount : 0;
+    const currency = pnlCurrencyForDep(dep);
+    const pnlUsdt = convertToUsdt(pnl, currency, rates);
+    const key = pairKey(dep.uid, dep.exchange);
+
+    userNetPnlUsdt.set(dep.uid, (userNetPnlUsdt.get(dep.uid) ?? 0) + pnlUsdt);
+    userExchangePnlUsdt.set(key, (userExchangePnlUsdt.get(key) ?? 0) + pnlUsdt);
+
+    if (trades > 0) {
+      userClosedTradeCount.set(
+        dep.uid,
+        (userClosedTradeCount.get(dep.uid) ?? 0) + trades,
+      );
+      usersWithClosedTrades.add(dep.uid);
+    }
+
+    if (pnl === 0 && trades === 0) continue;
+
+    const cur = pairProfit.get(key);
+    if (!cur) {
+      pairProfit.set(key, { amount: pnl, currency });
+    } else if (cur.currency === currency) {
+      cur.amount += pnl;
+    } else {
+      const mergedUsdt =
+        convertToUsdt(cur.amount, cur.currency, rates) + pnlUsdt;
+      pairProfit.set(key, { amount: mergedUsdt, currency: "USDT" });
+    }
+  }
+
+  return {
+    userNetPnlUsdt,
+    userExchangePnlUsdt,
+    userClosedTradeCount,
+    usersWithClosedTrades,
+    pairProfit,
+  };
+}
+
 function buildUserDrilldownMap(
   allUsers: UserDocRow[],
   scopedDeps: DepRow[],
-  userNetPnlUsdt: Map<string, number>,
-  userClosedTradeCount: Map<string, number>,
+  rollup: DeploymentPnlRollup,
   rates: UsdtRatesSnapshot,
   botFilter: string | null,
 ): Record<string, UserDrilldownRow> {
@@ -328,8 +394,8 @@ function buildUserDrilldownMap(
       pausedBots: deps.filter((d) => isPausedDeployment(d.status)).length,
       exchangeCount: new Set(deps.map((d) => d.exchange)).size,
       capitalUsdt: roundUsdt(capital),
-      totalTrades: userClosedTradeCount.get(u.uid) ?? 0,
-      netPnlUsdt: roundUsdt(userNetPnlUsdt.get(u.uid) ?? 0),
+      totalTrades: rollup.userClosedTradeCount.get(u.uid) ?? 0,
+      netPnlUsdt: roundUsdt(rollup.userNetPnlUsdt.get(u.uid) ?? 0),
     };
   }
   return out;
@@ -439,39 +505,6 @@ async function scanClosedTrades(
   };
 }
 
-function seedProfitFromDeployments(
-  scopedDeps: DepRow[],
-  pairProfit: Map<string, { amount: number; currency: string }>,
-  userNetPnlUsdt: Map<string, number>,
-  userExchangePnlUsdt: Map<string, number>,
-  userClosedTradeCount: Map<string, number>,
-  rates: UsdtRatesSnapshot,
-): void {
-  for (const dep of scopedDeps) {
-    if (typeof dep.closedTradeCount === "number" && dep.closedTradeCount > 0) {
-      userClosedTradeCount.set(
-        dep.uid,
-        (userClosedTradeCount.get(dep.uid) ?? 0) + dep.closedTradeCount,
-      );
-    }
-    if (typeof dep.lifetimeRealizedPnl !== "number") continue;
-    const key = pairKey(dep.uid, dep.exchange);
-    if (!pairProfit.has(key)) {
-      const currency = dep.walletCurrency?.toUpperCase() === "INR" ? "INR" : "USDT";
-      pairProfit.set(key, { amount: dep.lifetimeRealizedPnl, currency });
-      const pnlUsdt = convertToUsdt(dep.lifetimeRealizedPnl, currency, rates);
-      userNetPnlUsdt.set(
-        dep.uid,
-        (userNetPnlUsdt.get(dep.uid) ?? 0) + pnlUsdt,
-      );
-      userExchangePnlUsdt.set(
-        key,
-        (userExchangePnlUsdt.get(key) ?? 0) + pnlUsdt,
-      );
-    }
-  }
-}
-
 function sumCapitalForDeps(
   deps: DepRow[],
   rates: UsdtRatesSnapshot,
@@ -554,37 +587,31 @@ export async function computePlatformSummary(
     userBotScope[dep.uid] = entry;
   }
 
-  let tradeScan: TradeScanResult;
+  const deploymentRollup = rollupPnlFromDeployments(scopedDeps, rates);
+  const {
+    userNetPnlUsdt,
+    userExchangePnlUsdt,
+    userClosedTradeCount,
+    usersWithClosedTrades,
+    pairProfit,
+  } = deploymentRollup;
+
+  let pairVolume = new Map<string, number>();
   try {
-    tradeScan = await scanClosedTrades(db, botFilter, rates);
+    const tradeScan = await scanClosedTrades(db, botFilter, rates);
+    pairVolume = tradeScan.pairVolume;
+    // Closed-trade discovery for churned users with no deployment doc left.
+    for (const uid of tradeScan.usersWithClosedTrades) {
+      if (!usersWithClosedTrades.has(uid)) {
+        usersWithClosedTrades.add(uid);
+      }
+    }
   } catch (e) {
     console.error(
-      "[PlatformSummary] live_trades scan failed, using deployment PnL cache:",
+      "[PlatformSummary] live_trades volume scan failed:",
       e instanceof Error ? e.message : e,
     );
-    tradeScan = {
-      pairProfit: new Map(),
-      pairVolume: new Map(),
-      userNetPnlUsdt: new Map(),
-      userExchangePnlUsdt: new Map(),
-      userClosedTradeCount: new Map(),
-      usersWithClosedTrades: new Set(),
-    };
-    seedProfitFromDeployments(
-      scopedDeps,
-      tradeScan.pairProfit,
-      tradeScan.userNetPnlUsdt,
-      tradeScan.userExchangePnlUsdt,
-      tradeScan.userClosedTradeCount,
-      rates,
-    );
-    for (const uid of tradeScan.userNetPnlUsdt.keys()) {
-      tradeScan.usersWithClosedTrades.add(uid);
-    }
   }
-
-  const { pairProfit, pairVolume, userNetPnlUsdt, userExchangePnlUsdt, userClosedTradeCount, usersWithClosedTrades } =
-    tradeScan;
 
   const allowedPairs = new Set(scopedDeps.map((d) => pairKey(d.uid, d.exchange)));
 
@@ -755,8 +782,7 @@ export async function computePlatformSummary(
   const userDrilldown = buildUserDrilldownMap(
     allUsers,
     scopedDeps,
-    userNetPnlUsdt,
-    userClosedTradeCount,
+    deploymentRollup,
     rates,
     botFilter,
   );

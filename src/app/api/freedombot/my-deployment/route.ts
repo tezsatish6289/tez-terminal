@@ -5,7 +5,7 @@ import {
   defaultTradingPrefsForBot,
 } from "@/lib/freedombot/deployment-cap";
 import { getDeploymentAggregates } from "@/lib/freedombot/aggregates";
-import { sumLifetimeRealizedPnlForUser, listUserTradeExchanges } from "@/lib/freedombot/sum-lifetime-realized-pnl";
+import { listUserTradeExchanges } from "@/lib/freedombot/sum-lifetime-realized-pnl";
 
 export const dynamic = "force-dynamic";
 
@@ -173,18 +173,19 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    let lifetimeRealizedPnl = 0;
+    // User lifetime P&L = Σ per-deployment bot-scoped aggregates (matches bot cards).
+    let lifetimeRealizedPnl = deployments.reduce(
+      (sum, d) => sum + (d.lifetimeRealizedPnl ?? 0),
+      0,
+    );
+    lifetimeRealizedPnl = Math.round(lifetimeRealizedPnl * 100) / 100;
+
     let exchanges: string[] = [];
     try {
-      lifetimeRealizedPnl = await sumLifetimeRealizedPnlForUser(db, uid);
       exchanges = await listUserTradeExchanges(db, uid);
     } catch (e) {
       console.warn(
-        `[my-deployment] lifetime P&L resolve failed: ${e instanceof Error ? e.message : String(e)}`,
-      );
-      lifetimeRealizedPnl = deployments.reduce(
-        (sum, d) => sum + (d.lifetimeRealizedPnl ?? 0),
-        0,
+        `[my-deployment] exchange list failed: ${e instanceof Error ? e.message : String(e)}`,
       );
       exchanges = [...new Set(deployments.map((d) => String(d.exchange ?? "")).filter(Boolean))].sort();
     }

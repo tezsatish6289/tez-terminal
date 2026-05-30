@@ -58,6 +58,7 @@ import {
   showsPauseRetentionModal,
   type RetentionExchangeStats,
 } from "@/lib/freedombot/retention-stats-shared";
+import { convertToUsdt, type UsdtRatesSnapshot } from "@/lib/freedombot/usdt-conversion";
 
 const EXCHANGE_LABELS: Record<string, string> = {
   BYBIT: "Bybit",
@@ -66,6 +67,24 @@ const EXCHANGE_LABELS: Record<string, string> = {
 };
 
 const ADMIN_EMAIL = "hello@tezterminal.com";
+
+function rollupUserDeploymentStats(
+  userDeps: DeploymentRow[],
+  rates: UsdtRatesSnapshot | undefined,
+): { netPnlUsdt: number; totalTrades: number } {
+  let netPnlUsdt = 0;
+  let totalTrades = 0;
+  for (const dep of userDeps) {
+    totalTrades += dep.closedTradeCount ?? 0;
+    const pnl = dep.lifetimeRealizedPnl ?? 0;
+    const currency = dep.pnlCurrency ?? "USDT";
+    netPnlUsdt += rates ? convertToUsdt(pnl, currency, rates) : pnl;
+  }
+  return {
+    netPnlUsdt: Math.round(netPnlUsdt * 100) / 100,
+    totalTrades,
+  };
+}
 
 interface AccountRow {
   userId: string;
@@ -121,7 +140,7 @@ interface PlatformSummary {
   userIdsStoppedOnly: string[];
   accountsNoBot: AccountRow[];
   userDrilldown: Record<string, UserDrilldownRow>;
-  rates: { source: string; fetchedAt: string; inrPerUsdt: number };
+  rates: UsdtRatesSnapshot;
 }
 
 /** Hover-tooltip text for the wallet column. Surfaces freshness and (for
@@ -442,8 +461,12 @@ export default function AdminBotUsersPage() {
 
   const segmentUserRows = useMemo((): UserSegmentRow[] => {
     const drill = summary?.userDrilldown ?? {};
+    const rates = summary?.rates;
     return segmentUserAccounts.map((a) => {
+      const userDeps = deployments.filter((dep) => dep.userId === a.userId);
+      const { netPnlUsdt, totalTrades } = rollupUserDeploymentStats(userDeps, rates);
       const d = drill[a.userId];
+
       if (d) {
         return {
           userId: a.userId,
@@ -455,11 +478,11 @@ export default function AdminBotUsersPage() {
           pausedBots: d.pausedBots,
           exchangeCount: d.exchangeCount,
           capitalUsdt: d.capitalUsdt,
-          totalTrades: d.totalTrades,
-          netPnlUsdt: d.netPnlUsdt,
+          totalTrades: userDeps.length > 0 ? totalTrades : d.totalTrades,
+          netPnlUsdt: userDeps.length > 0 ? netPnlUsdt : d.netPnlUsdt,
         };
       }
-      const userDeps = deployments.filter((dep) => dep.userId === a.userId);
+
       const activeDeps = userDeps.filter((dep) => dep.running);
       const exchanges = new Set(userDeps.map((dep) => dep.exchange));
       const seenWallet = new Set<string>();
@@ -482,8 +505,6 @@ export default function AdminBotUsersPage() {
       for (const dep of activeDeps) {
         runningDays = Math.max(runningDays, runningDaysFromFirstDeploy(dep.firstDeployedAt));
       }
-      const netPnl = userDeps.reduce((sum, dep) => sum + (dep.lifetimeRealizedPnl ?? 0), 0);
-      const totalTrades = userDeps.reduce((sum, dep) => sum + (dep.closedTradeCount ?? 0), 0);
       return {
         userId: a.userId,
         email: a.email,
@@ -495,10 +516,10 @@ export default function AdminBotUsersPage() {
         exchangeCount: exchanges.size,
         capitalUsdt: Math.round(capital * 100) / 100,
         totalTrades,
-        netPnlUsdt: Math.round(netPnl * 100) / 100,
+        netPnlUsdt,
       };
     });
-  }, [segmentUserAccounts, summary?.userDrilldown, deployments]);
+  }, [segmentUserAccounts, summary?.userDrilldown, summary?.rates, deployments]);
 
   const showUserTable = useMemo(() => {
     if (!segmentFilter) return false;

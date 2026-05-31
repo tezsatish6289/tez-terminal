@@ -527,17 +527,17 @@ export default function FreedomBotPage() {
             ))}
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 w-full max-w-sm sm:max-w-none mx-auto">
             <button
               onClick={openDeploy}
-              className="h-11 px-7 rounded-full font-bold text-sm text-white flex items-center gap-2 transition-all hover:scale-105"
+              className="h-12 px-7 rounded-full font-bold text-sm text-white flex items-center justify-center gap-2 transition-all hover:scale-105 w-full sm:w-auto"
               style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)", boxShadow: "0 6px 20px rgba(59,130,246,0.4)" }}
             >
-              <Rocket className="h-4 w-4" /> Start with $100 <ArrowRight className="h-4 w-4" />
+              <Rocket className="h-4 w-4" /> Deploy Bot <ArrowRight className="h-4 w-4" />
             </button>
             <Link
               href={freedombotSitePath(pathname, "/records")}
-              className="h-11 px-7 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105"
+              className="h-12 px-7 rounded-full font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-105 w-full sm:w-auto"
               style={{ border: "1px solid rgba(90,140,220,0.22)", color: "#93c5fd", backgroundColor: "rgba(37,99,235,0.05)" }}
             >
               <ArrowRight className="h-4 w-4" /> View Live Trades
@@ -620,8 +620,16 @@ export default function FreedomBotPage() {
                   <p className="text-sm font-bold text-white">{stats?.currentCapital ? `$${stats.currentCapital.toFixed(2)}` : "…"}</p>
                 </div>
               </div>
-              <Link href={freedombotSitePath(pathname, "/performance")} className="text-xs font-bold mt-auto transition-colors hover:text-blue-300" style={{ color: "#3b82f6" }}>
-                See details →
+              <Link
+                href={freedombotSitePath(pathname, "/performance")}
+                className="mt-auto w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
+                style={{
+                  background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",
+                  color: "#fff",
+                  boxShadow: "0 4px 14px rgba(59,130,246,0.25)",
+                }}
+              >
+                View Performance <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
 

@@ -93,7 +93,7 @@ function LiveBotCard({
 
   return (
     <div
-      className="rounded-2xl p-5 flex flex-col gap-4 min-w-0"
+      className="rounded-2xl p-5 flex flex-col gap-4 h-full"
       style={{ backgroundColor: "#0d1b2e", border: "1px solid rgba(90,140,220,0.2)" }}
     >
       <div className="flex items-start justify-between gap-2">
@@ -716,24 +716,37 @@ export default function FreedomBotPage() {
             </p>
           </div>
 
-          {/* ── All live bot cards ── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-            {botsLoading
-              ? CRYPTO_BOTS.map((b) => (
-                  <div
-                    key={b.id}
-                    className="rounded-2xl p-5 h-[280px] animate-pulse"
-                    style={{ backgroundColor: "#0d1b2e", border: "1px solid rgba(90,140,220,0.12)" }}
-                  />
-                ))
-              : publicBots.map((bot) => (
-                  <LiveBotCard
-                    key={bot.id}
-                    bot={bot}
-                    stat={catalogStats[bot.id] ?? null}
-                    pathname={pathname}
-                  />
-                ))}
+          {/* ── Horizontally scrollable live bot cards ── */}
+          <div className="relative -mx-4 sm:-mx-6">
+            <div
+              className="pointer-events-none absolute inset-y-0 right-0 w-14 sm:w-24 z-10"
+              style={{ background: "linear-gradient(to left, #080f1e 30%, transparent)" }}
+              aria-hidden
+            />
+            <div
+              className="flex gap-4 overflow-x-auto overscroll-x-contain snap-x snap-mandatory pl-4 sm:pl-6 pr-14 sm:pr-20 pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            >
+              {botsLoading
+                ? CRYPTO_BOTS.map((b) => (
+                    <div
+                      key={b.id}
+                      className="snap-start flex-shrink-0 w-[min(82vw,300px)] sm:w-[300px] rounded-2xl h-[280px] animate-pulse"
+                      style={{ backgroundColor: "#0d1b2e", border: "1px solid rgba(90,140,220,0.12)" }}
+                    />
+                  ))
+                : publicBots.map((bot) => (
+                    <div
+                      key={bot.id}
+                      className="snap-start flex-shrink-0 w-[min(82vw,300px)] sm:w-[300px]"
+                    >
+                      <LiveBotCard
+                        bot={bot}
+                        stat={catalogStats[bot.id] ?? null}
+                        pathname={pathname}
+                      />
+                    </div>
+                  ))}
+            </div>
           </div>
 
         </div>

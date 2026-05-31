@@ -130,6 +130,14 @@ export function isCryptoPerpDeployKey(key: string): key is DeployBotKey {
   return (CRYPTO_PERP_DEPLOY_KEYS as readonly string[]).includes(key);
 }
 
+/** Map stats / simulator bot-source filter → FreedomBot deploy key. */
+export function deployKeyFromBotSourceFilter(
+  filter: BotSourceFilter,
+): DeployBotKey | null {
+  if (filter === "ALL") return null;
+  return cryptoBotByBotSource(filter).deployKey;
+}
+
 /** Zone-bot field on secrets `zoneBotsEnabled` — null for pattern / Crypto Bot. */
 export function zoneFieldFromDeployKey(
   deployKey: string,

@@ -50,6 +50,7 @@ import type { PerformanceMetrics } from "@/lib/performance-metrics";
 import { botSourceLabel } from "@/lib/bot-source-filter";
 import { StatsSocialShareCard } from "@/components/stats/StatsSocialShareCard";
 import { RiskRatioDrilldowns } from "@/components/stats/RiskRatioDrilldowns";
+import { PlatformUserGrowthChart } from "@/components/stats/PlatformUserGrowthChart";
 import { PerformanceMetricsPanel } from "@/components/stats/PerformanceMetricsPanel";
 import {
   DASHBOARD_SECTION_INNER,
@@ -485,6 +486,10 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
         startingCapital={effectiveStartingCapital}
         assetType={assetType}
       />
+
+      {assetType === "CRYPTO" && (
+        <PlatformUserGrowthChart botSourceFilter={botSourceFilter} />
+      )}
       </div>
     </div>
   );

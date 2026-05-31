@@ -22,7 +22,9 @@ import {
   computeManualPositionSize,
   defaultSymbolForBot,
   normalizePerpSymbol,
+  requiredPerpSymbolForZoneBot,
   resolveManualRiskPct,
+  validateManualSymbolForBot,
 } from "@/lib/manual-sim-open";
 import type { ManualEntryGateResult } from "@/lib/cockpit-manual-gate";
 import type { SimulatorState } from "@/lib/simulator";
@@ -106,6 +108,7 @@ export function ManualTradeSheet({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const zoneLockedSymbol = requiredPerpSymbolForZoneBot(botId);
   const [symbol, setSymbol] = useState(defaultSymbolForBot(botId));
   const [side, setSide] = useState<"BUY" | "SELL">("BUY");
   const [entry, setEntry] = useState("");
@@ -134,6 +137,10 @@ export function ManualTradeSheet({
   }, [botId, settings, previewState, entry, sl, leverage]);
 
   useEffect(() => {
+    setSymbol(defaultSymbolForBot(botId));
+  }, [botId, open]);
+
+  useEffect(() => {
     if (!open || !isAdmin) return;
     setLoadingSettings(true);
     fetch(`/api/settings/sim-bot/${botId}`)
@@ -147,6 +154,12 @@ export function ManualTradeSheet({
 
   const handleSubmit = useCallback(async () => {
     if (!user || !isAdmin || !manualGate.allowed) return;
+    const normalizedSymbol = normalizePerpSymbol(symbol);
+    const symbolErr = validateManualSymbolForBot(botId, normalizedSymbol);
+    if (symbolErr) {
+      setError(symbolErr);
+      return;
+    }
     setError(null);
     setSubmitting(true);
     try {
@@ -270,12 +283,29 @@ export function ManualTradeSheet({
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
-          <TextInput
-            label="Symbol (Bybit perp)"
-            value={symbol}
-            onChange={setSymbol}
-            placeholder="BTCUSDT.P"
-          />
+          {zoneLockedSymbol ? (
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-foreground/80">
+                Symbol (locked to {label})
+              </label>
+              <input
+                type="text"
+                readOnly
+                value={zoneLockedSymbol}
+                className="w-full px-3 py-2 rounded-lg border border-white/[0.08] bg-white/[0.02] text-[12px] font-mono uppercase text-muted-foreground/70 cursor-not-allowed"
+              />
+              <p className="text-[9px] text-muted-foreground/45 leading-snug">
+                Zone bots only trade their native perp. Use Crypto Bot for other symbols.
+              </p>
+            </div>
+          ) : (
+            <TextInput
+              label="Symbol (Bybit perp — any)"
+              value={symbol}
+              onChange={setSymbol}
+              placeholder="BTCUSDT.P"
+            />
+          )}
 
           <div className="space-y-1">
             <span className="text-[11px] font-bold text-foreground/80">Side</span>

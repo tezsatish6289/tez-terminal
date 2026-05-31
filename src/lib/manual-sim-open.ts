@@ -128,6 +128,9 @@ export function validateManualOpenInput(input: ManualOpenTradeInput): string | n
     return "Symbol must be a Bybit perp (e.g. BTCUSDT.P)";
   }
 
+  const zoneSymbolErr = validateManualSymbolForBot(input.botId, symbol);
+  if (zoneSymbolErr) return zoneSymbolErr;
+
   const ex = input.exchange.trim().toUpperCase();
   if (ex !== "BYBIT") return "Only BYBIT is supported for manual crypto perps";
 
@@ -166,6 +169,12 @@ export function directionFromSide(side: ManualTradeSide): "BULL" | "BEAR" {
   return side === "BUY" ? "BULL" : "BEAR";
 }
 
+/** Locked perp symbol for zone-bot manual punches (BTC/ETH/SOL/XRP bots only). */
+export function requiredPerpSymbolForZoneBot(botId: CockpitBotId): string | null {
+  if (botId === "crypto") return null;
+  return defaultSymbolForBot(botId);
+}
+
 export function defaultSymbolForBot(botId: CockpitBotId): string {
   switch (botId) {
     case "btc":
@@ -179,6 +188,20 @@ export function defaultSymbolForBot(botId: CockpitBotId): string {
     default:
       return "BTCUSDT.P";
   }
+}
+
+/** Zone bots may only manual-trade their native perp; Crypto Bot is unrestricted. */
+export function validateManualSymbolForBot(
+  botId: CockpitBotId,
+  rawSymbol: string,
+): string | null {
+  const required = requiredPerpSymbolForZoneBot(botId);
+  if (!required) return null;
+  const symbol = normalizePerpSymbol(rawSymbol);
+  if (symbol !== required) {
+    return `${botId.toUpperCase()} Bot only allows ${required} (got ${symbol || "empty"})`;
+  }
+  return null;
 }
 
 export function botSourceLabel(source: string): string {

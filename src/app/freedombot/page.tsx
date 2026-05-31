@@ -23,6 +23,8 @@ import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { DeployModal } from "./components/DeployModal";
 import { freedombotDashboardBase, freedombotSitePath } from "@/lib/freedombot/dashboard-path";
 import { COUNTRIES, POPULAR_COUNTRY_CODES } from "@/lib/countries";
+import { CRYPTO_BOTS, type CryptoBotId } from "@/lib/crypto-bots";
+import type { PublicBotApiRow } from "@/hooks/use-public-bots";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -47,6 +49,125 @@ function fmt(n: number | null | undefined, suffix = "%") {
   if (n == null || !Number.isFinite(n)) return "—";
   const sign = n >= 0 ? "+" : "";
   return `${sign}${n.toFixed(2)}${suffix}`;
+}
+
+function fmtMoneyShort(n: number | null | undefined) {
+  if (n == null || !Number.isFinite(n)) return "—";
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: n >= 100 ? 0 : 2, maximumFractionDigits: 2 })}`;
+}
+
+interface CatalogBotStatRow {
+  runningDays: number | null;
+  totalReturnPct: number | null;
+  startingCapital: number | null;
+  currentCapital: number | null;
+  profitPerMonth: number | null;
+  profitPerMonthIsActual: boolean;
+}
+
+function LandingBotIcon({ bot, size = 32 }: { bot: PublicBotApiRow; size?: number }) {
+  if (bot.logo) {
+    return (
+      <div
+        className="rounded-full bg-white/5 flex items-center justify-center overflow-hidden flex-shrink-0"
+        style={{ width: size, height: size }}
+      >
+        <Image src={bot.logo} alt={bot.shortLabel} width={size - 4} height={size - 4} className="object-contain rounded-full" />
+      </div>
+    );
+  }
+  return <span className="text-2xl leading-none">{bot.icon}</span>;
+}
+
+function LiveBotCard({
+  bot,
+  stat,
+  pathname,
+}: {
+  bot: PublicBotApiRow;
+  stat: CatalogBotStatRow | null;
+  pathname: string;
+}) {
+  const monthlyPositive = (stat?.profitPerMonth ?? 0) >= 0;
+  const returnPositive = (stat?.totalReturnPct ?? 0) >= 0;
+
+  return (
+    <div
+      className="rounded-2xl p-5 flex flex-col gap-4 min-w-0"
+      style={{ backgroundColor: "#0d1b2e", border: "1px solid rgba(90,140,220,0.2)" }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <LandingBotIcon bot={bot} />
+        <span
+          className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0"
+          style={{
+            backgroundColor: "rgba(34,197,94,0.12)",
+            color: "#22c55e",
+            border: "1px solid rgba(34,197,94,0.25)",
+          }}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live
+        </span>
+      </div>
+      <div>
+        <p className="text-base font-black text-white">{bot.label}</p>
+        <p className="text-xs mt-0.5" style={{ color: "#475569" }}>
+          Running · {stat?.runningDays != null ? `${stat.runningDays} days` : "…"}
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>
+            Total Return
+          </p>
+          <p className="text-sm font-black" style={{ color: returnPositive ? "#34d399" : "#f87171" }}>
+            {stat ? fmt(stat.totalReturnPct) : "…"}
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>
+            Monthly{stat && !stat.profitPerMonthIsActual ? " est." : ""}
+          </p>
+          <p
+            className="text-sm font-black"
+            style={{
+              color:
+                stat?.profitPerMonth != null
+                  ? monthlyPositive
+                    ? "#34d399"
+                    : "#f87171"
+                  : "#60a5fa",
+            }}
+          >
+            {stat ? fmt(stat.profitPerMonth) : "…"}
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>
+            Start
+          </p>
+          <p className="text-sm font-bold text-white">{fmtMoneyShort(stat?.startingCapital ?? null)}</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>
+            Current
+          </p>
+          <p className="text-sm font-bold text-white">{fmtMoneyShort(stat?.currentCapital ?? null)}</p>
+        </div>
+      </div>
+      <Link
+        href={`${freedombotSitePath(pathname, "/performance")}?bot=${bot.id}`}
+        className="mt-auto w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
+        style={{
+          background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",
+          color: "#fff",
+          boxShadow: "0 4px 14px rgba(59,130,246,0.25)",
+        }}
+      >
+        View Performance <ArrowRight className="h-4 w-4" />
+      </Link>
+    </div>
+  );
 }
 
 // ─── Waitlist Modal ───────────────────────────────────────────────────────────
@@ -408,30 +529,51 @@ export default function FreedomBotPage() {
   }, [auth]);
 
   const [stats, setStats] = useState<BotStats | null>(null);
-  const [waitlistBot, setWaitlistBot] = useState<string | null>(null);
+  const [publicBots, setPublicBots] = useState<PublicBotApiRow[]>([]);
+  const [catalogStats, setCatalogStats] = useState<Partial<Record<CryptoBotId, CatalogBotStatRow>>>({});
+  const [botsLoading, setBotsLoading] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [comingSoonBots, setComingSoonBots] = useState<
-    { logo: string; ticker: string; name: string }[]
-  >([]);
 
   useEffect(() => {
-    fetch("/api/freedombot/public-bots")
-      .then((r) => r.json())
-      .then((data) => {
-        const hidden = (data.bots ?? []).filter(
-          (b: { publicLive: boolean }) => !b.publicLive,
-        );
-        setComingSoonBots(
-          hidden
-            .filter((b: { logo: string | null }) => b.logo)
-            .map((b: { logo: string; shortLabel: string; label: string }) => ({
+    setBotsLoading(true);
+    Promise.all([
+      fetch("/api/freedombot/public-bots").then((r) => r.json()),
+      fetch("/api/freedombot/catalog-bot-stats").then((r) => r.json()),
+    ])
+      .then(([botsData, statsData]) => {
+        if (botsData.bots?.length) {
+          setPublicBots(botsData.bots);
+        } else {
+          setPublicBots(
+            CRYPTO_BOTS.map((b) => ({
+              id: b.id,
+              label: b.label,
+              shortLabel: b.shortLabel,
+              deployKey: b.deployKey,
+              botSource: b.botSource,
+              icon: b.icon,
               logo: b.logo,
-              ticker: b.shortLabel,
-              name: b.label,
+              publicLive: true,
             })),
+          );
+        }
+        if (statsData.stats) setCatalogStats(statsData.stats);
+      })
+      .catch(() => {
+        setPublicBots(
+          CRYPTO_BOTS.map((b) => ({
+            id: b.id,
+            label: b.label,
+            shortLabel: b.shortLabel,
+            deployKey: b.deployKey,
+            botSource: b.botSource,
+            icon: b.icon,
+            logo: b.logo,
+            publicLive: true,
+          })),
         );
       })
-      .catch(() => {});
+      .finally(() => setBotsLoading(false));
   }, []);
 
   useEffect(() => {
@@ -450,11 +592,6 @@ export default function FreedomBotPage() {
       <Suspense fallback={null}>
         <DeployParamWatcher onDeploy={openDeploy} />
       </Suspense>
-
-      {/* ── Waitlist Modal ── */}
-      {waitlistBot && (
-        <WaitlistModal bot={waitlistBot} onClose={() => setWaitlistBot(null)} />
-      )}
 
       {/* ══════════════════════════════════════════════════════════
           SECTION 1 — HERO
@@ -579,82 +716,24 @@ export default function FreedomBotPage() {
             </p>
           </div>
 
-          {/* ── 4-card grid (works on all screen sizes) ── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-
-            {/* Crypto Bot — Live */}
-            <div className="rounded-2xl p-5 flex flex-col gap-4" style={{ backgroundColor: "#0d1b2e", border: "1px solid rgba(90,140,220,0.2)" }}>
-              <div className="flex items-start justify-between">
-                <span className="text-2xl">₿</span>
-                <span className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full" style={{ backgroundColor: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.25)" }}>
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live
-                </span>
-              </div>
-              <div>
-                <p className="text-base font-black text-white">Crypto Bot</p>
-                <p className="text-xs mt-0.5" style={{ color: "#475569" }}>Running · {stats ? `${stats.runningDays} days` : "…"}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>Total Return</p>
-                  <p className="text-sm font-black" style={{ color: "#34d399" }}>{stats ? fmt(stats.totalReturnPct) : "…"}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>
-                    Monthly{stats && !stats.profitPerMonthIsActual ? " est." : ""}
-                  </p>
-                  <p className="text-sm font-black" style={{
-                    color: stats && stats.profitPerMonth !== null
-                      ? stats.profitPerMonth >= 0 ? "#34d399" : "#f87171"
-                      : "#60a5fa"
-                  }}>
-                    {stats ? fmt(stats.profitPerMonth) : "…"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>Start</p>
-                  <p className="text-sm font-bold text-white">{stats?.startingCapital ? `$${stats.startingCapital.toFixed(0)}` : "…"}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#334155" }}>Current</p>
-                  <p className="text-sm font-bold text-white">{stats?.currentCapital ? `$${stats.currentCapital.toFixed(2)}` : "…"}</p>
-                </div>
-              </div>
-              <Link
-                href={freedombotSitePath(pathname, "/performance")}
-                className="mt-auto w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
-                style={{
-                  background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",
-                  color: "#fff",
-                  boxShadow: "0 4px 14px rgba(59,130,246,0.25)",
-                }}
-              >
-                View Performance <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-
-            {/* Coming Soon cards — non–public-live crypto bots */}
-            {comingSoonBots.map((bot) => (
-              <div key={bot.ticker} className="rounded-2xl p-5 flex flex-col gap-4" style={{ backgroundColor: "#0d1b2e", border: "1px solid rgba(90,140,220,0.12)", opacity: 0.75 }}>
-                <div className="flex items-start justify-between">
-                  <div className="h-9 w-9 rounded-full bg-white/5 flex items-center justify-center overflow-hidden p-0.5 flex-shrink-0">
-                    <Image src={bot.logo} alt={bot.ticker} width={32} height={32} className="object-contain rounded-full" />
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider" style={{ backgroundColor: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>Coming Soon</span>
-                </div>
-                <div>
-                  <p className="text-base font-black text-white">{bot.name}</p>
-                  <p className="text-xs mt-0.5" style={{ color: "#334155" }}>Launching soon</p>
-                </div>
-                <button
-                  onClick={() => setWaitlistBot(bot.name)}
-                  className="mt-auto w-full py-2 rounded-xl text-xs font-bold transition-all hover:scale-105"
-                  style={{ border: "1px solid rgba(90,140,220,0.2)", color: "#64748b", backgroundColor: "rgba(15,23,42,0.6)" }}
-                >
-                  Join waitlist
-                </button>
-              </div>
-            ))}
+          {/* ── All live bot cards ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            {botsLoading
+              ? CRYPTO_BOTS.map((b) => (
+                  <div
+                    key={b.id}
+                    className="rounded-2xl p-5 h-[280px] animate-pulse"
+                    style={{ backgroundColor: "#0d1b2e", border: "1px solid rgba(90,140,220,0.12)" }}
+                  />
+                ))
+              : publicBots.map((bot) => (
+                  <LiveBotCard
+                    key={bot.id}
+                    bot={bot}
+                    stat={catalogStats[bot.id] ?? null}
+                    pathname={pathname}
+                  />
+                ))}
           </div>
 
         </div>

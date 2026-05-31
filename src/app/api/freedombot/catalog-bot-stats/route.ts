@@ -3,6 +3,7 @@ import { getAdminFirestore } from "@/firebase/admin";
 import { buildEquityCurve } from "@/lib/equity-curve";
 import { classifyBotSource } from "@/lib/bot-source-constants";
 import { CRYPTO_BOTS, type CryptoBotId } from "@/lib/crypto-bots";
+import { calcHeadlineMonthlyReturn } from "@/lib/performance-metrics";
 import {
   runningDaysForStatsFilter,
   startingCapitalForStatsFilter,
@@ -21,6 +22,10 @@ export const revalidate = 0;
 export interface CatalogBotStatRow {
   runningDays: number | null;
   totalReturnPct: number | null;
+  startingCapital: number | null;
+  currentCapital: number | null;
+  profitPerMonth: number | null;
+  profitPerMonthIsActual: boolean;
 }
 
 function totalReturnPctFromEquity(startingCapital: number, currentCapital: number): number | null {
@@ -115,23 +120,35 @@ function statsForBot(
   sharedStartingCapital: number,
   serverRunningDays: number | null,
   zoneSimStates: ZoneSimStatesMap,
-): CatalogBotStatRow | null {
+): CatalogBotStatRow {
   const bot = CRYPTO_BOTS.find((b) => b.id === botId);
-  if (!bot) return null;
+  if (!bot) {
+    return {
+      runningDays: null,
+      totalReturnPct: null,
+      startingCapital: null,
+      currentCapital: null,
+      profitPerMonth: null,
+      profitPerMonthIsActual: false,
+    };
+  }
 
   const filtered = trades.filter(
     (t) => classifyBotSource(t.botSource) === bot.botSource,
   );
-  if (filtered.length === 0) return null;
 
   const startingCapital = startingCapitalForStatsFilter(
     bot.botSource,
     { startingCapital: sharedStartingCapital },
     zoneSimStates,
   );
-  const derivedCapital = buildEquityCurve(filtered, startingCapital).finalCapital;
+
+  const derivedCapital =
+    filtered.length > 0
+      ? buildEquityCurve(filtered, startingCapital).finalCapital
+      : startingCapital;
   const totalReturnPct = totalReturnPctFromEquity(startingCapital, derivedCapital);
-  const hasStats = totalReturnPct != null;
+  const hasStats = filtered.length > 0;
 
   const perBotDays = runningDaysForStatsFilter(
     bot.botSource,
@@ -141,7 +158,21 @@ function statsForBot(
 
   const runningDays = ensureMinRunningDays(perBotDays > 0 ? perBotDays : null, hasStats);
 
-  return { runningDays, totalReturnPct };
+  const monthly = calcHeadlineMonthlyReturn(
+    filtered,
+    startingCapital,
+    runningDays ?? 1,
+    derivedCapital,
+  );
+
+  return {
+    runningDays,
+    totalReturnPct,
+    startingCapital,
+    currentCapital: derivedCapital,
+    profitPerMonth: monthly.pct,
+    profitPerMonthIsActual: !monthly.isProjected,
+  };
 }
 
 /**
@@ -160,14 +191,13 @@ export async function GET() {
 
     const stats: CatalogBotStats = {};
     for (const bot of CRYPTO_BOTS) {
-      const row = statsForBot(
+      stats[bot.id] = statsForBot(
         bot.id,
         trades,
         platform.sharedStartingCapital,
         platform.serverRunningDays,
         platform.zoneSimStates,
       );
-      if (row) stats[bot.id] = row;
     }
 
     return NextResponse.json({ stats }, { headers: NO_STORE });

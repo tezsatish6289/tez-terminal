@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -24,7 +24,7 @@ import { buildEquityCurve } from "@/lib/equity-curve";
 import { brandMetricColor, BRAND_LIVE_BADGE } from "@/lib/chart-brand-colors";
 import { PublicBotTabs } from "@/components/freedombot/PublicBotTabs";
 import { usePublicBots } from "@/hooks/use-public-bots";
-import { getCryptoBot, type CryptoBotId } from "@/lib/crypto-bots";
+import { getCryptoBot, CRYPTO_BOTS, type CryptoBotId } from "@/lib/crypto-bots";
 import { tradeMatchesSelectedPublicBot } from "@/lib/public-bot-flags";
 import { RiskRatioDrilldowns } from "@/components/stats/RiskRatioDrilldowns";
 import { PlatformUserGrowthChart } from "@/components/stats/PlatformUserGrowthChart";
@@ -34,6 +34,7 @@ import {
   DASHBOARD_SECTION_STACK,
 } from "@/components/stats/dashboard-section-spacing";
 import type { SimTrade } from "@/lib/simulator";
+import { useSearchParams } from "next/navigation";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -161,12 +162,25 @@ function useFallbackRunningDays(openTrades: ApiTrade[], closedTrades: ApiTrade[]
 }
 
 export default function PerformancePage() {
+  return (
+    <Suspense fallback={null}>
+      <PerformancePageContent />
+    </Suspense>
+  );
+}
+
+function PerformancePageContent() {
+  const searchParams = useSearchParams();
   const { bots, flags, defaultBotId, loading: publicBotsLoading } = usePublicBots();
   const [selectedBotId, setSelectedBotId] = useState<CryptoBotId>("crypto");
 
   useEffect(() => {
-    if (!publicBotsLoading) setSelectedBotId(defaultBotId);
-  }, [defaultBotId, publicBotsLoading]);
+    if (publicBotsLoading) return;
+    const raw = searchParams.get("bot");
+    const fromQuery =
+      raw && CRYPTO_BOTS.some((b) => b.id === raw) ? (raw as CryptoBotId) : null;
+    setSelectedBotId(fromQuery ?? defaultBotId);
+  }, [defaultBotId, publicBotsLoading, searchParams]);
 
   const selectedBot = bots.find((b) => b.id === selectedBotId);
   const selectedIsLive = selectedBot?.publicLive ?? false;

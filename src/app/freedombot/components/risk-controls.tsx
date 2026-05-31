@@ -6,6 +6,7 @@ import {
   RISK_PER_TRADE_OPTIONS,
   allowedMaxConcurrentForBot,
   clampMaxConcurrentForBot,
+  snapRiskPerTradeForBot,
   type TradingPrefs,
 } from "@/lib/freedombot/trading-prefs-shared";
 
@@ -16,12 +17,7 @@ interface RiskControlsProps {
   onChange: (next: TradingPrefs) => void;
   disabled?: boolean;
   compact?: boolean;
-  /** Bot deploy key — drives the per-bot dropdown filtering for
-   *  `maxConcurrentTrades`. Crypto Bot exposes `[3, 5]`; zone bots
-   *  expose the full `MAX_CONCURRENT_OPTIONS`. Defaults to "CRYPTO"
-   *  because the deploy + bot-settings call sites always have a bot
-   *  in context — defaulting here keeps the prop optional for any
-   *  legacy caller without changing their behaviour. */
+  /** Bot deploy key — drives max-open options (Crypto: 1–5; zone bots: 1). */
   bot?: string;
 }
 
@@ -74,18 +70,24 @@ export function RiskControls({
   // "select shows nothing, then jumps" flash before the effect fires.
   const maxConcurrentOptions = allowedMaxConcurrentForBot(bot);
   const displayMaxConcurrent = clampMaxConcurrentForBot(bot, values.maxConcurrentTrades);
+  const displayRiskPerTrade = snapRiskPerTradeForBot(values.riskPerTrade);
   useEffect(() => {
     if (displayMaxConcurrent !== values.maxConcurrentTrades) {
       onChange({ ...values, maxConcurrentTrades: displayMaxConcurrent });
     }
   }, [displayMaxConcurrent, values, onChange]);
+  useEffect(() => {
+    if (displayRiskPerTrade !== values.riskPerTrade) {
+      onChange({ ...values, riskPerTrade: displayRiskPerTrade });
+    }
+  }, [displayRiskPerTrade, values, onChange]);
 
   return (
     <div className={gridClass}>
       <RiskField label="Risk / trade" compact={compact}>
         <select
           disabled={disabled}
-          value={values.riskPerTrade}
+          value={displayRiskPerTrade}
           onChange={(e) =>
             onChange({ ...values, riskPerTrade: parseFloat(e.target.value) })
           }

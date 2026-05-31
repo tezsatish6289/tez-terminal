@@ -59,16 +59,7 @@ import { getSecretDocIds, docMatchesExchange, type ExchangeName } from "@/lib/ex
  *  aren't live today but if they ever ship they'll define their own
  *  default here. */
 export function defaultMaxConcurrentForBot(deployKey: string): number {
-  // Crypto Bot's per-bot bounds (floor 3, ceiling 5) live in
-  // `MAX_CONCURRENT_BOUNDS_BY_BOT`. The default sits at the floor so
-  // newly-deployed bots and unmigrated rows resolve to the lowest
-  // allowed value, never below it. clampMaxConcurrentForBot is the
-  // single source of truth — keep it in lockstep with this default.
-  if (deployKey === "CRYPTO") return clampMaxConcurrentForBot("CRYPTO", 3);
-  if (deployKey === "BTC" || deployKey === "ETH" || deployKey === "SOL" || deployKey === "XRP") {
-    return 1;
-  }
-  return DEFAULT_TRADING_PREFS.maxConcurrentTrades;
+  return clampMaxConcurrentForBot(deployKey, DEFAULT_TRADING_PREFS.maxConcurrentTrades);
 }
 
 /** Per-bot defaults for the full TradingPrefs object. Risk and daily loss

@@ -64,6 +64,8 @@ interface BotSettingsProps {
   onClose: () => void;
   user: User | null;
   deployment: SettingsDeployment;
+  /** Product bot name — e.g. Crypto Bot, Bitcoin Bot. */
+  botLabel: string;
   exchangeLabel: string;
   /** Number of OPEN trades for this deployment (drives the delete-warning copy). */
   openTradesCount: number;
@@ -104,6 +106,7 @@ export function BotSettings({
   onClose,
   user,
   deployment,
+  botLabel,
   exchangeLabel,
   openTradesCount,
   lifetimeRealizedPnl = null,
@@ -332,17 +335,23 @@ export function BotSettings({
       >
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <header
-          className="sticky top-0 z-10 flex items-center justify-between px-5 py-4"
+          className="sticky top-0 z-10 flex items-start justify-between gap-3 px-5 py-4"
           style={{
             backgroundColor: "#0a1628",
             borderBottom: "1px solid rgba(90,140,220,0.12)",
           }}
         >
-          <div>
+          <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#475569" }}>
               Bot Settings
             </p>
-            <h2 className="text-base font-black text-white mt-0.5">{exchangeLabel}</h2>
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+              <h2 className="text-base font-black text-white truncate">{botLabel}</h2>
+              <BotStatusPill isPaused={isPaused} />
+            </div>
+            <p className="text-xs font-medium mt-0.5 truncate" style={{ color: "#64748b" }}>
+              {exchangeLabel}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -537,21 +546,6 @@ export function BotSettings({
                 border: "1px solid rgba(90,140,220,0.12)",
               }}
             >
-              <div className="flex items-center gap-2 mb-3">
-                <div
-                  className="h-2 w-2 rounded-full animate-pulse"
-                  style={{
-                    backgroundColor: isPaused ? "#fbbf24" : "#22c55e",
-                    boxShadow: `0 0 6px ${isPaused ? "#fbbf24" : "#22c55e"}`,
-                  }}
-                />
-                <span
-                  className="text-sm font-black"
-                  style={{ color: isPaused ? "#fbbf24" : "#22c55e" }}
-                >
-                  {isPaused ? "Paused" : "Running"}
-                </span>
-              </div>
               <p className="text-xs leading-relaxed mb-4" style={{ color: "#64748b" }}>
                 {isPaused
                   ? "New trade entries are blocked. Open trades will keep running until they hit TP / SL. Resume any time — your keys stay on file."
@@ -674,6 +668,26 @@ export function BotSettings({
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
+
+function BotStatusPill({ isPaused }: { isPaused: boolean }) {
+  const color = isPaused ? "#fbbf24" : "#22c55e";
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full flex-shrink-0"
+      style={{
+        color,
+        backgroundColor: isPaused ? "rgba(251,191,36,0.12)" : "rgba(34,197,94,0.12)",
+        border: `1px solid ${isPaused ? "rgba(251,191,36,0.25)" : "rgba(34,197,94,0.25)"}`,
+      }}
+    >
+      <span
+        className="h-1.5 w-1.5 rounded-full animate-pulse"
+        style={{ backgroundColor: color, boxShadow: `0 0 6px ${color}` }}
+      />
+      {isPaused ? "Paused" : "Running"}
+    </span>
+  );
+}
 
 function SectionLabel({
   icon: Icon,

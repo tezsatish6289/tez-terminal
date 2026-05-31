@@ -294,28 +294,37 @@ export default function BotDetailPage() {
             <div className="flex items-start gap-4 min-w-0 flex-1">
               <BotExchangeIcons bot={botForIcons} exchange={deployment.exchange} size={48} />
               <div className="min-w-0">
-                <h1
-                  className="text-xl font-black text-white truncate"
-                  title={`${label} on ${exchangeName}`}
-                >
-                  {label}
-                </h1>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1
+                    className="text-xl font-black text-white truncate"
+                    title={`${label} on ${exchangeName}`}
+                  >
+                    {label}
+                  </h1>
+                  <span
+                    className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full flex-shrink-0"
+                    style={{
+                      color: statusMeta.color,
+                      backgroundColor: statusMeta.bg,
+                      border: `1px solid ${statusMeta.border}`,
+                    }}
+                  >
+                    <span
+                      className="h-1.5 w-1.5 rounded-full animate-pulse"
+                      style={{
+                        backgroundColor: statusMeta.color,
+                        boxShadow: `0 0 6px ${statusMeta.color}`,
+                      }}
+                    />
+                    {statusMeta.label}
+                  </span>
+                </div>
                 <p className="text-sm font-semibold mt-0.5 truncate" style={{ color: "#64748b" }}>
                   {exchangeName}
                 </p>
               </div>
             </div>
             <div className="flex flex-col items-end gap-2 flex-shrink-0">
-              <span
-                className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded"
-                style={{
-                  color: statusMeta.color,
-                  backgroundColor: statusMeta.bg,
-                  border: `1px solid ${statusMeta.border}`,
-                }}
-              >
-                {statusMeta.label}
-              </span>
               <button
                 type="button"
                 onClick={() => setSettingsOpen(true)}
@@ -473,6 +482,7 @@ export default function BotDetailPage() {
             createdAt: deployment.createdAt,
           } satisfies SettingsDeployment
         }
+        botLabel={label}
         exchangeLabel={exchangeLabel(deployment.exchange)}
         openTradesCount={
           tradesAggregates?.openTradeCount ??

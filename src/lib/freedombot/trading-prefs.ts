@@ -68,7 +68,7 @@ export function validateTradingPrefsUpdate(body: {
   if (body.riskPerTrade !== undefined) {
     const n = Number(body.riskPerTrade);
     if (!Number.isFinite(n) || !isRiskPerTrade(n)) {
-      return { ok: false, error: "riskPerTrade must be 0.25, 0.5, 0.75, or 1" };
+      return { ok: false, error: "riskPerTrade must be 1, 1.5, 2, or 3" };
     }
     updates.riskPerTrade = n;
   }

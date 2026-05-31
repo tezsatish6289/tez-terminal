@@ -111,7 +111,7 @@ function LiveBotCard({
       </div>
       <div>
         <p className="text-base font-black text-white">{bot.label}</p>
-        <p className="text-xs mt-0.5" style={{ color: "#475569" }}>
+        <p className="text-xs mt-0.5 font-medium" style={{ color: "#60a5fa" }}>
           Running · {stat?.runningDays != null ? `${stat.runningDays} days` : "…"}
         </p>
       </div>

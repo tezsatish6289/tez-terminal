@@ -24,9 +24,10 @@ import { buildEquityCurve } from "@/lib/equity-curve";
 import { brandMetricColor, BRAND_LIVE_BADGE } from "@/lib/chart-brand-colors";
 import { PublicBotTabs } from "@/components/freedombot/PublicBotTabs";
 import { usePublicBots } from "@/hooks/use-public-bots";
-import type { CryptoBotId } from "@/lib/crypto-bots";
+import { getCryptoBot, type CryptoBotId } from "@/lib/crypto-bots";
 import { tradeMatchesSelectedPublicBot } from "@/lib/public-bot-flags";
 import { RiskRatioDrilldowns } from "@/components/stats/RiskRatioDrilldowns";
+import { PlatformUserGrowthChart } from "@/components/stats/PlatformUserGrowthChart";
 import { PerformanceMetricsPanel } from "@/components/stats/PerformanceMetricsPanel";
 import {
   DASHBOARD_SECTION_INNER,
@@ -436,6 +437,8 @@ export default function PerformancePage() {
           startingCapital={startCap}
           assetType="CRYPTO"
         />
+
+        <PlatformUserGrowthChart botSourceFilter={getCryptoBot(selectedBotId).botSource} />
           </div>
         )}
 

@@ -13,7 +13,6 @@ import {
 } from "recharts";
 import { Loader2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useUser } from "@/firebase";
 import { BRAND_CURVE_STROKE } from "@/lib/chart-brand-colors";
 import { botSourceLabel, type BotSourceFilter } from "@/lib/bot-source-filter";
 import type { PlatformUserGrowthSeries } from "@/lib/freedombot/platform-user-growth";
@@ -58,25 +57,20 @@ export function PlatformUserGrowthChart({
   botSourceFilter,
   className,
 }: PlatformUserGrowthChartProps) {
-  const { user } = useUser();
   const motion = useChartMotion();
   const [series, setSeries] = useState<PlatformUserGrowthSeries | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!user) return;
     let cancelled = false;
     setLoading(true);
     setError("");
 
     void (async () => {
       try {
-        const token = await user.getIdToken();
         const q = encodeURIComponent(botSourceFilter);
-        const res = await fetch(`/api/freedombot/platform-user-growth?botSource=${q}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await fetch(`/api/freedombot/platform-user-growth?botSource=${q}`);
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Failed to load user growth");
         if (!cancelled) setSeries(data.series ?? null);
@@ -93,7 +87,7 @@ export function PlatformUserGrowthChart({
     return () => {
       cancelled = true;
     };
-  }, [user, botSourceFilter]);
+  }, [botSourceFilter]);
 
   const chartData = useMemo(() => series?.points ?? [], [series]);
   const totalUsers = series?.totalUsers ?? 0;

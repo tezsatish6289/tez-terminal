@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminAuth, getAdminFirestore } from "@/firebase/admin";
+import { getAdminFirestore } from "@/firebase/admin";
 import { deployKeyFromBotSourceFilter } from "@/lib/crypto-bots";
 import type { BotSourceFilter } from "@/lib/bot-source-constants";
 import {
@@ -10,7 +10,9 @@ import {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const NO_STORE = { "Cache-Control": "no-store" } as const;
+const NO_STORE = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+} as const;
 
 const BOT_SOURCE_FILTERS = new Set<string>([
   "ALL",
@@ -28,27 +30,13 @@ function firestoreIso(raw: unknown): string | null {
   return null;
 }
 
-async function requireAuth(req: NextRequest): Promise<boolean> {
-  const authHeader = req.headers.get("Authorization") ?? "";
-  if (!authHeader.startsWith("Bearer ")) return false;
-  try {
-    await getAdminAuth().verifyIdToken(authHeader.slice(7));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /**
  * GET /api/freedombot/platform-user-growth?botSource=ALL|PATTERN|…
  *
- * Cumulative unique FreedomBot deployers by day since first deploy in scope.
+ * Public aggregate — cumulative unique FreedomBot deployers by day since
+ * first deploy in scope. Used on /stats and freedombot.ai/performance.
  */
 export async function GET(req: NextRequest) {
-  if (!(await requireAuth(req))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
     const { searchParams } = new URL(req.url);
     const rawFilter = (searchParams.get("botSource") ?? "ALL").trim().toUpperCase();

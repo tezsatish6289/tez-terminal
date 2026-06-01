@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Crosshair, Loader2 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { isAdminEmail } from "@/lib/admin-emails-client";
-import { cn } from "@/lib/utils";
+import { COCKPIT_RAIL_ACTION_BTN } from "@/components/simulator/simulator-surfaces";
 import {
   Sheet,
   SheetContent,
@@ -252,19 +252,20 @@ export function ManualTradeSheet({
         }}
         onPointerDown={stop}
         className={cn(
-          "flex items-center gap-1 rounded-lg border border-white/[0.12] bg-[#1a1a1f]",
-          stacked ? "w-full justify-center px-3 py-2" : "px-2 py-1.5",
-          "transition-all",
+          stacked ? COCKPIT_RAIL_ACTION_BTN : "flex items-center gap-1 rounded-lg border border-white/[0.12] bg-[#1a1a1f] px-2 py-1.5",
+          "transition-all duration-200",
           gateBlocked
             ? "opacity-40 cursor-not-allowed border-white/[0.06]"
-            : "hover:bg-[#222228] hover:border-amber-500/25",
+            : !stacked && "hover:bg-[#222228] hover:border-amber-500/25",
+          stacked && !gateBlocked && "hover:border-accent/55",
         )}
       >
-        <Crosshair className="w-3.5 h-3.5 text-amber-400/70" />
+        <Crosshair className={cn("w-3.5 h-3.5", stacked ? "text-accent" : "text-amber-400/70")} />
         <span
           className={cn(
-            "text-[8px] font-bold uppercase tracking-wider text-amber-400/60",
-            !stacked && "hidden sm:inline",
+            stacked
+              ? undefined
+              : "text-[8px] font-bold uppercase tracking-wider text-amber-400/60 hidden sm:inline",
           )}
         >
           Manual

@@ -8,11 +8,12 @@ import {
   XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import type { SimTrade } from "@/lib/simulator";
+import { computeUnrealizedPnl } from "@/lib/simulator";
 import {
   SIM_CARD_INTERACTIVE,
   SIM_SLOT_EMPTY,
+  POSITION_TRADE_GLASS,
 } from "@/components/simulator/simulator-surfaces";
 import {
   LiveMirrorExchangeBar,
@@ -149,7 +150,7 @@ function EmptySlot({ index }: { index: number }) {
     <div
       className={cn(
         SIM_SLOT_EMPTY,
-        "relative flex flex-col items-center justify-center min-h-[160px] sm:min-h-[176px]",
+        "relative flex flex-col items-center justify-center min-h-[220px] sm:min-h-[240px]",
         "text-center px-4 py-6",
       )}
     >
@@ -191,117 +192,143 @@ function OpenPositionCard({
   const positive = pnl >= 0;
   const chartLabel =
     tfLabelMap[String(trade.timeframe).toUpperCase()] ?? `${trade.timeframe}m`;
+  const effectiveSl = trade.trailingSl ?? trade.stopLoss;
+  const slPnl =
+    effectiveSl != null && effectiveSl > 0
+      ? computeUnrealizedPnl(trade, effectiveSl)
+      : null;
+
   return (
     <button
       type="button"
       onClick={onSelect}
       className={cn(
         SIM_CARD_INTERACTIVE,
-        "group relative flex flex-col text-left w-full",
+        "group relative flex flex-col text-left w-full p-4 gap-3",
         positive
-          ? "border-emerald-500/30 bg-[#141a18] hover:border-emerald-500/45 hover:shadow-[0_14px_36px_-10px_rgba(0,0,0,0.85),0_4px_16px_-4px_rgba(16,185,129,0.15)]"
-          : "border-rose-500/25 bg-[#1a1416] hover:border-rose-500/40 hover:shadow-[0_14px_36px_-10px_rgba(0,0,0,0.85),0_4px_16px_-4px_rgba(244,63,94,0.12)]",
+          ? "border-emerald-500/25 hover:border-emerald-500/40 hover:shadow-[0_14px_36px_-10px_rgba(0,0,0,0.85),0_4px_16px_-4px_rgba(16,185,129,0.15)]"
+          : "border-rose-500/25 hover:border-rose-500/40 hover:shadow-[0_14px_36px_-10px_rgba(0,0,0,0.85),0_4px_16px_-4px_rgba(244,63,94,0.12)]",
       )}
     >
-      <div className="px-4 pt-4 pb-2.5 border-b border-white/[0.1] bg-[#1c1c21]/80">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <Link
-              href={`/chart/${trade.signalId}`}
-              target="_blank"
-              onClick={(e) => e.stopPropagation()}
-              className="text-base sm:text-lg font-black text-white uppercase tracking-tight hover:text-accent truncate block"
+      {/* Header — symbol + badges */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 space-y-2">
+          <Link
+            href={`/chart/${trade.signalId}`}
+            target="_blank"
+            onClick={(e) => e.stopPropagation()}
+            className="text-lg sm:text-xl font-black text-white uppercase tracking-tight hover:text-accent truncate block"
+          >
+            {trade.symbol}
+          </Link>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span
+              className={cn(
+                "text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border",
+                isBuy
+                  ? "bg-emerald-500/15 text-emerald-300 border-emerald-400/40 shadow-[0_0_14px_-4px_rgba(52,211,153,0.45)]"
+                  : "bg-rose-500/15 text-rose-300 border-rose-400/40 shadow-[0_0_14px_-4px_rgba(244,63,94,0.45)]",
+              )}
             >
-              {trade.symbol}
-            </Link>
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              <Badge
-                className={cn(
-                  "text-[9px] font-black h-5 px-2",
-                  isBuy
-                    ? "bg-emerald-500/20 text-emerald-400"
-                    : "bg-rose-500/20 text-rose-400",
-                )}
-              >
-                {trade.side}
-              </Badge>
-              <span className="text-[10px] font-bold text-muted-foreground/55 uppercase">
-                {chartLabel}
-              </span>
-              <span className="text-[10px] font-mono font-bold text-accent/85">
-                {trade.leverage}×
-              </span>
-            </div>
+              {trade.side}
+            </span>
+            <span className="text-[9px] font-bold uppercase tracking-wider text-white/70 px-2 py-0.5 rounded-md border border-white/20 bg-white/[0.03]">
+              {chartLabel}
+            </span>
+            <span className="text-[9px] font-mono font-black text-emerald-400 px-2 py-0.5 rounded-md border border-emerald-500/30 bg-emerald-500/[0.06]">
+              {trade.leverage}×
+            </span>
           </div>
-          {onForceClose && (
-            <button
-              type="button"
-              title="Force close"
-              onClick={(e) => {
-                e.stopPropagation();
-                onForceClose();
-              }}
-              className="shrink-0 p-1 rounded-md text-muted-foreground/30 hover:text-rose-400 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all"
-            >
-              <XCircle className="h-4 w-4" />
-            </button>
-          )}
         </div>
+        {onForceClose && (
+          <button
+            type="button"
+            title="Force close"
+            onClick={(e) => {
+              e.stopPropagation();
+              onForceClose();
+            }}
+            className="shrink-0 p-1 rounded-md text-muted-foreground/30 hover:text-rose-400 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all"
+          >
+            <XCircle className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
-      <div className="px-4 py-4 flex-1 flex flex-col gap-3">
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/45 font-bold">
-            Unrealized
+      {/* Glass data panel */}
+      <div className={POSITION_TRADE_GLASS}>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[9px] uppercase tracking-[0.14em] text-muted-foreground/45 font-bold">
+            Unrealized P&amp;L
           </span>
           <span
             className={cn(
               "flex items-center gap-1.5 font-mono text-xl sm:text-2xl font-black tabular-nums",
-              positive ? "text-emerald-400" : "text-rose-400",
+              positive
+                ? "text-emerald-400 shadow-[0_0_18px_-6px_rgba(52,211,153,0.55)]"
+                : "text-rose-400 shadow-[0_0_18px_-6px_rgba(244,63,94,0.5)]",
             )}
           >
             {positive ? (
-              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
+              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
             ) : (
-              <TrendingDown className="h-4 w-4 sm:h-5 sm:w-5" />
+              <TrendingDown className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
             )}
             {positive ? "+" : ""}
             {formatMoney(pnl, cs)}
           </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 text-[11px] sm:text-xs">
+        <div className="grid grid-cols-2 gap-3">
           <div className="min-w-0">
-            <span className="text-muted-foreground/45 block text-[9px] uppercase tracking-wider mb-1 font-bold">
+            <span className="text-muted-foreground/45 block text-[9px] uppercase tracking-[0.12em] mb-1 font-bold">
               Entry
             </span>
-            <span className="font-mono font-bold text-white/75 truncate block">
+            <span className="font-mono text-sm font-bold text-white truncate block">
               {formatPrice(trade.entryPrice, cs)}
             </span>
           </div>
           <div className="min-w-0">
-            <span className="text-muted-foreground/45 block text-[9px] uppercase tracking-wider mb-1 font-bold">
+            <span className="text-muted-foreground/45 block text-[9px] uppercase tracking-[0.12em] mb-1 font-bold">
               Mark
             </span>
-            <span className="font-mono font-bold text-white truncate block">
+            <span className="font-mono text-sm font-bold text-white truncate block">
               {formatPrice(trade.currentPrice, cs)}
             </span>
           </div>
         </div>
-        <div className="text-[11px] sm:text-xs">
-          <span className="text-muted-foreground/45 block text-[9px] uppercase tracking-wider mb-1 font-bold">
+
+        {slPnl != null && (
+          <div className="flex items-center justify-between gap-3 pt-0.5">
+            <span className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/45 font-bold">
+              Stop loss
+            </span>
+            <span
+              className="font-mono text-sm font-black tabular-nums text-rose-400 shadow-[0_0_16px_-6px_rgba(244,63,94,0.55)]"
+              title={`SL @ ${formatPrice(effectiveSl, cs)}${trade.trailingSl ? " (trailing)" : ""}`}
+            >
+              −{formatMoney(Math.abs(slPnl), cs)}
+            </span>
+          </div>
+        )}
+
+        <div>
+          <span className="text-muted-foreground/45 block text-[9px] uppercase tracking-[0.12em] mb-1 font-bold">
             Notional
           </span>
           <SimNotionalSizeDisplay
             trade={trade}
             cs={cs}
             useRemaining
-            className="text-xs sm:text-sm"
-            valueClassName="text-white/85 font-bold"
+            className="text-sm"
+            valueClassName="text-white font-bold"
           />
         </div>
+      </div>
 
-        <div className="flex items-center gap-1.5 pt-2 border-t border-white/[0.06]">
+      {/* Footer — TPs + mirror / score */}
+      <div className="flex items-end justify-between gap-2 pt-0.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {[
             { n: 1, hit: trade.tp1Hit },
             { n: 2, hit: trade.tp2Hit },
@@ -310,27 +337,27 @@ function OpenPositionCard({
             <span
               key={tp.n}
               className={cn(
-                "text-[8px] font-bold px-1.5 py-0.5 rounded",
+                "text-[8px] font-black uppercase tracking-wider px-2 py-1 rounded-md border",
                 tp.hit
-                  ? "bg-emerald-500/20 text-emerald-400"
-                  : "bg-white/5 text-muted-foreground/35",
+                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40"
+                  : "bg-transparent text-emerald-400/70 border-emerald-500/30",
               )}
             >
               TP{tp.n}
               {tp.hit ? " ✓" : ""}
             </span>
           ))}
-          <div className="ml-auto flex flex-col items-end gap-0.5">
-            {showMirrorUi && (
-              <LiveMirrorSymbolLink simTradeId={simTradeId} mirrorCount={mirrorCount} />
-            )}
-            <span
-              className="text-[10px] font-bold text-accent/85"
-              title="Entry confidence score"
-            >
-              Score {trade.confidenceScore}
-            </span>
-          </div>
+        </div>
+        <div className="flex flex-col items-end gap-0.5 shrink-0">
+          {showMirrorUi && (
+            <LiveMirrorSymbolLink simTradeId={simTradeId} mirrorCount={mirrorCount} />
+          )}
+          <span
+            className="text-[10px] font-bold text-accent/90"
+            title="Entry confidence score"
+          >
+            Score {trade.confidenceScore}
+          </span>
         </div>
       </div>
     </button>

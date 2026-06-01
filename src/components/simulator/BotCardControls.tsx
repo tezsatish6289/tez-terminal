@@ -38,7 +38,7 @@ export function BotCardControls({
       data-heatmap-toolbar=""
       className={cn(
         "shrink-0 relative z-10",
-        stacked ? "flex flex-col gap-2 w-full" : "flex items-center gap-1",
+        stacked ? "flex flex-col gap-2.5 w-full" : "flex items-center gap-1",
       )}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}

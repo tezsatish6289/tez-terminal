@@ -16,7 +16,7 @@ import {
   spotFromSuggested,
   type SuggestedZonesSnapshot,
 } from "@/components/simulator/heatmap-types";
-import { SIM_CARD } from "@/components/simulator/simulator-surfaces";
+import { SIM_CARD, COCKPIT_RAIL_GLASS } from "@/components/simulator/simulator-surfaces";
 import type { ZoneBotDirection } from "@/lib/zone-bot-state";
 import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
 
@@ -178,24 +178,23 @@ export function HeatmapAssetCard({
       {/* ── Split body: metadata left · zone ladder right ── */}
       <div className="flex flex-1 min-h-0 flex-col sm:flex-row">
         {/* Left — bot identity, controls, capital, status */}
-        <div className="shrink-0 sm:w-[240px] md:w-[260px] lg:w-[280px] xl:w-[300px] flex flex-col gap-4 px-4 py-4 border-b sm:border-b-0 sm:border-r border-white/[0.1] bg-[#1c1c21]">
-          <div className="space-y-2">
-            <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+        <div className="shrink-0 sm:w-[260px] md:w-[280px] lg:w-[300px] xl:w-[320px] flex flex-col gap-4 px-4 py-5 border-b sm:border-b-0 sm:border-r border-white/[0.1] bg-gradient-to-b from-[#1c1c24] to-[#141418]">
+          {/* Header */}
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2 min-w-0">
               <span
                 className={cn(
-                  "shrink-0 inline-block w-2 h-2 rounded-full",
+                  "shrink-0 inline-block w-2.5 h-2.5 rounded-full",
                   POWER_DOT[cardStatus.power],
                 )}
                 aria-hidden
               />
-              <span className="text-sm font-black tracking-tight truncate">
+              <span className="text-base font-black tracking-tight text-white truncate">
                 {label}
               </span>
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/45 px-1.5 py-0.5 rounded border border-white/[0.08] bg-white/[0.03]">
-                {ASSET_TAG[botId]}
-              </span>
+              <CockpitTag>{ASSET_TAG[botId]}</CockpitTag>
               {ivPct != null && (
                 <IvBadge
                   pct={ivPct}
@@ -207,19 +206,23 @@ export function HeatmapAssetCard({
             </div>
           </div>
 
+          {/* Controls card */}
           {settingsSlot && (
-            <div
-              className="w-full"
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
-            >
-              {settingsSlot}
+            <div className={COCKPIT_RAIL_GLASS}>
+              <div
+                className="w-full"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
+                {settingsSlot}
+              </div>
             </div>
           )}
 
-          <div className="space-y-2 mt-auto">
-            <div className="space-y-1">
-              <span className="text-lg sm:text-xl font-mono font-black tabular-nums text-foreground leading-none block">
+          {/* Performance + status card */}
+          <div className={cn(COCKPIT_RAIL_GLASS, "mt-auto space-y-3")}>
+            <div className="flex items-end justify-between gap-2">
+              <span className="text-2xl font-mono font-black tabular-nums text-white leading-none">
                 {cs}
                 {capital.toLocaleString(undefined, {
                   minimumFractionDigits: 2,
@@ -228,12 +231,18 @@ export function HeatmapAssetCard({
               </span>
               <span
                 className={cn(
-                  "text-[11px] font-mono font-bold tabular-nums leading-none",
-                  delta >= 0 ? "text-emerald-300/90" : "text-rose-300/90",
+                  "flex items-center gap-1 text-[11px] font-mono font-bold tabular-nums leading-none shrink-0",
+                  delta >= 0 ? "text-emerald-400" : "text-rose-400",
                 )}
               >
-                {delta >= 0 ? "▲" : "▼"} {delta >= 0 ? "+" : ""}
+                {delta >= 0 ? (
+                  <TrendingUp className="h-3.5 w-3.5" />
+                ) : (
+                  <TrendingDown className="h-3.5 w-3.5" />
+                )}
+                {delta >= 0 ? "+" : ""}
                 {deltaPct.toFixed(2)}%
+                <span className="text-[10px]">{delta >= 0 ? "▲" : "▼"}</span>
               </span>
             </div>
             <LastRanInline
@@ -242,10 +251,10 @@ export function HeatmapAssetCard({
               zonesRefreshedAt={zonesRefreshedAt}
               stacked
             />
-            <div className="flex flex-col gap-0.5 min-w-0 pt-1 border-t border-white/[0.06]">
+            <div className="flex flex-col gap-1 min-w-0 pt-3 border-t border-white/[0.08]">
               <span
                 className={cn(
-                  "text-[9px] font-black uppercase tracking-widest",
+                  "text-[10px] font-black uppercase tracking-[0.12em]",
                   POWER_TEXT[cardStatus.power],
                 )}
               >
@@ -253,7 +262,7 @@ export function HeatmapAssetCard({
               </span>
               {cardStatus.detail && (
                 <span
-                  className="text-[10px] text-muted-foreground/70 leading-snug"
+                  className="text-[11px] text-muted-foreground/65 leading-snug"
                   title={cardStatus.detail}
                 >
                   {cardStatus.detail}
@@ -334,16 +343,23 @@ function LastRanInline({
   return (
     <span
       className={cn(
-        "text-[9px] text-muted-foreground/55 leading-none tabular-nums",
-        stacked ? "flex flex-col gap-0.5" : "inline-flex items-center gap-1 shrink-0",
+        "text-[10px] text-muted-foreground/55 leading-none tabular-nums",
+        stacked ? "inline-flex items-center gap-1.5" : "inline-flex items-center gap-1 shrink-0",
       )}
       title={title}
     >
-      <span className={cn("inline-flex items-center gap-1", stacked && "text-muted-foreground/45")}>
-        <Clock className="w-3 h-3 text-muted-foreground/45" />
-        <span className="font-bold">{label}</span>
-      </span>
-      <span className="text-accent/85 font-black">{primary.relative}</span>
+      <Clock className="w-3.5 h-3.5 text-accent/60 shrink-0" />
+      <span className="font-semibold text-muted-foreground/50">{label}</span>
+      <span className="text-accent/90 font-bold">{primary.relative}</span>
+    </span>
+  );
+}
+
+/** Accent-bordered tag pill for the cockpit rail header. */
+function CockpitTag({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="text-[9px] font-bold uppercase tracking-wider text-accent/85 px-2 py-0.5 rounded-md border border-accent/30 bg-accent/[0.06]">
+      {children}
     </span>
   );
 }
@@ -363,9 +379,9 @@ function DiscoveryBadge({ publicLive }: { publicLive: boolean }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-0.5 text-[8px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0",
+        "inline-flex items-center gap-1 text-[9px] font-mono font-bold px-2 py-0.5 rounded-md border shrink-0",
         publicLive
-          ? "text-emerald-300/90 border-emerald-500/25 bg-emerald-500/10"
+          ? "text-accent/85 border-accent/30 bg-accent/[0.06]"
           : "text-muted-foreground/55 border-white/[0.08] bg-white/[0.02]",
       )}
       title={
@@ -400,12 +416,12 @@ function IvBadge({ pct, title }: { pct: number; title?: string }) {
   return (
     <span
       className={cn(
-        "text-[8px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 cursor-help",
+        "text-[9px] font-mono font-bold px-2 py-0.5 rounded-md border shrink-0 cursor-help",
         pct >= 70
-          ? "border-rose-500/30 text-rose-300 bg-rose-500/10"
+          ? "border-rose-500/35 text-rose-300/90 bg-rose-500/10"
           : pct >= 50
-            ? "border-amber-500/30 text-amber-200 bg-amber-500/10"
-            : "border-emerald-500/25 text-emerald-300/90 bg-emerald-500/5",
+            ? "border-amber-500/35 text-amber-200/90 bg-amber-500/10"
+            : "border-accent/30 text-accent/85 bg-accent/[0.06]",
       )}
       title={title}
     >

@@ -2,6 +2,7 @@
 
 import { PowerOff, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { COCKPIT_RAIL_ACTION_BTN } from "@/components/simulator/simulator-surfaces";
 import type { CockpitBotPower } from "@/lib/cockpit-bot-status";
 
 /**
@@ -55,7 +56,7 @@ export function BotCardToolbarTrigger({
       data-heatmap-toolbar=""
       className={cn(
         "flex shrink-0 relative z-10",
-        stacked ? "flex-col gap-2 w-full" : "items-center gap-1",
+        stacked ? "flex-col gap-2.5 w-full" : "items-center gap-1",
       )}
       onClick={stop}
       onPointerDown={stop}
@@ -70,28 +71,36 @@ export function BotCardToolbarTrigger({
         }}
         onPointerDown={stop}
         className={cn(
-          "flex items-center gap-1 rounded-lg border border-white/[0.12] bg-[#1a1a1f]",
-          stacked ? "w-full justify-center px-3 py-2" : "px-2 py-1.5",
-          "hover:bg-[#222228] hover:border-white/[0.18] transition-all",
+          stacked
+            ? COCKPIT_RAIL_ACTION_BTN
+            : cn(
+                "flex items-center gap-1 rounded-lg border border-white/[0.12] bg-[#1a1a1f]",
+                "px-2 py-1.5 hover:bg-[#222228] hover:border-white/[0.18] transition-all",
+              ),
         )}
       >
-        <Settings2 className="w-3.5 h-3.5 text-muted-foreground/55" />
-        <span
-          className={cn(
-            "text-[8px] font-bold uppercase tracking-wider text-muted-foreground/50",
-            !stacked && "hidden sm:inline",
-          )}
-        >
-          {sheetLabel}
-        </span>
+        <Settings2 className={cn("w-3.5 h-3.5", stacked ? "text-accent" : "text-muted-foreground/55")} />
+        {(stacked || sheetLabel) && (
+          <span
+            className={cn(
+              stacked
+                ? undefined
+                : "text-[8px] font-bold uppercase tracking-wider text-muted-foreground/50 hidden sm:inline",
+            )}
+          >
+            {sheetLabel}
+          </span>
+        )}
       </button>
 
       <div
         role="group"
         aria-label="Trading mode"
         className={cn(
-          "flex items-center rounded-lg border border-white/[0.12] bg-[#1a1a1f] overflow-hidden",
-          stacked && "w-full",
+          "flex items-center overflow-hidden",
+          stacked
+            ? "w-full rounded-full border border-white/[0.1] bg-black/25 p-1 gap-0.5"
+            : "rounded-lg border border-white/[0.12] bg-[#1a1a1f]",
         )}
       >
         {(["OFF", "SIM_ONLY", "SIM_LIVE"] as const).map((mode) => {
@@ -108,20 +117,33 @@ export function BotCardToolbarTrigger({
               }}
               onPointerDown={stop}
               className={cn(
-                "flex items-center justify-center gap-0.5 py-1.5 text-[8px] font-black uppercase tracking-wider transition-all",
-                stacked ? "flex-1 px-2" : "px-1.5",
+                "flex items-center justify-center gap-1 font-black uppercase tracking-wider transition-all duration-200",
+                stacked
+                  ? "flex-1 rounded-full py-2 text-[9px]"
+                  : "px-1.5 py-1.5 text-[8px]",
                 selected
                   ? mode === "OFF"
-                    ? "bg-rose-500/15 text-rose-300"
+                    ? stacked
+                      ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                      : "bg-rose-500/15 text-rose-300"
                     : mode === "SIM_ONLY"
-                      ? "bg-amber-500/15 text-amber-300"
-                      : power === "on"
-                        ? "bg-emerald-500/15 text-emerald-300"
-                        : "bg-emerald-500/10 text-emerald-300/80"
-                  : "text-muted-foreground/45 hover:bg-white/[0.04] hover:text-muted-foreground/70",
+                      ? stacked
+                        ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                        : "bg-amber-500/15 text-amber-300"
+                      : stacked
+                        ? cn(
+                            "bg-emerald-500/25 text-emerald-200 border border-emerald-400/45",
+                            "shadow-[0_0_20px_-6px_rgba(52,211,153,0.55)]",
+                          )
+                        : power === "on"
+                          ? "bg-emerald-500/15 text-emerald-300"
+                          : "bg-emerald-500/10 text-emerald-300/80"
+                  : stacked
+                    ? "text-muted-foreground/40 hover:text-muted-foreground/65"
+                    : "text-muted-foreground/45 hover:bg-white/[0.04] hover:text-muted-foreground/70",
               )}
             >
-              {mode === "OFF" && <PowerOff className="w-2.5 h-2.5" />}
+              {mode === "OFF" && <PowerOff className="w-3 h-3 shrink-0" />}
               {SEGMENT_LABEL[mode]}
             </button>
           );

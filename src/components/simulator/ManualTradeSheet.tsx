@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Crosshair, Loader2 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { isAdminEmail } from "@/lib/admin-emails-client";
+import { cn } from "@/lib/utils";
 import { COCKPIT_RAIL_ACTION_BTN } from "@/components/simulator/simulator-surfaces";
 import {
   Sheet,

@@ -1,9 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, RefreshCw, TrendingUp, ChevronLeft, ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { ZonePriceLadder, type PublicLevels } from "@/components/levels/ZonePriceLadder";
+import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  ZonePriceLadder,
+  formatHeroPrice,
+  type PublicLevels,
+} from "@/components/levels/ZonePriceLadder";
 
 interface RawItem {
   symbol?: string;
@@ -18,6 +21,13 @@ interface LevelsPayload {
 }
 
 type TabKey = "indices" | "crypto";
+
+const HEX_BG = `
+  radial-gradient(ellipse 80% 50% at 50% 0%, rgba(37,99,235,0.12), transparent),
+  linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+  linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px),
+  #060912
+`;
 
 export default function LevelsPage() {
   const [payload, setPayload] = useState<LevelsPayload | null>(null);
@@ -51,6 +61,21 @@ export default function LevelsPage() {
 
   const count = items.length;
   const current = count > 0 ? Math.min(slide, count - 1) : 0;
+  const item = count > 0 ? items[current] : null;
+  const data = item?.data ?? null;
+  const spot = data?.spot ?? null;
+  const unavailable = data?.unavailable === true;
+  const hasBands = data != null && (data.bullLow != null || data.bearLow != null);
+
+  const refreshed = data?.computedAt
+    ? new Date(data.computedAt).toLocaleString([], {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
   const go = useCallback(
     (dir: number) => setSlide((s) => (count > 0 ? (s + dir + count) % count : 0)),
     [count],
@@ -61,48 +86,44 @@ export default function LevelsPage() {
     setSlide(0);
   };
 
-  // Auto-advance the slideshow; re-arms on every change (manual or auto).
   useEffect(() => {
     if (count <= 1) return;
     const id = setTimeout(() => setSlide((s) => (s + 1) % count), 8000);
     return () => clearTimeout(id);
   }, [current, count, tab]);
 
-  return (
-    <main className="min-h-screen" style={{ backgroundColor: "#080f1e" }}>
-      <div className="max-w-[1200px] mx-auto w-full px-4 sm:px-6 py-8 sm:py-12">
-        {/* Header */}
-        <div className="flex flex-col gap-2 mb-5">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" style={{ color: "#60a5fa" }} />
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight" style={{ color: "#f0f4ff" }}>
-              Market Levels
-            </h1>
-          </div>
-          <p className="text-sm max-w-2xl leading-relaxed" style={{ color: "#94a3b8" }}>
-            Bullish and bearish zones for major indices and crypto, with the session&apos;s
-            Point of Control — refreshed every minute. For informational purposes only; not
-            investment advice.
-          </p>
-        </div>
+  const scheduleNote =
+    tab === "indices"
+      ? "Updates Mon–Fri during market hours"
+      : "Updates 24/7";
 
-        {/* Tabs + refresh */}
-        <div className="flex items-center justify-between gap-3 mb-5">
+  return (
+    <main
+      className="min-h-screen flex flex-col"
+      style={{
+        backgroundColor: "#060912",
+        backgroundImage: HEX_BG,
+        backgroundSize: "100% 100%, 48px 48px, 48px 48px, 100% 100%",
+      }}
+    >
+      <div className="flex-1 max-w-[1100px] mx-auto w-full px-4 sm:px-8 py-10 sm:py-14 flex flex-col">
+        {/* Tab switcher — minimal */}
+        <div className="flex justify-center mb-8">
           <div
-            className="inline-flex items-center gap-1 p-1 rounded-xl border"
-            style={{ borderColor: "rgba(90,140,220,0.15)", backgroundColor: "rgba(15,23,42,0.5)" }}
+            className="inline-flex items-center gap-1 p-1 rounded-xl"
+            style={{ backgroundColor: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.06)" }}
           >
             {([
               { key: "indices" as TabKey, label: "NSE Indices" },
-              { key: "crypto" as TabKey, label: "Crypto Zones" },
+              { key: "crypto" as TabKey, label: "Crypto" },
             ]).map(({ key, label }) => (
               <button
                 key={key}
                 onClick={() => switchTab(key)}
-                className="px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all"
+                className="px-4 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all"
                 style={
                   tab === key
-                    ? { backgroundColor: "#2563eb", color: "#f0f4ff" }
+                    ? { backgroundColor: "rgba(37,99,235,0.35)", color: "#e2e8f0" }
                     : { color: "#64748b" }
                 }
               >
@@ -110,157 +131,127 @@ export default function LevelsPage() {
               </button>
             ))}
           </div>
-
-          <button
-            onClick={() => load(true)}
-            disabled={refreshing}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50"
-            style={{ borderColor: "rgba(90,140,220,0.15)", color: "#94a3b8", backgroundColor: "rgba(15,23,42,0.5)" }}
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
         </div>
 
-        {/* Slideshow */}
         {loading ? (
-          <div className="flex items-center justify-center py-24">
-            <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
+          <div className="flex flex-1 items-center justify-center py-32">
+            <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
           </div>
-        ) : count === 0 ? (
-          <div className="flex items-center justify-center py-24">
-            <p className="text-xs" style={{ color: "#64748b" }}>No levels available yet.</p>
+        ) : count === 0 || !item ? (
+          <div className="flex flex-1 items-center justify-center py-32">
+            <p className="text-sm" style={{ color: "#64748b" }}>
+              No levels available yet.
+            </p>
           </div>
         ) : (
-          <div className="relative max-w-2xl mx-auto">
-            <div className="relative">
-              <LevelCard
-                key={items[current].symbol ?? items[current].asset}
-                label={items[current].label}
-                data={items[current].data}
-                currency={currency}
-              />
+          <div className="relative flex-1 flex flex-col">
+            {/* Hero */}
+            <div className="text-center mb-8 sm:mb-10">
+              <h1
+                className="text-2xl sm:text-4xl font-black tracking-tight mb-4"
+                style={{ color: "#f8fafc" }}
+              >
+                {item.label} Market Levels
+              </h1>
+              {spot != null && (
+                <p
+                  className="text-4xl sm:text-6xl font-black font-mono tabular-nums tracking-tight"
+                  style={{
+                    color: "#fcd34d",
+                    textShadow: "0 0 40px rgba(251,191,36,0.45), 0 0 80px rgba(251,191,36,0.2)",
+                  }}
+                >
+                  {formatHeroPrice(spot, currency)}
+                </p>
+              )}
+            </div>
+
+            {/* Chart */}
+            <div className="relative flex-1">
+              {hasBands ? (
+                <ZonePriceLadder
+                  levels={data!}
+                  spot={spot}
+                  currencySymbol={currency}
+                  onRefresh={() => load(true)}
+                  refreshing={refreshing}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-center py-24 gap-2">
+                  <p className="text-sm" style={{ color: "#64748b" }}>
+                    {unavailable ? "Levels temporarily unavailable" : "Awaiting level data"}
+                  </p>
+                  <p className="text-xs max-w-sm" style={{ color: "#475569" }}>
+                    {unavailable
+                      ? "Last-good levels will return on the next refresh."
+                      : "Levels populate during the next compute cycle."}
+                  </p>
+                </div>
+              )}
 
               {count > 1 && (
                 <>
                   <button
                     onClick={() => go(-1)}
                     aria-label="Previous"
-                    className="absolute top-1/2 -translate-y-1/2 -left-3 sm:-left-5 flex items-center justify-center h-10 w-10 rounded-full border transition-all hover:scale-105"
-                    style={{ borderColor: "rgba(90,140,220,0.2)", backgroundColor: "rgba(13,20,38,0.95)", color: "#cbd5e1" }}
+                    className="absolute top-1/2 -translate-y-1/2 -left-2 sm:-left-6 flex items-center justify-center h-9 w-9 rounded-full transition-all hover:scale-105"
+                    style={{
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      backgroundColor: "rgba(0,0,0,0.6)",
+                      color: "#94a3b8",
+                    }}
                   >
-                    <ChevronLeft className="h-5 w-5" />
+                    <ChevronLeft className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => go(1)}
                     aria-label="Next"
-                    className="absolute top-1/2 -translate-y-1/2 -right-3 sm:-right-5 flex items-center justify-center h-10 w-10 rounded-full border transition-all hover:scale-105"
-                    style={{ borderColor: "rgba(90,140,220,0.2)", backgroundColor: "rgba(13,20,38,0.95)", color: "#cbd5e1" }}
+                    className="absolute top-1/2 -translate-y-1/2 -right-2 sm:-right-6 flex items-center justify-center h-9 w-9 rounded-full transition-all hover:scale-105"
+                    style={{
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      backgroundColor: "rgba(0,0,0,0.6)",
+                      color: "#94a3b8",
+                    }}
                   >
-                    <ChevronRight className="h-5 w-5" />
+                    <ChevronRight className="h-4 w-4" />
                   </button>
                 </>
               )}
             </div>
 
-            {count > 1 && (
-              <div className="flex items-center justify-center gap-2 mt-5">
-                {items.map((item, i) => (
-                  <button
-                    key={item.symbol ?? item.asset}
-                    onClick={() => setSlide(i)}
-                    aria-label={`Go to ${item.label}`}
-                    className="h-2 rounded-full transition-all"
-                    style={{
-                      width: i === current ? 20 : 8,
-                      backgroundColor: i === current ? "#2563eb" : "rgba(90,140,220,0.25)",
-                    }}
-                  />
-                ))}
-              </div>
-            )}
+            {/* Footer */}
+            <div className="mt-10 text-center space-y-4">
+              {count > 1 && (
+                <div className="flex items-center justify-center gap-2">
+                  {items.map((it, i) => (
+                    <button
+                      key={it.symbol ?? it.asset}
+                      onClick={() => setSlide(i)}
+                      aria-label={`Go to ${it.label}`}
+                      className="h-1.5 rounded-full transition-all"
+                      style={{
+                        width: i === current ? 24 : 8,
+                        backgroundColor:
+                          i === current ? "#3b82f6" : "rgba(255,255,255,0.15)",
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+
+              <p className="text-xs" style={{ color: "#64748b" }}>
+                {refreshed ? `Data refreshed ${refreshed}` : "Awaiting refresh"}
+                {" | "}
+                {scheduleNote}
+              </p>
+
+              <p className="text-[11px]" style={{ color: "#334155" }}>
+                For informational purposes only; not investment advice.
+              </p>
+            </div>
           </div>
         )}
-
-        <p className="text-[11px] mt-8 text-center" style={{ color: "#475569" }}>
-          NSE index levels update Mon–Fri during market hours. Crypto levels update 24/7.
-        </p>
       </div>
     </main>
-  );
-}
-
-function LevelCard({
-  label,
-  data,
-  currency,
-}: {
-  label: string;
-  data: PublicLevels | null;
-  currency: string;
-}) {
-  const spot = data?.spot ?? null;
-  const unavailable = data?.unavailable === true;
-  const computedAt = data?.computedAt;
-  const refreshed = computedAt
-    ? new Date(computedAt).toLocaleString([], {
-        day: "numeric",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : null;
-
-  const hasBands =
-    data != null && (data.bullLow != null || data.bearLow != null);
-
-  return (
-    <div
-      className="flex flex-col rounded-2xl border overflow-hidden"
-      style={{ borderColor: "rgba(90,140,220,0.12)", backgroundColor: "rgba(13,20,38,0.6)" }}
-    >
-      {/* Header */}
-      <div
-        className="flex items-center justify-between gap-2 px-4 py-3 border-b"
-        style={{ borderColor: "rgba(90,140,220,0.1)" }}
-      >
-        <div className="flex items-baseline gap-2 min-w-0">
-          <span className="text-sm font-black tracking-tight truncate" style={{ color: "#f0f4ff" }}>
-            {label}
-          </span>
-          {spot != null && (
-            <span className="text-xs font-mono font-bold tabular-nums" style={{ color: "#fcd34d" }}>
-              {currency}
-              {spot >= 1000
-                ? Math.round(spot).toLocaleString()
-                : spot.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {refreshed && (
-            <span className="text-[9px] font-mono whitespace-nowrap" style={{ color: "#64748b" }}>
-              Refreshed {refreshed}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Body */}
-      {hasBands ? (
-        <ZonePriceLadder levels={data!} spot={spot} currencySymbol={currency} />
-      ) : (
-        <div className="flex flex-col items-center justify-center text-center px-4 py-16 gap-2 min-h-[360px]">
-          <p className="text-xs" style={{ color: "#64748b" }}>
-            {unavailable ? "Levels temporarily unavailable" : "Awaiting level data"}
-          </p>
-          <p className="text-[10px]" style={{ color: "#475569" }}>
-            {unavailable
-              ? "The latest computation could not produce zones. Last-good levels will return on the next refresh."
-              : "Levels populate during the next compute cycle."}
-          </p>
-        </div>
-      )}
-    </div>
   );
 }

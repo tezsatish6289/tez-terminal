@@ -38,12 +38,10 @@ export default function LevelsPage() {
 
   const [payload, setPayload] = useState<LevelsPayload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<TabKey>("indices");
   const [slide, setSlide] = useState(0);
 
-  const load = useCallback(async (manual = false) => {
-    if (manual) setRefreshing(true);
+  const load = useCallback(async () => {
     try {
       const res = await fetch("/api/freedombot/levels", { cache: "no-store" });
       const json = (await res.json()) as LevelsPayload;
@@ -52,7 +50,6 @@ export default function LevelsPage() {
       /* keep last-good */
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, []);
 
@@ -173,14 +170,12 @@ export default function LevelsPage() {
             </div>
 
             {/* Chart — grows to fill available space */}
-            <div className="relative flex-1 flex flex-col justify-center min-h-0 px-6 sm:px-8">
+            <div className="relative flex-1 flex flex-col justify-center min-h-0 pl-1 pr-5 sm:px-8">
               {hasBands ? (
                 <ZonePriceLadder
                   levels={data!}
                   spot={spot}
                   currencySymbol={currency}
-                  onRefresh={() => load(true)}
-                  refreshing={refreshing}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center text-center py-16 gap-2">
@@ -200,7 +195,7 @@ export default function LevelsPage() {
                   <button
                     onClick={() => go(-1)}
                     aria-label="Previous"
-                    className="absolute top-1/2 -translate-y-1/2 left-0 flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full transition-all hover:scale-105"
+                    className="absolute top-1/2 -translate-y-1/2 -left-1 sm:left-0 flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full transition-all hover:scale-105"
                     style={{
                       border: "1px solid rgba(255,255,255,0.1)",
                       backgroundColor: "rgba(0,0,0,0.6)",
@@ -212,7 +207,7 @@ export default function LevelsPage() {
                   <button
                     onClick={() => go(1)}
                     aria-label="Next"
-                    className="absolute top-1/2 -translate-y-1/2 right-0 flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full transition-all hover:scale-105"
+                    className="absolute top-1/2 -translate-y-1/2 -right-1 sm:right-0 flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full transition-all hover:scale-105"
                     style={{
                       border: "1px solid rgba(255,255,255,0.1)",
                       backgroundColor: "rgba(0,0,0,0.6)",

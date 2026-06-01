@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { RefreshCw } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
 
 /**
@@ -43,14 +41,10 @@ export function ZonePriceLadder({
   levels,
   spot,
   currencySymbol = "$",
-  onRefresh,
-  refreshing,
 }: {
   levels: PublicLevels;
   spot: number | null;
   currencySymbol?: string;
-  onRefresh?: () => void;
-  refreshing?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [chartHeight, setChartHeight] = useState(420);
@@ -139,13 +133,13 @@ export function ZonePriceLadder({
   const { yFor, bullBandStyle, bearBandStyle } = geometry;
 
   return (
-    <div className="mx-auto w-full max-w-[min(100%,520px)] sm:max-w-[560px]">
+    <div className="mx-auto w-full max-w-[min(100%,520px)] sm:max-w-[560px] -translate-x-2 sm:translate-x-0">
       <div
         ref={containerRef}
         className="relative w-full min-h-[320px] h-[min(520px,52vh)] sm:h-[min(540px,56vh)]"
       >
-        {/* Left label rail — ~36% width on mobile, fixed feel on desktop */}
-        <div className="absolute inset-y-0 left-0 w-[36%] max-w-[148px] min-w-[92px]">
+        {/* Left label rail */}
+        <div className="absolute inset-y-0 left-0 w-[38%] max-w-[168px] min-w-[108px] sm:w-[36%] sm:max-w-[172px] sm:min-w-[112px]">
           <div
             className="absolute top-1 bottom-1 right-0 w-px"
             style={{
@@ -163,24 +157,25 @@ export function ZonePriceLadder({
               fmt={fmt}
               dotColor="#f87171"
               textColor="#fca5a5"
-              showPrice={false}
             />
           )}
           {bearBandStyle && bearHigh != null && (
             <RailLabel
               y={yFor(bearHigh)}
-              label="Bear Zone"
+              label="Bear High"
+              labelFull="Bear Zone High"
               price={bearHigh}
               c={c}
               fmt={fmt}
               dotColor="#ef4444"
               textColor="#fecaca"
-              showPrice={false}
             />
           )}
           {bearBandStyle && bearLow != null && (
-            <RailPriceMarker
+            <RailLabel
               y={yFor(bearLow)}
+              label="Bear Low"
+              labelFull="Bear Zone Low"
               price={bearLow}
               c={c}
               fmt={fmt}
@@ -198,29 +193,30 @@ export function ZonePriceLadder({
               fmt={fmt}
               dotColor="#e2e8f0"
               textColor="#f1f5f9"
-              showPrice={false}
             />
           )}
           {bullBandStyle && bullHigh != null && (
             <RailLabel
               y={yFor(bullHigh)}
-              label="Bull Zone"
+              label="Bull High"
+              labelFull="Bull Zone High"
               price={bullHigh}
               c={c}
               fmt={fmt}
               dotColor="#22c55e"
               textColor="#86efac"
-              showPrice={false}
             />
           )}
           {bullBandStyle && bullLow != null && (
-            <RailPriceMarker
+            <RailLabel
               y={yFor(bullLow)}
+              label="Bull Low"
+              labelFull="Bull Zone Low"
               price={bullLow}
               c={c}
               fmt={fmt}
               dotColor="#22c55e"
-              textColor="#86efac"
+              textColor="#6ee7b7"
             />
           )}
           {bullSl != null && (
@@ -233,17 +229,13 @@ export function ZonePriceLadder({
               fmt={fmt}
               dotColor="#4ade80"
               textColor="#86efac"
-              showPrice={false}
             />
           )}
         </div>
 
-        {/* Chart panel — narrower, inset from right */}
         <div
-          className="absolute top-0 bottom-0 right-0 rounded-xl sm:rounded-2xl overflow-hidden"
+          className="absolute top-0 bottom-0 right-0 left-[calc(38%+4px)] sm:left-[calc(36%+4px)] rounded-xl sm:rounded-2xl overflow-hidden"
           style={{
-            left: "calc(36% + 6px)",
-            maxWidth: "calc(100% - 36% - 6px)",
             backgroundColor: "rgba(0,0,0,0.45)",
             border: "1px solid rgba(255,255,255,0.08)",
             boxShadow: "inset 0 0 60px rgba(0,0,0,0.5), 0 0 40px rgba(37,99,235,0.06)",
@@ -363,65 +355,8 @@ export function ZonePriceLadder({
               </div>
             </>
           )}
-
-          {onRefresh && (
-            <button
-              type="button"
-              onClick={onRefresh}
-              disabled={refreshing}
-              className="absolute bottom-2 right-2 sm:bottom-3 sm:right-3 flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-[10px] sm:text-[11px] font-bold uppercase tracking-widest transition-all disabled:opacity-50 hover:brightness-110"
-              style={{
-                color: "#93c5fd",
-                border: "1px solid rgba(59,130,246,0.5)",
-                backgroundColor: "rgba(15,23,42,0.8)",
-                boxShadow: "0 0 20px rgba(59,130,246,0.25)",
-              }}
-            >
-              <RefreshCw className={cn("h-3 w-3 sm:h-3.5 sm:w-3.5", refreshing && "animate-spin")} />
-              Refresh
-            </button>
-          )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function RailPriceMarker({
-  y,
-  price,
-  c,
-  fmt,
-  dotColor,
-  textColor,
-}: {
-  y: number;
-  price: number;
-  c: string;
-  fmt: (p: number) => string;
-  dotColor: string;
-  textColor: string;
-}) {
-  return (
-    <div
-      className="absolute right-0 flex items-center pointer-events-none pr-0.5"
-      style={{ top: y, transform: "translateY(-50%)" }}
-    >
-      <div
-        className="shrink-0 rounded-full"
-        style={{
-          width: 7,
-          height: 7,
-          backgroundColor: dotColor,
-          boxShadow: `0 0 8px ${dotColor}`,
-        }}
-      />
-      <span
-        className="ml-1.5 text-[9px] sm:text-[10px] font-mono font-bold tabular-nums whitespace-nowrap sm:hidden"
-        style={{ color: textColor }}
-      >
-        {c}{fmt(price)}
-      </span>
     </div>
   );
 }
@@ -435,7 +370,6 @@ function RailLabel({
   fmt,
   dotColor,
   textColor,
-  showPrice = true,
 }: {
   y: number;
   label: string;
@@ -445,7 +379,6 @@ function RailLabel({
   fmt: (p: number) => string;
   dotColor: string;
   textColor: string;
-  showPrice?: boolean;
 }) {
   return (
     <div
@@ -453,30 +386,28 @@ function RailLabel({
       style={{ top: y, transform: "translateY(-50%)" }}
     >
       <span
-        className="flex-1 min-w-0 text-right text-[9px] sm:text-[10px] font-bold leading-tight truncate"
+        className="flex-1 min-w-0 text-right text-[8px] sm:text-[9px] font-bold leading-tight truncate"
         style={{ color: textColor }}
         title={labelFull ?? label}
       >
         <span className="sm:hidden">{label}</span>
         <span className="hidden sm:inline">{labelFull ?? label}</span>
       </span>
+      <span
+        className="shrink-0 text-[8px] sm:text-[9px] font-mono font-bold tabular-nums whitespace-nowrap"
+        style={{ color: textColor }}
+      >
+        {c}{fmt(price)}
+      </span>
       <div
         className="shrink-0 rounded-full"
         style={{
-          width: 8,
-          height: 8,
+          width: 7,
+          height: 7,
           backgroundColor: dotColor,
-          boxShadow: `0 0 8px ${dotColor}, 0 0 16px ${dotColor}88`,
+          boxShadow: `0 0 8px ${dotColor}, 0 0 14px ${dotColor}88`,
         }}
       />
-      {showPrice && (
-        <span
-          className="hidden sm:inline text-[10px] font-mono font-bold tabular-nums whitespace-nowrap ml-1"
-          style={{ color: textColor }}
-        >
-          {c}{fmt(price)}
-        </span>
-      )}
     </div>
   );
 }

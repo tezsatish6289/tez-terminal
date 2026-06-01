@@ -168,128 +168,117 @@ export function HeatmapAssetCard({
       className={cn(
         SIM_CARD,
         "flex flex-col overflow-hidden",
-        // When the card is used standalone (no footer), keep its old
-        // fixed-height shape so cards in a row stay aligned. Once a
-        // footer slot is wired in (the master-detail cockpit) the card
-        // sizes to content so the tabs can flow naturally below.
-        !footerSlot && "h-full min-h-[448px]",
+        !footerSlot && "min-h-[400px] lg:min-h-[448px]",
         onSelect && "cursor-pointer transition-shadow",
         selected &&
           "ring-2 ring-accent/80 shadow-[0_0_0_1px_rgba(0,212,170,0.25),0_8px_28px_rgba(0,212,170,0.12)]",
         onSelect && !selected && "hover:ring-1 hover:ring-white/20",
       )}
     >
-      {/* ── Header — three tight rows:
-           1) status dot + title + tags · mode buttons
-           2) capital + Δ% · updated time
-           3) status reason (one-liner that used to sit on the left rail)
-
-           The dot mirrors the left rail's dot exactly (same color +
-           same status derivation). The reason text is what we just
-           pulled off the rail row — it gets full width here so it
-           never truncates mid-thought. */}
-      <div className="shrink-0 px-3 pt-2.5 pb-2 border-b border-white/[0.1] bg-[#1c1c21]">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-            <span
-              className={cn(
-                "shrink-0 inline-block w-2 h-2 rounded-full",
-                POWER_DOT[cardStatus.power],
-              )}
-              aria-hidden
-            />
-            <span className="text-[13px] font-black tracking-tight truncate">
-              {label}
-            </span>
-            <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/45 px-1.5 py-0.5 rounded border border-white/[0.08] bg-white/[0.03]">
-              {ASSET_TAG[botId]}
-            </span>
-            {ivPct != null && (
-              <IvBadge
-                pct={ivPct}
-                title={formatIvExplainer(ivPct, spot, ASSET_TAG[botId])}
+      {/* ── Split body: metadata left · zone ladder right ── */}
+      <div className="flex flex-1 min-h-0 flex-col sm:flex-row">
+        {/* Left — bot identity, controls, capital, status */}
+        <div className="shrink-0 sm:w-[240px] md:w-[260px] lg:w-[280px] xl:w-[300px] flex flex-col gap-4 px-4 py-4 border-b sm:border-b-0 sm:border-r border-white/[0.1] bg-[#1c1c21]">
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+              <span
+                className={cn(
+                  "shrink-0 inline-block w-2 h-2 rounded-full",
+                  POWER_DOT[cardStatus.power],
+                )}
+                aria-hidden
               />
-            )}
-            <DiscoveryBadge publicLive={publicLive === true} />
-            {liveMirroringEnabled === false && <SimOnlyBadge />}
+              <span className="text-sm font-black tracking-tight truncate">
+                {label}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/45 px-1.5 py-0.5 rounded border border-white/[0.08] bg-white/[0.03]">
+                {ASSET_TAG[botId]}
+              </span>
+              {ivPct != null && (
+                <IvBadge
+                  pct={ivPct}
+                  title={formatIvExplainer(ivPct, spot, ASSET_TAG[botId])}
+                />
+              )}
+              <DiscoveryBadge publicLive={publicLive === true} />
+              {liveMirroringEnabled === false && <SimOnlyBadge />}
+            </div>
           </div>
+
           {settingsSlot && (
             <div
-              className="shrink-0"
+              className="w-full"
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
             >
               {settingsSlot}
             </div>
           )}
-        </div>
-        <div className="mt-1.5 flex items-baseline justify-between gap-2 flex-wrap">
-          <div className="flex items-baseline gap-2 min-w-0">
-            <span className="text-[14px] font-mono font-black tabular-nums text-foreground leading-none">
-              {cs}
-              {capital.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
-            </span>
-            <span
-              className={cn(
-                "text-[10px] font-mono font-bold tabular-nums leading-none",
-                delta >= 0 ? "text-emerald-300/90" : "text-rose-300/90",
-              )}
-            >
-              {delta >= 0 ? "▲" : "▼"} {delta >= 0 ? "+" : ""}
-              {deltaPct.toFixed(2)}%
-            </span>
-          </div>
-          <LastRanInline
-            botId={botId}
-            botLastRanAt={botLastRanAt}
-            zonesRefreshedAt={zonesRefreshedAt}
-          />
-        </div>
-        <div className="mt-1.5 flex items-center gap-1.5 min-w-0">
-          <span
-            className={cn(
-              "shrink-0 text-[9px] font-black uppercase tracking-widest",
-              POWER_TEXT[cardStatus.power],
-            )}
-          >
-            {cardStatus.headline}
-          </span>
-          {cardStatus.detail && (
-            <>
-              <span className="shrink-0 text-muted-foreground/35">·</span>
-              <span
-                className="text-[10px] text-muted-foreground/70 truncate min-w-0"
-                title={cardStatus.detail}
-              >
-                {cardStatus.detail}
+
+          <div className="space-y-2 mt-auto">
+            <div className="space-y-1">
+              <span className="text-lg sm:text-xl font-mono font-black tabular-nums text-foreground leading-none block">
+                {cs}
+                {capital.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </span>
-            </>
+              <span
+                className={cn(
+                  "text-[11px] font-mono font-bold tabular-nums leading-none",
+                  delta >= 0 ? "text-emerald-300/90" : "text-rose-300/90",
+                )}
+              >
+                {delta >= 0 ? "▲" : "▼"} {delta >= 0 ? "+" : ""}
+                {deltaPct.toFixed(2)}%
+              </span>
+            </div>
+            <LastRanInline
+              botId={botId}
+              botLastRanAt={botLastRanAt}
+              zonesRefreshedAt={zonesRefreshedAt}
+              stacked
+            />
+            <div className="flex flex-col gap-0.5 min-w-0 pt-1 border-t border-white/[0.06]">
+              <span
+                className={cn(
+                  "text-[9px] font-black uppercase tracking-widest",
+                  POWER_TEXT[cardStatus.power],
+                )}
+              >
+                {cardStatus.headline}
+              </span>
+              {cardStatus.detail && (
+                <span
+                  className="text-[10px] text-muted-foreground/70 leading-snug"
+                  title={cardStatus.detail}
+                >
+                  {cardStatus.detail}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right — vertical price ladder */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-[360px]">
+          {!suggested ? (
+            <div className="flex-1 flex items-center justify-center px-4 py-8">
+              <p className="text-[10px] text-muted-foreground/40 text-center">
+                Tap Refresh all to load zones
+              </p>
+            </div>
+          ) : (
+            <ZonePriceLadder
+              suggested={suggested}
+              spot={spot}
+              engineDirection={engineDirection}
+            />
           )}
         </div>
-      </div>
-
-      {/* ── Body: vertical price ladder — bear band on top, bull on
-           bottom, max-pain lines between, current price as the yellow
-           anchor. The actual price-vs-level distance is drawn to scale
-           so traders can perceive "how far above bull / below bear" by
-           eye instead of reading numbers and subtracting in their head. */}
-      <div className="flex-1 flex flex-col min-h-0">
-        {!suggested ? (
-          <div className="flex-1 flex items-center justify-center px-3 py-6">
-            <p className="text-[10px] text-muted-foreground/40 text-center">
-              Tap Refresh all to load zones
-            </p>
-          </div>
-        ) : (
-          <ZonePriceLadder
-            suggested={suggested}
-            spot={spot}
-            engineDirection={engineDirection}
-          />
-        )}
       </div>
 
       {/* ── Footer slot — Open / History / Logs tabs in the cockpit ── */}
@@ -313,10 +302,12 @@ function LastRanInline({
   botId: _botId,
   botLastRanAt,
   zonesRefreshedAt,
+  stacked = false,
 }: {
   botId: CockpitBotId;
   botLastRanAt?: string | null;
   zonesRefreshedAt?: string | null;
+  stacked?: boolean;
 }) {
   const botTick = useIsoTimeLabel(botLastRanAt);
   const zones = useIsoTimeLabel(zonesRefreshedAt);
@@ -342,11 +333,16 @@ function LastRanInline({
   }
   return (
     <span
-      className="inline-flex items-center gap-1 text-[9px] text-muted-foreground/55 leading-none shrink-0 tabular-nums"
+      className={cn(
+        "text-[9px] text-muted-foreground/55 leading-none tabular-nums",
+        stacked ? "flex flex-col gap-0.5" : "inline-flex items-center gap-1 shrink-0",
+      )}
       title={title}
     >
-      <Clock className="w-3 h-3 text-muted-foreground/45" />
-      <span className="font-bold">{label}</span>
+      <span className={cn("inline-flex items-center gap-1", stacked && "text-muted-foreground/45")}>
+        <Clock className="w-3 h-3 text-muted-foreground/45" />
+        <span className="font-bold">{label}</span>
+      </span>
       <span className="text-accent/85 font-black">{primary.relative}</span>
     </span>
   );
@@ -523,9 +519,9 @@ function ZonePriceLadder({
   const renderMax = maxP + padPx;
   const renderSpan = renderMax - renderMin;
 
-  const HEIGHT_PX = 280;
+  const CHART_HEIGHT = 360;
   const yFor = (price: number): number =>
-    HEIGHT_PX * (1 - (price - renderMin) / renderSpan);
+    CHART_HEIGHT * (1 - (price - renderMin) / renderSpan);
 
   const fmt = (p: number): string =>
     p >= 1000
@@ -535,6 +531,13 @@ function ZonePriceLadder({
           maximumFractionDigits: p < 10 ? 3 : 2,
         });
 
+  const fmtHalfWidth = (hw: number): string => {
+    if (hw >= 1000) return Math.round(hw).toLocaleString();
+    if (hw >= 10) return hw.toFixed(0);
+    if (hw >= 1) return hw.toFixed(2);
+    return hw.toFixed(3);
+  };
+
   const bullBandStyle: React.CSSProperties | null =
     bullLow != null && bullHigh != null
       ? { top: yFor(bullHigh), height: yFor(bullLow) - yFor(bullHigh) }
@@ -543,13 +546,6 @@ function ZonePriceLadder({
     bearLow != null && bearHigh != null
       ? { top: yFor(bearHigh), height: yFor(bearLow) - yFor(bearHigh) }
       : null;
-
-  const fmtHalfWidth = (hw: number): string => {
-    if (hw >= 1000) return Math.round(hw).toLocaleString();
-    if (hw >= 10) return hw.toFixed(0);
-    if (hw >= 1) return hw.toFixed(2);
-    return hw.toFixed(3);
-  };
 
   // Detail strings — match the user's chart annotation style.
   const bullDetail = (() => {
@@ -581,10 +577,10 @@ function ZonePriceLadder({
   const bearIdle = bearBandStyle != null && bearActionable === false;
 
   return (
-    <div className="px-3 py-3">
+    <div className="flex-1 flex flex-col justify-center px-3 py-3 sm:px-4 sm:py-4 min-h-[360px]">
       <div
         className="relative w-full rounded-lg border border-white/[0.06] bg-[#0a0a0c] overflow-hidden"
-        style={{ height: HEIGHT_PX }}
+        style={{ height: CHART_HEIGHT }}
       >
         {/* ── Bear band ── */}
         {bearBandStyle && (

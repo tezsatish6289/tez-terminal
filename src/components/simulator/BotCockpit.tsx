@@ -524,6 +524,7 @@ export function BotCockpit({
                 capital={selectedMetrics?.capital ?? startingCapital}
                 suggested={selectedSuggested}
                 onTradeOpened={refetchAll}
+                stacked
               />
             }
           />

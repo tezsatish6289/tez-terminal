@@ -91,6 +91,7 @@ export function ManualTradeSheet({
   capital,
   manualGate,
   onOpened,
+  stacked = false,
 }: {
   botId: CockpitBotId;
   label: string;
@@ -98,6 +99,7 @@ export function ManualTradeSheet({
   capital: number;
   manualGate: ManualEntryGateResult;
   onOpened?: () => void;
+  stacked?: boolean;
 }) {
   const { user } = useUser();
   const isAdmin = isAdminEmail(user?.email);
@@ -251,14 +253,20 @@ export function ManualTradeSheet({
         onPointerDown={stop}
         className={cn(
           "flex items-center gap-1 rounded-lg border border-white/[0.12] bg-[#1a1a1f]",
-          "px-2 py-1.5 transition-all",
+          stacked ? "w-full justify-center px-3 py-2" : "px-2 py-1.5",
+          "transition-all",
           gateBlocked
             ? "opacity-40 cursor-not-allowed border-white/[0.06]"
             : "hover:bg-[#222228] hover:border-amber-500/25",
         )}
       >
         <Crosshair className="w-3.5 h-3.5 text-amber-400/70" />
-        <span className="text-[8px] font-bold uppercase tracking-wider text-amber-400/60 hidden sm:inline">
+        <span
+          className={cn(
+            "text-[8px] font-bold uppercase tracking-wider text-amber-400/60",
+            !stacked && "hidden sm:inline",
+          )}
+        >
           Manual
         </span>
       </button>

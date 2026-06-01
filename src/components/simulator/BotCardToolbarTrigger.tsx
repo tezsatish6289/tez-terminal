@@ -37,12 +37,14 @@ export function BotCardToolbarTrigger({
   tradingMode,
   power = "idle",
   sheetLabel = "Config",
+  stacked = false,
   onConfigClick,
   onTradingModeChange,
 }: {
   tradingMode: TradingMode;
   power?: CockpitBotPower;
   sheetLabel?: string;
+  stacked?: boolean;
   onConfigClick?: (e: React.MouseEvent) => void;
   onTradingModeChange?: (next: TradingMode) => void;
 }) {
@@ -51,7 +53,10 @@ export function BotCardToolbarTrigger({
   return (
     <div
       data-heatmap-toolbar=""
-      className="flex items-center gap-1 shrink-0 relative z-10"
+      className={cn(
+        "flex shrink-0 relative z-10",
+        stacked ? "flex-col gap-2 w-full" : "items-center gap-1",
+      )}
       onClick={stop}
       onPointerDown={stop}
       onKeyDown={(e) => e.stopPropagation()}
@@ -66,11 +71,17 @@ export function BotCardToolbarTrigger({
         onPointerDown={stop}
         className={cn(
           "flex items-center gap-1 rounded-lg border border-white/[0.12] bg-[#1a1a1f]",
-          "px-2 py-1.5 hover:bg-[#222228] hover:border-white/[0.18] transition-all",
+          stacked ? "w-full justify-center px-3 py-2" : "px-2 py-1.5",
+          "hover:bg-[#222228] hover:border-white/[0.18] transition-all",
         )}
       >
         <Settings2 className="w-3.5 h-3.5 text-muted-foreground/55" />
-        <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/50 hidden sm:inline">
+        <span
+          className={cn(
+            "text-[8px] font-bold uppercase tracking-wider text-muted-foreground/50",
+            !stacked && "hidden sm:inline",
+          )}
+        >
           {sheetLabel}
         </span>
       </button>
@@ -78,7 +89,10 @@ export function BotCardToolbarTrigger({
       <div
         role="group"
         aria-label="Trading mode"
-        className="flex items-center rounded-lg border border-white/[0.12] bg-[#1a1a1f] overflow-hidden"
+        className={cn(
+          "flex items-center rounded-lg border border-white/[0.12] bg-[#1a1a1f] overflow-hidden",
+          stacked && "w-full",
+        )}
       >
         {(["OFF", "SIM_ONLY", "SIM_LIVE"] as const).map((mode) => {
           const selected = tradingMode === mode;
@@ -94,7 +108,8 @@ export function BotCardToolbarTrigger({
               }}
               onPointerDown={stop}
               className={cn(
-                "flex items-center gap-0.5 px-1.5 py-1.5 text-[8px] font-black uppercase tracking-wider transition-all",
+                "flex items-center justify-center gap-0.5 py-1.5 text-[8px] font-black uppercase tracking-wider transition-all",
+                stacked ? "flex-1 px-2" : "px-1.5",
                 selected
                   ? mode === "OFF"
                     ? "bg-rose-500/15 text-rose-300"

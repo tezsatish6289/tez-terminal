@@ -195,10 +195,12 @@ export function SimBotConfigSheet({
   botId,
   label,
   onStatusChange,
+  stacked = false,
 }: {
   botId: CockpitBotId;
   label: string;
   onStatusChange?: (status: CockpitBotStatus) => void;
+  stacked?: boolean;
 }) {
   const firestore = useFirestore();
   const { user } = useUser();
@@ -468,6 +470,7 @@ export function SimBotConfigSheet({
         tradingMode={tradingMode}
         power={status.power}
         sheetLabel="Config"
+        stacked={stacked}
         onConfigClick={() => setSheetOpen(true)}
         onTradingModeChange={(next) => {
           void handleTradingModeChange(next);

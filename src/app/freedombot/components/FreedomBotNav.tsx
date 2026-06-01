@@ -50,7 +50,6 @@ export function FreedomBotNav() {
   const navLinks = pathBase
     ? ([
         { label: "Home", href: "/freedombot" },
-        { label: "Levels", href: "/freedombot/levels" },
         { label: "Performance", href: "/freedombot/performance" },
         { label: "Methodology", href: "/freedombot/methodology" },
         { label: "Records", href: "/freedombot/records" },
@@ -58,7 +57,6 @@ export function FreedomBotNav() {
       ] as const)
     : ([
         { label: "Home", href: "/" },
-        { label: "Levels", href: "/levels" },
         { label: "Performance", href: "/performance" },
         { label: "Methodology", href: "/methodology" },
         { label: "Records", href: "/records" },

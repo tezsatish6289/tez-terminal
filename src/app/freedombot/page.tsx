@@ -1306,6 +1306,7 @@ export default function FreedomBotPage() {
               <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "#334155" }}>Product</p>
               <div className="flex flex-col gap-3">
                 {[
+                  { label: "Levels", href: "/levels" },
                   { label: "Performance", href: "/performance" },
                   { label: "On-chain Records", href: "/records" },
                   { label: "Pricing", href: "#pricing" },

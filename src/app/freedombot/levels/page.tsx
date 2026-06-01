@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, RefreshCw, TrendingUp, Info } from "lucide-react";
+import { Loader2, RefreshCw, TrendingUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ZonePriceLadder, type PublicLevels } from "@/components/levels/ZonePriceLadder";
 
@@ -17,9 +17,6 @@ interface LevelsPayload {
   updatedAt: string;
 }
 
-const DISCLAIMER =
-  "These levels are generated algorithmically from historical price and volatility data and are provided for informational purposes only. They do not constitute investment advice or a recommendation to buy or sell any security.";
-
 type TabKey = "indices" | "crypto";
 
 export default function LevelsPage() {
@@ -27,6 +24,7 @@ export default function LevelsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<TabKey>("indices");
+  const [slide, setSlide] = useState(0);
 
   const load = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
@@ -51,11 +49,30 @@ export default function LevelsPage() {
   const items = tab === "indices" ? payload?.indices ?? [] : payload?.crypto ?? [];
   const currency = tab === "indices" ? "₹" : "$";
 
+  const count = items.length;
+  const current = count > 0 ? Math.min(slide, count - 1) : 0;
+  const go = useCallback(
+    (dir: number) => setSlide((s) => (count > 0 ? (s + dir + count) % count : 0)),
+    [count],
+  );
+
+  const switchTab = (key: TabKey) => {
+    setTab(key);
+    setSlide(0);
+  };
+
+  // Auto-advance the slideshow; re-arms on every change (manual or auto).
+  useEffect(() => {
+    if (count <= 1) return;
+    const id = setTimeout(() => setSlide((s) => (s + 1) % count), 8000);
+    return () => clearTimeout(id);
+  }, [current, count, tab]);
+
   return (
     <main className="min-h-screen" style={{ backgroundColor: "#080f1e" }}>
       <div className="max-w-[1200px] mx-auto w-full px-4 sm:px-6 py-8 sm:py-12">
         {/* Header */}
-        <div className="flex flex-col gap-3 mb-6">
+        <div className="flex flex-col gap-2 mb-5">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5" style={{ color: "#60a5fa" }} />
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight" style={{ color: "#f0f4ff" }}>
@@ -63,23 +80,9 @@ export default function LevelsPage() {
             </h1>
           </div>
           <p className="text-sm max-w-2xl leading-relaxed" style={{ color: "#94a3b8" }}>
-            Algorithmically-derived bullish and bearish zones for major indices and crypto
-            assets, with the session&apos;s Point of Control. Levels refresh automatically
-            every minute.
-          </p>
-        </div>
-
-        {/* Disclaimer */}
-        <div
-          className="flex items-start gap-2.5 rounded-xl border px-4 py-3 mb-6"
-          style={{
-            borderColor: "rgba(90,140,220,0.18)",
-            backgroundColor: "rgba(37,99,235,0.06)",
-          }}
-        >
-          <Info className="h-4 w-4 mt-0.5 shrink-0" style={{ color: "#60a5fa" }} />
-          <p className="text-[12px] leading-relaxed" style={{ color: "#9fb3d1" }}>
-            {DISCLAIMER}
+            Bullish and bearish zones for major indices and crypto, with the session&apos;s
+            Point of Control — refreshed every minute. For informational purposes only; not
+            investment advice.
           </p>
         </div>
 
@@ -95,7 +98,7 @@ export default function LevelsPage() {
             ]).map(({ key, label }) => (
               <button
                 key={key}
-                onClick={() => setTab(key)}
+                onClick={() => switchTab(key)}
                 className="px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all"
                 style={
                   tab === key
@@ -119,21 +122,63 @@ export default function LevelsPage() {
           </button>
         </div>
 
-        {/* Grid */}
+        {/* Slideshow */}
         {loading ? (
           <div className="flex items-center justify-center py-24">
             <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
           </div>
+        ) : count === 0 ? (
+          <div className="flex items-center justify-center py-24">
+            <p className="text-xs" style={{ color: "#64748b" }}>No levels available yet.</p>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {items.map((item) => (
+          <div className="relative max-w-2xl mx-auto">
+            <div className="relative">
               <LevelCard
-                key={item.symbol ?? item.asset}
-                label={item.label}
-                data={item.data}
+                key={items[current].symbol ?? items[current].asset}
+                label={items[current].label}
+                data={items[current].data}
                 currency={currency}
               />
-            ))}
+
+              {count > 1 && (
+                <>
+                  <button
+                    onClick={() => go(-1)}
+                    aria-label="Previous"
+                    className="absolute top-1/2 -translate-y-1/2 -left-3 sm:-left-5 flex items-center justify-center h-10 w-10 rounded-full border transition-all hover:scale-105"
+                    style={{ borderColor: "rgba(90,140,220,0.2)", backgroundColor: "rgba(13,20,38,0.95)", color: "#cbd5e1" }}
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={() => go(1)}
+                    aria-label="Next"
+                    className="absolute top-1/2 -translate-y-1/2 -right-3 sm:-right-5 flex items-center justify-center h-10 w-10 rounded-full border transition-all hover:scale-105"
+                    style={{ borderColor: "rgba(90,140,220,0.2)", backgroundColor: "rgba(13,20,38,0.95)", color: "#cbd5e1" }}
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </>
+              )}
+            </div>
+
+            {count > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-5">
+                {items.map((item, i) => (
+                  <button
+                    key={item.symbol ?? item.asset}
+                    onClick={() => setSlide(i)}
+                    aria-label={`Go to ${item.label}`}
+                    className="h-2 rounded-full transition-all"
+                    style={{
+                      width: i === current ? 20 : 8,
+                      backgroundColor: i === current ? "#2563eb" : "rgba(90,140,220,0.25)",
+                    }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
 

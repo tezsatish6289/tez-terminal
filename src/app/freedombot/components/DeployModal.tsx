@@ -27,6 +27,7 @@ import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { freedombotDashboardBase } from "@/lib/freedombot/dashboard-path";
 import { DEFAULT_TRADING_PREFS } from "@/lib/freedombot/trading-prefs-shared";
 import { RiskControls, type TradingPrefs } from "./risk-controls";
+import { cn } from "@/lib/utils";
 import type { Auth, User } from "firebase/auth";
 // NOTE: DeployModal keeps its own local EXCHANGES / HELP_GUIDES tables
 // for now (richer copy + non-crypto bots). The shared `exchange-fields.ts`
@@ -46,6 +47,40 @@ const STEP_LABELS: Record<Step, string> = {
   "enter-creds": "Credentials",
   "success": "Done",
 };
+
+const ONBOARDING_SUPPORT_URL = "https://wa.me/919335252961";
+
+function OnboardingSupportLink({ className }: { className?: string }) {
+  return (
+    <a
+      href={ONBOARDING_SUPPORT_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        "w-full flex items-center justify-center text-xs font-bold transition-opacity hover:opacity-80",
+        className,
+      )}
+      style={{ color: "#60a5fa" }}
+    >
+      Get onboarding support
+    </a>
+  );
+}
+
+function DeployModalFooter({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="flex-shrink-0 px-6 py-4 space-y-3"
+      style={{
+        borderTop: "1px solid rgba(90,140,220,0.1)",
+        backgroundColor: "#080f1e",
+        boxShadow: "0 -8px 24px rgba(0,0,0,0.35)",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 
 const BOT_DESCRIPTIONS: Record<string, string> = {
   CRYPTO: "Trade BTC, ETH, SOL, XRP & more with one bot",
@@ -621,13 +656,6 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                   );
                 })}
               </div>
-              <button
-                onClick={() => setStep("choose-exchange")}
-                className="mt-5 w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.01] active:scale-[0.99]"
-                style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
-              >
-                Continue <ArrowRight className="h-4 w-4" />
-              </button>
             </div>
           )}
 
@@ -747,18 +775,6 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
                 </div>
               )}
 
-              <button
-                onClick={() => void handleExchangeContinue()}
-                disabled={!selectedExchange || isCheckingExisting}
-                className="mt-5 w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
-              >
-                {isCheckingExisting ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" /> Checking connection…</>
-                ) : (
-                  <>Continue <ArrowRight className="h-4 w-4" /></>
-                )}
-              </button>
             </div>
           )}
 
@@ -1024,25 +1040,12 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
 
               {error && (
                 <div
-                  className="mt-4 px-4 py-3 rounded-xl text-sm font-medium"
+                  className="px-4 py-3 rounded-xl text-sm font-medium"
                   style={{ backgroundColor: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}
                 >
                   {error}
                 </div>
               )}
-
-              <button
-                onClick={handleSubmit}
-                disabled={isSubmitting || !credsFilled}
-                className="mt-4 w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
-              >
-                {isSubmitting ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" /> Verifying keys…</>
-                ) : (
-                  <><Rocket className="h-4 w-4" /> Deploy Bot</>
-                )}
-              </button>
             </div>
           )}
 
@@ -1101,6 +1104,56 @@ export function DeployModal({ isOpen, onClose, user, auth }: DeployModalProps) {
             </div>
           )}
         </div>
+
+        {/* ── Sticky footer — primary CTA + support always visible ── */}
+        {step === "choose-bot" && (
+          <DeployModalFooter>
+            <OnboardingSupportLink />
+            <button
+              onClick={() => setStep("choose-exchange")}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.01] active:scale-[0.99]"
+              style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+            >
+              Continue <ArrowRight className="h-4 w-4" />
+            </button>
+          </DeployModalFooter>
+        )}
+
+        {step === "choose-exchange" && (
+          <DeployModalFooter>
+            <OnboardingSupportLink />
+            <button
+              onClick={() => void handleExchangeContinue()}
+              disabled={!selectedExchange || isCheckingExisting}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+            >
+              {isCheckingExisting ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Checking connection…</>
+              ) : (
+                <>Continue <ArrowRight className="h-4 w-4" /></>
+              )}
+            </button>
+          </DeployModalFooter>
+        )}
+
+        {step === "enter-creds" && currentExchangeDef && (
+          <DeployModalFooter>
+            <OnboardingSupportLink />
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting || !credsFilled}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-sm text-white transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+            >
+              {isSubmitting ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Verifying keys…</>
+              ) : (
+                <><Rocket className="h-4 w-4" /> Deploy Bot</>
+              )}
+            </button>
+          </DeployModalFooter>
+        )}
       </div>
     </div>
   );

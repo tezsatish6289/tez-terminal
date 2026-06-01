@@ -3,18 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, RefreshCw, TrendingUp, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  normalizeSuggestedZones,
-  spotFromSuggested,
-  type SuggestedZonesSnapshot,
-} from "@/components/simulator/heatmap-types";
-import { ZonePriceLadder } from "@/components/levels/ZonePriceLadder";
+import { ZonePriceLadder, type PublicLevels } from "@/components/levels/ZonePriceLadder";
 
 interface RawItem {
   symbol?: string;
   asset?: string;
   label: string;
-  data: Record<string, unknown> | null;
+  data: PublicLevels | null;
 }
 interface LevelsPayload {
   indices: RawItem[];
@@ -68,9 +63,9 @@ export default function LevelsPage() {
             </h1>
           </div>
           <p className="text-sm max-w-2xl leading-relaxed" style={{ color: "#94a3b8" }}>
-            Algorithmically-derived bullish and bearish zones for NSE indices and major
-            crypto assets — built from option open-interest clusters and max-pain. Levels
-            refresh automatically every minute.
+            Algorithmically-derived bullish and bearish zones for major indices and crypto
+            assets, with the session&apos;s Point of Control. Levels refresh automatically
+            every minute.
           </p>
         </div>
 
@@ -156,21 +151,23 @@ function LevelCard({
   currency,
 }: {
   label: string;
-  data: Record<string, unknown> | null;
+  data: PublicLevels | null;
   currency: string;
 }) {
-  const snapshot: SuggestedZonesSnapshot | null = normalizeSuggestedZones(data);
-  const spot = spotFromSuggested(snapshot);
-  const expiry = typeof data?.expiryUsed === "string" ? data.expiryUsed : null;
-  const nseFetchError = typeof data?.nseFetchError === "string" ? data.nseFetchError : null;
-  const computedAt = snapshot?.computedAt;
-  const updated = computedAt
-    ? new Date(computedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  const spot = data?.spot ?? null;
+  const unavailable = data?.unavailable === true;
+  const computedAt = data?.computedAt;
+  const refreshed = computedAt
+    ? new Date(computedAt).toLocaleString([], {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
     : null;
 
   const hasBands =
-    snapshot != null &&
-    (snapshot.bullZoneLow != null || snapshot.bearZoneLow != null);
+    data != null && (data.bullLow != null || data.bearLow != null);
 
   return (
     <div
@@ -196,17 +193,9 @@ function LevelCard({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {expiry && (
-            <span
-              className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-md border"
-              style={{ borderColor: "rgba(90,140,220,0.2)", color: "#7dd3fc", backgroundColor: "rgba(56,189,248,0.06)" }}
-            >
-              {expiry}
-            </span>
-          )}
-          {updated && (
-            <span className="text-[9px] font-mono" style={{ color: "#475569" }}>
-              {updated}
+          {refreshed && (
+            <span className="text-[9px] font-mono whitespace-nowrap" style={{ color: "#64748b" }}>
+              Refreshed {refreshed}
             </span>
           )}
         </div>
@@ -214,14 +203,14 @@ function LevelCard({
 
       {/* Body */}
       {hasBands ? (
-        <ZonePriceLadder suggested={snapshot!} spot={spot} currencySymbol={currency} />
+        <ZonePriceLadder levels={data!} spot={spot} currencySymbol={currency} />
       ) : (
         <div className="flex flex-col items-center justify-center text-center px-4 py-16 gap-2 min-h-[360px]">
           <p className="text-xs" style={{ color: "#64748b" }}>
-            {nseFetchError ? "Levels temporarily unavailable" : "Awaiting level data"}
+            {unavailable ? "Levels temporarily unavailable" : "Awaiting level data"}
           </p>
           <p className="text-[10px]" style={{ color: "#475569" }}>
-            {nseFetchError
+            {unavailable
               ? "The latest computation could not produce zones. Last-good levels will return on the next refresh."
               : "Levels populate during the next compute cycle."}
           </p>

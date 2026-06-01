@@ -3,48 +3,56 @@
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
-import {
-  noClusterLine,
-  type SuggestedZonesSnapshot,
-} from "@/components/simulator/heatmap-types";
+
+/**
+ * Neutral, render-only level data for the public page. Mirrors the shape the
+ * `/api/freedombot/levels` route emits — deliberately free of any option-chain
+ * terminology (no strikes / OI / max-pain / expiry), so nothing about the
+ * derivation reaches the browser.
+ */
+export interface PublicLevels {
+  spot: number | null;
+  poc: number | null;
+  bullLow: number | null;
+  bullHigh: number | null;
+  bearLow: number | null;
+  bearHigh: number | null;
+  bandOffset: number | null;
+  bullActive: boolean | null;
+  bearActive: boolean | null;
+  computedAt: string | null;
+  unavailable: boolean;
+}
 
 /**
  * Read-only vertical price ladder for the public freedombot.ai/levels page.
  *
- * Mirrors the simulator's `ZonePriceLadder` (HeatmapAssetCard) visual — bull
- * band (green) at the bottom, bear band (red) at the top, max-pain magnet
- * lines between, the current price as the amber anchor — but:
+ * Bull band (green) at the bottom, bear band (red) at the top, the Point of
+ * Control line between, the current price as the amber anchor — plus:
  *   • strips all engine/bot status (no "active" highlighting),
- *   • renames the stop-loss anchors to "invalidation" lines (one half-width
+ *   • renames the stop-loss anchors to "invalidation" lines (one band-offset
  *     outside each band) so the levels aren't read as trade instructions,
  *   • is currency-aware (₹ for NSE indices, $ for crypto).
  */
 export function ZonePriceLadder({
-  suggested,
+  levels,
   spot,
   currencySymbol = "$",
 }: {
-  suggested: SuggestedZonesSnapshot;
+  levels: PublicLevels;
   spot: number | null;
   currencySymbol?: string;
 }) {
-  const bullLow = suggested.bullZoneLow;
-  const bullHigh = suggested.bullZoneHigh;
-  const bullStrike = suggested.bullStrike;
-  const bullOI = suggested.bullOI;
-  const bullShare = suggested.bullClusterShare;
-  const bullTp = suggested.bullTpTarget;
-  const bullActionable = suggested.bullActionable;
+  const bullLow = levels.bullLow;
+  const bullHigh = levels.bullHigh;
+  const bullActionable = levels.bullActive;
 
-  const bearLow = suggested.bearZoneLow;
-  const bearHigh = suggested.bearZoneHigh;
-  const bearStrike = suggested.bearStrike;
-  const bearOI = suggested.bearOI;
-  const bearShare = suggested.bearClusterShare;
-  const bearTp = suggested.bearTpTarget;
-  const bearActionable = suggested.bearActionable;
+  const bearLow = levels.bearLow;
+  const bearHigh = levels.bearHigh;
+  const bearActionable = levels.bearActive;
 
-  const halfWidth = suggested.halfWidthUsd;
+  const halfWidth = levels.bandOffset;
+  const poc = levels.poc;
 
   const { bullSl, bearSl } = useMemo(
     () =>
@@ -58,28 +66,13 @@ export function ZonePriceLadder({
     [halfWidth, bullLow, bullHigh, bearLow, bearHigh],
   );
 
-  const days = suggested.maxPainByExpiry ?? [];
-
-  const mpGroups = useMemo(() => {
-    const buckets = new Map<number, { price: number; labels: string[] }>();
-    for (const e of days) {
-      const key = Math.round(e.maxPain * 100) / 100;
-      const dayLabel =
-        e.dayIndex === 0 ? "Today" : e.dayIndex === 1 ? "D+1" : "D+2";
-      const existing = buckets.get(key);
-      if (existing) existing.labels.push(dayLabel);
-      else buckets.set(key, { price: e.maxPain, labels: [dayLabel] });
-    }
-    return Array.from(buckets.values()).sort((a, b) => b.price - a.price);
-  }, [days]);
-
   const prices: number[] = [];
   if (spot != null) prices.push(spot);
   if (bullLow != null) prices.push(bullLow);
   if (bullHigh != null) prices.push(bullHigh);
   if (bearLow != null) prices.push(bearLow);
   if (bearHigh != null) prices.push(bearHigh);
-  for (const g of mpGroups) prices.push(g.price);
+  if (poc != null) prices.push(poc);
   if (bullSl != null) prices.push(bullSl);
   if (bearSl != null) prices.push(bearSl);
 
@@ -114,13 +107,6 @@ export function ZonePriceLadder({
           maximumFractionDigits: p < 10 ? 3 : 2,
         });
 
-  const fmtHalfWidth = (hw: number): string => {
-    if (hw >= 1000) return Math.round(hw).toLocaleString();
-    if (hw >= 10) return hw.toFixed(0);
-    if (hw >= 1) return hw.toFixed(2);
-    return hw.toFixed(3);
-  };
-
   const bullBandStyle: React.CSSProperties | null =
     bullLow != null && bullHigh != null
       ? { top: yFor(bullHigh), height: yFor(bullLow) - yFor(bullHigh) }
@@ -129,25 +115,6 @@ export function ZonePriceLadder({
     bearLow != null && bearHigh != null
       ? { top: yFor(bearHigh), height: yFor(bearLow) - yFor(bearHigh) }
       : null;
-
-  const bullDetail = (() => {
-    const bits: string[] = [];
-    if (bullStrike != null) bits.push(`@ ${fmt(bullStrike)}`);
-    if (halfWidth != null) bits.push(`HW ${fmtHalfWidth(halfWidth)}`);
-    if (bullOI != null && bullOI > 0) bits.push(`OI ${Math.round(bullOI).toLocaleString()}`);
-    if (bullShare != null && bullShare > 0) bits.push(`${Math.round(bullShare * 100)}%`);
-    if (bullTp != null) bits.push(`TP ${fmt(bullTp)}`);
-    return bits.join(" · ");
-  })();
-  const bearDetail = (() => {
-    const bits: string[] = [];
-    if (bearStrike != null) bits.push(`@ ${fmt(bearStrike)}`);
-    if (halfWidth != null) bits.push(`HW ${fmtHalfWidth(halfWidth)}`);
-    if (bearOI != null && bearOI > 0) bits.push(`OI ${Math.round(bearOI).toLocaleString()}`);
-    if (bearShare != null && bearShare > 0) bits.push(`${Math.round(bearShare * 100)}%`);
-    if (bearTp != null) bits.push(`TP ${fmt(bearTp)}`);
-    return bits.join(" · ");
-  })();
 
   const bullIdle = bullBandStyle != null && bullActionable === false;
   const bearIdle = bearBandStyle != null && bearActionable === false;
@@ -168,7 +135,7 @@ export function ZonePriceLadder({
             style={bearBandStyle}
           >
             <span className="absolute top-0.5 left-2 text-[9px] font-mono font-bold text-rose-300/95 whitespace-nowrap">
-              Bear zone {bearDetail}
+              Bear zone
             </span>
             <span className="absolute top-0.5 right-2 text-[9px] font-mono font-bold text-rose-300/90 tabular-nums">
               {c}{bearHigh != null ? fmt(bearHigh) : "—"}
@@ -179,37 +146,20 @@ export function ZonePriceLadder({
           </div>
         )}
 
-        {/* ── Max-pain lines ── */}
-        {mpGroups.map((g) => {
-          const isToday = g.labels.includes("Today");
-          return (
-            <div
-              key={`mp-${g.price}`}
-              className={cn(
-                "absolute left-0 right-0 border-t border-dashed",
-                isToday ? "border-accent/70" : "border-white/35",
-              )}
-              style={{ top: yFor(g.price) }}
-            >
-              <span
-                className={cn(
-                  "absolute left-2 -top-3 text-[9px] font-mono font-bold whitespace-nowrap",
-                  isToday ? "text-accent" : "text-foreground/75",
-                )}
-              >
-                Max pain
-              </span>
-              <span
-                className={cn(
-                  "absolute right-2 -top-3 text-[9px] font-mono font-bold tabular-nums",
-                  isToday ? "text-accent" : "text-foreground/75",
-                )}
-              >
-                {c}{fmt(g.price)}
-              </span>
-            </div>
-          );
-        })}
+        {/* ── Point of Control ── */}
+        {poc != null && (
+          <div
+            className="absolute left-0 right-0 border-t border-dashed border-accent/70"
+            style={{ top: yFor(poc) }}
+          >
+            <span className="absolute left-2 -top-3 text-[9px] font-mono font-bold whitespace-nowrap text-accent">
+              Point of Control
+            </span>
+            <span className="absolute right-2 -top-3 text-[9px] font-mono font-bold tabular-nums text-accent">
+              {c}{fmt(poc)}
+            </span>
+          </div>
+        )}
 
         {/* ── Invalidation lines (one half-width outside each band) ── */}
         {bullSl != null && (
@@ -247,7 +197,7 @@ export function ZonePriceLadder({
               {c}{bullHigh != null ? fmt(bullHigh) : "—"}
             </span>
             <span className="absolute bottom-0.5 left-2 text-[9px] font-mono font-bold text-emerald-300/95 whitespace-nowrap">
-              Bull zone {bullDetail}
+              Bull zone
             </span>
             <span className="absolute bottom-0.5 right-2 text-[9px] font-mono text-emerald-300/55 tabular-nums">
               {c}{bullLow != null ? fmt(bullLow) : "—"}
@@ -267,9 +217,9 @@ export function ZonePriceLadder({
       {/* ── Missing-side fallback ── */}
       {(!bullBandStyle || !bearBandStyle) && (
         <p className="text-[9px] text-muted-foreground/45 italic mt-2 text-center">
-          {!bullBandStyle && noClusterLine("bull", suggested)}
+          {!bullBandStyle && "No bullish zone in range"}
           {!bullBandStyle && !bearBandStyle ? " · " : ""}
-          {!bearBandStyle && noClusterLine("bear", suggested)}
+          {!bearBandStyle && "No bearish zone in range"}
         </p>
       )}
     </div>

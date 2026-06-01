@@ -59,6 +59,14 @@ function formatMoney(val: number | null | undefined, cs: string): string {
   return `${cs}${val.toFixed(2)}`;
 }
 
+function slotGridClass(slots: number): string {
+  if (slots <= 1) return "grid-cols-1";
+  if (slots === 2) return "grid-cols-1 sm:grid-cols-2";
+  if (slots === 3) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
+  if (slots === 4) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4";
+  return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5";
+}
+
 /** Cockpit grid for live positions — max ~5 slots, empty slots shown as
  *  placeholders so the panel never looks broken when idle. */
 export function OpenPositionsPanel({
@@ -111,14 +119,7 @@ export function OpenPositionsPanel({
         )}
       </div>
 
-      <div
-        className={cn(
-          "grid gap-3",
-          slots <= 3
-            ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-            : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5",
-        )}
-      >
+      <div className={cn("grid gap-3 sm:gap-4", slotGridClass(slots))}>
         {trades.map((trade) => {
           const simId = simTradeIdFor(trade);
           const mirrorCount = simId ? (mirrorsBySimTradeId[simId]?.length ?? 0) : 0;
@@ -148,7 +149,7 @@ function EmptySlot({ index }: { index: number }) {
     <div
       className={cn(
         SIM_SLOT_EMPTY,
-        "relative flex flex-col items-center justify-center min-h-[140px] sm:min-h-[152px]",
+        "relative flex flex-col items-center justify-center min-h-[160px] sm:min-h-[176px]",
         "text-center px-4 py-6",
       )}
     >
@@ -202,21 +203,21 @@ function OpenPositionCard({
           : "border-rose-500/25 bg-[#1a1416] hover:border-rose-500/40 hover:shadow-[0_14px_36px_-10px_rgba(0,0,0,0.85),0_4px_16px_-4px_rgba(244,63,94,0.12)]",
       )}
     >
-      <div className="px-3.5 pt-3.5 pb-2 border-b border-white/[0.1] bg-[#1c1c21]/80">
+      <div className="px-4 pt-4 pb-2.5 border-b border-white/[0.1] bg-[#1c1c21]/80">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <Link
               href={`/chart/${trade.signalId}`}
               target="_blank"
               onClick={(e) => e.stopPropagation()}
-              className="text-sm font-black text-white uppercase tracking-tight hover:text-accent truncate block"
+              className="text-base sm:text-lg font-black text-white uppercase tracking-tight hover:text-accent truncate block"
             >
               {trade.symbol}
             </Link>
-            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <Badge
                 className={cn(
-                  "text-[8px] font-black h-4 px-1.5",
+                  "text-[9px] font-black h-5 px-2",
                   isBuy
                     ? "bg-emerald-500/20 text-emerald-400"
                     : "bg-rose-500/20 text-rose-400",
@@ -224,10 +225,10 @@ function OpenPositionCard({
               >
                 {trade.side}
               </Badge>
-              <span className="text-[9px] font-bold text-muted-foreground/50 uppercase">
+              <span className="text-[10px] font-bold text-muted-foreground/55 uppercase">
                 {chartLabel}
               </span>
-              <span className="text-[9px] font-mono text-accent/80">
+              <span className="text-[10px] font-mono font-bold text-accent/85">
                 {trade.leverage}×
               </span>
             </div>
@@ -248,59 +249,59 @@ function OpenPositionCard({
         </div>
       </div>
 
-      <div className="px-3.5 py-3 flex-1 flex flex-col gap-2.5">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="text-[9px] uppercase tracking-wider text-muted-foreground/40">
+      <div className="px-4 py-4 flex-1 flex flex-col gap-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/45 font-bold">
             Unrealized
           </span>
           <span
             className={cn(
-              "flex items-center gap-1 font-mono text-base font-black tabular-nums",
+              "flex items-center gap-1.5 font-mono text-xl sm:text-2xl font-black tabular-nums",
               positive ? "text-emerald-400" : "text-rose-400",
             )}
           >
             {positive ? (
-              <TrendingUp className="h-3.5 w-3.5" />
+              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />
             ) : (
-              <TrendingDown className="h-3.5 w-3.5" />
+              <TrendingDown className="h-4 w-4 sm:h-5 sm:w-5" />
             )}
             {positive ? "+" : ""}
             {formatMoney(pnl, cs)}
           </span>
         </div>
 
-        <div className="flex gap-2 text-[10px]">
-          <div className="flex-1 min-w-0">
-            <span className="text-muted-foreground/40 block text-[8px] uppercase tracking-wider mb-0.5">
+        <div className="grid grid-cols-2 gap-3 text-[11px] sm:text-xs">
+          <div className="min-w-0">
+            <span className="text-muted-foreground/45 block text-[9px] uppercase tracking-wider mb-1 font-bold">
               Entry
             </span>
-            <span className="font-mono font-bold text-white/70">
+            <span className="font-mono font-bold text-white/75 truncate block">
               {formatPrice(trade.entryPrice, cs)}
             </span>
           </div>
-          <div className="flex-1 min-w-0">
-            <span className="text-muted-foreground/40 block text-[8px] uppercase tracking-wider mb-0.5">
+          <div className="min-w-0">
+            <span className="text-muted-foreground/45 block text-[9px] uppercase tracking-wider mb-1 font-bold">
               Mark
             </span>
-            <span className="font-mono font-bold text-white/90">
+            <span className="font-mono font-bold text-white truncate block">
               {formatPrice(trade.currentPrice, cs)}
             </span>
           </div>
-          <div className="shrink-0 text-right min-w-[88px]">
-            <span className="text-muted-foreground/40 block text-[8px] uppercase tracking-wider mb-0.5">
-              Notional
-            </span>
-            <SimNotionalSizeDisplay
-              trade={trade}
-              cs={cs}
-              useRemaining
-              className="text-[10px] block text-right"
-              valueClassName="text-white/80"
-            />
-          </div>
+        </div>
+        <div className="text-[11px] sm:text-xs">
+          <span className="text-muted-foreground/45 block text-[9px] uppercase tracking-wider mb-1 font-bold">
+            Notional
+          </span>
+          <SimNotionalSizeDisplay
+            trade={trade}
+            cs={cs}
+            useRemaining
+            className="text-xs sm:text-sm"
+            valueClassName="text-white/85 font-bold"
+          />
         </div>
 
-        <div className="flex items-center gap-1 pt-1 border-t border-white/[0.04]">
+        <div className="flex items-center gap-1.5 pt-2 border-t border-white/[0.06]">
           {[
             { n: 1, hit: trade.tp1Hit },
             { n: 2, hit: trade.tp2Hit },
@@ -324,7 +325,7 @@ function OpenPositionCard({
               <LiveMirrorSymbolLink simTradeId={simTradeId} mirrorCount={mirrorCount} />
             )}
             <span
-              className="text-[9px] font-bold text-accent/80"
+              className="text-[10px] font-bold text-accent/85"
               title="Entry confidence score"
             >
               Score {trade.confidenceScore}

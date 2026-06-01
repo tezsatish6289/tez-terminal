@@ -479,7 +479,7 @@ export function BotCockpit({
           })}
         </aside>
 
-        {/* Right pane — single card: detail header + tabs in one section */}
+        {/* Right pane — heatmap detail (tabs render full-width below) */}
         <div className="flex-1 min-w-0">
           <HeatmapAssetCard
             botId={selectedBot.id}
@@ -526,10 +526,16 @@ export function BotCockpit({
                 onTradeOpened={refetchAll}
               />
             }
-            footerSlot={children}
           />
         </div>
       </div>
+
+      {/* Open / History / Logs — full cockpit width for legible trade cards */}
+      {children && (
+        <div className="rounded-xl border border-white/[0.1] bg-[#101013] overflow-hidden">
+          {children}
+        </div>
+      )}
     </section>
   );
 }

@@ -78,7 +78,7 @@ export function SimulatorMainPanel({
           Performance &amp; stats →
         </Link>
       </div>
-      <div className="flex-1 px-3 sm:px-4 pb-3 sm:pb-4 min-h-0">{children}</div>
+      <div className="flex-1 px-4 sm:px-5 lg:px-6 pb-4 sm:pb-5 min-h-0">{children}</div>
     </div>
   );
 }

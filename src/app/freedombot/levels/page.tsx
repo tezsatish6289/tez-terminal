@@ -1,12 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Loader2, ChevronLeft, ChevronRight, Bot } from "lucide-react";
 import {
   ZonePriceLadder,
   formatHeroPrice,
   type PublicLevels,
 } from "@/components/levels/ZonePriceLadder";
+import { freedombotHomePath } from "@/lib/freedombot/dashboard-path";
 
 interface RawItem {
   symbol?: string;
@@ -30,6 +33,9 @@ const HEX_BG = `
 `;
 
 export default function LevelsPage() {
+  const pathname = usePathname();
+  const deployHref = `${freedombotHomePath(pathname)}?deploy=1`;
+
   const [payload, setPayload] = useState<LevelsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -99,16 +105,16 @@ export default function LevelsPage() {
 
   return (
     <main
-      className="min-h-screen flex flex-col"
+      className="min-h-[100dvh] flex flex-col"
       style={{
         backgroundColor: "#060912",
         backgroundImage: HEX_BG,
         backgroundSize: "100% 100%, 48px 48px, 48px 48px, 100% 100%",
       }}
     >
-      <div className="flex-1 max-w-[1100px] mx-auto w-full px-4 sm:px-8 py-10 sm:py-14 flex flex-col">
-        {/* Tab switcher — minimal */}
-        <div className="flex justify-center mb-8">
+      <div className="flex-1 max-w-2xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8 flex flex-col min-h-0">
+        {/* Tab switcher */}
+        <div className="flex justify-center mb-4 sm:mb-5 shrink-0">
           <div
             className="inline-flex items-center gap-1 p-1 rounded-xl"
             style={{ backgroundColor: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.06)" }}
@@ -120,7 +126,7 @@ export default function LevelsPage() {
               <button
                 key={key}
                 onClick={() => switchTab(key)}
-                className="px-4 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all"
+                className="px-3 sm:px-4 py-1.5 rounded-lg text-[10px] sm:text-[11px] font-bold uppercase tracking-wider transition-all"
                 style={
                   tab === key
                     ? { backgroundColor: "rgba(37,99,235,0.35)", color: "#e2e8f0" }
@@ -134,31 +140,31 @@ export default function LevelsPage() {
         </div>
 
         {loading ? (
-          <div className="flex flex-1 items-center justify-center py-32">
+          <div className="flex flex-1 items-center justify-center py-20">
             <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
           </div>
         ) : count === 0 || !item ? (
-          <div className="flex flex-1 items-center justify-center py-32">
+          <div className="flex flex-1 items-center justify-center py-20">
             <p className="text-sm" style={{ color: "#64748b" }}>
               No levels available yet.
             </p>
           </div>
         ) : (
-          <div className="relative flex-1 flex flex-col">
-            {/* Hero */}
-            <div className="text-center mb-8 sm:mb-10">
+          <div className="flex flex-col flex-1 min-h-0">
+            {/* Compact hero */}
+            <div className="text-center mb-3 sm:mb-4 shrink-0">
               <h1
-                className="text-2xl sm:text-4xl font-black tracking-tight mb-4"
+                className="text-lg sm:text-2xl font-black tracking-tight"
                 style={{ color: "#f8fafc" }}
               >
                 {item.label} Market Levels
               </h1>
               {spot != null && (
                 <p
-                  className="text-4xl sm:text-6xl font-black font-mono tabular-nums tracking-tight"
+                  className="mt-1 text-2xl sm:text-4xl font-black font-mono tabular-nums tracking-tight"
                   style={{
                     color: "#fcd34d",
-                    textShadow: "0 0 40px rgba(251,191,36,0.45), 0 0 80px rgba(251,191,36,0.2)",
+                    textShadow: "0 0 24px rgba(251,191,36,0.4), 0 0 48px rgba(251,191,36,0.15)",
                   }}
                 >
                   {formatHeroPrice(spot, currency)}
@@ -166,8 +172,8 @@ export default function LevelsPage() {
               )}
             </div>
 
-            {/* Chart */}
-            <div className="relative flex-1">
+            {/* Chart — grows to fill available space */}
+            <div className="relative flex-1 flex flex-col justify-center min-h-0 px-6 sm:px-8">
               {hasBands ? (
                 <ZonePriceLadder
                   levels={data!}
@@ -177,7 +183,7 @@ export default function LevelsPage() {
                   refreshing={refreshing}
                 />
               ) : (
-                <div className="flex flex-col items-center justify-center text-center py-24 gap-2">
+                <div className="flex flex-col items-center justify-center text-center py-16 gap-2">
                   <p className="text-sm" style={{ color: "#64748b" }}>
                     {unavailable ? "Levels temporarily unavailable" : "Awaiting level data"}
                   </p>
@@ -194,7 +200,7 @@ export default function LevelsPage() {
                   <button
                     onClick={() => go(-1)}
                     aria-label="Previous"
-                    className="absolute top-1/2 -translate-y-1/2 -left-2 sm:-left-6 flex items-center justify-center h-9 w-9 rounded-full transition-all hover:scale-105"
+                    className="absolute top-1/2 -translate-y-1/2 left-0 flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full transition-all hover:scale-105"
                     style={{
                       border: "1px solid rgba(255,255,255,0.1)",
                       backgroundColor: "rgba(0,0,0,0.6)",
@@ -206,7 +212,7 @@ export default function LevelsPage() {
                   <button
                     onClick={() => go(1)}
                     aria-label="Next"
-                    className="absolute top-1/2 -translate-y-1/2 -right-2 sm:-right-6 flex items-center justify-center h-9 w-9 rounded-full transition-all hover:scale-105"
+                    className="absolute top-1/2 -translate-y-1/2 right-0 flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full transition-all hover:scale-105"
                     style={{
                       border: "1px solid rgba(255,255,255,0.1)",
                       backgroundColor: "rgba(0,0,0,0.6)",
@@ -219,8 +225,8 @@ export default function LevelsPage() {
               )}
             </div>
 
-            {/* Footer */}
-            <div className="mt-10 text-center space-y-4">
+            {/* Footer + crypto hook */}
+            <div className="mt-4 sm:mt-5 shrink-0 text-center space-y-3">
               {count > 1 && (
                 <div className="flex items-center justify-center gap-2">
                   {items.map((it, i) => (
@@ -239,13 +245,38 @@ export default function LevelsPage() {
                 </div>
               )}
 
-              <p className="text-xs" style={{ color: "#64748b" }}>
+              {tab === "crypto" && (
+                <div
+                  className="mx-auto max-w-md rounded-xl px-4 py-3 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4"
+                  style={{
+                    border: "1px solid rgba(59,130,246,0.25)",
+                    backgroundColor: "rgba(37,99,235,0.08)",
+                  }}
+                >
+                  <p className="text-xs sm:text-sm font-medium" style={{ color: "#94a3b8" }}>
+                    Automate your trading
+                  </p>
+                  <Link
+                    href={deployHref}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-white transition-all hover:brightness-110"
+                    style={{
+                      background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",
+                      boxShadow: "0 4px 20px rgba(59,130,246,0.3)",
+                    }}
+                  >
+                    <Bot className="h-3.5 w-3.5" />
+                    Deploy Bot
+                  </Link>
+                </div>
+              )}
+
+              <p className="text-[11px] sm:text-xs" style={{ color: "#64748b" }}>
                 {refreshed ? `Data refreshed ${refreshed}` : "Awaiting refresh"}
                 {" | "}
                 {scheduleNote}
               </p>
 
-              <p className="text-[11px]" style={{ color: "#334155" }}>
+              <p className="text-[10px]" style={{ color: "#334155" }}>
                 For informational purposes only; not investment advice.
               </p>
             </div>

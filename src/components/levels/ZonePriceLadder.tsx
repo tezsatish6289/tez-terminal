@@ -41,10 +41,13 @@ export function ZonePriceLadder({
   levels,
   spot,
   currencySymbol = "$",
+  variant = "page",
 }: {
   levels: PublicLevels;
   spot: number | null;
   currencySymbol?: string;
+  /** `embedded` drops page-only offsets for simulator/carousel panes. */
+  variant?: "page" | "embedded";
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [chartHeight, setChartHeight] = useState(420);
@@ -133,10 +136,20 @@ export function ZonePriceLadder({
   const { yFor, bullBandStyle, bearBandStyle } = geometry;
 
   return (
-    <div className="mx-auto w-full max-w-[min(100%,520px)] sm:max-w-[560px] -translate-x-2 sm:translate-x-0">
+    <div
+      className={
+        variant === "embedded"
+          ? "mx-auto w-full max-w-full"
+          : "mx-auto w-full max-w-[min(100%,520px)] sm:max-w-[560px] -translate-x-2 sm:translate-x-0"
+      }
+    >
       <div
         ref={containerRef}
-        className="relative w-full min-h-[320px] h-[min(520px,52vh)] sm:h-[min(540px,56vh)]"
+        className={
+          variant === "embedded"
+            ? "relative w-full min-h-[240px] h-[min(360px,42vh)]"
+            : "relative w-full min-h-[320px] h-[min(520px,52vh)] sm:h-[min(540px,56vh)]"
+        }
       >
         {/* Left label rail */}
         <div className="absolute inset-y-0 left-0 w-[38%] max-w-[168px] min-w-[108px] sm:w-[36%] sm:max-w-[172px] sm:min-w-[112px]">

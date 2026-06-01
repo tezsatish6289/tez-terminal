@@ -19,6 +19,10 @@ import {
 import { SIM_CARD, COCKPIT_RAIL_GLASS } from "@/components/simulator/simulator-surfaces";
 import type { ZoneBotDirection } from "@/lib/zone-bot-state";
 import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
+import {
+  AutoScrollZonesPanel,
+  type ZoneCarouselItem,
+} from "@/components/simulator/AutoScrollZonesPanel";
 
 const POWER_DOT: Record<CockpitCardStatus["power"], string> = {
   on: "bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.55)]",
@@ -61,6 +65,7 @@ export function HeatmapAssetCard({
   cs,
   settingsSlot,
   footerSlot,
+  zoneCarouselItems,
   selected,
   onSelect,
 }: {
@@ -107,6 +112,9 @@ export function HeatmapAssetCard({
    *  continuous panel with the heatmap status above it. When present,
    *  the card drops its fixed height so the footer can size naturally. */
   footerSlot?: React.ReactNode;
+  /** Other bots' zone snapshots — rendered as an auto-scrolling carousel
+   *  beside the selected bot's full detail ladder. */
+  zoneCarouselItems?: ZoneCarouselItem[];
   selected?: boolean;
   onSelect?: () => void;
 }) {
@@ -272,20 +280,29 @@ export function HeatmapAssetCard({
           </div>
         </div>
 
-        {/* Right — vertical price ladder */}
-        <div className="flex-1 flex flex-col min-w-0 min-h-[360px]">
-          {!suggested ? (
-            <div className="flex-1 flex items-center justify-center px-4 py-8">
-              <p className="text-[10px] text-muted-foreground/40 text-center">
-                Tap Refresh all to load zones
-              </p>
+        {/* Right — selected bot ladder · auto-scroll carousel */}
+        <div className="flex-1 flex flex-col xl:flex-row min-w-0 min-h-[360px]">
+          <div className="flex-1 flex flex-col min-w-0 min-h-[360px]">
+            {!suggested ? (
+              <div className="flex-1 flex items-center justify-center px-4 py-8">
+                <p className="text-[10px] text-muted-foreground/40 text-center">
+                  Tap Refresh all to load zones
+                </p>
+              </div>
+            ) : (
+              <ZonePriceLadder
+                suggested={suggested}
+                spot={spot}
+                engineDirection={engineDirection}
+                compact
+              />
+            )}
+          </div>
+
+          {zoneCarouselItems && zoneCarouselItems.length > 0 && (
+            <div className="flex-1 min-w-0 min-h-[280px] xl:min-h-0 border-t xl:border-t-0 xl:border-l border-white/[0.08] bg-[#0a0a0c]/40">
+              <AutoScrollZonesPanel items={zoneCarouselItems} />
             </div>
-          ) : (
-            <ZonePriceLadder
-              suggested={suggested}
-              spot={spot}
-              engineDirection={engineDirection}
-            />
           )}
         </div>
       </div>
@@ -448,10 +465,12 @@ function ZonePriceLadder({
   suggested,
   spot,
   engineDirection,
+  compact = false,
 }: {
   suggested: SuggestedZonesSnapshot;
   spot: number | null;
   engineDirection?: ZoneBotDirection | null;
+  compact?: boolean;
 }) {
   const bullLow = suggested.bullZoneLow;
   const bullHigh = suggested.bullZoneHigh;
@@ -535,7 +554,7 @@ function ZonePriceLadder({
   const renderMax = maxP + padPx;
   const renderSpan = renderMax - renderMin;
 
-  const CHART_HEIGHT = 360;
+  const CHART_HEIGHT = compact ? 300 : 360;
   const yFor = (price: number): number =>
     CHART_HEIGHT * (1 - (price - renderMin) / renderSpan);
 
@@ -593,7 +612,12 @@ function ZonePriceLadder({
   const bearIdle = bearBandStyle != null && bearActionable === false;
 
   return (
-    <div className="flex-1 flex flex-col justify-center px-3 py-3 sm:px-4 sm:py-4 min-h-[360px]">
+    <div
+      className={cn(
+        "flex-1 flex flex-col justify-center min-h-[280px]",
+        compact ? "px-2 py-2 sm:px-3 sm:py-3" : "px-3 py-3 sm:px-4 sm:py-4 min-h-[360px]",
+      )}
+    >
       <div
         className="relative w-full rounded-lg border border-white/[0.06] bg-[#0a0a0c] overflow-hidden"
         style={{ height: CHART_HEIGHT }}
@@ -607,8 +631,22 @@ function ZonePriceLadder({
             )}
             style={bearBandStyle}
           >
-            <span className="absolute top-0.5 left-2 text-[9px] font-mono font-bold text-rose-300/95 whitespace-nowrap">
-              Bear zone {bearDetail}
+            <span
+              className={cn(
+                "absolute top-0.5 left-1.5 text-[8px] sm:text-[9px] font-mono font-bold text-rose-300/95",
+                compact ? "leading-tight max-w-[85%]" : "whitespace-nowrap",
+              )}
+            >
+              {compact ? (
+                <>
+                  <span className="block">Bear zone</span>
+                  <span className="block font-normal text-rose-300/70 truncate" title={bearDetail}>
+                    {bearDetail}
+                  </span>
+                </>
+              ) : (
+                <>Bear zone {bearDetail}</>
+              )}
             </span>
             <span className="absolute top-0.5 right-2 text-[9px] font-mono font-bold text-rose-300/90 tabular-nums">
               ${bearHigh != null ? fmt(bearHigh) : "—"}
@@ -700,8 +738,22 @@ function ZonePriceLadder({
             <span className="absolute top-0.5 right-2 text-[9px] font-mono font-bold text-emerald-300/90 tabular-nums">
               ${bullHigh != null ? fmt(bullHigh) : "—"}
             </span>
-            <span className="absolute bottom-0.5 left-2 text-[9px] font-mono font-bold text-emerald-300/95 whitespace-nowrap">
-              Bull zone {bullDetail}
+            <span
+              className={cn(
+                "absolute bottom-0.5 left-1.5 text-[8px] sm:text-[9px] font-mono font-bold text-emerald-300/95",
+                compact ? "leading-tight max-w-[85%]" : "whitespace-nowrap",
+              )}
+            >
+              {compact ? (
+                <>
+                  <span className="block">Bull zone</span>
+                  <span className="block font-normal text-emerald-300/70 truncate" title={bullDetail}>
+                    {bullDetail}
+                  </span>
+                </>
+              ) : (
+                <>Bull zone {bullDetail}</>
+              )}
             </span>
             <span className="absolute bottom-0.5 right-2 text-[9px] font-mono text-emerald-300/55 tabular-nums">
               ${bullLow != null ? fmt(bullLow) : "—"}

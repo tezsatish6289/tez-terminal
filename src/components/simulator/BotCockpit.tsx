@@ -394,6 +394,18 @@ export function BotCockpit({
   );
   const selectedSuggested = suggestedByBot[selectedBotId];
   const selectedMetrics = botMetrics[selectedBotId];
+
+  const zoneCarouselItems = useMemo(
+    () =>
+      SIM_COCKPIT_BOTS.filter((b) => b.id !== selectedBotId).map((b) => ({
+        id: b.id,
+        label: b.label,
+        suggested: suggestedByBot[b.id],
+        liveSpot: liveSpotByBot[b.id],
+      })),
+    [selectedBotId, suggestedByBot, liveSpotByBot],
+  );
+
   const selectedZone =
     selectedBotId === "crypto"
       ? { state: null as ZoneBotState | null, settings: heatmapZones }
@@ -517,6 +529,7 @@ export function BotCockpit({
             startingCapital={startingCapital}
             liveCount={selectedMetrics?.liveCount ?? 0}
             cs={cs}
+            zoneCarouselItems={zoneCarouselItems}
             settingsSlot={
               <BotCardControls
                 botId={selectedBot.id}

@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SimTrade } from "@/lib/simulator";
-import { computeUnrealizedPnl } from "@/lib/simulator";
+import { getSlDisplay } from "@/lib/simulator";
 import {
   SIM_CARD_INTERACTIVE,
   SIM_SLOT_EMPTY,
@@ -192,11 +192,8 @@ function OpenPositionCard({
   const positive = pnl >= 0;
   const chartLabel =
     tfLabelMap[String(trade.timeframe).toUpperCase()] ?? `${trade.timeframe}m`;
-  const effectiveSl = trade.trailingSl ?? trade.stopLoss;
-  const slPnl =
-    effectiveSl != null && effectiveSl > 0
-      ? computeUnrealizedPnl(trade, effectiveSl)
-      : null;
+  const sl = getSlDisplay(trade);
+  const slAtBreakeven = sl.label === "Moved to Entry";
 
   return (
     <button
@@ -298,16 +295,32 @@ function OpenPositionCard({
           </div>
         </div>
 
-        {slPnl != null && (
-          <div className="flex items-center justify-between gap-3 pt-0.5">
-            <span className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/45 font-bold">
-              Stop loss
-            </span>
+        {sl.price > 0 && (
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <span className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/45 font-bold">
+                Stop loss
+              </span>
+              {sl.label !== "Original" && (
+                <span className="text-[8px] font-bold text-accent/75 uppercase tracking-wider block mt-0.5">
+                  {sl.label}
+                </span>
+              )}
+            </div>
             <span
-              className="font-mono text-sm font-black tabular-nums text-rose-400 shadow-[0_0_16px_-6px_rgba(244,63,94,0.55)]"
-              title={`SL @ ${formatPrice(effectiveSl, cs)}${trade.trailingSl ? " (trailing)" : ""}`}
+              className={cn(
+                "font-mono text-sm font-black tabular-nums text-right",
+                slAtBreakeven
+                  ? "text-accent shadow-[0_0_14px_-6px_hsl(var(--accent)/0.45)]"
+                  : "text-rose-400 shadow-[0_0_16px_-6px_rgba(244,63,94,0.55)]",
+              )}
+              title={
+                sl.label !== "Original"
+                  ? `Original SL ${formatPrice(trade.stopLoss, cs)}`
+                  : undefined
+              }
             >
-              −{formatMoney(Math.abs(slPnl), cs)}
+              {formatPrice(sl.price, cs)}
             </span>
           </div>
         )}

@@ -223,6 +223,32 @@ export function computeUnrealizedPnl(trade: SimTrade, currentPrice: number): num
   return trade.positionSize * trade.remainingPct * pctMove * trade.leverage;
 }
 
+/** Effective stop-loss price + human label for UI (cards, detail sheet). */
+export function getSlDisplay(trade: SimTrade): { price: number; label: string } {
+  const slToBe = trade.events?.some((e) => e.type === "SL_TO_BE");
+
+  if (trade.trailingSl != null) {
+    const isBuy = trade.side === "BUY";
+    const pastTp3 =
+      trade.tp3 != null &&
+      (isBuy ? trade.trailingSl > trade.tp3 : trade.trailingSl < trade.tp3);
+    if (pastTp3) return { price: trade.trailingSl, label: "Trailing" };
+    if (trade.tp3Hit) return { price: trade.trailingSl, label: "Moved to TP2" };
+    if (trade.tp2Hit) return { price: trade.trailingSl, label: "Moved to TP1" };
+    if (trade.tp1Hit || slToBe)
+      return { price: trade.trailingSl, label: "Moved to Entry" };
+    return { price: trade.trailingSl, label: "Trailing" };
+  }
+
+  if (trade.tp3Hit && trade.tp2 != null)
+    return { price: trade.tp2, label: "Moved to TP2" };
+  if (trade.tp2Hit && trade.tp1 != null)
+    return { price: trade.tp1, label: "Moved to TP1" };
+  if (trade.tp1Hit || slToBe)
+    return { price: trade.entryPrice, label: "Moved to Entry" };
+  return { price: trade.stopLoss, label: "Original" };
+}
+
 // ── Incubated signal candidate ────────────────────────────────
 
 export interface IncubatedCandidate {

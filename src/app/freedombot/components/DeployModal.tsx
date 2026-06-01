@@ -22,6 +22,7 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
+  MessageCircle,
 } from "lucide-react";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 import { freedombotDashboardBase } from "@/lib/freedombot/dashboard-path";
@@ -57,11 +58,15 @@ function OnboardingSupportLink({ className }: { className?: string }) {
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        "w-full flex items-center justify-center text-xs font-bold transition-opacity hover:opacity-80",
+        "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl",
+        "text-sm font-bold transition-all",
+        "border border-[#25D366]/45 bg-[#25D366]/10",
+        "text-[#4ade80] shadow-[0_0_20px_-6px_rgba(37,211,102,0.35)]",
+        "hover:bg-[#25D366]/18 hover:border-[#25D366]/65 hover:scale-[1.01] active:scale-[0.99]",
         className,
       )}
-      style={{ color: "#60a5fa" }}
     >
+      <MessageCircle className="h-4 w-4 shrink-0" aria-hidden />
       Get onboarding support
     </a>
   );

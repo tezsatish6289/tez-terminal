@@ -19,9 +19,13 @@ import { zoneBandSnapshotFromSuggested } from "@/lib/options-zone-sticky";
 import { deserializePrices } from "@/lib/exchanges";
 import { type ZoneBotAsset } from "@/lib/zone-bot-config";
 import { recordCronHeartbeat } from "@/lib/cron-health";
+import { refreshIndexZones, type IndexZonesRefreshResult } from "@/lib/index-zones-store";
+import { isNiftyOptionChainCronWindow } from "@/lib/market-hours";
 
 export const dynamic     = "force-dynamic";
-export const maxDuration = 60;
+/** Crypto (Deribit) finishes in ~10s; the extra headroom covers the
+ *  best-effort NSE index pass that rides this same schedule. */
+export const maxDuration = 90;
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -191,12 +195,19 @@ export async function GET(request: NextRequest) {
   const db = getAdminFirestore();
   try {
     const payload = await run();
+    // Crypto monitoring is locked in BEFORE the NSE pass runs, so a slow or
+    // failing NSE fetch can never flip this cron's heartbeat or alert.
     await recordCronHeartbeat(db, "suggest-zones", {
       ok: true,
       summary: summarizeSuggestZones(payload),
       durationMs: Date.now() - startedAt,
     });
-    return NextResponse.json({ success: true, ...payload });
+    // Best-effort NSE index zones — gated to Indian market hours, isolated so
+    // it can never throw or affect the crypto result above.
+    const indexZones = isNiftyOptionChainCronWindow()
+      ? await safeRefreshIndexZones(db)
+      : { skipped: "outside_market_hours" };
+    return NextResponse.json({ success: true, ...payload, indexZones });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[SuggestZones] Failed:", err);
@@ -212,12 +223,27 @@ export async function GET(request: NextRequest) {
 export async function POST(_request: NextRequest) {
   try {
     const payload = await run();
-    return NextResponse.json({ success: true, ...payload });
+    // Manual refresh always attempts NSE (no market-hours gate), still isolated.
+    const indexZones = await safeRefreshIndexZones(getAdminFirestore());
+    return NextResponse.json({ success: true, ...payload, indexZones });
   } catch (err) {
     console.error("[SuggestZones] Failed:", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err) },
       { status: 500 },
     );
+  }
+}
+
+/** Wrap the NSE index refresh so it can never throw into the crypto path. */
+async function safeRefreshIndexZones(
+  db: ReturnType<typeof getAdminFirestore>,
+): Promise<IndexZonesRefreshResult | { error: string }> {
+  try {
+    return await refreshIndexZones(db);
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    console.error("[SuggestZones] NSE index pass failed (isolated):", error);
+    return { error };
   }
 }

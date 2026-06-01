@@ -3,8 +3,8 @@
  *
  * Public read for the freedombot.ai/levels page. Returns the latest
  * algorithmically-derived bull/bear zones for:
- *   • NSE indices  → config/suggested_index_zones_{SYMBOL}  (suggest-index-zones cron)
- *   • Crypto       → config/suggested_zones_{asset}         (suggest-zones cron)
+ *   • NSE indices  → config/suggested_index_zones_{SYMBOL}  (suggest-zones cron, NSE pass)
+ *   • Crypto       → config/suggested_zones_{asset}         (suggest-zones cron, Deribit pass)
  *
  * Docs are returned raw and normalized client-side with normalizeSuggestedZones
  * so the same ZonePriceLadder renders both tabs.

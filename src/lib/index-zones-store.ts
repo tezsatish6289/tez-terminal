@@ -1,26 +1,14 @@
 /**
- * /api/cron/suggest-index-zones
+ * Compute + persist NSE index option zones for the public levels page.
  *
- * Fetches NSE option-chain OI for all five indices on
- * https://www.nseindia.com/option-chain — NIFTY, BANKNIFTY, FINNIFTY,
- * MIDCPNIFTY, NIFTYNXT50 — derives dominant put/call zones + max pain, and
- * writes one doc per index:
- *
- *   • config/suggested_index_zones_{SYMBOL}
- *
- * Powers the public freedombot.ai/levels "NSE Indices" tab. Serialized in the
- * same field shape as the crypto `suggested_zones_*` docs so the levels page
- * can render both with the shared ZonePriceLadder.
- *
- * The legacy single-symbol NIFTY path (`/api/cron/suggest-nifty-zones` →
- * config/suggested_nifty_zones) is left intact for the admin auto-switch.
- *
- * Scheduled every ~15 min via cron (GET, gated to Mon–Fri 9:00–16:00 IST).
- * POST (UI refresh) always runs.
+ * Shared by the `suggest-zones` cron (rides its existing 15-min schedule so no
+ * separate cron registration is needed) and any manual refresh path. Writes one
+ * doc per index to `config/suggested_index_zones_{SYMBOL}` in the same field
+ * shape as the crypto `suggested_zones_*` docs, so freedombot.ai/levels can
+ * render both tabs with the shared ZonePriceLadder.
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { getAdminFirestore } from "@/firebase/admin";
+import type { Firestore } from "firebase-admin/firestore";
 import {
   INDEX_KEYS,
   INDEX_SPECS,
@@ -29,12 +17,6 @@ import {
   type IndexKey,
   type IndexOptionsZones,
 } from "@/lib/index-options-zones";
-import { isNiftyOptionChainCronWindow } from "@/lib/market-hours";
-
-export const dynamic = "force-dynamic";
-export const maxDuration = 90;
-
-const CRON_SECRET = process.env.CRON_SECRET;
 
 function docId(symbol: IndexKey): string {
   return `config/suggested_index_zones_${symbol}`;
@@ -79,10 +61,17 @@ function serialize(z: IndexOptionsZones) {
   };
 }
 
-async function run() {
-  const db = getAdminFirestore();
+export interface IndexZonesRefreshResult {
+  results: Record<string, "ok" | "error">;
+  errors: Record<string, string>;
+}
 
-  // One cookie jar reused across all five indices.
+/** Fetch NSE OI for all five indices and persist each. Never throws — failures
+ *  are captured per-index and last-good docs are preserved. */
+export async function refreshIndexZones(db: Firestore): Promise<IndexZonesRefreshResult> {
+  const results: Record<string, "ok" | "error"> = {};
+  const errors: Record<string, string> = {};
+
   let cookies = "";
   let cookieError: string | null = null;
   try {
@@ -90,9 +79,6 @@ async function run() {
   } catch (e) {
     cookieError = e instanceof Error ? e.message : String(e);
   }
-
-  const results: Record<string, "ok" | "error"> = {};
-  const errors: Record<string, string> = {};
 
   for (const key of INDEX_KEYS) {
     if (cookieError) {
@@ -130,45 +116,9 @@ async function run() {
   return { results, errors };
 }
 
-function summarize(payload: { results: Record<string, string>; errors: Record<string, string> }): string {
-  const ok = Object.values(payload.results).filter((v) => v === "ok").length;
-  const err = Object.keys(payload.errors).length;
-  return `ok=${ok}/${INDEX_KEYS.length}${err ? ` errors=${err}` : ""}`;
-}
-
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const key = searchParams.get("key");
-  if (CRON_SECRET && key !== CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (!isNiftyOptionChainCronWindow()) {
-    return NextResponse.json({
-      success: true,
-      skipped: true,
-      reason: "outside_nifty_zones_window",
-      detail: "Skipped: Mon–Fri 9:00–16:00 IST only (cron GET). Use POST to refresh manually.",
-    });
-  }
-  try {
-    const payload = await run();
-    return NextResponse.json({ success: true, summary: summarize(payload), ...payload });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[SuggestIndexZones] Failed:", err);
-    return NextResponse.json({ error: msg }, { status: 500 });
-  }
-}
-
-export async function POST(_request: NextRequest) {
-  try {
-    const payload = await run();
-    return NextResponse.json({ success: true, ...payload });
-  } catch (err) {
-    console.error("[SuggestIndexZones] Failed:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
-    );
-  }
+/** "ok=3/5 errors=2" summary for logs/heartbeat. */
+export function summarizeIndexZones(r: IndexZonesRefreshResult): string {
+  const ok = Object.values(r.results).filter((v) => v === "ok").length;
+  const err = Object.keys(r.errors).length;
+  return `indices ok=${ok}/${INDEX_KEYS.length}${err ? ` errors=${err}` : ""}`;
 }

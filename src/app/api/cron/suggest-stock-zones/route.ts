@@ -69,21 +69,21 @@ async function writeCursor(db: ReturnType<typeof getAdminFirestore>, index: numb
 async function run(symbolsOverride?: string[]) {
   const db = getAdminFirestore();
   const batchSize = envNum("STOCK_ZONES_BATCH_SIZE", 20);
-  const delayMs = envNum("STOCK_ZONES_DELAY_MS", 2_500);
+  const delayMs = envNum("STOCK_ZONES_DELAY_MS", 1_000);
+  const maxWallClockMs = envNum("STOCK_ZONES_MAX_RUN_MS", 20_000);
+
+  const fromQueue = !(symbolsOverride && symbolsOverride.length);
+  const startCursor = fromQueue ? await readCursor(db) : 0;
 
   let symbols: string[];
-  let nextCursor: number | null = null;
-  if (symbolsOverride && symbolsOverride.length) {
-    symbols = symbolsOverride.filter((s) => FNO_UNIVERSE.includes(s));
+  if (!fromQueue) {
+    symbols = symbolsOverride!.filter((s) => FNO_UNIVERSE.includes(s));
   } else {
-    const cursor = await readCursor(db);
-    const picked = nextBatch(cursor, batchSize);
-    symbols = picked.symbols;
-    nextCursor = picked.nextCursor;
+    symbols = nextBatch(startCursor, batchSize).symbols;
   }
 
   if (!symbols.length) {
-    return { processed: 0, ok: 0, errors: 0, aborted: null as string | null, symbols: [] };
+    return { processed: 0, ok: 0, errors: 0, timedOut: false, aborted: null as string | null, symbols: [] };
   }
 
   const batch = await runNseBatch<StockZoneAggregateEntry>(
@@ -94,7 +94,7 @@ async function run(symbolsOverride?: string[]) {
       await persistEquityZonesDoc(db, zones);
       return aggregateEntry(zones);
     },
-    { delayMs },
+    { delayMs, maxWallClockMs },
   );
 
   const entries: StockZoneAggregateEntry[] = [];
@@ -110,15 +110,18 @@ async function run(symbolsOverride?: string[]) {
 
   await writeStockZoneAggregate(db, entries);
 
-  // Only advance the queue when we actually completed a clean (non-aborted) run.
-  if (nextCursor != null && !batch.abortedReason) {
-    await writeCursor(db, nextCursor);
+  // Advance the queue by exactly the number of symbols genuinely handled, so the
+  // next run resumes where this one stopped (time-budget or block both leave a
+  // correct resume point — no gaps, no duplicate work).
+  if (fromQueue && batch.processedCount > 0) {
+    await writeCursor(db, (startCursor + batch.processedCount) % FNO_UNIVERSE.length);
   }
 
   return {
-    processed: symbols.length,
+    processed: batch.processedCount,
     ok: okCount,
-    errors: symbols.length - okCount,
+    errors: okCount < batch.processedCount ? batch.processedCount - okCount : 0,
+    timedOut: batch.timedOut,
     aborted: batch.abortedReason,
     symbols,
   };

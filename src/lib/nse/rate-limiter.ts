@@ -59,9 +59,11 @@ class TokenBucket {
 }
 
 /**
- * Singleton bucket. Defaults are deliberately conservative:
- *   • capacity (burst)        = 5 calls
- *   • refill                  = 20 calls / minute  → ~1 call / 3s sustained
+ * Singleton bucket. Defaults are polite but not crippling — the deploy region
+ * reaches NSE reliably (the index pass fires ~10 calls/cycle with no issues):
+ *   • capacity (burst)        = 10 calls
+ *   • refill                  = 60 calls / minute  → ~1 call / second sustained
+ * The circuit breaker is the real safety net; this just smooths bursts.
  * Tune via env without a redeploy:
  *   NSE_RATE_BURST, NSE_RATE_PER_MIN, NSE_RATE_MAX_WAIT_MS
  */
@@ -69,8 +71,8 @@ let bucket: TokenBucket | null = null;
 
 function getBucket(): TokenBucket {
   if (!bucket) {
-    const burst = envNum("NSE_RATE_BURST", 5);
-    const perMin = envNum("NSE_RATE_PER_MIN", 20);
+    const burst = envNum("NSE_RATE_BURST", 10);
+    const perMin = envNum("NSE_RATE_PER_MIN", 60);
     bucket = new TokenBucket(burst, perMin / 60);
   }
   return bucket;
@@ -78,6 +80,8 @@ function getBucket(): TokenBucket {
 
 /** Acquire one NSE request token (await before every NSE HTTP call). */
 export function acquireNseToken(): Promise<void> {
-  const maxWaitMs = envNum("NSE_RATE_MAX_WAIT_MS", 30_000);
+  // Keep this well under the batch time budget so a saturated bucket can't make
+  // a single call block the whole run.
+  const maxWaitMs = envNum("NSE_RATE_MAX_WAIT_MS", 10_000);
   return getBucket().acquire(maxWaitMs);
 }

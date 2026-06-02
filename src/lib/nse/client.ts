@@ -121,10 +121,16 @@ export async function createNseSession(
 }
 
 export interface NseBatchOptions extends NseSessionOptions {
-  /** Delay between symbols (ms). Default 2500. */
+  /** Delay between symbols (ms). Default 1000. */
   delayMs?: number;
-  /** +/- random jitter applied to delay (ms). Default 750. */
+  /** +/- random jitter applied to delay (ms). Default 400. */
   jitterMs?: number;
+  /**
+   * Wall-clock budget for the whole batch (ms). Once exceeded, no new symbols
+   * are started and the rest are marked skipped. This keeps an HTTP-triggered
+   * run well under the platform/gateway request timeout. Default 20000 (20s).
+   */
+  maxWallClockMs?: number;
 }
 
 export interface NseBatchItemResult<R> {
@@ -138,12 +144,21 @@ export interface NseBatchResult<R> {
   results: NseBatchItemResult<R>[];
   /** Set when the batch aborted early (breaker tripped / block detected). */
   abortedReason: string | null;
+  /** True when the run stopped early because the time budget was exhausted. */
+  timedOut: boolean;
+  /**
+   * Number of symbols genuinely handled (succeeded or failed with a non-block
+   * error). EXCLUDES symbols skipped for time/abort and the symbol that tripped
+   * a block. The caller advances its queue cursor by exactly this much so the
+   * next run resumes where this one stopped (idempotent, no gaps, no dupes).
+   */
+  processedCount: number;
 }
 
 /**
  * Drain a list of symbols SERIALLY through one reused session, with jittered
- * delays between calls and early-abort on block. This is the safe primitive the
- * stock-zones cron will use — never parallel-fan-out to NSE.
+ * delays, a wall-clock time budget, and early-abort on block. This is the safe
+ * primitive the stock-zones cron uses — never parallel-fan-out to NSE.
  */
 export async function runNseBatch<R>(
   db: Firestore,
@@ -151,8 +166,9 @@ export async function runNseBatch<R>(
   worker: (symbol: string, session: NseSession) => Promise<R>,
   opts: NseBatchOptions = {},
 ): Promise<NseBatchResult<R>> {
-  const delayMs = opts.delayMs ?? 2_500;
-  const jitterMs = opts.jitterMs ?? 750;
+  const delayMs = opts.delayMs ?? 1_000;
+  const jitterMs = opts.jitterMs ?? 400;
+  const budgetMs = opts.maxWallClockMs ?? 20_000;
   const results: NseBatchItemResult<R>[] = [];
 
   let session: NseSession;
@@ -162,28 +178,47 @@ export async function runNseBatch<R>(
     return {
       results: symbols.map((symbol) => ({ symbol, ok: false, error: "session not established" })),
       abortedReason: e instanceof Error ? e.message : String(e),
+      timedOut: false,
+      processedCount: 0,
     };
   }
 
+  const startedAt = Date.now();
   let aborted: string | null = null;
+  let timedOut = false;
+  let processedCount = 0;
 
   for (let i = 0; i < symbols.length; i++) {
     const symbol = symbols[i];
+
+    // Stop starting new symbols once the budget is spent (always allow the first).
+    if (i > 0 && Date.now() - startedAt > budgetMs) {
+      timedOut = true;
+      for (let j = i; j < symbols.length; j++) {
+        results.push({ symbol: symbols[j], ok: false, error: "skipped (time budget)" });
+      }
+      break;
+    }
+
     try {
       const data = await worker(symbol, session);
       results.push({ symbol, ok: true, data });
+      processedCount++;
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e);
       results.push({ symbol, ok: false, error });
-      // A confirmed block aborts the rest of the batch — protect the IP.
+      // A confirmed block (real HTTP/empty/non-JSON) aborts the rest — protect
+      // the IP. Do NOT count the blocking symbol, so the cursor retries it next
+      // run (after the circuit breaker window clears).
       if (e instanceof NseBlockError && e.status !== null) {
         aborted = `Aborted after block on ${symbol}: ${error}`;
-        // Mark remaining symbols as skipped.
         for (let j = i + 1; j < symbols.length; j++) {
           results.push({ symbol: symbols[j], ok: false, error: "skipped (batch aborted)" });
         }
         break;
       }
+      // Soft error (network/timeout/no-expiries) — count as handled, move on.
+      processedCount++;
     }
 
     if (i < symbols.length - 1) {
@@ -192,5 +227,5 @@ export async function runNseBatch<R>(
     }
   }
 
-  return { results, abortedReason: aborted };
+  return { results, abortedReason: aborted, timedOut, processedCount };
 }

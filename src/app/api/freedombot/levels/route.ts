@@ -102,6 +102,8 @@ interface InZoneItem {
   status: ZoneStatus;
   spot: number | null;
   currency: "₹" | "$";
+  /** Sanitized ladder payload for the In-Zone slideshow (no extra fetch). */
+  data: PublicLevels | null;
 }
 
 interface StockAggregateEntry {
@@ -114,6 +116,26 @@ interface StockAggregateEntry {
   bearZoneLow?: number | null;
   bearZoneHigh?: number | null;
   computedAt?: string;
+}
+
+/** Build a render-safe ladder from the stock aggregate row (bands only). */
+function levelsFromStockAggregate(e: StockAggregateEntry): PublicLevels | null {
+  const bullLow = num(e.bullZoneLow);
+  const bearLow = num(e.bearZoneLow);
+  if (bullLow == null && bearLow == null) return null;
+  return {
+    spot: num(e.spot),
+    poc: null,
+    bullLow,
+    bullHigh: num(e.bullZoneHigh),
+    bearLow,
+    bearHigh: num(e.bearZoneHigh),
+    bandOffset: null,
+    bullActive: null,
+    bearActive: null,
+    computedAt: typeof e.computedAt === "string" ? e.computedAt : null,
+    unavailable: false,
+  };
 }
 
 /** Single-stock full ladder payload. */
@@ -167,18 +189,42 @@ export async function GET(request: NextRequest) {
   for (const it of indices) {
     const status = statusOf(it.data);
     if (isInZoneStatus(status)) {
-      inZone.push({ scope: "index", symbol: it.symbol, label: it.label, status, spot: it.data?.spot ?? null, currency: "₹" });
+      inZone.push({
+        scope: "index",
+        symbol: it.symbol,
+        label: it.label,
+        status,
+        spot: it.data?.spot ?? null,
+        currency: "₹",
+        data: it.data,
+      });
     }
   }
   for (const it of crypto) {
     const status = statusOf(it.data);
     if (isInZoneStatus(status)) {
-      inZone.push({ scope: "crypto", symbol: it.asset, label: it.label, status, spot: it.data?.spot ?? null, currency: "$" });
+      inZone.push({
+        scope: "crypto",
+        symbol: it.asset,
+        label: it.label,
+        status,
+        spot: it.data?.spot ?? null,
+        currency: "$",
+        data: it.data,
+      });
     }
   }
   for (const e of Object.values(stockEntries)) {
     if (e && isInZoneStatus(e.status)) {
-      inZone.push({ scope: "stock", symbol: e.symbol, label: e.label ?? e.symbol, status: e.status, spot: e.spot ?? null, currency: "₹" });
+      inZone.push({
+        scope: "stock",
+        symbol: e.symbol,
+        label: e.label ?? e.symbol,
+        status: e.status,
+        spot: e.spot ?? null,
+        currency: "₹",
+        data: levelsFromStockAggregate(e),
+      });
     }
   }
 

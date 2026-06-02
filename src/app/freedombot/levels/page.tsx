@@ -34,6 +34,7 @@ interface InZoneItem {
   status: ZoneStatus;
   spot: number | null;
   currency: "₹" | "$";
+  data: PublicLevels | null;
 }
 
 interface LevelsPayload {
@@ -83,6 +84,9 @@ export default function LevelsPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>("indices");
   const [slide, setSlide] = useState(0);
+  const [inZoneSlide, setInZoneSlide] = useState(0);
+  const [inZoneChartData, setInZoneChartData] = useState<PublicLevels | null>(null);
+  const [inZoneChartLoading, setInZoneChartLoading] = useState(false);
 
   // Stocks tab state
   const [stockQuery, setStockQuery] = useState("");
@@ -145,7 +149,13 @@ export default function LevelsPage() {
   const switchTab = (key: TabKey) => {
     setTab(key);
     setSlide(0);
+    setInZoneSlide(0);
   };
+
+  const inZoneList = payload?.inZone ?? [];
+  const inZoneCount = inZoneList.length;
+  const inZoneCurrent = inZoneCount > 0 ? Math.min(inZoneSlide, inZoneCount - 1) : 0;
+  const inZoneActive = inZoneCount > 0 ? inZoneList[inZoneCurrent] : null;
 
   useEffect(() => {
     if (tab !== "indices" && tab !== "crypto") return;
@@ -153,6 +163,60 @@ export default function LevelsPage() {
     const id = setTimeout(() => setSlide((s) => (s + 1) % count), 8000);
     return () => clearTimeout(id);
   }, [current, count, tab]);
+
+  useEffect(() => {
+    if (tab !== "inzone") return;
+    if (inZoneCount <= 1) return;
+    const id = setTimeout(() => setInZoneSlide((s) => (s + 1) % inZoneCount), 8000);
+    return () => clearTimeout(id);
+  }, [inZoneCurrent, inZoneCount, tab]);
+
+  useEffect(() => {
+    if (inZoneCount === 0) {
+      setInZoneSlide(0);
+      return;
+    }
+    if (inZoneSlide >= inZoneCount) setInZoneSlide(0);
+  }, [inZoneCount, inZoneSlide]);
+
+  // Resolve chart data for the active In-Zone slide (fetch stocks if aggregate lacked bands).
+  useEffect(() => {
+    if (!inZoneActive) {
+      setInZoneChartData(null);
+      return;
+    }
+    if (inZoneActive.data && (inZoneActive.data.bullLow != null || inZoneActive.data.bearLow != null)) {
+      setInZoneChartData(inZoneActive.data);
+      setInZoneChartLoading(false);
+      return;
+    }
+    if (inZoneActive.scope !== "stock") {
+      setInZoneChartData(inZoneActive.data);
+      setInZoneChartLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setInZoneChartLoading(true);
+    fetch(`/api/freedombot/levels?symbol=${encodeURIComponent(inZoneActive.symbol)}`, { cache: "no-store" })
+      .then((res) => res.json())
+      .then((json: { data: PublicLevels | null }) => {
+        if (!cancelled) setInZoneChartData(json.data);
+      })
+      .catch(() => {
+        if (!cancelled) setInZoneChartData(null);
+      })
+      .finally(() => {
+        if (!cancelled) setInZoneChartLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [inZoneActive]);
+
+  const goInZone = useCallback(
+    (dir: number) => setInZoneSlide((s) => (inZoneCount > 0 ? (s + dir + inZoneCount) % inZoneCount : 0)),
+    [inZoneCount],
+  );
 
   const filteredStocks = useMemo(() => {
     const q = stockQuery.trim().toUpperCase();
@@ -169,20 +233,21 @@ export default function LevelsPage() {
 
   const scheduleNote = tab === "crypto" ? "Updates 24/7" : "Updates Mon–Fri during market hours";
 
-  const onSelectInZone = (it: InZoneItem) => {
-    if (it.scope === "stock") {
-      switchTab("stocks");
-      loadStock(it.symbol);
-      return;
-    }
-    const tabKey: TabKey = it.scope === "crypto" ? "crypto" : "indices";
-    const list = it.scope === "crypto" ? payload?.crypto ?? [] : payload?.indices ?? [];
-    const idx = list.findIndex((x) => (x.symbol ?? x.asset) === it.symbol);
-    setTab(tabKey);
-    setSlide(idx >= 0 ? idx : 0);
-  };
-
   const stockHasBands = stockData?.data != null && (stockData.data.bullLow != null || stockData.data.bearLow != null);
+
+  const inZoneChartSpot = inZoneChartData?.spot ?? inZoneActive?.spot ?? null;
+  const inZoneHasBands =
+    inZoneChartData != null && (inZoneChartData.bullLow != null || inZoneChartData.bearLow != null);
+  const inZoneRefreshed = inZoneChartData?.computedAt
+    ? new Date(inZoneChartData.computedAt).toLocaleString([], {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
+  const containerMaxW = tab === "inzone" ? "max-w-6xl" : "max-w-2xl";
 
   return (
     <main
@@ -193,7 +258,7 @@ export default function LevelsPage() {
         backgroundSize: "100% 100%, 48px 48px, 48px 48px, 100% 100%",
       }}
     >
-      <div className="flex-1 max-w-2xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8 flex flex-col min-h-0">
+      <div className={`flex-1 ${containerMaxW} mx-auto w-full px-4 sm:px-6 py-6 sm:py-8 flex flex-col min-h-0`}>
         {/* Tab switcher */}
         <div className="flex justify-center mb-4 sm:mb-5 shrink-0">
           <div
@@ -231,55 +296,173 @@ export default function LevelsPage() {
             <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
           </div>
         ) : tab === "inzone" ? (
-          /* ───────────────── In Zone screener ───────────────── */
+          /* ───────────────── In Zone: list (left) + chart slideshow (right) ───────────────── */
           <div className="flex flex-col flex-1 min-h-0">
-            <div className="text-center mb-4 shrink-0">
+            <div className="text-center mb-3 sm:mb-4 shrink-0">
               <h1 className="text-lg sm:text-2xl font-black tracking-tight" style={{ color: "#f8fafc" }}>
                 In Zone Now
               </h1>
               <p className="mt-1 text-xs" style={{ color: "#64748b" }}>
-                Symbols sitting inside or near a bull/bear zone across all markets
+                Symbols inside or near a bull/bear zone — auto-cycling chart on the right
               </p>
             </div>
-            <div className="flex-1 overflow-y-auto -mx-1 px-1">
-              {(payload?.inZone ?? []).length === 0 ? (
-                <div className="flex flex-col items-center justify-center text-center py-16 gap-2">
-                  <p className="text-sm" style={{ color: "#64748b" }}>Nothing in a zone right now.</p>
-                  <p className="text-xs max-w-sm" style={{ color: "#475569" }}>
-                    The screener updates as markets move. Check back during the session.
+
+            {inZoneCount === 0 ? (
+              <div className="flex flex-col items-center justify-center text-center py-16 gap-2 flex-1">
+                <p className="text-sm" style={{ color: "#64748b" }}>Nothing in a zone right now.</p>
+                <p className="text-xs max-w-sm" style={{ color: "#475569" }}>
+                  The screener updates as markets move. Check back during the session.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col lg:flex-row flex-1 min-h-0 gap-4 lg:gap-5">
+                {/* Left — list */}
+                <aside
+                  className="w-full lg:w-[min(100%,300px)] lg:shrink-0 flex flex-col min-h-0 lg:max-h-[min(72vh,640px)]"
+                  style={{ borderRight: "none" }}
+                >
+                  <p
+                    className="text-[9px] font-black uppercase tracking-[0.14em] mb-2 shrink-0"
+                    style={{ color: "#64748b" }}
+                  >
+                    {inZoneCount} in zone
                   </p>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {(payload?.inZone ?? []).map((it) => (
-                    <button
-                      key={`${it.scope}-${it.symbol}`}
-                      onClick={() => onSelectInZone(it)}
-                      className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-left transition-all hover:brightness-125"
-                      style={{ backgroundColor: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span
-                          className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded shrink-0"
-                          style={{ color: "#93c5fd", backgroundColor: "rgba(59,130,246,0.12)" }}
+                  <div className="flex-1 overflow-y-auto -mx-0.5 px-0.5 flex flex-col gap-1.5 min-h-[120px] lg:min-h-0">
+                    {inZoneList.map((it, i) => {
+                      const active = i === inZoneCurrent;
+                      return (
+                        <button
+                          key={`${it.scope}-${it.symbol}`}
+                          onClick={() => setInZoneSlide(i)}
+                          className="flex flex-col gap-1 px-3 py-2.5 rounded-xl text-left transition-all"
+                          style={{
+                            backgroundColor: active ? "rgba(37,99,235,0.22)" : "rgba(255,255,255,0.03)",
+                            border: `1px solid ${active ? "rgba(59,130,246,0.45)" : "rgba(255,255,255,0.06)"}`,
+                            boxShadow: active ? "0 0 20px rgba(59,130,246,0.12)" : "none",
+                          }}
                         >
-                          {it.scope === "index" ? "Index" : it.scope === "crypto" ? "Crypto" : "Stock"}
-                        </span>
-                        <span className="text-sm font-bold truncate" style={{ color: "#e2e8f0" }}>{it.label}</span>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        {it.spot != null && (
-                          <span className="text-xs font-mono tabular-nums" style={{ color: "#cbd5e1" }}>
-                            {formatHeroPrice(it.spot, it.currency)}
+                          <div className="flex items-center justify-between gap-2">
+                            <span
+                              className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded shrink-0"
+                              style={{ color: "#93c5fd", backgroundColor: "rgba(59,130,246,0.12)" }}
+                            >
+                              {it.scope === "index" ? "Index" : it.scope === "crypto" ? "Crypto" : "Stock"}
+                            </span>
+                            <StatusBadge status={it.status} />
+                          </div>
+                          <span className="text-sm font-bold truncate w-full" style={{ color: "#e2e8f0" }}>
+                            {it.label}
                           </span>
+                          {it.spot != null && (
+                            <span className="text-xs font-mono tabular-nums" style={{ color: "#94a3b8" }}>
+                              {formatHeroPrice(it.spot, it.currency)}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </aside>
+
+                {/* Right — slideshow chart */}
+                <section className="flex flex-col flex-1 min-w-0 min-h-[320px] lg:min-h-0">
+                  {inZoneActive && (
+                    <>
+                      <div className="text-center mb-2 sm:mb-3 shrink-0">
+                        <h2 className="text-base sm:text-xl font-black tracking-tight" style={{ color: "#f8fafc" }}>
+                          {inZoneActive.label} Market Levels
+                        </h2>
+                        {inZoneChartSpot != null && (
+                          <p
+                            className="mt-1 text-xl sm:text-3xl font-black font-mono tabular-nums tracking-tight"
+                            style={{
+                              color: "#fcd34d",
+                              textShadow: "0 0 20px rgba(251,191,36,0.35)",
+                            }}
+                          >
+                            {formatHeroPrice(inZoneChartSpot, inZoneActive.currency)}
+                          </p>
                         )}
-                        <StatusBadge status={it.status} />
                       </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+
+                      <div className="relative flex-1 flex flex-col justify-center min-h-0 pl-1 pr-5 sm:px-6">
+                        {inZoneChartLoading ? (
+                          <div className="flex items-center justify-center py-16">
+                            <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
+                          </div>
+                        ) : inZoneHasBands && inZoneChartData ? (
+                          <ZonePriceLadder
+                            levels={inZoneChartData}
+                            spot={inZoneChartSpot}
+                            currencySymbol={inZoneActive.currency}
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-center py-12 gap-2">
+                            <p className="text-sm" style={{ color: "#64748b" }}>Awaiting level data</p>
+                            <p className="text-xs max-w-sm" style={{ color: "#475569" }}>
+                              Bands will appear on the next refresh cycle.
+                            </p>
+                          </div>
+                        )}
+
+                        {inZoneCount > 1 && (
+                          <>
+                            <button
+                              onClick={() => goInZone(-1)}
+                              aria-label="Previous in zone symbol"
+                              className="absolute top-1/2 -translate-y-1/2 -left-1 sm:left-0 flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full transition-all hover:scale-105"
+                              style={{
+                                border: "1px solid rgba(255,255,255,0.1)",
+                                backgroundColor: "rgba(0,0,0,0.6)",
+                                color: "#94a3b8",
+                              }}
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => goInZone(1)}
+                              aria-label="Next in zone symbol"
+                              className="absolute top-1/2 -translate-y-1/2 -right-1 sm:right-0 flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full transition-all hover:scale-105"
+                              style={{
+                                border: "1px solid rgba(255,255,255,0.1)",
+                                backgroundColor: "rgba(0,0,0,0.6)",
+                                color: "#94a3b8",
+                              }}
+                            >
+                              <ChevronRight className="h-4 w-4" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+
+                      <div className="mt-3 shrink-0 text-center space-y-2">
+                        {inZoneCount > 1 && (
+                          <div className="flex items-center justify-center gap-2">
+                            {inZoneList.map((it, i) => (
+                              <button
+                                key={`dot-${it.scope}-${it.symbol}`}
+                                onClick={() => setInZoneSlide(i)}
+                                aria-label={`Go to ${it.label}`}
+                                className="h-1.5 rounded-full transition-all"
+                                style={{
+                                  width: i === inZoneCurrent ? 24 : 8,
+                                  backgroundColor: i === inZoneCurrent ? "#3b82f6" : "rgba(255,255,255,0.15)",
+                                }}
+                              />
+                            ))}
+                          </div>
+                        )}
+                        <p className="text-[11px]" style={{ color: "#64748b" }}>
+                          {inZoneRefreshed ? `Data refreshed ${inZoneRefreshed}` : "Awaiting refresh"}
+                          {inZoneCount > 1 && " · Auto-advances every 8s"}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </section>
+              </div>
+            )}
+
             <p className="text-[10px] text-center mt-4 shrink-0" style={{ color: "#334155" }}>
               For informational purposes only; not investment advice.
             </p>

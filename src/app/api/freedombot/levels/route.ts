@@ -25,7 +25,6 @@ import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
   deriveZoneStatus,
   isInZoneStatus,
-  zoneStatusRank,
   type ZoneStatus,
 } from "@/lib/zones/zone-status";
 
@@ -228,7 +227,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  inZone.sort((a, b) => zoneStatusRank(a.status) - zoneStatusRank(b.status) || a.label.localeCompare(b.label));
+  inZone.sort((a, b) => a.label.localeCompare(b.label, "en", { sensitivity: "base" }));
 
   return NextResponse.json(
     { indices, crypto, stocks, inZone, updatedAt: new Date().toISOString() },

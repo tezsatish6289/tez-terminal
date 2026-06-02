@@ -50,9 +50,14 @@ export const TIER_C: readonly string[] = [
   "UPL", "VBL", "VEDL", "VOLTAS", "YESBANK", "ZOMATO", "ZYDUSLIFE",
 ];
 
-/** Full ordered universe (Tier B first). De-duped defensively. */
+/** Full universe for cron queue (Tier B first). De-duped defensively. */
 export const FNO_UNIVERSE: readonly string[] = Array.from(
   new Set<string>([...TIER_B, ...TIER_C]),
+);
+
+/** Same symbols, A–Z — use for UI lists only; cron keeps tier priority via `FNO_UNIVERSE`. */
+export const FNO_UNIVERSE_ALPHA: readonly string[] = [...FNO_UNIVERSE].sort((a, b) =>
+  a.localeCompare(b, "en", { sensitivity: "base" }),
 );
 
 export type FnoTier = "B" | "C";

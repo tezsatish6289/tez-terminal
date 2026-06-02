@@ -11,10 +11,11 @@ import {
   LevelsPageHeader,
   LevelsSplitShell,
   LevelsSymbolList,
+  sortEntriesAlpha,
   type LevelsListEntry,
 } from "@/components/levels/LevelsSplitLayout";
 import { freedombotHomePath } from "@/lib/freedombot/dashboard-path";
-import { FNO_UNIVERSE } from "@/lib/nse/fno-universe";
+import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
 
 interface RawItem {
@@ -164,22 +165,61 @@ export default function LevelsPage() {
     setStockQuery("");
   };
 
-  const carouselItems = tab === "indices" ? payload?.indices ?? [] : tab === "crypto" ? payload?.crypto ?? [] : [];
-  const carouselCount = carouselItems.length;
+  const indexEntries: LevelsListEntry[] = useMemo(
+    () =>
+      sortEntriesAlpha(
+        (payload?.indices ?? []).map((it) => ({
+          id: it.symbol ?? it.label,
+          label: it.label,
+          spot: it.data?.spot ?? null,
+          currency: "₹" as const,
+        })),
+      ),
+    [payload?.indices],
+  );
+
+  const cryptoEntries: LevelsListEntry[] = useMemo(
+    () =>
+      sortEntriesAlpha(
+        (payload?.crypto ?? []).map((it) => ({
+          id: it.asset ?? it.label,
+          label: it.label,
+          spot: it.data?.spot ?? null,
+          currency: "$" as const,
+        })),
+      ),
+    [payload?.crypto],
+  );
+
+  const inZoneListSorted = useMemo(
+    () =>
+      [...(payload?.inZone ?? [])].sort((a, b) =>
+        a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
+      ),
+    [payload?.inZone],
+  );
+
+  /** Carousel order matches alphabetical left rail. */
+  const carouselList = tab === "indices" ? indexEntries : tab === "crypto" ? cryptoEntries : [];
+  const carouselCount = carouselList.length;
   const carouselCurrent = carouselCount > 0 ? Math.min(slide, carouselCount - 1) : 0;
-  const carouselItem = carouselCount > 0 ? carouselItems[carouselCurrent] : null;
+  const carouselEntry = carouselCount > 0 ? carouselList[carouselCurrent] : null;
+  const carouselItem =
+    carouselEntry && payload
+      ? tab === "indices"
+        ? payload.indices.find((it) => (it.symbol ?? it.label) === carouselEntry.id)
+        : payload.crypto.find((it) => (it.asset ?? it.label) === carouselEntry.id)
+      : null;
   const carouselCurrency = tab === "crypto" ? "$" : "₹";
 
-  const inZoneList = payload?.inZone ?? [];
-  const inZoneCount = inZoneList.length;
+  const inZoneCount = inZoneListSorted.length;
   const inZoneCurrent = inZoneCount > 0 ? Math.min(inZoneSlide, inZoneCount - 1) : 0;
-  const inZoneActive = inZoneCount > 0 ? inZoneList[inZoneCurrent] : null;
+  const inZoneActive = inZoneCount > 0 ? inZoneListSorted[inZoneCurrent] : null;
 
   const filteredStocks = useMemo(() => {
     const q = stockQuery.trim().toUpperCase();
-    const universe = FNO_UNIVERSE as readonly string[];
-    if (!q) return universe.slice();
-    return universe.filter((s) => s.includes(q));
+    if (!q) return FNO_UNIVERSE_ALPHA.slice();
+    return FNO_UNIVERSE_ALPHA.filter((s) => s.includes(q));
   }, [stockQuery]);
 
   const stockCount = filteredStocks.length;
@@ -271,49 +311,32 @@ export default function LevelsPage() {
     };
   }, [inZoneActive?.scope, inZoneActive?.symbol, inZoneActive?.data, inZoneCurrent]);
 
-  const indexEntries: LevelsListEntry[] = useMemo(
-    () =>
-      (payload?.indices ?? []).map((it) => ({
-        id: it.symbol ?? it.label,
-        label: it.label,
-        spot: it.data?.spot ?? null,
-        currency: "₹" as const,
-      })),
-    [payload?.indices],
-  );
-
-  const cryptoEntries: LevelsListEntry[] = useMemo(
-    () =>
-      (payload?.crypto ?? []).map((it) => ({
-        id: it.asset ?? it.label,
-        label: it.label,
-        spot: it.data?.spot ?? null,
-        currency: "$" as const,
-      })),
-    [payload?.crypto],
-  );
-
   const stockEntries: LevelsListEntry[] = useMemo(
     () =>
-      filteredStocks.map((sym) => {
-        const st = statusBySymbol.get(sym);
-        return {
-          id: sym,
-          label: sym,
-          spot: payload?.stocks.find((s) => s.symbol === sym)?.spot ?? null,
-          currency: "₹" as const,
-          trailing:
-            st && (st === "IN_BULL" || st === "IN_BEAR" || st === "NEAR") ? (
-              <span className="h-2 w-2 rounded-full shrink-0 mt-0.5" style={{ backgroundColor: STATUS_META[st].color }} />
-            ) : undefined,
-        };
-      }),
+      sortEntriesAlpha(
+        filteredStocks.map((sym) => {
+          const st = statusBySymbol.get(sym);
+          return {
+            id: sym,
+            label: sym,
+            spot: payload?.stocks.find((s) => s.symbol === sym)?.spot ?? null,
+            currency: "₹" as const,
+            trailing:
+              st && (st === "IN_BULL" || st === "IN_BEAR" || st === "NEAR") ? (
+                <span
+                  className="h-2 w-2 rounded-full shrink-0"
+                  style={{ backgroundColor: STATUS_META[st].color }}
+                />
+              ) : undefined,
+          };
+        }),
+      ),
     [filteredStocks, statusBySymbol, payload?.stocks],
   );
 
   const inZoneEntries: LevelsListEntry[] = useMemo(
     () =>
-      inZoneList.map((it) => ({
+      inZoneListSorted.map((it) => ({
         id: `${it.scope}-${it.symbol}`,
         label: it.label,
         sublabel: it.scope === "index" ? "Index" : it.scope === "crypto" ? "Crypto" : "Stock",
@@ -321,7 +344,7 @@ export default function LevelsPage() {
         currency: it.currency,
         trailing: <StatusBadge status={it.status} />,
       })),
-    [inZoneList],
+    [inZoneListSorted],
   );
 
   const stockSearchHeader = (
@@ -382,7 +405,7 @@ export default function LevelsPage() {
     const entries = tab === "indices" ? indexEntries : cryptoEntries;
 
     return (
-      <>
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
         <LevelsSplitShell
           list={
             <LevelsSymbolList
@@ -411,12 +434,12 @@ export default function LevelsPage() {
           }
         />
         <LevelsDisclaimer />
-      </>
+      </div>
     );
   };
 
   const renderStocksTab = () => (
-    <>
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       <LevelsSplitShell
         list={
           <LevelsSymbolList
@@ -450,13 +473,13 @@ export default function LevelsPage() {
         }
       />
       <LevelsDisclaimer scheduleNote={scheduleNote} />
-    </>
+    </div>
   );
 
   const renderInZoneTab = () => {
     if (inZoneCount === 0) {
       return (
-        <div className="flex flex-col items-center justify-center text-center py-24 gap-3 flex-1 px-6">
+        <div className="flex flex-col items-center justify-center text-center py-12 gap-3 flex-1 px-6 min-h-0">
           <p className="text-sm" style={{ color: "#64748b" }}>
             Nothing in a zone right now.
           </p>
@@ -472,7 +495,7 @@ export default function LevelsPage() {
     const refreshed = formatRefreshed(inZoneChartData?.computedAt);
 
     return (
-      <>
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
         <LevelsSplitShell
           list={
             <LevelsSymbolList
@@ -502,7 +525,7 @@ export default function LevelsPage() {
           }
         />
         <LevelsDisclaimer />
-      </>
+      </div>
     );
   };
 
@@ -510,15 +533,15 @@ export default function LevelsPage() {
 
   return (
     <main
-      className="min-h-[100dvh] flex flex-col"
+      className="h-[100dvh] overflow-hidden flex flex-col"
       style={{
         backgroundColor: "#060912",
         backgroundImage: HEX_BG,
         backgroundSize: "100% 100%, 48px 48px, 48px 48px, 100% 100%",
       }}
     >
-      <div className="flex-1 max-w-6xl mx-auto w-full px-5 sm:px-8 lg:px-10 py-8 sm:py-10 flex flex-col min-h-0">
-        <div className="flex justify-center mb-8 sm:mb-10 shrink-0">
+      <div className="flex-1 min-h-0 max-w-6xl mx-auto w-full px-4 sm:px-6 py-3 sm:py-4 flex flex-col overflow-hidden">
+        <div className="flex justify-center mb-3 shrink-0">
           <div
             className="inline-flex items-center gap-1.5 p-1.5 rounded-xl flex-wrap justify-center"
             style={{ backgroundColor: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.06)" }}
@@ -554,13 +577,15 @@ export default function LevelsPage() {
             <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
           </div>
         ) : (
-          <div className="flex flex-col flex-1 min-h-0">
+          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
             <LevelsPageHeader title={copy.title} subtitle={copy.subtitle} />
-            {tab === "indices" || tab === "crypto"
-              ? renderCarouselTab()
-              : tab === "stocks"
-                ? renderStocksTab()
-                : renderInZoneTab()}
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              {tab === "indices" || tab === "crypto"
+                ? renderCarouselTab()
+                : tab === "stocks"
+                  ? renderStocksTab()
+                  : renderInZoneTab()}
+            </div>
           </div>
         )}
       </div>

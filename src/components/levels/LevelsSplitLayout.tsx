@@ -22,12 +22,12 @@ export function LevelsPageHeader({
   subtitle?: string;
 }) {
   return (
-    <div className="text-center mb-8 sm:mb-10 shrink-0 px-2">
-      <h1 className="text-xl sm:text-2xl font-black tracking-tight" style={{ color: "#f8fafc" }}>
+    <div className="text-center mb-3 shrink-0 px-2">
+      <h1 className="text-lg sm:text-xl font-black tracking-tight" style={{ color: "#f8fafc" }}>
         {title}
       </h1>
       {subtitle && (
-        <p className="mt-2 text-xs sm:text-sm max-w-lg mx-auto leading-relaxed" style={{ color: "#64748b" }}>
+        <p className="mt-1 text-[11px] max-w-md mx-auto leading-snug" style={{ color: "#64748b" }}>
           {subtitle}
         </p>
       )}
@@ -52,25 +52,25 @@ export function LevelsSymbolList({
 }) {
   if (!entries.length) {
     return (
-      <p className="text-sm text-center py-12 px-4" style={{ color: "#64748b" }}>
+      <p className="text-sm text-center py-8 px-4" style={{ color: "#64748b" }}>
         {emptyMessage}
       </p>
     );
   }
 
   return (
-    <aside className="flex flex-col min-h-0 w-full lg:w-[280px] lg:shrink-0">
+    <aside className="flex flex-col min-h-0 w-full lg:w-[240px] lg:shrink-0 h-full">
       {header}
       {countLabel && (
         <p
-          className="text-[9px] font-black uppercase tracking-[0.14em] mb-4 shrink-0 px-1"
+          className="text-[9px] font-black uppercase tracking-[0.14em] mb-2 shrink-0 px-0.5"
           style={{ color: "#64748b" }}
         >
           {countLabel}
         </p>
       )}
       <div
-        className="flex-1 overflow-y-auto flex flex-col gap-3 min-h-[140px] lg:min-h-0 lg:max-h-[min(68vh,600px)] pr-1"
+        className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5 pr-0.5"
         style={{ scrollbarGutter: "stable" }}
       >
         {entries.map((entry, i) => {
@@ -79,18 +79,17 @@ export function LevelsSymbolList({
             <button
               key={entry.id}
               onClick={() => onSelect(i)}
-              className="flex flex-col gap-2 px-4 py-3.5 rounded-xl text-left transition-all"
+              className="flex flex-col gap-1 px-3 py-2 rounded-lg text-left transition-all shrink-0"
               style={{
                 backgroundColor: active ? "rgba(37,99,235,0.18)" : "rgba(255,255,255,0.02)",
                 border: `1px solid ${active ? "rgba(59,130,246,0.35)" : "rgba(255,255,255,0.05)"}`,
-                boxShadow: active ? "0 0 24px rgba(59,130,246,0.08)" : "none",
               }}
             >
               {(entry.sublabel || entry.trailing) && (
-                <div className="flex items-start justify-between gap-3 w-full">
+                <div className="flex items-center justify-between gap-2 w-full">
                   {entry.sublabel ? (
                     <span
-                      className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded shrink-0"
+                      className="text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0"
                       style={{ color: "#93c5fd", backgroundColor: "rgba(59,130,246,0.1)" }}
                     >
                       {entry.sublabel}
@@ -101,11 +100,11 @@ export function LevelsSymbolList({
                   {entry.trailing}
                 </div>
               )}
-              <span className="text-sm font-bold leading-snug" style={{ color: "#e2e8f0" }}>
+              <span className="text-[13px] font-bold leading-tight truncate" style={{ color: "#e2e8f0" }}>
                 {entry.label}
               </span>
               {entry.spot != null && entry.currency && (
-                <span className="text-xs font-mono tabular-nums" style={{ color: "#94a3b8" }}>
+                <span className="text-[10px] font-mono tabular-nums" style={{ color: "#94a3b8" }}>
                   {formatHeroPrice(entry.spot, entry.currency)}
                 </span>
               )}
@@ -151,37 +150,32 @@ export function LevelsChartPanel({
   const hasBands = levels != null && (levels.bullLow != null || levels.bearLow != null);
 
   return (
-    <section className="flex flex-col flex-1 min-w-0 min-h-[360px] lg:min-h-0 lg:pl-2">
-      <div className="text-center mb-5 sm:mb-6 shrink-0">
-        <h2 className="text-base sm:text-xl font-black tracking-tight" style={{ color: "#f8fafc" }}>
+    <section className="flex flex-col flex-1 min-w-0 min-h-0 h-full lg:pl-1">
+      <div className="text-center mb-2 shrink-0">
+        <h2 className="text-sm sm:text-base font-black tracking-tight truncate px-2" style={{ color: "#f8fafc" }}>
           {title}
         </h2>
         {spot != null && (
           <p
-            className="mt-2 text-2xl sm:text-3xl font-black font-mono tabular-nums tracking-tight"
-            style={{ color: "#fcd34d", textShadow: "0 0 20px rgba(251,191,36,0.3)" }}
+            className="mt-0.5 text-xl sm:text-2xl font-black font-mono tabular-nums tracking-tight"
+            style={{ color: "#fcd34d", textShadow: "0 0 16px rgba(251,191,36,0.25)" }}
           >
             {formatHeroPrice(spot, currency)}
           </p>
         )}
       </div>
 
-      <div className="relative flex-1 flex flex-col justify-center min-h-0 px-2 sm:px-10">
+      <div className="relative flex-1 min-h-0 flex flex-col justify-center px-1 sm:px-8">
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
           </div>
         ) : hasBands && levels ? (
-          <ZonePriceLadder levels={levels} spot={spot} currencySymbol={currency} />
+          <ZonePriceLadder levels={levels} spot={spot} currencySymbol={currency} variant="embedded" />
         ) : (
-          <div className="flex flex-col items-center justify-center text-center py-16 gap-3 px-6">
-            <p className="text-sm" style={{ color: "#64748b" }}>
+          <div className="flex flex-col items-center justify-center text-center py-8 gap-2 px-4">
+            <p className="text-xs" style={{ color: "#64748b" }}>
               {unavailable ? "Levels temporarily unavailable" : "Awaiting level data"}
-            </p>
-            <p className="text-xs max-w-xs leading-relaxed" style={{ color: "#475569" }}>
-              {unavailable
-                ? "Last-good levels will return on the next refresh."
-                : "Levels populate during the next compute cycle."}
             </p>
           </div>
         )}
@@ -192,44 +186,44 @@ export function LevelsChartPanel({
               type="button"
               onClick={onPrev}
               aria-label="Previous"
-              className="absolute top-1/2 -translate-y-1/2 left-0 sm:left-2 flex items-center justify-center h-9 w-9 rounded-full transition-all hover:scale-105"
+              className="absolute top-1/2 -translate-y-1/2 left-0 flex items-center justify-center h-8 w-8 rounded-full transition-all hover:scale-105"
               style={{
                 border: "1px solid rgba(255,255,255,0.08)",
                 backgroundColor: "rgba(0,0,0,0.55)",
                 color: "#94a3b8",
               }}
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-3.5 w-3.5" />
             </button>
             <button
               type="button"
               onClick={onNext}
               aria-label="Next"
-              className="absolute top-1/2 -translate-y-1/2 right-0 sm:right-2 flex items-center justify-center h-9 w-9 rounded-full transition-all hover:scale-105"
+              className="absolute top-1/2 -translate-y-1/2 right-0 flex items-center justify-center h-8 w-8 rounded-full transition-all hover:scale-105"
               style={{
                 border: "1px solid rgba(255,255,255,0.08)",
                 backgroundColor: "rgba(0,0,0,0.55)",
                 color: "#94a3b8",
               }}
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-3.5 w-3.5" />
             </button>
           </>
         )}
       </div>
 
-      <div className="mt-6 sm:mt-8 shrink-0 text-center space-y-3 pb-2">
+      <div className="mt-2 shrink-0 text-center space-y-1.5">
         {slideCount > 1 && (
-          <div className="flex items-center justify-center gap-2.5">
+          <div className="flex items-center justify-center gap-2">
             {Array.from({ length: slideCount }, (_, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => onGoTo(i)}
                 aria-label={`Slide ${i + 1}`}
-                className="h-1.5 rounded-full transition-all"
+                className="h-1 rounded-full transition-all"
                 style={{
-                  width: i === activeIndex ? 28 : 8,
+                  width: i === activeIndex ? 22 : 6,
                   backgroundColor: i === activeIndex ? "#3b82f6" : "rgba(255,255,255,0.12)",
                 }}
               />
@@ -238,9 +232,9 @@ export function LevelsChartPanel({
         )}
         {footerExtra}
         {(refreshedLabel || autoAdvanceNote) && (
-          <p className="text-[11px] leading-relaxed" style={{ color: "#64748b" }}>
+          <p className="text-[10px] leading-snug" style={{ color: "#64748b" }}>
             {refreshedLabel ?? "Awaiting refresh"}
-            {autoAdvanceNote && slideCount > 1 ? " · Auto-advances every 8s" : ""}
+            {autoAdvanceNote && slideCount > 1 ? " · 8s" : ""}
           </p>
         )}
       </div>
@@ -248,7 +242,7 @@ export function LevelsChartPanel({
   );
 }
 
-/** Two-column shell used on every tab — list left, chart right. */
+/** Two-column shell — fills remaining viewport height (one fold). */
 export function LevelsSplitShell({
   list,
   chart,
@@ -258,7 +252,7 @@ export function LevelsSplitShell({
 }) {
   return (
     <div
-      className="flex flex-col lg:flex-row flex-1 min-h-0 gap-10 lg:gap-14 lg:items-stretch pt-6 sm:pt-8"
+      className="flex flex-col lg:flex-row flex-1 min-h-0 gap-5 lg:gap-8 lg:items-stretch pt-3"
       style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
     >
       {list}
@@ -274,9 +268,16 @@ export function LevelsSplitShell({
 
 export function LevelsDisclaimer({ scheduleNote }: { scheduleNote?: string }) {
   return (
-    <p className="text-[10px] text-center mt-8 sm:mt-10 shrink-0 leading-relaxed" style={{ color: "#334155" }}>
+    <p className="text-[9px] text-center mt-2 shrink-0 leading-snug" style={{ color: "#334155" }}>
       {scheduleNote ? `${scheduleNote} · ` : ""}
       For informational purposes only; not investment advice.
     </p>
+  );
+}
+
+/** Sort list entries A–Z by display label. */
+export function sortEntriesAlpha(entries: LevelsListEntry[]): LevelsListEntry[] {
+  return [...entries].sort((a, b) =>
+    a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
   );
 }

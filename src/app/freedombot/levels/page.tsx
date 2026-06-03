@@ -335,10 +335,8 @@ export default function LevelsPage() {
   const tvChartColumn =
     activeTv != null ? (
       <LevelsTradingViewChart
-        exchange={activeTv.exchange}
-        symbol={activeTv.symbol}
-        interval={activeTv.interval}
-        title={`5m · ${activeTv.exchange}:${activeTv.symbol}`}
+        config={activeTv}
+        title={`5m · ${activeTv.fullSymbol}`}
       />
     ) : (
       <div

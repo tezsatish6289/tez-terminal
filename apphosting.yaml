@@ -52,6 +52,14 @@ env:
     secret: DHAN_CLIENT_ID
     availability:
       - RUNTIME
+  - variable: DHAN_TOTP_SECRET
+    secret: DHAN_TOTP_SECRET
+    availability:
+      - RUNTIME
+  - variable: DHAN_PIN
+    secret: DHAN_PIN
+    availability:
+      - RUNTIME
   - variable: SOLANA_RPC_URL
     secret: SOLANA_RPC_URL
     availability:

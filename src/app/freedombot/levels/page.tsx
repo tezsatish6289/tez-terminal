@@ -9,7 +9,7 @@ import {
   LevelsChartPanel,
   LevelsDisclaimer,
   LevelsPageHeader,
-  LevelsTripleShell,
+  LevelsTripleColumnShell,
   LevelsSymbolList,
   sortEntriesAlpha,
   type LevelsListEntry,
@@ -311,8 +311,8 @@ export default function LevelsPage() {
   const scheduleNote = tab === "crypto" ? "Updates 24/7" : "Updates Mon–Fri during market hours";
 
   const activeTv = useMemo(() => {
-    if (tab === "indices" && carouselEntry) {
-      return levelsTradingViewParams("index", carouselEntry.id);
+    if (tab === "indices" && carouselItem?.symbol) {
+      return levelsTradingViewParams("index", carouselItem.symbol);
     }
     if (tab === "crypto" && carouselEntry) {
       return levelsTradingViewParams("crypto", carouselEntry.id);
@@ -330,30 +330,32 @@ export default function LevelsPage() {
       return levelsTradingViewParams(scope, inZoneActive.symbol);
     }
     return null;
-  }, [tab, carouselEntry, activeStockSymbol, inZoneActive]);
+  }, [tab, carouselItem, carouselEntry, activeStockSymbol, inZoneActive]);
 
-  const wrapTabBody = (list: ReactNode, levels: ReactNode, disclaimerSchedule?: string) => (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-      <LevelsTripleShell
-        list={list}
-        levels={levels}
-        chart={
-          activeTv ? (
-            <LevelsTradingViewChart
-              exchange={activeTv.exchange}
-              symbol={activeTv.symbol}
-              interval={activeTv.interval}
-            />
-          ) : (
-            <div
-              className="flex flex-1 items-center justify-center text-[11px] px-4 text-center"
-              style={{ color: "#64748b" }}
-            >
-              Select a symbol to load the 5m chart
-            </div>
-          )
-        }
+  const tvChartColumn =
+    activeTv != null ? (
+      <LevelsTradingViewChart
+        exchange={activeTv.exchange}
+        symbol={activeTv.symbol}
+        interval={activeTv.interval}
+        title={`5m · ${activeTv.exchange}:${activeTv.symbol}`}
       />
+    ) : (
+      <div
+        className="flex flex-1 items-center justify-center rounded-xl text-center px-4"
+        style={{ border: "1px solid rgba(255,255,255,0.06)", color: "#64748b" }}
+      >
+        <p className="text-xs">Select a symbol to load the chart</p>
+      </div>
+    );
+
+  const wrapTabBody = (
+    list: ReactNode,
+    levels: ReactNode,
+    disclaimerSchedule?: string,
+  ) => (
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      <LevelsTripleColumnShell list={list} levels={levels} chart={tvChartColumn} />
       <LevelsDisclaimer scheduleNote={disclaimerSchedule ?? scheduleNote} />
     </div>
   );
@@ -605,6 +607,7 @@ export default function LevelsPage() {
         refreshedLabel={refreshed ? `Data refreshed ${refreshed} · ${scheduleNote}` : scheduleNote}
         autoAdvanceNote
         footerExtra={cryptoDeployFooter}
+        showCarouselArrows={false}
       />,
     );
   };
@@ -647,6 +650,7 @@ export default function LevelsPage() {
             : scheduleNote
         }
         autoAdvanceNote={false}
+        showCarouselArrows={false}
       />,
     );
 
@@ -654,26 +658,20 @@ export default function LevelsPage() {
     if (inZoneCount === 0) {
       const filteredEmpty = zoneFilter !== "all" && inZoneListSorted.length > 0;
       return wrapTabBody(
-        <div className="flex flex-col h-full min-h-0">
-          {zoneFilterChips}
-          <div className="flex flex-col items-center justify-center text-center py-8 gap-3 flex-1 px-2">
-            <p className="text-sm" style={{ color: "#64748b" }}>
-              {filteredEmpty
-                ? "No symbols match this filter right now."
-                : "No aligned setups right now."}
-            </p>
-            <p className="text-xs leading-relaxed" style={{ color: "#475569" }}>
-              {filteredEmpty
-                ? "Try All aligned, or wait for price to sit in a band with max pain on the pull side."
-                : "Needs spot inside bull/bear band and max pain above (bull) or below (bear) spot."}
-            </p>
-          </div>
+        <div className="flex flex-col min-h-0 h-full">
+          <div className="shrink-0">{zoneFilterChips}</div>
+          <p className="text-sm text-center py-8 px-4" style={{ color: "#64748b" }}>
+            {filteredEmpty
+              ? "No symbols match this filter right now."
+              : "No aligned setups right now."}
+          </p>
         </div>,
-        <div
-          className="flex flex-1 items-center justify-center text-[11px] px-2 text-center"
-          style={{ color: "#64748b" }}
-        >
-          No levels to display
+        <div className="flex flex-1 items-center justify-center text-center px-4">
+          <p className="text-xs max-w-xs leading-relaxed" style={{ color: "#475569" }}>
+            {filteredEmpty
+              ? "Try All aligned, or wait for price to sit in a band with max pain on the pull side."
+              : "Needs spot inside bull/bear band and max pain above (bull) or below (bear) spot."}
+          </p>
         </div>,
       );
     }
@@ -707,10 +705,11 @@ export default function LevelsPage() {
           onGoTo={setInZoneSlide}
           refreshedLabel={refreshed ? `Data refreshed ${refreshed}` : undefined}
           autoAdvanceNote
+          showCarouselArrows={false}
         />
       ) : (
-        <div className="flex flex-1 items-center justify-center text-xs" style={{ color: "#64748b" }}>
-          —
+        <div className="flex flex-1 items-center justify-center" style={{ color: "#64748b" }}>
+          <p className="text-xs">No selection</p>
         </div>
       ),
     );

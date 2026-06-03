@@ -1,29 +1,53 @@
 "use client";
 
-import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { ChartPane } from "@/components/dashboard/ChartPane";
+import { resolveTradingViewChartSymbol } from "@/lib/tradingview-symbol";
 
-/** Minimal chart surface for cross-origin iframe (e.g. freedombot.ai/levels). */
-function ChartEmbedInner() {
-  const sp = useSearchParams();
-  const symbol = sp.get("symbol") ?? "BTCUSDT";
-  const exchange = sp.get("exchange") ?? "BINANCE";
-  const interval = sp.get("interval") ?? "5";
+function readEmbedParams(): {
+  tvSymbol: string;
+  exchange: string;
+  symbol: string;
+  interval: string;
+} {
+  if (typeof window === "undefined") {
+    return { tvSymbol: "BINANCE:BTCUSDT", exchange: "BINANCE", symbol: "BTCUSDT", interval: "5" };
+  }
+  const q = new URLSearchParams(window.location.search);
+  const tvSymbolParam = q.get("tvSymbol");
+  const symbol = q.get("symbol") ?? "BTCUSDT";
+  const exchange = q.get("exchange") ?? "BINANCE";
+  const interval = q.get("interval") ?? "5";
+  const tvSymbol =
+    tvSymbolParam?.trim() ||
+    resolveTradingViewChartSymbol(symbol, exchange);
+  const [ex, sym] = tvSymbol.includes(":")
+    ? (tvSymbol.split(":", 2) as [string, string])
+    : [exchange, symbol];
+  return { tvSymbol, exchange: ex, symbol: sym, interval };
+}
+
+/** Minimal chart for cross-origin iframe (freedombot.ai/levels → tezterminal.com). */
+export default function ChartEmbedPage() {
+  const [params, setParams] = useState<ReturnType<typeof readEmbedParams> | null>(null);
+
+  useEffect(() => {
+    setParams(readEmbedParams());
+  }, []);
+
+  if (!params) {
+    return <div className="w-full h-[100dvh] min-h-[280px] bg-background" aria-hidden />;
+  }
 
   return (
     <div className="w-full h-[100dvh] min-h-[280px] bg-background">
-      <ChartPane symbol={symbol} exchange={exchange} interval={interval} />
+      <ChartPane
+        variant="embed"
+        tvSymbol={params.tvSymbol}
+        symbol={params.symbol}
+        exchange={params.exchange}
+        interval={params.interval}
+      />
     </div>
-  );
-}
-
-export default function ChartEmbedPage() {
-  return (
-    <Suspense
-      fallback={<div className="w-full h-[100dvh] min-h-[280px] bg-background" aria-hidden />}
-    >
-      <ChartEmbedInner />
-    </Suspense>
   );
 }

@@ -1,14 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { ChartPane } from "@/components/dashboard/ChartPane";
 import type { LevelsTvConfig } from "@/lib/levels/tradingview-symbol";
 import { levelsIndianChartProxySrc } from "@/lib/tradingview-symbol";
 
 /**
- * India charts on freedombot.ai → iframe tezterminal.com/embed/chart (same TV allowlist as /chart/[id]).
- * Crypto renders ChartPane inline.
+ * India charts on freedombot.ai load via tezterminal.com/embed/chart (TV allowlist).
+ * Avoid SSR/client hydration mismatch — resolve iframe src after mount only.
  */
 export function LevelsTradingViewChart({
   config,
@@ -17,14 +17,25 @@ export function LevelsTradingViewChart({
   config: LevelsTvConfig;
   title?: string;
 }) {
-  const proxySrc = useMemo(() => {
-    if (!config.indianMarket || typeof window === "undefined") return null;
-    return levelsIndianChartProxySrc(window.location.hostname, window.location.pathname, {
-      symbol: config.symbol,
-      exchange: config.exchange,
-      interval: config.interval,
-    });
+  const [mounted, setMounted] = useState(false);
+  const [proxySrc, setProxySrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+    if (!config.indianMarket) {
+      setProxySrc(null);
+      return;
+    }
+    setProxySrc(
+      levelsIndianChartProxySrc(window.location.hostname, window.location.pathname, {
+        symbol: config.symbol,
+        exchange: config.exchange,
+        interval: config.interval,
+      }),
+    );
   }, [config]);
+
+  const showProxy = mounted && proxySrc;
 
   return (
     <section className="flex flex-col min-h-0 h-full w-full">
@@ -55,7 +66,11 @@ export function LevelsTradingViewChart({
           backgroundColor: "rgba(0,0,0,0.45)",
         }}
       >
-        {proxySrc ? (
+        {!mounted ? (
+          <div className="w-full h-full flex items-center justify-center" style={{ color: "#64748b" }}>
+            <p className="text-xs">Loading chart…</p>
+          </div>
+        ) : showProxy ? (
           <iframe
             key={proxySrc}
             title={`Chart ${config.fullSymbol}`}

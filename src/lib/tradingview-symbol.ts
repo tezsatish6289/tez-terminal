@@ -31,9 +31,59 @@ export function resolveTradingViewChartSymbol(symbol: string, exchange: string):
 
 export const TEZ_TERMINAL_CHART_ORIGIN = "https://tezterminal.com";
 
+export type TradingViewChartVariant = "signal" | "embed";
+
 /**
- * Levels / freedombot: load India charts through tezterminal.com (TV allows NSE there).
- * Returns null when chart should render inline (crypto, or already on tezterminal).
+ * signal → advanced-chart (same as /chart/[id]).
+ * embed → widgetembed for India (better in cross-origin iframe on /embed/chart).
+ */
+export function buildTradingViewChartSrc(
+  formattedSymbol: string,
+  tvInterval: string,
+  opts: { india: boolean; timezone: string; variant?: TradingViewChartVariant },
+): string {
+  const interval = tvInterval === "0" ? "1" : tvInterval;
+  const variant = opts.variant ?? "signal";
+
+  if (opts.india && variant === "embed") {
+    const params = new URLSearchParams({
+      symbol: formattedSymbol,
+      interval,
+      theme: "dark",
+      style: "1",
+      timezone: opts.timezone,
+      locale: "in",
+      hideideas: "1",
+      hidesidetoolbar: "0",
+      allow_symbol_change: "1",
+      withdateranges: "1",
+      enable_publishing: "0",
+      saveimage: "0",
+    });
+    return `https://s.tradingview.com/widgetembed/?${params.toString()}`;
+  }
+
+  const widgetConfig = {
+    symbol: formattedSymbol,
+    interval,
+    timezone: opts.timezone,
+    theme: "dark",
+    style: "1",
+    locale: opts.india ? "in" : "en",
+    toolbar_bg: "#f1f3f6",
+    enable_publishing: false,
+    hide_side_toolbar: false,
+    allow_symbol_change: true,
+    save_image: true,
+    width: "100%",
+    height: "100%",
+  };
+
+  return `https://s.tradingview.com/embed-widget/advanced-chart/?locale=${opts.india ? "in" : "en"}#${encodeURIComponent(JSON.stringify(widgetConfig))}`;
+}
+
+/**
+ * Levels on freedombot.ai: India charts load via tezterminal.com/embed/chart.
  */
 export function levelsIndianChartProxySrc(
   hostname: string,
@@ -44,6 +94,8 @@ export function levelsIndianChartProxySrc(
   if (host === "tezterminal.com" || host === "www.tezterminal.com") return null;
   if (pathname.startsWith("/embed/chart")) return null;
 
+  const tvSymbol = resolveTradingViewChartSymbol(params.symbol, params.exchange);
+
   const base =
     host === "freedombot.ai" || host === "www.freedombot.ai"
       ? TEZ_TERMINAL_CHART_ORIGIN
@@ -52,8 +104,7 @@ export function levelsIndianChartProxySrc(
         : TEZ_TERMINAL_CHART_ORIGIN;
 
   const u = new URL("/embed/chart", base);
-  u.searchParams.set("symbol", params.symbol);
-  u.searchParams.set("exchange", params.exchange);
+  u.searchParams.set("tvSymbol", tvSymbol);
   u.searchParams.set("interval", params.interval);
   return u.toString();
 }

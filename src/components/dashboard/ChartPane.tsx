@@ -1,59 +1,68 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Zap } from "lucide-react";
 import {
+  buildTradingViewChartSrc,
   isIndianMarketExchange,
   resolveTradingViewChartSymbol,
+  type TradingViewChartVariant,
 } from "@/lib/tradingview-symbol";
 
 interface ChartPaneProps {
   symbol?: string;
   interval?: string;
   exchange?: string;
+  /** Full TV symbol (NSE:CDSL) — overrides symbol+exchange when set. */
+  tvSymbol?: string;
+  /** embed = levels iframe route (widgetembed for India). */
+  variant?: TradingViewChartVariant;
 }
 
-export function ChartPane({ symbol = "BTCUSDT", interval = "15", exchange = "BINANCE" }: ChartPaneProps) {
+export function ChartPane({
+  symbol = "BTCUSDT",
+  interval = "15",
+  exchange = "BINANCE",
+  tvSymbol: tvSymbolProp,
+  variant = "signal",
+}: ChartPaneProps) {
   const [mounted, setMounted] = useState(false);
-  const india = isIndianMarketExchange(exchange);
+  const india = isIndianMarketExchange(exchange) || (tvSymbolProp?.toUpperCase().startsWith("NSE") ?? false);
   const [userTz, setUserTz] = useState(india ? "Asia/Kolkata" : "Etc/UTC");
+
+  const formattedSymbol = useMemo(
+    () =>
+      tvSymbolProp?.trim()
+        ? resolveTradingViewChartSymbol(tvSymbolProp, exchange)
+        : resolveTradingViewChartSymbol(symbol, exchange),
+    [tvSymbolProp, symbol, exchange],
+  );
+
+  const tvInterval = interval === "0" ? "1" : interval;
+
+  const src = useMemo(
+    () =>
+      buildTradingViewChartSrc(formattedSymbol, tvInterval, {
+        india,
+        timezone: userTz,
+        variant,
+      }),
+    [formattedSymbol, tvInterval, india, userTz, variant],
+  );
 
   useEffect(() => {
     setUserTz(
-      isIndianMarketExchange(exchange)
-        ? "Asia/Kolkata"
-        : Intl.DateTimeFormat().resolvedOptions().timeZone,
+      india ? "Asia/Kolkata" : Intl.DateTimeFormat().resolvedOptions().timeZone,
     );
     setMounted(true);
-  }, [exchange]);
-
-  const formattedSymbol = resolveTradingViewChartSymbol(symbol, exchange);
-  const tvInterval = interval === "0" ? "1" : interval;
-
-  const widgetConfig = {
-    symbol: formattedSymbol,
-    interval: tvInterval,
-    timezone: userTz,
-    theme: "dark",
-    style: "1",
-    locale: india ? "in" : "en",
-    toolbar_bg: "#f1f3f6",
-    enable_publishing: false,
-    hide_side_toolbar: false,
-    allow_symbol_change: true,
-    save_image: true,
-    width: "100%",
-    height: "100%",
-  };
-
-  const src = `https://s.tradingview.com/embed-widget/advanced-chart/?locale=${india ? "in" : "en"}#${encodeURIComponent(JSON.stringify(widgetConfig))}`;
+  }, [india]);
 
   return (
     <div className="w-full h-full bg-background relative flex flex-col">
       <div className="flex-1 w-full h-full bg-background">
         {mounted ? (
           <iframe
-            key={`${formattedSymbol}-${tvInterval}-${userTz}`}
+            key={src}
             title={`TradingView ${formattedSymbol}`}
             src={src}
             className="w-full h-full border-none"

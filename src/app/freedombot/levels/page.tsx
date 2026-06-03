@@ -1,38 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Loader2, Search, TrendingUp, TrendingDown, Target } from "lucide-react";
-import { type PublicLevels } from "@/components/levels/ZonePriceLadder";
-import {
-  LevelsChartPanel,
-  LevelsDisclaimer,
-  LevelsPageHeader,
-  LevelsTripleColumnShell,
-  LevelsChartMetaFooter,
-  LevelsSymbolList,
-  sortEntriesAlpha,
-  type LevelsListEntry,
-} from "@/components/levels/LevelsSplitLayout";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Loader2 } from "lucide-react";
 import {
   buildLevelsBubbleItems,
+  bubbleMatchesInZoneView,
   LevelsBubblesView,
-  type LevelsBubbleItem,
 } from "@/components/levels/LevelsBubblesView";
-import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
-import { levelsTradingViewParams } from "@/lib/levels/tradingview-symbol";
-import { fnoCompanyName } from "@/lib/nse/fno-company-names";
+import { levelsChartPagePath } from "@/lib/levels/levels-chart-url";
 import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
-import {
-  deriveZoneStatus,
-  matchesDirectionalSetup,
-  type PocDirectionFilter,
-  type ZoneBands,
-  type ZoneStatus,
-} from "@/lib/zones/zone-status";
+import type { PocDirectionFilter, ZoneStatus } from "@/lib/zones/zone-status";
+import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 
 interface RawItem {
   symbol?: string;
-  asset?: string;
   label: string;
   data: PublicLevels | null;
 }
@@ -49,58 +30,11 @@ interface StockListItem {
   bearZoneHigh: number | null;
 }
 
-function bandsFromLevels(
-  data: PublicLevels | null | undefined,
-  spotOverride?: number | null,
-): ZoneBands {
-  return {
-    spot: spotOverride ?? data?.spot ?? null,
-    bullLow: data?.bullLow ?? null,
-    bullHigh: data?.bullHigh ?? null,
-    bearLow: data?.bearLow ?? null,
-    bearHigh: data?.bearHigh ?? null,
-  };
-}
-
-interface InZoneItem {
-  scope: "index" | "stock";
-  symbol: string;
-  label: string;
-  status: ZoneStatus;
-  spot: number | null;
-  currency: "₹";
-  data: PublicLevels | null;
-}
-
 interface LevelsPayload {
   indices: RawItem[];
   stocks: StockListItem[];
-  inZone: InZoneItem[];
   updatedAt: string;
 }
-
-type TabKey = "indices" | "stocks" | "inzone" | "bubbles";
-
-const TAB_COPY: Record<TabKey, { title: string; subtitle: string }> = {
-  bubbles: {
-    title: "Market Bubbles",
-    subtitle:
-      "Solid green/red = in zone · dashed lime/orange ring = near zone · grey dashed ring = not scanned yet.",
-  },
-  indices: {
-    title: "NSE Indices",
-    subtitle: "Select an index on the left — chart auto-cycles every 8 seconds.",
-  },
-  stocks: {
-    title: "NSE Stocks",
-    subtitle: "Search and pick an F&O symbol on the left to view its levels.",
-  },
-  inzone: {
-    title: "In Zone Now",
-    subtitle:
-      "In bull band with POC above spot, or in bear band with POC below — chart auto-cycles every 8 seconds.",
-  },
-};
 
 const HEX_BG = `
   radial-gradient(ellipse 80% 50% at 50% 0%, rgba(37,99,235,0.12), transparent),
@@ -109,73 +43,26 @@ const HEX_BG = `
   #060912
 `;
 
-const STATUS_META: Record<ZoneStatus, { label: string; color: string; bg: string }> = {
-  IN_BULL:  { label: "In Bull Zone",  color: "#34d399", bg: "rgba(16,185,129,0.14)" },
-  IN_BEAR:  { label: "In Bear Zone",  color: "#f87171", bg: "rgba(239,68,68,0.14)" },
-  NEAR:     { label: "Near Zone",     color: "#fbbf24", bg: "rgba(251,191,36,0.14)" },
-  NEUTRAL:  { label: "Neutral",       color: "#94a3b8", bg: "rgba(148,163,184,0.12)" },
-  ILLIQUID: { label: "No Data",       color: "#64748b", bg: "rgba(100,116,139,0.1)" },
-};
-
-function StatusBadge({ status }: { status: ZoneStatus }) {
-  const m = STATUS_META[status];
-  const Icon = status === "IN_BULL" ? TrendingUp : status === "IN_BEAR" ? TrendingDown : Target;
-  return (
-    <span
-      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider shrink-0"
-      style={{ color: m.color, backgroundColor: m.bg }}
-    >
-      <Icon className="h-3 w-3" />
-      {m.label}
-    </span>
-  );
-}
-
-function levelsHaveBands(data: PublicLevels | null | undefined): boolean {
-  return data != null && (data.bullLow != null || data.bearLow != null);
-}
-
-function resolveStockCompanyName(symbol: string, fallback?: string | null): string | null {
-  const fromMap = fnoCompanyName(symbol);
-  if (fromMap) return fromMap;
-  const fb = fallback?.trim();
-  if (fb && fb.toUpperCase() !== symbol.toUpperCase()) return fb;
-  return null;
-}
-
-function formatRefreshed(computedAt: string | null | undefined): string | null {
-  if (!computedAt) return null;
-  return new Date(computedAt).toLocaleString([], {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+const PAGE_TITLE = "Market Bubbles";
+const PAGE_SUBTITLE =
+  "Solid green/red = in band · dashed lime/orange = near band · grey dashed = awaiting scan · click a bubble for chart.";
 
 export default function LevelsPage() {
   const [payload, setPayload] = useState<LevelsPayload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<TabKey>("indices");
-  const [slide, setSlide] = useState(0);
-  const [inZoneSlide, setInZoneSlide] = useState(0);
-  const [inZoneChartData, setInZoneChartData] = useState<PublicLevels | null>(null);
-  const [inZoneChartLoading, setInZoneChartLoading] = useState(false);
-
-  const [stockQuery, setStockQuery] = useState("");
+  const [inZoneView, setInZoneView] = useState(false);
   const [zoneFilter, setZoneFilter] = useState<PocDirectionFilter>("all");
-  const [stockSlide, setStockSlide] = useState(0);
-  const [stockData, setStockData] = useState<{ label: string; data: PublicLevels | null } | null>(null);
-  const [stockLoading, setStockLoading] = useState(false);
-  const [stockFetchNote, setStockFetchNote] = useState<string | null>(null);
-  const [slideshowPaused, setSlideshowPaused] = useState(false);
-  const [bubbleSelected, setBubbleSelected] = useState<LevelsBubbleItem | null>(null);
   const [bubblesHideNeutral, setBubblesHideNeutral] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const res = await fetch("/api/freedombot/levels", { cache: "no-store" });
-      setPayload((await res.json()) as LevelsPayload);
+      const json = (await res.json()) as LevelsPayload & { inZone?: unknown };
+      setPayload({
+        indices: json.indices ?? [],
+        stocks: json.stocks ?? [],
+        updatedAt: json.updatedAt ?? new Date().toISOString(),
+      });
     } catch {
       /* keep last-good */
     } finally {
@@ -189,46 +76,6 @@ export default function LevelsPage() {
     return () => clearInterval(id);
   }, [load]);
 
-  const loadStock = useCallback(async (symbol: string) => {
-    setStockLoading(true);
-    setStockFetchNote("Loading levels from NSE…");
-    try {
-      const res = await fetch(`/api/freedombot/levels?symbol=${encodeURIComponent(symbol)}`, {
-        cache: "no-store",
-      });
-      const json = (await res.json()) as {
-        label: string;
-        data: PublicLevels | null;
-        source?: string;
-        computed?: boolean;
-        error?: string;
-      };
-      setStockData({ label: json.label, data: json.data });
-      if (json.error && !(json.data?.bullLow != null || json.data?.bearLow != null)) {
-        setStockFetchNote(json.error);
-      } else if (json.computed) {
-        setStockFetchNote("Computed just now from NSE option chain");
-      } else {
-        setStockFetchNote(null);
-      }
-    } catch {
-      setStockData(null);
-      setStockFetchNote("Could not load levels — try again");
-    } finally {
-      setStockLoading(false);
-    }
-  }, []);
-
-  const switchTab = (key: TabKey) => {
-    setTab(key);
-    setSlide(0);
-    setInZoneSlide(0);
-    setStockSlide(0);
-    setStockQuery("");
-    setZoneFilter("all");
-    if (key !== "bubbles") setBubbleSelected(null);
-  };
-
   const stockBySymbol = useMemo(() => {
     const m = new Map<
       string,
@@ -236,6 +83,7 @@ export default function LevelsPage() {
         symbol: string;
         label: string;
         spot: number | null;
+        maxPain: number | null;
         bullZoneLow: number | null;
         bullZoneHigh: number | null;
         bearZoneLow: number | null;
@@ -251,620 +99,29 @@ export default function LevelsPage() {
     [payload, stockBySymbol],
   );
 
+  const alignedCount = useMemo(
+    () => bubbleItems.filter((it) => bubbleMatchesInZoneView(it, "all")).length,
+    [bubbleItems],
+  );
+
   const bubbleScanNote = useMemo(() => {
     const scanned = payload?.stocks?.length ?? 0;
     const total = FNO_UNIVERSE_ALPHA.length;
     const batch = 12;
     const runs = Math.ceil(total / batch);
     return (
-      `F&O levels refresh in a round-robin on the Auto Zones cron (~${batch} stocks per 5–15 min run during NSE hours, ~${runs} runs for a full sweep). ` +
-      `${scanned} of ${total} are in the database so far — grey dashed = not reached yet.`
+      `F&O levels refresh in a round-robin on the Auto Zones cron (~${batch} stocks per run, ~${runs} runs for full sweep). ` +
+      `${scanned} of ${total} in the database — grey dashed = not reached yet. ` +
+      `${alignedCount} aligned setups (in band + max pain on pull side).`
     );
-  }, [payload?.stocks]);
+  }, [payload?.stocks, alignedCount]);
 
-  useEffect(() => {
-    if (tab !== "bubbles" || bubbleItems.length === 0) return;
-    if (bubbleSelected && bubbleItems.some((b) => b.id === bubbleSelected.id)) return;
-    const first =
-      bubbleItems.find((b) => b.tone === "IN_BULL" || b.tone === "IN_BEAR") ?? bubbleItems[0];
-    setBubbleSelected(first);
-  }, [tab, bubbleItems, bubbleSelected]);
-
-  const indexEntries: LevelsListEntry[] = useMemo(
-    () =>
-      sortEntriesAlpha(
-        (payload?.indices ?? []).map((it) => ({
-          id: it.symbol ?? it.label,
-          label: it.label,
-          spot: it.data?.spot ?? null,
-          currency: "₹" as const,
-        })),
-      ),
-    [payload?.indices],
-  );
-
-  const inZoneListSorted = useMemo(
-    () =>
-      [...(payload?.inZone ?? [])].sort((a, b) =>
-        a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
-      ),
-    [payload?.inZone],
-  );
-
-  const inZoneListFiltered = useMemo(
-    () =>
-      inZoneListSorted.filter((it) =>
-        matchesDirectionalSetup(bandsFromLevels(it.data, it.spot), it.data?.poc ?? null, zoneFilter),
-      ),
-    [inZoneListSorted, zoneFilter],
-  );
-
-  const carouselCount = indexEntries.length;
-  const carouselCurrent = carouselCount > 0 ? Math.min(slide, carouselCount - 1) : 0;
-  const carouselEntry = carouselCount > 0 ? indexEntries[carouselCurrent] : null;
-  const carouselItem =
-    carouselEntry && payload
-      ? payload.indices.find((it) => (it.symbol ?? it.label) === carouselEntry.id)
-      : null;
-
-  const inZoneCount = inZoneListFiltered.length;
-  const inZoneCurrent = inZoneCount > 0 ? Math.min(inZoneSlide, inZoneCount - 1) : 0;
-  const inZoneActive = inZoneCount > 0 ? inZoneListFiltered[inZoneCurrent] : null;
-
-  const slideshowEnabled =
-    (tab === "indices" && carouselCount > 1) || (tab === "inzone" && inZoneCount > 1);
-
-  const toggleSlideshowPause = useCallback(() => {
-    setSlideshowPaused((p) => !p);
+  const openBubbleChart = useCallback((item: { scope: "index" | "stock"; symbol: string }) => {
+    const path = levelsChartPagePath(item.scope, item.symbol);
+    window.open(path, "_blank", "noopener,noreferrer");
   }, []);
 
-  const stockMetaBySymbol = useMemo(() => {
-    const m = new Map<string, ZoneBands & { poc: number | null }>();
-    for (const s of payload?.stocks ?? []) {
-      m.set(s.symbol, {
-        spot: s.spot,
-        bullLow: s.bullZoneLow,
-        bullHigh: s.bullZoneHigh,
-        bearLow: s.bearZoneLow,
-        bearHigh: s.bearZoneHigh,
-        poc: s.maxPain,
-      });
-    }
-    return m;
-  }, [payload?.stocks]);
-
-  const filteredStocks = useMemo(() => {
-    const q = stockQuery.trim().toUpperCase();
-    let list = !q ? FNO_UNIVERSE_ALPHA.slice() : FNO_UNIVERSE_ALPHA.filter((s) => s.includes(q));
-    if (zoneFilter === "all") return list;
-    return list.filter((sym) => {
-      const meta = stockMetaBySymbol.get(sym);
-      if (!meta) return false;
-      const { poc, ...bands } = meta;
-      return matchesDirectionalSetup(bands, poc, zoneFilter);
-    });
-  }, [stockQuery, zoneFilter, stockMetaBySymbol]);
-
-  const stockCount = filteredStocks.length;
-  const stockCurrent = stockCount > 0 ? Math.min(stockSlide, stockCount - 1) : 0;
-  const activeStockSymbol = stockCount > 0 ? filteredStocks[stockCurrent] : null;
-
-  const statusBySymbol = useMemo(() => {
-    const m = new Map<string, ZoneStatus>();
-    for (const s of payload?.stocks ?? []) m.set(s.symbol, s.status);
-    return m;
-  }, [payload?.stocks]);
-
   const scheduleNote = "Updates Mon–Fri during market hours";
-
-  const activeTv = useMemo(() => {
-    if (tab === "indices" && carouselItem?.symbol) {
-      return levelsTradingViewParams("index", carouselItem.symbol);
-    }
-    if (tab === "stocks" && activeStockSymbol) {
-      return levelsTradingViewParams("stock", activeStockSymbol);
-    }
-    if (tab === "inzone" && inZoneActive) {
-      return levelsTradingViewParams(inZoneActive.scope, inZoneActive.symbol);
-    }
-    return null;
-  }, [tab, carouselItem, activeStockSymbol, inZoneActive]);
-
-  const activeChartLevels = useMemo<PublicLevels | null>(() => {
-    if (tab === "indices") return carouselItem?.data ?? null;
-    if (tab === "stocks") return stockData?.data ?? null;
-    if (tab === "inzone" && (inZoneActive?.scope === "stock" || inZoneActive?.scope === "index")) {
-      return inZoneChartData;
-    }
-    return null;
-  }, [tab, carouselItem, stockData, inZoneActive, inZoneChartData]);
-
-  const chartShowsZones = Boolean(activeTv?.nativeCandles && levelsHaveBands(activeChartLevels));
-
-  const activeTicker = useMemo(() => {
-    if (tab === "stocks") return activeStockSymbol ?? null;
-    if (tab === "inzone" && inZoneActive) return inZoneActive.symbol;
-    if (tab === "indices" && carouselItem) return carouselItem.symbol ?? carouselEntry?.id ?? null;
-    return null;
-  }, [tab, activeStockSymbol, inZoneActive, carouselItem, carouselEntry]);
-
-  const activeCompanyName = useMemo(() => {
-    if (tab === "stocks" && activeStockSymbol) {
-      return resolveStockCompanyName(activeStockSymbol, stockData?.label);
-    }
-    if (tab === "inzone" && inZoneActive?.scope === "stock") {
-      return resolveStockCompanyName(inZoneActive.symbol, inZoneActive.label);
-    }
-    if (tab === "inzone" && inZoneActive?.scope === "index") return inZoneActive.label;
-    if (tab === "indices" && carouselItem) return carouselItem.label;
-    return null;
-  }, [tab, activeStockSymbol, stockData, inZoneActive, carouselItem]);
-
-  const chartLevelsLoading =
-    (tab === "stocks" && stockLoading) ||
-    (tab === "inzone" && inZoneChartLoading && inZoneActive?.scope === "stock");
-
-  const tvChartColumn =
-    activeTv != null ? (
-      <LevelsTradingViewChart
-        config={activeTv}
-        ticker={activeTicker ?? activeTv.symbol}
-        companyName={activeCompanyName ?? undefined}
-        levels={activeChartLevels}
-        loading={chartLevelsLoading}
-        showSlideshowControl={slideshowEnabled}
-        slideshowPaused={slideshowPaused}
-        onToggleSlideshowPause={toggleSlideshowPause}
-      />
-    ) : (
-      <div
-        className="flex flex-1 items-center justify-center rounded-xl text-center px-4"
-        style={{ border: "1px solid rgba(255,255,255,0.06)", color: "#64748b" }}
-      >
-        <p className="text-xs">Select a symbol to load the chart</p>
-      </div>
-    );
-
-  const wrapTabBody = (
-    list: ReactNode,
-    levels: ReactNode,
-    disclaimerSchedule?: string,
-    opts?: {
-      hideLevelsColumn?: boolean;
-      chartFooter?: ReactNode;
-    },
-  ) => (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-      <LevelsTripleColumnShell
-        list={list}
-        levels={levels}
-        hideLevelsColumn={opts?.hideLevelsColumn ?? chartShowsZones}
-        chart={
-          <div className="flex flex-col flex-1 min-h-0 min-w-0">
-            {tvChartColumn}
-            {opts?.chartFooter}
-          </div>
-        }
-      />
-      <LevelsDisclaimer scheduleNote={disclaimerSchedule ?? scheduleNote} />
-    </div>
-  );
-
-  const goCarousel = useCallback(
-    (dir: number) => setSlide((s) => (carouselCount > 0 ? (s + dir + carouselCount) % carouselCount : 0)),
-    [carouselCount],
-  );
-
-  const goInZone = useCallback(
-    (dir: number) => setInZoneSlide((s) => (inZoneCount > 0 ? (s + dir + inZoneCount) % inZoneCount : 0)),
-    [inZoneCount],
-  );
-
-  const goStock = useCallback(
-    (dir: number) => setStockSlide((s) => (stockCount > 0 ? (s + dir + stockCount) % stockCount : 0)),
-    [stockCount],
-  );
-
-  // Auto-advance: indices + in-zone (not the 180-name stock universe).
-  useEffect(() => {
-    if (slideshowPaused) return;
-    if (tab !== "indices") return;
-    if (carouselCount <= 1) return;
-    const id = setTimeout(() => setSlide((s) => (s + 1) % carouselCount), 8000);
-    return () => clearTimeout(id);
-  }, [carouselCurrent, carouselCount, tab, slideshowPaused]);
-
-  useEffect(() => {
-    if (slideshowPaused) return;
-    if (tab !== "inzone" || inZoneCount <= 1) return;
-    const id = setTimeout(() => setInZoneSlide((s) => (s + 1) % inZoneCount), 8000);
-    return () => clearTimeout(id);
-  }, [inZoneCurrent, inZoneCount, tab, slideshowPaused]);
-
-  useEffect(() => {
-    if (inZoneCount === 0) setInZoneSlide(0);
-    else if (inZoneSlide >= inZoneCount) setInZoneSlide(0);
-  }, [inZoneCount, inZoneSlide]);
-
-  useEffect(() => {
-    if (stockCount === 0) setStockSlide(0);
-    else if (stockSlide >= stockCount) setStockSlide(0);
-  }, [stockCount, stockSlide]);
-
-  useEffect(() => {
-    if (tab !== "stocks" || !activeStockSymbol) return;
-    loadStock(activeStockSymbol);
-  }, [tab, activeStockSymbol, loadStock]);
-
-  useEffect(() => {
-    if (!inZoneActive) {
-      setInZoneChartData(null);
-      return;
-    }
-    const bundled = inZoneActive.data;
-    const hasBands = bundled != null && (bundled.bullLow != null || bundled.bearLow != null);
-    const stockNeedsFullFetch =
-      inZoneActive.scope === "stock" && hasBands && bundled!.poc == null;
-
-    if (hasBands && !stockNeedsFullFetch) {
-      setInZoneChartData(bundled);
-      setInZoneChartLoading(false);
-      return;
-    }
-    if (inZoneActive.scope !== "stock") {
-      setInZoneChartData(bundled);
-      setInZoneChartLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setInZoneChartLoading(true);
-    fetch(`/api/freedombot/levels?symbol=${encodeURIComponent(inZoneActive.symbol)}`, { cache: "no-store" })
-      .then((res) => res.json())
-      .then((json: { data: PublicLevels | null }) => {
-        if (!cancelled) setInZoneChartData(json.data);
-      })
-      .catch(() => {
-        if (!cancelled) setInZoneChartData(null);
-      })
-      .finally(() => {
-        if (!cancelled) setInZoneChartLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [inZoneActive?.scope, inZoneActive?.symbol, inZoneActive?.data, inZoneCurrent]);
-
-  const stockEntries: LevelsListEntry[] = useMemo(
-    () =>
-      sortEntriesAlpha(
-        filteredStocks.map((sym) => {
-          const st = statusBySymbol.get(sym);
-          return {
-            id: sym,
-            label: sym,
-            spot: payload?.stocks.find((s) => s.symbol === sym)?.spot ?? null,
-            currency: "₹" as const,
-            trailing:
-              st && (st === "IN_BULL" || st === "IN_BEAR" || st === "NEAR") ? (
-                <span
-                  className="h-2 w-2 rounded-full shrink-0"
-                  style={{ backgroundColor: STATUS_META[st].color }}
-                />
-              ) : undefined,
-          };
-        }),
-      ),
-    [filteredStocks, statusBySymbol, payload?.stocks],
-  );
-
-  const inZoneEntries: LevelsListEntry[] = useMemo(
-    () =>
-      inZoneListFiltered.map((it) => {
-        const status = deriveZoneStatus(bandsFromLevels(it.data, it.spot));
-        return {
-          id: `${it.scope}-${it.symbol}`,
-          label: it.label,
-          sublabel: it.scope === "index" ? "Index" : "Stock",
-          spot: it.spot,
-          currency: it.currency,
-          trailing: <StatusBadge status={status} />,
-        };
-      }),
-    [inZoneListFiltered],
-  );
-
-  const zoneFilterChips = (
-    <div className="flex flex-wrap gap-1.5 mb-3 shrink-0">
-      {([
-        { key: "all" as PocDirectionFilter, label: "All aligned" },
-        { key: "bull" as PocDirectionFilter, label: "In bull · POC above" },
-        { key: "bear" as PocDirectionFilter, label: "In bear · POC below" },
-      ]).map(({ key, label }) => {
-        const active = zoneFilter === key;
-        const bull = key === "bull";
-        const bear = key === "bear";
-        return (
-          <button
-            key={key}
-            type="button"
-            onClick={() => {
-              setZoneFilter(key);
-              setStockSlide(0);
-              setInZoneSlide(0);
-            }}
-            className="px-2.5 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-bold uppercase tracking-wide transition-all"
-            style={
-              active
-                ? {
-                    backgroundColor: bull
-                      ? "rgba(16,185,129,0.22)"
-                      : bear
-                        ? "rgba(239,68,68,0.22)"
-                        : "rgba(37,99,235,0.28)",
-                    color: bull ? "#6ee7b7" : bear ? "#fca5a5" : "#e2e8f0",
-                    border: `1px solid ${bull ? "rgba(52,211,153,0.45)" : bear ? "rgba(248,113,113,0.45)" : "rgba(96,165,250,0.4)"}`,
-                  }
-                : {
-                    backgroundColor: "rgba(0,0,0,0.25)",
-                    color: "#64748b",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                  }
-            }
-          >
-            {label}
-          </button>
-        );
-      })}
-    </div>
-  );
-
-  const stockSearchHeader = (
-    <div className="shrink-0">
-      {zoneFilterChips}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: "#475569" }} />
-        <input
-          value={stockQuery}
-          onChange={(e) => {
-            setStockQuery(e.target.value);
-            setStockSlide(0);
-          }}
-          placeholder="Search symbol…"
-          className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm outline-none"
-          style={{
-            backgroundColor: "rgba(0,0,0,0.35)",
-            border: "1px solid rgba(255,255,255,0.07)",
-            color: "#e2e8f0",
-          }}
-        />
-      </div>
-    </div>
-  );
-
-  const renderBubblesTab = () => (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-      <LevelsBubblesView
-        items={bubbleItems}
-        selectedId={bubbleSelected?.id ?? null}
-        onSelect={setBubbleSelected}
-        hideNeutral={bubblesHideNeutral}
-        onHideNeutralChange={setBubblesHideNeutral}
-        scanNote={bubbleScanNote}
-      />
-      <p className="shrink-0 text-center text-[9px] py-1.5" style={{ color: "#475569" }}>
-        {scheduleNote}
-      </p>
-    </div>
-  );
-
-  const renderCarouselTab = () => {
-    if (carouselCount === 0 || !carouselItem) {
-      return (
-        <div className="flex flex-1 items-center justify-center py-24">
-          <p className="text-sm" style={{ color: "#64748b" }}>
-            No levels available yet.
-          </p>
-        </div>
-      );
-    }
-    const data = carouselItem.data;
-    const refreshed = formatRefreshed(data?.computedAt);
-
-    return wrapTabBody(
-      <LevelsSymbolList
-        countLabel={`${carouselCount} indices`}
-        entries={indexEntries}
-        activeIndex={carouselCurrent}
-        onSelect={setSlide}
-      />,
-      chartShowsZones ? (
-        <></>
-      ) : (
-        <LevelsChartPanel
-          title={`${carouselItem.label} Market Levels`}
-          spot={data?.spot ?? null}
-          currency="₹"
-          levels={data}
-          unavailable={data?.unavailable === true}
-          slideCount={carouselCount}
-          activeIndex={carouselCurrent}
-          onPrev={() => goCarousel(-1)}
-          onNext={() => goCarousel(1)}
-          onGoTo={setSlide}
-          refreshedLabel={refreshed ? `Data refreshed ${refreshed} · ${scheduleNote}` : scheduleNote}
-          autoAdvanceNote
-          slideshowPaused={slideshowPaused}
-          showCarouselArrows={false}
-        />
-      ),
-      undefined,
-      chartShowsZones
-        ? {
-            hideLevelsColumn: true,
-            chartFooter: (
-              <LevelsChartMetaFooter
-                slideCount={carouselCount}
-                activeIndex={carouselCurrent}
-                onGoTo={setSlide}
-                refreshedLabel={
-                  refreshed ? `Data refreshed ${refreshed} · ${scheduleNote}` : scheduleNote
-                }
-                autoAdvanceNote
-                slideshowPaused={slideshowPaused}
-              />
-            ),
-          }
-        : undefined,
-    );
-  };
-
-  const renderStocksTab = () => {
-    const stockRefreshed = formatRefreshed(stockData?.data?.computedAt);
-    return wrapTabBody(
-      <LevelsSymbolList
-        countLabel={
-          zoneFilter !== "all"
-            ? `${stockCount} match · ${zoneFilter === "bull" ? "bull + POC above" : "bear + POC below"}`
-            : stockQuery
-              ? `${stockCount} matches`
-              : `${stockCount} symbols`
-        }
-        header={stockSearchHeader}
-        entries={stockEntries}
-        activeIndex={stockCurrent}
-        onSelect={setStockSlide}
-        emptyMessage={
-          zoneFilter !== "all"
-            ? "No symbols match search and filter. Needs in-zone status, POC, and pin on the right side of spot."
-            : "No symbols match your search."
-        }
-      />,
-      chartShowsZones ? (
-        <></>
-      ) : (
-        <LevelsChartPanel
-          title={`${stockData?.label ?? activeStockSymbol ?? "Stock"} Market Levels`}
-          spot={stockData?.data?.spot ?? null}
-          currency="₹"
-          levels={stockData?.data ?? null}
-          loading={stockLoading}
-          emptyHint={stockFetchNote ?? undefined}
-          slideCount={stockCount}
-          activeIndex={stockCurrent}
-          onPrev={() => goStock(-1)}
-          onNext={() => goStock(1)}
-          onGoTo={setStockSlide}
-          refreshedLabel={
-            stockRefreshed ? `Data refreshed ${stockRefreshed} · ${scheduleNote}` : scheduleNote
-          }
-          autoAdvanceNote={false}
-          showCarouselArrows={false}
-        />
-      ),
-      undefined,
-      chartShowsZones
-        ? {
-            hideLevelsColumn: true,
-            chartFooter: (
-              <LevelsChartMetaFooter
-                slideCount={stockCount}
-                activeIndex={stockCurrent}
-                onGoTo={setStockSlide}
-                refreshedLabel={
-                  stockRefreshed ? `Data refreshed ${stockRefreshed} · ${scheduleNote}` : scheduleNote
-                }
-              />
-            ),
-          }
-        : undefined,
-    );
-  };
-
-  const renderInZoneTab = () => {
-    if (inZoneCount === 0) {
-      const filteredEmpty = zoneFilter !== "all" && inZoneListSorted.length > 0;
-      return wrapTabBody(
-        <div className="flex flex-col min-h-0 h-full">
-          <div className="shrink-0">{zoneFilterChips}</div>
-          <p className="text-sm text-center py-8 px-4" style={{ color: "#64748b" }}>
-            {filteredEmpty
-              ? "No symbols match this filter right now."
-              : "No aligned setups right now."}
-          </p>
-        </div>,
-        <div className="flex flex-1 items-center justify-center text-center px-4">
-          <p className="text-xs max-w-xs leading-relaxed" style={{ color: "#475569" }}>
-            {filteredEmpty
-              ? "Try All aligned, or wait for price to sit in a band with max pain on the pull side."
-              : "Needs spot inside bull/bear band and max pain above (bull) or below (bear) spot."}
-          </p>
-        </div>,
-      );
-    }
-
-    const chartSpot = inZoneChartData?.spot ?? inZoneActive?.spot ?? null;
-    const refreshed = formatRefreshed(inZoneChartData?.computedAt);
-
-    const inZoneNativeChart = chartShowsZones && inZoneActive != null;
-
-    return wrapTabBody(
-      <LevelsSymbolList
-        countLabel={
-          zoneFilter === "all"
-            ? `${inZoneCount} aligned`
-            : `${inZoneCount} · ${zoneFilter === "bull" ? "bull + POC above" : "bear + POC below"}`
-        }
-        header={zoneFilterChips}
-        entries={inZoneEntries}
-        activeIndex={inZoneCurrent}
-        onSelect={setInZoneSlide}
-      />,
-      inZoneActive ? (
-        inZoneNativeChart ? (
-          <></>
-        ) : (
-          <LevelsChartPanel
-            title={`${inZoneActive.label} Market Levels`}
-            spot={chartSpot}
-            currency={inZoneActive.currency}
-            levels={inZoneChartData}
-            loading={inZoneChartLoading}
-            slideCount={inZoneCount}
-            activeIndex={inZoneCurrent}
-            onPrev={() => goInZone(-1)}
-            onNext={() => goInZone(1)}
-            onGoTo={setInZoneSlide}
-            refreshedLabel={refreshed ? `Data refreshed ${refreshed}` : undefined}
-            autoAdvanceNote
-            slideshowPaused={slideshowPaused}
-            showCarouselArrows={false}
-          />
-        )
-      ) : (
-        <div className="flex flex-1 items-center justify-center" style={{ color: "#64748b" }}>
-          <p className="text-xs">No selection</p>
-        </div>
-      ),
-      undefined,
-      inZoneNativeChart
-        ? {
-            hideLevelsColumn: true,
-            chartFooter: (
-              <LevelsChartMetaFooter
-                slideCount={inZoneCount}
-                activeIndex={inZoneCurrent}
-                onGoTo={setInZoneSlide}
-                refreshedLabel={refreshed ? `Data refreshed ${refreshed}` : undefined}
-                autoAdvanceNote
-                slideshowPaused={slideshowPaused}
-              />
-            ),
-          }
-        : undefined,
-    );
-  };
-
-  const copy = TAB_COPY[tab];
 
   return (
     <main
@@ -876,66 +133,39 @@ export default function LevelsPage() {
       }}
     >
       <div className="flex-1 min-h-0 w-full max-w-[100rem] mx-auto px-3 sm:px-5 py-3 sm:py-4 flex flex-col overflow-hidden">
-        <div className="flex justify-center mb-3 shrink-0">
-          <div
-            className="inline-flex items-center gap-1.5 p-1.5 rounded-xl flex-wrap justify-center"
-            style={{ backgroundColor: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.06)" }}
-          >
-            {([
-              { key: "bubbles" as TabKey, label: "Bubbles", pro: false },
-              { key: "indices" as TabKey, label: "NSE Indices", pro: false },
-              { key: "stocks" as TabKey, label: "NSE Stocks", pro: true },
-              { key: "inzone" as TabKey, label: "In Zone", pro: true },
-            ]).map(({ key, label, pro }) => (
-              <button
-                key={key}
-                onClick={() => switchTab(key)}
-                className="relative px-4 py-2 rounded-lg text-[10px] sm:text-[11px] font-bold uppercase tracking-wider transition-all"
-                style={tab === key ? { backgroundColor: "rgba(37,99,235,0.35)", color: "#e2e8f0" } : { color: "#64748b" }}
-              >
-                {label}
-                {pro && (
-                  <span
-                    className="ml-1 align-top text-[7px] font-black px-1 py-px rounded"
-                    style={{ color: "#fcd34d", backgroundColor: "rgba(251,191,36,0.15)" }}
-                  >
-                    PRO
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {loading ? (
           <div className="flex flex-1 items-center justify-center py-24">
             <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
           </div>
         ) : (
           <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-            {tab === "bubbles" ? (
-              <div className="shrink-0 text-center mb-2 px-2">
-                <h1
-                  className="text-lg sm:text-xl font-black tracking-tight"
-                  style={{ color: "#f8fafc" }}
-                >
-                  {copy.title}
-                </h1>
-                <p className="mt-1 text-[10px] max-w-2xl mx-auto leading-snug" style={{ color: "#64748b" }}>
-                  {copy.subtitle}
-                </p>
-              </div>
-            ) : (
-              <LevelsPageHeader title={copy.title} subtitle={copy.subtitle} />
-            )}
+            <div className="shrink-0 text-center mb-2 px-2">
+              <h1
+                className="text-lg sm:text-xl font-black tracking-tight"
+                style={{ color: "#f8fafc" }}
+              >
+                {PAGE_TITLE}
+              </h1>
+              <p className="mt-1 text-[10px] max-w-2xl mx-auto leading-snug" style={{ color: "#64748b" }}>
+                {PAGE_SUBTITLE}
+              </p>
+            </div>
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-              {tab === "bubbles"
-                ? renderBubblesTab()
-                : tab === "indices"
-                  ? renderCarouselTab()
-                  : tab === "stocks"
-                    ? renderStocksTab()
-                    : renderInZoneTab()}
+              <LevelsBubblesView
+                items={bubbleItems}
+                onBubbleOpen={openBubbleChart}
+                hideNeutral={bubblesHideNeutral}
+                onHideNeutralChange={setBubblesHideNeutral}
+                inZoneView={inZoneView}
+                onInZoneViewChange={setInZoneView}
+                zoneFilter={zoneFilter}
+                onZoneFilterChange={setZoneFilter}
+                alignedCount={alignedCount}
+                scanNote={bubbleScanNote}
+              />
+              <p className="shrink-0 text-center text-[9px] py-1.5" style={{ color: "#475569" }}>
+                {scheduleNote}
+              </p>
             </div>
           </div>
         )}

@@ -6,7 +6,11 @@ import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { BUBBLE_TONE_STYLE, deriveBubbleTone, type BubbleTone } from "@/lib/zones/bubble-tone";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
-import type { ZoneBands } from "@/lib/zones/zone-status";
+import {
+  matchesDirectionalSetup,
+  type PocDirectionFilter,
+  type ZoneBands,
+} from "@/lib/zones/zone-status";
 
 export interface LevelsBubbleItem {
   id: string;
@@ -15,7 +19,22 @@ export interface LevelsBubbleItem {
   scope: "index" | "stock";
   tone: BubbleTone;
   spot: number | null;
+  poc: number | null;
+  bands: ZoneBands;
   data: PublicLevels | null;
+}
+
+export function bubbleItemBands(item: LevelsBubbleItem): ZoneBands {
+  return item.bands;
+}
+
+/** Same rule as the old In Zone tab: in band + max pain on the pull side. */
+export function bubbleMatchesInZoneView(
+  item: LevelsBubbleItem,
+  filter: PocDirectionFilter,
+): boolean {
+  const poc = item.poc ?? item.data?.poc ?? null;
+  return matchesDirectionalSetup(bubbleItemBands(item), poc, filter);
 }
 
 function bubbleRadius(scope: "index" | "stock", tone: BubbleTone): number {
@@ -92,18 +111,26 @@ function packBubbles(
 
 export function LevelsBubblesView({
   items,
-  selectedId,
-  onSelect,
+  onBubbleOpen,
   hideNeutral,
   onHideNeutralChange,
+  inZoneView,
+  onInZoneViewChange,
+  zoneFilter,
+  onZoneFilterChange,
+  alignedCount,
   scanNote,
 }: {
   items: LevelsBubbleItem[];
-  selectedId: string | null;
-  onSelect: (item: LevelsBubbleItem) => void;
+  onBubbleOpen: (item: LevelsBubbleItem) => void;
   hideNeutral: boolean;
   onHideNeutralChange: (hide: boolean) => void;
-  /** Why only part of the universe may show as scanned (round-robin cron). */
+  inZoneView: boolean;
+  onInZoneViewChange: (on: boolean) => void;
+  zoneFilter: PocDirectionFilter;
+  onZoneFilterChange: (filter: PocDirectionFilter) => void;
+  /** Count using the same POC-aligned rule as the old In Zone tab. */
+  alignedCount: number;
   scanNote?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -128,6 +155,7 @@ export function LevelsBubblesView({
   const filtered = useMemo(() => {
     const q = query.trim().toUpperCase();
     return items.filter((it) => {
+      if (inZoneView && !bubbleMatchesInZoneView(it, zoneFilter)) return false;
       if (
         hideNeutral &&
         (it.tone === "NEUTRAL" || it.tone === "ILLIQUID" || it.tone === "UNSCANNED")
@@ -140,7 +168,7 @@ export function LevelsBubblesView({
         it.label.toUpperCase().includes(q)
       );
     });
-  }, [items, query, hideNeutral]);
+  }, [items, query, hideNeutral, inZoneView, zoneFilter]);
 
   const packed = useMemo(
     () => packBubbles(filtered, size.w, size.h),
@@ -155,7 +183,70 @@ export function LevelsBubblesView({
 
   return (
     <div className="flex flex-col flex-1 min-h-0 h-full">
-      <div className="shrink-0 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2 px-0.5">
+      <div className="shrink-0 flex flex-col gap-2 mb-2 px-0.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onInZoneViewChange(!inZoneView)}
+            className="px-3 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-bold uppercase tracking-wide transition-all"
+            style={
+              inZoneView
+                ? {
+                    backgroundColor: "rgba(37,99,235,0.35)",
+                    color: "#e2e8f0",
+                    border: "1px solid rgba(96,165,250,0.4)",
+                  }
+                : {
+                    backgroundColor: "rgba(0,0,0,0.35)",
+                    color: "#64748b",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                  }
+            }
+          >
+            In zone view {inZoneView ? `(${alignedCount})` : ""}
+          </button>
+          {inZoneView
+            ? ((
+                [
+                  { key: "all" as const, label: "All aligned" },
+                  { key: "bull" as const, label: "Bull · POC above" },
+                  { key: "bear" as const, label: "Bear · POC below" },
+                ] as const
+              ).map(({ key, label }) => {
+                const active = zoneFilter === key;
+                const bull = key === "bull";
+                const bear = key === "bear";
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => onZoneFilterChange(key)}
+                    className="px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wide"
+                    style={
+                      active
+                        ? {
+                            backgroundColor: bull
+                              ? "rgba(16,185,129,0.22)"
+                              : bear
+                                ? "rgba(239,68,68,0.22)"
+                                : "rgba(37,99,235,0.28)",
+                            color: bull ? "#6ee7b7" : bear ? "#fca5a5" : "#e2e8f0",
+                            border: `1px solid ${bull ? "rgba(52,211,153,0.45)" : bear ? "rgba(248,113,113,0.45)" : "rgba(96,165,250,0.4)"}`,
+                          }
+                        : {
+                            backgroundColor: "rgba(0,0,0,0.25)",
+                            color: "#64748b",
+                            border: "1px solid rgba(255,255,255,0.06)",
+                          }
+                    }
+                  >
+                    {label}
+                  </button>
+                );
+              }))
+            : null}
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
         <div className="relative flex-1 min-w-0 max-w-md">
           <Search
             className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4"
@@ -185,10 +276,30 @@ export function LevelsBubblesView({
           />
           Hide unscanned & neutral
         </label>
+        </div>
       </div>
 
+      {inZoneView ? (
+        <p className="shrink-0 text-[10px] leading-snug mb-1 px-0.5" style={{ color: "#64748b" }}>
+          In zone view matches the old In Zone tab: spot inside bull/bear band and max pain on the
+          pull side (not the same as solid green/red on the full map).
+        </p>
+      ) : null}
+
       <div className="shrink-0 flex flex-wrap gap-2 mb-1.5 text-[9px] font-bold uppercase tracking-wide">
+        {inZoneView ? (
+          <span
+            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md"
+            style={{ color: "#93c5fd", backgroundColor: "rgba(0,0,0,0.35)", border: "1px solid rgba(96,165,250,0.35)" }}
+          >
+            Aligned setups
+            <span style={{ color: "#64748b" }}>({alignedCount})</span>
+          </span>
+        ) : null}
         {(["IN_BULL", "NEAR_BULL", "IN_BEAR", "NEAR_BEAR", "UNSCANNED"] as const).map((tone) => {
+          if (inZoneView && (tone === "NEAR_BULL" || tone === "NEAR_BEAR" || tone === "UNSCANNED")) {
+            return null;
+          }
           const s = BUBBLE_TONE_STYLE[tone];
           return (
             <span
@@ -240,29 +351,23 @@ export function LevelsBubblesView({
         ) : (
           packed.map(({ item, x, y, r }) => {
             const style = BUBBLE_TONE_STYLE[item.tone];
-            const active = selectedId === item.id;
             const fontMain = Math.max(10, Math.min(15, r * 0.28));
             const fontSub = Math.max(8, fontMain - 2);
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => onSelect(item)}
-                className="absolute flex flex-col items-center justify-center rounded-full transition-transform duration-200 hover:scale-[1.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                onClick={() => onBubbleOpen(item)}
+                className="absolute flex flex-col items-center justify-center rounded-full transition-transform duration-200 hover:scale-[1.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 cursor-pointer"
                 style={{
                   left: x - r,
                   top: y - r,
                   width: r * 2,
                   height: r * 2,
                   background: style.fill,
-                  border: `${active ? 3 : style.borderWidth}px ${style.borderStyle} ${
-                    active ? "#f8fafc" : style.border
-                  }`,
-                  boxShadow: active
-                    ? `${style.glow}, 0 0 0 3px rgba(248, 250, 252, 0.25)`
-                    : style.glow,
-                  transform: active ? "scale(1.06)" : undefined,
-                  zIndex: active ? 20 : item.scope === "index" ? 12 : 8,
+                  border: `${style.borderWidth}px ${style.borderStyle} ${style.border}`,
+                  boxShadow: style.glow,
+                  zIndex: item.scope === "index" ? 12 : 8,
                 }}
                 aria-label={`${item.label}, ${style.label}`}
                 title={`${item.label} · ${style.label}`}
@@ -304,6 +409,7 @@ export type StockBubbleSource = {
   symbol: string;
   label: string;
   spot: number | null;
+  maxPain: number | null;
   bullZoneLow: number | null;
   bullZoneHigh: number | null;
   bearZoneLow: number | null;
@@ -334,6 +440,8 @@ export function buildLevelsBubbleItems(
       scope: "index",
       tone: deriveBubbleTone(bands, true),
       spot: bands.spot,
+      poc: it.data?.poc ?? null,
+      bands,
       data: it.data,
     });
   }
@@ -355,6 +463,8 @@ export function buildLevelsBubbleItems(
       scope: "stock",
       tone: deriveBubbleTone(bands, scanned),
       spot: bands.spot,
+      poc: st?.maxPain ?? null,
+      bands,
       data: null,
     });
   }

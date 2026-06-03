@@ -4,8 +4,9 @@
  * Dedicated cron for NSE single-stock option zones. Also runs automatically as a
  * piggyback on `/api/cron/suggest-zones` during market hours (same schedule as indices).
  *
- * Schedule (optional extra throughput):
- *   GET https://…/api/cron/suggest-stock-zones?key=CRON_SECRET  (every 5–15 min, NSE hours)
+ * Schedule on cron-job.org (24/7 OK with key):
+ *   GET https://…/api/cron/suggest-stock-zones?key=CRON_SECRET
+ * Expect ~30–90s per run when NSE work runs; ~400ms means skipped (no key / outside hours).
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -23,8 +24,16 @@ export async function GET(request: NextRequest) {
   if (CRON_SECRET && key !== CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!isNiftyOptionChainCronWindow()) {
-    return NextResponse.json({ success: true, skipped: "outside_market_hours" });
+  // cron-job.org runs 24/7; a keyed call is trusted — do not no-op after 4pm IST.
+  const keyedCron = Boolean(CRON_SECRET && key === CRON_SECRET);
+  if (!keyedCron && !isNiftyOptionChainCronWindow()) {
+    return NextResponse.json({
+      success: true,
+      skipped: "outside_market_hours",
+      processed: 0,
+      ok: 0,
+      hint: "Add ?key=CRON_SECRET so scheduled crons scan stocks outside 9–16 IST.",
+    });
   }
   try {
     const summary = await runStockZonesBatch(getAdminFirestore());

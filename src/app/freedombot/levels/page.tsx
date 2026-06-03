@@ -254,12 +254,11 @@ export default function LevelsPage() {
   const bubbleScanNote = useMemo(() => {
     const scanned = payload?.stocks?.length ?? 0;
     const total = FNO_UNIVERSE_ALPHA.length;
-    const batch = 32;
+    const batch = 12;
     const runs = Math.ceil(total / batch);
     return (
-      `Stock zones use a round-robin NSE cron (~${batch} symbols per run, ~${runs} runs for full sweep). ` +
-      `${scanned} of ${total} F&O names have been scanned at least once — amber bubbles are still waiting in the queue. ` +
-      `Open NSE Stocks tab for charts.`
+      `F&O levels refresh in a round-robin on the Auto Zones cron (~${batch} stocks per 5–15 min run during NSE hours, ~${runs} runs for a full sweep). ` +
+      `${scanned} of ${total} are in the database so far — amber = not reached yet. Dedicated URL: /api/cron/suggest-stock-zones.`
     );
   }, [payload?.stocks]);
 

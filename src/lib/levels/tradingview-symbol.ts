@@ -1,32 +1,27 @@
 /**
- * Map freedombot /levels selections to ChartPane params (same widget as /chart/[id]).
- * India charts on freedombot.ai load via tezterminal.com/embed/chart (see LevelsTradingViewChart).
+ * Map freedombot /levels selections to chart params.
+ * NSE stocks & indices → native Dhan candles; TV link for full chart in new tab.
  */
 
 import type { IndexKey } from "@/lib/index-options-zones";
 
-export type LevelsTvScope = "index" | "crypto" | "stock";
+export type LevelsTvScope = "index" | "stock";
 
 export interface LevelsTvConfig {
-  /** Passed to ChartPane `exchange` prop. */
+  /** Passed to ChartPane `exchange` prop (TV embed fallback only). */
   exchange: string;
   symbol: string;
   interval: string;
   /** EXCHANGE:SYMBOL shown in UI + "Open on TV" link. */
   fullSymbol: string;
   webChartUrl: string;
-  /** NSE/BSE/MCX — on freedombot.ai load chart via tezterminal.com embed proxy. */
+  /** NSE — native Dhan chart (no tezterminal embed). */
   indianMarket: boolean;
-  /** NSE stock — render native Dhan candles (TradingView blocks NSE equity data). */
+  /** Render native Dhan candlestick chart with zone overlays. */
   nativeCandles: boolean;
+  /** Dhan segment for /api/freedombot/levels/candles. */
+  candlesScope: "stock" | "index";
 }
-
-const CRYPTO_TV: Record<string, { exchange: string; symbol: string }> = {
-  btc: { exchange: "BINANCE", symbol: "BTCUSDT" },
-  eth: { exchange: "BINANCE", symbol: "ETHUSDT" },
-  sol: { exchange: "BINANCE", symbol: "SOLUSDT" },
-  xrp: { exchange: "BINANCE", symbol: "XRPUSDT" },
-};
 
 /** Default 15m — matches OI zone refresh cadence; less noise than 5m. */
 export const LEVELS_TV_INTERVAL = "15";
@@ -73,24 +68,6 @@ export function levelsTradingViewParams(
   const key = symbol.trim();
   if (!key) return null;
 
-  if (scope === "crypto") {
-    const row = CRYPTO_TV[key.toLowerCase()];
-    const exchange = row?.exchange ?? "BINANCE";
-    const sym =
-      row?.symbol ??
-      (key.toUpperCase().endsWith("USDT") ? key.toUpperCase() : `${key.toUpperCase()}USDT`);
-    const full = fullSymbol(exchange, sym);
-    return {
-      exchange,
-      symbol: sym,
-      interval: LEVELS_TV_INTERVAL,
-      fullSymbol: full,
-      webChartUrl: webChartUrl(full, LEVELS_TV_INTERVAL),
-      indianMarket: false,
-      nativeCandles: false,
-    };
-  }
-
   if (scope === "index") {
     const upper = key.toUpperCase() as IndexKey;
     const sym = NSE_INDEX_TV[upper] ?? upper;
@@ -98,12 +75,13 @@ export function levelsTradingViewParams(
     const full = fullSymbol(exchange, sym);
     return {
       exchange,
-      symbol: sym,
+      symbol: upper,
       interval: LEVELS_TV_INTERVAL,
       fullSymbol: full,
       webChartUrl: webChartUrl(full, LEVELS_TV_INTERVAL),
       indianMarket: true,
-      nativeCandles: false,
+      nativeCandles: true,
+      candlesScope: "index",
     };
   }
 
@@ -119,6 +97,7 @@ export function levelsTradingViewParams(
       webChartUrl: webChartUrl(fullSymbol("NSE", sym), LEVELS_TV_INTERVAL),
       indianMarket: true,
       nativeCandles: true,
+      candlesScope: "stock",
     };
   }
 

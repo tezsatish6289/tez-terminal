@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChartPane } from "@/components/dashboard/ChartPane";
 import { LevelsChartShortcuts } from "@/components/levels/LevelsChartShortcuts";
 import { NativeCandlesChart } from "@/components/levels/NativeCandlesChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
@@ -9,11 +8,9 @@ import {
   formatLevelsChartMeta,
   type LevelsTvConfig,
 } from "@/lib/levels/tradingview-symbol";
-import { levelsIndianChartProxySrc } from "@/lib/tradingview-symbol";
 
 /**
- * NSE stocks → native Dhan candlestick chart (TradingView blocks NSE equity data).
- * Indices → tezterminal.com/embed/chart proxy. Crypto → ChartPane inline.
+ * NSE stocks & indices → native Dhan candlestick chart with zone overlays.
  */
 export function LevelsTradingViewChart({
   config,
@@ -26,9 +23,9 @@ export function LevelsTradingViewChart({
   onToggleSlideshowPause,
 }: {
   config: LevelsTvConfig;
-  /** NSE ticker / symbol (e.g. BANKINDIA). */
+  /** NSE ticker / symbol (e.g. BANKINDIA, NIFTY). */
   ticker: string;
-  /** Display name below ticker when different (e.g. Bank of India). */
+  /** Display name below ticker when different (e.g. Bank of India, Nifty 50). */
   companyName?: string;
   levels?: PublicLevels | null;
   loading?: boolean;
@@ -37,10 +34,9 @@ export function LevelsTradingViewChart({
   onToggleSlideshowPause?: () => void;
 }) {
   const [mounted, setMounted] = useState(false);
-  const [proxySrc, setProxySrc] = useState<string | null>(null);
   const [chartFading, setChartFading] = useState(false);
 
-  const chartKey = `${config.exchange}:${config.symbol}:${config.interval}:${config.nativeCandles ? "native" : "tv"}`;
+  const chartKey = `${config.exchange}:${config.symbol}:${config.interval}:${config.candlesScope}`;
   const symbolTicker = ticker.trim() || config.symbol;
   const subName = companyName?.trim();
   const showCompany =
@@ -50,26 +46,13 @@ export function LevelsTradingViewChart({
 
   useEffect(() => {
     setMounted(true);
-    if (!config.indianMarket || config.nativeCandles) {
-      setProxySrc(null);
-      return;
-    }
-    setProxySrc(
-      levelsIndianChartProxySrc(window.location.hostname, window.location.pathname, {
-        symbol: config.symbol,
-        exchange: config.exchange,
-        interval: config.interval,
-      }),
-    );
-  }, [config]);
+  }, []);
 
   useEffect(() => {
     setChartFading(true);
     const id = window.setTimeout(() => setChartFading(false), 320);
     return () => window.clearTimeout(id);
   }, [chartKey]);
-
-  const showProxy = mounted && proxySrc;
 
   return (
     <section className="flex flex-col min-h-0 h-full w-full">
@@ -109,9 +92,10 @@ export function LevelsTradingViewChart({
           <div className="w-full h-full flex items-center justify-center" style={{ color: "#64748b" }}>
             <p className="text-xs">Loading chart…</p>
           </div>
-        ) : config.nativeCandles ? (
+        ) : (
           <NativeCandlesChart
             symbol={config.symbol}
+            candlesScope={config.candlesScope}
             interval={config.interval}
             levels={levels}
             loading={loading}
@@ -120,37 +104,6 @@ export function LevelsTradingViewChart({
             slideshowPaused={slideshowPaused}
             onToggleSlideshowPause={onToggleSlideshowPause}
           />
-        ) : showProxy ? (
-          <>
-            <iframe
-              key={chartKey}
-              title={`Chart ${config.fullSymbol}`}
-              src={proxySrc}
-              className="w-full h-full border-none"
-              allowFullScreen
-              referrerPolicy="no-referrer-when-downgrade"
-            />
-            <LevelsChartShortcuts
-              webChartUrl={config.webChartUrl}
-              showSlideshowControl={showSlideshowControl}
-              slideshowPaused={slideshowPaused}
-              onToggleSlideshowPause={onToggleSlideshowPause}
-            />
-          </>
-        ) : (
-          <>
-            <ChartPane
-              symbol={config.symbol}
-              exchange={config.exchange}
-              interval={config.interval}
-            />
-            <LevelsChartShortcuts
-              webChartUrl={config.webChartUrl}
-              showSlideshowControl={showSlideshowControl}
-              slideshowPaused={slideshowPaused}
-              onToggleSlideshowPause={onToggleSlideshowPause}
-            />
-          </>
         )}
       </div>
     </section>

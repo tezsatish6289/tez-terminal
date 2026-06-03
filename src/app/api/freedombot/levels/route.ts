@@ -4,11 +4,10 @@
  * Public read for the freedombot.ai/levels page. Returns the latest
  * algorithmically-derived bull/bear zones for:
  *   • NSE indices  → config/suggested_index_zones_{SYMBOL}  (suggest-zones cron, NSE pass)
- *   • Crypto       → config/suggested_zones_{asset}         (suggest-zones cron, Deribit pass)
  *   • NSE stocks   → config/suggested_stock_zones_{SYMBOL}  (suggest-stock-zones cron)
  *
  * Modes:
- *   • GET (no params)        → { indices, crypto, stocks (compact), inZone, updatedAt }
+ *   • GET (no params)        → { indices, stocks (compact), inZone, updatedAt }
  *   • GET ?symbol=RELIANCE   → { symbol, label, data } single stock's full ladder payload
  *
  * IMPORTANT: the stored docs carry the full derivation (strikes, OI, max-pain by
@@ -41,13 +40,6 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 /** On-demand NSE fetch for a single stock can take ~10–15s. */
 export const maxDuration = 60;
-
-const CRYPTO: { asset: string; label: string }[] = [
-  { asset: "btc", label: "Bitcoin" },
-  { asset: "eth", label: "Ethereum" },
-  { asset: "sol", label: "Solana" },
-  { asset: "xrp", label: "XRP" },
-];
 
 const STOCK_AGGREGATE_DOC = "config/zone_status_stocks";
 
@@ -110,7 +102,7 @@ async function readDoc(path: string): Promise<Record<string, unknown> | null> {
   }
 }
 
-type Scope = "index" | "crypto" | "stock";
+type Scope = "index" | "stock";
 
 interface InZoneItem {
   scope: Scope;
@@ -215,9 +207,8 @@ export async function GET(request: NextRequest) {
     return getSingleStock(symbol, forceRefresh);
   }
 
-  const [indexDocs, cryptoDocs, stockAgg] = await Promise.all([
+  const [indexDocs, stockAgg] = await Promise.all([
     Promise.all(INDEX_KEYS.map((k) => readDoc(`config/suggested_index_zones_${k}`))),
-    Promise.all(CRYPTO.map((c) => readDoc(`config/suggested_zones_${c.asset}`))),
     readDoc(STOCK_AGGREGATE_DOC),
   ]);
 
@@ -225,12 +216,6 @@ export async function GET(request: NextRequest) {
     symbol: k,
     label: INDEX_SPECS[k].label,
     data: sanitize(indexDocs[i]),
-  }));
-
-  const crypto = CRYPTO.map((c, i) => ({
-    asset: c.asset,
-    label: c.label,
-    data: sanitize(cryptoDocs[i]),
   }));
 
   // Compact stock list (from the aggregate doc — one read, not N).
@@ -267,20 +252,6 @@ export async function GET(request: NextRequest) {
       data,
     });
   }
-  for (const it of crypto) {
-    const data = it.data;
-    if (!isActionableInZone(data)) continue;
-    const bands = bandsFromLevels(data);
-    inZone.push({
-      scope: "crypto",
-      symbol: it.asset,
-      label: it.label,
-      status: deriveZoneStatus(bands),
-      spot: bands.spot,
-      currency: "$",
-      data,
-    });
-  }
   for (const e of Object.values(stockEntries)) {
     if (!e || typeof e.symbol !== "string") continue;
     const data = levelsFromStockAggregate(e);
@@ -300,7 +271,7 @@ export async function GET(request: NextRequest) {
   inZone.sort((a, b) => a.label.localeCompare(b.label, "en", { sensitivity: "base" }));
 
   return NextResponse.json(
-    { indices, crypto, stocks, inZone, updatedAt: new Date().toISOString() },
+    { indices, stocks, inZone, updatedAt: new Date().toISOString() },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

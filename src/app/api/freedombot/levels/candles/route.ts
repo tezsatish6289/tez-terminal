@@ -1,14 +1,14 @@
 /**
- * /api/freedombot/levels/candles?symbol=CDSL&interval=5
+ * /api/freedombot/levels/candles?symbol=NIFTY&scope=index&interval=15
+ * /api/freedombot/levels/candles?symbol=CDSL&scope=stock&interval=15
  *
- * Intraday OHLC candles for an NSE F&O stock, sourced from Dhan and cached
- * server-side (60s). Feeds the native lightweight-charts candlestick chart on
- * freedombot.ai/levels → NSE Stocks (TradingView's free embed blocks NSE data).
+ * Intraday OHLC from Dhan (60s server cache). Feeds native charts on freedombot.ai/levels.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getStockCandles } from "@/lib/dhan-candles";
+import { getIndexCandles, getStockCandles } from "@/lib/dhan-candles";
 import { isValidFnoSymbol, normalizeStockSymbol } from "@/lib/equity-zones-on-demand";
+import { normalizeIndexKey } from "@/lib/nse/dhan-index-ids";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -18,6 +18,40 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const rawSymbol = searchParams.get("symbol") ?? "";
   const interval = searchParams.get("interval") ?? "5";
+  const scope = (searchParams.get("scope") ?? "stock").toLowerCase();
+
+  if (scope === "index") {
+    const indexKey = normalizeIndexKey(rawSymbol);
+    if (!indexKey) {
+      return NextResponse.json(
+        { ok: false, error: "Unknown NSE index symbol" },
+        { status: 404 },
+      );
+    }
+    try {
+      const result = await getIndexCandles(indexKey, interval);
+      if (!result.ok) {
+        return NextResponse.json(
+          { ok: false, error: result.error ?? "No candles", candles: [] },
+          { status: 502 },
+        );
+      }
+      return NextResponse.json(
+        {
+          ok: true,
+          symbol: indexKey,
+          scope: "index",
+          interval,
+          candles: result.candles,
+          stale: result.stale ?? false,
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return NextResponse.json({ ok: false, error: msg, candles: [] }, { status: 500 });
+    }
+  }
 
   const symbol = normalizeStockSymbol(rawSymbol);
   if (!symbol) {
@@ -39,7 +73,14 @@ export async function GET(req: NextRequest) {
       );
     }
     return NextResponse.json(
-      { ok: true, symbol, interval, candles: result.candles, stale: result.stale ?? false },
+      {
+        ok: true,
+        symbol,
+        scope: "stock",
+        interval,
+        candles: result.candles,
+        stale: result.stale ?? false,
+      },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (e) {

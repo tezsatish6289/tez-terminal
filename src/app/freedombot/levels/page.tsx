@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Loader2, Bot, Search, TrendingUp, TrendingDown, Target } from "lucide-react";
+import { Loader2, Search, TrendingUp, TrendingDown, Target } from "lucide-react";
 import { type PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
   LevelsChartPanel,
@@ -17,7 +15,6 @@ import {
 } from "@/components/levels/LevelsSplitLayout";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { levelsTradingViewParams } from "@/lib/levels/tradingview-symbol";
-import { freedombotHomePath } from "@/lib/freedombot/dashboard-path";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
 import {
@@ -61,33 +58,28 @@ function bandsFromLevels(
 }
 
 interface InZoneItem {
-  scope: "index" | "crypto" | "stock";
+  scope: "index" | "stock";
   symbol: string;
   label: string;
   status: ZoneStatus;
   spot: number | null;
-  currency: "₹" | "$";
+  currency: "₹";
   data: PublicLevels | null;
 }
 
 interface LevelsPayload {
   indices: RawItem[];
-  crypto: RawItem[];
   stocks: StockListItem[];
   inZone: InZoneItem[];
   updatedAt: string;
 }
 
-type TabKey = "indices" | "crypto" | "stocks" | "inzone";
+type TabKey = "indices" | "stocks" | "inzone";
 
 const TAB_COPY: Record<TabKey, { title: string; subtitle: string }> = {
   indices: {
     title: "NSE Indices",
     subtitle: "Select an index on the left — chart auto-cycles every 8 seconds.",
-  },
-  crypto: {
-    title: "Crypto",
-    subtitle: "Select an asset on the left — chart auto-cycles every 8 seconds.",
   },
   stocks: {
     title: "NSE Stocks",
@@ -152,9 +144,6 @@ function formatRefreshed(computedAt: string | null | undefined): string | null {
 }
 
 export default function LevelsPage() {
-  const pathname = usePathname();
-  const deployHref = `${freedombotHomePath(pathname)}?deploy=1`;
-
   const [payload, setPayload] = useState<LevelsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>("indices");
@@ -240,19 +229,6 @@ export default function LevelsPage() {
     [payload?.indices],
   );
 
-  const cryptoEntries: LevelsListEntry[] = useMemo(
-    () =>
-      sortEntriesAlpha(
-        (payload?.crypto ?? []).map((it) => ({
-          id: it.asset ?? it.label,
-          label: it.label,
-          spot: it.data?.spot ?? null,
-          currency: "$" as const,
-        })),
-      ),
-    [payload?.crypto],
-  );
-
   const inZoneListSorted = useMemo(
     () =>
       [...(payload?.inZone ?? [])].sort((a, b) =>
@@ -269,26 +245,20 @@ export default function LevelsPage() {
     [inZoneListSorted, zoneFilter],
   );
 
-  /** Carousel order matches alphabetical left rail. */
-  const carouselList = tab === "indices" ? indexEntries : tab === "crypto" ? cryptoEntries : [];
-  const carouselCount = carouselList.length;
+  const carouselCount = indexEntries.length;
   const carouselCurrent = carouselCount > 0 ? Math.min(slide, carouselCount - 1) : 0;
-  const carouselEntry = carouselCount > 0 ? carouselList[carouselCurrent] : null;
+  const carouselEntry = carouselCount > 0 ? indexEntries[carouselCurrent] : null;
   const carouselItem =
     carouselEntry && payload
-      ? tab === "indices"
-        ? payload.indices.find((it) => (it.symbol ?? it.label) === carouselEntry.id)
-        : payload.crypto.find((it) => (it.asset ?? it.label) === carouselEntry.id)
+      ? payload.indices.find((it) => (it.symbol ?? it.label) === carouselEntry.id)
       : null;
-  const carouselCurrency = tab === "crypto" ? "$" : "₹";
 
   const inZoneCount = inZoneListFiltered.length;
   const inZoneCurrent = inZoneCount > 0 ? Math.min(inZoneSlide, inZoneCount - 1) : 0;
   const inZoneActive = inZoneCount > 0 ? inZoneListFiltered[inZoneCurrent] : null;
 
   const slideshowEnabled =
-    ((tab === "indices" || tab === "crypto") && carouselCount > 1) ||
-    (tab === "inzone" && inZoneCount > 1);
+    (tab === "indices" && carouselCount > 1) || (tab === "inzone" && inZoneCount > 1);
 
   const toggleSlideshowPause = useCallback(() => {
     setSlideshowPaused((p) => !p);
@@ -331,35 +301,29 @@ export default function LevelsPage() {
     return m;
   }, [payload?.stocks]);
 
-  const scheduleNote = tab === "crypto" ? "Updates 24/7" : "Updates Mon–Fri during market hours";
+  const scheduleNote = "Updates Mon–Fri during market hours";
 
   const activeTv = useMemo(() => {
     if (tab === "indices" && carouselItem?.symbol) {
       return levelsTradingViewParams("index", carouselItem.symbol);
     }
-    if (tab === "crypto" && carouselEntry) {
-      return levelsTradingViewParams("crypto", carouselEntry.id);
-    }
     if (tab === "stocks" && activeStockSymbol) {
       return levelsTradingViewParams("stock", activeStockSymbol);
     }
     if (tab === "inzone" && inZoneActive) {
-      const scope =
-        inZoneActive.scope === "stock"
-          ? "stock"
-          : inZoneActive.scope === "index"
-            ? "index"
-            : "crypto";
-      return levelsTradingViewParams(scope, inZoneActive.symbol);
+      return levelsTradingViewParams(inZoneActive.scope, inZoneActive.symbol);
     }
     return null;
-  }, [tab, carouselItem, carouselEntry, activeStockSymbol, inZoneActive]);
+  }, [tab, carouselItem, activeStockSymbol, inZoneActive]);
 
   const activeChartLevels = useMemo<PublicLevels | null>(() => {
+    if (tab === "indices") return carouselItem?.data ?? null;
     if (tab === "stocks") return stockData?.data ?? null;
-    if (tab === "inzone" && inZoneActive?.scope === "stock") return inZoneChartData;
+    if (tab === "inzone" && (inZoneActive?.scope === "stock" || inZoneActive?.scope === "index")) {
+      return inZoneChartData;
+    }
     return null;
-  }, [tab, stockData, inZoneActive, inZoneChartData]);
+  }, [tab, carouselItem, stockData, inZoneActive, inZoneChartData]);
 
   const chartShowsZones = Boolean(activeTv?.nativeCandles && levelsHaveBands(activeChartLevels));
 
@@ -367,7 +331,6 @@ export default function LevelsPage() {
     if (tab === "stocks") return activeStockSymbol ?? null;
     if (tab === "inzone" && inZoneActive) return inZoneActive.symbol;
     if (tab === "indices" && carouselItem) return carouselItem.symbol ?? carouselEntry?.id ?? null;
-    if (tab === "crypto" && carouselEntry) return carouselEntry.id;
     return null;
   }, [tab, activeStockSymbol, inZoneActive, carouselItem, carouselEntry]);
 
@@ -378,8 +341,8 @@ export default function LevelsPage() {
     if (tab === "inzone" && inZoneActive?.scope === "stock") {
       return resolveStockCompanyName(inZoneActive.symbol, inZoneActive.label);
     }
-    if (tab === "inzone" && inZoneActive) return inZoneActive.label;
-    if ((tab === "indices" || tab === "crypto") && carouselItem) return carouselItem.label;
+    if (tab === "inzone" && inZoneActive?.scope === "index") return inZoneActive.label;
+    if (tab === "indices" && carouselItem) return carouselItem.label;
     return null;
   }, [tab, activeStockSymbol, stockData, inZoneActive, carouselItem]);
 
@@ -448,10 +411,10 @@ export default function LevelsPage() {
     [stockCount],
   );
 
-  // Auto-advance: indices, crypto, in-zone (not the 180-name stock universe).
+  // Auto-advance: indices + in-zone (not the 180-name stock universe).
   useEffect(() => {
     if (slideshowPaused) return;
-    if (tab !== "indices" && tab !== "crypto") return;
+    if (tab !== "indices") return;
     if (carouselCount <= 1) return;
     const id = setTimeout(() => setSlide((s) => (s + 1) % carouselCount), 8000);
     return () => clearTimeout(id);
@@ -547,7 +510,7 @@ export default function LevelsPage() {
         return {
           id: `${it.scope}-${it.symbol}`,
           label: it.label,
-          sublabel: it.scope === "index" ? "Index" : it.scope === "crypto" ? "Crypto" : "Stock",
+          sublabel: it.scope === "index" ? "Index" : "Stock",
           spot: it.spot,
           currency: it.currency,
           trailing: <StatusBadge status={status} />,
@@ -624,29 +587,6 @@ export default function LevelsPage() {
     </div>
   );
 
-  const cryptoDeployFooter =
-    tab === "crypto" ? (
-      <div
-        className="mx-auto max-w-md rounded-xl px-4 py-3 flex flex-col sm:flex-row items-center justify-center gap-3 mb-2"
-        style={{ border: "1px solid rgba(59,130,246,0.2)", backgroundColor: "rgba(37,99,235,0.06)" }}
-      >
-        <p className="text-xs font-medium" style={{ color: "#94a3b8" }}>
-          Automate your trading
-        </p>
-        <Link
-          href={deployHref}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider text-white transition-all hover:brightness-110"
-          style={{
-            background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",
-            boxShadow: "0 4px 20px rgba(59,130,246,0.25)",
-          }}
-        >
-          <Bot className="h-3.5 w-3.5" />
-          Deploy Bot
-        </Link>
-      </div>
-    ) : null;
-
   const renderCarouselTab = () => {
     if (carouselCount === 0 || !carouselItem) {
       return (
@@ -659,32 +599,52 @@ export default function LevelsPage() {
     }
     const data = carouselItem.data;
     const refreshed = formatRefreshed(data?.computedAt);
-    const entries = tab === "indices" ? indexEntries : cryptoEntries;
 
     return wrapTabBody(
       <LevelsSymbolList
-        countLabel={`${carouselCount} ${tab === "indices" ? "indices" : "assets"}`}
-        entries={entries}
+        countLabel={`${carouselCount} indices`}
+        entries={indexEntries}
         activeIndex={carouselCurrent}
         onSelect={setSlide}
       />,
-      <LevelsChartPanel
-        title={`${carouselItem.label} Market Levels`}
-        spot={data?.spot ?? null}
-        currency={carouselCurrency}
-        levels={data}
-        unavailable={data?.unavailable === true}
-        slideCount={carouselCount}
-        activeIndex={carouselCurrent}
-        onPrev={() => goCarousel(-1)}
-        onNext={() => goCarousel(1)}
-        onGoTo={setSlide}
-        refreshedLabel={refreshed ? `Data refreshed ${refreshed} · ${scheduleNote}` : scheduleNote}
-        autoAdvanceNote
-        slideshowPaused={slideshowPaused}
-        footerExtra={cryptoDeployFooter}
-        showCarouselArrows={false}
-      />,
+      chartShowsZones ? (
+        <></>
+      ) : (
+        <LevelsChartPanel
+          title={`${carouselItem.label} Market Levels`}
+          spot={data?.spot ?? null}
+          currency="₹"
+          levels={data}
+          unavailable={data?.unavailable === true}
+          slideCount={carouselCount}
+          activeIndex={carouselCurrent}
+          onPrev={() => goCarousel(-1)}
+          onNext={() => goCarousel(1)}
+          onGoTo={setSlide}
+          refreshedLabel={refreshed ? `Data refreshed ${refreshed} · ${scheduleNote}` : scheduleNote}
+          autoAdvanceNote
+          slideshowPaused={slideshowPaused}
+          showCarouselArrows={false}
+        />
+      ),
+      undefined,
+      chartShowsZones
+        ? {
+            hideLevelsColumn: true,
+            chartFooter: (
+              <LevelsChartMetaFooter
+                slideCount={carouselCount}
+                activeIndex={carouselCurrent}
+                onGoTo={setSlide}
+                refreshedLabel={
+                  refreshed ? `Data refreshed ${refreshed} · ${scheduleNote}` : scheduleNote
+                }
+                autoAdvanceNote
+                slideshowPaused={slideshowPaused}
+              />
+            ),
+          }
+        : undefined,
     );
   };
 
@@ -775,8 +735,7 @@ export default function LevelsPage() {
     const chartSpot = inZoneChartData?.spot ?? inZoneActive?.spot ?? null;
     const refreshed = formatRefreshed(inZoneChartData?.computedAt);
 
-    const inZoneStockChart =
-      inZoneActive?.scope === "stock" && chartShowsZones;
+    const inZoneNativeChart = chartShowsZones && inZoneActive != null;
 
     return wrapTabBody(
       <LevelsSymbolList
@@ -791,7 +750,7 @@ export default function LevelsPage() {
         onSelect={setInZoneSlide}
       />,
       inZoneActive ? (
-        inZoneStockChart ? (
+        inZoneNativeChart ? (
           <></>
         ) : (
           <LevelsChartPanel
@@ -817,7 +776,7 @@ export default function LevelsPage() {
         </div>
       ),
       undefined,
-      inZoneStockChart
+      inZoneNativeChart
         ? {
             hideLevelsColumn: true,
             chartFooter: (
@@ -854,7 +813,6 @@ export default function LevelsPage() {
           >
             {([
               { key: "indices" as TabKey, label: "NSE Indices", pro: false },
-              { key: "crypto" as TabKey, label: "Crypto", pro: false },
               { key: "stocks" as TabKey, label: "NSE Stocks", pro: true },
               { key: "inzone" as TabKey, label: "In Zone", pro: true },
             ]).map(({ key, label, pro }) => (
@@ -886,7 +844,7 @@ export default function LevelsPage() {
           <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
             <LevelsPageHeader title={copy.title} subtitle={copy.subtitle} />
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-              {tab === "indices" || tab === "crypto"
+              {tab === "indices"
                 ? renderCarouselTab()
                 : tab === "stocks"
                   ? renderStocksTab()

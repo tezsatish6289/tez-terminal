@@ -1,9 +1,9 @@
 /**
- * Intraday candles for NSE stocks via Dhan Data API (DhanHQ v2).
+ * Intraday candles for NSE stocks and indices via Dhan Data API (DhanHQ v2).
  *
- * Powers the native candlestick chart on freedombot.ai/levels → NSE Stocks.
- * TradingView's free embed blocks licensed NSE equity data, so we draw our own
- * candles from Dhan (which we already use for live stock trading + LTP).
+ * Powers the native candlestick chart on freedombot.ai/levels (stocks + indices).
+ * TradingView's free embed blocks licensed NSE data, so we draw our own candles
+ * from Dhan (which we already use for live trading + LTP).
  *
  * Server-only. Uses the house Dhan token (auto-renewed) and an in-memory cache
  * shared across all requests, so visitor count never multiplies Dhan calls.
@@ -12,6 +12,7 @@
 import "server-only";
 import { getAdminFirestore } from "@/firebase/admin";
 import { ensureValidToken } from "@/lib/dhan-token";
+import { dhanIndexSecurityId } from "@/lib/nse/dhan-index-ids";
 
 const DHAN_BASE_URL = "https://api.dhan.co/v2";
 const DHAN_TIMEOUT_MS = 12_000;
@@ -97,9 +98,15 @@ interface DhanIntradayResponse {
   timestamp?: number[];
 }
 
+type DhanCandleSegment = {
+  exchangeSegment: "NSE_EQ" | "IDX_I";
+  instrument: "EQUITY" | "INDEX";
+};
+
 async function fetchDhanIntraday(
   securityId: number,
   interval: string,
+  segment: DhanCandleSegment,
 ): Promise<Candle[]> {
   const creds = await ensureValidToken();
   if (!creds) throw new Error("Dhan token unavailable");
@@ -120,8 +127,8 @@ async function fetchDhanIntraday(
       },
       body: JSON.stringify({
         securityId: String(securityId),
-        exchangeSegment: "NSE_EQ",
-        instrument: "EQUITY",
+        exchangeSegment: segment.exchangeSegment,
+        instrument: segment.instrument,
         interval,
         oi: false,
         fromDate: fmtDate(from),
@@ -162,16 +169,14 @@ async function fetchDhanIntraday(
 
 // ── Public API ──────────────────────────────────────────────────────
 
-/**
- * Get intraday candles for an NSE stock, cache-first.
- * Returns last-good (stale) candles if a refresh fails.
- */
-export async function getStockCandles(
-  symbol: string,
+async function getCandlesCached(
+  cacheKey: string,
+  resolveSecurityId: () => Promise<number | null>,
+  segment: DhanCandleSegment,
   interval = "5",
 ): Promise<CandleResult> {
   const tf = ALLOWED_INTERVALS.has(interval) ? interval : "5";
-  const key = `${symbol.toUpperCase()}:${tf}`;
+  const key = `${cacheKey}:${tf}`;
 
   const cached = candleCache.get(key);
   if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
@@ -181,11 +186,11 @@ export async function getStockCandles(
   let promise = inflight.get(key);
   if (!promise) {
     promise = (async () => {
-      const securityId = await getSecurityId(symbol);
+      const securityId = await resolveSecurityId();
       if (securityId == null) {
-        throw new Error(`No Dhan securityId for ${symbol}`);
+        throw new Error(`No Dhan securityId for ${cacheKey}`);
       }
-      const candles = await fetchDhanIntraday(securityId, tf);
+      const candles = await fetchDhanIntraday(securityId, tf, segment);
       candleCache.set(key, { candles, fetchedAt: Date.now() });
       return candles;
     })();
@@ -198,10 +203,31 @@ export async function getStockCandles(
     return { ok: true, candles };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    // Serve last-good candles on transient failure.
     if (cached && Date.now() - cached.fetchedAt < STALE_TTL_MS) {
       return { ok: true, candles: cached.candles, stale: true };
     }
     return { ok: false, candles: [], error: msg };
   }
+}
+
+/** NSE F&O stock — NSE_EQ / EQUITY. */
+export async function getStockCandles(symbol: string, interval = "5"): Promise<CandleResult> {
+  const upper = symbol.toUpperCase();
+  return getCandlesCached(
+    `EQ:${upper}`,
+    () => getSecurityId(upper),
+    { exchangeSegment: "NSE_EQ", instrument: "EQUITY" },
+    interval,
+  );
+}
+
+/** NSE index (NIFTY, BANKNIFTY, …) — IDX_I / INDEX. */
+export async function getIndexCandles(symbol: string, interval = "5"): Promise<CandleResult> {
+  const upper = symbol.toUpperCase();
+  return getCandlesCached(
+    `IDX:${upper}`,
+    async () => dhanIndexSecurityId(upper),
+    { exchangeSegment: "IDX_I", instrument: "INDEX" },
+    interval,
+  );
 }

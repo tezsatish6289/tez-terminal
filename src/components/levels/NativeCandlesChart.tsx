@@ -72,6 +72,7 @@ const BEAR_BAND_STYLE = {
  */
 export function NativeCandlesChart({
   symbol,
+  candlesScope = "stock",
   interval = "15",
   levels,
   loading: levelsLoading,
@@ -81,6 +82,7 @@ export function NativeCandlesChart({
   onToggleSlideshowPause,
 }: {
   symbol: string;
+  candlesScope?: "stock" | "index";
   interval?: string;
   levels?: PublicLevels | null;
   /** Parent is still fetching zone levels for overlays. */
@@ -279,7 +281,7 @@ export function NativeCandlesChart({
       }
       try {
         const res = await fetch(
-          `/api/freedombot/levels/candles?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}`,
+          `/api/freedombot/levels/candles?symbol=${encodeURIComponent(symbol)}&scope=${encodeURIComponent(candlesScope)}&interval=${encodeURIComponent(interval)}`,
           { cache: "no-store" },
         );
         const json = (await res.json()) as { ok: boolean; candles?: ApiCandle[]; error?: string };
@@ -332,7 +334,7 @@ export function NativeCandlesChart({
       setSwapping(false);
       if (timer) clearInterval(timer);
     };
-  }, [symbol, interval]);
+  }, [symbol, candlesScope, interval]);
 
   // Zone bands, lines, and vertical fit when levels arrive (same symbol).
   useEffect(() => {

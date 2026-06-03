@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 
 const ROW_GAP = 6;
 const ROW_HEIGHT = 52;
+const PAUSED_PINK = "#f472b6";
+const PAUSED_PINK_MUTED = "rgba(244, 114, 182, 0.92)";
 
 function isTypingTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
@@ -21,6 +23,9 @@ function HintRow({
   kbdHint,
   onClick,
   ariaLabel,
+  titleColor,
+  helperColor,
+  kbdColor,
 }: {
   topPx?: number;
   bottomPx?: number;
@@ -30,6 +35,9 @@ function HintRow({
   kbdHint: string;
   onClick: () => void;
   ariaLabel: string;
+  titleColor?: string;
+  helperColor?: string;
+  kbdColor?: string;
 }) {
   const anchored = topPx != null && Number.isFinite(topPx);
   return (
@@ -49,11 +57,11 @@ function HintRow({
     >
       <span
         className="block font-semibold leading-snug"
-        style={{ fontSize: 14, color: "rgba(241, 245, 249, 0.95)" }}
+        style={{ fontSize: 14, color: titleColor ?? "rgba(241, 245, 249, 0.95)" }}
       >
         {title}
         {titleMuted ? (
-          <span className="font-normal" style={{ color: "rgba(148, 163, 184, 0.95)" }}>
+          <span className="font-normal" style={{ color: titleMuted }}>
             {" "}
             {titleMuted}
           </span>
@@ -61,10 +69,13 @@ function HintRow({
       </span>
       <span
         className="block mt-0.5 font-medium"
-        style={{ fontSize: 12, color: "rgba(148, 163, 184, 0.9)" }}
+        style={{ fontSize: 12, color: helperColor ?? "rgba(148, 163, 184, 0.9)" }}
       >
         {kbdHint}{" "}
-        <kbd className="font-bold text-slate-200">{kbd}</kbd> or click here
+        <kbd className="font-bold" style={{ color: kbdColor ?? "#e2e8f0" }}>
+          {kbd}
+        </kbd>{" "}
+        or click here
       </span>
     </button>
   );
@@ -72,7 +83,7 @@ function HintRow({
 
 /**
  * Chart shortcuts anchored under the bull invalidation line when possible.
- * T → TradingView; S → fit full history (native); P → pause/play slideshow.
+ * T → TradingView; 3 → 30-day history zoom (native); P → pause/play slideshow.
  */
 export function LevelsChartShortcuts({
   webChartUrl,
@@ -118,7 +129,7 @@ export function LevelsChartShortcuts({
         window.open(webChartUrl, "_blank", "noopener,noreferrer");
         return;
       }
-      if ((e.key === "s" || e.key === "S") && showSqueeze && onSqueeze) {
+      if (e.key === "3" && showSqueeze && onSqueeze) {
         e.preventDefault();
         onSqueeze();
         return;
@@ -141,6 +152,9 @@ export function LevelsChartShortcuts({
     kbdHint: string;
     onClick: () => void;
     ariaLabel: string;
+    titleColor?: string;
+    helperColor?: string;
+    kbdColor?: string;
   }[] = [];
 
   rows.push({
@@ -156,26 +170,30 @@ export function LevelsChartShortcuts({
   if (showSqueeze && onSqueeze) {
     rows.push({
       key: "squeeze",
-      title: squeezed ? "Focus recent bars" : "Fit full history",
-      kbd: "S",
+      title: squeezed ? "Focus recent bars" : "Fit 30 day history",
+      kbd: "3",
       kbdHint: "Press",
       onClick: onSqueeze,
       ariaLabel: squeezed
-        ? "Zoom chart to recent sessions. Press S or click."
-        : "Show all loaded candle history on the chart. Press S or click.",
+        ? "Zoom chart to recent sessions. Press 3 or click."
+        : "Show all loaded 30-day candle history on the chart. Press 3 or click.",
     });
   }
 
   if (showSlideshowControl && onToggleSlideshowPause) {
+    const paused = Boolean(slideshowPaused);
     rows.push({
       key: "pause",
-      title: slideshowPaused ? "Play slideshow" : "Pause slideshow",
+      title: paused ? "Play slideshow" : "Pause slideshow",
       kbd: "P",
       kbdHint: "Press",
       onClick: onToggleSlideshowPause,
-      ariaLabel: slideshowPaused
+      ariaLabel: paused
         ? "Resume auto-advancing symbols every 8 seconds. Press P or click."
         : "Stop auto-advancing symbols. Press P or click.",
+      titleColor: paused ? PAUSED_PINK : undefined,
+      helperColor: paused ? PAUSED_PINK_MUTED : undefined,
+      kbdColor: paused ? PAUSED_PINK : undefined,
     });
   }
 
@@ -197,6 +215,9 @@ export function LevelsChartShortcuts({
             kbdHint={row.kbdHint}
             onClick={row.onClick}
             ariaLabel={row.ariaLabel}
+            titleColor={row.titleColor}
+            helperColor={row.helperColor}
+            kbdColor={row.kbdColor}
           />
         );
       })}

@@ -18,6 +18,7 @@ import {
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { levelsTradingViewParams } from "@/lib/levels/tradingview-symbol";
 import { freedombotHomePath } from "@/lib/freedombot/dashboard-path";
+import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
 import {
   deriveZoneStatus,
@@ -130,6 +131,14 @@ function StatusBadge({ status }: { status: ZoneStatus }) {
 
 function levelsHaveBands(data: PublicLevels | null | undefined): boolean {
   return data != null && (data.bullLow != null || data.bearLow != null);
+}
+
+function resolveStockCompanyName(symbol: string, fallback?: string | null): string | null {
+  const fromMap = fnoCompanyName(symbol);
+  if (fromMap) return fromMap;
+  const fb = fallback?.trim();
+  if (fb && fb.toUpperCase() !== symbol.toUpperCase()) return fb;
+  return null;
 }
 
 function formatRefreshed(computedAt: string | null | undefined): string | null {
@@ -363,11 +372,16 @@ export default function LevelsPage() {
   }, [tab, activeStockSymbol, inZoneActive, carouselItem, carouselEntry]);
 
   const activeCompanyName = useMemo(() => {
-    if (tab === "stocks") return stockData?.label ?? null;
+    if (tab === "stocks" && activeStockSymbol) {
+      return resolveStockCompanyName(activeStockSymbol, stockData?.label);
+    }
+    if (tab === "inzone" && inZoneActive?.scope === "stock") {
+      return resolveStockCompanyName(inZoneActive.symbol, inZoneActive.label);
+    }
     if (tab === "inzone" && inZoneActive) return inZoneActive.label;
     if ((tab === "indices" || tab === "crypto") && carouselItem) return carouselItem.label;
     return null;
-  }, [tab, stockData, inZoneActive, carouselItem]);
+  }, [tab, activeStockSymbol, stockData, inZoneActive, carouselItem]);
 
   const chartLevelsLoading =
     (tab === "stocks" && stockLoading) ||
@@ -667,6 +681,7 @@ export default function LevelsPage() {
         onGoTo={setSlide}
         refreshedLabel={refreshed ? `Data refreshed ${refreshed} · ${scheduleNote}` : scheduleNote}
         autoAdvanceNote
+        slideshowPaused={slideshowPaused}
         footerExtra={cryptoDeployFooter}
         showCarouselArrows={false}
       />,
@@ -792,6 +807,7 @@ export default function LevelsPage() {
             onGoTo={setInZoneSlide}
             refreshedLabel={refreshed ? `Data refreshed ${refreshed}` : undefined}
             autoAdvanceNote
+            slideshowPaused={slideshowPaused}
             showCarouselArrows={false}
           />
         )
@@ -811,6 +827,7 @@ export default function LevelsPage() {
                 onGoTo={setInZoneSlide}
                 refreshedLabel={refreshed ? `Data refreshed ${refreshed}` : undefined}
                 autoAdvanceNote
+                slideshowPaused={slideshowPaused}
               />
             ),
           }

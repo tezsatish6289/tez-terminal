@@ -1,11 +1,18 @@
 "use client";
 
+import { useMemo } from "react";
 import { ExternalLink } from "lucide-react";
 import { ChartPane } from "@/components/dashboard/ChartPane";
 import type { LevelsTvConfig } from "@/lib/levels/tradingview-symbol";
+import {
+  shouldProxyIndianChartViaTezTerminal,
+  tezTerminalChartEmbedUrl,
+} from "@/lib/tradingview-symbol";
 
 /**
- * Right column — same TradingView advanced-chart iframe as /chart/[id] (ChartPane).
+ * Right column chart — NSE/BSE on freedombot.ai loads via tezterminal.com/embed/chart
+ * (TradingView allows India symbols on tezterminal.com, not on freedombot.ai).
+ * Crypto uses ChartPane inline (same as /chart/[id]).
  */
 export function LevelsTradingViewChart({
   config,
@@ -14,6 +21,17 @@ export function LevelsTradingViewChart({
   config: LevelsTvConfig;
   title?: string;
 }) {
+  const proxySrc = useMemo(() => {
+    if (!config.indianMarket) return null;
+    if (typeof window === "undefined") return null;
+    if (!shouldProxyIndianChartViaTezTerminal(window.location.hostname)) return null;
+    return tezTerminalChartEmbedUrl({
+      symbol: config.symbol,
+      exchange: config.exchange,
+      interval: config.interval,
+    });
+  }, [config]);
+
   return (
     <section className="flex flex-col min-h-0 h-full w-full">
       <div className="flex items-center justify-between gap-2 shrink-0 py-1.5">
@@ -43,11 +61,21 @@ export function LevelsTradingViewChart({
           backgroundColor: "rgba(0,0,0,0.45)",
         }}
       >
-        <ChartPane
-          symbol={config.symbol}
-          exchange={config.exchange}
-          interval={config.interval}
-        />
+        {proxySrc ? (
+          <iframe
+            key={proxySrc}
+            title={`Chart ${config.fullSymbol}`}
+            src={proxySrc}
+            className="w-full h-full border-none"
+            allowFullScreen
+          />
+        ) : (
+          <ChartPane
+            symbol={config.symbol}
+            exchange={config.exchange}
+            interval={config.interval}
+          />
+        )}
       </div>
     </section>
   );

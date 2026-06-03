@@ -20,6 +20,16 @@ const nextConfig: NextConfig = {
           { key: 'Access-Control-Allow-Origin', value: '*' },
         ],
       },
+      {
+        source: '/embed/chart',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value:
+              "frame-ancestors 'self' https://freedombot.ai https://www.freedombot.ai http://localhost:* https://localhost:*",
+          },
+        ],
+      },
     ];
   },
   images: {

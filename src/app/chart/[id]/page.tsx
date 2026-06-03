@@ -421,7 +421,11 @@ export default function DeepDiveChartPage() {
         <div className="h-[70vh] lg:h-auto lg:flex-1 shrink-0 rounded-xl border border-white/[0.06] bg-gradient-to-b from-[#141416] to-[#0f0f11] shadow-xl shadow-black/30 flex flex-col overflow-hidden">
           <div className="flex-1 min-h-0 flex flex-col" style={leftHeight && mounted && typeof window !== 'undefined' && window.innerWidth >= 1024 ? { maxHeight: `${leftHeight}px` } : undefined}>
             <div className={cn("min-h-0", showBtc ? "h-1/2" : "flex-1")}>
-              <ChartPane symbol={signal?.symbol} interval={signal?.timeframe} exchange={signal?.exchange} />
+              <ChartPane
+                symbol={signal?.symbol}
+                interval={signal?.timeframe}
+                exchange={String(signal?.payload?.exchange ?? signal?.exchange ?? "BINANCE")}
+              />
             </div>
             {showBtc && (
               <div className="h-1/2 min-h-0 border-t border-white/[0.06]">

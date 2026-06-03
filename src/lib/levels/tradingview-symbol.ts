@@ -15,6 +15,8 @@ export interface LevelsTvConfig {
   /** EXCHANGE:SYMBOL shown in UI + "Open on TV" link. */
   fullSymbol: string;
   webChartUrl: string;
+  /** NSE/BSE/MCX — on freedombot.ai load chart via tezterminal.com embed proxy. */
+  indianMarket: boolean;
 }
 
 const CRYPTO_TV: Record<string, { exchange: string; symbol: string }> = {
@@ -70,6 +72,7 @@ export function levelsTradingViewParams(
       interval: LEVELS_TV_INTERVAL,
       fullSymbol: full,
       webChartUrl: webChartUrl(full, LEVELS_TV_INTERVAL),
+      indianMarket: false,
     };
   }
 
@@ -84,6 +87,7 @@ export function levelsTradingViewParams(
       interval: LEVELS_TV_INTERVAL,
       fullSymbol: full,
       webChartUrl: webChartUrl(full, LEVELS_TV_INTERVAL),
+      indianMarket: true,
     };
   }
 
@@ -97,6 +101,7 @@ export function levelsTradingViewParams(
       interval: LEVELS_TV_INTERVAL,
       fullSymbol: full,
       webChartUrl: webChartUrl(fullSymbol("NSE", sym), LEVELS_TV_INTERVAL),
+      indianMarket: true,
     };
   }
 

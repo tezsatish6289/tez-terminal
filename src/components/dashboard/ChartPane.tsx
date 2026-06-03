@@ -9,16 +9,41 @@ interface ChartPaneProps {
   exchange?: string;
 }
 
+function isIndianMarketExchange(exchange: string): boolean {
+  const u = exchange.toUpperCase();
+  return u.startsWith("NSE") || u.startsWith("BSE") || u.startsWith("MCX");
+}
+
+/**
+ * Free TradingView advanced-chart iframe accepts delayed Indian feeds (NSE_DLY).
+ * Plain NSE:SYMBOL often shows "only available on TradingView".
+ */
+function tradingViewEmbedExchange(exchange: string): string {
+  const u = exchange.toUpperCase();
+  if (u === "NSE" || u === "NSE_EQ") return "NSE_DLY";
+  if (u === "BSE" || u === "BSE_EQ") return "BSE_DLY";
+  if (u.startsWith("NSE_") || u.startsWith("BSE_") || u.startsWith("MCX")) return u;
+  return u;
+}
+
 export function ChartPane({ symbol = "BTCUSDT", interval = "15", exchange = "BINANCE" }: ChartPaneProps) {
   const [mounted, setMounted] = useState(false);
-  const [userTz, setUserTz] = useState("Etc/UTC");
+  const india = isIndianMarketExchange(exchange);
+  const [userTz, setUserTz] = useState(india ? "Asia/Kolkata" : "Etc/UTC");
 
   useEffect(() => {
-    setUserTz(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    setUserTz(
+      isIndianMarketExchange(exchange)
+        ? "Asia/Kolkata"
+        : Intl.DateTimeFormat().resolvedOptions().timeZone,
+    );
     setMounted(true);
-  }, []);
+  }, [exchange]);
 
-  const formattedSymbol = symbol.includes(":") ? symbol : `${exchange.toUpperCase()}:${symbol.toUpperCase()}`;
+  const embedExchange = tradingViewEmbedExchange(exchange);
+  const formattedSymbol = symbol.includes(":")
+    ? symbol
+    : `${embedExchange}:${symbol.toUpperCase()}`;
   const tvInterval = interval === "0" ? "1" : interval;
 
   const widgetConfig = {
@@ -27,7 +52,7 @@ export function ChartPane({ symbol = "BTCUSDT", interval = "15", exchange = "BIN
     timezone: userTz,
     theme: "dark",
     style: "1",
-    locale: "en",
+    locale: india ? "in" : "en",
     toolbar_bg: "#f1f3f6",
     enable_publishing: false,
     hide_side_toolbar: false,
@@ -37,7 +62,7 @@ export function ChartPane({ symbol = "BTCUSDT", interval = "15", exchange = "BIN
     height: "100%",
   };
 
-  const src = `https://s.tradingview.com/embed-widget/advanced-chart/?locale=en#${encodeURIComponent(JSON.stringify(widgetConfig))}`;
+  const src = `https://s.tradingview.com/embed-widget/advanced-chart/?locale=${india ? "in" : "en"}#${encodeURIComponent(JSON.stringify(widgetConfig))}`;
 
   return (
     <div className="w-full h-full bg-background relative flex flex-col">

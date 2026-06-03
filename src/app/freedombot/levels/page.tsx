@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Loader2, Bot, Search, TrendingUp, TrendingDown, Target } from "lucide-react";
@@ -14,6 +14,8 @@ import {
   sortEntriesAlpha,
   type LevelsListEntry,
 } from "@/components/levels/LevelsSplitLayout";
+import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
+import { levelsTradingViewParams } from "@/lib/levels/tradingview-symbol";
 import { freedombotHomePath } from "@/lib/freedombot/dashboard-path";
 import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
 import {
@@ -308,6 +310,43 @@ export default function LevelsPage() {
 
   const scheduleNote = tab === "crypto" ? "Updates 24/7" : "Updates Mon–Fri during market hours";
 
+  const activeTv = useMemo(() => {
+    if (tab === "indices" && carouselEntry) {
+      return levelsTradingViewParams("index", carouselEntry.id);
+    }
+    if (tab === "crypto" && carouselEntry) {
+      return levelsTradingViewParams("crypto", carouselEntry.id);
+    }
+    if (tab === "stocks" && activeStockSymbol) {
+      return levelsTradingViewParams("stock", activeStockSymbol);
+    }
+    if (tab === "inzone" && inZoneActive) {
+      const scope =
+        inZoneActive.scope === "stock"
+          ? "stock"
+          : inZoneActive.scope === "index"
+            ? "index"
+            : "crypto";
+      return levelsTradingViewParams(scope, inZoneActive.symbol);
+    }
+    return null;
+  }, [tab, carouselEntry, activeStockSymbol, inZoneActive]);
+
+  const wrapTabBody = (body: ReactNode, disclaimerSchedule?: string) => (
+    <div className="flex flex-col flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">{body}</div>
+      {activeTv && (
+        <LevelsTradingViewChart
+          exchange={activeTv.exchange}
+          symbol={activeTv.symbol}
+          interval={activeTv.interval}
+          title={`Chart · 5m · ${activeTv.exchange}:${activeTv.symbol}`}
+        />
+      )}
+      <LevelsDisclaimer scheduleNote={disclaimerSchedule ?? scheduleNote} />
+    </div>
+  );
+
   const goCarousel = useCallback(
     (dir: number) => setSlide((s) => (carouselCount > 0 ? (s + dir + carouselCount) % carouselCount : 0)),
     [carouselCount],
@@ -534,42 +573,39 @@ export default function LevelsPage() {
     const refreshed = formatRefreshed(data?.computedAt);
     const entries = tab === "indices" ? indexEntries : cryptoEntries;
 
-    return (
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-        <LevelsSplitShell
-          list={
-            <LevelsSymbolList
-              countLabel={`${carouselCount} ${tab === "indices" ? "indices" : "assets"}`}
-              entries={entries}
-              activeIndex={carouselCurrent}
-              onSelect={setSlide}
-            />
-          }
-          chart={
-            <LevelsChartPanel
-              title={`${carouselItem.label} Market Levels`}
-              spot={data?.spot ?? null}
-              currency={carouselCurrency}
-              levels={data}
-              unavailable={data?.unavailable === true}
-              slideCount={carouselCount}
-              activeIndex={carouselCurrent}
-              onPrev={() => goCarousel(-1)}
-              onNext={() => goCarousel(1)}
-              onGoTo={setSlide}
-              refreshedLabel={refreshed ? `Data refreshed ${refreshed} · ${scheduleNote}` : scheduleNote}
-              autoAdvanceNote
-              footerExtra={cryptoDeployFooter}
-            />
-          }
-        />
-        <LevelsDisclaimer />
-      </div>
+    return wrapTabBody(
+      <LevelsSplitShell
+        list={
+          <LevelsSymbolList
+            countLabel={`${carouselCount} ${tab === "indices" ? "indices" : "assets"}`}
+            entries={entries}
+            activeIndex={carouselCurrent}
+            onSelect={setSlide}
+          />
+        }
+        chart={
+          <LevelsChartPanel
+            title={`${carouselItem.label} Market Levels`}
+            spot={data?.spot ?? null}
+            currency={carouselCurrency}
+            levels={data}
+            unavailable={data?.unavailable === true}
+            slideCount={carouselCount}
+            activeIndex={carouselCurrent}
+            onPrev={() => goCarousel(-1)}
+            onNext={() => goCarousel(1)}
+            onGoTo={setSlide}
+            refreshedLabel={refreshed ? `Data refreshed ${refreshed} · ${scheduleNote}` : scheduleNote}
+            autoAdvanceNote
+            footerExtra={cryptoDeployFooter}
+          />
+        }
+      />,
     );
   };
 
-  const renderStocksTab = () => (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+  const renderStocksTab = () =>
+    wrapTabBody(
       <LevelsSplitShell
         list={
           <LevelsSymbolList
@@ -612,16 +648,14 @@ export default function LevelsPage() {
             autoAdvanceNote={false}
           />
         }
-      />
-      <LevelsDisclaimer scheduleNote={scheduleNote} />
-    </div>
-  );
+      />,
+    );
 
   const renderInZoneTab = () => {
     if (inZoneCount === 0) {
       const filteredEmpty = zoneFilter !== "all" && inZoneListSorted.length > 0;
-      return (
-        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      return wrapTabBody(
+        <>
           <div className="shrink-0 px-1 max-w-md mx-auto w-full">{zoneFilterChips}</div>
           <div className="flex flex-col items-center justify-center text-center py-12 gap-3 flex-1 px-6 min-h-0">
             <p className="text-sm" style={{ color: "#64748b" }}>
@@ -634,52 +668,48 @@ export default function LevelsPage() {
                 ? "Try All aligned, or wait for price to sit in a band with max pain on the pull side."
                 : "Needs spot inside bull/bear band and max pain above (bull) or below (bear) spot."}
             </p>
-            <LevelsDisclaimer />
           </div>
-        </div>
+        </>,
       );
     }
 
     const chartSpot = inZoneChartData?.spot ?? inZoneActive?.spot ?? null;
     const refreshed = formatRefreshed(inZoneChartData?.computedAt);
 
-    return (
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-        <LevelsSplitShell
-          list={
-            <LevelsSymbolList
-              countLabel={
-                zoneFilter === "all"
-                  ? `${inZoneCount} aligned`
-                  : `${inZoneCount} · ${zoneFilter === "bull" ? "bull + POC above" : "bear + POC below"}`
-              }
-              header={zoneFilterChips}
-              entries={inZoneEntries}
+    return wrapTabBody(
+      <LevelsSplitShell
+        list={
+          <LevelsSymbolList
+            countLabel={
+              zoneFilter === "all"
+                ? `${inZoneCount} aligned`
+                : `${inZoneCount} · ${zoneFilter === "bull" ? "bull + POC above" : "bear + POC below"}`
+            }
+            header={zoneFilterChips}
+            entries={inZoneEntries}
+            activeIndex={inZoneCurrent}
+            onSelect={setInZoneSlide}
+          />
+        }
+        chart={
+          inZoneActive && (
+            <LevelsChartPanel
+              title={`${inZoneActive.label} Market Levels`}
+              spot={chartSpot}
+              currency={inZoneActive.currency}
+              levels={inZoneChartData}
+              loading={inZoneChartLoading}
+              slideCount={inZoneCount}
               activeIndex={inZoneCurrent}
-              onSelect={setInZoneSlide}
+              onPrev={() => goInZone(-1)}
+              onNext={() => goInZone(1)}
+              onGoTo={setInZoneSlide}
+              refreshedLabel={refreshed ? `Data refreshed ${refreshed}` : undefined}
+              autoAdvanceNote
             />
-          }
-          chart={
-            inZoneActive && (
-              <LevelsChartPanel
-                title={`${inZoneActive.label} Market Levels`}
-                spot={chartSpot}
-                currency={inZoneActive.currency}
-                levels={inZoneChartData}
-                loading={inZoneChartLoading}
-                slideCount={inZoneCount}
-                activeIndex={inZoneCurrent}
-                onPrev={() => goInZone(-1)}
-                onNext={() => goInZone(1)}
-                onGoTo={setInZoneSlide}
-                refreshedLabel={refreshed ? `Data refreshed ${refreshed}` : undefined}
-                autoAdvanceNote
-              />
-            )
-          }
-        />
-        <LevelsDisclaimer />
-      </div>
+          )
+        }
+      />,
     );
   };
 
@@ -694,7 +724,7 @@ export default function LevelsPage() {
         backgroundSize: "100% 100%, 48px 48px, 48px 48px, 100% 100%",
       }}
     >
-      <div className="flex-1 min-h-0 max-w-6xl mx-auto w-full px-4 sm:px-6 py-3 sm:py-4 flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 w-full max-w-[100rem] mx-auto px-3 sm:px-5 py-3 sm:py-4 flex flex-col overflow-hidden">
         <div className="flex justify-center mb-3 shrink-0">
           <div
             className="inline-flex items-center gap-1.5 p-1.5 rounded-xl flex-wrap justify-center"

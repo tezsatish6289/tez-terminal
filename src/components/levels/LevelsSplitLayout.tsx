@@ -167,7 +167,7 @@ export function LevelsChartPanel({
         )}
       </div>
 
-      <div className="relative flex-1 min-h-0 flex flex-col justify-center px-1 sm:px-8">
+      <div className="relative flex-1 min-h-0 max-h-[min(36vh,320px)] flex flex-col justify-center px-1 sm:px-6">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-8 gap-2">
             <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />

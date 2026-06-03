@@ -147,7 +147,7 @@ export function ZonePriceLadder({
         ref={containerRef}
         className={
           variant === "embedded"
-            ? "relative w-full min-h-[240px] h-[min(360px,42vh)]"
+            ? "relative w-full min-h-[200px] h-full flex-1"
             : "relative w-full min-h-[320px] h-[min(520px,52vh)] sm:h-[min(540px,56vh)]"
         }
       >

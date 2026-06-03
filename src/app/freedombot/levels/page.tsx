@@ -9,7 +9,7 @@ import {
   LevelsChartPanel,
   LevelsDisclaimer,
   LevelsPageHeader,
-  LevelsSplitShell,
+  LevelsTripleShell,
   LevelsSymbolList,
   sortEntriesAlpha,
   type LevelsListEntry,
@@ -332,17 +332,28 @@ export default function LevelsPage() {
     return null;
   }, [tab, carouselEntry, activeStockSymbol, inZoneActive]);
 
-  const wrapTabBody = (body: ReactNode, disclaimerSchedule?: string) => (
-    <div className="flex flex-col flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">{body}</div>
-      {activeTv && (
-        <LevelsTradingViewChart
-          exchange={activeTv.exchange}
-          symbol={activeTv.symbol}
-          interval={activeTv.interval}
-          title={`Chart · 5m · ${activeTv.exchange}:${activeTv.symbol}`}
-        />
-      )}
+  const wrapTabBody = (list: ReactNode, levels: ReactNode, disclaimerSchedule?: string) => (
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      <LevelsTripleShell
+        list={list}
+        levels={levels}
+        chart={
+          activeTv ? (
+            <LevelsTradingViewChart
+              exchange={activeTv.exchange}
+              symbol={activeTv.symbol}
+              interval={activeTv.interval}
+            />
+          ) : (
+            <div
+              className="flex flex-1 items-center justify-center text-[11px] px-4 text-center"
+              style={{ color: "#64748b" }}
+            >
+              Select a symbol to load the 5m chart
+            </div>
+          )
+        }
+      />
       <LevelsDisclaimer scheduleNote={disclaimerSchedule ?? scheduleNote} />
     </div>
   );
@@ -574,80 +585,68 @@ export default function LevelsPage() {
     const entries = tab === "indices" ? indexEntries : cryptoEntries;
 
     return wrapTabBody(
-      <LevelsSplitShell
-        list={
-          <LevelsSymbolList
-            countLabel={`${carouselCount} ${tab === "indices" ? "indices" : "assets"}`}
-            entries={entries}
-            activeIndex={carouselCurrent}
-            onSelect={setSlide}
-          />
-        }
-        chart={
-          <LevelsChartPanel
-            title={`${carouselItem.label} Market Levels`}
-            spot={data?.spot ?? null}
-            currency={carouselCurrency}
-            levels={data}
-            unavailable={data?.unavailable === true}
-            slideCount={carouselCount}
-            activeIndex={carouselCurrent}
-            onPrev={() => goCarousel(-1)}
-            onNext={() => goCarousel(1)}
-            onGoTo={setSlide}
-            refreshedLabel={refreshed ? `Data refreshed ${refreshed} · ${scheduleNote}` : scheduleNote}
-            autoAdvanceNote
-            footerExtra={cryptoDeployFooter}
-          />
-        }
+      <LevelsSymbolList
+        countLabel={`${carouselCount} ${tab === "indices" ? "indices" : "assets"}`}
+        entries={entries}
+        activeIndex={carouselCurrent}
+        onSelect={setSlide}
+      />,
+      <LevelsChartPanel
+        title={`${carouselItem.label} Market Levels`}
+        spot={data?.spot ?? null}
+        currency={carouselCurrency}
+        levels={data}
+        unavailable={data?.unavailable === true}
+        slideCount={carouselCount}
+        activeIndex={carouselCurrent}
+        onPrev={() => goCarousel(-1)}
+        onNext={() => goCarousel(1)}
+        onGoTo={setSlide}
+        refreshedLabel={refreshed ? `Data refreshed ${refreshed} · ${scheduleNote}` : scheduleNote}
+        autoAdvanceNote
+        footerExtra={cryptoDeployFooter}
       />,
     );
   };
 
   const renderStocksTab = () =>
     wrapTabBody(
-      <LevelsSplitShell
-        list={
-          <LevelsSymbolList
-            countLabel={
-              zoneFilter !== "all"
-                ? `${stockCount} match · ${zoneFilter === "bull" ? "bull + POC above" : "bear + POC below"}`
-                : stockQuery
-                  ? `${stockCount} matches`
-                  : `${stockCount} symbols`
-            }
-            header={stockSearchHeader}
-            entries={stockEntries}
-            activeIndex={stockCurrent}
-            onSelect={setStockSlide}
-            emptyMessage={
-              zoneFilter !== "all"
-                ? "No symbols match search and filter. Needs in-zone status, POC, and pin on the right side of spot."
-                : "No symbols match your search."
-            }
-          />
+      <LevelsSymbolList
+        countLabel={
+          zoneFilter !== "all"
+            ? `${stockCount} match · ${zoneFilter === "bull" ? "bull + POC above" : "bear + POC below"}`
+            : stockQuery
+              ? `${stockCount} matches`
+              : `${stockCount} symbols`
         }
-        chart={
-          <LevelsChartPanel
-            title={`${stockData?.label ?? activeStockSymbol ?? "Stock"} Market Levels`}
-            spot={stockData?.data?.spot ?? null}
-            currency="₹"
-            levels={stockData?.data ?? null}
-            loading={stockLoading}
-            emptyHint={stockFetchNote ?? undefined}
-            slideCount={stockCount}
-            activeIndex={stockCurrent}
-            onPrev={() => goStock(-1)}
-            onNext={() => goStock(1)}
-            onGoTo={setStockSlide}
-            refreshedLabel={
-              formatRefreshed(stockData?.data?.computedAt)
-                ? `Data refreshed ${formatRefreshed(stockData?.data?.computedAt)} · ${scheduleNote}`
-                : scheduleNote
-            }
-            autoAdvanceNote={false}
-          />
+        header={stockSearchHeader}
+        entries={stockEntries}
+        activeIndex={stockCurrent}
+        onSelect={setStockSlide}
+        emptyMessage={
+          zoneFilter !== "all"
+            ? "No symbols match search and filter. Needs in-zone status, POC, and pin on the right side of spot."
+            : "No symbols match your search."
         }
+      />,
+      <LevelsChartPanel
+        title={`${stockData?.label ?? activeStockSymbol ?? "Stock"} Market Levels`}
+        spot={stockData?.data?.spot ?? null}
+        currency="₹"
+        levels={stockData?.data ?? null}
+        loading={stockLoading}
+        emptyHint={stockFetchNote ?? undefined}
+        slideCount={stockCount}
+        activeIndex={stockCurrent}
+        onPrev={() => goStock(-1)}
+        onNext={() => goStock(1)}
+        onGoTo={setStockSlide}
+        refreshedLabel={
+          formatRefreshed(stockData?.data?.computedAt)
+            ? `Data refreshed ${formatRefreshed(stockData?.data?.computedAt)} · ${scheduleNote}`
+            : scheduleNote
+        }
+        autoAdvanceNote={false}
       />,
     );
 
@@ -655,21 +654,27 @@ export default function LevelsPage() {
     if (inZoneCount === 0) {
       const filteredEmpty = zoneFilter !== "all" && inZoneListSorted.length > 0;
       return wrapTabBody(
-        <>
-          <div className="shrink-0 px-1 max-w-md mx-auto w-full">{zoneFilterChips}</div>
-          <div className="flex flex-col items-center justify-center text-center py-12 gap-3 flex-1 px-6 min-h-0">
+        <div className="flex flex-col h-full min-h-0">
+          {zoneFilterChips}
+          <div className="flex flex-col items-center justify-center text-center py-8 gap-3 flex-1 px-2">
             <p className="text-sm" style={{ color: "#64748b" }}>
               {filteredEmpty
                 ? "No symbols match this filter right now."
                 : "No aligned setups right now."}
             </p>
-            <p className="text-xs max-w-sm leading-relaxed" style={{ color: "#475569" }}>
+            <p className="text-xs leading-relaxed" style={{ color: "#475569" }}>
               {filteredEmpty
                 ? "Try All aligned, or wait for price to sit in a band with max pain on the pull side."
                 : "Needs spot inside bull/bear band and max pain above (bull) or below (bear) spot."}
             </p>
           </div>
-        </>,
+        </div>,
+        <div
+          className="flex flex-1 items-center justify-center text-[11px] px-2 text-center"
+          style={{ color: "#64748b" }}
+        >
+          No levels to display
+        </div>,
       );
     }
 
@@ -677,39 +682,37 @@ export default function LevelsPage() {
     const refreshed = formatRefreshed(inZoneChartData?.computedAt);
 
     return wrapTabBody(
-      <LevelsSplitShell
-        list={
-          <LevelsSymbolList
-            countLabel={
-              zoneFilter === "all"
-                ? `${inZoneCount} aligned`
-                : `${inZoneCount} · ${zoneFilter === "bull" ? "bull + POC above" : "bear + POC below"}`
-            }
-            header={zoneFilterChips}
-            entries={inZoneEntries}
-            activeIndex={inZoneCurrent}
-            onSelect={setInZoneSlide}
-          />
+      <LevelsSymbolList
+        countLabel={
+          zoneFilter === "all"
+            ? `${inZoneCount} aligned`
+            : `${inZoneCount} · ${zoneFilter === "bull" ? "bull + POC above" : "bear + POC below"}`
         }
-        chart={
-          inZoneActive && (
-            <LevelsChartPanel
-              title={`${inZoneActive.label} Market Levels`}
-              spot={chartSpot}
-              currency={inZoneActive.currency}
-              levels={inZoneChartData}
-              loading={inZoneChartLoading}
-              slideCount={inZoneCount}
-              activeIndex={inZoneCurrent}
-              onPrev={() => goInZone(-1)}
-              onNext={() => goInZone(1)}
-              onGoTo={setInZoneSlide}
-              refreshedLabel={refreshed ? `Data refreshed ${refreshed}` : undefined}
-              autoAdvanceNote
-            />
-          )
-        }
+        header={zoneFilterChips}
+        entries={inZoneEntries}
+        activeIndex={inZoneCurrent}
+        onSelect={setInZoneSlide}
       />,
+      inZoneActive ? (
+        <LevelsChartPanel
+          title={`${inZoneActive.label} Market Levels`}
+          spot={chartSpot}
+          currency={inZoneActive.currency}
+          levels={inZoneChartData}
+          loading={inZoneChartLoading}
+          slideCount={inZoneCount}
+          activeIndex={inZoneCurrent}
+          onPrev={() => goInZone(-1)}
+          onNext={() => goInZone(1)}
+          onGoTo={setInZoneSlide}
+          refreshedLabel={refreshed ? `Data refreshed ${refreshed}` : undefined}
+          autoAdvanceNote
+        />
+      ) : (
+        <div className="flex flex-1 items-center justify-center text-xs" style={{ color: "#64748b" }}>
+          —
+        </div>
+      ),
     );
   };
 

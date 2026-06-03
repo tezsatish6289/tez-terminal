@@ -59,7 +59,7 @@ export function LevelsSymbolList({
   }
 
   return (
-    <aside className="flex flex-col min-h-0 w-full lg:w-[240px] lg:shrink-0 h-full">
+    <aside className="flex flex-col min-h-0 w-full h-full">
       {header}
       {countLabel && (
         <p
@@ -152,14 +152,14 @@ export function LevelsChartPanel({
   const hasBands = levels != null && (levels.bullLow != null || levels.bearLow != null);
 
   return (
-    <section className="flex flex-col flex-1 min-w-0 min-h-0 h-full lg:pl-1">
-      <div className="text-center mb-2 shrink-0">
-        <h2 className="text-sm sm:text-base font-black tracking-tight truncate px-2" style={{ color: "#f8fafc" }}>
+    <section className="flex flex-col flex-1 min-w-0 min-h-0 h-full overflow-hidden">
+      <div className="text-center mb-1.5 shrink-0 px-1">
+        <h2 className="text-xs font-black tracking-tight truncate" style={{ color: "#f8fafc" }}>
           {title}
         </h2>
         {spot != null && (
           <p
-            className="mt-0.5 text-xl sm:text-2xl font-black font-mono tabular-nums tracking-tight"
+            className="mt-0.5 text-lg font-black font-mono tabular-nums tracking-tight"
             style={{ color: "#fcd34d", textShadow: "0 0 16px rgba(251,191,36,0.25)" }}
           >
             {formatHeroPrice(spot, currency)}
@@ -167,7 +167,7 @@ export function LevelsChartPanel({
         )}
       </div>
 
-      <div className="relative flex-1 min-h-0 max-h-[min(36vh,320px)] flex flex-col justify-center px-1 sm:px-6">
+      <div className="relative flex-1 min-h-0 flex flex-col justify-center px-0.5">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-8 gap-2">
             <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
@@ -254,7 +254,47 @@ export function LevelsChartPanel({
   );
 }
 
-/** Two-column shell — fills remaining viewport height (one fold). */
+function ColumnDivider() {
+  return (
+    <div
+      className="hidden lg:block w-px shrink-0 self-stretch"
+      style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
+      aria-hidden
+    />
+  );
+}
+
+/** List (left) · levels ladder (center, narrow) · TradingView (right, flex). */
+export function LevelsTripleShell({
+  list,
+  levels,
+  chart,
+}: {
+  list: ReactNode;
+  levels: ReactNode;
+  chart: ReactNode;
+}) {
+  return (
+    <div
+      className="flex flex-col lg:flex-row flex-1 min-h-0 gap-3 lg:gap-0 lg:items-stretch pt-3 overflow-hidden"
+      style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
+    >
+      <div className="flex flex-col min-h-0 w-full lg:w-[200px] xl:w-[220px] shrink-0 max-h-[32vh] lg:max-h-none lg:h-full overflow-hidden">
+        {list}
+      </div>
+      <ColumnDivider />
+      <div className="flex flex-col min-h-0 w-full lg:w-[260px] xl:w-[280px] shrink-0 max-h-[40vh] lg:max-h-none lg:h-full overflow-hidden px-1">
+        {levels}
+      </div>
+      <ColumnDivider />
+      <div className="flex flex-col flex-1 min-w-0 min-h-[280px] lg:min-h-0 lg:h-full overflow-hidden pl-0 lg:pl-2">
+        {chart}
+      </div>
+    </div>
+  );
+}
+
+/** @deprecated Use LevelsTripleShell — kept for any external imports. */
 export function LevelsSplitShell({
   list,
   chart,
@@ -263,18 +303,15 @@ export function LevelsSplitShell({
   chart: ReactNode;
 }) {
   return (
-    <div
-      className="flex flex-col lg:flex-row flex-1 min-h-0 gap-5 lg:gap-8 lg:items-stretch pt-3"
-      style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
-    >
-      {list}
-      <div
-        className="hidden lg:block w-px shrink-0 self-stretch"
-        style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
-        aria-hidden
-      />
-      {chart}
-    </div>
+    <LevelsTripleShell
+      list={list}
+      levels={chart}
+      chart={
+        <div className="flex flex-1 items-center justify-center text-xs" style={{ color: "#64748b" }}>
+          Chart column unavailable
+        </div>
+      }
+    />
   );
 }
 

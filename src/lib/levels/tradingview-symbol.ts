@@ -3,7 +3,18 @@
  * Reuses the same BINANCE / NSE conventions as the signal chart page (`ChartPane`).
  */
 
+import type { IndexKey } from "@/lib/index-options-zones";
+
 export type LevelsTvScope = "index" | "crypto" | "stock";
+
+/** NSE internal keys → TradingView symbol (NSE: prefix added by ChartPane). */
+const NSE_INDEX_TV: Record<IndexKey, string> = {
+  NIFTY: "NIFTY",
+  BANKNIFTY: "BANKNIFTY",
+  FINNIFTY: "FINNIFTY",
+  MIDCPNIFTY: "NIFTY_MID_SELECT",
+  NIFTYNXT50: "NIFTY_NEXT_50",
+};
 
 const CRYPTO_TV: Record<string, { exchange: string; symbol: string }> = {
   btc: { exchange: "BINANCE", symbol: "BTCUSDT" },
@@ -32,7 +43,13 @@ export function levelsTradingViewParams(
     };
   }
 
-  if (scope === "index" || scope === "stock") {
+  if (scope === "index") {
+    const tv =
+      NSE_INDEX_TV[key.toUpperCase() as IndexKey] ?? key.toUpperCase();
+    return { exchange: "NSE", symbol: tv, interval: LEVELS_TV_INTERVAL };
+  }
+
+  if (scope === "stock") {
     return {
       exchange: "NSE",
       symbol: key.toUpperCase(),

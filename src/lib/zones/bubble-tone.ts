@@ -78,9 +78,9 @@ export const BUBBLE_TONE_STYLE: Record<BubbleTone, BubbleToneStyle> = {
   },
   UNSCANNED: {
     solid: false,
-    fill: "rgba(15, 23, 42, 0.4)",
+    fill: "rgba(51, 65, 85, 0.42)",
     glow: "none",
-    border: "rgba(251, 191, 36, 0.55)",
+    border: "rgba(148, 163, 184, 0.5)",
     borderStyle: "dashed",
     borderWidth: 2,
     label: "Awaiting scan",

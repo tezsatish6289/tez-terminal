@@ -85,7 +85,7 @@ const TAB_COPY: Record<TabKey, { title: string; subtitle: string }> = {
   bubbles: {
     title: "Market Bubbles",
     subtitle:
-      "Solid green/red = in zone · dashed lime/orange ring = near zone · amber dashed = not scanned this cycle yet.",
+      "Solid green/red = in zone · dashed lime/orange ring = near zone · grey dashed ring = not scanned yet.",
   },
   indices: {
     title: "NSE Indices",
@@ -258,7 +258,7 @@ export default function LevelsPage() {
     const runs = Math.ceil(total / batch);
     return (
       `F&O levels refresh in a round-robin on the Auto Zones cron (~${batch} stocks per 5–15 min run during NSE hours, ~${runs} runs for a full sweep). ` +
-      `${scanned} of ${total} are in the database so far — amber = not reached yet. Dedicated URL: /api/cron/suggest-stock-zones.`
+      `${scanned} of ${total} are in the database so far — grey dashed = not reached yet.`
     );
   }, [payload?.stocks]);
 

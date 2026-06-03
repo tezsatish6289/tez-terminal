@@ -234,6 +234,7 @@ export async function GET(request: NextRequest) {
       label: e.label ?? e.symbol,
       status: e.status,
       spot: e.spot ?? null,
+      maxPain: num(e.maxPain),
     }))
     .sort((a, b) => a.symbol.localeCompare(b.symbol));
 

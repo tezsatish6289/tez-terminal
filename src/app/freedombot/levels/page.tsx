@@ -16,7 +16,11 @@ import {
 } from "@/components/levels/LevelsSplitLayout";
 import { freedombotHomePath } from "@/lib/freedombot/dashboard-path";
 import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
-import type { ZoneStatus } from "@/lib/zones/zone-status";
+import {
+  matchesPocDirectionFilter,
+  type PocDirectionFilter,
+  type ZoneStatus,
+} from "@/lib/zones/zone-status";
 
 interface RawItem {
   symbol?: string;
@@ -30,6 +34,7 @@ interface StockListItem {
   label: string;
   status: ZoneStatus;
   spot: number | null;
+  maxPain: number | null;
 }
 
 interface InZoneItem {
@@ -123,6 +128,7 @@ export default function LevelsPage() {
   const [inZoneChartLoading, setInZoneChartLoading] = useState(false);
 
   const [stockQuery, setStockQuery] = useState("");
+  const [zoneFilter, setZoneFilter] = useState<PocDirectionFilter>("all");
   const [stockSlide, setStockSlide] = useState(0);
   const [stockData, setStockData] = useState<{ label: string; data: PublicLevels | null } | null>(null);
   const [stockLoading, setStockLoading] = useState(false);
@@ -181,6 +187,7 @@ export default function LevelsPage() {
     setInZoneSlide(0);
     setStockSlide(0);
     setStockQuery("");
+    setZoneFilter("all");
   };
 
   const indexEntries: LevelsListEntry[] = useMemo(
@@ -217,6 +224,16 @@ export default function LevelsPage() {
     [payload?.inZone],
   );
 
+  const inZoneListFiltered = useMemo(
+    () =>
+      inZoneListSorted.filter((it) => {
+        const poc = it.data?.poc ?? null;
+        const spot = it.spot ?? it.data?.spot ?? null;
+        return matchesPocDirectionFilter(it.status, spot, poc, zoneFilter);
+      }),
+    [inZoneListSorted, zoneFilter],
+  );
+
   /** Carousel order matches alphabetical left rail. */
   const carouselList = tab === "indices" ? indexEntries : tab === "crypto" ? cryptoEntries : [];
   const carouselCount = carouselList.length;
@@ -230,15 +247,28 @@ export default function LevelsPage() {
       : null;
   const carouselCurrency = tab === "crypto" ? "$" : "₹";
 
-  const inZoneCount = inZoneListSorted.length;
+  const inZoneCount = inZoneListFiltered.length;
   const inZoneCurrent = inZoneCount > 0 ? Math.min(inZoneSlide, inZoneCount - 1) : 0;
-  const inZoneActive = inZoneCount > 0 ? inZoneListSorted[inZoneCurrent] : null;
+  const inZoneActive = inZoneCount > 0 ? inZoneListFiltered[inZoneCurrent] : null;
+
+  const stockMetaBySymbol = useMemo(() => {
+    const m = new Map<string, { status: ZoneStatus; spot: number | null; poc: number | null }>();
+    for (const s of payload?.stocks ?? []) {
+      m.set(s.symbol, { status: s.status, spot: s.spot, poc: s.maxPain });
+    }
+    return m;
+  }, [payload?.stocks]);
 
   const filteredStocks = useMemo(() => {
     const q = stockQuery.trim().toUpperCase();
-    if (!q) return FNO_UNIVERSE_ALPHA.slice();
-    return FNO_UNIVERSE_ALPHA.filter((s) => s.includes(q));
-  }, [stockQuery]);
+    let list = !q ? FNO_UNIVERSE_ALPHA.slice() : FNO_UNIVERSE_ALPHA.filter((s) => s.includes(q));
+    if (zoneFilter === "all") return list;
+    return list.filter((sym) => {
+      const meta = stockMetaBySymbol.get(sym);
+      if (!meta) return false;
+      return matchesPocDirectionFilter(meta.status, meta.spot, meta.poc, zoneFilter);
+    });
+  }, [stockQuery, zoneFilter, stockMetaBySymbol]);
 
   const stockCount = filteredStocks.length;
   const stockCurrent = stockCount > 0 ? Math.min(stockSlide, stockCount - 1) : 0;
@@ -359,7 +389,7 @@ export default function LevelsPage() {
 
   const inZoneEntries: LevelsListEntry[] = useMemo(
     () =>
-      inZoneListSorted.map((it) => ({
+      inZoneListFiltered.map((it) => ({
         id: `${it.scope}-${it.symbol}`,
         label: it.label,
         sublabel: it.scope === "index" ? "Index" : it.scope === "crypto" ? "Crypto" : "Stock",
@@ -367,26 +397,75 @@ export default function LevelsPage() {
         currency: it.currency,
         trailing: <StatusBadge status={it.status} />,
       })),
-    [inZoneListSorted],
+    [inZoneListFiltered],
+  );
+
+  const zoneFilterChips = (
+    <div className="flex flex-wrap gap-1.5 mb-3 shrink-0">
+      {([
+        { key: "all" as PocDirectionFilter, label: "All" },
+        { key: "bull" as PocDirectionFilter, label: "In bull · POC above" },
+        { key: "bear" as PocDirectionFilter, label: "In bear · POC below" },
+      ]).map(({ key, label }) => {
+        const active = zoneFilter === key;
+        const bull = key === "bull";
+        const bear = key === "bear";
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => {
+              setZoneFilter(key);
+              setStockSlide(0);
+              setInZoneSlide(0);
+            }}
+            className="px-2.5 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-bold uppercase tracking-wide transition-all"
+            style={
+              active
+                ? {
+                    backgroundColor: bull
+                      ? "rgba(16,185,129,0.22)"
+                      : bear
+                        ? "rgba(239,68,68,0.22)"
+                        : "rgba(37,99,235,0.28)",
+                    color: bull ? "#6ee7b7" : bear ? "#fca5a5" : "#e2e8f0",
+                    border: `1px solid ${bull ? "rgba(52,211,153,0.45)" : bear ? "rgba(248,113,113,0.45)" : "rgba(96,165,250,0.4)"}`,
+                  }
+                : {
+                    backgroundColor: "rgba(0,0,0,0.25)",
+                    color: "#64748b",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                  }
+            }
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
   );
 
   const stockSearchHeader = (
+    <div className="shrink-0">
+      {zoneFilterChips}
+      <div className="relative">
     <div className="relative mb-4 shrink-0">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: "#475569" }} />
-      <input
-        value={stockQuery}
-        onChange={(e) => {
-          setStockQuery(e.target.value);
-          setStockSlide(0);
-        }}
-        placeholder="Search symbol…"
-        className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm outline-none"
-        style={{
-          backgroundColor: "rgba(0,0,0,0.35)",
-          border: "1px solid rgba(255,255,255,0.07)",
-          color: "#e2e8f0",
-        }}
-      />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: "#475569" }} />
+        <input
+          value={stockQuery}
+          onChange={(e) => {
+            setStockQuery(e.target.value);
+            setStockSlide(0);
+          }}
+          placeholder="Search symbol…"
+          className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm outline-none"
+          style={{
+            backgroundColor: "rgba(0,0,0,0.35)",
+            border: "1px solid rgba(255,255,255,0.07)",
+            color: "#e2e8f0",
+          }}
+        />
+      </div>
     </div>
   );
 
@@ -466,12 +545,22 @@ export default function LevelsPage() {
       <LevelsSplitShell
         list={
           <LevelsSymbolList
-            countLabel={stockQuery ? `${stockCount} matches` : `${stockCount} symbols`}
+            countLabel={
+              zoneFilter !== "all"
+                ? `${stockCount} match · ${zoneFilter === "bull" ? "bull + POC above" : "bear + POC below"}`
+                : stockQuery
+                  ? `${stockCount} matches`
+                  : `${stockCount} symbols`
+            }
             header={stockSearchHeader}
             entries={stockEntries}
             activeIndex={stockCurrent}
             onSelect={setStockSlide}
-            emptyMessage="No symbols match your search."
+            emptyMessage={
+              zoneFilter !== "all"
+                ? "No symbols match search and filter. Needs in-zone status, POC, and pin on the right side of spot."
+                : "No symbols match your search."
+            }
           />
         }
         chart={
@@ -502,15 +591,23 @@ export default function LevelsPage() {
 
   const renderInZoneTab = () => {
     if (inZoneCount === 0) {
+      const filteredEmpty = zoneFilter !== "all" && inZoneListSorted.length > 0;
       return (
-        <div className="flex flex-col items-center justify-center text-center py-12 gap-3 flex-1 px-6 min-h-0">
-          <p className="text-sm" style={{ color: "#64748b" }}>
-            Nothing in a zone right now.
-          </p>
-          <p className="text-xs max-w-sm leading-relaxed" style={{ color: "#475569" }}>
-            The screener updates as markets move. Check back during the session.
-          </p>
-          <LevelsDisclaimer />
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="shrink-0 px-1 max-w-md mx-auto w-full">{zoneFilterChips}</div>
+          <div className="flex flex-col items-center justify-center text-center py-12 gap-3 flex-1 px-6 min-h-0">
+            <p className="text-sm" style={{ color: "#64748b" }}>
+              {filteredEmpty
+                ? "No symbols match this filter right now."
+                : "Nothing in a zone right now."}
+            </p>
+            <p className="text-xs max-w-sm leading-relaxed" style={{ color: "#475569" }}>
+              {filteredEmpty
+                ? "Try All, or wait for price and max pain to align with the bull/bear band."
+                : "The screener updates as markets move. Check back during the session."}
+            </p>
+            <LevelsDisclaimer />
+          </div>
         </div>
       );
     }
@@ -523,7 +620,12 @@ export default function LevelsPage() {
         <LevelsSplitShell
           list={
             <LevelsSymbolList
-              countLabel={`${inZoneCount} in zone`}
+              countLabel={
+                zoneFilter === "all"
+                  ? `${inZoneCount} in zone`
+                  : `${inZoneCount} match · ${zoneFilter === "bull" ? "bull + POC above" : "bear + POC below"}`
+              }
+              header={zoneFilterChips}
               entries={inZoneEntries}
               activeIndex={inZoneCurrent}
               onSelect={setInZoneSlide}

@@ -34,6 +34,8 @@ interface ApiCandle {
 const POLL_MS = 60_000;
 /** Empty bars on the right so candles sit left of zone price labels. */
 const RIGHT_OFFSET_BARS = 18;
+/** Default zoom: ~5 NSE sessions visible (15m ≈ 25 bars/day). */
+const DEFAULT_VISIBLE_BARS = 125;
 
 const BULL_BAND_STYLE = {
   lineVisible: false,
@@ -107,6 +109,15 @@ export function NativeCandlesChart({
       chartRef.current?.timeScale().applyOptions({ rightOffset: RIGHT_OFFSET_BARS });
       chartRef.current?.timeScale().scrollToRealTime();
     });
+  }
+
+  /** Show recent sessions by default; older history available on scroll-left. */
+  function applyDefaultZoom(barCount: number) {
+    const ts = chartRef.current?.timeScale();
+    if (!ts || barCount < 2) return;
+    const from = Math.max(0, barCount - DEFAULT_VISIBLE_BARS);
+    ts.setVisibleLogicalRange({ from, to: barCount - 1 + RIGHT_OFFSET_BARS });
+    ts.applyOptions({ rightOffset: RIGHT_OFFSET_BARS });
   }
 
   function fitPriceScale() {
@@ -264,7 +275,8 @@ export function NativeCandlesChart({
           syncZoneBands(data, levelsRef.current);
           applyLevelPriceLines(series, priceLinesRef, levelsRef.current);
           fitPriceScale();
-          applyRightPadding();
+          if (!isPoll) applyDefaultZoom(data.length);
+          else applyRightPadding();
           hasDisplayedCandlesRef.current = true;
           setError(null);
           setSwapping(false);

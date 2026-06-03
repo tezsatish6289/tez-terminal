@@ -14,7 +14,9 @@ import { getAdminFirestore } from "@/firebase/admin";
 import { ensureValidToken } from "@/lib/dhan-token";
 
 const DHAN_BASE_URL = "https://api.dhan.co/v2";
-const DHAN_TIMEOUT_MS = 8000;
+const DHAN_TIMEOUT_MS = 12_000;
+/** Calendar days of intraday history per Dhan request (API allows much more). */
+export const INTRADAY_LOOKBACK_DAYS = 30;
 
 /** One bar for lightweight-charts (time in epoch seconds, UTC). */
 export interface Candle {
@@ -102,9 +104,8 @@ async function fetchDhanIntraday(
   const creds = await ensureValidToken();
   if (!creds) throw new Error("Dhan token unavailable");
 
-  // ~7 calendar days back gives a few sessions of intraday context.
   const to = new Date();
-  const from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const from = new Date(to.getTime() - INTRADAY_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), DHAN_TIMEOUT_MS);

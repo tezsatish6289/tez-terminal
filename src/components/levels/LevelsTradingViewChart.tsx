@@ -28,6 +28,9 @@ export function LevelsTradingViewChart({
 }) {
   const [mounted, setMounted] = useState(false);
   const [proxySrc, setProxySrc] = useState<string | null>(null);
+  const [chartFading, setChartFading] = useState(false);
+
+  const chartKey = `${config.exchange}:${config.symbol}:${config.interval}:${config.nativeCandles ? "native" : "tv"}`;
 
   useEffect(() => {
     setMounted(true);
@@ -43,6 +46,12 @@ export function LevelsTradingViewChart({
       }),
     );
   }, [config]);
+
+  useEffect(() => {
+    setChartFading(true);
+    const id = window.setTimeout(() => setChartFading(false), 320);
+    return () => window.clearTimeout(id);
+  }, [chartKey]);
 
   const showProxy = mounted && proxySrc;
 
@@ -81,10 +90,11 @@ export function LevelsTradingViewChart({
         </div>
       </div>
       <div
-        className="flex-1 min-h-0 w-full rounded-xl overflow-hidden"
+        className="flex-1 min-h-0 w-full rounded-xl overflow-hidden transition-opacity duration-300 ease-in-out"
         style={{
           border: "1px solid rgba(255,255,255,0.08)",
           backgroundColor: "rgba(0,0,0,0.45)",
+          opacity: chartFading ? 0.38 : 1,
         }}
       >
         {!mounted ? (
@@ -100,7 +110,7 @@ export function LevelsTradingViewChart({
           />
         ) : showProxy ? (
           <iframe
-            key={proxySrc}
+            key={chartKey}
             title={`Chart ${config.fullSymbol}`}
             src={proxySrc}
             className="w-full h-full border-none"

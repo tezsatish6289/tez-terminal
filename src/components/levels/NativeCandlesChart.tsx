@@ -87,7 +87,9 @@ export function NativeCandlesChart({
   const candlesRef = useRef<CandlestickData[]>([]);
   const levelsRef = useRef<PublicLevels | null | undefined>(levels);
 
-  const [loading, setLoading] = useState(true);
+  const hasDisplayedCandlesRef = useRef(false);
+  const [bootLoading, setBootLoading] = useState(true);
+  const [swapping, setSwapping] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   levelsRef.current = levels;
@@ -221,10 +223,13 @@ export function NativeCandlesChart({
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;
 
-    async function load(initial: boolean) {
-      if (initial) {
-        setLoading(true);
+    async function load(isPoll: boolean) {
+      const isBoot = !hasDisplayedCandlesRef.current;
+      if (isBoot) {
+        setBootLoading(true);
         setError(null);
+      } else if (!isPoll) {
+        setSwapping(true);
       }
       try {
         const res = await fetch(
@@ -234,7 +239,8 @@ export function NativeCandlesChart({
         const json = (await res.json()) as { ok: boolean; candles?: ApiCandle[]; error?: string };
         if (cancelled) return;
         if (!json.ok || !json.candles?.length) {
-          if (initial) setError(json.error ?? "No chart data available");
+          if (isBoot) setError(json.error ?? "No chart data available");
+          else setSwapping(false);
           return;
         }
         const data: CandlestickData[] = json.candles.map((c) => ({
@@ -245,53 +251,69 @@ export function NativeCandlesChart({
           close: c.close,
         }));
         candlesRef.current = data;
-        seriesRef.current?.setData(data);
-        syncZoneBands(data, levelsRef.current);
-        applyLevelPriceLines(seriesRef.current!, priceLinesRef, levelsRef.current);
-        fitPriceScale();
-        applyRightPadding();
-        setError(null);
+        const series = seriesRef.current;
+        if (!series) return;
+
+        requestAnimationFrame(() => {
+          if (cancelled) return;
+          series.setData(data);
+          syncZoneBands(data, levelsRef.current);
+          applyLevelPriceLines(series, priceLinesRef, levelsRef.current);
+          fitPriceScale();
+          applyRightPadding();
+          hasDisplayedCandlesRef.current = true;
+          setError(null);
+          setSwapping(false);
+          setBootLoading(false);
+        });
       } catch (e) {
-        if (!cancelled && initial) {
+        if (!cancelled && isBoot) {
           setError(e instanceof Error ? e.message : "Failed to load chart");
+          setBootLoading(false);
         }
-      } finally {
-        if (!cancelled && initial) setLoading(false);
+        if (!cancelled && !isPoll) setSwapping(false);
       }
     }
 
-    load(true);
-    timer = setInterval(() => load(false), POLL_MS);
+    load(false);
+    timer = setInterval(() => load(true), POLL_MS);
 
     return () => {
       cancelled = true;
+      setSwapping(false);
       if (timer) clearInterval(timer);
     };
   }, [symbol, interval]);
 
-  // Zone bands, lines, and vertical fit when levels change.
+  // Zone bands, lines, and vertical fit when levels arrive (same symbol).
   useEffect(() => {
     const series = seriesRef.current;
-    if (!series) return;
+    if (!series || candlesRef.current.length === 0) return;
 
     syncZoneBands(candlesRef.current, levels);
     applyLevelPriceLines(series, priceLinesRef, levels);
     fitPriceScale();
     applyRightPadding();
-  }, [levels, symbol]);
+  }, [levels]);
+
+  const showBootOverlay = bootLoading || (levelsLoading && !hasDisplayedCandlesRef.current);
 
   return (
     <div className="relative w-full h-full min-h-[260px]">
-      <div ref={containerRef} className="absolute inset-0" />
-      {(loading || levelsLoading) && (
+      <div
+        ref={containerRef}
+        className="absolute inset-0 transition-opacity duration-300 ease-in-out"
+        style={{ opacity: swapping ? 0.38 : 1 }}
+      />
+      {showBootOverlay && (
         <div className="absolute inset-0 flex items-center justify-center gap-2" style={{ color: "#64748b" }}>
           <Loader2 className="h-4 w-4 animate-spin" />
           <span className="text-xs">
-            {levelsLoading && !loading ? `Loading ${symbol} levels…` : `Loading ${symbol} candles…`}
+            {levelsLoading && !bootLoading ? `Loading ${symbol} levels…` : `Loading ${symbol} candles…`}
           </span>
         </div>
       )}
-      {!loading && error && (
+      {!bootLoading && error && (
         <div className="absolute inset-0 flex items-center justify-center px-4 text-center" style={{ color: "#64748b" }}>
           <p className="text-xs">{error}</p>
         </div>

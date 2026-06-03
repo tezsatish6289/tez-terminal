@@ -17,6 +17,8 @@ export interface LevelsTvConfig {
   webChartUrl: string;
   /** NSE/BSE/MCX — on freedombot.ai load chart via tezterminal.com embed proxy. */
   indianMarket: boolean;
+  /** NSE stock — render native Dhan candles (TradingView blocks NSE equity data). */
+  nativeCandles: boolean;
 }
 
 const CRYPTO_TV: Record<string, { exchange: string; symbol: string }> = {
@@ -73,6 +75,7 @@ export function levelsTradingViewParams(
       fullSymbol: full,
       webChartUrl: webChartUrl(full, LEVELS_TV_INTERVAL),
       indianMarket: false,
+      nativeCandles: false,
     };
   }
 
@@ -88,6 +91,7 @@ export function levelsTradingViewParams(
       fullSymbol: full,
       webChartUrl: webChartUrl(full, LEVELS_TV_INTERVAL),
       indianMarket: true,
+      nativeCandles: false,
     };
   }
 
@@ -102,6 +106,7 @@ export function levelsTradingViewParams(
       fullSymbol: full,
       webChartUrl: webChartUrl(fullSymbol("NSE", sym), LEVELS_TV_INTERVAL),
       indianMarket: true,
+      nativeCandles: true,
     };
   }
 

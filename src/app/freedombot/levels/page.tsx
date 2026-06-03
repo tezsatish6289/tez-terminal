@@ -332,11 +332,18 @@ export default function LevelsPage() {
     return null;
   }, [tab, carouselItem, carouselEntry, activeStockSymbol, inZoneActive]);
 
+  const activeChartLevels = useMemo<PublicLevels | null>(() => {
+    if (tab === "stocks") return stockData?.data ?? null;
+    if (tab === "inzone" && inZoneActive?.scope === "stock") return inZoneChartData;
+    return null;
+  }, [tab, stockData, inZoneActive, inZoneChartData]);
+
   const tvChartColumn =
     activeTv != null ? (
       <LevelsTradingViewChart
         config={activeTv}
         title={`5m · ${activeTv.fullSymbol}`}
+        levels={activeChartLevels}
       />
     ) : (
       <div

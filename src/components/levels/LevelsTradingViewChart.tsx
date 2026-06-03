@@ -3,26 +3,30 @@
 import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { ChartPane } from "@/components/dashboard/ChartPane";
+import { NativeCandlesChart } from "@/components/levels/NativeCandlesChart";
+import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import type { LevelsTvConfig } from "@/lib/levels/tradingview-symbol";
 import { levelsIndianChartProxySrc } from "@/lib/tradingview-symbol";
 
 /**
- * India charts on freedombot.ai load via tezterminal.com/embed/chart (TV allowlist).
- * Avoid SSR/client hydration mismatch — resolve iframe src after mount only.
+ * NSE stocks → native Dhan candlestick chart (TradingView blocks NSE equity data).
+ * Indices → tezterminal.com/embed/chart proxy. Crypto → ChartPane inline.
  */
 export function LevelsTradingViewChart({
   config,
   title,
+  levels,
 }: {
   config: LevelsTvConfig;
   title?: string;
+  levels?: PublicLevels | null;
 }) {
   const [mounted, setMounted] = useState(false);
   const [proxySrc, setProxySrc] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
-    if (!config.indianMarket) {
+    if (!config.indianMarket || config.nativeCandles) {
       setProxySrc(null);
       return;
     }
@@ -70,6 +74,12 @@ export function LevelsTradingViewChart({
           <div className="w-full h-full flex items-center justify-center" style={{ color: "#64748b" }}>
             <p className="text-xs">Loading chart…</p>
           </div>
+        ) : config.nativeCandles ? (
+          <NativeCandlesChart
+            symbol={config.symbol}
+            interval={config.interval}
+            levels={levels}
+          />
         ) : showProxy ? (
           <iframe
             key={proxySrc}

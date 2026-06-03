@@ -49,6 +49,7 @@
     "firebase": "^11.9.1",
     "firebase-admin": "^13.7.0",
     "genkit": "^1.28.0",
+    "lightweight-charts": "^5.2.0",
     "lucide-react": "^0.475.0",
     "next": "15.5.9",
     "patch-package": "^8.0.0",

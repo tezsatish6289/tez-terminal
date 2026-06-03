@@ -449,7 +449,6 @@ export default function LevelsPage() {
     <div className="shrink-0">
       {zoneFilterChips}
       <div className="relative">
-    <div className="relative mb-4 shrink-0">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: "#475569" }} />
         <input
           value={stockQuery}

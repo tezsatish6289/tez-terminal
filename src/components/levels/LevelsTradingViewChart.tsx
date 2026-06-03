@@ -14,12 +14,17 @@ import { levelsIndianChartProxySrc } from "@/lib/tradingview-symbol";
  */
 export function LevelsTradingViewChart({
   config,
+  assetName,
   title,
   levels,
+  loading,
 }: {
   config: LevelsTvConfig;
+  /** Prominent symbol label above the chart (e.g. CROMPTON). */
+  assetName?: string;
   title?: string;
   levels?: PublicLevels | null;
+  loading?: boolean;
 }) {
   const [mounted, setMounted] = useState(false);
   const [proxySrc, setProxySrc] = useState<string | null>(null);
@@ -41,27 +46,39 @@ export function LevelsTradingViewChart({
 
   const showProxy = mounted && proxySrc;
 
+  const headline = assetName?.trim() || config.symbol;
+
   return (
     <section className="flex flex-col min-h-0 h-full w-full">
-      <div className="flex items-center justify-between gap-2 shrink-0 py-1.5">
-        {title && (
-          <p
-            className="text-[9px] font-black uppercase tracking-[0.14em] truncate min-w-0"
-            style={{ color: "#64748b" }}
-          >
-            {title}
-          </p>
-        )}
-        <a
-          href={config.webChartUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide shrink-0 hover:underline"
-          style={{ color: "#93c5fd" }}
+      <div className="shrink-0 pb-2">
+        <h2
+          className="text-base sm:text-lg font-black tracking-tight truncate"
+          style={{ color: "#f8fafc" }}
         >
-          <ExternalLink className="h-3 w-3" />
-          Open on TV
-        </a>
+          {headline}
+        </h2>
+        <div className="flex items-center justify-between gap-2 mt-0.5">
+          {title ? (
+            <p
+              className="text-[9px] font-black uppercase tracking-[0.14em] truncate min-w-0"
+              style={{ color: "#64748b" }}
+            >
+              {title}
+            </p>
+          ) : (
+            <span />
+          )}
+          <a
+            href={config.webChartUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide shrink-0 hover:underline"
+            style={{ color: "#93c5fd" }}
+          >
+            <ExternalLink className="h-3 w-3" />
+            Open on TV
+          </a>
+        </div>
       </div>
       <div
         className="flex-1 min-h-0 w-full rounded-xl overflow-hidden"
@@ -79,6 +96,7 @@ export function LevelsTradingViewChart({
             symbol={config.symbol}
             interval={config.interval}
             levels={levels}
+            loading={loading}
           />
         ) : showProxy ? (
           <iframe

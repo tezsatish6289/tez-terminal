@@ -267,15 +267,62 @@ function ColumnDivider() {
   );
 }
 
-/** List | levels ladder | TradingView — one row, full viewport height. */
+/** Compact footer when the middle levels ladder is hidden (zones drawn on chart). */
+export function LevelsChartMetaFooter({
+  slideCount,
+  activeIndex,
+  onGoTo,
+  refreshedLabel,
+  autoAdvanceNote,
+}: {
+  slideCount: number;
+  activeIndex: number;
+  onGoTo: (index: number) => void;
+  refreshedLabel?: string | null;
+  autoAdvanceNote?: boolean;
+}) {
+  if (slideCount <= 1 && !refreshedLabel) return null;
+  return (
+    <div className="mt-2 shrink-0 text-center space-y-1.5">
+      {slideCount > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          {Array.from({ length: slideCount }, (_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onGoTo(i)}
+              aria-label={`Slide ${i + 1}`}
+              className="h-1 rounded-full transition-all"
+              style={{
+                width: i === activeIndex ? 22 : 6,
+                backgroundColor: i === activeIndex ? "#3b82f6" : "rgba(255,255,255,0.12)",
+              }}
+            />
+          ))}
+        </div>
+      )}
+      {refreshedLabel && (
+        <p className="text-[10px] leading-snug" style={{ color: "#64748b" }}>
+          {refreshedLabel}
+          {autoAdvanceNote && slideCount > 1 ? " · 8s" : ""}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** List | levels ladder | chart — or list | chart when zones are on the chart. */
 export function LevelsTripleColumnShell({
   list,
   levels,
   chart,
+  hideLevelsColumn = false,
 }: {
   list: ReactNode;
   levels: ReactNode;
   chart: ReactNode;
+  /** Native chart already draws POC / bull / bear — drop the center ladder. */
+  hideLevelsColumn?: boolean;
 }) {
   return (
     <div
@@ -286,10 +333,14 @@ export function LevelsTripleColumnShell({
         {list}
       </div>
       <ColumnDivider />
-      <div className="flex flex-col min-h-0 w-full lg:w-[min(300px,28vw)] lg:shrink-0 lg:max-w-[340px]">
-        {levels}
-      </div>
-      <ColumnDivider />
+      {!hideLevelsColumn && (
+        <>
+          <div className="flex flex-col min-h-0 w-full lg:w-[min(300px,28vw)] lg:shrink-0 lg:max-w-[340px]">
+            {levels}
+          </div>
+          <ColumnDivider />
+        </>
+      )}
       <div className="flex flex-col flex-1 min-w-0 min-h-[280px] lg:min-h-0 h-full">
         {chart}
       </div>

@@ -10,6 +10,7 @@ import {
   LevelsDisclaimer,
   LevelsPageHeader,
   LevelsTripleColumnShell,
+  LevelsChartMetaFooter,
   LevelsSymbolList,
   sortEntriesAlpha,
   type LevelsListEntry,
@@ -125,6 +126,10 @@ function StatusBadge({ status }: { status: ZoneStatus }) {
       {m.label}
     </span>
   );
+}
+
+function levelsHaveBands(data: PublicLevels | null | undefined): boolean {
+  return data != null && (data.bullLow != null || data.bearLow != null);
 }
 
 function formatRefreshed(computedAt: string | null | undefined): string | null {
@@ -338,12 +343,27 @@ export default function LevelsPage() {
     return null;
   }, [tab, stockData, inZoneActive, inZoneChartData]);
 
+  const chartShowsZones = Boolean(activeTv?.nativeCandles && levelsHaveBands(activeChartLevels));
+
+  const activeAssetName = useMemo(() => {
+    if (tab === "stocks") return stockData?.label ?? activeStockSymbol ?? null;
+    if (tab === "inzone" && inZoneActive) return inZoneActive.label;
+    if ((tab === "indices" || tab === "crypto") && carouselItem) return carouselItem.label;
+    return null;
+  }, [tab, stockData, activeStockSymbol, inZoneActive, carouselItem]);
+
+  const chartLevelsLoading =
+    (tab === "stocks" && stockLoading) ||
+    (tab === "inzone" && inZoneChartLoading && inZoneActive?.scope === "stock");
+
   const tvChartColumn =
     activeTv != null ? (
       <LevelsTradingViewChart
         config={activeTv}
+        assetName={activeAssetName ?? undefined}
         title={`5m · ${activeTv.fullSymbol}`}
         levels={activeChartLevels}
+        loading={chartLevelsLoading}
       />
     ) : (
       <div
@@ -358,9 +378,23 @@ export default function LevelsPage() {
     list: ReactNode,
     levels: ReactNode,
     disclaimerSchedule?: string,
+    opts?: {
+      hideLevelsColumn?: boolean;
+      chartFooter?: ReactNode;
+    },
   ) => (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-      <LevelsTripleColumnShell list={list} levels={levels} chart={tvChartColumn} />
+      <LevelsTripleColumnShell
+        list={list}
+        levels={levels}
+        hideLevelsColumn={opts?.hideLevelsColumn ?? chartShowsZones}
+        chart={
+          <div className="flex flex-col flex-1 min-h-0 min-w-0">
+            {tvChartColumn}
+            {opts?.chartFooter}
+          </div>
+        }
+      />
       <LevelsDisclaimer scheduleNote={disclaimerSchedule ?? scheduleNote} />
     </div>
   );
@@ -617,8 +651,9 @@ export default function LevelsPage() {
     );
   };
 
-  const renderStocksTab = () =>
-    wrapTabBody(
+  const renderStocksTab = () => {
+    const stockRefreshed = formatRefreshed(stockData?.data?.computedAt);
+    return wrapTabBody(
       <LevelsSymbolList
         countLabel={
           zoneFilter !== "all"
@@ -637,27 +672,46 @@ export default function LevelsPage() {
             : "No symbols match your search."
         }
       />,
-      <LevelsChartPanel
-        title={`${stockData?.label ?? activeStockSymbol ?? "Stock"} Market Levels`}
-        spot={stockData?.data?.spot ?? null}
-        currency="₹"
-        levels={stockData?.data ?? null}
-        loading={stockLoading}
-        emptyHint={stockFetchNote ?? undefined}
-        slideCount={stockCount}
-        activeIndex={stockCurrent}
-        onPrev={() => goStock(-1)}
-        onNext={() => goStock(1)}
-        onGoTo={setStockSlide}
-        refreshedLabel={
-          formatRefreshed(stockData?.data?.computedAt)
-            ? `Data refreshed ${formatRefreshed(stockData?.data?.computedAt)} · ${scheduleNote}`
-            : scheduleNote
-        }
-        autoAdvanceNote={false}
-        showCarouselArrows={false}
-      />,
+      chartShowsZones ? (
+        <></>
+      ) : (
+        <LevelsChartPanel
+          title={`${stockData?.label ?? activeStockSymbol ?? "Stock"} Market Levels`}
+          spot={stockData?.data?.spot ?? null}
+          currency="₹"
+          levels={stockData?.data ?? null}
+          loading={stockLoading}
+          emptyHint={stockFetchNote ?? undefined}
+          slideCount={stockCount}
+          activeIndex={stockCurrent}
+          onPrev={() => goStock(-1)}
+          onNext={() => goStock(1)}
+          onGoTo={setStockSlide}
+          refreshedLabel={
+            stockRefreshed ? `Data refreshed ${stockRefreshed} · ${scheduleNote}` : scheduleNote
+          }
+          autoAdvanceNote={false}
+          showCarouselArrows={false}
+        />
+      ),
+      undefined,
+      chartShowsZones
+        ? {
+            hideLevelsColumn: true,
+            chartFooter: (
+              <LevelsChartMetaFooter
+                slideCount={stockCount}
+                activeIndex={stockCurrent}
+                onGoTo={setStockSlide}
+                refreshedLabel={
+                  stockRefreshed ? `Data refreshed ${stockRefreshed} · ${scheduleNote}` : scheduleNote
+                }
+              />
+            ),
+          }
+        : undefined,
     );
+  };
 
   const renderInZoneTab = () => {
     if (inZoneCount === 0) {
@@ -684,6 +738,9 @@ export default function LevelsPage() {
     const chartSpot = inZoneChartData?.spot ?? inZoneActive?.spot ?? null;
     const refreshed = formatRefreshed(inZoneChartData?.computedAt);
 
+    const inZoneStockChart =
+      inZoneActive?.scope === "stock" && chartShowsZones;
+
     return wrapTabBody(
       <LevelsSymbolList
         countLabel={
@@ -697,26 +754,45 @@ export default function LevelsPage() {
         onSelect={setInZoneSlide}
       />,
       inZoneActive ? (
-        <LevelsChartPanel
-          title={`${inZoneActive.label} Market Levels`}
-          spot={chartSpot}
-          currency={inZoneActive.currency}
-          levels={inZoneChartData}
-          loading={inZoneChartLoading}
-          slideCount={inZoneCount}
-          activeIndex={inZoneCurrent}
-          onPrev={() => goInZone(-1)}
-          onNext={() => goInZone(1)}
-          onGoTo={setInZoneSlide}
-          refreshedLabel={refreshed ? `Data refreshed ${refreshed}` : undefined}
-          autoAdvanceNote
-          showCarouselArrows={false}
-        />
+        inZoneStockChart ? (
+          <></>
+        ) : (
+          <LevelsChartPanel
+            title={`${inZoneActive.label} Market Levels`}
+            spot={chartSpot}
+            currency={inZoneActive.currency}
+            levels={inZoneChartData}
+            loading={inZoneChartLoading}
+            slideCount={inZoneCount}
+            activeIndex={inZoneCurrent}
+            onPrev={() => goInZone(-1)}
+            onNext={() => goInZone(1)}
+            onGoTo={setInZoneSlide}
+            refreshedLabel={refreshed ? `Data refreshed ${refreshed}` : undefined}
+            autoAdvanceNote
+            showCarouselArrows={false}
+          />
+        )
       ) : (
         <div className="flex flex-1 items-center justify-center" style={{ color: "#64748b" }}>
           <p className="text-xs">No selection</p>
         </div>
       ),
+      undefined,
+      inZoneStockChart
+        ? {
+            hideLevelsColumn: true,
+            chartFooter: (
+              <LevelsChartMetaFooter
+                slideCount={inZoneCount}
+                activeIndex={inZoneCurrent}
+                onGoTo={setInZoneSlide}
+                refreshedLabel={refreshed ? `Data refreshed ${refreshed}` : undefined}
+                autoAdvanceNote
+              />
+            ),
+          }
+        : undefined,
     );
   };
 

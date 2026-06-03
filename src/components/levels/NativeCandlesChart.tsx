@@ -25,6 +25,8 @@ interface ApiCandle {
 }
 
 const POLL_MS = 60_000;
+/** Empty bars on the right so POC / zone labels stay clear of the last candle. */
+const RIGHT_OFFSET_BARS = 28;
 
 /**
  * Native candlestick chart for NSE stocks, fed by Dhan candles
@@ -35,10 +37,13 @@ export function NativeCandlesChart({
   symbol,
   interval = "5",
   levels,
+  loading: levelsLoading,
 }: {
   symbol: string;
   interval?: string;
   levels?: PublicLevels | null;
+  /** Parent is still fetching zone levels for overlays. */
+  loading?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -65,11 +70,16 @@ export function NativeCandlesChart({
         horzLines: { color: "rgba(255,255,255,0.04)" },
       },
       crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderColor: "rgba(255,255,255,0.08)" },
+      rightPriceScale: {
+        borderColor: "rgba(255,255,255,0.08)",
+        minimumWidth: 72,
+      },
       timeScale: {
         borderColor: "rgba(255,255,255,0.08)",
         timeVisible: true,
         secondsVisible: false,
+        rightOffset: RIGHT_OFFSET_BARS,
+        fixRightEdge: false,
       },
     });
 
@@ -123,7 +133,11 @@ export function NativeCandlesChart({
           close: c.close,
         }));
         seriesRef.current?.setData(data);
-        if (initial) chartRef.current?.timeScale().fitContent();
+        if (initial) {
+          const ts = chartRef.current?.timeScale();
+          ts?.applyOptions({ rightOffset: RIGHT_OFFSET_BARS });
+          ts?.scrollToRealTime();
+        }
         setError(null);
       } catch (e) {
         if (!cancelled && initial) {
@@ -176,10 +190,12 @@ export function NativeCandlesChart({
   return (
     <div className="relative w-full h-full min-h-[260px]">
       <div ref={containerRef} className="absolute inset-0" />
-      {loading && (
+      {(loading || levelsLoading) && (
         <div className="absolute inset-0 flex items-center justify-center gap-2" style={{ color: "#64748b" }}>
           <Loader2 className="h-4 w-4 animate-spin" />
-          <span className="text-xs">Loading {symbol} candles…</span>
+          <span className="text-xs">
+            {levelsLoading && !loading ? `Loading ${symbol} levels…` : `Loading ${symbol} candles…`}
+          </span>
         </div>
       )}
       {!loading && error && (

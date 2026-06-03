@@ -14,8 +14,8 @@
  *                         Tier-B names first), advancing a persisted cursor.
  *   • Market-hours gate — GET skips outside NSE hours; POST always runs (manual).
  *
- * Schedule it on your external cron (e.g. every 15 min). Tune batch size to fit
- * the deploy platform's function timeout: ~20 symbols ≈ 60–80s with safe delays.
+ * Schedule it on your external cron (e.g. every 5–15 min). Tune batch size to fit
+ * the deploy platform's function timeout.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -68,9 +68,9 @@ async function writeCursor(db: ReturnType<typeof getAdminFirestore>, index: numb
  */
 async function run(symbolsOverride?: string[]) {
   const db = getAdminFirestore();
-  const batchSize = envNum("STOCK_ZONES_BATCH_SIZE", 20);
+  const batchSize = envNum("STOCK_ZONES_BATCH_SIZE", 32);
   const delayMs = envNum("STOCK_ZONES_DELAY_MS", 1_000);
-  const maxWallClockMs = envNum("STOCK_ZONES_MAX_RUN_MS", 20_000);
+  const maxWallClockMs = envNum("STOCK_ZONES_MAX_RUN_MS", 50_000);
 
   const fromQueue = !(symbolsOverride && symbolsOverride.length);
   const startCursor = fromQueue ? await readCursor(db) : 0;

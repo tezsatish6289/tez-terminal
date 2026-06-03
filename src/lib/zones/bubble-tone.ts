@@ -7,51 +7,83 @@ export type BubbleTone =
   | "NEAR_BULL"
   | "NEAR_BEAR"
   | "NEUTRAL"
-  | "ILLIQUID";
+  | "ILLIQUID"
+  | "UNSCANNED";
 
 export interface BubbleToneStyle {
+  /** Solid fill for in-zone; near-zone uses dark center + colored ring. */
+  solid: boolean;
   fill: string;
   glow: string;
   border: string;
+  borderStyle: "solid" | "dashed";
+  borderWidth: number;
   label: string;
 }
 
 export const BUBBLE_TONE_STYLE: Record<BubbleTone, BubbleToneStyle> = {
   IN_BULL: {
-    fill: "rgba(34, 197, 94, 0.42)",
-    glow: "0 0 28px rgba(34, 197, 94, 0.55), 0 0 56px rgba(34, 197, 94, 0.22)",
-    border: "rgba(74, 222, 128, 0.85)",
+    solid: true,
+    fill: "rgba(16, 185, 129, 0.72)",
+    glow: "0 0 32px rgba(16, 185, 129, 0.7), 0 0 64px rgba(16, 185, 129, 0.28)",
+    border: "#4ade80",
+    borderStyle: "solid",
+    borderWidth: 3,
     label: "In bull zone",
   },
   IN_BEAR: {
-    fill: "rgba(239, 68, 68, 0.42)",
-    glow: "0 0 28px rgba(239, 68, 68, 0.55), 0 0 56px rgba(239, 68, 68, 0.22)",
-    border: "rgba(248, 113, 113, 0.85)",
+    solid: true,
+    fill: "rgba(220, 38, 38, 0.72)",
+    glow: "0 0 32px rgba(239, 68, 68, 0.7), 0 0 64px rgba(239, 68, 68, 0.28)",
+    border: "#f87171",
+    borderStyle: "solid",
+    borderWidth: 3,
     label: "In bear zone",
   },
   NEAR_BULL: {
-    fill: "rgba(134, 239, 172, 0.28)",
-    glow: "0 0 18px rgba(134, 239, 172, 0.4)",
-    border: "rgba(134, 239, 172, 0.65)",
+    solid: false,
+    fill: "rgba(15, 23, 42, 0.75)",
+    glow: "0 0 12px rgba(163, 230, 53, 0.35)",
+    border: "#a3e635",
+    borderStyle: "dashed",
+    borderWidth: 2,
     label: "Near bull zone",
   },
   NEAR_BEAR: {
-    fill: "rgba(252, 165, 165, 0.28)",
-    glow: "0 0 18px rgba(248, 113, 113, 0.35)",
-    border: "rgba(252, 165, 165, 0.65)",
+    solid: false,
+    fill: "rgba(15, 23, 42, 0.75)",
+    glow: "0 0 12px rgba(251, 146, 60, 0.35)",
+    border: "#fb923c",
+    borderStyle: "dashed",
+    borderWidth: 2,
     label: "Near bear zone",
   },
   NEUTRAL: {
-    fill: "rgba(100, 116, 139, 0.18)",
+    solid: false,
+    fill: "rgba(51, 65, 85, 0.45)",
     glow: "none",
-    border: "rgba(148, 163, 184, 0.25)",
-    label: "Neutral",
+    border: "rgba(148, 163, 184, 0.45)",
+    borderStyle: "solid",
+    borderWidth: 1,
+    label: "Scanned · between zones",
   },
   ILLIQUID: {
-    fill: "rgba(71, 85, 105, 0.14)",
+    solid: false,
+    fill: "rgba(30, 41, 59, 0.5)",
     glow: "none",
-    border: "rgba(100, 116, 139, 0.18)",
-    label: "No data",
+    border: "rgba(100, 116, 139, 0.35)",
+    borderStyle: "solid",
+    borderWidth: 1,
+    label: "Scanned · no bands",
+  },
+  UNSCANNED: {
+    solid: false,
+    fill: "rgba(15, 23, 42, 0.4)",
+    glow: "none",
+    border: "rgba(251, 191, 36, 0.55)",
+    borderStyle: "dashed",
+    borderWidth: 2,
+    label: "Awaiting scan",
   },
 };
 
@@ -76,7 +108,9 @@ function nearestBandKind(bands: ZoneBands, spot: number): "bull" | "bear" {
   return best.kind;
 }
 
-export function deriveBubbleTone(bands: ZoneBands): BubbleTone {
+export function deriveBubbleTone(bands: ZoneBands, scanned: boolean): BubbleTone {
+  if (!scanned) return "UNSCANNED";
+
   const status = deriveZoneStatus(bands);
   if (status === "IN_BULL") return "IN_BULL";
   if (status === "IN_BEAR") return "IN_BEAR";

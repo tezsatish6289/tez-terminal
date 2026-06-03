@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
-import { BUBBLE_TONE_STYLE, deriveBubbleTone } from "@/lib/zones/bubble-tone";
+import { BUBBLE_TONE_STYLE, deriveBubbleTone, type BubbleTone } from "@/lib/zones/bubble-tone";
+import { fnoCompanyName } from "@/lib/nse/fno-company-names";
+import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
 import type { ZoneBands } from "@/lib/zones/zone-status";
 
 export interface LevelsBubbleItem {
@@ -17,6 +19,7 @@ export interface LevelsBubbleItem {
 }
 
 function bubbleRadius(scope: "index" | "stock", tone: BubbleTone): number {
+  if (tone === "UNSCANNED") return 30;
   if (tone === "ILLIQUID") return scope === "index" ? 36 : 28;
   if (tone === "NEUTRAL") return scope === "index" ? 44 : 34;
   if (scope === "index") return tone === "IN_BULL" || tone === "IN_BEAR" ? 78 : 64;
@@ -93,12 +96,15 @@ export function LevelsBubblesView({
   onSelect,
   hideNeutral,
   onHideNeutralChange,
+  scanNote,
 }: {
   items: LevelsBubbleItem[];
   selectedId: string | null;
   onSelect: (item: LevelsBubbleItem) => void;
   hideNeutral: boolean;
   onHideNeutralChange: (hide: boolean) => void;
+  /** Why only part of the universe may show as scanned (round-robin cron). */
+  scanNote?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -122,7 +128,12 @@ export function LevelsBubblesView({
   const filtered = useMemo(() => {
     const q = query.trim().toUpperCase();
     return items.filter((it) => {
-      if (hideNeutral && (it.tone === "NEUTRAL" || it.tone === "ILLIQUID")) return false;
+      if (
+        hideNeutral &&
+        (it.tone === "NEUTRAL" || it.tone === "ILLIQUID" || it.tone === "UNSCANNED")
+      ) {
+        return false;
+      }
       if (!q) return true;
       return (
         it.symbol.toUpperCase().includes(q) ||
@@ -172,12 +183,12 @@ export function LevelsBubblesView({
             onChange={(e) => onHideNeutralChange(e.target.checked)}
             className="rounded border-slate-600"
           />
-          Hide neutral / no data
+          Hide unscanned & neutral
         </label>
       </div>
 
-      <div className="shrink-0 flex flex-wrap gap-2 mb-2 text-[9px] font-bold uppercase tracking-wide">
-        {(["IN_BULL", "NEAR_BULL", "IN_BEAR", "NEAR_BEAR"] as const).map((tone) => {
+      <div className="shrink-0 flex flex-wrap gap-2 mb-1.5 text-[9px] font-bold uppercase tracking-wide">
+        {(["IN_BULL", "NEAR_BULL", "IN_BEAR", "NEAR_BEAR", "UNSCANNED"] as const).map((tone) => {
           const s = BUBBLE_TONE_STYLE[tone];
           return (
             <span
@@ -186,12 +197,16 @@ export function LevelsBubblesView({
               style={{
                 color: s.border,
                 backgroundColor: "rgba(0,0,0,0.35)",
-                border: `1px solid ${s.border}`,
+                border: `${s.borderStyle === "dashed" ? "1px dashed" : "1px solid"} ${s.border}`,
               }}
             >
               <span
                 className="h-2.5 w-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: s.fill, boxShadow: s.glow }}
+                style={{
+                  backgroundColor: s.solid ? s.fill : "transparent",
+                  border: `${s.borderStyle === "dashed" ? "1px dashed" : "1px solid"} ${s.border}`,
+                  boxShadow: s.glow,
+                }}
               />
               {s.label}
               <span style={{ color: "#64748b" }}>({counts[tone] ?? 0})</span>
@@ -202,10 +217,15 @@ export function LevelsBubblesView({
           {filtered.length} shown · {items.length} total
         </span>
       </div>
+      {scanNote ? (
+        <p className="shrink-0 text-[10px] leading-snug mb-1.5 px-0.5" style={{ color: "#64748b" }}>
+          {scanNote}
+        </p>
+      ) : null}
 
       <div
         ref={containerRef}
-        className="relative flex-1 min-h-[280px] rounded-xl overflow-hidden"
+        className="relative flex-1 min-h-0 rounded-xl overflow-hidden"
         style={{
           backgroundColor: "rgba(0,0,0,0.55)",
           border: "1px solid rgba(255,255,255,0.06)",
@@ -235,7 +255,9 @@ export function LevelsBubblesView({
                   width: r * 2,
                   height: r * 2,
                   background: style.fill,
-                  border: `2px solid ${active ? "#f8fafc" : style.border}`,
+                  border: `${active ? 3 : style.borderWidth}px ${style.borderStyle} ${
+                    active ? "#f8fafc" : style.border
+                  }`,
                   boxShadow: active
                     ? `${style.glow}, 0 0 0 3px rgba(248, 250, 252, 0.25)`
                     : style.glow,
@@ -278,18 +300,21 @@ export function LevelsBubblesView({
   );
 }
 
-/** Build bubble rows from indices + stock aggregate list. */
+export type StockBubbleSource = {
+  symbol: string;
+  label: string;
+  spot: number | null;
+  bullZoneLow: number | null;
+  bullZoneHigh: number | null;
+  bearZoneLow: number | null;
+  bearZoneHigh: number | null;
+  computedAt?: string | null;
+};
+
+/** Indices + full F&O universe merged with cron aggregate (unscanned = amber dashed). */
 export function buildLevelsBubbleItems(
   indices: { symbol?: string; label: string; data: PublicLevels | null }[],
-  stocks: {
-    symbol: string;
-    label: string;
-    spot: number | null;
-    bullZoneLow: number | null;
-    bullZoneHigh: number | null;
-    bearZoneLow: number | null;
-    bearZoneHigh: number | null;
-  }[],
+  stockBySymbol: Map<string, StockBubbleSource>,
 ): LevelsBubbleItem[] {
   const out: LevelsBubbleItem[] = [];
 
@@ -307,27 +332,29 @@ export function buildLevelsBubbleItems(
       symbol,
       label: it.label,
       scope: "index",
-      tone: deriveBubbleTone(bands),
+      tone: deriveBubbleTone(bands, true),
       spot: bands.spot,
       data: it.data,
     });
   }
 
-  for (const st of stocks) {
+  for (const sym of FNO_UNIVERSE_ALPHA) {
+    const st = stockBySymbol.get(sym);
+    const scanned = Boolean(st);
     const bands: ZoneBands = {
-      spot: st.spot,
-      bullLow: st.bullZoneLow,
-      bullHigh: st.bullZoneHigh,
-      bearLow: st.bearZoneLow,
-      bearHigh: st.bearZoneHigh,
+      spot: st?.spot ?? null,
+      bullLow: st?.bullZoneLow ?? null,
+      bullHigh: st?.bullZoneHigh ?? null,
+      bearLow: st?.bearZoneLow ?? null,
+      bearHigh: st?.bearZoneHigh ?? null,
     };
     out.push({
-      id: `stock-${st.symbol}`,
-      symbol: st.symbol,
-      label: st.label,
+      id: `stock-${sym}`,
+      symbol: sym,
+      label: fnoCompanyName(sym) ?? st?.label ?? sym,
       scope: "stock",
-      tone: deriveBubbleTone(bands),
-      spot: st.spot,
+      tone: deriveBubbleTone(bands, scanned),
+      spot: bands.spot,
       data: null,
     });
   }

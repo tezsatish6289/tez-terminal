@@ -6,11 +6,7 @@ import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { BUBBLE_TONE_STYLE, deriveBubbleTone, type BubbleTone } from "@/lib/zones/bubble-tone";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
-import {
-  matchesDirectionalSetup,
-  type PocDirectionFilter,
-  type ZoneBands,
-} from "@/lib/zones/zone-status";
+import type { ZoneBands } from "@/lib/zones/zone-status";
 
 export interface LevelsBubbleItem {
   id: string;
@@ -22,19 +18,6 @@ export interface LevelsBubbleItem {
   poc: number | null;
   bands: ZoneBands;
   data: PublicLevels | null;
-}
-
-export function bubbleItemBands(item: LevelsBubbleItem): ZoneBands {
-  return item.bands;
-}
-
-/** Same rule as the old In Zone tab: in band + max pain on the pull side. */
-export function bubbleMatchesInZoneView(
-  item: LevelsBubbleItem,
-  filter: PocDirectionFilter,
-): boolean {
-  const poc = item.poc ?? item.data?.poc ?? null;
-  return matchesDirectionalSetup(bubbleItemBands(item), poc, filter);
 }
 
 function bubbleRadius(scope: "index" | "stock", tone: BubbleTone): number {
@@ -114,24 +97,11 @@ export function LevelsBubblesView({
   onBubbleOpen,
   hideNeutral,
   onHideNeutralChange,
-  inZoneView,
-  onInZoneViewChange,
-  zoneFilter,
-  onZoneFilterChange,
-  alignedCount,
-  scanNote,
 }: {
   items: LevelsBubbleItem[];
   onBubbleOpen: (item: LevelsBubbleItem) => void;
   hideNeutral: boolean;
   onHideNeutralChange: (hide: boolean) => void;
-  inZoneView: boolean;
-  onInZoneViewChange: (on: boolean) => void;
-  zoneFilter: PocDirectionFilter;
-  onZoneFilterChange: (filter: PocDirectionFilter) => void;
-  /** Count using the same POC-aligned rule as the old In Zone tab. */
-  alignedCount: number;
-  scanNote?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -155,7 +125,6 @@ export function LevelsBubblesView({
   const filtered = useMemo(() => {
     const q = query.trim().toUpperCase();
     return items.filter((it) => {
-      if (inZoneView && !bubbleMatchesInZoneView(it, zoneFilter)) return false;
       if (
         hideNeutral &&
         (it.tone === "NEUTRAL" || it.tone === "ILLIQUID" || it.tone === "UNSCANNED")
@@ -168,7 +137,7 @@ export function LevelsBubblesView({
         it.label.toUpperCase().includes(q)
       );
     });
-  }, [items, query, hideNeutral, inZoneView, zoneFilter]);
+  }, [items, query, hideNeutral]);
 
   const packed = useMemo(
     () => packBubbles(filtered, size.w, size.h),
@@ -183,70 +152,7 @@ export function LevelsBubblesView({
 
   return (
     <div className="flex flex-col flex-1 min-h-0 h-full">
-      <div className="shrink-0 flex flex-col gap-2 mb-2 px-0.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onInZoneViewChange(!inZoneView)}
-            className="px-3 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-bold uppercase tracking-wide transition-all"
-            style={
-              inZoneView
-                ? {
-                    backgroundColor: "rgba(37,99,235,0.35)",
-                    color: "#e2e8f0",
-                    border: "1px solid rgba(96,165,250,0.4)",
-                  }
-                : {
-                    backgroundColor: "rgba(0,0,0,0.35)",
-                    color: "#64748b",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                  }
-            }
-          >
-            In zone view {inZoneView ? `(${alignedCount})` : ""}
-          </button>
-          {inZoneView
-            ? ((
-                [
-                  { key: "all" as const, label: "All aligned" },
-                  { key: "bull" as const, label: "Bull · POC above" },
-                  { key: "bear" as const, label: "Bear · POC below" },
-                ] as const
-              ).map(({ key, label }) => {
-                const active = zoneFilter === key;
-                const bull = key === "bull";
-                const bear = key === "bear";
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => onZoneFilterChange(key)}
-                    className="px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wide"
-                    style={
-                      active
-                        ? {
-                            backgroundColor: bull
-                              ? "rgba(16,185,129,0.22)"
-                              : bear
-                                ? "rgba(239,68,68,0.22)"
-                                : "rgba(37,99,235,0.28)",
-                            color: bull ? "#6ee7b7" : bear ? "#fca5a5" : "#e2e8f0",
-                            border: `1px solid ${bull ? "rgba(52,211,153,0.45)" : bear ? "rgba(248,113,113,0.45)" : "rgba(96,165,250,0.4)"}`,
-                          }
-                        : {
-                            backgroundColor: "rgba(0,0,0,0.25)",
-                            color: "#64748b",
-                            border: "1px solid rgba(255,255,255,0.06)",
-                          }
-                    }
-                  >
-                    {label}
-                  </button>
-                );
-              }))
-            : null}
-        </div>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+      <div className="shrink-0 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2 px-0.5">
         <div className="relative flex-1 min-w-0 max-w-md">
           <Search
             className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4"
@@ -276,30 +182,10 @@ export function LevelsBubblesView({
           />
           Hide unscanned & neutral
         </label>
-        </div>
       </div>
 
-      {inZoneView ? (
-        <p className="shrink-0 text-[10px] leading-snug mb-1 px-0.5" style={{ color: "#64748b" }}>
-          In zone view matches the old In Zone tab: spot inside bull/bear band and max pain on the
-          pull side (not the same as solid green/red on the full map).
-        </p>
-      ) : null}
-
       <div className="shrink-0 flex flex-wrap gap-2 mb-1.5 text-[9px] font-bold uppercase tracking-wide">
-        {inZoneView ? (
-          <span
-            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md"
-            style={{ color: "#93c5fd", backgroundColor: "rgba(0,0,0,0.35)", border: "1px solid rgba(96,165,250,0.35)" }}
-          >
-            Aligned setups
-            <span style={{ color: "#64748b" }}>({alignedCount})</span>
-          </span>
-        ) : null}
         {(["IN_BULL", "NEAR_BULL", "IN_BEAR", "NEAR_BEAR", "UNSCANNED"] as const).map((tone) => {
-          if (inZoneView && (tone === "NEAR_BULL" || tone === "NEAR_BEAR" || tone === "UNSCANNED")) {
-            return null;
-          }
           const s = BUBBLE_TONE_STYLE[tone];
           return (
             <span
@@ -328,11 +214,6 @@ export function LevelsBubblesView({
           {filtered.length} shown · {items.length} total
         </span>
       </div>
-      {scanNote ? (
-        <p className="shrink-0 text-[10px] leading-snug mb-1.5 px-0.5" style={{ color: "#64748b" }}>
-          {scanNote}
-        </p>
-      ) : null}
 
       <div
         ref={containerRef}
@@ -370,7 +251,7 @@ export function LevelsBubblesView({
                   zIndex: item.scope === "index" ? 12 : 8,
                 }}
                 aria-label={`${item.label}, ${style.label}`}
-                title={`${item.label} · ${style.label}`}
+                title={`${item.label} · ${style.label} — click for chart`}
               >
                 {item.scope === "index" && (
                   <span
@@ -417,7 +298,7 @@ export type StockBubbleSource = {
   computedAt?: string | null;
 };
 
-/** Indices + full F&O universe merged with cron aggregate (unscanned = amber dashed). */
+/** Indices + full F&O universe merged with cron aggregate. */
 export function buildLevelsBubbleItems(
   indices: { symbol?: string; label: string; data: PublicLevels | null }[],
   stockBySymbol: Map<string, StockBubbleSource>,

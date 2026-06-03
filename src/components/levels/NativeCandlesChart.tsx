@@ -15,7 +15,7 @@ import {
 } from "lightweight-charts";
 import { Loader2 } from "lucide-react";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
-import { LevelsChartTvHint } from "@/components/levels/LevelsChartTvHint";
+import { LevelsChartShortcuts } from "@/components/levels/LevelsChartShortcuts";
 import {
   applyLevelPriceLines,
   bandLineData,
@@ -76,6 +76,9 @@ export function NativeCandlesChart({
   levels,
   loading: levelsLoading,
   webChartUrl,
+  showSlideshowControl,
+  slideshowPaused,
+  onToggleSlideshowPause,
 }: {
   symbol: string;
   interval?: string;
@@ -83,6 +86,9 @@ export function NativeCandlesChart({
   /** Parent is still fetching zone levels for overlays. */
   loading?: boolean;
   webChartUrl: string;
+  showSlideshowControl?: boolean;
+  slideshowPaused?: boolean;
+  onToggleSlideshowPause?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -94,6 +100,8 @@ export function NativeCandlesChart({
   const levelsRef = useRef<PublicLevels | null | undefined>(levels);
 
   const hasDisplayedCandlesRef = useRef(false);
+  const fullHistoryZoomRef = useRef(false);
+  const [fullHistoryZoom, setFullHistoryZoom] = useState(false);
   const [bootLoading, setBootLoading] = useState(true);
   const [swapping, setSwapping] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -118,7 +126,26 @@ export function NativeCandlesChart({
     const from = Math.max(0, barCount - DEFAULT_VISIBLE_BARS);
     ts.setVisibleLogicalRange({ from, to: barCount - 1 + RIGHT_OFFSET_BARS });
     ts.applyOptions({ rightOffset: RIGHT_OFFSET_BARS });
+    fullHistoryZoomRef.current = false;
+    setFullHistoryZoom(false);
   }
+
+  /** Fit all loaded bars (30d history); toggle back with S when already full. */
+  function applyFullHistoryZoom(barCount: number) {
+    const ts = chartRef.current?.timeScale();
+    if (!ts || barCount < 2) return;
+    ts.setVisibleLogicalRange({ from: 0, to: barCount - 1 + RIGHT_OFFSET_BARS });
+    ts.applyOptions({ rightOffset: RIGHT_OFFSET_BARS });
+    fullHistoryZoomRef.current = true;
+    setFullHistoryZoom(true);
+  }
+
+  const toggleHistoryZoom = useCallback(() => {
+    const n = candlesRef.current.length;
+    if (n < 2) return;
+    if (fullHistoryZoomRef.current) applyDefaultZoom(n);
+    else applyFullHistoryZoom(n);
+  }, []);
 
   function fitPriceScale() {
     const series = seriesRef.current;
@@ -239,6 +266,10 @@ export function NativeCandlesChart({
     let timer: ReturnType<typeof setInterval> | null = null;
 
     async function load(isPoll: boolean) {
+      if (!isPoll) {
+        fullHistoryZoomRef.current = false;
+        setFullHistoryZoom(false);
+      }
       const isBoot = !hasDisplayedCandlesRef.current;
       if (isBoot) {
         setBootLoading(true);
@@ -275,8 +306,10 @@ export function NativeCandlesChart({
           syncZoneBands(data, levelsRef.current);
           applyLevelPriceLines(series, priceLinesRef, levelsRef.current);
           fitPriceScale();
-          if (!isPoll) applyDefaultZoom(data.length);
-          else applyRightPadding();
+          if (!isPoll) {
+            if (fullHistoryZoomRef.current) applyFullHistoryZoom(data.length);
+            else applyDefaultZoom(data.length);
+          } else applyRightPadding();
           hasDisplayedCandlesRef.current = true;
           setError(null);
           setSwapping(false);
@@ -322,8 +355,10 @@ export function NativeCandlesChart({
     if (bullSl == null) return null;
     const y = series.priceToCoordinate(bullSl);
     if (y == null) return null;
-    return Math.min(Math.max(y + 14, 8), el.clientHeight - 36);
-  }, [levels]);
+    const hintRows = 2 + (showSlideshowControl ? 1 : 0);
+    const stackReserve = hintRows * 58 + 12;
+    return Math.min(Math.max(y + 14, 8), el.clientHeight - stackReserve);
+  }, [levels, showSlideshowControl]);
 
   return (
     <div className="relative w-full h-full min-h-[260px]">
@@ -345,7 +380,16 @@ export function NativeCandlesChart({
           <p className="text-xs">{error}</p>
         </div>
       )}
-      <LevelsChartTvHint webChartUrl={webChartUrl} resolveTopPx={resolveHintTopPx} />
+      <LevelsChartShortcuts
+        webChartUrl={webChartUrl}
+        resolveTopPx={resolveHintTopPx}
+        showSqueeze
+        squeezed={fullHistoryZoom}
+        onSqueeze={toggleHistoryZoom}
+        showSlideshowControl={showSlideshowControl}
+        slideshowPaused={slideshowPaused}
+        onToggleSlideshowPause={onToggleSlideshowPause}
+      />
     </div>
   );
 }

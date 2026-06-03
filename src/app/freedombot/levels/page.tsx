@@ -160,6 +160,7 @@ export default function LevelsPage() {
   const [stockData, setStockData] = useState<{ label: string; data: PublicLevels | null } | null>(null);
   const [stockLoading, setStockLoading] = useState(false);
   const [stockFetchNote, setStockFetchNote] = useState<string | null>(null);
+  const [slideshowPaused, setSlideshowPaused] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -276,6 +277,14 @@ export default function LevelsPage() {
   const inZoneCurrent = inZoneCount > 0 ? Math.min(inZoneSlide, inZoneCount - 1) : 0;
   const inZoneActive = inZoneCount > 0 ? inZoneListFiltered[inZoneCurrent] : null;
 
+  const slideshowEnabled =
+    ((tab === "indices" || tab === "crypto") && carouselCount > 1) ||
+    (tab === "inzone" && inZoneCount > 1);
+
+  const toggleSlideshowPause = useCallback(() => {
+    setSlideshowPaused((p) => !p);
+  }, []);
+
   const stockMetaBySymbol = useMemo(() => {
     const m = new Map<string, ZoneBands & { poc: number | null }>();
     for (const s of payload?.stocks ?? []) {
@@ -372,6 +381,9 @@ export default function LevelsPage() {
         companyName={activeCompanyName ?? undefined}
         levels={activeChartLevels}
         loading={chartLevelsLoading}
+        showSlideshowControl={slideshowEnabled}
+        slideshowPaused={slideshowPaused}
+        onToggleSlideshowPause={toggleSlideshowPause}
       />
     ) : (
       <div
@@ -424,17 +436,19 @@ export default function LevelsPage() {
 
   // Auto-advance: indices, crypto, in-zone (not the 180-name stock universe).
   useEffect(() => {
+    if (slideshowPaused) return;
     if (tab !== "indices" && tab !== "crypto") return;
     if (carouselCount <= 1) return;
     const id = setTimeout(() => setSlide((s) => (s + 1) % carouselCount), 8000);
     return () => clearTimeout(id);
-  }, [carouselCurrent, carouselCount, tab]);
+  }, [carouselCurrent, carouselCount, tab, slideshowPaused]);
 
   useEffect(() => {
+    if (slideshowPaused) return;
     if (tab !== "inzone" || inZoneCount <= 1) return;
     const id = setTimeout(() => setInZoneSlide((s) => (s + 1) % inZoneCount), 8000);
     return () => clearTimeout(id);
-  }, [inZoneCurrent, inZoneCount, tab]);
+  }, [inZoneCurrent, inZoneCount, tab, slideshowPaused]);
 
   useEffect(() => {
     if (inZoneCount === 0) setInZoneSlide(0);

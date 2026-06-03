@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ChartPane } from "@/components/dashboard/ChartPane";
-import { LevelsChartTvHint } from "@/components/levels/LevelsChartTvHint";
+import { LevelsChartShortcuts } from "@/components/levels/LevelsChartShortcuts";
 import { NativeCandlesChart } from "@/components/levels/NativeCandlesChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
@@ -21,6 +21,9 @@ export function LevelsTradingViewChart({
   companyName,
   levels,
   loading,
+  showSlideshowControl,
+  slideshowPaused,
+  onToggleSlideshowPause,
 }: {
   config: LevelsTvConfig;
   /** NSE ticker / symbol (e.g. BANKINDIA). */
@@ -29,6 +32,9 @@ export function LevelsTradingViewChart({
   companyName?: string;
   levels?: PublicLevels | null;
   loading?: boolean;
+  showSlideshowControl?: boolean;
+  slideshowPaused?: boolean;
+  onToggleSlideshowPause?: () => void;
 }) {
   const [mounted, setMounted] = useState(false);
   const [proxySrc, setProxySrc] = useState<string | null>(null);
@@ -110,6 +116,9 @@ export function LevelsTradingViewChart({
             levels={levels}
             loading={loading}
             webChartUrl={config.webChartUrl}
+            showSlideshowControl={showSlideshowControl}
+            slideshowPaused={slideshowPaused}
+            onToggleSlideshowPause={onToggleSlideshowPause}
           />
         ) : showProxy ? (
           <>
@@ -121,7 +130,12 @@ export function LevelsTradingViewChart({
               allowFullScreen
               referrerPolicy="no-referrer-when-downgrade"
             />
-            <LevelsChartTvHint webChartUrl={config.webChartUrl} />
+            <LevelsChartShortcuts
+              webChartUrl={config.webChartUrl}
+              showSlideshowControl={showSlideshowControl}
+              slideshowPaused={slideshowPaused}
+              onToggleSlideshowPause={onToggleSlideshowPause}
+            />
           </>
         ) : (
           <>
@@ -130,7 +144,12 @@ export function LevelsTradingViewChart({
               exchange={config.exchange}
               interval={config.interval}
             />
-            <LevelsChartTvHint webChartUrl={config.webChartUrl} />
+            <LevelsChartShortcuts
+              webChartUrl={config.webChartUrl}
+              showSlideshowControl={showSlideshowControl}
+              slideshowPaused={slideshowPaused}
+              onToggleSlideshowPause={onToggleSlideshowPause}
+            />
           </>
         )}
       </div>

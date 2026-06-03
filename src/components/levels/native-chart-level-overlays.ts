@@ -51,11 +51,12 @@ export function collectOverlayPrices(
   return out;
 }
 
+/** Price span for autoscale (minValue/maxValue) and setVisibleRange (from/to). */
 export function mergedPriceRange(
   candles: CandlestickData[],
   levels: PublicLevels | null | undefined,
   padRatio = 0.06,
-): { minValue: number; maxValue: number } | null {
+): { minValue: number; maxValue: number; from: number; to: number } | null {
   const prices: number[] = [];
   for (const c of candles) {
     prices.push(c.high, c.low);
@@ -67,7 +68,9 @@ export function mergedPriceRange(
   const min = Math.min(...prices);
   const max = Math.max(...prices);
   const pad = Math.max((max - min) * padRatio, 0.5);
-  return { minValue: min - pad, maxValue: max + pad };
+  const from = min - pad;
+  const to = max + pad;
+  return { minValue: from, maxValue: to, from, to };
 }
 
 export function applyLevelPriceLines(

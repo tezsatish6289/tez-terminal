@@ -97,8 +97,9 @@ export function NativeCandlesChart({
     if (!series) return;
     const range = mergedPriceRange(candlesRef.current, levelsRef.current);
     if (!range) return;
+    // IPriceScaleApi.setVisibleRange uses { from, to } — minValue/maxValue blanked the chart.
     series.priceScale().setAutoScale(false);
-    series.priceScale().setVisibleRange(range);
+    series.priceScale().setVisibleRange({ from: range.from, to: range.to });
   }
 
   function syncZoneBands(candles: CandlestickData[], lv: PublicLevels | null | undefined) {

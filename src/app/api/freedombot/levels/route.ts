@@ -24,7 +24,8 @@ import { INDEX_KEYS, INDEX_SPECS } from "@/lib/index-options-zones";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
   deriveZoneStatus,
-  isInZoneStatus,
+  matchesDirectionalSetup,
+  type ZoneBands,
   type ZoneStatus,
 } from "@/lib/zones/zone-status";
 import {
@@ -81,16 +82,23 @@ function sanitize(raw: Record<string, unknown> | null): PublicLevels | null {
   };
 }
 
+function bandsFromLevels(data: PublicLevels | null, spotOverride?: number | null): ZoneBands {
+  return {
+    spot: spotOverride ?? data?.spot ?? null,
+    bullLow: data?.bullLow ?? null,
+    bullHigh: data?.bullHigh ?? null,
+    bearLow: data?.bearLow ?? null,
+    bearHigh: data?.bearHigh ?? null,
+  };
+}
+
 /** Status from a sanitized payload (for the In-Zone aggregation). */
-function statusOf(data: PublicLevels | null): ZoneStatus {
-  if (!data) return "ILLIQUID";
-  return deriveZoneStatus({
-    spot: data.spot,
-    bullLow: data.bullLow,
-    bullHigh: data.bullHigh,
-    bearLow: data.bearLow,
-    bearHigh: data.bearHigh,
-  });
+function statusOf(data: PublicLevels | null, spotOverride?: number | null): ZoneStatus {
+  return deriveZoneStatus(bandsFromLevels(data, spotOverride));
+}
+
+function isActionableInZone(data: PublicLevels | null, spotOverride?: number | null): boolean {
+  return matchesDirectionalSetup(bandsFromLevels(data, spotOverride), data?.poc ?? null, "all");
 }
 
 async function readDoc(path: string): Promise<Record<string, unknown> | null> {
@@ -235,6 +243,10 @@ export async function GET(request: NextRequest) {
       status: e.status,
       spot: e.spot ?? null,
       maxPain: num(e.maxPain),
+      bullZoneLow: num(e.bullZoneLow),
+      bullZoneHigh: num(e.bullZoneHigh),
+      bearZoneLow: num(e.bearZoneLow),
+      bearZoneHigh: num(e.bearZoneHigh),
     }))
     .sort((a, b) => a.symbol.localeCompare(b.symbol));
 
@@ -242,45 +254,47 @@ export async function GET(request: NextRequest) {
   const inZone: InZoneItem[] = [];
 
   for (const it of indices) {
-    const status = statusOf(it.data);
-    if (isInZoneStatus(status)) {
-      inZone.push({
-        scope: "index",
-        symbol: it.symbol,
-        label: it.label,
-        status,
-        spot: it.data?.spot ?? null,
-        currency: "₹",
-        data: it.data,
-      });
-    }
+    const data = it.data;
+    if (!isActionableInZone(data)) continue;
+    const bands = bandsFromLevels(data);
+    inZone.push({
+      scope: "index",
+      symbol: it.symbol,
+      label: it.label,
+      status: deriveZoneStatus(bands),
+      spot: bands.spot,
+      currency: "₹",
+      data,
+    });
   }
   for (const it of crypto) {
-    const status = statusOf(it.data);
-    if (isInZoneStatus(status)) {
-      inZone.push({
-        scope: "crypto",
-        symbol: it.asset,
-        label: it.label,
-        status,
-        spot: it.data?.spot ?? null,
-        currency: "$",
-        data: it.data,
-      });
-    }
+    const data = it.data;
+    if (!isActionableInZone(data)) continue;
+    const bands = bandsFromLevels(data);
+    inZone.push({
+      scope: "crypto",
+      symbol: it.asset,
+      label: it.label,
+      status: deriveZoneStatus(bands),
+      spot: bands.spot,
+      currency: "$",
+      data,
+    });
   }
   for (const e of Object.values(stockEntries)) {
-    if (e && isInZoneStatus(e.status)) {
-      inZone.push({
-        scope: "stock",
-        symbol: e.symbol,
-        label: e.label ?? e.symbol,
-        status: e.status,
-        spot: e.spot ?? null,
-        currency: "₹",
-        data: levelsFromStockAggregate(e),
-      });
-    }
+    if (!e || typeof e.symbol !== "string") continue;
+    const data = levelsFromStockAggregate(e);
+    if (!isActionableInZone(data, e.spot ?? null)) continue;
+    const bands = bandsFromLevels(data, e.spot ?? null);
+    inZone.push({
+      scope: "stock",
+      symbol: e.symbol,
+      label: e.label ?? e.symbol,
+      status: deriveZoneStatus(bands),
+      spot: bands.spot,
+      currency: "₹",
+      data,
+    });
   }
 
   inZone.sort((a, b) => a.label.localeCompare(b.label, "en", { sensitivity: "base" }));

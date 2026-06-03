@@ -55,21 +55,24 @@ export function isInZoneStatus(status: ZoneStatus): boolean {
 export type PocDirectionFilter = "all" | "bull" | "bear";
 
 /**
- * UI screener: bull setups = in bull band with max pain above spot (pin pulls up);
- * bear setups = in bear band with max pain below spot (pin pulls down).
+ * Actionable setup: spot inside the band on that side AND max pain on the pull side.
+ * Re-derives zone status from bands + spot (ignores stale stored status).
  */
-export function matchesPocDirectionFilter(
-  status: ZoneStatus,
-  spot: number | null | undefined,
+export function matchesDirectionalSetup(
+  bands: ZoneBands,
   poc: number | null | undefined,
   filter: PocDirectionFilter,
 ): boolean {
-  if (filter === "all") return true;
+  const spot = bands.spot;
   if (spot == null || poc == null || !Number.isFinite(spot) || !Number.isFinite(poc) || spot <= 0) {
     return false;
   }
-  if (filter === "bull") return status === "IN_BULL" && poc > spot;
-  return status === "IN_BEAR" && poc < spot;
+  const status = deriveZoneStatus(bands);
+  const bullOk = status === "IN_BULL" && poc > spot;
+  const bearOk = status === "IN_BEAR" && poc < spot;
+  if (filter === "all") return bullOk || bearOk;
+  if (filter === "bull") return bullOk;
+  return bearOk;
 }
 
 /** Rank for sorting the In-Zone list (lower = more urgent / shown first). */

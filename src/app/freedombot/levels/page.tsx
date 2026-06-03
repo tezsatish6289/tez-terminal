@@ -17,8 +17,10 @@ import {
 import { freedombotHomePath } from "@/lib/freedombot/dashboard-path";
 import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
 import {
-  matchesPocDirectionFilter,
+  deriveZoneStatus,
+  matchesDirectionalSetup,
   type PocDirectionFilter,
+  type ZoneBands,
   type ZoneStatus,
 } from "@/lib/zones/zone-status";
 
@@ -35,6 +37,23 @@ interface StockListItem {
   status: ZoneStatus;
   spot: number | null;
   maxPain: number | null;
+  bullZoneLow: number | null;
+  bullZoneHigh: number | null;
+  bearZoneLow: number | null;
+  bearZoneHigh: number | null;
+}
+
+function bandsFromLevels(
+  data: PublicLevels | null | undefined,
+  spotOverride?: number | null,
+): ZoneBands {
+  return {
+    spot: spotOverride ?? data?.spot ?? null,
+    bullLow: data?.bullLow ?? null,
+    bullHigh: data?.bullHigh ?? null,
+    bearLow: data?.bearLow ?? null,
+    bearHigh: data?.bearHigh ?? null,
+  };
 }
 
 interface InZoneItem {
@@ -72,7 +91,8 @@ const TAB_COPY: Record<TabKey, { title: string; subtitle: string }> = {
   },
   inzone: {
     title: "In Zone Now",
-    subtitle: "Symbols inside or near a bull/bear zone — chart auto-cycles every 8 seconds.",
+    subtitle:
+      "In bull band with POC above spot, or in bear band with POC below — chart auto-cycles every 8 seconds.",
   },
 };
 
@@ -226,11 +246,9 @@ export default function LevelsPage() {
 
   const inZoneListFiltered = useMemo(
     () =>
-      inZoneListSorted.filter((it) => {
-        const poc = it.data?.poc ?? null;
-        const spot = it.spot ?? it.data?.spot ?? null;
-        return matchesPocDirectionFilter(it.status, spot, poc, zoneFilter);
-      }),
+      inZoneListSorted.filter((it) =>
+        matchesDirectionalSetup(bandsFromLevels(it.data, it.spot), it.data?.poc ?? null, zoneFilter),
+      ),
     [inZoneListSorted, zoneFilter],
   );
 
@@ -252,9 +270,16 @@ export default function LevelsPage() {
   const inZoneActive = inZoneCount > 0 ? inZoneListFiltered[inZoneCurrent] : null;
 
   const stockMetaBySymbol = useMemo(() => {
-    const m = new Map<string, { status: ZoneStatus; spot: number | null; poc: number | null }>();
+    const m = new Map<string, ZoneBands & { poc: number | null }>();
     for (const s of payload?.stocks ?? []) {
-      m.set(s.symbol, { status: s.status, spot: s.spot, poc: s.maxPain });
+      m.set(s.symbol, {
+        spot: s.spot,
+        bullLow: s.bullZoneLow,
+        bullHigh: s.bullZoneHigh,
+        bearLow: s.bearZoneLow,
+        bearHigh: s.bearZoneHigh,
+        poc: s.maxPain,
+      });
     }
     return m;
   }, [payload?.stocks]);
@@ -266,7 +291,8 @@ export default function LevelsPage() {
     return list.filter((sym) => {
       const meta = stockMetaBySymbol.get(sym);
       if (!meta) return false;
-      return matchesPocDirectionFilter(meta.status, meta.spot, meta.poc, zoneFilter);
+      const { poc, ...bands } = meta;
+      return matchesDirectionalSetup(bands, poc, zoneFilter);
     });
   }, [stockQuery, zoneFilter, stockMetaBySymbol]);
 
@@ -389,21 +415,24 @@ export default function LevelsPage() {
 
   const inZoneEntries: LevelsListEntry[] = useMemo(
     () =>
-      inZoneListFiltered.map((it) => ({
-        id: `${it.scope}-${it.symbol}`,
-        label: it.label,
-        sublabel: it.scope === "index" ? "Index" : it.scope === "crypto" ? "Crypto" : "Stock",
-        spot: it.spot,
-        currency: it.currency,
-        trailing: <StatusBadge status={it.status} />,
-      })),
+      inZoneListFiltered.map((it) => {
+        const status = deriveZoneStatus(bandsFromLevels(it.data, it.spot));
+        return {
+          id: `${it.scope}-${it.symbol}`,
+          label: it.label,
+          sublabel: it.scope === "index" ? "Index" : it.scope === "crypto" ? "Crypto" : "Stock",
+          spot: it.spot,
+          currency: it.currency,
+          trailing: <StatusBadge status={status} />,
+        };
+      }),
     [inZoneListFiltered],
   );
 
   const zoneFilterChips = (
     <div className="flex flex-wrap gap-1.5 mb-3 shrink-0">
       {([
-        { key: "all" as PocDirectionFilter, label: "All" },
+        { key: "all" as PocDirectionFilter, label: "All aligned" },
         { key: "bull" as PocDirectionFilter, label: "In bull · POC above" },
         { key: "bear" as PocDirectionFilter, label: "In bear · POC below" },
       ]).map(({ key, label }) => {
@@ -598,12 +627,12 @@ export default function LevelsPage() {
             <p className="text-sm" style={{ color: "#64748b" }}>
               {filteredEmpty
                 ? "No symbols match this filter right now."
-                : "Nothing in a zone right now."}
+                : "No aligned setups right now."}
             </p>
             <p className="text-xs max-w-sm leading-relaxed" style={{ color: "#475569" }}>
               {filteredEmpty
-                ? "Try All, or wait for price and max pain to align with the bull/bear band."
-                : "The screener updates as markets move. Check back during the session."}
+                ? "Try All aligned, or wait for price to sit in a band with max pain on the pull side."
+                : "Needs spot inside bull/bear band and max pain above (bull) or below (bear) spot."}
             </p>
             <LevelsDisclaimer />
           </div>
@@ -621,8 +650,8 @@ export default function LevelsPage() {
             <LevelsSymbolList
               countLabel={
                 zoneFilter === "all"
-                  ? `${inZoneCount} in zone`
-                  : `${inZoneCount} match · ${zoneFilter === "bull" ? "bull + POC above" : "bear + POC below"}`
+                  ? `${inZoneCount} aligned`
+                  : `${inZoneCount} · ${zoneFilter === "bull" ? "bull + POC above" : "bear + POC below"}`
               }
               header={zoneFilterChips}
               entries={inZoneEntries}

@@ -28,8 +28,20 @@ const CRYPTO_TV: Record<string, { exchange: string; symbol: string }> = {
   xrp: { exchange: "BINANCE", symbol: "XRPUSDT" },
 };
 
-/** Default 5m — intraday levels context. */
-export const LEVELS_TV_INTERVAL = "5";
+/** Default 15m — matches OI zone refresh cadence; less noise than 5m. */
+export const LEVELS_TV_INTERVAL = "15";
+
+/** UI label for chart header (e.g. 15 → "15M", 60 → "1H"). */
+export function formatLevelsIntervalLabel(interval: string): string {
+  const n = Number(interval);
+  if (n === 60) return "1H";
+  if (Number.isFinite(n) && n > 0) return `${n}M`;
+  return interval.toUpperCase();
+}
+
+export function formatLevelsChartMeta(config: Pick<LevelsTvConfig, "interval" | "fullSymbol">): string {
+  return `${formatLevelsIntervalLabel(config.interval)} · ${config.fullSymbol}`;
+}
 
 /** NSE index keys → TradingView ticker (option-chain id ≠ TV). */
 const NSE_INDEX_TV: Record<IndexKey, string> = {

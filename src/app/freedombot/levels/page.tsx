@@ -345,12 +345,20 @@ export default function LevelsPage() {
 
   const chartShowsZones = Boolean(activeTv?.nativeCandles && levelsHaveBands(activeChartLevels));
 
-  const activeAssetName = useMemo(() => {
-    if (tab === "stocks") return stockData?.label ?? activeStockSymbol ?? null;
+  const activeTicker = useMemo(() => {
+    if (tab === "stocks") return activeStockSymbol ?? null;
+    if (tab === "inzone" && inZoneActive) return inZoneActive.symbol;
+    if (tab === "indices" && carouselItem) return carouselItem.symbol ?? carouselEntry?.id ?? null;
+    if (tab === "crypto" && carouselEntry) return carouselEntry.id;
+    return null;
+  }, [tab, activeStockSymbol, inZoneActive, carouselItem, carouselEntry]);
+
+  const activeCompanyName = useMemo(() => {
+    if (tab === "stocks") return stockData?.label ?? null;
     if (tab === "inzone" && inZoneActive) return inZoneActive.label;
     if ((tab === "indices" || tab === "crypto") && carouselItem) return carouselItem.label;
     return null;
-  }, [tab, stockData, activeStockSymbol, inZoneActive, carouselItem]);
+  }, [tab, stockData, inZoneActive, carouselItem]);
 
   const chartLevelsLoading =
     (tab === "stocks" && stockLoading) ||
@@ -360,8 +368,8 @@ export default function LevelsPage() {
     activeTv != null ? (
       <LevelsTradingViewChart
         config={activeTv}
-        assetName={activeAssetName ?? undefined}
-        title={`5m · ${activeTv.fullSymbol}`}
+        ticker={activeTicker ?? activeTv.symbol}
+        companyName={activeCompanyName ?? undefined}
         levels={activeChartLevels}
         loading={chartLevelsLoading}
       />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BaselineSeries,
   CandlestickSeries,
@@ -15,10 +15,12 @@ import {
 } from "lightweight-charts";
 import { Loader2 } from "lucide-react";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
+import { LevelsChartTvHint } from "@/components/levels/LevelsChartTvHint";
 import {
   applyLevelPriceLines,
   bandLineData,
   mergedPriceRange,
+  zoneSlAnchors,
 } from "@/components/levels/native-chart-level-overlays";
 
 interface ApiCandle {
@@ -68,15 +70,17 @@ const BEAR_BAND_STYLE = {
  */
 export function NativeCandlesChart({
   symbol,
-  interval = "5",
+  interval = "15",
   levels,
   loading: levelsLoading,
+  webChartUrl,
 }: {
   symbol: string;
   interval?: string;
   levels?: PublicLevels | null;
   /** Parent is still fetching zone levels for overlays. */
   loading?: boolean;
+  webChartUrl: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -298,6 +302,17 @@ export function NativeCandlesChart({
 
   const showBootOverlay = bootLoading || (levelsLoading && !hasDisplayedCandlesRef.current);
 
+  const resolveHintTopPx = useCallback(() => {
+    const series = seriesRef.current;
+    const el = containerRef.current;
+    if (!series || !el || !levels) return null;
+    const { bullSl } = zoneSlAnchors(levels);
+    if (bullSl == null) return null;
+    const y = series.priceToCoordinate(bullSl);
+    if (y == null) return null;
+    return Math.min(Math.max(y + 14, 8), el.clientHeight - 36);
+  }, [levels]);
+
   return (
     <div className="relative w-full h-full min-h-[260px]">
       <div
@@ -318,6 +333,7 @@ export function NativeCandlesChart({
           <p className="text-xs">{error}</p>
         </div>
       )}
+      <LevelsChartTvHint webChartUrl={webChartUrl} resolveTopPx={resolveHintTopPx} />
     </div>
   );
 }

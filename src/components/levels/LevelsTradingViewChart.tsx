@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ExternalLink } from "lucide-react";
 import { ChartPane } from "@/components/dashboard/ChartPane";
+import { LevelsChartTvHint } from "@/components/levels/LevelsChartTvHint";
 import { NativeCandlesChart } from "@/components/levels/NativeCandlesChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
-import type { LevelsTvConfig } from "@/lib/levels/tradingview-symbol";
+import {
+  formatLevelsChartMeta,
+  type LevelsTvConfig,
+} from "@/lib/levels/tradingview-symbol";
 import { levelsIndianChartProxySrc } from "@/lib/tradingview-symbol";
 
 /**
@@ -14,15 +17,16 @@ import { levelsIndianChartProxySrc } from "@/lib/tradingview-symbol";
  */
 export function LevelsTradingViewChart({
   config,
-  assetName,
-  title,
+  ticker,
+  companyName,
   levels,
   loading,
 }: {
   config: LevelsTvConfig;
-  /** Prominent symbol label above the chart (e.g. CROMPTON). */
-  assetName?: string;
-  title?: string;
+  /** NSE ticker / symbol (e.g. BANKINDIA). */
+  ticker: string;
+  /** Display name below ticker when different (e.g. Bank of India). */
+  companyName?: string;
   levels?: PublicLevels | null;
   loading?: boolean;
 }) {
@@ -31,6 +35,12 @@ export function LevelsTradingViewChart({
   const [chartFading, setChartFading] = useState(false);
 
   const chartKey = `${config.exchange}:${config.symbol}:${config.interval}:${config.nativeCandles ? "native" : "tv"}`;
+  const symbolTicker = ticker.trim() || config.symbol;
+  const subName = companyName?.trim();
+  const showCompany =
+    subName != null &&
+    subName.length > 0 &&
+    subName.toUpperCase() !== symbolTicker.toUpperCase();
 
   useEffect(() => {
     setMounted(true);
@@ -55,42 +65,34 @@ export function LevelsTradingViewChart({
 
   const showProxy = mounted && proxySrc;
 
-  const headline = assetName?.trim() || config.symbol;
-
   return (
     <section className="flex flex-col min-h-0 h-full w-full">
-      <div className="shrink-0 pb-2">
-        <h2
-          className="text-base sm:text-lg font-black tracking-tight truncate"
-          style={{ color: "#f8fafc" }}
-        >
-          {headline}
-        </h2>
-        <div className="flex items-center justify-between gap-2 mt-0.5">
-          {title ? (
-            <p
-              className="text-[9px] font-black uppercase tracking-[0.14em] truncate min-w-0"
-              style={{ color: "#64748b" }}
-            >
-              {title}
-            </p>
-          ) : (
-            <span />
-          )}
-          <a
-            href={config.webChartUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide shrink-0 hover:underline"
-            style={{ color: "#93c5fd" }}
+      <div className="flex items-start justify-between gap-3 shrink-0 pb-2">
+        <div className="min-w-0">
+          <h2
+            className="text-base sm:text-lg font-black tracking-tight truncate"
+            style={{ color: "#f8fafc" }}
           >
-            <ExternalLink className="h-3 w-3" />
-            Open on TV
-          </a>
+            {symbolTicker}
+          </h2>
+          {showCompany && (
+            <p
+              className="mt-0.5 text-[11px] sm:text-xs font-medium truncate"
+              style={{ color: "#94a3b8" }}
+            >
+              {subName}
+            </p>
+          )}
         </div>
+        <p
+          className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] shrink-0 text-right leading-snug pt-0.5"
+          style={{ color: "#64748b" }}
+        >
+          {formatLevelsChartMeta(config)}
+        </p>
       </div>
       <div
-        className="flex-1 min-h-0 w-full rounded-xl overflow-hidden transition-opacity duration-300 ease-in-out"
+        className="relative flex-1 min-h-0 w-full rounded-xl overflow-hidden transition-opacity duration-300 ease-in-out"
         style={{
           border: "1px solid rgba(255,255,255,0.08)",
           backgroundColor: "rgba(0,0,0,0.45)",
@@ -107,22 +109,29 @@ export function LevelsTradingViewChart({
             interval={config.interval}
             levels={levels}
             loading={loading}
+            webChartUrl={config.webChartUrl}
           />
         ) : showProxy ? (
-          <iframe
-            key={chartKey}
-            title={`Chart ${config.fullSymbol}`}
-            src={proxySrc}
-            className="w-full h-full border-none"
-            allowFullScreen
-            referrerPolicy="no-referrer-when-downgrade"
-          />
+          <>
+            <iframe
+              key={chartKey}
+              title={`Chart ${config.fullSymbol}`}
+              src={proxySrc}
+              className="w-full h-full border-none"
+              allowFullScreen
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+            <LevelsChartTvHint webChartUrl={config.webChartUrl} />
+          </>
         ) : (
-          <ChartPane
-            symbol={config.symbol}
-            exchange={config.exchange}
-            interval={config.interval}
-          />
+          <>
+            <ChartPane
+              symbol={config.symbol}
+              exchange={config.exchange}
+              interval={config.interval}
+            />
+            <LevelsChartTvHint webChartUrl={config.webChartUrl} />
+          </>
         )}
       </div>
     </section>

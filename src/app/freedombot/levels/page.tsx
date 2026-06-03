@@ -13,6 +13,11 @@ import {
   sortEntriesAlpha,
   type LevelsListEntry,
 } from "@/components/levels/LevelsSplitLayout";
+import {
+  buildLevelsBubbleItems,
+  LevelsBubblesView,
+  type LevelsBubbleItem,
+} from "@/components/levels/LevelsBubblesView";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { levelsTradingViewParams } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
@@ -74,9 +79,14 @@ interface LevelsPayload {
   updatedAt: string;
 }
 
-type TabKey = "indices" | "stocks" | "inzone";
+type TabKey = "indices" | "stocks" | "inzone" | "bubbles";
 
 const TAB_COPY: Record<TabKey, { title: string; subtitle: string }> = {
+  bubbles: {
+    title: "Market Bubbles",
+    subtitle:
+      "All NSE indices and F&O stocks — green in bull zone, red in bear, lighter shades when near a band. Tap a bubble for its chart.",
+  },
   indices: {
     title: "NSE Indices",
     subtitle: "Select an index on the left — chart auto-cycles every 8 seconds.",
@@ -159,6 +169,8 @@ export default function LevelsPage() {
   const [stockLoading, setStockLoading] = useState(false);
   const [stockFetchNote, setStockFetchNote] = useState<string | null>(null);
   const [slideshowPaused, setSlideshowPaused] = useState(false);
+  const [bubbleSelected, setBubbleSelected] = useState<LevelsBubbleItem | null>(null);
+  const [bubblesHideNeutral, setBubblesHideNeutral] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -214,7 +226,24 @@ export default function LevelsPage() {
     setStockSlide(0);
     setStockQuery("");
     setZoneFilter("all");
+    if (key !== "bubbles") setBubbleSelected(null);
   };
+
+  const bubbleItems = useMemo(
+    () =>
+      payload
+        ? buildLevelsBubbleItems(payload.indices, payload.stocks)
+        : [],
+    [payload],
+  );
+
+  useEffect(() => {
+    if (tab !== "bubbles" || bubbleItems.length === 0) return;
+    if (bubbleSelected && bubbleItems.some((b) => b.id === bubbleSelected.id)) return;
+    const first =
+      bubbleItems.find((b) => b.tone === "IN_BULL" || b.tone === "IN_BEAR") ?? bubbleItems[0];
+    setBubbleSelected(first);
+  }, [tab, bubbleItems, bubbleSelected]);
 
   const indexEntries: LevelsListEntry[] = useMemo(
     () =>
@@ -304,6 +333,9 @@ export default function LevelsPage() {
   const scheduleNote = "Updates Mon–Fri during market hours";
 
   const activeTv = useMemo(() => {
+    if (tab === "bubbles" && bubbleSelected) {
+      return levelsTradingViewParams(bubbleSelected.scope, bubbleSelected.symbol);
+    }
     if (tab === "indices" && carouselItem?.symbol) {
       return levelsTradingViewParams("index", carouselItem.symbol);
     }
@@ -314,27 +346,42 @@ export default function LevelsPage() {
       return levelsTradingViewParams(inZoneActive.scope, inZoneActive.symbol);
     }
     return null;
-  }, [tab, carouselItem, activeStockSymbol, inZoneActive]);
+  }, [tab, bubbleSelected, carouselItem, activeStockSymbol, inZoneActive]);
 
   const activeChartLevels = useMemo<PublicLevels | null>(() => {
+    if (tab === "bubbles" && bubbleSelected) {
+      if (bubbleSelected.scope === "stock") return stockData?.data ?? bubbleSelected.data;
+      return bubbleSelected.data;
+    }
     if (tab === "indices") return carouselItem?.data ?? null;
     if (tab === "stocks") return stockData?.data ?? null;
     if (tab === "inzone" && (inZoneActive?.scope === "stock" || inZoneActive?.scope === "index")) {
       return inZoneChartData;
     }
     return null;
-  }, [tab, carouselItem, stockData, inZoneActive, inZoneChartData]);
+  }, [tab, bubbleSelected, carouselItem, stockData, inZoneActive, inZoneChartData]);
+
+  const bubbleChartLoading =
+    tab === "bubbles" &&
+    bubbleSelected?.scope === "stock" &&
+    stockLoading;
 
   const chartShowsZones = Boolean(activeTv?.nativeCandles && levelsHaveBands(activeChartLevels));
 
   const activeTicker = useMemo(() => {
+    if (tab === "bubbles" && bubbleSelected) return bubbleSelected.symbol;
     if (tab === "stocks") return activeStockSymbol ?? null;
     if (tab === "inzone" && inZoneActive) return inZoneActive.symbol;
     if (tab === "indices" && carouselItem) return carouselItem.symbol ?? carouselEntry?.id ?? null;
     return null;
-  }, [tab, activeStockSymbol, inZoneActive, carouselItem, carouselEntry]);
+  }, [tab, bubbleSelected, activeStockSymbol, inZoneActive, carouselItem, carouselEntry]);
 
   const activeCompanyName = useMemo(() => {
+    if (tab === "bubbles" && bubbleSelected) {
+      return bubbleSelected.scope === "stock"
+        ? resolveStockCompanyName(bubbleSelected.symbol, bubbleSelected.label)
+        : bubbleSelected.label;
+    }
     if (tab === "stocks" && activeStockSymbol) {
       return resolveStockCompanyName(activeStockSymbol, stockData?.label);
     }
@@ -344,10 +391,11 @@ export default function LevelsPage() {
     if (tab === "inzone" && inZoneActive?.scope === "index") return inZoneActive.label;
     if (tab === "indices" && carouselItem) return carouselItem.label;
     return null;
-  }, [tab, activeStockSymbol, stockData, inZoneActive, carouselItem]);
+  }, [tab, bubbleSelected, activeStockSymbol, stockData, inZoneActive, carouselItem]);
 
   const chartLevelsLoading =
     (tab === "stocks" && stockLoading) ||
+    bubbleChartLoading ||
     (tab === "inzone" && inZoneChartLoading && inZoneActive?.scope === "stock");
 
   const tvChartColumn =
@@ -441,6 +489,11 @@ export default function LevelsPage() {
     if (tab !== "stocks" || !activeStockSymbol) return;
     loadStock(activeStockSymbol);
   }, [tab, activeStockSymbol, loadStock]);
+
+  useEffect(() => {
+    if (tab !== "bubbles" || !bubbleSelected || bubbleSelected.scope !== "stock") return;
+    loadStock(bubbleSelected.symbol);
+  }, [tab, bubbleSelected?.id, bubbleSelected?.scope, loadStock]);
 
   useEffect(() => {
     if (!inZoneActive) {
@@ -586,6 +639,35 @@ export default function LevelsPage() {
       </div>
     </div>
   );
+
+  const renderBubblesTab = () => {
+    return (
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden gap-2">
+        <LevelsBubblesView
+          items={bubbleItems}
+          selectedId={bubbleSelected?.id ?? null}
+          onSelect={setBubbleSelected}
+          hideNeutral={bubblesHideNeutral}
+          onHideNeutralChange={setBubblesHideNeutral}
+        />
+        {bubbleSelected && activeTv && (
+          <div
+            className="shrink-0 flex flex-col min-h-[38vh] max-h-[48vh] rounded-xl overflow-hidden"
+            style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            <LevelsTradingViewChart
+              config={activeTv}
+              ticker={bubbleSelected.symbol}
+              companyName={activeCompanyName ?? undefined}
+              levels={activeChartLevels}
+              loading={chartLevelsLoading}
+            />
+          </div>
+        )}
+        <LevelsDisclaimer scheduleNote={scheduleNote} />
+      </div>
+    );
+  };
 
   const renderCarouselTab = () => {
     if (carouselCount === 0 || !carouselItem) {
@@ -812,6 +894,7 @@ export default function LevelsPage() {
             style={{ backgroundColor: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.06)" }}
           >
             {([
+              { key: "bubbles" as TabKey, label: "Bubbles", pro: false },
               { key: "indices" as TabKey, label: "NSE Indices", pro: false },
               { key: "stocks" as TabKey, label: "NSE Stocks", pro: true },
               { key: "inzone" as TabKey, label: "In Zone", pro: true },
@@ -844,11 +927,13 @@ export default function LevelsPage() {
           <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
             <LevelsPageHeader title={copy.title} subtitle={copy.subtitle} />
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-              {tab === "indices"
-                ? renderCarouselTab()
-                : tab === "stocks"
-                  ? renderStocksTab()
-                  : renderInZoneTab()}
+              {tab === "bubbles"
+                ? renderBubblesTab()
+                : tab === "indices"
+                  ? renderCarouselTab()
+                  : tab === "stocks"
+                    ? renderStocksTab()
+                    : renderInZoneTab()}
             </div>
           </div>
         )}

@@ -504,6 +504,33 @@ export default function LevelsPage() {
       : "Switch to bubbles view";
   const viewToggleShortcut = "(Press S for shortcut)";
 
+  const viewToggleButton = (
+    <button
+      type="button"
+      onClick={toggleViewMode}
+      className="inline-flex flex-col items-center text-center px-3 py-2 rounded-lg transition-all hover:brightness-110 active:scale-[0.98] shrink-0"
+      style={{
+        background:
+          "linear-gradient(135deg, rgba(37,99,235,0.6) 0%, rgba(59,130,246,0.4) 100%)",
+        border: "1px solid rgba(96,165,250,0.6)",
+        boxShadow: "0 0 20px rgba(37,99,235,0.4)",
+      }}
+    >
+      <span
+        className="text-[9px] sm:text-[10px] font-black uppercase tracking-wide leading-tight whitespace-nowrap"
+        style={{ color: "#f8fafc" }}
+      >
+        {viewToggleLabel}
+      </span>
+      <span
+        className="text-[7px] sm:text-[8px] font-bold uppercase tracking-widest mt-0.5 whitespace-nowrap"
+        style={{ color: "#93c5fd" }}
+      >
+        {viewToggleShortcut}
+      </span>
+    </button>
+  );
+
   return (
     <main
       className="h-[100dvh] overflow-hidden flex flex-col"
@@ -514,34 +541,6 @@ export default function LevelsPage() {
       }}
     >
       <div className="flex-1 min-h-0 w-full max-w-[100rem] mx-auto px-3 sm:px-5 py-3 sm:py-4 flex flex-col overflow-hidden">
-        <div className="shrink-0 flex justify-end mb-2 sm:mb-3 min-h-[40px]">
-          {!loading ? (
-            <button
-              type="button"
-              onClick={toggleViewMode}
-              className="inline-flex flex-col items-end sm:items-center text-right sm:text-center px-4 py-2.5 sm:py-3 rounded-xl transition-all hover:brightness-110 active:scale-[0.98] shadow-lg max-w-[min(100%,20rem)]"
-              style={{
-                background: "linear-gradient(135deg, rgba(37,99,235,0.55) 0%, rgba(59,130,246,0.35) 100%)",
-                border: "1px solid rgba(96,165,250,0.55)",
-                boxShadow: "0 0 24px rgba(37,99,235,0.35)",
-              }}
-            >
-              <span
-                className="text-[10px] sm:text-[11px] font-black uppercase tracking-wide leading-tight"
-                style={{ color: "#f8fafc" }}
-              >
-                {viewToggleLabel}
-              </span>
-              <span
-                className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest mt-0.5"
-                style={{ color: "#93c5fd" }}
-              >
-                {viewToggleShortcut}
-              </span>
-            </button>
-          ) : null}
-        </div>
-
         {loading ? (
           <div className="flex flex-1 items-center justify-center py-24">
             <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
@@ -554,9 +553,15 @@ export default function LevelsPage() {
                 onBubbleOpen={openBubbleChart}
                 hideNeutral={bubblesHideNeutral}
                 onHideNeutralChange={setBubblesHideNeutral}
+                headerActions={viewToggleButton}
               />
             ) : (
-              renderSlideshow()
+              <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="shrink-0 flex flex-wrap items-center justify-end gap-2 mb-2 px-0.5">
+                  {viewToggleButton}
+                </div>
+                {renderSlideshow()}
+              </div>
             )}
           </div>
         )}

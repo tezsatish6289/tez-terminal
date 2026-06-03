@@ -4,15 +4,11 @@ import { useMemo } from "react";
 import { ExternalLink } from "lucide-react";
 import { ChartPane } from "@/components/dashboard/ChartPane";
 import type { LevelsTvConfig } from "@/lib/levels/tradingview-symbol";
-import {
-  shouldProxyIndianChartViaTezTerminal,
-  tezTerminalChartEmbedUrl,
-} from "@/lib/tradingview-symbol";
+import { levelsIndianChartProxySrc } from "@/lib/tradingview-symbol";
 
 /**
- * Right column chart — NSE/BSE on freedombot.ai loads via tezterminal.com/embed/chart
- * (TradingView allows India symbols on tezterminal.com, not on freedombot.ai).
- * Crypto uses ChartPane inline (same as /chart/[id]).
+ * India charts on freedombot.ai → iframe tezterminal.com/embed/chart (same TV allowlist as /chart/[id]).
+ * Crypto renders ChartPane inline.
  */
 export function LevelsTradingViewChart({
   config,
@@ -22,10 +18,8 @@ export function LevelsTradingViewChart({
   title?: string;
 }) {
   const proxySrc = useMemo(() => {
-    if (!config.indianMarket) return null;
-    if (typeof window === "undefined") return null;
-    if (!shouldProxyIndianChartViaTezTerminal(window.location.hostname)) return null;
-    return tezTerminalChartEmbedUrl({
+    if (!config.indianMarket || typeof window === "undefined") return null;
+    return levelsIndianChartProxySrc(window.location.hostname, window.location.pathname, {
       symbol: config.symbol,
       exchange: config.exchange,
       interval: config.interval,
@@ -68,6 +62,7 @@ export function LevelsTradingViewChart({
             src={proxySrc}
             className="w-full h-full border-none"
             allowFullScreen
+            referrerPolicy="no-referrer-when-downgrade"
           />
         ) : (
           <ChartPane

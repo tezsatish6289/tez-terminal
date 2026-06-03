@@ -1,6 +1,6 @@
 /**
  * Map freedombot /levels selections to ChartPane params (same widget as /chart/[id]).
- * ChartPane maps NSE → NSE_DLY for the embed; levels pass canonical NSE for stocks.
+ * India charts on freedombot.ai load via tezterminal.com/embed/chart (see LevelsTradingViewChart).
  */
 
 import type { IndexKey } from "@/lib/index-options-zones";

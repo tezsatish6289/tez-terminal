@@ -80,7 +80,9 @@ function ChartContent() {
   }, [scope, symbol, loadLevels]);
 
   const companyName = useMemo(() => {
-    if (scope === "stock") return fnoCompanyName(symbol) ?? (label !== symbol ? label : null) : label;
+    if (scope === "stock") {
+      return fnoCompanyName(symbol) ?? (label !== symbol ? label : null);
+    }
     return label || null;
   }, [scope, symbol, label]);
 

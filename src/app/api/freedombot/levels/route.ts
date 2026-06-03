@@ -32,6 +32,7 @@ import {
   isValidFnoSymbol,
   normalizeStockSymbol,
   stockLevelsCacheFresh,
+  stockLevelsLadderComplete,
 } from "@/lib/equity-zones-on-demand";
 import { stockDocId } from "@/lib/equity-zones-store";
 
@@ -119,35 +120,33 @@ interface StockAggregateEntry {
   label: string;
   status: ZoneStatus;
   spot: number | null;
+  maxPain?: number | null;
   bullZoneLow?: number | null;
   bullZoneHigh?: number | null;
   bearZoneLow?: number | null;
   bearZoneHigh?: number | null;
+  halfWidth?: number | null;
   computedAt?: string;
 }
 
-/** Build a render-safe ladder from the stock aggregate row (bands only). */
+/** Build a render-safe ladder from the stock aggregate row (bands + POC when present). */
 function levelsFromStockAggregate(e: StockAggregateEntry): PublicLevels | null {
   const bullLow = num(e.bullZoneLow);
   const bearLow = num(e.bearZoneLow);
   if (bullLow == null && bearLow == null) return null;
   return {
     spot: num(e.spot),
-    poc: null,
+    poc: num(e.maxPain),
     bullLow,
     bullHigh: num(e.bullZoneHigh),
     bearLow,
     bearHigh: num(e.bearZoneHigh),
-    bandOffset: null,
+    bandOffset: num(e.halfWidth),
     bullActive: null,
     bearActive: null,
     computedAt: typeof e.computedAt === "string" ? e.computedAt : null,
     unavailable: false,
   };
-}
-
-function hasRenderableBands(data: PublicLevels | null): boolean {
-  return data != null && (data.bullLow != null || data.bearLow != null);
 }
 
 /**
@@ -162,13 +161,13 @@ async function getSingleStock(symbol: string, forceRefresh: boolean) {
 
   let raw = await readDoc(stockDocId(safe));
   let data = sanitize(raw);
-  const cachedFresh = stockLevelsCacheFresh(data?.computedAt) && hasRenderableBands(data);
+  const cachedFresh = stockLevelsCacheFresh(data?.computedAt) && stockLevelsLadderComplete(data);
 
   if (forceRefresh || !cachedFresh) {
     const result = await computeStockZonesOnDemand(safe);
     raw = await readDoc(stockDocId(safe));
     data = sanitize(raw);
-    if (!hasRenderableBands(data)) {
+    if (!stockLevelsLadderComplete(data)) {
       return NextResponse.json(
         {
           symbol: safe,

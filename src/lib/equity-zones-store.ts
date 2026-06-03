@@ -57,16 +57,18 @@ function serialize(z: EquityOptionsZones) {
   };
 }
 
-/** Compact entry for the aggregate In-Zone doc. */
+/** Compact entry for the aggregate In-Zone doc (includes POC for the public ladder). */
 export interface StockZoneAggregateEntry {
   symbol: string;
   label: string;
   status: ZoneStatus;
   spot: number | null;
+  maxPain: number | null;
   bullZoneLow: number | null;
   bullZoneHigh: number | null;
   bearZoneLow: number | null;
   bearZoneHigh: number | null;
+  halfWidth: number | null;
   computedAt: string;
 }
 
@@ -76,10 +78,12 @@ export function aggregateEntry(z: EquityOptionsZones): StockZoneAggregateEntry {
     label: z.label,
     status: z.status,
     spot: z.spot > 0 ? z.spot : null,
+    maxPain: z.maxPain,
     bullZoneLow: z.bullZoneLow,
     bullZoneHigh: z.bullZoneHigh,
     bearZoneLow: z.bearZoneLow,
     bearZoneHigh: z.bearZoneHigh,
+    halfWidth: z.halfWidth > 0 ? z.halfWidth : null,
     computedAt: z.computedAt,
   };
 }

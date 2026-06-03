@@ -8,6 +8,7 @@ import { getAdminFirestore } from "@/firebase/admin";
 import { createNseSession } from "@/lib/nse/client";
 import { NseCircuitOpenError, NseBlockError } from "@/lib/nse/types";
 import { computeEquityZones } from "@/lib/equity-options-zones";
+import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
   aggregateEntry,
   persistEquityZonesDoc,
@@ -15,6 +16,16 @@ import {
   writeStockZoneAggregate,
 } from "@/lib/equity-zones-store";
 import { FNO_UNIVERSE } from "@/lib/nse/fno-universe";
+
+/** True when the public ladder can render bands (at least one side). */
+export function stockLevelsHasBands(data: PublicLevels | null | undefined): boolean {
+  return data != null && (data.bullLow != null || data.bearLow != null);
+}
+
+/** Bands + Point of Control (max pain) — required for a complete cached stock ladder. */
+export function stockLevelsLadderComplete(data: PublicLevels | null | undefined): boolean {
+  return stockLevelsHasBands(data) && data!.poc != null;
+}
 
 export function normalizeStockSymbol(symbol: string): string {
   return symbol.toUpperCase().replace(/[^A-Z0-9&-]/g, "");

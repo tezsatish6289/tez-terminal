@@ -301,13 +301,18 @@ export default function LevelsPage() {
       setInZoneChartData(null);
       return;
     }
-    if (inZoneActive.data && (inZoneActive.data.bullLow != null || inZoneActive.data.bearLow != null)) {
-      setInZoneChartData(inZoneActive.data);
+    const bundled = inZoneActive.data;
+    const hasBands = bundled != null && (bundled.bullLow != null || bundled.bearLow != null);
+    const stockNeedsFullFetch =
+      inZoneActive.scope === "stock" && hasBands && bundled!.poc == null;
+
+    if (hasBands && !stockNeedsFullFetch) {
+      setInZoneChartData(bundled);
       setInZoneChartLoading(false);
       return;
     }
     if (inZoneActive.scope !== "stock") {
-      setInZoneChartData(inZoneActive.data);
+      setInZoneChartData(bundled);
       setInZoneChartLoading(false);
       return;
     }

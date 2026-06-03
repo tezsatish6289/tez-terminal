@@ -30,8 +30,8 @@ interface ApiCandle {
 }
 
 const POLL_MS = 60_000;
-/** Pixel gap on the right for axis labels (clearer than large bar offset). */
-const RIGHT_OFFSET_PIXELS = 88;
+/** Empty bars on the right so candles sit left of zone price labels. */
+const RIGHT_OFFSET_BARS = 18;
 
 const BULL_BAND_STYLE = {
   lineVisible: false,
@@ -91,6 +91,17 @@ export function NativeCandlesChart({
   const [error, setError] = useState<string | null>(null);
 
   levelsRef.current = levels;
+
+  function applyRightPadding() {
+    const ts = chartRef.current?.timeScale();
+    if (!ts) return;
+    ts.applyOptions({ rightOffset: RIGHT_OFFSET_BARS });
+    // Re-apply after layout so fitPriceScale does not collapse the gap.
+    requestAnimationFrame(() => {
+      chartRef.current?.timeScale().applyOptions({ rightOffset: RIGHT_OFFSET_BARS });
+      chartRef.current?.timeScale().scrollToRealTime();
+    });
+  }
 
   function fitPriceScale() {
     const series = seriesRef.current;
@@ -163,7 +174,7 @@ export function NativeCandlesChart({
         borderColor: "rgba(255,255,255,0.08)",
         timeVisible: true,
         secondsVisible: false,
-        rightOffsetPixels: RIGHT_OFFSET_PIXELS,
+        rightOffset: RIGHT_OFFSET_BARS,
         fixRightEdge: false,
         minimumHeight: 28,
         ticksVisible: true,
@@ -238,12 +249,7 @@ export function NativeCandlesChart({
         syncZoneBands(data, levelsRef.current);
         applyLevelPriceLines(seriesRef.current!, priceLinesRef, levelsRef.current);
         fitPriceScale();
-
-        if (initial) {
-          const ts = chartRef.current?.timeScale();
-          ts?.applyOptions({ rightOffsetPixels: RIGHT_OFFSET_PIXELS });
-          ts?.scrollToRealTime();
-        }
+        applyRightPadding();
         setError(null);
       } catch (e) {
         if (!cancelled && initial) {
@@ -271,6 +277,7 @@ export function NativeCandlesChart({
     syncZoneBands(candlesRef.current, levels);
     applyLevelPriceLines(series, priceLinesRef, levels);
     fitPriceScale();
+    applyRightPadding();
   }, [levels, symbol]);
 
   return (

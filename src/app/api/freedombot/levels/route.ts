@@ -27,9 +27,18 @@ import {
   isInZoneStatus,
   type ZoneStatus,
 } from "@/lib/zones/zone-status";
+import {
+  computeStockZonesOnDemand,
+  isValidFnoSymbol,
+  normalizeStockSymbol,
+  stockLevelsCacheFresh,
+} from "@/lib/equity-zones-on-demand";
+import { stockDocId } from "@/lib/equity-zones-store";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+/** On-demand NSE fetch for a single stock can take ~10–15s. */
+export const maxDuration = 60;
 
 const CRYPTO: { asset: string; label: string }[] = [
   { asset: "btc", label: "Bitcoin" },
@@ -137,20 +146,67 @@ function levelsFromStockAggregate(e: StockAggregateEntry): PublicLevels | null {
   };
 }
 
-/** Single-stock full ladder payload. */
-async function getSingleStock(symbol: string) {
-  const safe = symbol.toUpperCase().replace(/[^A-Z0-9&-]/g, "");
-  const raw = await readDoc(`config/suggested_stock_zones_${safe}`);
+function hasRenderableBands(data: PublicLevels | null): boolean {
+  return data != null && (data.bullLow != null || data.bearLow != null);
+}
+
+/**
+ * Single-stock ladder payload. Reads Firestore first; if missing, stale, or
+ * without bands, runs an on-demand NSE compute (the planned click-to-fetch path).
+ */
+async function getSingleStock(symbol: string, forceRefresh: boolean) {
+  const safe = normalizeStockSymbol(symbol);
+  if (!isValidFnoSymbol(safe)) {
+    return NextResponse.json({ error: "Unknown F&O symbol" }, { status: 400 });
+  }
+
+  let raw = await readDoc(stockDocId(safe));
+  let data = sanitize(raw);
+  const cachedFresh = stockLevelsCacheFresh(data?.computedAt) && hasRenderableBands(data);
+
+  if (forceRefresh || !cachedFresh) {
+    const result = await computeStockZonesOnDemand(safe);
+    raw = await readDoc(stockDocId(safe));
+    data = sanitize(raw);
+    if (!hasRenderableBands(data)) {
+      return NextResponse.json(
+        {
+          symbol: safe,
+          label: (typeof raw?.label === "string" && raw.label) || safe,
+          data,
+          source: "nse",
+          computed: result.ok,
+          error: result.error ?? (data?.unavailable ? "Levels unavailable for this symbol" : "No bands derived"),
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    return NextResponse.json(
+      {
+        symbol: safe,
+        label: (typeof raw?.label === "string" && raw.label) || safe,
+        data,
+        source: "nse",
+        computed: true,
+      },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
   const label = (typeof raw?.label === "string" && raw.label) || safe;
   return NextResponse.json(
-    { symbol: safe, label, data: sanitize(raw) },
+    { symbol: safe, label, data, source: "cache", computed: false },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
 
 export async function GET(request: NextRequest) {
-  const symbol = new URL(request.url).searchParams.get("symbol");
-  if (symbol) return getSingleStock(symbol);
+  const params = new URL(request.url).searchParams;
+  const symbol = params.get("symbol");
+  if (symbol) {
+    const forceRefresh = params.get("refresh") === "1" || params.get("compute") === "1";
+    return getSingleStock(symbol, forceRefresh);
+  }
 
   const [indexDocs, cryptoDocs, stockAgg] = await Promise.all([
     Promise.all(INDEX_KEYS.map((k) => readDoc(`config/suggested_index_zones_${k}`))),

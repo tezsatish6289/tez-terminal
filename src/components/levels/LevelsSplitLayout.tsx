@@ -131,6 +131,7 @@ export function LevelsChartPanel({
   refreshedLabel,
   autoAdvanceNote,
   footerExtra,
+  emptyHint,
 }: {
   title: string;
   spot: number | null;
@@ -138,6 +139,7 @@ export function LevelsChartPanel({
   levels: PublicLevels | null;
   loading?: boolean;
   unavailable?: boolean;
+  emptyHint?: string;
   slideCount: number;
   activeIndex: number;
   onPrev: () => void;
@@ -167,8 +169,13 @@ export function LevelsChartPanel({
 
       <div className="relative flex-1 min-h-0 flex flex-col justify-center px-1 sm:px-8">
         {loading ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex flex-col items-center justify-center py-8 gap-2">
             <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#60a5fa" }} />
+            {emptyHint && (
+              <p className="text-[11px] text-center max-w-xs" style={{ color: "#64748b" }}>
+                {emptyHint}
+              </p>
+            )}
           </div>
         ) : hasBands && levels ? (
           <ZonePriceLadder levels={levels} spot={spot} currencySymbol={currency} variant="embedded" />
@@ -177,6 +184,11 @@ export function LevelsChartPanel({
             <p className="text-xs" style={{ color: "#64748b" }}>
               {unavailable ? "Levels temporarily unavailable" : "Awaiting level data"}
             </p>
+            {emptyHint && (
+              <p className="text-[11px] max-w-xs leading-relaxed" style={{ color: "#475569" }}>
+                {emptyHint}
+              </p>
+            )}
           </div>
         )}
 

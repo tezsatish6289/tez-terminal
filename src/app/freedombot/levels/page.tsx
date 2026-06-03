@@ -126,6 +126,7 @@ export default function LevelsPage() {
   const [stockSlide, setStockSlide] = useState(0);
   const [stockData, setStockData] = useState<{ label: string; data: PublicLevels | null } | null>(null);
   const [stockLoading, setStockLoading] = useState(false);
+  const [stockFetchNote, setStockFetchNote] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -146,12 +147,29 @@ export default function LevelsPage() {
 
   const loadStock = useCallback(async (symbol: string) => {
     setStockLoading(true);
+    setStockFetchNote("Loading levels from NSE…");
     try {
-      const res = await fetch(`/api/freedombot/levels?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" });
-      const json = (await res.json()) as { label: string; data: PublicLevels | null };
+      const res = await fetch(`/api/freedombot/levels?symbol=${encodeURIComponent(symbol)}`, {
+        cache: "no-store",
+      });
+      const json = (await res.json()) as {
+        label: string;
+        data: PublicLevels | null;
+        source?: string;
+        computed?: boolean;
+        error?: string;
+      };
       setStockData({ label: json.label, data: json.data });
+      if (json.error && !(json.data?.bullLow != null || json.data?.bearLow != null)) {
+        setStockFetchNote(json.error);
+      } else if (json.computed) {
+        setStockFetchNote("Computed just now from NSE option chain");
+      } else {
+        setStockFetchNote(null);
+      }
     } catch {
       setStockData(null);
+      setStockFetchNote("Could not load levels — try again");
     } finally {
       setStockLoading(false);
     }
@@ -458,6 +476,7 @@ export default function LevelsPage() {
             currency="₹"
             levels={stockData?.data ?? null}
             loading={stockLoading}
+            emptyHint={stockFetchNote ?? undefined}
             slideCount={stockCount}
             activeIndex={stockCurrent}
             onPrev={() => goStock(-1)}

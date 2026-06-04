@@ -33,6 +33,7 @@ import { SLIDESHOW_SLIDE_SECONDS } from "@/components/levels/levels-symbol-strip
 import {
   isSlideshowZoneStale,
   SLIDESHOW_ZONE_TICK_MS,
+  zonesUpdatedFooterLabel,
 } from "@/lib/levels/slideshow-zones";
 import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
 import {
@@ -119,16 +120,6 @@ function resolveStockCompanyName(symbol: string, fallback?: string | null): stri
   const fb = fallback?.trim();
   if (fb && fb.toUpperCase() !== symbol.toUpperCase()) return fb;
   return null;
-}
-
-function formatRefreshed(computedAt: string | null | undefined): string | null {
-  if (!computedAt) return null;
-  return new Date(computedAt).toLocaleString([], {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 export default function LevelsPage() {
@@ -637,10 +628,7 @@ export default function LevelsPage() {
     }
 
     const chartSpot = inZoneChartData?.spot ?? inZoneActive?.spot ?? null;
-    const zonesUpdated = formatRefreshed(inZoneChartData?.computedAt);
-    const zonesUpdatedLabel = zonesUpdated
-      ? `Support/resistance zones updated ${zonesUpdated}`
-      : undefined;
+    const zonesUpdatedLabel = zonesUpdatedFooterLabel(inZoneChartData?.computedAt);
     const inZoneNativeChart = chartShowsZones && inZoneActive != null;
 
     return wrapSlideshowBody(

@@ -11,3 +11,20 @@ export function isSlideshowZoneStale(computedAt: string | null | undefined): boo
   const t = Date.parse(computedAt);
   return !Number.isFinite(t) || Date.now() - t >= SLIDESHOW_ZONE_STALE_MS;
 }
+
+export function formatZonesUpdatedAt(computedAt: string | null | undefined): string | null {
+  if (!computedAt) return null;
+  return new Date(computedAt).toLocaleString([], {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function zonesUpdatedFooterLabel(
+  computedAt: string | null | undefined,
+): string | undefined {
+  const when = formatZonesUpdatedAt(computedAt);
+  return when ? `Support/resistance zones updated ${when}` : undefined;
+}

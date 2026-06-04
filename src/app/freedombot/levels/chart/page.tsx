@@ -4,16 +4,27 @@ import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "rea
 import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
+import { LevelsChartMetaFooter } from "@/components/levels/LevelsSplitLayout";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
+import {
+  isSlideshowZoneStale,
+  SLIDESHOW_ZONE_TICK_MS,
+  zonesUpdatedFooterLabel,
+} from "@/lib/levels/slideshow-zones";
 import { levelsTradingViewParams, type LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FB_FULL_HEIGHT_MAIN } from "@/lib/freedombot/responsive";
 
 /** Deep-dive: full viewport width; slideshow keeps max-w-[100rem] + side list. */
 const CHART_PAGE_SHELL = "w-full max-w-none flex flex-col flex-1 min-h-0";
+
+function stockLevelsUrl(symbol: string, slideshowPriority: boolean): string {
+  const q = slideshowPriority ? "&slideshow=1" : "";
+  return `/api/freedombot/levels?symbol=${encodeURIComponent(symbol)}${q}`;
+}
 
 function ChartContent() {
   const searchParams = useSearchParams();
@@ -35,49 +46,54 @@ function ChartContent() {
     [scope, symbol],
   );
 
-  const loadLevels = useCallback(async () => {
-    if (!scope || !symbol) return;
-    setLoading(true);
-    setError(null);
-    try {
-      if (scope === "stock") {
-        const res = await fetch(`/api/freedombot/levels?symbol=${encodeURIComponent(symbol)}`, {
-          cache: "no-store",
-        });
-        const json = (await res.json()) as {
-          label: string;
-          data: PublicLevels | null;
-          error?: string;
-        };
-        setLabel(json.label ?? symbol);
-        setLevels(json.data);
-        if (json.error && !(json.data?.bullLow != null || json.data?.bearLow != null)) {
-          setError(json.error);
+  const loadLevels = useCallback(
+    async (opts?: { quiet?: boolean }) => {
+      if (!scope || !symbol) return;
+      if (!opts?.quiet) {
+        setLoading(true);
+        setError(null);
+      }
+      try {
+        if (scope === "stock") {
+          const res = await fetch(stockLevelsUrl(symbol, true), { cache: "no-store" });
+          const json = (await res.json()) as {
+            label: string;
+            data: PublicLevels | null;
+            error?: string;
+          };
+          setLabel(json.label ?? symbol);
+          setLevels(json.data);
+          if (json.error && !(json.data?.bullLow != null || json.data?.bearLow != null)) {
+            setError(json.error);
+          }
+          return;
         }
-        return;
+        const res = await fetch("/api/freedombot/levels", { cache: "no-store" });
+        const json = (await res.json()) as {
+          indices: { symbol?: string; label: string; data: PublicLevels | null }[];
+        };
+        const hit = json.indices?.find(
+          (it) => (it.symbol ?? it.label).toUpperCase() === symbol,
+        );
+        if (!hit) {
+          setError("Index levels not found.");
+          setLevels(null);
+          setLabel(symbol);
+          return;
+        }
+        setLabel(hit.label);
+        setLevels(hit.data);
+      } catch {
+        if (!opts?.quiet) {
+          setError("Could not load levels.");
+          setLevels(null);
+        }
+      } finally {
+        if (!opts?.quiet) setLoading(false);
       }
-      const res = await fetch("/api/freedombot/levels", { cache: "no-store" });
-      const json = (await res.json()) as {
-        indices: { symbol?: string; label: string; data: PublicLevels | null }[];
-      };
-      const hit = json.indices?.find(
-        (it) => (it.symbol ?? it.label).toUpperCase() === symbol,
-      );
-      if (!hit) {
-        setError("Index levels not found.");
-        setLevels(null);
-        setLabel(symbol);
-        return;
-      }
-      setLabel(hit.label);
-      setLevels(hit.data);
-    } catch {
-      setError("Could not load levels.");
-      setLevels(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [scope, symbol]);
+    },
+    [scope, symbol],
+  );
 
   useEffect(() => {
     if (!scope || !symbol) {
@@ -86,6 +102,17 @@ function ChartContent() {
     }
     void loadLevels();
   }, [scope, symbol, loadLevels]);
+
+  /** While this tab is open, refresh zones when older than 5m (same cadence as slideshow). */
+  useEffect(() => {
+    if (scope !== "stock" || !symbol) return;
+    const id = setInterval(() => {
+      if (isSlideshowZoneStale(levels?.computedAt)) {
+        void loadLevels({ quiet: true });
+      }
+    }, SLIDESHOW_ZONE_TICK_MS);
+    return () => clearInterval(id);
+  }, [scope, symbol, levels?.computedAt, loadLevels]);
 
   useEffect(() => {
     setChartFullHistory(true);
@@ -103,6 +130,8 @@ function ChartContent() {
     if (label && label.toUpperCase() !== symbol) return label;
     return null;
   }, [companyName, label, symbol]);
+
+  const zonesUpdatedLabel = zonesUpdatedFooterLabel(levels?.computedAt);
 
   if ((!scope || !symbol) && error) {
     return (
@@ -162,6 +191,12 @@ function ChartContent() {
               showHeader={false}
               nativeChartRef={nativeChartRef}
               onFullHistoryZoomChange={setChartFullHistory}
+            />
+            <LevelsChartMetaFooter
+              slideCount={1}
+              activeIndex={0}
+              onGoTo={() => {}}
+              zonesUpdatedLabel={zonesUpdatedLabel}
             />
           </div>
           <LevelsNewsPanel

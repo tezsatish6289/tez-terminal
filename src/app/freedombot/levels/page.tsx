@@ -16,7 +16,7 @@ import {
   LevelsBubblesView,
 } from "@/components/levels/LevelsBubblesView";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
-import { LevelsSlideshowCta } from "@/components/levels/LevelsSlideshowCta";
+import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
 import { LevelsSlideshowToolbar } from "@/components/levels/LevelsSlideshowToolbar";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { levelsChartPagePath } from "@/lib/levels/levels-chart-url";
@@ -306,6 +306,16 @@ export default function LevelsPage() {
     return inZoneActive.label;
   }, [inZoneActive]);
 
+  const slideshowSubtitleLine = useMemo(() => {
+    if (!activeTicker) return null;
+    const name = activeCompanyName?.trim();
+    if (name && name.toUpperCase() !== activeTicker.toUpperCase()) return name;
+    if (inZoneActive?.label && inZoneActive.label.toUpperCase() !== activeTicker.toUpperCase()) {
+      return inZoneActive.label;
+    }
+    return null;
+  }, [activeTicker, activeCompanyName, inZoneActive?.label]);
+
   const chartLevelsLoading =
     viewMode === "slideshow" && inZoneChartLoading && inZoneActive?.scope === "stock";
 
@@ -415,6 +425,7 @@ export default function LevelsPage() {
         slideshowPaused={slideshowPaused}
         onToggleSlideshowPause={toggleSlideshowPause}
         hideChartShortcuts={viewMode === "slideshow"}
+        showHeader={viewMode !== "slideshow"}
         nativeChartRef={nativeChartRef}
         onFullHistoryZoomChange={setChartFullHistory}
       />
@@ -530,15 +541,6 @@ export default function LevelsPage() {
       : "Switch to bubbles view";
   const viewToggleShortcut = "(Press S for shortcut)";
 
-  const viewToggleButton = (
-    <LevelsSlideshowCta
-      label={viewToggleLabel}
-      shortLabel={viewMode === "bubbles" ? "Slideshow" : "Bubbles"}
-      onClick={toggleViewMode}
-      title={viewToggleShortcut}
-    />
-  );
-
   return (
     <main
       className={`${FB_FULL_HEIGHT_MAIN} shrink-0 min-w-0`}
@@ -563,7 +565,10 @@ export default function LevelsPage() {
                   setInZoneSlide(0);
                 }}
                 filterCounts={inZoneFilterCounts}
-                chartShortcuts={viewMode === "slideshow" ? slideshowChartShortcuts : null}
+                filtersOnly={viewMode === "slideshow" && activeTv != null}
+                chartShortcuts={
+                  viewMode === "slideshow" && !activeTv ? slideshowChartShortcuts : null
+                }
                 viewToggle={{
                   label: viewToggleLabel,
                   shortLabel: viewMode === "bubbles" ? "Slideshow" : "Bubbles",
@@ -571,6 +576,29 @@ export default function LevelsPage() {
                   title: viewToggleShortcut,
                 }}
               />
+              {viewMode === "slideshow" && activeTv != null && activeTicker ? (
+                <LevelsChartChrome
+                  className="mb-1.5 sm:mb-2 px-0.5"
+                  symbol={activeTicker}
+                  subtitle={slideshowSubtitleLine}
+                  config={activeTv}
+                  nativeChartRef={nativeChartRef}
+                  chartFullHistory={chartFullHistory}
+                  onBubblesClick={toggleViewMode}
+                  bubblesLabel={viewToggleLabel}
+                  bubblesShortLabel="Bubbles"
+                  bubblesTitle={viewToggleShortcut}
+                  slideshowPause={
+                    slideshowEnabled
+                      ? {
+                          enabled: true,
+                          paused: slideshowPaused,
+                          onToggle: toggleSlideshowPause,
+                        }
+                      : undefined
+                  }
+                />
+              ) : null}
               {viewMode === "bubbles" ? (
                 <LevelsBubblesView
                   items={bubbleItems}

@@ -1,0 +1,56 @@
+"use client";
+
+import type { RefObject } from "react";
+import { LevelsChartPageToolbar } from "@/components/levels/LevelsChartPageToolbar";
+import { LevelsChartSymbolHeader } from "@/components/levels/LevelsChartSymbolHeader";
+import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
+import type { LevelsTvConfig } from "@/lib/levels/tradingview-symbol";
+
+/** Chart page + slideshow: symbol block left, action chips right. */
+export function LevelsChartChrome({
+  symbol,
+  subtitle,
+  config,
+  nativeChartRef,
+  chartFullHistory,
+  onBubblesClick,
+  bubblesLabel,
+  bubblesShortLabel,
+  bubblesTitle,
+  slideshowPause,
+  className = "",
+}: {
+  symbol: string;
+  subtitle?: string | null;
+  config: LevelsTvConfig;
+  nativeChartRef: RefObject<NativeCandlesChartHandle | null>;
+  chartFullHistory: boolean;
+  onBubblesClick?: () => void;
+  bubblesLabel?: string;
+  bubblesShortLabel?: string;
+  bubblesTitle?: string;
+  slideshowPause?: {
+    enabled: boolean;
+    paused: boolean;
+    onToggle: () => void;
+  };
+  className?: string;
+}) {
+  return (
+    <div
+      className={`shrink-0 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-x-2 min-w-0 ${className}`.trim()}
+    >
+      <LevelsChartSymbolHeader symbol={symbol} subtitle={subtitle} config={config} />
+      <LevelsChartPageToolbar
+        webChartUrl={config.webChartUrl}
+        nativeChartRef={nativeChartRef}
+        chartFullHistory={chartFullHistory}
+        onBubblesClick={onBubblesClick}
+        bubblesLabel={bubblesLabel}
+        bubblesShortLabel={bubblesShortLabel}
+        bubblesTitle={bubblesTitle}
+        slideshowPause={slideshowPause}
+      />
+    </div>
+  );
+}

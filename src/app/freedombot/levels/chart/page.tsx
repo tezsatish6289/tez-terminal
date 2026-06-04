@@ -3,15 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { LevelsChartPageToolbar } from "@/components/levels/LevelsChartPageToolbar";
+import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
-import {
-  formatLevelsChartMeta,
-  levelsTradingViewParams,
-  type LevelsTvScope,
-} from "@/lib/levels/tradingview-symbol";
+import { levelsTradingViewParams, type LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FB_FULL_HEIGHT_MAIN } from "@/lib/freedombot/responsive";
 
@@ -137,35 +133,13 @@ function ChartContent() {
       style={{ backgroundColor: "#060912" }}
     >
       <div className={`${CHART_PAGE_SHELL} px-2 sm:px-3 py-2 sm:py-2.5 overflow-hidden min-w-0`}>
-        <div className="shrink-0 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-x-2 min-w-0">
-          <div className="min-w-0 flex-1 flex flex-col gap-0 leading-tight">
-            <h1
-              className="text-base sm:text-lg font-black tracking-tight truncate"
-              style={{ color: "#f8fafc" }}
-            >
-              {symbol}
-            </h1>
-            {subtitleLine ? (
-              <p
-                className="text-[10px] sm:text-[11px] font-medium truncate"
-                style={{ color: "#94a3b8" }}
-              >
-                {subtitleLine}
-              </p>
-            ) : null}
-            <p
-              className="text-[9px] font-bold uppercase tracking-[0.12em]"
-              style={{ color: "#64748b" }}
-            >
-              {formatLevelsChartMeta(config)}
-            </p>
-          </div>
-          <LevelsChartPageToolbar
-            webChartUrl={config.webChartUrl}
-            nativeChartRef={nativeChartRef}
-            chartFullHistory={chartFullHistory}
-          />
-        </div>
+        <LevelsChartChrome
+          symbol={symbol}
+          subtitle={subtitleLine}
+          config={config}
+          nativeChartRef={nativeChartRef}
+          chartFullHistory={chartFullHistory}
+        />
 
         {error ? (
           <p className="text-xs text-center shrink-0 mt-1" style={{ color: "#f87171" }}>

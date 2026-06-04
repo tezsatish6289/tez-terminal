@@ -22,6 +22,7 @@ export function LevelsSlideshowToolbar({
   filterCounts,
   chartShortcuts,
   viewToggle,
+  filtersOnly = false,
 }: {
   zoneFilter: PocDirectionFilter;
   onZoneFilterChange: (filter: PocDirectionFilter) => void;
@@ -41,6 +42,8 @@ export function LevelsSlideshowToolbar({
     onClick: () => void;
     title?: string;
   };
+  /** Slideshow with chart chrome: filters row only (symbol header is separate). */
+  filtersOnly?: boolean;
 }) {
   const filterActions = useMemo(
     () =>
@@ -102,6 +105,16 @@ export function LevelsSlideshowToolbar({
 
     return out;
   }, [chartShortcuts]);
+
+  if (filtersOnly) {
+    return (
+      <div className="shrink-0 mb-1.5 px-0.5 min-w-0">
+        <div className="w-full min-w-0 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <LevelsCtaCluster actions={filterActions} align="start" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="shrink-0 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center mb-2 px-0.5 min-w-0">

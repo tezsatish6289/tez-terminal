@@ -24,7 +24,7 @@ function ChartContent() {
   const [levels, setLevels] = useState<PublicLevels | null>(null);
   const [label, setLabel] = useState("");
   const [loading, setLoading] = useState(true);
-  const [chartFullHistory, setChartFullHistory] = useState(false);
+  const [chartFullHistory, setChartFullHistory] = useState(true);
   const nativeChartRef = useRef<NativeCandlesChartHandle>(null);
   const [error, setError] = useState<string | null>(
     !scope || !symbol ? "Invalid chart link — open from the Market Bubbles map." : null,
@@ -88,7 +88,7 @@ function ChartContent() {
   }, [scope, symbol, loadLevels]);
 
   useEffect(() => {
-    setChartFullHistory(false);
+    setChartFullHistory(true);
   }, [config?.symbol, config?.exchange, config?.candlesScope]);
 
   const companyName = useMemo(() => {
@@ -140,6 +140,7 @@ function ChartContent() {
           config={config}
           nativeChartRef={nativeChartRef}
           chartFullHistory={chartFullHistory}
+          hideToolbar
         />
 
         {error ? (
@@ -157,6 +158,7 @@ function ChartContent() {
               levels={levels}
               loading={loading}
               hideChartShortcuts
+              defaultFullHistory
               showHeader={false}
               nativeChartRef={nativeChartRef}
               onFullHistoryZoomChange={setChartFullHistory}

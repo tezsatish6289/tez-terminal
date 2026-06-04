@@ -24,22 +24,22 @@ export interface BubbleToneStyle {
 export const BUBBLE_TONE_STYLE: Record<BubbleTone, BubbleToneStyle> = {
   IN_BULL: {
     solid: true,
-    fill:
-      "radial-gradient(circle at 34% 30%, rgba(134, 255, 178, 0.98) 0%, rgba(52, 211, 153, 0.88) 36%, rgba(16, 185, 129, 0.82) 62%, rgba(4, 80, 58, 0.94) 100%)",
+    /** Flat dark fill (#047857); rim + halo use matching accent #34d399 — no inner glow. */
+    fill: "#047857",
     glow:
-      "0 0 8px rgba(52, 211, 153, 0.65), 0 0 18px rgba(16, 185, 129, 0.32)",
-    border: "#86efac",
+      "0 0 12px rgba(52, 211, 153, 0.8), 0 0 28px rgba(52, 211, 153, 0.5), 0 0 48px rgba(52, 211, 153, 0.25)",
+    border: "#34d399",
     borderStyle: "solid",
     borderWidth: 3,
     label: "In bull zone",
   },
   IN_BEAR: {
     solid: true,
-    fill:
-      "radial-gradient(circle at 34% 30%, rgba(255, 140, 140, 0.98) 0%, rgba(248, 113, 113, 0.9) 36%, rgba(239, 68, 68, 0.84) 62%, rgba(127, 29, 29, 0.94) 100%)",
+    /** Flat dark fill (#b91c1c); rim + halo use matching accent #f87171 — no inner glow. */
+    fill: "#b91c1c",
     glow:
-      "0 0 8px rgba(248, 113, 113, 0.65), 0 0 18px rgba(239, 68, 68, 0.32)",
-    border: "#fca5a5",
+      "0 0 12px rgba(248, 113, 113, 0.8), 0 0 28px rgba(248, 113, 113, 0.5), 0 0 48px rgba(248, 113, 113, 0.25)",
+    border: "#f87171",
     borderStyle: "solid",
     borderWidth: 3,
     label: "In bear zone",

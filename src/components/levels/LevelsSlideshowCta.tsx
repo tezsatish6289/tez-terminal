@@ -15,6 +15,13 @@ export const LEVELS_TOOLBAR_CHIP_HEIGHT = "h-7";
 const BORDER_INSET = 1;
 const BORDER_PAD = 3;
 
+/** Matte interior; border runner + outer halo share this accent (no inner bloom). */
+const CTA_FILL = "#1d4ed8";
+const CTA_ACCENT = "#60a5fa";
+const CTA_ACCENT_RGB = "96, 165, 250";
+const CTA_ACCENT_DIM = `rgba(${CTA_ACCENT_RGB}, 0.4)`;
+const CTA_ACCENT_MID = `rgba(${CTA_ACCENT_RGB}, 0.75)`;
+
 export function LevelsSlideshowCta({
   label,
   onClick,
@@ -52,7 +59,7 @@ export function LevelsSlideshowCta({
         className="relative inline-flex shrink-0 rounded-full"
         style={{
           padding: BORDER_PAD,
-          boxShadow: "0 0 10px rgba(59, 130, 246, 0.28)",
+          boxShadow: `0 0 12px rgba(${CTA_ACCENT_RGB}, 0.7), 0 0 28px rgba(${CTA_ACCENT_RGB}, 0.45), 0 0 48px rgba(${CTA_ACCENT_RGB}, 0.22)`,
         }}
       >
         {box.w > 4 && box.h > 4 ? (
@@ -71,7 +78,7 @@ export function LevelsSlideshowCta({
               rx={rx}
               ry={rx}
               fill="none"
-              stroke="rgba(125, 211, 252, 0.35)"
+              stroke={CTA_ACCENT_DIM}
               strokeWidth={1.25}
             />
             <rect
@@ -82,8 +89,8 @@ export function LevelsSlideshowCta({
               rx={rx}
               ry={rx}
               fill="none"
-              stroke="rgba(224, 242, 254, 0.95)"
-              strokeWidth={1.75}
+              stroke={CTA_ACCENT}
+              strokeWidth={2}
               strokeLinecap="round"
               pathLength={100}
               strokeDasharray="10 90"
@@ -97,8 +104,8 @@ export function LevelsSlideshowCta({
               rx={rx}
               ry={rx}
               fill="none"
-              stroke="rgba(56, 189, 248, 0.55)"
-              strokeWidth={1.25}
+              stroke={CTA_ACCENT_MID}
+              strokeWidth={1.5}
               strokeLinecap="round"
               pathLength={100}
               strokeDasharray="6 94"
@@ -115,10 +122,9 @@ export function LevelsSlideshowCta({
           title={title}
           className={`relative z-[1] inline-flex items-center gap-1.5 px-4 ${LEVELS_TOOLBAR_CHIP_HEIGHT} rounded-full transition-all hover:brightness-[1.06] active:scale-[0.98]`}
           style={{
-            background:
-              "linear-gradient(180deg, #4d94f7 0%, #3b82f6 40%, #2563eb 100%)",
-            boxShadow:
-              "inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -1px 0 rgba(29,78,216,0.45)",
+            background: CTA_FILL,
+            border: `1px solid ${CTA_ACCENT}`,
+            boxShadow: "none",
           }}
         >
           <span

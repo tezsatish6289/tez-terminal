@@ -1,0 +1,86 @@
+"use client";
+
+import { useCallback, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { LevelsCtaCluster } from "@/components/levels/LevelsCtaCluster";
+import { LevelsSlideshowCta } from "@/components/levels/LevelsSlideshowCta";
+import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el?.tagName) return false;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable;
+}
+
+export function LevelsChartPageToolbar({
+  webChartUrl,
+  nativeChartRef,
+  chartFullHistory,
+}: {
+  webChartUrl: string;
+  nativeChartRef: React.RefObject<NativeCandlesChartHandle | null>;
+  chartFullHistory: boolean;
+}) {
+  const router = useRouter();
+
+  const goToBubbles = useCallback(() => {
+    router.push("/freedombot/levels");
+  }, [router]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (isTypingTarget(e.target)) return;
+      if (e.key === "s" || e.key === "S") {
+        e.preventDefault();
+        goToBubbles();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [goToBubbles]);
+
+  const actions = useMemo(
+    () => [
+      {
+        id: "tv",
+        label: "TradingView",
+        kbd: "T",
+        onClick: () => window.open(webChartUrl, "_blank", "noopener,noreferrer"),
+        tone: "default-muted" as const,
+        ariaLabel: "Open this chart on TradingView in a new tab. Press T or click.",
+      },
+      {
+        id: "squeeze",
+        label: chartFullHistory ? "Recent bars" : "30 day fit",
+        kbd: "3",
+        onClick: () => nativeChartRef.current?.toggleHistoryZoom(),
+        tone: "default-muted" as const,
+        ariaLabel: chartFullHistory
+          ? "Zoom chart to recent sessions. Press 3 or click."
+          : "Show all loaded 30-day candle history on the chart. Press 3 or click.",
+      },
+    ],
+    [webChartUrl, chartFullHistory, nativeChartRef],
+  );
+
+  return (
+    <div className="shrink-0 flex flex-wrap items-center gap-x-2 gap-y-2">
+      <LevelsCtaCluster
+        actions={actions}
+        align="start"
+        enableChartKeys
+        chartKeys={{
+          webChartUrl,
+          showSqueeze: true,
+          onSqueeze: () => nativeChartRef.current?.toggleHistoryZoom(),
+        }}
+      />
+      <LevelsSlideshowCta
+        label="Switch to bubbles view"
+        onClick={goToBubbles}
+        title="Return to Market Bubbles map. Press S or click."
+      />
+    </div>
+  );
+}

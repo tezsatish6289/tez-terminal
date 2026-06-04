@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
-import { LevelsChartShortcuts } from "@/components/levels/LevelsChartShortcuts";
 import { NativeCandlesChart } from "@/components/levels/NativeCandlesChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
   formatLevelsChartMeta,
   type LevelsTvConfig,
 } from "@/lib/levels/tradingview-symbol";
+import { BLACKBOARD_FIELD_BORDER } from "@/lib/levels/cta-blackboard";
 
 /**
  * NSE stocks & indices → native Dhan candlestick chart with zone overlays.
@@ -25,6 +25,8 @@ export function LevelsTradingViewChart({
   hideChartShortcuts,
   nativeChartRef,
   onFullHistoryZoomChange,
+  showHeader = true,
+  className = "",
 }: {
   config: LevelsTvConfig;
   /** NSE ticker / symbol (e.g. BANKINDIA, NIFTY). */
@@ -39,6 +41,9 @@ export function LevelsTradingViewChart({
   hideChartShortcuts?: boolean;
   nativeChartRef?: React.RefObject<NativeCandlesChartHandle | null>;
   onFullHistoryZoomChange?: (full: boolean) => void;
+  /** Deep-dive tab: title lives in page chrome; chart area is shorter with padding. */
+  showHeader?: boolean;
+  className?: string;
 }) {
   const [mounted, setMounted] = useState(false);
   const [chartFading, setChartFading] = useState(false);
@@ -62,35 +67,37 @@ export function LevelsTradingViewChart({
   }, [chartKey]);
 
   return (
-    <section className="flex flex-col min-h-0 h-full w-full">
-      <div className="flex items-start justify-between gap-3 shrink-0 pb-2">
-        <div className="min-w-0">
-          <h2
-            className="text-base sm:text-lg font-black tracking-tight truncate"
-            style={{ color: "#f8fafc" }}
-          >
-            {symbolTicker}
-          </h2>
-          {showCompany && (
-            <p
-              className="mt-0.5 text-[11px] sm:text-xs font-medium truncate"
-              style={{ color: "#94a3b8" }}
+    <section className={`flex flex-col min-h-0 h-full w-full ${className}`.trim()}>
+      {showHeader ? (
+        <div className="flex items-start justify-between gap-3 shrink-0 pb-2">
+          <div className="min-w-0">
+            <h2
+              className="text-base sm:text-lg font-black tracking-tight truncate"
+              style={{ color: "#f8fafc" }}
             >
-              {subName}
-            </p>
-          )}
+              {symbolTicker}
+            </h2>
+            {showCompany && (
+              <p
+                className="mt-0.5 text-[11px] sm:text-xs font-medium truncate"
+                style={{ color: "#94a3b8" }}
+              >
+                {subName}
+              </p>
+            )}
+          </div>
+          <p
+            className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] shrink-0 text-right leading-snug pt-0.5"
+            style={{ color: "#64748b" }}
+          >
+            {formatLevelsChartMeta(config)}
+          </p>
         </div>
-        <p
-          className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.14em] shrink-0 text-right leading-snug pt-0.5"
-          style={{ color: "#64748b" }}
-        >
-          {formatLevelsChartMeta(config)}
-        </p>
-      </div>
+      ) : null}
       <div
         className="relative flex-1 min-h-0 w-full rounded-xl overflow-hidden transition-opacity duration-300 ease-in-out"
         style={{
-          border: "1px solid rgba(255,255,255,0.08)",
+          border: BLACKBOARD_FIELD_BORDER,
           backgroundColor: "rgba(0,0,0,0.45)",
           opacity: chartFading ? 0.38 : 1,
         }}

@@ -174,9 +174,10 @@ function ChartContent() {
           </p>
         ) : null}
 
-        <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full max-w-6xl mx-auto">
-          <div className="w-full h-full min-h-[240px] max-h-[min(58vh,520px)] flex flex-col">
+        <div className="flex-1 min-h-0 flex flex-col w-full max-w-6xl mx-auto">
+          <div className="flex-1 min-h-[240px] max-h-[min(58vh,520px)] w-full flex flex-col">
             <LevelsTradingViewChart
+              className="flex-1 min-h-0"
               config={config}
               ticker={symbol}
               companyName={companyName ?? undefined}

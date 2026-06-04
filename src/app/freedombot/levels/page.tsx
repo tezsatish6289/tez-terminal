@@ -391,6 +391,7 @@ export default function LevelsPage() {
   const tvChartColumn =
     activeTv != null ? (
       <LevelsTradingViewChart
+        className="flex-1 min-h-0"
         config={activeTv}
         ticker={activeTicker ?? activeTv.symbol}
         companyName={activeCompanyName ?? undefined}
@@ -424,7 +425,7 @@ export default function LevelsPage() {
         hideLevelsColumn={opts?.hideLevelsColumn ?? chartShowsZones}
         chart={
           <div className="flex flex-col flex-1 min-h-0 min-w-0">
-            {tvChartColumn}
+            <div className="flex flex-1 min-h-0 min-w-0 flex-col">{tvChartColumn}</div>
             {opts?.chartFooter}
           </div>
         }

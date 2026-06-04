@@ -289,15 +289,40 @@ export const NativeCandlesChart = forwardRef<
     };
   }, []);
 
+  function applyCandlesToChart(
+    data: CandlestickData[],
+    isPoll: boolean,
+  ): boolean {
+    const series = seriesRef.current;
+    if (!series) return false;
+    series.setData(data);
+    syncZoneBands(data, levelsRef.current);
+    applyLevelPriceLines(series, priceLinesRef, levelsRef.current);
+    fitPriceScale();
+    if (!isPoll) {
+      if (fullHistoryZoomRef.current) applyFullHistoryZoom(data.length);
+      else applyDefaultZoom(data.length);
+    } else {
+      applyRightPadding();
+    }
+    hasDisplayedCandlesRef.current = true;
+    setError(null);
+    setSwapping(false);
+    setBootLoading(false);
+    return true;
+  }
+
   // Load + poll candles for the active symbol/interval.
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     async function load(isPoll: boolean) {
       if (!isPoll) {
         fullHistoryZoomRef.current = false;
         setFullHistoryZoom(false);
+        hasDisplayedCandlesRef.current = false;
       }
       const isBoot = !hasDisplayedCandlesRef.current;
       if (isBoot) {
@@ -314,8 +339,12 @@ export const NativeCandlesChart = forwardRef<
         const json = (await res.json()) as { ok: boolean; candles?: ApiCandle[]; error?: string };
         if (cancelled) return;
         if (!json.ok || !json.candles?.length) {
-          if (isBoot) setError(json.error ?? "No chart data available");
-          else setSwapping(false);
+          if (isBoot) {
+            setError(json.error ?? "No chart data available");
+            setBootLoading(false);
+          } else {
+            setSwapping(false);
+          }
           return;
         }
         const data: CandlestickData[] = json.candles.map((c) => ({
@@ -326,24 +355,27 @@ export const NativeCandlesChart = forwardRef<
           close: c.close,
         }));
         candlesRef.current = data;
-        const series = seriesRef.current;
-        if (!series) return;
 
-        requestAnimationFrame(() => {
+        const finish = () => {
           if (cancelled) return;
-          series.setData(data);
-          syncZoneBands(data, levelsRef.current);
-          applyLevelPriceLines(series, priceLinesRef, levelsRef.current);
-          fitPriceScale();
-          if (!isPoll) {
-            if (fullHistoryZoomRef.current) applyFullHistoryZoom(data.length);
-            else applyDefaultZoom(data.length);
-          } else applyRightPadding();
-          hasDisplayedCandlesRef.current = true;
-          setError(null);
-          setSwapping(false);
-          setBootLoading(false);
-        });
+          if (applyCandlesToChart(data, isPoll)) return;
+          let attempts = 0;
+          const retry = () => {
+            if (cancelled) return;
+            if (applyCandlesToChart(data, isPoll)) return;
+            if (++attempts < 40) {
+              retryTimer = setTimeout(retry, 50);
+            } else if (isBoot) {
+              setError("Chart could not initialize — try refreshing");
+              setBootLoading(false);
+            } else {
+              setSwapping(false);
+            }
+          };
+          retryTimer = setTimeout(retry, 0);
+        };
+
+        requestAnimationFrame(finish);
       } catch (e) {
         if (!cancelled && isBoot) {
           setError(e instanceof Error ? e.message : "Failed to load chart");
@@ -360,6 +392,7 @@ export const NativeCandlesChart = forwardRef<
       cancelled = true;
       setSwapping(false);
       if (timer) clearInterval(timer);
+      if (retryTimer) clearTimeout(retryTimer);
     };
   }, [symbol, candlesScope, interval]);
 
@@ -390,10 +423,10 @@ export const NativeCandlesChart = forwardRef<
   }, [levels, showSlideshowControl]);
 
   return (
-    <div className="relative w-full h-full min-h-[260px]">
+    <div className="relative w-full h-full min-h-[200px] flex-1">
       <div
         ref={containerRef}
-        className="absolute inset-0 transition-opacity duration-300 ease-in-out"
+        className="absolute inset-0 min-h-[200px] transition-opacity duration-300 ease-in-out"
         style={{ opacity: swapping ? 0.38 : 1 }}
       />
       {showBootOverlay && (

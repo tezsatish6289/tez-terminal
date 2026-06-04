@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
+import {
+  BLACKBOARD_CHALK,
+  BLACKBOARD_CHALK_DIM,
+  BLACKBOARD_FILL_ACTIVE,
+  BLACKBOARD_WRAPPER,
+} from "@/lib/levels/cta-blackboard";
 import { LEVELS_TOOLBAR_CHIP_HEIGHT } from "@/components/levels/LevelsSlideshowCta";
-
-export const LEVELS_CTA_FILL = "#1d4ed8";
-export const LEVELS_CTA_ACCENT = "#60a5fa";
-export const LEVELS_CTA_ACCENT_RGB = "96, 165, 250";
-const PAUSED_PINK = "#f472b6";
 
 export interface LevelsCtaAction {
   id: string;
@@ -15,7 +16,6 @@ export interface LevelsCtaAction {
   onClick?: () => void;
   title?: string;
   ariaLabel?: string;
-  /** Read-only pill (e.g. aligned count). */
   static?: boolean;
   tone?:
     | "default"
@@ -24,7 +24,8 @@ export interface LevelsCtaAction {
     | "bull-muted"
     | "bear"
     | "bear-muted"
-    | "paused";
+    | "paused"
+    | "paused-muted";
   count?: number;
 }
 
@@ -35,54 +36,61 @@ function pillStyle(tone: LevelsCtaAction["tone"]): {
   countText: string;
 } {
   switch (tone) {
-    case "paused":
-      return {
-        fill: "rgba(157, 23, 77, 0.92)",
-        border: PAUSED_PINK,
-        text: "#ffffff",
-        countText: "rgba(255,255,255,0.85)",
-      };
     case "bull":
       return {
-        fill: "rgba(4, 120, 87, 0.95)",
-        border: "#4ade80",
-        text: "#ffffff",
-        countText: "rgba(255,255,255,0.9)",
+        fill: "rgba(6, 78, 59, 0.42)",
+        border: "rgba(134, 239, 172, 0.38)",
+        text: "#d1fae5",
+        countText: "rgba(167, 243, 208, 0.85)",
       };
     case "bull-muted":
       return {
-        fill: "rgba(16, 185, 129, 0.14)",
-        border: "rgba(74, 222, 128, 0.28)",
-        text: "rgba(134, 239, 172, 0.95)",
-        countText: "rgba(110, 231, 183, 0.75)",
+        fill: "rgba(6, 78, 59, 0.1)",
+        border: "rgba(74, 222, 128, 0.16)",
+        text: "rgba(110, 231, 183, 0.55)",
+        countText: "rgba(110, 231, 183, 0.45)",
       };
     case "bear":
       return {
-        fill: "rgba(153, 27, 27, 0.95)",
-        border: "#f87171",
-        text: "#ffffff",
-        countText: "rgba(255,255,255,0.9)",
+        fill: "rgba(127, 29, 29, 0.42)",
+        border: "rgba(252, 165, 165, 0.38)",
+        text: "#fecaca",
+        countText: "rgba(254, 202, 202, 0.85)",
       };
     case "bear-muted":
       return {
-        fill: "rgba(239, 68, 68, 0.14)",
-        border: "rgba(248, 113, 113, 0.28)",
-        text: "rgba(252, 165, 165, 0.95)",
-        countText: "rgba(248, 113, 113, 0.75)",
+        fill: "rgba(127, 29, 29, 0.1)",
+        border: "rgba(248, 113, 113, 0.16)",
+        text: "rgba(252, 165, 165, 0.55)",
+        countText: "rgba(248, 113, 113, 0.45)",
+      };
+    case "paused":
+      return {
+        fill: "rgba(131, 24, 67, 0.38)",
+        border: "rgba(244, 114, 182, 0.35)",
+        text: "#fbcfe8",
+        countText: "rgba(251, 207, 232, 0.85)",
+      };
+    case "paused-muted":
+      return {
+        fill: "rgba(22, 28, 42, 0.92)",
+        border: "rgba(148, 163, 184, 0.14)",
+        text: BLACKBOARD_CHALK_DIM,
+        countText: BLACKBOARD_CHALK_DIM,
       };
     case "default-muted":
       return {
-        fill: "rgba(37, 99, 235, 0.14)",
-        border: "rgba(96, 165, 250, 0.28)",
-        text: "rgba(147, 197, 253, 0.95)",
-        countText: "rgba(96, 165, 250, 0.75)",
+        fill: "rgba(15, 23, 42, 0.45)",
+        border: "rgba(148, 163, 184, 0.12)",
+        text: BLACKBOARD_CHALK_DIM,
+        countText: "rgba(100, 116, 139, 0.65)",
       };
     default:
       return {
-        fill: LEVELS_CTA_FILL,
-        border: LEVELS_CTA_ACCENT,
-        text: "#ffffff",
-        countText: "rgba(255,255,255,0.85)",
+        fill: BLACKBOARD_FILL_ACTIVE,
+        border: "rgba(226, 232, 240, 0.22)",
+        text: BLACKBOARD_CHALK,
+        countText: "rgba(203, 213, 225, 0.8)",
       };
   }
 }
@@ -101,22 +109,17 @@ function CtaPill({ action }: { action: LevelsCtaAction }) {
     background: fill,
     border: `1px solid ${border}`,
   };
-  const muted = action.tone?.endsWith("-muted");
   const labelEl = (
     <>
       <span
-        className="text-[9px] font-black uppercase tracking-wide whitespace-nowrap"
-        style={{
-          color: text,
-          lineHeight: 1.2,
-          textShadow: muted ? "none" : "0 1px 1px rgba(15, 23, 42, 0.55)",
-        }}
+        className="text-[9px] font-bold uppercase tracking-wide whitespace-nowrap"
+        style={{ color: text, lineHeight: 1.2 }}
       >
         {action.label}
       </span>
       {action.count != null ? (
         <span
-          className="text-[9px] font-bold tabular-nums whitespace-nowrap"
+          className="text-[9px] font-semibold tabular-nums whitespace-nowrap"
           style={{ color: countText, lineHeight: 1.2 }}
         >
           ({action.count})
@@ -124,7 +127,7 @@ function CtaPill({ action }: { action: LevelsCtaAction }) {
       ) : null}
       {action.kbd ? (
         <span
-          className="text-[8px] font-bold uppercase tracking-wider whitespace-nowrap"
+          className="text-[8px] font-semibold uppercase tracking-wider whitespace-nowrap"
           style={{ color: countText, lineHeight: 1.2 }}
         >
           · {action.kbd}
@@ -147,7 +150,7 @@ function CtaPill({ action }: { action: LevelsCtaAction }) {
       onClick={action.onClick}
       title={action.title}
       aria-label={action.ariaLabel ?? action.label}
-      className={`${className} transition-all hover:brightness-[1.06] active:scale-[0.98]`}
+      className={`${className} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
       style={style}
     >
       {labelEl}
@@ -155,19 +158,15 @@ function CtaPill({ action }: { action: LevelsCtaAction }) {
   );
 }
 
-/** Clubbed blue CTA pills — shared outer glow, tight grouping. */
+/** Clubbed blackboard pills — chalk labels on matte dark bar. */
 export function LevelsCtaCluster({
   actions,
   align = "end",
-  variant = "shortcuts",
   enableChartKeys,
   chartKeys,
 }: {
   actions: LevelsCtaAction[];
-  /** `start` = filter cluster (left); `end` = shortcuts (right). */
   align?: "start" | "end";
-  /** Neutral wrapper for multi-color filter pills. */
-  variant?: "shortcuts" | "filters";
   enableChartKeys?: boolean;
   chartKeys?: {
     webChartUrl: string;
@@ -208,23 +207,10 @@ export function LevelsCtaCluster({
 
   if (actions.length === 0) return null;
 
-  const wrapperStyle =
-    variant === "filters"
-      ? {
-          background: "rgba(0, 0, 0, 0.35)",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
-          boxShadow: "0 0 16px rgba(0, 0, 0, 0.35)",
-        }
-      : {
-          background: "rgba(29, 78, 216, 0.22)",
-          border: `1px solid ${LEVELS_CTA_ACCENT}`,
-          boxShadow: `0 0 12px rgba(${LEVELS_CTA_ACCENT_RGB}, 0.65), 0 0 26px rgba(${LEVELS_CTA_ACCENT_RGB}, 0.38)`,
-        };
-
   return (
     <div
       className={`shrink-0 inline-flex items-center gap-1 rounded-full p-[3px] ${align === "end" ? "ml-auto" : ""}`}
-      style={wrapperStyle}
+      style={BLACKBOARD_WRAPPER}
     >
       {actions.map((action) => (
         <CtaPill key={action.id} action={action} />

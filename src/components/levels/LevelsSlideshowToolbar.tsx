@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { LevelsCtaCluster } from "@/components/levels/LevelsCtaCluster";
+import { LevelsSlideshowCta } from "@/components/levels/LevelsSlideshowCta";
 import type { PocDirectionFilter } from "@/lib/zones/zone-status";
 
 const FILTER_OPTIONS: {
@@ -66,6 +67,7 @@ export function LevelsSlideshowToolbar({
         kbd: "T",
         onClick: () =>
           window.open(chartShortcuts.webChartUrl, "_blank", "noopener,noreferrer"),
+        tone: "default-muted",
         ariaLabel: "Open this chart on TradingView in a new tab. Press T or click.",
       });
     }
@@ -76,6 +78,7 @@ export function LevelsSlideshowToolbar({
         label: chartShortcuts.squeezed ? "Recent bars" : "30 day fit",
         kbd: "3",
         onClick: chartShortcuts.onSqueeze,
+        tone: "default-muted",
         ariaLabel: chartShortcuts.squeezed
           ? "Zoom chart to recent sessions. Press 3 or click."
           : "Show all loaded 30-day candle history on the chart. Press 3 or click.",
@@ -89,45 +92,44 @@ export function LevelsSlideshowToolbar({
         label: paused ? "Play" : "Pause",
         kbd: "P",
         onClick: chartShortcuts.onToggleSlideshowPause,
-        tone: paused ? "paused" : "default",
+        tone: paused ? "paused" : "default-muted",
         ariaLabel: paused
           ? "Resume auto-advancing symbols every 8 seconds. Press P or click."
           : "Stop auto-advancing symbols. Press P or click.",
       });
     }
 
-    out.push({
-      id: "view",
-      label: viewToggle.label,
-      kbd: "S",
-      onClick: viewToggle.onClick,
-      title: viewToggle.title,
-      ariaLabel: viewToggle.title ?? viewToggle.label,
-    });
-
     return out;
-  }, [chartShortcuts, viewToggle]);
+  }, [chartShortcuts]);
 
   return (
     <div className="shrink-0 flex flex-wrap items-center gap-x-2 gap-y-2 mb-2 px-0.5">
-      <LevelsCtaCluster actions={filterActions} align="start" variant="filters" />
+      <LevelsCtaCluster actions={filterActions} align="start" />
 
-      <LevelsCtaCluster
-        actions={shortcutActions}
-        align="end"
-        enableChartKeys={Boolean(chartShortcuts)}
-        chartKeys={
-          chartShortcuts
-            ? {
-                webChartUrl: chartShortcuts.webChartUrl,
-                showSqueeze: chartShortcuts.showSqueeze,
-                onSqueeze: chartShortcuts.onSqueeze,
-                showSlideshowControl: chartShortcuts.showSlideshowControl,
-                onToggleSlideshowPause: chartShortcuts.onToggleSlideshowPause,
-              }
-            : undefined
-        }
-      />
+      <div className="ml-auto flex items-center gap-1.5 shrink-0">
+        {shortcutActions.length > 0 ? (
+          <LevelsCtaCluster
+            actions={shortcutActions}
+            enableChartKeys={Boolean(chartShortcuts)}
+            chartKeys={
+              chartShortcuts
+                ? {
+                    webChartUrl: chartShortcuts.webChartUrl,
+                    showSqueeze: chartShortcuts.showSqueeze,
+                    onSqueeze: chartShortcuts.onSqueeze,
+                    showSlideshowControl: chartShortcuts.showSlideshowControl,
+                    onToggleSlideshowPause: chartShortcuts.onToggleSlideshowPause,
+                  }
+                : undefined
+            }
+          />
+        ) : null}
+        <LevelsSlideshowCta
+          label={viewToggle.label}
+          onClick={viewToggle.onClick}
+          title={viewToggle.title}
+        />
+      </div>
     </div>
   );
 }

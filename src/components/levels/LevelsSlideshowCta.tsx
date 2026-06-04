@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { BLACKBOARD_CHALK, BLACKBOARD_FILL_ACTIVE, BLACKBOARD_WRAPPER } from "@/lib/levels/cta-blackboard";
 
 /** Short bright segment travels along the stroke path (not a spinning fill). */
 const CTA_BORDER_CSS = `
@@ -15,13 +16,11 @@ export const LEVELS_TOOLBAR_CHIP_HEIGHT = "h-7";
 const BORDER_INSET = 1;
 const BORDER_PAD = 3;
 
-/** Matte interior; border runner + outer halo share this accent (no inner bloom). */
-const CTA_FILL = "#1d4ed8";
-const CTA_ACCENT = "#60a5fa";
-const CTA_ACCENT_RGB = "96, 165, 250";
-const CTA_ACCENT_DIM = `rgba(${CTA_ACCENT_RGB}, 0.4)`;
-const CTA_ACCENT_MID = `rgba(${CTA_ACCENT_RGB}, 0.75)`;
+const RUNNER_DIM = "rgba(226, 232, 240, 0.35)";
+const RUNNER_BRIGHT = "#e8edf4";
+const RUNNER_MID = "rgba(203, 213, 225, 0.75)";
 
+/** View toggle only — blackboard fill + running light on the border. */
 export function LevelsSlideshowCta({
   label,
   onClick,
@@ -59,7 +58,7 @@ export function LevelsSlideshowCta({
         className="relative inline-flex shrink-0 rounded-full"
         style={{
           padding: BORDER_PAD,
-          boxShadow: `0 0 12px rgba(${CTA_ACCENT_RGB}, 0.7), 0 0 28px rgba(${CTA_ACCENT_RGB}, 0.45), 0 0 48px rgba(${CTA_ACCENT_RGB}, 0.22)`,
+          ...BLACKBOARD_WRAPPER,
         }}
       >
         {box.w > 4 && box.h > 4 ? (
@@ -78,7 +77,7 @@ export function LevelsSlideshowCta({
               rx={rx}
               ry={rx}
               fill="none"
-              stroke={CTA_ACCENT_DIM}
+              stroke={RUNNER_DIM}
               strokeWidth={1.25}
             />
             <rect
@@ -89,7 +88,7 @@ export function LevelsSlideshowCta({
               rx={rx}
               ry={rx}
               fill="none"
-              stroke={CTA_ACCENT}
+              stroke={RUNNER_BRIGHT}
               strokeWidth={2}
               strokeLinecap="round"
               pathLength={100}
@@ -104,7 +103,7 @@ export function LevelsSlideshowCta({
               rx={rx}
               ry={rx}
               fill="none"
-              stroke={CTA_ACCENT_MID}
+              stroke={RUNNER_MID}
               strokeWidth={1.5}
               strokeLinecap="round"
               pathLength={100}
@@ -120,26 +119,22 @@ export function LevelsSlideshowCta({
           type="button"
           onClick={onClick}
           title={title}
-          className={`relative z-[1] inline-flex items-center gap-1.5 px-4 ${LEVELS_TOOLBAR_CHIP_HEIGHT} rounded-full transition-all hover:brightness-[1.06] active:scale-[0.98]`}
+          className={`relative z-[1] inline-flex items-center gap-1.5 px-4 ${LEVELS_TOOLBAR_CHIP_HEIGHT} rounded-full transition-colors hover:border-slate-300/35 active:scale-[0.98]`}
           style={{
-            background: CTA_FILL,
-            border: `1px solid ${CTA_ACCENT}`,
+            background: BLACKBOARD_FILL_ACTIVE,
+            border: "1px solid rgba(226, 232, 240, 0.18)",
             boxShadow: "none",
           }}
         >
           <span
-            className="text-[9px] font-black uppercase tracking-wide whitespace-nowrap"
-            style={{
-              color: "#ffffff",
-              lineHeight: 1.2,
-              textShadow: "0 1px 1px rgba(15, 23, 42, 0.55)",
-            }}
+            className="text-[9px] font-bold uppercase tracking-wide whitespace-nowrap"
+            style={{ color: BLACKBOARD_CHALK, lineHeight: 1.2 }}
           >
             {label}
           </span>
           <span
-            className="text-[8px] font-bold uppercase tracking-wider whitespace-nowrap hidden sm:inline"
-            style={{ color: "rgba(255,255,255,0.85)", lineHeight: 1.2 }}
+            className="text-[8px] font-semibold uppercase tracking-wider whitespace-nowrap hidden sm:inline"
+            style={{ color: "rgba(203, 213, 225, 0.75)", lineHeight: 1.2 }}
           >
             · S
           </span>

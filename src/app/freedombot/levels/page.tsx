@@ -627,6 +627,15 @@ export default function LevelsPage() {
                       }
                     : undefined
                 }
+                viewModeToggle={
+                  viewMode === "slideshow" && activeTv != null
+                    ? {
+                        viewMode: "slideshow",
+                        onToggle: toggleViewMode,
+                        title: viewToggleShortcut,
+                      }
+                    : undefined
+                }
                 chartShortcuts={
                   viewMode === "slideshow" && !activeTv ? slideshowChartShortcuts : null
                 }

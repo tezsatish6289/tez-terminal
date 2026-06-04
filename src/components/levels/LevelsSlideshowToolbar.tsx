@@ -2,7 +2,6 @@
 
 import { useMemo, type ReactNode } from "react";
 import { LevelsCtaCluster } from "@/components/levels/LevelsCtaCluster";
-import { LevelsSlideshowCta } from "@/components/levels/LevelsSlideshowCta";
 import { LevelsSlideshowStripControls } from "@/components/levels/LevelsSlideshowStripControls";
 import { LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS } from "@/components/levels/levels-symbol-strip";
 import type { PocDirectionFilter } from "@/lib/zones/zone-status";
@@ -27,6 +26,7 @@ export function LevelsSlideshowToolbar({
   filtersOnly = false,
   symbolStrip,
   slideshowControl,
+  viewModeToggle,
 }: {
   zoneFilter: PocDirectionFilter;
   onZoneFilterChange: (filter: PocDirectionFilter) => void;
@@ -55,6 +55,12 @@ export function LevelsSlideshowToolbar({
     enabled: boolean;
     paused: boolean;
     onToggle: () => void;
+  };
+  /** Icon box beside play/pause on slideshow strip row. */
+  viewModeToggle?: {
+    viewMode: "bubbles" | "slideshow";
+    onToggle: () => void;
+    title?: string;
   };
 }) {
   const filterActions = useMemo(
@@ -128,6 +134,7 @@ export function LevelsSlideshowToolbar({
           onZoneFilterChange={onZoneFilterChange}
           filterCounts={filterCounts}
           slideshowControl={slideshowControl}
+          viewToggle={viewModeToggle}
         />
         {symbolStrip ? (
           <div className="flex-1 min-w-0 min-h-0 h-full">{symbolStrip}</div>
@@ -160,11 +167,16 @@ export function LevelsSlideshowToolbar({
             }
           />
         ) : null}
-        <LevelsSlideshowCta
-          label={viewToggle.label}
-          shortLabel={viewToggle.shortLabel}
-          onClick={viewToggle.onClick}
-          title={viewToggle.title}
+        <LevelsSlideshowStripControls
+          zoneFilter={zoneFilter}
+          onZoneFilterChange={onZoneFilterChange}
+          filterCounts={filterCounts}
+          showFilter={false}
+          viewToggle={{
+            viewMode: "bubbles",
+            onToggle: viewToggle.onClick,
+            title: viewToggle.title,
+          }}
         />
       </div>
     </div>

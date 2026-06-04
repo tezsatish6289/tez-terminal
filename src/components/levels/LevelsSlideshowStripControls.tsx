@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Filter, Pause, Play } from "lucide-react";
+import { useEffect, useState, type CSSProperties } from "react";
+import { Filter, GalleryHorizontal, Pause, Play } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   BLACKBOARD_CHALK,
@@ -41,12 +41,71 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable;
 }
 
-/** Filter + play/pause icon boxes (same height as symbol strip tiles). */
+function BubblesMapIcon({ className, style }: { className?: string; style?: CSSProperties }) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      className={className}
+      style={style}
+      aria-hidden
+      fill="currentColor"
+    >
+      <circle cx="6.5" cy="10" r="3.25" />
+      <circle cx="14" cy="7" r="2.75" />
+      <circle cx="13.5" cy="14.5" r="2.25" />
+    </svg>
+  );
+}
+
+export type LevelsStripViewMode = "bubbles" | "slideshow";
+
+/** Square box: bubbles map ↔ slideshow (dynamic icon by current mode). */
+export function LevelsViewModeIconBox({
+  viewMode,
+  onToggle,
+  title = "Press S or click",
+}: {
+  viewMode: LevelsStripViewMode;
+  onToggle: () => void;
+  title?: string;
+}) {
+  const toBubbles = viewMode === "slideshow";
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`${LEVELS_STRIP_ICON_BOX_CLASS} flex flex-col items-center justify-center gap-0.5 transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
+      style={stripIconBoxStyle(false)}
+      aria-label={
+        toBubbles
+          ? "Switch to Market Bubbles map. Press S or click."
+          : "Switch to slideshow view. Press S or click."
+      }
+      title={title}
+    >
+      {toBubbles ? (
+        <BubblesMapIcon className="h-5 w-5" style={{ color: "#93c5fd" }} />
+      ) : (
+        <GalleryHorizontal className="h-5 w-5" style={{ color: BLACKBOARD_CHALK }} />
+      )}
+      <span
+        className="text-[8px] font-bold uppercase tracking-wider leading-none"
+        style={{ color: BLACKBOARD_CHALK_DIM }}
+      >
+        {toBubbles ? "Map" : "Show"}
+      </span>
+    </button>
+  );
+}
+
+/** Filter + play/pause + view-mode icon boxes (same height as symbol strip tiles). */
 export function LevelsSlideshowStripControls({
   zoneFilter,
   onZoneFilterChange,
   filterCounts,
   slideshowControl,
+  viewToggle,
+  showFilter = true,
 }: {
   zoneFilter: PocDirectionFilter;
   onZoneFilterChange: (filter: PocDirectionFilter) => void;
@@ -56,25 +115,41 @@ export function LevelsSlideshowStripControls({
     paused: boolean;
     onToggle: () => void;
   };
+  viewToggle?: {
+    viewMode: LevelsStripViewMode;
+    onToggle: () => void;
+    title?: string;
+  };
+  /** Bubbles toolbar: view icon only. */
+  showFilter?: boolean;
 }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const activeMeta = FILTER_OPTIONS.find((o) => o.key === zoneFilter) ?? FILTER_OPTIONS[0];
 
   useEffect(() => {
-    if (!slideshowControl?.enabled) return;
     function onKeyDown(e: KeyboardEvent) {
       if (isTypingTarget(e.target)) return;
       if (e.key === "p" || e.key === "P") {
-        e.preventDefault();
-        slideshowControl.onToggle();
+        if (slideshowControl?.enabled) {
+          e.preventDefault();
+          slideshowControl.onToggle();
+        }
+        return;
+      }
+      if (e.key === "s" || e.key === "S") {
+        if (viewToggle) {
+          e.preventDefault();
+          viewToggle.onToggle();
+        }
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [slideshowControl]);
+  }, [slideshowControl, viewToggle]);
 
   return (
     <div className={`flex items-stretch gap-1.5 shrink-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}>
+      {showFilter ? (
       <Popover open={filterOpen} onOpenChange={setFilterOpen}>
         <PopoverTrigger asChild>
           <button
@@ -141,6 +216,7 @@ export function LevelsSlideshowStripControls({
           })}
         </PopoverContent>
       </Popover>
+      ) : null}
 
       {slideshowControl?.enabled ? (
         <button
@@ -161,6 +237,14 @@ export function LevelsSlideshowStripControls({
             <Pause className="h-5 w-5" style={{ color: BLACKBOARD_CHALK }} />
           )}
         </button>
+      ) : null}
+
+      {viewToggle ? (
+        <LevelsViewModeIconBox
+          viewMode={viewToggle.viewMode}
+          onToggle={viewToggle.onToggle}
+          title={viewToggle.title}
+        />
       ) : null}
     </div>
   );

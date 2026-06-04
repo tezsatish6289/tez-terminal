@@ -89,12 +89,14 @@ export function LevelsChartPageToolbar({
           onSqueeze: () => nativeChartRef.current?.toggleHistoryZoom(),
         }}
       />
-      <LevelsSlideshowCta
-        label={bubblesLabel}
-        shortLabel={bubblesShortLabel}
-        onClick={goToBubbles}
-        title={bubblesTitle}
-      />
+      {!onBubblesClick ? (
+        <LevelsSlideshowCta
+          label={bubblesLabel}
+          shortLabel={bubblesShortLabel}
+          onClick={goToBubbles}
+          title={bubblesTitle}
+        />
+      ) : null}
     </div>
   );
 }

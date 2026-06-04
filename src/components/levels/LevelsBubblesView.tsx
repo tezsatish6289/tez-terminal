@@ -238,31 +238,32 @@ export function LevelsBubblesView({
           />
         </div>
 
-        <label
-          className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider shrink-0 cursor-pointer select-none order-2"
-          style={{ color: "#94a3b8" }}
-        >
-          <input
-            type="checkbox"
-            checked={hideNeutral}
-            onChange={(e) => onHideNeutralChange(e.target.checked)}
-            className="rounded border-slate-600"
-          />
-          Hide unscanned
-        </label>
+        <div className="flex items-center gap-2 shrink-0">
+          <label
+            className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider cursor-pointer select-none"
+            style={{ color: "#94a3b8" }}
+          >
+            <input
+              type="checkbox"
+              checked={hideNeutral}
+              onChange={(e) => onHideNeutralChange(e.target.checked)}
+              className="rounded border-slate-600"
+            />
+            Hide unscanned
+          </label>
+          <span
+            className="text-[9px] font-bold uppercase tracking-wide shrink-0"
+            style={{ color: "#64748b" }}
+          >
+            {filtered.length} shown · {items.length} total
+          </span>
+        </div>
 
         <BubbleChip tone="IN_BULL" count={counts.IN_BULL ?? 0} />
         <BubbleChip tone="NEAR_BULL" count={counts.NEAR_BULL ?? 0} />
         <BubbleChip tone="IN_BEAR" count={counts.IN_BEAR ?? 0} />
         <BubbleChip tone="NEAR_BEAR" count={counts.NEAR_BEAR ?? 0} />
         <BubbleChip tone="UNSCANNED" count={counts.UNSCANNED ?? 0} />
-
-        <span
-          className="text-[9px] font-bold uppercase tracking-wide shrink-0 px-1"
-          style={{ color: "#64748b" }}
-        >
-          {filtered.length} shown · {items.length} total
-        </span>
 
         {headerActions ? (
           <div className="ml-auto flex items-center shrink-0">{headerActions}</div>

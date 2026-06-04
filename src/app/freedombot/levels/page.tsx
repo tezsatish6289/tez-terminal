@@ -508,25 +508,26 @@ export default function LevelsPage() {
     <button
       type="button"
       onClick={toggleViewMode}
-      className="inline-flex flex-col items-center text-center px-3 py-2 rounded-lg transition-all hover:brightness-110 active:scale-[0.98] shrink-0"
+      title={viewToggleShortcut}
+      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md transition-all hover:brightness-110 active:scale-[0.98] shrink-0"
       style={{
         background:
           "linear-gradient(135deg, rgba(37,99,235,0.6) 0%, rgba(59,130,246,0.4) 100%)",
         border: "1px solid rgba(96,165,250,0.6)",
-        boxShadow: "0 0 20px rgba(37,99,235,0.4)",
+        boxShadow: "0 0 16px rgba(37,99,235,0.35)",
       }}
     >
       <span
-        className="text-[9px] sm:text-[10px] font-black uppercase tracking-wide leading-tight whitespace-nowrap"
+        className="text-[9px] font-black uppercase tracking-wide leading-none whitespace-nowrap"
         style={{ color: "#f8fafc" }}
       >
         {viewToggleLabel}
       </span>
       <span
-        className="text-[7px] sm:text-[8px] font-bold uppercase tracking-widest mt-0.5 whitespace-nowrap"
+        className="text-[8px] font-bold uppercase tracking-wider leading-none whitespace-nowrap hidden sm:inline"
         style={{ color: "#93c5fd" }}
       >
-        {viewToggleShortcut}
+        · S
       </span>
     </button>
   );

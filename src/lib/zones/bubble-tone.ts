@@ -1,3 +1,4 @@
+import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import { deriveZoneStatus, type ZoneBands } from "@/lib/zones/zone-status";
 
 /** Visual tone for the levels bubble map (splits generic NEAR by closest band). */
@@ -19,75 +20,90 @@ export interface BubbleToneStyle {
   borderStyle: "solid" | "dashed";
   borderWidth: number;
   label: string;
+  /** Symbol/price text on the bubble (in-zone matches chart zone labels). */
+  textColor: string;
+  textMutedColor: string;
 }
+
+const { bull, bear } = LEVELS_ZONE_CHART;
 
 export const BUBBLE_TONE_STYLE: Record<BubbleTone, BubbleToneStyle> = {
   IN_BULL: {
     solid: true,
-    /** Flat dark fill (#047857); rim + halo use matching accent #34d399 — no inner glow. */
-    fill: "#047857",
-    glow:
-      "0 0 12px rgba(52, 211, 153, 0.8), 0 0 28px rgba(52, 211, 153, 0.5), 0 0 48px rgba(52, 211, 153, 0.25)",
-    border: "#34d399",
+    fill: bull.bandFill,
+    glow: bull.bandGlow,
+    border: bull.bandBorderSolid,
     borderStyle: "solid",
     borderWidth: 3,
     label: "In bull zone",
+    textColor: bull.labelText,
+    textMutedColor: bull.labelTextMuted,
   },
   IN_BEAR: {
     solid: true,
-    /** Flat dark fill (#b91c1c); rim + halo use matching accent #f87171 — no inner glow. */
-    fill: "#b91c1c",
-    glow:
-      "0 0 12px rgba(248, 113, 113, 0.8), 0 0 28px rgba(248, 113, 113, 0.5), 0 0 48px rgba(248, 113, 113, 0.25)",
-    border: "#f87171",
+    fill: bear.bandFill,
+    glow: bear.bandGlow,
+    border: bear.bandBorderSolid,
     borderStyle: "solid",
     borderWidth: 3,
     label: "In bear zone",
+    textColor: bear.labelText,
+    textMutedColor: bear.labelTextMuted,
   },
   NEAR_BULL: {
     solid: false,
-    fill: "radial-gradient(circle at 40% 35%, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.88) 100%)",
-    glow: "0 0 10px rgba(190, 242, 100, 0.38)",
-    border: "#bef264",
+    fill: "rgba(15, 23, 42, 0.88)",
+    glow: bull.bandGlow,
+    border: bull.bandBorderSolid,
     borderStyle: "dashed",
     borderWidth: 2,
     label: "Near bull zone",
+    textColor: "#f8fafc",
+    textMutedColor: "#cbd5e1",
   },
   NEAR_BEAR: {
     solid: false,
-    fill: "radial-gradient(circle at 40% 35%, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.88) 100%)",
-    glow: "0 0 10px rgba(251, 146, 60, 0.38)",
-    border: "#fdba74",
+    fill: "rgba(15, 23, 42, 0.88)",
+    glow: bear.bandGlow,
+    border: bear.bandBorderSolid,
     borderStyle: "dashed",
     borderWidth: 2,
     label: "Near bear zone",
+    textColor: "#f8fafc",
+    textMutedColor: "#cbd5e1",
   },
   NEUTRAL: {
     solid: false,
-    fill: "radial-gradient(circle at 40% 35%, rgba(71, 85, 105, 0.35) 0%, rgba(30, 41, 59, 0.7) 100%)",
-    glow: "0 0 8px rgba(148, 163, 184, 0.2)",
+    fill: "rgba(30, 41, 59, 0.7)",
+    glow: "none",
     border: "rgba(148, 163, 184, 0.5)",
     borderStyle: "solid",
     borderWidth: 1,
     label: "Scanned · between zones",
+    textColor: "#f8fafc",
+    textMutedColor: "#cbd5e1",
   },
   ILLIQUID: {
     solid: false,
-    fill: "radial-gradient(circle at 40% 35%, rgba(51, 65, 85, 0.4) 0%, rgba(30, 41, 59, 0.75) 100%)",
+    fill: "rgba(30, 41, 59, 0.75)",
     glow: "none",
     border: "rgba(100, 116, 139, 0.4)",
     borderStyle: "solid",
     borderWidth: 1,
     label: "Scanned · no bands",
+    textColor: "#f8fafc",
+    textMutedColor: "#cbd5e1",
   },
   UNSCANNED: {
     solid: false,
-    fill: "radial-gradient(circle at 40% 35%, rgba(71, 85, 105, 0.32) 0%, rgba(51, 65, 85, 0.55) 100%)",
+    fill: "rgba(51, 65, 85, 0.55)",
     glow: "none",
     border: "rgba(148, 163, 184, 0.45)",
     borderStyle: "dashed",
     borderWidth: 2,
     label: "Awaiting scan",
+    textColor: "#f8fafc",
+    textMutedColor: "#cbd5e1",
   },
 };
 

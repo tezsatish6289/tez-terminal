@@ -22,6 +22,7 @@ import {
   mergedPriceRange,
   zoneSlAnchors,
 } from "@/components/levels/native-chart-level-overlays";
+import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 
 interface ApiCandle {
   time: number;
@@ -43,8 +44,8 @@ const BULL_BAND_STYLE = {
   lastValueVisible: false,
   priceLineVisible: false,
   crosshairMarkerVisible: false,
-  topFillColor1: "rgba(34, 197, 94, 0.38)",
-  topFillColor2: "rgba(34, 197, 94, 0.14)",
+  topFillColor1: LEVELS_ZONE_CHART.bull.nativeBandTop,
+  topFillColor2: LEVELS_ZONE_CHART.bull.nativeBandBottom,
   bottomFillColor1: "rgba(34, 197, 94, 0)",
   bottomFillColor2: "rgba(34, 197, 94, 0)",
   topLineColor: "rgba(34, 197, 94, 0)",
@@ -57,8 +58,8 @@ const BEAR_BAND_STYLE = {
   lastValueVisible: false,
   priceLineVisible: false,
   crosshairMarkerVisible: false,
-  topFillColor1: "rgba(239, 68, 68, 0.38)",
-  topFillColor2: "rgba(239, 68, 68, 0.14)",
+  topFillColor1: LEVELS_ZONE_CHART.bear.nativeBandTop,
+  topFillColor2: LEVELS_ZONE_CHART.bear.nativeBandBottom,
   bottomFillColor1: "rgba(239, 68, 68, 0)",
   bottomFillColor2: "rgba(239, 68, 68, 0)",
   topLineColor: "rgba(239, 68, 68, 0)",

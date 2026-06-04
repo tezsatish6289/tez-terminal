@@ -7,6 +7,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
+import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
 
 export interface ZoneSlAnchors {
@@ -104,11 +105,11 @@ export function applyLevelPriceLines(
     );
   };
 
-  add(levels.bearHigh, "#ef4444", "Bear H");
-  add(levels.bearLow, "#ef4444", "Bear L");
-  add(anchors.bearSl, "#f87171", "Bear Inv.", LineStyle.Dotted, 2);
-  add(levels.poc, "#f59e0b", "POC", LineStyle.Dashed, 2);
-  add(levels.bullHigh, "#22c55e", "Bull H");
-  add(levels.bullLow, "#22c55e", "Bull L");
-  add(anchors.bullSl, "#4ade80", "Bull Inv.", LineStyle.Dotted, 2);
+  add(levels.bearHigh, LEVELS_ZONE_CHART.bear.line, "Bear H");
+  add(levels.bearLow, LEVELS_ZONE_CHART.bear.line, "Bear L");
+  add(anchors.bearSl, LEVELS_ZONE_CHART.bear.lineInv, "Bear Inv.", LineStyle.Dotted, 2);
+  add(levels.poc, LEVELS_ZONE_CHART.poc.line, "POC", LineStyle.Dashed, 2);
+  add(levels.bullHigh, LEVELS_ZONE_CHART.bull.line, "Bull H");
+  add(levels.bullLow, LEVELS_ZONE_CHART.bull.line, "Bull L");
+  add(anchors.bullSl, LEVELS_ZONE_CHART.bull.lineInv, "Bull Inv.", LineStyle.Dotted, 2);
 }

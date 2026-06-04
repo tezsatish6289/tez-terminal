@@ -15,6 +15,7 @@ import { buildLevelsBubbleItems, LevelsBubblesView } from "@/components/levels/L
 import { LevelsSlideshowCta } from "@/components/levels/LevelsSlideshowCta";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { levelsChartPagePath } from "@/lib/levels/levels-chart-url";
+import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import { levelsTradingViewParams } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import {
@@ -70,8 +71,16 @@ const HEX_BG = `
 `;
 
 const STATUS_META: Record<ZoneStatus, { label: string; color: string; bg: string }> = {
-  IN_BULL: { label: "In Bull Zone", color: "#34d399", bg: "rgba(16,185,129,0.14)" },
-  IN_BEAR: { label: "In Bear Zone", color: "#f87171", bg: "rgba(239,68,68,0.14)" },
+  IN_BULL: {
+    label: "In Bull Zone",
+    color: LEVELS_ZONE_CHART.bull.badgeText,
+    bg: LEVELS_ZONE_CHART.bull.badgeBg,
+  },
+  IN_BEAR: {
+    label: "In Bear Zone",
+    color: LEVELS_ZONE_CHART.bear.badgeText,
+    bg: LEVELS_ZONE_CHART.bear.badgeBg,
+  },
   NEAR: { label: "Near Zone", color: "#fbbf24", bg: "rgba(251,191,36,0.14)" },
   NEUTRAL: { label: "Neutral", color: "#94a3b8", bg: "rgba(148,163,184,0.12)" },
   ILLIQUID: { label: "No Data", color: "#64748b", bg: "rgba(100,116,139,0.1)" },

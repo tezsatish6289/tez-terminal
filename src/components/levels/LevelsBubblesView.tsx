@@ -329,14 +329,14 @@ export function LevelsBubblesView({
                 )}
                 <span
                   className="font-black leading-none text-center px-1 truncate max-w-[92%] pointer-events-none"
-                  style={{ fontSize: fontMain, color: "#f8fafc" }}
+                  style={{ fontSize: fontMain, color: style.textColor }}
                 >
                   {item.symbol}
                 </span>
                 {item.spot != null && (
                   <span
                     className="font-mono tabular-nums mt-0.5 opacity-90 pointer-events-none"
-                    style={{ fontSize: fontSub, color: "#cbd5e1" }}
+                    style={{ fontSize: fontSub, color: style.textMutedColor }}
                   >
                     {item.spot >= 1000
                       ? item.spot.toLocaleString("en-IN", { maximumFractionDigits: 0 })

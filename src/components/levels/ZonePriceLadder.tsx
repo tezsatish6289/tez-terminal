@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
 
 /**
@@ -168,8 +169,8 @@ export function ZonePriceLadder({
               price={bearSl}
               c={c}
               fmt={fmt}
-              dotColor="#f87171"
-              textColor="#fca5a5"
+              dotColor={LEVELS_ZONE_CHART.bear.lineInv}
+              textColor={LEVELS_ZONE_CHART.bear.labelText}
             />
           )}
           {bearBandStyle && bearHigh != null && (
@@ -180,8 +181,8 @@ export function ZonePriceLadder({
               price={bearHigh}
               c={c}
               fmt={fmt}
-              dotColor="#ef4444"
-              textColor="#fecaca"
+              dotColor={LEVELS_ZONE_CHART.bear.line}
+              textColor={LEVELS_ZONE_CHART.bear.labelTextMuted}
             />
           )}
           {bearBandStyle && bearLow != null && (
@@ -193,7 +194,7 @@ export function ZonePriceLadder({
               c={c}
               fmt={fmt}
               dotColor="#ef4444"
-              textColor="#fca5a5"
+              textColor={LEVELS_ZONE_CHART.bear.labelText}
             />
           )}
           {poc != null && (
@@ -216,8 +217,8 @@ export function ZonePriceLadder({
               price={bullHigh}
               c={c}
               fmt={fmt}
-              dotColor="#22c55e"
-              textColor="#86efac"
+              dotColor={LEVELS_ZONE_CHART.bull.line}
+              textColor={LEVELS_ZONE_CHART.bull.labelText}
             />
           )}
           {bullBandStyle && bullLow != null && (
@@ -228,8 +229,8 @@ export function ZonePriceLadder({
               price={bullLow}
               c={c}
               fmt={fmt}
-              dotColor="#22c55e"
-              textColor="#6ee7b7"
+              dotColor={LEVELS_ZONE_CHART.bull.line}
+              textColor={LEVELS_ZONE_CHART.bull.labelTextMuted}
             />
           )}
           {bullSl != null && (
@@ -240,8 +241,8 @@ export function ZonePriceLadder({
               price={bullSl}
               c={c}
               fmt={fmt}
-              dotColor="#4ade80"
-              textColor="#86efac"
+              dotColor={LEVELS_ZONE_CHART.bull.lineInv}
+              textColor={LEVELS_ZONE_CHART.bull.labelText}
             />
           )}
         </div>
@@ -259,27 +260,27 @@ export function ZonePriceLadder({
               className="absolute left-0 right-0"
               style={{
                 ...bearBandStyle,
-                background: "linear-gradient(90deg, rgba(239,68,68,0.35), rgba(239,68,68,0.12))",
-                borderTop: "1px solid rgba(248,113,113,0.5)",
-                borderBottom: "1px solid rgba(248,113,113,0.5)",
-                boxShadow: "0 0 24px rgba(239,68,68,0.15)",
+                background: `linear-gradient(90deg, ${LEVELS_ZONE_CHART.bear.bandFill}, ${LEVELS_ZONE_CHART.bear.bandFillSoft})`,
+                borderTop: `1px solid ${LEVELS_ZONE_CHART.bear.bandBorder}`,
+                borderBottom: `1px solid ${LEVELS_ZONE_CHART.bear.bandBorder}`,
+                boxShadow: LEVELS_ZONE_CHART.bear.bandGlow,
               }}
             >
               <span
                 className="absolute top-1/2 -translate-y-1/2 left-2 sm:left-3 text-[10px] sm:text-xs font-bold tracking-wide"
-                style={{ color: "#fecaca" }}
+                style={{ color: LEVELS_ZONE_CHART.bear.labelTextMuted }}
               >
                 Bear Zone
               </span>
               <span
                 className="absolute top-0.5 right-2 sm:right-3 text-[10px] font-mono font-bold tabular-nums"
-                style={{ color: "#fecaca" }}
+                style={{ color: LEVELS_ZONE_CHART.bear.labelTextMuted }}
               >
                 {c}{fmt(bearHigh ?? 0)}
               </span>
               <span
                 className="absolute bottom-0.5 right-2 sm:right-3 text-[10px] font-mono font-bold tabular-nums"
-                style={{ color: "#fca5a5" }}
+                style={{ color: LEVELS_ZONE_CHART.bear.labelText }}
               >
                 {c}{fmt(bearLow ?? 0)}
               </span>
@@ -291,27 +292,27 @@ export function ZonePriceLadder({
               className="absolute left-0 right-0"
               style={{
                 ...bullBandStyle,
-                background: "linear-gradient(90deg, rgba(34,197,94,0.35), rgba(34,197,94,0.12))",
-                borderTop: "1px solid rgba(74,222,128,0.5)",
-                borderBottom: "1px solid rgba(74,222,128,0.5)",
-                boxShadow: "0 0 24px rgba(34,197,94,0.15)",
+                background: `linear-gradient(90deg, ${LEVELS_ZONE_CHART.bull.bandFill}, ${LEVELS_ZONE_CHART.bull.bandFillSoft})`,
+                borderTop: `1px solid ${LEVELS_ZONE_CHART.bull.bandBorder}`,
+                borderBottom: `1px solid ${LEVELS_ZONE_CHART.bull.bandBorder}`,
+                boxShadow: LEVELS_ZONE_CHART.bull.bandGlow,
               }}
             >
               <span
                 className="absolute top-1/2 -translate-y-1/2 left-2 sm:left-3 text-[10px] sm:text-xs font-bold tracking-wide"
-                style={{ color: "#86efac" }}
+                style={{ color: LEVELS_ZONE_CHART.bull.labelText }}
               >
                 Bull Zone
               </span>
               <span
                 className="absolute top-0.5 right-2 sm:right-3 text-[10px] font-mono font-bold tabular-nums"
-                style={{ color: "#86efac" }}
+                style={{ color: LEVELS_ZONE_CHART.bull.labelText }}
               >
                 {c}{fmt(bullHigh ?? 0)}
               </span>
               <span
                 className="absolute bottom-0.5 right-2 sm:right-3 text-[10px] font-mono font-bold tabular-nums"
-                style={{ color: "#6ee7b7" }}
+                style={{ color: LEVELS_ZONE_CHART.bull.labelTextMuted }}
               >
                 {c}{fmt(bullLow ?? 0)}
               </span>

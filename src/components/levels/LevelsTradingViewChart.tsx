@@ -41,7 +41,7 @@ export function LevelsTradingViewChart({
   hideChartShortcuts?: boolean;
   nativeChartRef?: React.RefObject<NativeCandlesChartHandle | null>;
   onFullHistoryZoomChange?: (full: boolean) => void;
-  /** Deep-dive tab: title lives in page chrome; chart area is shorter with padding. */
+  /** Deep-dive page: title lives in page chrome; chart fills remaining viewport. */
   showHeader?: boolean;
   className?: string;
 }) {

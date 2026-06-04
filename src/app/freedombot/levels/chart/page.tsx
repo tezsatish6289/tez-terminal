@@ -14,8 +14,8 @@ import {
 } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 
-/** Shared width with chart column — header and chart edges align. */
-const CHART_COLUMN = "w-full max-w-6xl mx-auto";
+/** Deep-dive: full viewport width; slideshow keeps max-w-[100rem] + side list. */
+const CHART_PAGE_SHELL = "w-full max-w-none flex flex-col flex-1 min-h-0";
 
 function ChartContent() {
   const searchParams = useSearchParams();
@@ -135,25 +135,25 @@ function ChartContent() {
       className="h-[calc(100dvh-3.5rem)] sm:h-[calc(100dvh-4rem)] overflow-hidden flex flex-col"
       style={{ backgroundColor: "#060912" }}
     >
-      <div className="flex-1 min-h-0 flex flex-col p-4 sm:p-5 overflow-hidden">
-        <div className={`${CHART_COLUMN} shrink-0 flex flex-wrap items-start justify-between gap-x-3 gap-y-2 sm:gap-4 mb-3`}>
-          <div className="min-w-0 flex flex-col gap-0.5">
+      <div className={`${CHART_PAGE_SHELL} px-2 sm:px-3 py-2 sm:py-2.5 overflow-hidden`}>
+        <div className="shrink-0 flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 sm:gap-2">
+          <div className="min-w-0 flex flex-col gap-0 leading-tight">
             <h1
-              className="text-lg sm:text-xl font-black tracking-tight leading-tight truncate"
+              className="text-base sm:text-lg font-black tracking-tight truncate"
               style={{ color: "#f8fafc" }}
             >
               {symbol}
             </h1>
             {subtitleLine ? (
               <p
-                className="text-[11px] sm:text-xs font-medium leading-snug truncate"
+                className="text-[10px] sm:text-[11px] font-medium truncate"
                 style={{ color: "#94a3b8" }}
               >
                 {subtitleLine}
               </p>
             ) : null}
             <p
-              className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.14em] leading-snug"
+              className="text-[9px] font-bold uppercase tracking-[0.12em]"
               style={{ color: "#64748b" }}
             >
               {formatLevelsChartMeta(config)}
@@ -167,25 +167,23 @@ function ChartContent() {
         </div>
 
         {error ? (
-          <p className={`${CHART_COLUMN} text-xs text-center shrink-0 mb-2`} style={{ color: "#f87171" }}>
+          <p className="text-xs text-center shrink-0 mt-1" style={{ color: "#f87171" }}>
             {error}
           </p>
         ) : null}
 
-        <div className={`${CHART_COLUMN} flex-1 min-h-0 flex flex-col`}>
-          <div className="flex-1 min-h-[240px] max-h-[min(58vh,520px)] w-full flex flex-col">
-            <LevelsTradingViewChart
-              className="flex-1 min-h-0"
-              config={config}
-              ticker={symbol}
-              levels={levels}
-              loading={loading}
-              hideChartShortcuts
-              showHeader={false}
-              nativeChartRef={nativeChartRef}
-              onFullHistoryZoomChange={setChartFullHistory}
-            />
-          </div>
+        <div className="flex-1 min-h-0 w-full flex flex-col mt-1.5 sm:mt-2">
+          <LevelsTradingViewChart
+            className="flex-1 min-h-0 h-full"
+            config={config}
+            ticker={symbol}
+            levels={levels}
+            loading={loading}
+            hideChartShortcuts
+            showHeader={false}
+            nativeChartRef={nativeChartRef}
+            onFullHistoryZoomChange={setChartFullHistory}
+          />
         </div>
       </div>
     </main>

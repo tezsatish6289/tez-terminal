@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
         ...out,
         token: { ok: false },
         hint:
-          "No valid token. Confirm DHAN_TOTP_SECRET + DHAN_PIN secrets exist and TOTP is enabled on Dhan, or seed a token via /api/admin/dhan-token.",
+          "No valid token. POST /api/admin/dhan-token?action=totp to force TOTP renewal, or seed manually via POST { accessToken, clientId }.",
       },
       { status: 200 },
     );

@@ -3,6 +3,7 @@
  *
  * GET  ?key=<CRON_SECRET>          → show current token status
  * POST ?key=<CRON_SECRET>  { accessToken, clientId }  → reseed token in Firestore
+ * POST ?key=<CRON_SECRET>&action=totp  → force TOTP renewal (DHAN_TOTP_SECRET + DHAN_PIN)
  *
  * Use POST when the token has expired and auto-renewal failed.
  * Generate a fresh token from: web.dhan.co → Profile → Access DhanHQ APIs → Generate Access Token
@@ -10,6 +11,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
+import { isDhanTotpConfigured, renewSystemTokenViaTotp } from "@/lib/dhan-token";
 
 export const dynamic = "force-dynamic";
 
@@ -60,12 +62,40 @@ export async function GET(request: NextRequest) {
     tokenAgeHours: (ageMs / 3_600_000).toFixed(1),
     jwtExpiresAt: exp ? new Date(exp).toISOString() : "unknown",
     expired,
+    totpConfigured: isDhanTotpConfigured(),
+    totpHint: "POST ?action=totp to force TOTP renewal when expired.",
   });
 }
 
 export async function POST(request: NextRequest) {
   if (!authorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (request.nextUrl.searchParams.get("action") === "totp") {
+    const result = await renewSystemTokenViaTotp();
+    if (!result.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          totpConfigured: result.totpConfigured,
+          clientId: result.clientId,
+          error: result.error,
+          hint:
+            "Enable TOTP at web.dhan.co → Profile → Access DhanHQ APIs → Setup TOTP. " +
+            "Store base32 secret as DHAN_TOTP_SECRET and trading PIN as DHAN_PIN in Firebase secrets.",
+        },
+        { status: result.totpConfigured ? 502 : 400 },
+      );
+    }
+    return NextResponse.json({
+      success: true,
+      source: "TOTP",
+      clientId: result.clientId,
+      jwtExpiresAt: result.jwtExpiresAt,
+      renewCount: result.renewCount,
+      message: "Fresh token saved to Firestore. Levels/candles will work on the next request.",
+    });
   }
 
   let body: { accessToken?: string; clientId?: string };

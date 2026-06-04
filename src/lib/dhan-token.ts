@@ -192,6 +192,14 @@ export async function generateTokenForUser(
       if (!res.ok) {
         const text = await res.text();
         console.error(`[DhanToken] TOTP attempt (offset=${offset}s) failed for ${clientId} (${res.status}): ${text}`);
+        if (/too many attempts/i.test(text)) {
+          let msg = "Dhan rate-limited TOTP auth — wait 15–30 minutes before retrying.";
+          try {
+            const errJson = JSON.parse(text);
+            msg = errJson.message ?? errJson.errorMessage ?? msg;
+          } catch { /* raw */ }
+          return { token: null, error: msg };
+        }
         if (offset === timeOffsets[timeOffsets.length - 1]) {
           // Last attempt — surface the actual error
           let msg = `Dhan auth failed (${res.status})`;
@@ -224,12 +232,13 @@ export async function generateTokenForUser(
   return { token: null, error: "All TOTP window attempts failed" };
 }
 
+export function isDhanTotpConfigured(): boolean {
+  return Boolean(process.env.DHAN_TOTP_SECRET?.trim() && process.env.DHAN_PIN?.trim());
+}
+
 /** @internal system-token strategy 2 wrapper (reads from env vars) */
 async function tryTOTPGeneration(clientId: string): Promise<string | null> {
-  const totpSecret = process.env.DHAN_TOTP_SECRET;
-  const pin = process.env.DHAN_PIN;
-
-  if (!totpSecret || !pin) {
+  if (!isDhanTotpConfigured()) {
     console.warn(
       "[DhanToken] TOTP fallback not configured. " +
         "Set DHAN_TOTP_SECRET + DHAN_PIN env vars for fully-automatic daily renewal."
@@ -237,8 +246,67 @@ async function tryTOTPGeneration(clientId: string): Promise<string | null> {
     return null;
   }
 
-  const { token } = await generateTokenForUser(clientId, totpSecret, pin);
+  const { token } = await generateTokenForUser(
+    clientId,
+    process.env.DHAN_TOTP_SECRET!,
+    process.env.DHAN_PIN!,
+  );
   return token;
+}
+
+/**
+ * Force a fresh token via TOTP (for expired tokens or manual testing).
+ * Persists to Firestore on success.
+ */
+export async function renewSystemTokenViaTotp(): Promise<{
+  ok: boolean;
+  clientId?: string;
+  jwtExpiresAt?: string;
+  renewCount?: number;
+  error?: string;
+  totpConfigured: boolean;
+}> {
+  if (!isDhanTotpConfigured()) {
+    return {
+      ok: false,
+      totpConfigured: false,
+      error: "DHAN_TOTP_SECRET and DHAN_PIN must both be set in runtime secrets.",
+    };
+  }
+
+  const db = getAdminFirestore();
+  const doc = await db.doc(FIRESTORE_DOC).get();
+  const existing = doc.exists ? (doc.data() as DhanTokenDoc) : null;
+  const clientId = existing?.clientId ?? process.env.DHAN_CLIENT_ID?.trim() ?? "";
+  if (!clientId) {
+    return {
+      ok: false,
+      totpConfigured: true,
+      error: "No dhanClientId — seed Firestore or set DHAN_CLIENT_ID.",
+    };
+  }
+
+  const { token, error } = await generateTokenForUser(
+    clientId,
+    process.env.DHAN_TOTP_SECRET!,
+    process.env.DHAN_PIN!,
+  );
+  if (!token) {
+    return { ok: false, totpConfigured: true, clientId, error: error ?? "TOTP auth failed" };
+  }
+
+  await persistToken(db, existing, token, "TOTP-manual");
+  const exp = getJwtExpiry(token);
+  const updated = await db.doc(FIRESTORE_DOC).get();
+  const data = updated.data() as DhanTokenDoc | undefined;
+
+  return {
+    ok: true,
+    totpConfigured: true,
+    clientId,
+    jwtExpiresAt: exp ? new Date(exp).toISOString() : undefined,
+    renewCount: data?.renewCount,
+  };
 }
 
 // ── Public API ────────────────────────────────────────────────────

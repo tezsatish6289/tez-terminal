@@ -75,7 +75,7 @@ function BubbleChip({
       <span
         className="h-2.5 w-2.5 rounded-full shrink-0"
         style={{
-          backgroundColor: s.solid ? s.fill : "transparent",
+          background: s.solid ? s.fill : "transparent",
           border: `${s.borderStyle === "dashed" ? "1px dashed" : "1px solid"} ${s.border}`,
           boxShadow: s.glow,
         }}

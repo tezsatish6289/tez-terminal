@@ -31,6 +31,10 @@ import {
 } from "@/lib/zones/bubble-tone";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
+import {
+  bubbleMatchesMapFilter,
+  type BubbleMapFilter,
+} from "@/lib/zones/bubble-map-filter";
 import type { ZoneBands } from "@/lib/zones/zone-status";
 
 export interface LevelsBubbleItem {
@@ -67,37 +71,6 @@ const BUBBLE_ANIM_CSS = `
 }
 `;
 
-function BubbleChip({
-  tone,
-  count,
-}: {
-  tone: "IN_BULL" | "NEAR_BULL" | "IN_BEAR" | "NEAR_BEAR" | "UNSCANNED";
-  count: number;
-}) {
-  const s = BUBBLE_TONE_STYLE[tone];
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2 ${LEVELS_TOOLBAR_CHIP_HEIGHT} rounded-md shrink-0`}
-      style={{
-        color: s.border,
-        backgroundColor: "rgba(0,0,0,0.35)",
-        border: `${s.borderStyle === "dashed" ? "1px dashed" : "1px solid"} ${s.border}`,
-      }}
-    >
-      <span
-        className="h-2.5 w-2.5 rounded-full shrink-0"
-        style={{
-          background: s.solid ? s.fill : "transparent",
-          border: `${s.borderStyle === "dashed" ? "1px dashed" : "1px solid"} ${s.border}`,
-          boxShadow: s.glow,
-        }}
-      />
-      {s.label}
-      <span style={{ color: "#64748b" }}>({count})</span>
-    </span>
-  );
-}
-
 /** Index circles use a thicker ring (no IDX label). */
 const INDEX_BORDER_EXTRA_PX = 3;
 
@@ -105,16 +78,15 @@ export function LevelsBubblesView({
   items,
   onBubbleOpen,
   hasMarketData = true,
-  hideNeutral,
-  onHideNeutralChange,
+  toneFilter = "all",
   headerActions,
 }: {
   items: LevelsBubbleItem[];
   onBubbleOpen: (item: LevelsBubbleItem) => void;
   /** False when /api/freedombot/levels has not loaded yet or failed. */
   hasMarketData?: boolean;
-  hideNeutral?: boolean;
-  onHideNeutralChange?: (hide: boolean) => void;
+  /** Map filter from toolbar (At Support, Near Support, …). */
+  toneFilter?: BubbleMapFilter;
   /** View toggle — same toolbar row as search + legend. */
   headerActions?: ReactNode;
 }) {
@@ -157,21 +129,14 @@ export function LevelsBubblesView({
   const filtered = useMemo(() => {
     const q = query.trim().toUpperCase();
     return items.filter((it) => {
-      if (
-        hideNeutral &&
-        (it.tone === "NEUTRAL" ||
-          it.tone === "ILLIQUID" ||
-          it.tone === "UNSCANNED")
-      ) {
-        return false;
-      }
+      if (!bubbleMatchesMapFilter(it.tone, toneFilter)) return false;
       if (!q) return true;
       return (
         it.symbol.toUpperCase().includes(q) ||
         it.label.toUpperCase().includes(q)
       );
     });
-  }, [items, query, hideNeutral]);
+  }, [items, query, toneFilter]);
 
   const actionableCount = useMemo(
     () => items.filter((it) => it.meetsActionableFilter).length,
@@ -192,12 +157,6 @@ export function LevelsBubblesView({
     const t = window.setTimeout(() => setLayoutReady(true), 400);
     return () => window.clearTimeout(t);
   }, [size.w, size.h]);
-
-  const counts = useMemo(() => {
-    const m: Partial<Record<BubbleTone, number>> = {};
-    for (const it of items) m[it.tone] = (m[it.tone] ?? 0) + 1;
-    return m;
-  }, [items]);
 
   useEffect(() => {
     const nextPop: Record<string, "in" | "out"> = {};
@@ -260,9 +219,9 @@ export function LevelsBubblesView({
     const loop = () => {
       physicsFrameRef.current += 1;
       const frame = physicsFrameRef.current;
-      if (frame > 60) {
-        const t = Math.min(1, (frame - 60) / 90);
-        stepPhysics(nodesRef.current, size.w, size.h, 0.25 + t * 0.35);
+      if (frame > 90) {
+        const t = Math.min(1, (frame - 90) / 120);
+        stepPhysics(nodesRef.current, size.w, size.h, 0.06 + t * 0.06);
       }
       applyPositions();
       rafRef.current = requestAnimationFrame(loop);
@@ -300,35 +259,14 @@ export function LevelsBubblesView({
           />
         </div>
 
-        {onHideNeutralChange ? (
-          <label
-            className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider cursor-pointer select-none shrink-0"
-            style={{ color: "#94a3b8" }}
-          >
-            <input
-              type="checkbox"
-              checked={hideNeutral ?? false}
-              onChange={(e) => onHideNeutralChange(e.target.checked)}
-              className="rounded border-slate-600"
-            />
-            Hide unscanned
-          </label>
-        ) : null}
         <div className="w-full min-w-0 overflow-x-auto pb-0.5 order-2 sm:order-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 w-max sm:w-auto min-w-0">
-            <span
-              className="text-[9px] font-bold uppercase tracking-wide shrink-0"
-              style={{ color: "#64748b" }}
-            >
-              {filtered.length} shown · {items.length} total
-              {actionableCount > 0 ? ` · ${actionableCount} in-zone` : ""}
-            </span>
-            <BubbleChip tone="IN_BULL" count={counts.IN_BULL ?? 0} />
-            <BubbleChip tone="NEAR_BULL" count={counts.NEAR_BULL ?? 0} />
-            <BubbleChip tone="IN_BEAR" count={counts.IN_BEAR ?? 0} />
-            <BubbleChip tone="NEAR_BEAR" count={counts.NEAR_BEAR ?? 0} />
-            <BubbleChip tone="UNSCANNED" count={counts.UNSCANNED ?? 0} />
-          </div>
+          <span
+            className="text-[9px] font-bold uppercase tracking-wide shrink-0"
+            style={{ color: "#64748b" }}
+          >
+            {filtered.length} shown · {items.length} total
+            {actionableCount > 0 ? ` · ${actionableCount} actionable` : ""}
+          </span>
         </div>
 
         {headerActions ? (

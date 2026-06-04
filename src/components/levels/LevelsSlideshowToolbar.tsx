@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
+import { LevelsBubbleMapFilters } from "@/components/levels/LevelsBubbleMapFilters";
 import { LevelsCtaCluster } from "@/components/levels/LevelsCtaCluster";
 import { LevelsSlideshowStripControls } from "@/components/levels/LevelsSlideshowStripControls";
+import type { BubbleMapFilter } from "@/lib/zones/bubble-map-filter";
 import { LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS } from "@/components/levels/levels-symbol-strip";
 import type { PocDirectionFilter } from "@/lib/zones/zone-status";
 
@@ -27,10 +29,19 @@ export function LevelsSlideshowToolbar({
   symbolStrip,
   slideshowControl,
   viewModeToggle,
+  bubblesMode = false,
+  bubbleMapFilter,
+  onBubbleMapFilterChange,
+  bubbleFilterCounts,
 }: {
   zoneFilter: PocDirectionFilter;
   onZoneFilterChange: (filter: PocDirectionFilter) => void;
   filterCounts: { all: number; bull: number; bear: number };
+  /** Bubbles map: tone filters instead of All / Bullish / Bearish. */
+  bubblesMode?: boolean;
+  bubbleMapFilter?: BubbleMapFilter;
+  onBubbleMapFilterChange?: (filter: BubbleMapFilter) => void;
+  bubbleFilterCounts?: Record<BubbleMapFilter, number>;
   chartShortcuts?: {
     webChartUrl: string;
     showSqueeze?: boolean;
@@ -147,7 +158,15 @@ export function LevelsSlideshowToolbar({
   return (
     <div className="shrink-0 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center mb-2 px-0.5 min-w-0">
       <div className="w-full min-w-0 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <LevelsCtaCluster actions={filterActions} align="start" />
+        {bubblesMode && bubbleFilterCounts && onBubbleMapFilterChange && bubbleMapFilter != null ? (
+          <LevelsBubbleMapFilters
+            filter={bubbleMapFilter}
+            onFilterChange={onBubbleMapFilterChange}
+            counts={bubbleFilterCounts}
+          />
+        ) : (
+          <LevelsCtaCluster actions={filterActions} align="start" />
+        )}
       </div>
 
       <div className="w-full sm:w-auto sm:ml-auto flex flex-col xs:flex-row flex-wrap items-stretch sm:items-center justify-end gap-1.5 shrink-0 min-w-0">

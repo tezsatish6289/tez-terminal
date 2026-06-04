@@ -37,6 +37,10 @@ import {
 } from "@/lib/levels/slideshow-zones";
 import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
 import {
+  countBubbleMapFilters,
+  type BubbleMapFilter,
+} from "@/lib/zones/bubble-map-filter";
+import {
   deriveZoneStatus,
   type PocDirectionFilter,
   type ZoneStatus,
@@ -132,7 +136,7 @@ export default function LevelsPage() {
   const [inZoneChartLoading, setInZoneChartLoading] = useState(false);
   const [slideshowPaused, setSlideshowPaused] = useState(false);
   const [slideshowCountdown, setSlideshowCountdown] = useState(SLIDESHOW_SLIDE_SECONDS);
-  const [bubblesHideNeutral, setBubblesHideNeutral] = useState(false);
+  const [bubbleMapFilter, setBubbleMapFilter] = useState<BubbleMapFilter>("all");
   const [chartFullHistory, setChartFullHistory] = useState(false);
   /** Last candle close per symbol — strip tiles match native chart price. */
   const [liveStripSpot, setLiveStripSpot] = useState<Record<string, number>>({});
@@ -271,6 +275,11 @@ export default function LevelsPage() {
         ? buildLevelsBubbleItems(payload.indices, stockBySymbol, actionableBubbleIds)
         : [],
     [payload, stockBySymbol, actionableBubbleIds],
+  );
+
+  const bubbleFilterCounts = useMemo(
+    () => countBubbleMapFilters(bubbleItems),
+    [bubbleItems],
   );
 
   const inZoneCount = inZoneListFiltered.length;
@@ -706,6 +715,10 @@ export default function LevelsPage() {
           <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
               <LevelsSlideshowToolbar
+                bubblesMode={viewMode === "bubbles"}
+                bubbleMapFilter={bubbleMapFilter}
+                onBubbleMapFilterChange={setBubbleMapFilter}
+                bubbleFilterCounts={bubbleFilterCounts}
                 zoneFilter={zoneFilter}
                 onZoneFilterChange={(key) => {
                   setZoneFilter(key);
@@ -750,8 +763,7 @@ export default function LevelsPage() {
                   items={bubbleItems}
                   onBubbleOpen={openBubbleChart}
                   hasMarketData={Boolean(payload)}
-                  hideNeutral={bubblesHideNeutral}
-                  onHideNeutralChange={setBubblesHideNeutral}
+                  toneFilter={bubbleMapFilter}
                   headerActions={null}
                 />
               ) : (

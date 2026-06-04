@@ -103,7 +103,7 @@ export function createPhysicsNodes<T extends BubblePhysicsItem>(
   });
 }
 
-/** Gentle drift, wall bounce, soft collisions (Banter-style float). */
+/** Gentle drift, wall bounce, soft collisions — tuned for slow float (not pinball). */
 export function stepPhysics(
   nodes: PhysicsNode[],
   width: number,
@@ -113,10 +113,10 @@ export function stepPhysics(
   if (width < 40 || height < 40 || nodes.length === 0 || intensity <= 0) return;
 
   const edgePad = 10;
-  const collidePad = 5;
-  const damp = 0.988 - (1 - intensity) * 0.04;
-  const maxSpeed = 0.95 * intensity;
-  const drift = 0.004 * intensity;
+  const collidePad = 6;
+  const damp = 0.996 - (1 - intensity) * 0.012;
+  const maxSpeed = 0.14 * intensity;
+  const drift = 0.00028 * intensity;
 
   for (const n of nodes) {
     n.vx += (Math.random() - 0.5) * drift;
@@ -133,19 +133,19 @@ export function stepPhysics(
   for (const n of nodes) {
     if (n.x - n.r < edgePad) {
       n.x = edgePad + n.r;
-      n.vx = Math.abs(n.vx) * 0.72 + 0.08;
+      n.vx = Math.abs(n.vx) * 0.35 + 0.012;
     }
     if (n.x + n.r > width - edgePad) {
       n.x = width - edgePad - n.r;
-      n.vx = -Math.abs(n.vx) * 0.72 - 0.08;
+      n.vx = -Math.abs(n.vx) * 0.35 - 0.012;
     }
     if (n.y - n.r < edgePad) {
       n.y = edgePad + n.r;
-      n.vy = Math.abs(n.vy) * 0.72 + 0.08;
+      n.vy = Math.abs(n.vy) * 0.35 + 0.012;
     }
     if (n.y + n.r > height - edgePad) {
       n.y = height - edgePad - n.r;
-      n.vy = -Math.abs(n.vy) * 0.72 - 0.08;
+      n.vy = -Math.abs(n.vy) * 0.35 - 0.012;
     }
   }
 
@@ -158,7 +158,7 @@ export function stepPhysics(
       const dist = Math.hypot(dx, dy) || 0.001;
       const minDist = a.r + b.r + collidePad;
       if (dist < minDist) {
-        const push = (minDist - dist) * 0.52;
+        const push = (minDist - dist) * 0.1;
         const ux = dx / dist;
         const uy = dy / dist;
         a.x -= ux * push;
@@ -169,7 +169,7 @@ export function stepPhysics(
         const relVy = b.vy - a.vy;
         const impact = relVx * ux + relVy * uy;
         if (impact < 0) {
-          const impulse = impact * 0.42;
+          const impulse = impact * 0.06;
           a.vx += impulse * ux;
           a.vy += impulse * uy;
           b.vx -= impulse * ux;

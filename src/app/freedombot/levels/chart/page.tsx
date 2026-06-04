@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "rea
 import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
+import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
@@ -147,17 +148,24 @@ function ChartContent() {
           </p>
         ) : null}
 
-        <div className="flex-1 min-h-0 w-full flex flex-col mt-1.5 sm:mt-2">
-          <LevelsTradingViewChart
-            className="flex-1 min-h-0 h-full"
-            config={config}
-            ticker={symbol}
-            levels={levels}
-            loading={loading}
-            hideChartShortcuts
-            showHeader={false}
-            nativeChartRef={nativeChartRef}
-            onFullHistoryZoomChange={setChartFullHistory}
+        <div className="flex-1 min-h-0 w-full flex flex-col lg:flex-row gap-2 sm:gap-3 mt-1.5 sm:mt-2">
+          <div className="flex-1 min-h-0 min-w-0 flex flex-col">
+            <LevelsTradingViewChart
+              className="flex-1 min-h-0 h-full"
+              config={config}
+              ticker={symbol}
+              levels={levels}
+              loading={loading}
+              hideChartShortcuts
+              showHeader={false}
+              nativeChartRef={nativeChartRef}
+              onFullHistoryZoomChange={setChartFullHistory}
+            />
+          </div>
+          <LevelsNewsPanel
+            scope={scope ?? "stock"}
+            symbol={symbol}
+            className="w-full lg:w-[320px] xl:w-[360px] lg:shrink-0 min-h-[16rem] lg:min-h-0"
           />
         </div>
       </div>

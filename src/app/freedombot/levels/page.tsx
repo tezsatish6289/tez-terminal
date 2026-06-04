@@ -17,6 +17,7 @@ import {
 } from "@/components/levels/LevelsBubblesView";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
+import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import { LevelsSlideshowToolbar } from "@/components/levels/LevelsSlideshowToolbar";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { levelsChartPagePath } from "@/lib/levels/levels-chart-url";
@@ -438,15 +439,25 @@ export default function LevelsPage() {
       </div>
     );
 
+  const slideshowNews =
+    inZoneActive != null && activeTicker ? (
+      <LevelsNewsPanel
+        scope={inZoneActive.scope}
+        symbol={activeTicker}
+        className="h-full"
+      />
+    ) : null;
+
   const wrapSlideshowBody = (
     list: ReactNode,
     levels: ReactNode,
-    opts?: { hideLevelsColumn?: boolean; chartFooter?: ReactNode },
+    opts?: { hideLevelsColumn?: boolean; chartFooter?: ReactNode; news?: ReactNode },
   ) => (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       <LevelsTripleColumnShell
         list={list}
         levels={levels}
+        news={opts?.news}
         hideLevelsColumn={opts?.hideLevelsColumn ?? chartShowsZones}
         chart={
           <div className="flex flex-col flex-1 min-h-0 min-w-0">
@@ -520,6 +531,7 @@ export default function LevelsPage() {
       inZoneNativeChart
         ? {
             hideLevelsColumn: true,
+            news: slideshowNews,
             chartFooter: (
               <LevelsChartMetaFooter
                 slideCount={inZoneCount}

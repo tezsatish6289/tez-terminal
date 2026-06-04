@@ -339,11 +339,14 @@ export function LevelsTripleColumnShell({
   list,
   levels,
   chart,
+  news,
   hideLevelsColumn = false,
 }: {
   list: ReactNode;
   levels: ReactNode;
   chart: ReactNode;
+  /** Optional recent-news rail — only shown on xl+ where there is room. */
+  news?: ReactNode;
   /** Native chart already draws POC / bull / bear — drop the center ladder. */
   hideLevelsColumn?: boolean;
 }) {
@@ -367,6 +370,14 @@ export function LevelsTripleColumnShell({
       <div className="order-1 lg:order-none flex flex-col flex-1 min-w-0 min-h-[min(46dvh,400px)] sm:min-h-[min(50dvh,460px)] lg:min-h-0 h-full">
         {chart}
       </div>
+      {news && (
+        <>
+          <ColumnDivider />
+          <div className="hidden xl:flex flex-col min-h-0 xl:w-[320px] 2xl:w-[360px] xl:shrink-0">
+            {news}
+          </div>
+        </>
+      )}
     </div>
   );
 }

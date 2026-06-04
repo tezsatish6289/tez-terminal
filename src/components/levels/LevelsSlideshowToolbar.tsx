@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
-import { LevelsBubbleMapFilters } from "@/components/levels/LevelsBubbleMapFilters";
+import { LevelsBubblesToolbar } from "@/components/levels/LevelsBubblesToolbar";
 import { LevelsCtaCluster } from "@/components/levels/LevelsCtaCluster";
 import { LevelsSlideshowStripControls } from "@/components/levels/LevelsSlideshowStripControls";
 import type { BubbleMapFilter } from "@/lib/zones/bubble-map-filter";
@@ -33,6 +33,8 @@ export function LevelsSlideshowToolbar({
   bubbleMapFilter,
   onBubbleMapFilterChange,
   bubbleFilterCounts,
+  bubbleSearch = "",
+  onBubbleSearchChange,
 }: {
   zoneFilter: PocDirectionFilter;
   onZoneFilterChange: (filter: PocDirectionFilter) => void;
@@ -42,6 +44,8 @@ export function LevelsSlideshowToolbar({
   bubbleMapFilter?: BubbleMapFilter;
   onBubbleMapFilterChange?: (filter: BubbleMapFilter) => void;
   bubbleFilterCounts?: Record<BubbleMapFilter, number>;
+  bubbleSearch?: string;
+  onBubbleSearchChange?: (value: string) => void;
   chartShortcuts?: {
     webChartUrl: string;
     showSqueeze?: boolean;
@@ -155,18 +159,29 @@ export function LevelsSlideshowToolbar({
     );
   }
 
+  if (
+    bubblesMode &&
+    bubbleFilterCounts &&
+    onBubbleMapFilterChange &&
+    bubbleMapFilter != null &&
+    onBubbleSearchChange
+  ) {
+    return (
+      <LevelsBubblesToolbar
+        search={bubbleSearch}
+        onSearchChange={onBubbleSearchChange}
+        bubbleMapFilter={bubbleMapFilter}
+        onBubbleMapFilterChange={onBubbleMapFilterChange}
+        bubbleFilterCounts={bubbleFilterCounts}
+        viewToggle={viewToggle}
+      />
+    );
+  }
+
   return (
     <div className="shrink-0 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center mb-2 px-0.5 min-w-0">
       <div className="w-full min-w-0 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {bubblesMode && bubbleFilterCounts && onBubbleMapFilterChange && bubbleMapFilter != null ? (
-          <LevelsBubbleMapFilters
-            filter={bubbleMapFilter}
-            onFilterChange={onBubbleMapFilterChange}
-            counts={bubbleFilterCounts}
-          />
-        ) : (
-          <LevelsCtaCluster actions={filterActions} align="start" />
-        )}
+        <LevelsCtaCluster actions={filterActions} align="start" />
       </div>
 
       <div className="w-full sm:w-auto sm:ml-auto flex flex-col xs:flex-row flex-wrap items-stretch sm:items-center justify-end gap-1.5 shrink-0 min-w-0">

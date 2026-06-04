@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-import { Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
   bubbleRadius,
@@ -17,13 +9,6 @@ import {
   stepPhysics,
   type PhysicsNode,
 } from "@/lib/levels/bubble-physics";
-import { LEVELS_TOOLBAR_CHIP_HEIGHT } from "@/components/levels/LevelsSlideshowCta";
-import {
-  BLACKBOARD_CHALK,
-  BLACKBOARD_CHALK_DIM,
-  BLACKBOARD_FIELD_BG,
-  BLACKBOARD_FIELD_BORDER,
-} from "@/lib/levels/cta-blackboard";
 import {
   BUBBLE_TONE_STYLE,
   deriveBubbleDisplayTone,
@@ -79,7 +64,7 @@ export function LevelsBubblesView({
   onBubbleOpen,
   hasMarketData = true,
   toneFilter = "all",
-  headerActions,
+  searchQuery = "",
 }: {
   items: LevelsBubbleItem[];
   onBubbleOpen: (item: LevelsBubbleItem) => void;
@@ -87,8 +72,8 @@ export function LevelsBubblesView({
   hasMarketData?: boolean;
   /** Map filter from toolbar (At Support, Near Support, …). */
   toneFilter?: BubbleMapFilter;
-  /** View toggle — same toolbar row as search + legend. */
-  headerActions?: ReactNode;
+  /** Search string from parent toolbar. */
+  searchQuery?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<PhysicsNode<LevelsBubbleItem>[]>([]);
@@ -96,7 +81,6 @@ export function LevelsBubblesView({
   const prevTonesRef = useRef<Map<string, BubbleTone>>(new Map());
   const rafRef = useRef<number>(0);
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const [query, setQuery] = useState("");
   const [popClass, setPopClass] = useState<Record<string, "in" | "out">>({});
   const [layoutReady, setLayoutReady] = useState(false);
   const physicsFrameRef = useRef(0);
@@ -127,7 +111,7 @@ export function LevelsBubblesView({
   }, [syncSize]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toUpperCase();
+    const q = searchQuery.trim().toUpperCase();
     return items.filter((it) => {
       if (!bubbleMatchesMapFilter(it.tone, toneFilter)) return false;
       if (!q) return true;
@@ -136,12 +120,7 @@ export function LevelsBubblesView({
         it.label.toUpperCase().includes(q)
       );
     });
-  }, [items, query, toneFilter]);
-
-  const actionableCount = useMemo(
-    () => items.filter((it) => it.meetsActionableFilter).length,
-    [items],
-  );
+  }, [items, searchQuery, toneFilter]);
 
   const filteredIds = useMemo(
     () => filtered.map((it) => it.id).join("|"),
@@ -239,42 +218,6 @@ export function LevelsBubblesView({
   return (
     <div className="flex flex-col flex-1 min-h-0 h-full">
       <style dangerouslySetInnerHTML={{ __html: BUBBLE_ANIM_CSS }} />
-
-      <div className="shrink-0 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center mb-2 px-0.5 min-w-0">
-        <div className="relative w-full sm:w-auto sm:min-w-[11rem] sm:max-w-[14rem] sm:flex-none order-1 min-w-0">
-          <Search
-            className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none"
-            style={{ color: BLACKBOARD_CHALK_DIM }}
-          />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search…"
-            className={`w-full pl-8 pr-3 ${LEVELS_TOOLBAR_CHIP_HEIGHT} rounded-full text-xs outline-none placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-slate-400/30`}
-            style={{
-              backgroundColor: BLACKBOARD_FIELD_BG,
-              border: BLACKBOARD_FIELD_BORDER,
-              color: BLACKBOARD_CHALK,
-            }}
-          />
-        </div>
-
-        <div className="w-full min-w-0 overflow-x-auto pb-0.5 order-2 sm:order-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <span
-            className="text-[9px] font-bold uppercase tracking-wide shrink-0"
-            style={{ color: "#64748b" }}
-          >
-            {filtered.length} shown · {items.length} total
-            {actionableCount > 0 ? ` · ${actionableCount} actionable` : ""}
-          </span>
-        </div>
-
-        {headerActions ? (
-          <div className="w-full sm:w-auto sm:ml-auto flex items-center shrink-0 order-3 sm:order-none">
-            {headerActions}
-          </div>
-        ) : null}
-      </div>
 
       <div
         ref={containerRef}

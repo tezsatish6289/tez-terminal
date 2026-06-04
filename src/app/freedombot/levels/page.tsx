@@ -137,6 +137,7 @@ export default function LevelsPage() {
   const [slideshowPaused, setSlideshowPaused] = useState(false);
   const [slideshowCountdown, setSlideshowCountdown] = useState(SLIDESHOW_SLIDE_SECONDS);
   const [bubbleMapFilter, setBubbleMapFilter] = useState<BubbleMapFilter>("all");
+  const [bubbleSearch, setBubbleSearch] = useState("");
   const [chartFullHistory, setChartFullHistory] = useState(false);
   /** Last candle close per symbol — strip tiles match native chart price. */
   const [liveStripSpot, setLiveStripSpot] = useState<Record<string, number>>({});
@@ -716,6 +717,8 @@ export default function LevelsPage() {
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
               <LevelsSlideshowToolbar
                 bubblesMode={viewMode === "bubbles"}
+                bubbleSearch={bubbleSearch}
+                onBubbleSearchChange={setBubbleSearch}
                 bubbleMapFilter={bubbleMapFilter}
                 onBubbleMapFilterChange={setBubbleMapFilter}
                 bubbleFilterCounts={bubbleFilterCounts}
@@ -764,7 +767,7 @@ export default function LevelsPage() {
                   onBubbleOpen={openBubbleChart}
                   hasMarketData={Boolean(payload)}
                   toneFilter={bubbleMapFilter}
-                  headerActions={null}
+                  searchQuery={bubbleSearch}
                 />
               ) : (
                 renderSlideshow()

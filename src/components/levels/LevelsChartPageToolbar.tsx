@@ -65,10 +65,10 @@ export function LevelsChartPageToolbar({
   );
 
   return (
-    <div className="shrink-0 flex flex-wrap items-center gap-x-2 gap-y-2">
+    <div className="shrink-0 flex flex-wrap items-center justify-end gap-x-2 gap-y-2">
       <LevelsCtaCluster
         actions={actions}
-        align="start"
+        align="end"
         enableChartKeys
         chartKeys={{
           webChartUrl,

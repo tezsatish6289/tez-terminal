@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { LevelsChartPageToolbar } from "@/components/levels/LevelsChartPageToolbar";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
@@ -14,6 +13,9 @@ import {
   type LevelsTvScope,
 } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
+
+/** Shared width with chart column — header and chart edges align. */
+const CHART_COLUMN = "w-full max-w-6xl mx-auto";
 
 function ChartContent() {
   const searchParams = useSearchParams();
@@ -98,6 +100,12 @@ function ChartContent() {
     return label || null;
   }, [scope, symbol, label]);
 
+  const subtitleLine = useMemo(() => {
+    if (companyName && companyName.toUpperCase() !== symbol) return companyName;
+    if (label && label.toUpperCase() !== symbol) return label;
+    return null;
+  }, [companyName, label, symbol]);
+
   if ((!scope || !symbol) && error) {
     return (
       <main
@@ -107,13 +115,6 @@ function ChartContent() {
         <p className="text-sm text-center" style={{ color: "#94a3b8" }}>
           {error}
         </p>
-        <Link
-          href="/freedombot/levels"
-          className="text-xs font-bold uppercase tracking-wider"
-          style={{ color: "#60a5fa" }}
-        >
-          ← Back to bubbles
-        </Link>
       </main>
     );
   }
@@ -134,53 +135,49 @@ function ChartContent() {
       className="h-[calc(100dvh-3.5rem)] sm:h-[calc(100dvh-4rem)] overflow-hidden flex flex-col"
       style={{ backgroundColor: "#060912" }}
     >
-      <div className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1 px-4 sm:px-5 py-2.5 border-b border-white/5">
-        <Link
-          href="/freedombot/levels"
-          className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider shrink-0"
-          style={{ color: "#94a3b8" }}
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Bubbles
-        </Link>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-sm sm:text-base font-black tracking-tight truncate" style={{ color: "#f8fafc" }}>
-            {symbol}
-          </h1>
-          {companyName ? (
-            <p className="text-[10px] sm:text-[11px] truncate" style={{ color: "#64748b" }}>
-              {companyName}
+      <div className="flex-1 min-h-0 flex flex-col p-4 sm:p-5 overflow-hidden">
+        <div className={`${CHART_COLUMN} shrink-0 flex flex-wrap items-start justify-between gap-x-3 gap-y-2 sm:gap-4 mb-3`}>
+          <div className="min-w-0 flex flex-col gap-0.5">
+            <h1
+              className="text-lg sm:text-xl font-black tracking-tight leading-tight truncate"
+              style={{ color: "#f8fafc" }}
+            >
+              {symbol}
+            </h1>
+            {subtitleLine ? (
+              <p
+                className="text-[11px] sm:text-xs font-medium leading-snug truncate"
+                style={{ color: "#94a3b8" }}
+              >
+                {subtitleLine}
+              </p>
+            ) : null}
+            <p
+              className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.14em] leading-snug"
+              style={{ color: "#64748b" }}
+            >
+              {formatLevelsChartMeta(config)}
             </p>
-          ) : null}
+          </div>
+          <LevelsChartPageToolbar
+            webChartUrl={config.webChartUrl}
+            nativeChartRef={nativeChartRef}
+            chartFullHistory={chartFullHistory}
+          />
         </div>
-        <p
-          className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.14em] shrink-0"
-          style={{ color: "#64748b" }}
-        >
-          {formatLevelsChartMeta(config)}
-        </p>
-      </div>
-
-      <div className="flex-1 min-h-0 flex flex-col p-4 sm:p-5 gap-3 overflow-hidden">
-        <LevelsChartPageToolbar
-          webChartUrl={config.webChartUrl}
-          nativeChartRef={nativeChartRef}
-          chartFullHistory={chartFullHistory}
-        />
 
         {error ? (
-          <p className="text-xs text-center shrink-0" style={{ color: "#f87171" }}>
+          <p className={`${CHART_COLUMN} text-xs text-center shrink-0 mb-2`} style={{ color: "#f87171" }}>
             {error}
           </p>
         ) : null}
 
-        <div className="flex-1 min-h-0 flex flex-col w-full max-w-6xl mx-auto">
+        <div className={`${CHART_COLUMN} flex-1 min-h-0 flex flex-col`}>
           <div className="flex-1 min-h-[240px] max-h-[min(58vh,520px)] w-full flex flex-col">
             <LevelsTradingViewChart
               className="flex-1 min-h-0"
               config={config}
               ticker={symbol}
-              companyName={companyName ?? undefined}
               levels={levels}
               loading={loading}
               hideChartShortcuts

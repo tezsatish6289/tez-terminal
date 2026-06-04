@@ -58,9 +58,18 @@ let securityIdMap: Map<string, number> | null = null;
 let securityIdLoadedAt = 0;
 const SECURITY_ID_TTL_MS = 60 * 60 * 1000; // 1h — instrument list is stable
 
+/** Strip cache prefixes (`EQ:`, `NSE:`) before Firestore instrument lookup. */
+function normalizeEquitySymbol(symbol: string): string {
+  const s = symbol.trim().toUpperCase();
+  if (s.startsWith("EQ:")) return s.slice(3);
+  if (s.startsWith("NSE:")) return s.slice(4);
+  return s;
+}
+
 /** NSE equity underlying ID from `config/dhan_instruments` (shared with option chain). */
 export async function resolveDhanEquitySecurityId(symbol: string): Promise<number | null> {
-  const upper = symbol.toUpperCase();
+  const upper = normalizeEquitySymbol(symbol);
+  if (!upper) return null;
   const fresh = securityIdMap && Date.now() - securityIdLoadedAt < SECURITY_ID_TTL_MS;
   if (!fresh) {
     try {
@@ -187,7 +196,7 @@ async function getCandlesCached(
   let promise = inflight.get(key);
   if (!promise) {
     promise = (async () => {
-      const securityId = await resolveDhanEquitySecurityId(cacheKey);
+      const securityId = await resolveSecurityId();
       if (securityId == null) {
         throw new Error(`No Dhan securityId for ${cacheKey}`);
       }
@@ -216,7 +225,7 @@ export async function getStockCandles(symbol: string, interval = "5"): Promise<C
   const upper = symbol.toUpperCase();
   return getCandlesCached(
     `EQ:${upper}`,
-    () => getSecurityId(upper),
+    () => resolveDhanEquitySecurityId(upper),
     { exchangeSegment: "NSE_EQ", instrument: "EQUITY" },
     interval,
   );

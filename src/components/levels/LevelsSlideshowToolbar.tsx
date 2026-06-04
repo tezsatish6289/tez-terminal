@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { LevelsCtaCluster } from "@/components/levels/LevelsCtaCluster";
 import { LevelsSlideshowCta } from "@/components/levels/LevelsSlideshowCta";
 import type { PocDirectionFilter } from "@/lib/zones/zone-status";
@@ -23,6 +23,7 @@ export function LevelsSlideshowToolbar({
   chartShortcuts,
   viewToggle,
   filtersOnly = false,
+  symbolStrip,
 }: {
   zoneFilter: PocDirectionFilter;
   onZoneFilterChange: (filter: PocDirectionFilter) => void;
@@ -44,6 +45,8 @@ export function LevelsSlideshowToolbar({
   };
   /** Slideshow with chart chrome: filters row only (symbol header is separate). */
   filtersOnly?: boolean;
+  /** In-zone ticker cards — same row as filters when filtersOnly. */
+  symbolStrip?: ReactNode;
 }) {
   const filterActions = useMemo(
     () =>
@@ -108,10 +111,13 @@ export function LevelsSlideshowToolbar({
 
   if (filtersOnly) {
     return (
-      <div className="shrink-0 mb-1.5 px-0.5 min-w-0">
-        <div className="w-full min-w-0 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="shrink-0 flex items-stretch gap-2 sm:gap-3 mb-1.5 px-0.5 min-w-0 min-h-[4.75rem]">
+        <div className="shrink-0 flex items-center self-stretch">
           <LevelsCtaCluster actions={filterActions} align="start" />
         </div>
+        {symbolStrip ? (
+          <div className="flex-1 min-w-0 min-h-0 h-full">{symbolStrip}</div>
+        ) : null}
       </div>
     );
   }

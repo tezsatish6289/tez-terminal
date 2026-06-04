@@ -347,11 +347,11 @@ export function LevelsTripleColumnShell({
   list: ReactNode;
   levels: ReactNode;
   chart: ReactNode;
-  /** Optional recent-news rail. With listAboveChart it takes 40% beside the chart. */
+  /** Optional recent-news rail. With listAboveChart chart 70% : news 30% on lg+. */
   news?: ReactNode;
   /** Native chart already draws POC / bull / bear — drop the center ladder. */
   hideLevelsColumn?: boolean;
-  /** Slideshow: symbol strip lives outside shell (below filters); chart 3 : news 2 on lg+. */
+  /** Slideshow: filters + tickers in one row above; chart 7 : news 3 on lg+. */
   listAboveChart?: boolean;
   /** Stock title + toolbar row directly above the chart (inside chart column). */
   chartChrome?: ReactNode;
@@ -363,7 +363,7 @@ export function LevelsTripleColumnShell({
         style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
       >
         <div
-          className={`flex flex-col min-h-0 min-w-0 w-full ${news ? "lg:flex-[3] lg:min-w-0" : "lg:flex-1"}`}
+          className={`flex flex-col min-h-0 min-w-0 w-full ${news ? "lg:flex-[7] lg:min-w-0" : "lg:flex-1"}`}
         >
           {chartChrome ? <div className="shrink-0 mb-1.5 sm:mb-2 min-w-0">{chartChrome}</div> : null}
           <div className="flex flex-col flex-1 min-h-[min(40dvh,360px)] lg:min-h-0 min-w-0">
@@ -373,7 +373,7 @@ export function LevelsTripleColumnShell({
         {news && (
           <>
             <ColumnDivider />
-            <div className="flex flex-col min-h-[20rem] lg:min-h-0 w-full lg:flex-[2] lg:min-w-0">
+            <div className="flex flex-col min-h-[20rem] lg:min-h-0 w-full lg:flex-[3] lg:min-w-0">
               {news}
             </div>
           </>

@@ -478,6 +478,16 @@ export default function LevelsPage() {
       />
     ) : null;
 
+  const slideshowSymbolStrip =
+    viewMode === "slideshow" && inZoneCount > 0 ? (
+      <LevelsSymbolList
+        entries={inZoneEntries}
+        activeIndex={inZoneCurrent}
+        onSelect={setInZoneSlide}
+        layout="horizontal"
+      />
+    ) : null;
+
   const wrapSlideshowBody = (
     list: ReactNode,
     levels: ReactNode,
@@ -486,14 +496,9 @@ export default function LevelsPage() {
       chartFooter?: ReactNode;
       news?: ReactNode;
       listAboveChart?: boolean;
-      /** Horizontal in-zone list below All/Bullish/Bearish filters. */
-      symbolStrip?: ReactNode;
     },
   ) => (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-      {opts?.symbolStrip ? (
-        <div className="shrink-0 h-[4.75rem] mb-2 min-w-0">{opts.symbolStrip}</div>
-      ) : null}
       <LevelsTripleColumnShell
         list={opts?.listAboveChart ? <></> : list}
         levels={levels}
@@ -537,15 +542,6 @@ export default function LevelsPage() {
     const refreshed = formatRefreshed(inZoneChartData?.computedAt);
     const inZoneNativeChart = chartShowsZones && inZoneActive != null;
 
-    const inZoneSymbolStrip = (
-      <LevelsSymbolList
-        entries={inZoneEntries}
-        activeIndex={inZoneCurrent}
-        onSelect={setInZoneSlide}
-        layout="horizontal"
-      />
-    );
-
     return wrapSlideshowBody(
       inZoneNativeChart ? (
         <></>
@@ -588,7 +584,6 @@ export default function LevelsPage() {
             hideLevelsColumn: true,
             news: slideshowNews,
             listAboveChart: true,
-            symbolStrip: inZoneSymbolStrip,
             chartFooter: (
               <LevelsChartMetaFooter
                 slideCount={inZoneCount}
@@ -629,6 +624,9 @@ export default function LevelsPage() {
                 }}
                 filterCounts={inZoneFilterCounts}
                 filtersOnly={viewMode === "slideshow" && activeTv != null}
+                symbolStrip={
+                  viewMode === "slideshow" && activeTv != null ? slideshowSymbolStrip : undefined
+                }
                 chartShortcuts={
                   viewMode === "slideshow" && !activeTv ? slideshowChartShortcuts : null
                 }

@@ -13,7 +13,9 @@
     "test": "tsx scripts/tests/run-all.ts",
     "liquidity:ws": "tsx --env-file=.env.local scripts/liquidity-ws-server.ts",
     "watchlist:generate": "tsx scripts/generate-tv-watchlist.ts",
-    "firebase:apphosting:secrets": "bash scripts/setup-apphosting-secrets-access.sh"
+    "firebase:apphosting:secrets": "bash scripts/setup-apphosting-secrets-access.sh",
+    "dhan:totp:code": "node --env-file=.env.local scripts/dhan-totp-show-code.mjs",
+    "dhan:totp:test": "node --env-file=.env.local scripts/dhan-totp-test.mjs"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.28.0",

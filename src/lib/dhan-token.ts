@@ -157,11 +157,12 @@ async function tryRenewToken(currentToken: string, clientId: string): Promise<st
 export async function generateTokenForUser(
   clientId: string,
   totpSecret: string,
-  pin: string
+  pin: string,
+  options?: { singleWindow?: boolean }
 ): Promise<{ token: string | null; error?: string }> {
   const step = 30;
-  // Try current window, then previous, then next (handles edge-of-window timing)
-  const timeOffsets = [0, -step, step];
+  // Default: current window only (avoids burning Dhan rate limit). Cron/auto-renew may pass singleWindow: false.
+  const timeOffsets = options?.singleWindow === false ? [0, -step, step] : [0];
 
   for (const offset of timeOffsets) {
     try {
@@ -212,13 +213,17 @@ export async function generateTokenForUser(
         continue; // try next window
       }
 
-      const result = await res.json();
-      const token = result.accessToken ?? result.access_token;
+      const result = (await res.json()) as Record<string, unknown>;
+      const token = (result.accessToken ?? result.access_token) as string | undefined;
       if (token) {
         console.log(`[DhanToken] Fresh token generated via TOTP for client ${clientId} (offset=${offset}s)`);
         return { token };
       }
-      const errMsg = `Dhan auth response missing accessToken: ${JSON.stringify(result)}`;
+      const statusMsg = String(result.message ?? result.errorMessage ?? "");
+      if (/too many attempts/i.test(statusMsg)) {
+        return { token: null, error: statusMsg };
+      }
+      const errMsg = statusMsg || `Dhan auth response missing accessToken: ${JSON.stringify(result)}`;
       console.error(`[DhanToken] ${errMsg}`);
       return { token: null, error: errMsg };
     } catch (err) {
@@ -250,6 +255,7 @@ async function tryTOTPGeneration(clientId: string): Promise<string | null> {
     clientId,
     process.env.DHAN_TOTP_SECRET!,
     process.env.DHAN_PIN!,
+    { singleWindow: false },
   );
   return token;
 }
@@ -290,6 +296,7 @@ export async function renewSystemTokenViaTotp(): Promise<{
     clientId,
     process.env.DHAN_TOTP_SECRET!,
     process.env.DHAN_PIN!,
+    { singleWindow: true },
   );
   if (!token) {
     return { ok: false, totpConfigured: true, clientId, error: error ?? "TOTP auth failed" };

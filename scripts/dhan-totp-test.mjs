@@ -74,8 +74,9 @@ if (!clientId || !secret || !pin) {
 
 console.log("Client:", clientId);
 console.log("TOTP secret length:", secret.replace(/\s/g, "").length, "chars");
+console.log("(Single Dhan API call — use dhan-totp-show-code.mjs to verify secret without calling Dhan)\n");
 
-for (const offset of [0, -30, 30]) {
+for (const offset of [0]) {
   const totp = totpForOffset(secret, offset);
   const url =
     `https://auth.dhan.co/app/generateAccessToken` +

@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx scripts/tests/run-all.ts",
     "liquidity:ws": "tsx --env-file=.env.local scripts/liquidity-ws-server.ts",
-    "watchlist:generate": "tsx scripts/generate-tv-watchlist.ts"
+    "watchlist:generate": "tsx scripts/generate-tv-watchlist.ts",
+    "firebase:apphosting:secrets": "bash scripts/setup-apphosting-secrets-access.sh"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.28.0",

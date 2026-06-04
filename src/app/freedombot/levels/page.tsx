@@ -12,6 +12,7 @@ import {
   type LevelsListEntry,
 } from "@/components/levels/LevelsSplitLayout";
 import { buildLevelsBubbleItems, LevelsBubblesView } from "@/components/levels/LevelsBubblesView";
+import { LevelsSlideshowCta } from "@/components/levels/LevelsSlideshowCta";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { levelsChartPagePath } from "@/lib/levels/levels-chart-url";
 import { levelsTradingViewParams } from "@/lib/levels/tradingview-symbol";
@@ -153,6 +154,19 @@ export default function LevelsPage() {
     const id = setInterval(() => load(), 60_000);
     return () => clearInterval(id);
   }, [load]);
+
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtml = html.style.overflow;
+    const prevBody = body.style.overflow;
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    return () => {
+      html.style.overflow = prevHtml;
+      body.style.overflow = prevBody;
+    };
+  }, []);
 
   const toggleViewMode = useCallback(() => {
     setViewMode((m) => (m === "bubbles" ? "slideshow" : "bubbles"));
@@ -505,43 +519,23 @@ export default function LevelsPage() {
   const viewToggleShortcut = "(Press S for shortcut)";
 
   const viewToggleButton = (
-    <button
-      type="button"
+    <LevelsSlideshowCta
+      label={viewToggleLabel}
       onClick={toggleViewMode}
       title={viewToggleShortcut}
-      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md transition-all hover:brightness-110 active:scale-[0.98] shrink-0"
-      style={{
-        background:
-          "linear-gradient(135deg, rgba(37,99,235,0.6) 0%, rgba(59,130,246,0.4) 100%)",
-        border: "1px solid rgba(96,165,250,0.6)",
-        boxShadow: "0 0 16px rgba(37,99,235,0.35)",
-      }}
-    >
-      <span
-        className="text-[9px] font-black uppercase tracking-wide leading-none whitespace-nowrap"
-        style={{ color: "#f8fafc" }}
-      >
-        {viewToggleLabel}
-      </span>
-      <span
-        className="text-[8px] font-bold uppercase tracking-wider leading-none whitespace-nowrap hidden sm:inline"
-        style={{ color: "#93c5fd" }}
-      >
-        · S
-      </span>
-    </button>
+    />
   );
 
   return (
     <main
-      className="h-[100dvh] overflow-hidden flex flex-col"
+      className="h-[calc(100dvh-3.5rem)] sm:h-[calc(100dvh-4rem)] overflow-hidden flex flex-col shrink-0"
       style={{
         backgroundColor: "#060912",
         backgroundImage: HEX_BG,
         backgroundSize: "100% 100%, 48px 48px, 48px 48px, 100% 100%",
       }}
     >
-      <div className="flex-1 min-h-0 w-full max-w-[100rem] mx-auto px-3 sm:px-5 py-3 sm:py-4 flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 w-full max-w-[100rem] mx-auto p-4 sm:p-5 flex flex-col overflow-hidden">
         {loading ? (
           <div className="flex flex-1 items-center justify-center py-24">
             <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />

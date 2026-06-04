@@ -17,6 +17,7 @@ import {
   stepPhysics,
   type PhysicsNode,
 } from "@/lib/levels/bubble-physics";
+import { LEVELS_TOOLBAR_CHIP_HEIGHT } from "@/components/levels/LevelsSlideshowCta";
 import { BUBBLE_TONE_STYLE, deriveBubbleTone, type BubbleTone } from "@/lib/zones/bubble-tone";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
@@ -64,7 +65,7 @@ function BubbleChip({
   const s = BUBBLE_TONE_STYLE[tone];
   return (
     <span
-      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md shrink-0"
+      className={`inline-flex items-center gap-1.5 px-2 ${LEVELS_TOOLBAR_CHIP_HEIGHT} rounded-md shrink-0`}
       style={{
         color: s.border,
         backgroundColor: "rgba(0,0,0,0.35)",

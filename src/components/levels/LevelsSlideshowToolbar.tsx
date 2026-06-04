@@ -128,7 +128,7 @@ export function LevelsSlideshowToolbar({
   if (filtersOnly) {
     return (
       <div
-        className={`shrink-0 flex items-end gap-1.5 sm:gap-2 mb-1.5 px-0.5 min-w-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}
+        className={`shrink-0 flex items-stretch gap-1.5 sm:gap-2 mb-1.5 px-0.5 min-w-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}
       >
         <LevelsSlideshowStripControls
           zoneFilter={zoneFilter}

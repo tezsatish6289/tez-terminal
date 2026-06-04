@@ -50,9 +50,9 @@ function BubblesMapIcon({ className, style }: { className?: string; style?: CSSP
       aria-hidden
       fill="currentColor"
     >
-      <circle cx="6.5" cy="10" r="3.25" />
-      <circle cx="14" cy="7" r="2.75" />
-      <circle cx="13.5" cy="14.5" r="2.25" />
+      <circle cx="6.5" cy="10" r="3.65" />
+      <circle cx="14" cy="7" r="3.1" />
+      <circle cx="13.5" cy="14.5" r="2.55" />
     </svg>
   );
 }
@@ -84,7 +84,7 @@ export function LevelsViewModeIconBox({
       title={title}
     >
       {toBubbles ? (
-        <BubblesMapIcon className="h-5 w-5" style={{ color: "#93c5fd" }} />
+        <BubblesMapIcon className="h-6 w-6" style={{ color: "#93c5fd" }} />
       ) : (
         <GalleryHorizontal className="h-5 w-5" style={{ color: BLACKBOARD_CHALK }} />
       )}
@@ -92,7 +92,7 @@ export function LevelsViewModeIconBox({
         className="text-[8px] font-bold uppercase tracking-wider leading-none"
         style={{ color: BLACKBOARD_CHALK_DIM }}
       >
-        {toBubbles ? "Map" : "Show"}
+        {toBubbles ? "Bubbles" : "Show"}
       </span>
     </button>
   );

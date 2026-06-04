@@ -466,15 +466,6 @@ export default function LevelsPage() {
         bubblesLabel={viewToggleLabel}
         bubblesShortLabel="Bubbles"
         bubblesTitle={viewToggleShortcut}
-        slideshowPause={
-          slideshowEnabled
-            ? {
-                enabled: true,
-                paused: slideshowPaused,
-                onToggle: toggleSlideshowPause,
-              }
-            : undefined
-        }
       />
     ) : null;
 
@@ -626,6 +617,15 @@ export default function LevelsPage() {
                 filtersOnly={viewMode === "slideshow" && activeTv != null}
                 symbolStrip={
                   viewMode === "slideshow" && activeTv != null ? slideshowSymbolStrip : undefined
+                }
+                slideshowControl={
+                  viewMode === "slideshow" && activeTv != null && slideshowEnabled
+                    ? {
+                        enabled: true,
+                        paused: slideshowPaused,
+                        onToggle: toggleSlideshowPause,
+                      }
+                    : undefined
                 }
                 chartShortcuts={
                   viewMode === "slideshow" && !activeTv ? slideshowChartShortcuts : null

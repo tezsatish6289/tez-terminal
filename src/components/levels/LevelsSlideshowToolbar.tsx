@@ -3,6 +3,8 @@
 import { useMemo, type ReactNode } from "react";
 import { LevelsCtaCluster } from "@/components/levels/LevelsCtaCluster";
 import { LevelsSlideshowCta } from "@/components/levels/LevelsSlideshowCta";
+import { LevelsSlideshowStripControls } from "@/components/levels/LevelsSlideshowStripControls";
+import { LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS } from "@/components/levels/levels-symbol-strip";
 import type { PocDirectionFilter } from "@/lib/zones/zone-status";
 
 const FILTER_OPTIONS: {
@@ -24,6 +26,7 @@ export function LevelsSlideshowToolbar({
   viewToggle,
   filtersOnly = false,
   symbolStrip,
+  slideshowControl,
 }: {
   zoneFilter: PocDirectionFilter;
   onZoneFilterChange: (filter: PocDirectionFilter) => void;
@@ -47,6 +50,12 @@ export function LevelsSlideshowToolbar({
   filtersOnly?: boolean;
   /** In-zone ticker cards — same row as filters when filtersOnly. */
   symbolStrip?: ReactNode;
+  /** Play/pause auto-advance — icon box beside filter (not in chart toolbar). */
+  slideshowControl?: {
+    enabled: boolean;
+    paused: boolean;
+    onToggle: () => void;
+  };
 }) {
   const filterActions = useMemo(
     () =>
@@ -111,10 +120,15 @@ export function LevelsSlideshowToolbar({
 
   if (filtersOnly) {
     return (
-      <div className="shrink-0 flex items-stretch gap-2 sm:gap-3 mb-1.5 px-0.5 min-w-0 min-h-[4.75rem]">
-        <div className="shrink-0 flex items-center self-stretch">
-          <LevelsCtaCluster actions={filterActions} align="start" />
-        </div>
+      <div
+        className={`shrink-0 flex items-stretch gap-1.5 sm:gap-2 mb-1.5 px-0.5 min-w-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}
+      >
+        <LevelsSlideshowStripControls
+          zoneFilter={zoneFilter}
+          onZoneFilterChange={onZoneFilterChange}
+          filterCounts={filterCounts}
+          slideshowControl={slideshowControl}
+        />
         {symbolStrip ? (
           <div className="flex-1 min-w-0 min-h-0 h-full">{symbolStrip}</div>
         ) : null}

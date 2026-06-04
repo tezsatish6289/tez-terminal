@@ -21,7 +21,6 @@ export function LevelsChartPageToolbar({
   bubblesLabel = "Switch to bubbles view",
   bubblesShortLabel = "Bubbles",
   bubblesTitle = "Return to Market Bubbles map. Press S or click.",
-  slideshowPause,
 }: {
   webChartUrl: string;
   nativeChartRef: React.RefObject<NativeCandlesChartHandle | null>;
@@ -31,11 +30,6 @@ export function LevelsChartPageToolbar({
   bubblesLabel?: string;
   bubblesShortLabel?: string;
   bubblesTitle?: string;
-  slideshowPause?: {
-    enabled: boolean;
-    paused: boolean;
-    onToggle: () => void;
-  };
 }) {
   const router = useRouter();
 
@@ -80,21 +74,8 @@ export function LevelsChartPageToolbar({
           : "Show all loaded 30-day candle history on the chart. Press 3 or click.",
       },
     ];
-    if (slideshowPause?.enabled) {
-      const paused = slideshowPause.paused;
-      out.push({
-        id: "pause",
-        label: paused ? "Play" : "Pause",
-        kbd: "P",
-        onClick: slideshowPause.onToggle,
-        tone: paused ? "paused" : "default-muted",
-        ariaLabel: paused
-          ? "Resume auto-advancing symbols every 8 seconds. Press P or click."
-          : "Stop auto-advancing symbols. Press P or click.",
-      });
-    }
     return out;
-  }, [webChartUrl, chartFullHistory, nativeChartRef, slideshowPause]);
+  }, [webChartUrl, chartFullHistory, nativeChartRef]);
 
   return (
     <div className="shrink-0 w-full sm:w-auto flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-end gap-2 min-w-0">
@@ -106,8 +87,6 @@ export function LevelsChartPageToolbar({
           webChartUrl,
           showSqueeze: true,
           onSqueeze: () => nativeChartRef.current?.toggleHistoryZoom(),
-          showSlideshowControl: slideshowPause?.enabled,
-          onToggleSlideshowPause: slideshowPause?.onToggle,
         }}
       />
       <LevelsSlideshowCta

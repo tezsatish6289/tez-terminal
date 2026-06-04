@@ -92,7 +92,7 @@ export function LevelsSymbolList({
             <button
               key={entry.id}
               onClick={() => onSelect(i)}
-              className={`flex flex-col gap-1 px-3 py-2 rounded-lg text-left transition-all shrink-0 ${stripCard}`}
+              className={`flex flex-col gap-1 px-3 py-2 rounded-lg text-left transition-all shrink-0 h-full ${stripCard}`}
               style={{
                 backgroundColor: active ? "rgba(37,99,235,0.18)" : "rgba(255,255,255,0.02)",
                 border: `1px solid ${active ? "rgba(59,130,246,0.35)" : "rgba(255,255,255,0.05)"}`,

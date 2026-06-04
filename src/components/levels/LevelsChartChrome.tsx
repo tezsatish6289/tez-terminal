@@ -17,7 +17,6 @@ export function LevelsChartChrome({
   bubblesLabel,
   bubblesShortLabel,
   bubblesTitle,
-  slideshowPause,
   className = "",
 }: {
   symbol: string;
@@ -29,11 +28,6 @@ export function LevelsChartChrome({
   bubblesLabel?: string;
   bubblesShortLabel?: string;
   bubblesTitle?: string;
-  slideshowPause?: {
-    enabled: boolean;
-    paused: boolean;
-    onToggle: () => void;
-  };
   className?: string;
 }) {
   return (
@@ -49,7 +43,6 @@ export function LevelsChartChrome({
         bubblesLabel={bubblesLabel}
         bubblesShortLabel={bubblesShortLabel}
         bubblesTitle={bubblesTitle}
-        slideshowPause={slideshowPause}
       />
     </div>
   );

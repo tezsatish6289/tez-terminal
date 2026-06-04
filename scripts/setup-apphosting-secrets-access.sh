@@ -15,7 +15,6 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 PROJECT="${FIREBASE_PROJECT:-studio-6235588950-a15f2}"
-LOCATION="${APPHOSTING_LOCATION:-asia-southeast1}"
 BRANCH="${APPHOSTING_BRANCH:-main}"
 
 if ! command -v firebase >/dev/null 2>&1; then
@@ -26,34 +25,82 @@ fi
 echo "→ Project: $PROJECT"
 firebase use "$PROJECT" >/dev/null
 
-SECRETS="$(
-  grep -E '^\s+secret:' apphosting.yaml \
-    | sed 's/.*secret:[[:space:]]*//' \
-    | paste -sd, -
-)"
+ALL_SECRETS=()
+while IFS= read -r name; do
+  [ -n "$name" ] && ALL_SECRETS+=("$name")
+done < <(grep -E '^\s+secret:' apphosting.yaml | sed 's/.*secret:[[:space:]]*//')
 
-if [ -z "$SECRETS" ]; then
+if [ "${#ALL_SECRETS[@]}" -eq 0 ]; then
   echo "No secrets found in apphosting.yaml"
   exit 1
 fi
 
-BACKEND="${APPHOSTING_BACKEND:-}"
-if [ -z "$BACKEND" ]; then
-  echo "→ Listing App Hosting backends…"
-  BACKEND="$(
+EXISTING_SECRETS=()
+MISSING_SECRETS=()
+echo "→ Checking Secret Manager..."
+for name in "${ALL_SECRETS[@]}"; do
+  if firebase apphosting:secrets:describe "$name" --project "$PROJECT" >/dev/null 2>&1; then
+    EXISTING_SECRETS+=("$name")
+  else
+    MISSING_SECRETS+=("$name")
+  fi
+done
+
+if [ "${#MISSING_SECRETS[@]}" -gt 0 ]; then
+  echo "   Skipping ${#MISSING_SECRETS[@]} secret(s) not in GCP yet:"
+  printf '   - %s\n' "${MISSING_SECRETS[@]}"
+fi
+
+if [ "${#EXISTING_SECRETS[@]}" -eq 0 ]; then
+  echo "No secrets from apphosting.yaml exist in Secret Manager. Create them in GCP first (Part B)."
+  exit 1
+fi
+
+SECRETS="$(printf '%s,' "${EXISTING_SECRETS[@]}")"
+SECRETS="${SECRETS%,}"
+
+BACKEND="${APPHOSTING_BACKEND:-tez-terminal}"
+LOCATION="${APPHOSTING_LOCATION:-asia-southeast1}"
+
+if [ "$BACKEND" = "tez-terminal" ] && [ -z "${APPHOSTING_BACKEND:-}" ]; then
+  echo "→ Using default backend: tez-terminal (asia-southeast1)"
+else
+  echo "→ Listing App Hosting backends..."
+  DETECTED="$(
     firebase apphosting:backends:list --project "$PROJECT" --json 2>/dev/null \
       | node -e "
         const fs = require('fs');
         let raw = '';
         try { raw = fs.readFileSync(0, 'utf8'); } catch { process.exit(1); }
         const j = JSON.parse(raw);
-        const list = j?.result?.backends ?? j?.backends ?? [];
+        const list = Array.isArray(j?.result)
+          ? j.result
+          : Array.isArray(j?.result?.backends)
+            ? j.result.backends
+            : Array.isArray(j?.backends)
+              ? j.backends
+              : [];
         if (!list.length) process.exit(1);
-        const name = list[0].name || '';
-        const id = name.split('/').pop() || list[0].backendId || list[0].id;
+        const preferred =
+          list.find((b) => (b.name || '').includes('/asia-southeast1/') && (b.name || '').endsWith('/tez-terminal')) ||
+          list.find((b) => (b.name || '').includes('/asia-southeast1/')) ||
+          list[0];
+        const name = preferred.name || '';
+        const parts = name.split('/');
+        const regionIdx = parts.indexOf('locations');
+        const backendIdx = parts.indexOf('backends');
+        const id =
+          backendIdx >= 0
+            ? parts[backendIdx + 1]
+            : name.split('/').pop() || preferred.backendId || preferred.id;
+        const region = regionIdx >= 0 ? parts[regionIdx + 1] : 'asia-southeast1';
         if (!id) process.exit(1);
-        console.log(id);
+        console.log(id + '|' + region);
       "  )" || true
+  if [ -n "$DETECTED" ]; then
+    BACKEND="${DETECTED%%|*}"
+    LOCATION="${DETECTED#*|}"
+  fi
 fi
 
 if [ -z "$BACKEND" ]; then
@@ -67,17 +114,17 @@ fi
 
 echo "→ Backend: $BACKEND"
 echo "→ Location: $LOCATION"
-echo "→ Secrets ($(echo "$SECRETS" | tr ',' '\n' | wc -l | tr -d ' ') total)"
+echo "→ Granting ${#EXISTING_SECRETS[@]} secret(s)"
 
 echo ""
-echo "→ Granting Secret Manager access to App Hosting…"
+echo "→ Granting Secret Manager access to App Hosting..."
 firebase apphosting:secrets:grantaccess "$SECRETS" \
   --project "$PROJECT" \
   --backend "$BACKEND" \
   --location "$LOCATION"
 
 echo ""
-echo "→ Creating rollout from branch $BRANCH…"
+echo "→ Creating rollout from branch $BRANCH..."
 firebase apphosting:rollouts:create "$BACKEND" \
   --project "$PROJECT" \
   --git-branch "$BRANCH" \

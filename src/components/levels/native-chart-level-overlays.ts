@@ -105,11 +105,11 @@ export function applyLevelPriceLines(
     );
   };
 
-  add(levels.bearHigh, LEVELS_ZONE_CHART.bear.line, "Bear H");
-  add(levels.bearLow, LEVELS_ZONE_CHART.bear.line, "Bear L");
-  add(anchors.bearSl, LEVELS_ZONE_CHART.bear.lineInv, "Bear Inv.", LineStyle.Dotted, 2);
+  add(levels.bearHigh, LEVELS_ZONE_CHART.bear.line, "Resistance H");
+  add(levels.bearLow, LEVELS_ZONE_CHART.bear.line, "Resistance L");
+  add(anchors.bearSl, LEVELS_ZONE_CHART.bear.lineInv, "Resistance Break", LineStyle.Dotted, 2);
   add(levels.poc, LEVELS_ZONE_CHART.poc.line, "POC", LineStyle.Dashed, 2);
-  add(levels.bullHigh, LEVELS_ZONE_CHART.bull.line, "Bull H");
-  add(levels.bullLow, LEVELS_ZONE_CHART.bull.line, "Bull L");
-  add(anchors.bullSl, LEVELS_ZONE_CHART.bull.lineInv, "Bull Inv.", LineStyle.Dotted, 2);
+  add(levels.bullHigh, LEVELS_ZONE_CHART.bull.line, "Support H");
+  add(levels.bullLow, LEVELS_ZONE_CHART.bull.line, "Support L");
+  add(anchors.bullSl, LEVELS_ZONE_CHART.bull.lineInv, "Support Break", LineStyle.Dotted, 2);
 }

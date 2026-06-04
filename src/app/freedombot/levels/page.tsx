@@ -75,12 +75,12 @@ const HEX_BG = `
 
 const STATUS_META: Record<ZoneStatus, { label: string; color: string; bg: string }> = {
   IN_BULL: {
-    label: "In Bull Zone",
+    label: "At Support",
     color: LEVELS_ZONE_CHART.bull.badgeText,
     bg: LEVELS_ZONE_CHART.bull.badgeBg,
   },
   IN_BEAR: {
-    label: "In Bear Zone",
+    label: "At Resistance",
     color: LEVELS_ZONE_CHART.bear.badgeText,
     bg: LEVELS_ZONE_CHART.bear.badgeBg,
   },

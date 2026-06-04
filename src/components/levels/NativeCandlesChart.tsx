@@ -40,8 +40,10 @@ interface ApiCandle {
 }
 
 const POLL_MS = 60_000;
-/** Empty bars on the right so candles sit left of zone price labels. */
-const RIGHT_OFFSET_BARS = 18;
+/** Empty bars on the right so candles sit left of zone price labels (Support/Resistance). */
+const RIGHT_OFFSET_BARS = 20;
+/** Extra width for longer right-axis level titles (+10px vs prior 80). */
+const RIGHT_PRICE_SCALE_MIN_WIDTH = 90;
 /** Default zoom: ~5 NSE sessions visible (15m ≈ 25 bars/day). */
 const DEFAULT_VISIBLE_BARS = 125;
 
@@ -241,7 +243,7 @@ export const NativeCandlesChart = forwardRef<
       crosshair: { mode: CrosshairMode.Normal },
       rightPriceScale: {
         borderColor: "rgba(255,255,255,0.08)",
-        minimumWidth: 80,
+        minimumWidth: RIGHT_PRICE_SCALE_MIN_WIDTH,
       },
       timeScale: {
         borderColor: "rgba(255,255,255,0.08)",

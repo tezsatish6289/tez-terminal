@@ -30,6 +30,10 @@ import {
   type LevelsActionableItem,
 } from "@/lib/zones/levels-actionable-list";
 import { SLIDESHOW_SLIDE_SECONDS } from "@/components/levels/levels-symbol-strip";
+import {
+  isSlideshowZoneStale,
+  SLIDESHOW_ZONE_TICK_MS,
+} from "@/lib/levels/slideshow-zones";
 import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
 import {
   deriveZoneStatus,
@@ -386,6 +390,25 @@ export default function LevelsPage() {
     else if (inZoneSlide >= inZoneCount) setInZoneSlide(0);
   }, [inZoneCount, inZoneSlide]);
 
+  const refreshOneSlideshowStockZone = useCallback(
+    async (symbol: string, updateActiveChart: boolean) => {
+      try {
+        const res = await fetch(
+          `/api/freedombot/levels?symbol=${encodeURIComponent(symbol)}&slideshow=1`,
+          { cache: "no-store" },
+        );
+        const json = (await res.json()) as { data: PublicLevels | null };
+        if (updateActiveChart && json.data) {
+          setInZoneChartData(json.data);
+        }
+        await load();
+      } catch {
+        /* keep last-good */
+      }
+    },
+    [load],
+  );
+
   useEffect(() => {
     if (!inZoneActive) {
       setInZoneChartData(null);
@@ -395,8 +418,12 @@ export default function LevelsPage() {
     const hasBands = bundled != null && (bundled.bullLow != null || bundled.bearLow != null);
     const stockNeedsFullFetch =
       inZoneActive.scope === "stock" && hasBands && bundled!.poc == null;
+    const slideshowStaleStock =
+      viewMode === "slideshow" &&
+      inZoneActive.scope === "stock" &&
+      isSlideshowZoneStale(bundled?.computedAt);
 
-    if (hasBands && !stockNeedsFullFetch) {
+    if (hasBands && !stockNeedsFullFetch && !slideshowStaleStock) {
       setInZoneChartData(bundled);
       setInZoneChartLoading(false);
       return;
@@ -408,9 +435,11 @@ export default function LevelsPage() {
     }
     let cancelled = false;
     setInZoneChartLoading(true);
-    fetch(`/api/freedombot/levels?symbol=${encodeURIComponent(inZoneActive.symbol)}`, {
-      cache: "no-store",
-    })
+    const q = viewMode === "slideshow" ? "&slideshow=1" : "";
+    fetch(
+      `/api/freedombot/levels?symbol=${encodeURIComponent(inZoneActive.symbol)}${q}`,
+      { cache: "no-store" },
+    )
       .then((res) => res.json())
       .then((json: { data: PublicLevels | null }) => {
         if (!cancelled) setInZoneChartData(json.data);
@@ -424,7 +453,52 @@ export default function LevelsPage() {
     return () => {
       cancelled = true;
     };
-  }, [inZoneActive?.scope, inZoneActive?.symbol, inZoneActive?.data, inZoneCurrent]);
+  }, [inZoneActive?.scope, inZoneActive?.symbol, inZoneActive?.data, inZoneCurrent, viewMode]);
+
+  /** Keep in-zone slideshow stocks on a ≤5m zone refresh cadence (one symbol per tick). */
+  useEffect(() => {
+    if (viewMode !== "slideshow") return;
+
+    let cancelled = false;
+    let roundRobin = 0;
+
+    const tick = async () => {
+      const stocks = inZoneListFiltered.filter((it) => it.scope === "stock");
+      if (stocks.length === 0 || cancelled) return;
+
+      const activeSym =
+        inZoneActive?.scope === "stock" ? inZoneActive.symbol : null;
+      const stale = stocks.filter((it) => isSlideshowZoneStale(it.data?.computedAt));
+      if (stale.length === 0) return;
+
+      const ordered = [...stale].sort((a, b) => {
+        if (a.symbol === activeSym) return -1;
+        if (b.symbol === activeSym) return 1;
+        return 0;
+      });
+      const pick = ordered[roundRobin % ordered.length];
+      roundRobin += 1;
+      if (!pick || cancelled) return;
+
+      await refreshOneSlideshowStockZone(
+        pick.symbol,
+        pick.symbol === activeSym,
+      );
+    };
+
+    void tick();
+    const id = setInterval(() => void tick(), SLIDESHOW_ZONE_TICK_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [
+    viewMode,
+    inZoneListFiltered,
+    inZoneActive?.scope,
+    inZoneActive?.symbol,
+    refreshOneSlideshowStockZone,
+  ]);
 
   const openBubbleChart = useCallback((item: { scope: "index" | "stock"; symbol: string }) => {
     window.open(levelsChartPagePath(item.scope, item.symbol), "_blank", "noopener,noreferrer");
@@ -563,7 +637,10 @@ export default function LevelsPage() {
     }
 
     const chartSpot = inZoneChartData?.spot ?? inZoneActive?.spot ?? null;
-    const refreshed = formatRefreshed(inZoneChartData?.computedAt);
+    const zonesUpdated = formatRefreshed(inZoneChartData?.computedAt);
+    const zonesUpdatedLabel = zonesUpdated
+      ? `Support/resistance zones updated ${zonesUpdated}`
+      : undefined;
     const inZoneNativeChart = chartShowsZones && inZoneActive != null;
 
     return wrapSlideshowBody(
@@ -592,8 +669,8 @@ export default function LevelsPage() {
             onPrev={() => goInZone(-1)}
             onNext={() => goInZone(1)}
             onGoTo={setInZoneSlide}
-            refreshedLabel={refreshed ? `Data refreshed ${refreshed}` : undefined}
-            autoAdvanceNote
+            zonesUpdatedLabel={zonesUpdatedLabel}
+            slideshowAdvanceHint
             slideshowPaused={slideshowPaused}
             showCarouselArrows={false}
           />
@@ -613,8 +690,8 @@ export default function LevelsPage() {
                 slideCount={inZoneCount}
                 activeIndex={inZoneCurrent}
                 onGoTo={setInZoneSlide}
-                refreshedLabel={refreshed ? `Data refreshed ${refreshed}` : undefined}
-                autoAdvanceNote
+                zonesUpdatedLabel={zonesUpdatedLabel}
+                slideshowAdvanceHint
                 slideshowPaused={slideshowPaused}
               />
             ),

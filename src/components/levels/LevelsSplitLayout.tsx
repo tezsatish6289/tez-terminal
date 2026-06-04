@@ -141,8 +141,8 @@ export function LevelsChartPanel({
   onPrev,
   onNext,
   onGoTo,
-  refreshedLabel,
-  autoAdvanceNote,
+  zonesUpdatedLabel,
+  slideshowAdvanceHint,
   slideshowPaused,
   footerExtra,
   emptyHint,
@@ -160,8 +160,9 @@ export function LevelsChartPanel({
   onPrev: () => void;
   onNext: () => void;
   onGoTo: (index: number) => void;
-  refreshedLabel?: string | null;
-  autoAdvanceNote?: boolean;
+  zonesUpdatedLabel?: string | null;
+  /** When true, append "Advances every 60s" (slideshow auto-advance). */
+  slideshowAdvanceHint?: boolean;
   slideshowPaused?: boolean;
   footerExtra?: ReactNode;
   /** Off in the 3-column layout — list is the primary navigator. */
@@ -261,12 +262,14 @@ export function LevelsChartPanel({
           </div>
         )}
         {footerExtra}
-        {(refreshedLabel || autoAdvanceNote) && (
+        {(zonesUpdatedLabel || slideshowAdvanceHint) && (
           <p className="text-[10px] leading-snug" style={{ color: "#64748b" }}>
-            {refreshedLabel ?? "Awaiting refresh"}
-            {autoAdvanceNote && slideCount > 1 && !slideshowPaused ? " · 60s" : ""}
-            {autoAdvanceNote && slideCount > 1 && slideshowPaused ? (
-              <span style={{ color: "#f472b6" }}> · slideshow paused</span>
+            {zonesUpdatedLabel ?? "Awaiting zone update"}
+            {slideshowAdvanceHint && slideCount > 1 && !slideshowPaused ? (
+              <span> · Advances every 60s</span>
+            ) : null}
+            {slideshowAdvanceHint && slideCount > 1 && slideshowPaused ? (
+              <span style={{ color: "#f472b6" }}> · Slideshow paused</span>
             ) : null}
           </p>
         )}
@@ -290,18 +293,19 @@ export function LevelsChartMetaFooter({
   slideCount,
   activeIndex,
   onGoTo,
-  refreshedLabel,
-  autoAdvanceNote,
+  zonesUpdatedLabel,
+  slideshowAdvanceHint,
   slideshowPaused,
 }: {
   slideCount: number;
   activeIndex: number;
   onGoTo: (index: number) => void;
-  refreshedLabel?: string | null;
-  autoAdvanceNote?: boolean;
+  zonesUpdatedLabel?: string | null;
+  /** When true, append "Advances every 60s" (slideshow auto-advance). */
+  slideshowAdvanceHint?: boolean;
   slideshowPaused?: boolean;
 }) {
-  if (slideCount <= 1 && !refreshedLabel) return null;
+  if (slideCount <= 1 && !zonesUpdatedLabel) return null;
   return (
     <div className="mt-2 shrink-0 text-center space-y-1.5">
       {slideCount > 1 && (
@@ -321,12 +325,14 @@ export function LevelsChartMetaFooter({
           ))}
         </div>
       )}
-      {refreshedLabel && (
+      {zonesUpdatedLabel && (
         <p className="text-[10px] leading-snug" style={{ color: "#64748b" }}>
-          {refreshedLabel}
-          {autoAdvanceNote && slideCount > 1 && !slideshowPaused ? " · 60s" : ""}
-          {autoAdvanceNote && slideCount > 1 && slideshowPaused ? (
-            <span style={{ color: "#f472b6" }}> · slideshow paused</span>
+          {zonesUpdatedLabel}
+          {slideshowAdvanceHint && slideCount > 1 && !slideshowPaused ? (
+            <span> · Advances every 60s</span>
+          ) : null}
+          {slideshowAdvanceHint && slideCount > 1 && slideshowPaused ? (
+            <span style={{ color: "#f472b6" }}> · Slideshow paused</span>
           ) : null}
         </p>
       )}

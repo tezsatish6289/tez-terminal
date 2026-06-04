@@ -30,6 +30,7 @@ import {
   isValidFnoSymbol,
   normalizeStockSymbol,
   stockLevelsCacheFresh,
+  stockLevelsCacheFreshSlideshow,
   stockLevelsHasBands,
   stockLevelsLadderComplete,
   STOCK_LEVELS_PUBLIC_ERROR,
@@ -101,7 +102,7 @@ interface StockAggregateEntry {
  * Single-stock ladder payload. Reads Firestore first; if missing, stale, or
  * without bands, runs an on-demand NSE compute (the planned click-to-fetch path).
  */
-async function getSingleStock(symbol: string, forceRefresh: boolean) {
+async function getSingleStock(symbol: string, forceRefresh: boolean, slideshowPriority: boolean) {
   const safe = normalizeStockSymbol(symbol);
   if (!isValidFnoSymbol(safe)) {
     return NextResponse.json({ error: "Unknown F&O symbol" }, { status: 400 });
@@ -110,7 +111,9 @@ async function getSingleStock(symbol: string, forceRefresh: boolean) {
   let raw = await readDoc(stockDocId(safe));
   let data = sanitize(raw);
   const cachedBeforeRefresh = data;
-  const cachedFresh = stockLevelsCacheFresh(data?.computedAt) && stockLevelsLadderComplete(data);
+  const cachedFresh = slideshowPriority
+    ? stockLevelsCacheFreshSlideshow(data?.computedAt) && stockLevelsLadderComplete(data)
+    : stockLevelsCacheFresh(data?.computedAt) && stockLevelsLadderComplete(data);
 
   if (forceRefresh || !cachedFresh) {
     const result = await computeStockZonesOnDemand(safe);
@@ -166,7 +169,8 @@ export async function GET(request: NextRequest) {
   const symbol = params.get("symbol");
   if (symbol) {
     const forceRefresh = params.get("refresh") === "1" || params.get("compute") === "1";
-    return getSingleStock(symbol, forceRefresh);
+    const slideshowPriority = params.get("slideshow") === "1";
+    return getSingleStock(symbol, forceRefresh, slideshowPriority);
   }
 
   const [indexDocs, stockAgg] = await Promise.all([

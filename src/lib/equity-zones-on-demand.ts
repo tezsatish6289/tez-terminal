@@ -42,6 +42,9 @@ export function isValidFnoSymbol(symbol: string): boolean {
 /** Fresh enough to skip an on-demand round-trip (default 15 min). */
 export const STOCK_LEVELS_CACHE_TTL_MS = 15 * 60 * 1000;
 
+/** Slideshow in-zone symbols: tighter freshness (matches slideshow-zones.ts). */
+export const SLIDESHOW_STOCK_LEVELS_CACHE_TTL_MS = 5 * 60 * 1000;
+
 export async function computeStockZonesOnDemand(symbol: string): Promise<{
   ok: boolean;
   error?: string;
@@ -84,4 +87,12 @@ export function stockLevelsCacheFresh(computedAt: string | null | undefined): bo
   if (!computedAt) return false;
   const t = Date.parse(computedAt);
   return Number.isFinite(t) && Date.now() - t < STOCK_LEVELS_CACHE_TTL_MS;
+}
+
+export function stockLevelsCacheFreshSlideshow(
+  computedAt: string | null | undefined,
+): boolean {
+  if (!computedAt) return false;
+  const t = Date.parse(computedAt);
+  return Number.isFinite(t) && Date.now() - t < SLIDESHOW_STOCK_LEVELS_CACHE_TTL_MS;
 }

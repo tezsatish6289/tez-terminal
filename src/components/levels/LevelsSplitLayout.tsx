@@ -341,15 +341,45 @@ export function LevelsTripleColumnShell({
   chart,
   news,
   hideLevelsColumn = false,
+  listAboveChart = false,
 }: {
   list: ReactNode;
   levels: ReactNode;
   chart: ReactNode;
-  /** Optional recent-news rail — only shown on xl+ where there is room. */
+  /** Optional recent-news rail. With listAboveChart it takes 40% beside the chart. */
   news?: ReactNode;
   /** Native chart already draws POC / bull / bear — drop the center ladder. */
   hideLevelsColumn?: boolean;
+  /** Symbol list becomes a horizontal strip above the chart; news takes 40% on lg+. */
+  listAboveChart?: boolean;
 }) {
+  if (listAboveChart) {
+    return (
+      <div
+        className="flex flex-col lg:flex-row flex-1 min-h-0 gap-2 sm:gap-3 lg:gap-4 items-stretch pt-2 sm:pt-3 overflow-hidden min-w-0"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
+      >
+        <div
+          className={`flex flex-col min-h-0 min-w-0 w-full ${news ? "lg:w-[60%] lg:shrink-0" : "lg:flex-1"}`}
+        >
+          {/* Ticker strip across the chart width, above the chart. */}
+          <div className="shrink-0 h-[4.75rem] mb-2">{list}</div>
+          <div className="flex flex-col flex-1 min-h-[min(40dvh,360px)] lg:min-h-0 min-w-0">
+            {chart}
+          </div>
+        </div>
+        {news && (
+          <>
+            <ColumnDivider />
+            <div className="flex flex-col min-h-[20rem] lg:min-h-0 w-full lg:w-[40%] lg:shrink-0">
+              {news}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex flex-col lg:flex-row flex-1 min-h-0 gap-2 sm:gap-3 lg:gap-4 items-stretch pt-2 sm:pt-3 overflow-hidden min-w-0"

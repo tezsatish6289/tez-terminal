@@ -451,7 +451,12 @@ export default function LevelsPage() {
   const wrapSlideshowBody = (
     list: ReactNode,
     levels: ReactNode,
-    opts?: { hideLevelsColumn?: boolean; chartFooter?: ReactNode; news?: ReactNode },
+    opts?: {
+      hideLevelsColumn?: boolean;
+      chartFooter?: ReactNode;
+      news?: ReactNode;
+      listAboveChart?: boolean;
+    },
   ) => (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       <LevelsTripleColumnShell
@@ -459,6 +464,7 @@ export default function LevelsPage() {
         levels={levels}
         news={opts?.news}
         hideLevelsColumn={opts?.hideLevelsColumn ?? chartShowsZones}
+        listAboveChart={opts?.listAboveChart}
         chart={
           <div className="flex flex-col flex-1 min-h-0 min-w-0">
             <div className="flex flex-1 min-h-0 min-w-0 flex-col">{tvChartColumn}</div>
@@ -500,7 +506,7 @@ export default function LevelsPage() {
         entries={inZoneEntries}
         activeIndex={inZoneCurrent}
         onSelect={setInZoneSlide}
-        layout="responsive"
+        layout={inZoneNativeChart ? "horizontal" : "responsive"}
       />,
       inZoneActive ? (
         inZoneNativeChart ? (
@@ -532,6 +538,7 @@ export default function LevelsPage() {
         ? {
             hideLevelsColumn: true,
             news: slideshowNews,
+            listAboveChart: true,
             chartFooter: (
               <LevelsChartMetaFooter
                 slideCount={inZoneCount}

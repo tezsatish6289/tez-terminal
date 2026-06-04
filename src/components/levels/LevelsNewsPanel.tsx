@@ -86,9 +86,9 @@ export function LevelsNewsPanel({
         style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
       >
         <div className="flex items-center gap-1.5 min-w-0">
-          <Newspaper className="h-3.5 w-3.5 shrink-0" style={{ color: "#60a5fa" }} />
+          <Newspaper className="h-4 w-4 shrink-0" style={{ color: "#60a5fa" }} />
           <span
-            className="text-[11px] font-black uppercase tracking-[0.12em] truncate"
+            className="text-[13px] font-black uppercase tracking-[0.12em] truncate"
             style={{ color: "#e2e8f0" }}
           >
             Recent News
@@ -102,7 +102,7 @@ export function LevelsNewsPanel({
                 key={opt.value}
                 type="button"
                 onClick={() => setWindow(opt.value)}
-                className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider transition-colors"
+                className="px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-colors"
                 style={{
                   color: active ? "#dbeafe" : "#64748b",
                   backgroundColor: active ? "rgba(37,99,235,0.28)" : "transparent",
@@ -120,36 +120,36 @@ export function LevelsNewsPanel({
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
             <Loader2 className="h-5 w-5 animate-spin" style={{ color: "#60a5fa" }} />
-            <p className="text-[11px]" style={{ color: "#64748b" }}>
+            <p className="text-[13px]" style={{ color: "#64748b" }}>
               Gathering latest news…
             </p>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center gap-2 py-10 text-center px-2">
-            <p className="text-[11px]" style={{ color: "#94a3b8" }}>
+            <p className="text-[13px]" style={{ color: "#94a3b8" }}>
               {error}
             </p>
             <button
               type="button"
               onClick={load}
-              className="inline-flex items-center gap-1 text-[10px] font-semibold"
+              className="inline-flex items-center gap-1 text-[12px] font-semibold"
               style={{ color: "#60a5fa" }}
             >
-              <RefreshCw className="h-3 w-3" /> Retry
+              <RefreshCw className="h-3.5 w-3.5" /> Retry
             </button>
           </div>
         ) : news ? (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3.5">
             {news.summary ? (
-              <p className="text-[12px] leading-relaxed" style={{ color: "#cbd5e1" }}>
+              <p className="text-[14px] leading-relaxed" style={{ color: "#cbd5e1" }}>
                 {news.summary}
               </p>
             ) : null}
 
             {news.highlights.length > 0 ? (
-              <ul className="flex flex-col gap-1.5">
+              <ul className="flex flex-col gap-2">
                 {news.highlights.map((h, i) => (
-                  <li key={i} className="flex gap-1.5 text-[11px] leading-snug" style={{ color: "#94a3b8" }}>
+                  <li key={i} className="flex gap-2 text-[13px] leading-snug" style={{ color: "#94a3b8" }}>
                     <span style={{ color: "#3b82f6" }}>•</span>
                     <span>{h}</span>
                   </li>
@@ -158,9 +158,9 @@ export function LevelsNewsPanel({
             ) : null}
 
             {news.citations.length > 0 ? (
-              <div className="flex flex-col gap-1.5 pt-1">
+              <div className="flex flex-col gap-2 pt-1">
                 <p
-                  className="text-[9px] font-black uppercase tracking-[0.14em]"
+                  className="text-[11px] font-black uppercase tracking-[0.14em]"
                   style={{ color: "#475569" }}
                 >
                   Sources
@@ -171,13 +171,13 @@ export function LevelsNewsPanel({
                     href={c.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group flex items-start gap-1.5 text-[11px] leading-snug transition-colors"
+                    className="group flex items-start gap-1.5 text-[13px] leading-snug transition-colors"
                     style={{ color: "#93c5fd" }}
                   >
-                    <ExternalLink className="h-3 w-3 mt-0.5 shrink-0 opacity-70" />
+                    <ExternalLink className="h-3.5 w-3.5 mt-0.5 shrink-0 opacity-70" />
                     <span className="min-w-0">
                       <span className="group-hover:underline">{c.title}</span>
-                      <span className="block text-[9px]" style={{ color: "#64748b" }}>
+                      <span className="block text-[11px]" style={{ color: "#64748b" }}>
                         {hostname(c.url)}
                       </span>
                     </span>
@@ -194,7 +194,7 @@ export function LevelsNewsPanel({
           className="shrink-0 px-3 py-1.5 flex items-center justify-between gap-2"
           style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
         >
-          <p className="text-[9px] leading-snug" style={{ color: "#475569" }}>
+          <p className="text-[11px] leading-snug" style={{ color: "#475569" }}>
             AI summary{news.stale ? " (cached)" : ""} · {timeAgo(news.generatedAt)} · not investment advice
           </p>
           <button

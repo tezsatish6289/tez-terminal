@@ -27,7 +27,7 @@ export const BUBBLE_TONE_STYLE: Record<BubbleTone, BubbleToneStyle> = {
     fill:
       "radial-gradient(circle at 34% 30%, rgba(134, 255, 178, 0.98) 0%, rgba(52, 211, 153, 0.88) 36%, rgba(16, 185, 129, 0.82) 62%, rgba(4, 80, 58, 0.94) 100%)",
     glow:
-      "0 0 14px rgba(57, 255, 20, 0.95), 0 0 36px rgba(34, 197, 94, 0.75), 0 0 64px rgba(16, 185, 129, 0.4)",
+      "0 0 8px rgba(52, 211, 153, 0.65), 0 0 18px rgba(16, 185, 129, 0.32)",
     border: "#86efac",
     borderStyle: "solid",
     borderWidth: 3,
@@ -38,7 +38,7 @@ export const BUBBLE_TONE_STYLE: Record<BubbleTone, BubbleToneStyle> = {
     fill:
       "radial-gradient(circle at 34% 30%, rgba(255, 140, 140, 0.98) 0%, rgba(248, 113, 113, 0.9) 36%, rgba(239, 68, 68, 0.84) 62%, rgba(127, 29, 29, 0.94) 100%)",
     glow:
-      "0 0 14px rgba(255, 49, 49, 0.95), 0 0 36px rgba(239, 68, 68, 0.75), 0 0 64px rgba(220, 38, 38, 0.4)",
+      "0 0 8px rgba(248, 113, 113, 0.65), 0 0 18px rgba(239, 68, 68, 0.32)",
     border: "#fca5a5",
     borderStyle: "solid",
     borderWidth: 3,
@@ -47,7 +47,7 @@ export const BUBBLE_TONE_STYLE: Record<BubbleTone, BubbleToneStyle> = {
   NEAR_BULL: {
     solid: false,
     fill: "radial-gradient(circle at 40% 35%, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.88) 100%)",
-    glow: "0 0 16px rgba(190, 242, 100, 0.55), 0 0 32px rgba(163, 230, 53, 0.28)",
+    glow: "0 0 10px rgba(190, 242, 100, 0.38)",
     border: "#bef264",
     borderStyle: "dashed",
     borderWidth: 2,
@@ -56,7 +56,7 @@ export const BUBBLE_TONE_STYLE: Record<BubbleTone, BubbleToneStyle> = {
   NEAR_BEAR: {
     solid: false,
     fill: "radial-gradient(circle at 40% 35%, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.88) 100%)",
-    glow: "0 0 16px rgba(251, 146, 60, 0.55), 0 0 32px rgba(249, 115, 22, 0.28)",
+    glow: "0 0 10px rgba(251, 146, 60, 0.38)",
     border: "#fdba74",
     borderStyle: "dashed",
     borderWidth: 2,

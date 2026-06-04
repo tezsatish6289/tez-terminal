@@ -448,6 +448,36 @@ export default function LevelsPage() {
       />
     ) : null;
 
+  const viewToggleLabel =
+    viewMode === "bubbles"
+      ? "Switch to slideshow view"
+      : "Switch to bubbles view";
+  const viewToggleShortcut = "(Press S for shortcut)";
+
+  const slideshowChartChrome =
+    activeTv != null && activeTicker ? (
+      <LevelsChartChrome
+        symbol={activeTicker}
+        subtitle={slideshowSubtitleLine}
+        config={activeTv}
+        nativeChartRef={nativeChartRef}
+        chartFullHistory={chartFullHistory}
+        onBubblesClick={toggleViewMode}
+        bubblesLabel={viewToggleLabel}
+        bubblesShortLabel="Bubbles"
+        bubblesTitle={viewToggleShortcut}
+        slideshowPause={
+          slideshowEnabled
+            ? {
+                enabled: true,
+                paused: slideshowPaused,
+                onToggle: toggleSlideshowPause,
+              }
+            : undefined
+        }
+      />
+    ) : null;
+
   const wrapSlideshowBody = (
     list: ReactNode,
     levels: ReactNode,
@@ -456,15 +486,21 @@ export default function LevelsPage() {
       chartFooter?: ReactNode;
       news?: ReactNode;
       listAboveChart?: boolean;
+      /** Horizontal in-zone list below All/Bullish/Bearish filters. */
+      symbolStrip?: ReactNode;
     },
   ) => (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      {opts?.symbolStrip ? (
+        <div className="shrink-0 h-[4.75rem] mb-2 min-w-0">{opts.symbolStrip}</div>
+      ) : null}
       <LevelsTripleColumnShell
-        list={list}
+        list={opts?.listAboveChart ? <></> : list}
         levels={levels}
         news={opts?.news}
         hideLevelsColumn={opts?.hideLevelsColumn ?? chartShowsZones}
         listAboveChart={opts?.listAboveChart}
+        chartChrome={opts?.listAboveChart ? slideshowChartChrome : undefined}
         chart={
           <div className="flex flex-col flex-1 min-h-0 min-w-0">
             <div className="flex flex-1 min-h-0 min-w-0 flex-col">{tvChartColumn}</div>
@@ -501,13 +537,26 @@ export default function LevelsPage() {
     const refreshed = formatRefreshed(inZoneChartData?.computedAt);
     const inZoneNativeChart = chartShowsZones && inZoneActive != null;
 
-    return wrapSlideshowBody(
+    const inZoneSymbolStrip = (
       <LevelsSymbolList
         entries={inZoneEntries}
         activeIndex={inZoneCurrent}
         onSelect={setInZoneSlide}
-        layout={inZoneNativeChart ? "horizontal" : "responsive"}
-      />,
+        layout="horizontal"
+      />
+    );
+
+    return wrapSlideshowBody(
+      inZoneNativeChart ? (
+        <></>
+      ) : (
+        <LevelsSymbolList
+          entries={inZoneEntries}
+          activeIndex={inZoneCurrent}
+          onSelect={setInZoneSlide}
+          layout="responsive"
+        />
+      ),
       inZoneActive ? (
         inZoneNativeChart ? (
           <></>
@@ -539,6 +588,7 @@ export default function LevelsPage() {
             hideLevelsColumn: true,
             news: slideshowNews,
             listAboveChart: true,
+            symbolStrip: inZoneSymbolStrip,
             chartFooter: (
               <LevelsChartMetaFooter
                 slideCount={inZoneCount}
@@ -553,12 +603,6 @@ export default function LevelsPage() {
         : undefined,
     );
   };
-
-  const viewToggleLabel =
-    viewMode === "bubbles"
-      ? "Switch to slideshow view"
-      : "Switch to bubbles view";
-  const viewToggleShortcut = "(Press S for shortcut)";
 
   return (
     <main
@@ -595,29 +639,6 @@ export default function LevelsPage() {
                   title: viewToggleShortcut,
                 }}
               />
-              {viewMode === "slideshow" && activeTv != null && activeTicker ? (
-                <LevelsChartChrome
-                  className="mb-1.5 sm:mb-2 px-0.5"
-                  symbol={activeTicker}
-                  subtitle={slideshowSubtitleLine}
-                  config={activeTv}
-                  nativeChartRef={nativeChartRef}
-                  chartFullHistory={chartFullHistory}
-                  onBubblesClick={toggleViewMode}
-                  bubblesLabel={viewToggleLabel}
-                  bubblesShortLabel="Bubbles"
-                  bubblesTitle={viewToggleShortcut}
-                  slideshowPause={
-                    slideshowEnabled
-                      ? {
-                          enabled: true,
-                          paused: slideshowPaused,
-                          onToggle: toggleSlideshowPause,
-                        }
-                      : undefined
-                  }
-                />
-              ) : null}
               {viewMode === "bubbles" ? (
                 <LevelsBubblesView
                   items={bubbleItems}

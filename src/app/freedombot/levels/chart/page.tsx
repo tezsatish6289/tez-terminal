@@ -149,7 +149,7 @@ function ChartContent() {
         ) : null}
 
         <div className="flex-1 min-h-0 w-full flex flex-col lg:flex-row gap-2 sm:gap-3 mt-1.5 sm:mt-2">
-          <div className="w-full lg:w-[60%] min-h-0 min-w-0 flex flex-col">
+          <div className="w-full lg:flex-[3] lg:min-w-0 min-h-0 flex flex-col">
             <LevelsTradingViewChart
               className="flex-1 min-h-0 h-full"
               config={config}
@@ -165,7 +165,7 @@ function ChartContent() {
           <LevelsNewsPanel
             scope={scope ?? "stock"}
             symbol={symbol}
-            className="w-full lg:w-[40%] lg:shrink-0 min-h-[18rem] lg:min-h-0"
+            className="w-full lg:flex-[2] lg:min-w-0 min-h-[18rem] lg:min-h-0"
           />
         </div>
       </div>

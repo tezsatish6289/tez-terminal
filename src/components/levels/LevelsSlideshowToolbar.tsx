@@ -1,8 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useMemo } from "react";
 import { LEVELS_TOOLBAR_CHIP_HEIGHT } from "@/components/levels/LevelsSlideshowCta";
-import { LevelsChartShortcuts } from "@/components/levels/LevelsChartShortcuts";
+import { LevelsCtaCluster } from "@/components/levels/LevelsCtaCluster";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import type { PocDirectionFilter } from "@/lib/zones/zone-status";
 
@@ -17,7 +17,7 @@ export function LevelsSlideshowToolbar({
   onZoneFilterChange,
   countLabel,
   chartShortcuts,
-  trailing,
+  viewToggle,
 }: {
   zoneFilter: PocDirectionFilter;
   onZoneFilterChange: (filter: PocDirectionFilter) => void;
@@ -31,8 +31,64 @@ export function LevelsSlideshowToolbar({
     slideshowPaused?: boolean;
     onToggleSlideshowPause?: () => void;
   } | null;
-  trailing?: ReactNode;
+  viewToggle: {
+    label: string;
+    onClick: () => void;
+    title?: string;
+  };
 }) {
+  const ctaActions = useMemo(() => {
+    const out: Parameters<typeof LevelsCtaCluster>[0]["actions"] = [];
+
+    if (chartShortcuts?.webChartUrl) {
+      out.push({
+        id: "tv",
+        label: "TradingView",
+        kbd: "T",
+        onClick: () =>
+          window.open(chartShortcuts.webChartUrl, "_blank", "noopener,noreferrer"),
+        ariaLabel: "Open this chart on TradingView in a new tab. Press T or click.",
+      });
+    }
+
+    if (chartShortcuts?.showSqueeze && chartShortcuts.onSqueeze) {
+      out.push({
+        id: "squeeze",
+        label: chartShortcuts.squeezed ? "Recent bars" : "30 day fit",
+        kbd: "3",
+        onClick: chartShortcuts.onSqueeze,
+        ariaLabel: chartShortcuts.squeezed
+          ? "Zoom chart to recent sessions. Press 3 or click."
+          : "Show all loaded 30-day candle history on the chart. Press 3 or click.",
+      });
+    }
+
+    if (chartShortcuts?.showSlideshowControl && chartShortcuts.onToggleSlideshowPause) {
+      const paused = Boolean(chartShortcuts.slideshowPaused);
+      out.push({
+        id: "pause",
+        label: paused ? "Play" : "Pause",
+        kbd: "P",
+        onClick: chartShortcuts.onToggleSlideshowPause,
+        tone: paused ? "paused" : "default",
+        ariaLabel: paused
+          ? "Resume auto-advancing symbols every 8 seconds. Press P or click."
+          : "Stop auto-advancing symbols. Press P or click.",
+      });
+    }
+
+    out.push({
+      id: "view",
+      label: viewToggle.label,
+      kbd: "S",
+      onClick: viewToggle.onClick,
+      title: viewToggle.title,
+      ariaLabel: viewToggle.title ?? viewToggle.label,
+    });
+
+    return out;
+  }, [chartShortcuts, viewToggle]);
+
   return (
     <div className="shrink-0 flex flex-wrap items-center gap-x-2 gap-y-2 mb-2 px-0.5">
       {FILTER_OPTIONS.map(({ key, label }) => {
@@ -81,11 +137,21 @@ export function LevelsSlideshowToolbar({
         </span>
       ) : null}
 
-      {chartShortcuts ? (
-        <LevelsChartShortcuts layout="toolbar" {...chartShortcuts} />
-      ) : null}
-
-      {trailing ? <div className="ml-auto flex items-center shrink-0">{trailing}</div> : null}
+      <LevelsCtaCluster
+        actions={ctaActions}
+        enableChartKeys={Boolean(chartShortcuts)}
+        chartKeys={
+          chartShortcuts
+            ? {
+                webChartUrl: chartShortcuts.webChartUrl,
+                showSqueeze: chartShortcuts.showSqueeze,
+                onSqueeze: chartShortcuts.onSqueeze,
+                showSlideshowControl: chartShortcuts.showSlideshowControl,
+                onToggleSlideshowPause: chartShortcuts.onToggleSlideshowPause,
+              }
+            : undefined
+        }
+      />
     </div>
   );
 }

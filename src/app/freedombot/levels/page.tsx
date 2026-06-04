@@ -549,7 +549,11 @@ export default function LevelsPage() {
                   }}
                   countLabel={slideshowCountLabel}
                   chartShortcuts={slideshowChartShortcuts}
-                  trailing={viewToggleButton}
+                  viewToggle={{
+                    label: viewToggleLabel,
+                    onClick: toggleViewMode,
+                    title: viewToggleShortcut,
+                  }}
                 />
                 {renderSlideshow()}
               </div>

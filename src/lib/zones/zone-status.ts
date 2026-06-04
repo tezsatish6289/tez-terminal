@@ -6,6 +6,8 @@
  * so it runs on server (cron) and client (UI badges) identically.
  */
 
+import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
+
 export type ZoneStatus =
   | "IN_BULL"   // spot inside the bull (support) band
   | "IN_BEAR"   // spot inside the bear (resistance) band
@@ -54,22 +56,94 @@ export function isInZoneStatus(status: ZoneStatus): boolean {
 
 export type PocDirectionFilter = "all" | "bull" | "bear";
 
+/** Minimum reward:risk from spot → POC vs band invalidation (Bull/Bear Inv.). */
+export const MIN_POC_RISK_REWARD = 2;
+
 /**
- * Actionable setup: spot inside the band on that side AND max pain on the pull side.
+ * Reward:risk using the same invalidation anchors as the public chart
+ * (one half-width outside the active band). Entry = spot; target = POC.
+ */
+export function pocRiskRewardRatio(
+  bands: ZoneBands,
+  poc: number,
+  bandOffset: number | null | undefined,
+  side: "bull" | "bear",
+): number | null {
+  const spot = bands.spot;
+  if (spot == null || !Number.isFinite(spot) || spot <= 0 || !Number.isFinite(poc)) {
+    return null;
+  }
+
+  const { bullSl, bearSl } = computeZoneSlAnchors({
+    halfWidthUsd: bandOffset ?? null,
+    bullZoneLow: bands.bullLow,
+    bullZoneHigh: bands.bullHigh,
+    bearZoneLow: bands.bearLow,
+    bearZoneHigh: bands.bearHigh,
+  });
+
+  if (side === "bull") {
+    if (bullSl == null || poc <= spot) return null;
+    const risk = spot - bullSl;
+    const reward = poc - spot;
+    if (risk <= 0 || reward <= 0) return null;
+    return reward / risk;
+  }
+
+  if (bearSl == null || poc >= spot) return null;
+  const risk = bearSl - spot;
+  const reward = spot - poc;
+  if (risk <= 0 || reward <= 0) return null;
+  return reward / risk;
+}
+
+export function meetsMinPocRiskReward(
+  bands: ZoneBands,
+  poc: number | null | undefined,
+  bandOffset: number | null | undefined,
+  minRatio = MIN_POC_RISK_REWARD,
+): boolean {
+  if (poc == null || !Number.isFinite(poc)) return false;
+  const status = deriveZoneStatus(bands);
+  if (status === "IN_BULL") {
+    const rr = pocRiskRewardRatio(bands, poc, bandOffset, "bull");
+    return rr != null && rr >= minRatio;
+  }
+  if (status === "IN_BEAR") {
+    const rr = pocRiskRewardRatio(bands, poc, bandOffset, "bear");
+    return rr != null && rr >= minRatio;
+  }
+  return false;
+}
+
+/**
+ * Actionable setup: spot inside the band on that side, max pain on the pull side,
+ * and at least {@link MIN_POC_RISK_REWARD}:1 reward to POC from spot vs invalidation.
  * Re-derives zone status from bands + spot (ignores stale stored status).
  */
 export function matchesDirectionalSetup(
   bands: ZoneBands,
   poc: number | null | undefined,
   filter: PocDirectionFilter,
+  bandOffset?: number | null,
 ): boolean {
   const spot = bands.spot;
   if (spot == null || poc == null || !Number.isFinite(spot) || !Number.isFinite(poc) || spot <= 0) {
     return false;
   }
   const status = deriveZoneStatus(bands);
-  const bullOk = status === "IN_BULL" && poc > spot;
-  const bearOk = status === "IN_BEAR" && poc < spot;
+  const bullRr = pocRiskRewardRatio(bands, poc, bandOffset, "bull");
+  const bearRr = pocRiskRewardRatio(bands, poc, bandOffset, "bear");
+  const bullOk =
+    status === "IN_BULL" &&
+    poc > spot &&
+    bullRr != null &&
+    bullRr >= MIN_POC_RISK_REWARD;
+  const bearOk =
+    status === "IN_BEAR" &&
+    poc < spot &&
+    bearRr != null &&
+    bearRr >= MIN_POC_RISK_REWARD;
   if (filter === "all") return bullOk || bearOk;
   if (filter === "bull") return bullOk;
   return bearOk;

@@ -25,8 +25,6 @@ import {
   BLACKBOARD_FIELD_BORDER,
 } from "@/lib/levels/cta-blackboard";
 import { BUBBLE_TONE_STYLE, deriveBubbleTone, type BubbleTone } from "@/lib/zones/bubble-tone";
-import { fnoCompanyName } from "@/lib/nse/fno-company-names";
-import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
 import type { ZoneBands } from "@/lib/zones/zone-status";
 
 export interface LevelsBubbleItem {
@@ -92,18 +90,17 @@ function BubbleChip({
   );
 }
 
+/** Index circles use a thicker ring (no IDX label). */
+const INDEX_BORDER_EXTRA_PX = 3;
+
 export function LevelsBubblesView({
   items,
   onBubbleOpen,
-  hideNeutral,
-  onHideNeutralChange,
   headerActions,
 }: {
   items: LevelsBubbleItem[];
   onBubbleOpen: (item: LevelsBubbleItem) => void;
-  hideNeutral: boolean;
-  onHideNeutralChange: (hide: boolean) => void;
-  /** Slideshow toggle — same toolbar row as legend + search. */
+  /** View toggle — same toolbar row as search + legend. */
   headerActions?: ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -114,6 +111,8 @@ export function LevelsBubblesView({
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [query, setQuery] = useState("");
   const [popClass, setPopClass] = useState<Record<string, "in" | "out">>({});
+  const [layoutReady, setLayoutReady] = useState(false);
+  const physicsFrameRef = useRef(0);
 
   const syncSize = useCallback(() => {
     const el = containerRef.current;
@@ -133,24 +132,28 @@ export function LevelsBubblesView({
   const filtered = useMemo(() => {
     const q = query.trim().toUpperCase();
     return items.filter((it) => {
-      if (
-        hideNeutral &&
-        (it.tone === "NEUTRAL" || it.tone === "ILLIQUID" || it.tone === "UNSCANNED")
-      ) {
-        return false;
-      }
       if (!q) return true;
       return (
         it.symbol.toUpperCase().includes(q) ||
         it.label.toUpperCase().includes(q)
       );
     });
-  }, [items, query, hideNeutral]);
+  }, [items, query]);
 
   const filteredIds = useMemo(
     () => filtered.map((it) => it.id).join("|"),
     [filtered],
   );
+
+  useEffect(() => {
+    if (size.w < 120 || size.h < 120) {
+      setLayoutReady(false);
+      return;
+    }
+    setLayoutReady(false);
+    const t = window.setTimeout(() => setLayoutReady(true), 200);
+    return () => window.clearTimeout(t);
+  }, [size.w, size.h, filteredIds]);
 
   const counts = useMemo(() => {
     const m: Partial<Record<BubbleTone, number>> = {};
@@ -184,14 +187,20 @@ export function LevelsBubblesView({
   }, [filtered, filteredIds]);
 
   useEffect(() => {
-    if (size.w < 40 || size.h < 40) return;
+    if (!layoutReady || size.w < 120 || size.h < 120) return;
 
     const existing = new Map(nodesRef.current.map((n) => [n.id, n]));
     nodesRef.current = createPhysicsNodes(filtered, size.w, size.h, existing);
 
     for (const n of nodesRef.current) {
       n.r = bubbleRadius(n.item.scope, n.item.tone);
+      if (!existing.has(n.id)) {
+        n.vx = 0;
+        n.vy = 0;
+      }
     }
+
+    physicsFrameRef.current = 0;
 
     const applyPositions = () => {
       for (const n of nodesRef.current) {
@@ -208,14 +217,17 @@ export function LevelsBubblesView({
     applyPositions();
 
     const loop = () => {
-      stepPhysics(nodesRef.current, size.w, size.h);
+      physicsFrameRef.current += 1;
+      if (physicsFrameRef.current > 45) {
+        stepPhysics(nodesRef.current, size.w, size.h);
+      }
       applyPositions();
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
 
     return () => cancelAnimationFrame(rafRef.current);
-  }, [filteredIds, size.w, size.h, filtered]);
+  }, [filteredIds, size.w, size.h, filtered, layoutReady]);
 
   const setBubbleRef = useCallback((id: string, el: HTMLButtonElement | null) => {
     if (el) elRefs.current.set(id, el);
@@ -245,32 +257,15 @@ export function LevelsBubblesView({
           />
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <label
-            className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider cursor-pointer select-none"
-            style={{ color: "#94a3b8" }}
-          >
-            <input
-              type="checkbox"
-              checked={hideNeutral}
-              onChange={(e) => onHideNeutralChange(e.target.checked)}
-              className="rounded border-slate-600"
-            />
-            Hide unscanned
-          </label>
-          <span
-            className="text-[9px] font-bold uppercase tracking-wide shrink-0"
-            style={{ color: "#64748b" }}
-          >
-            {filtered.length} shown · {items.length} total
-          </span>
-        </div>
+        <span
+          className="text-[9px] font-bold uppercase tracking-wide shrink-0"
+          style={{ color: "#64748b" }}
+        >
+          {filtered.length} setup{filtered.length === 1 ? "" : "s"}
+        </span>
 
         <BubbleChip tone="IN_BULL" count={counts.IN_BULL ?? 0} />
-        <BubbleChip tone="NEAR_BULL" count={counts.NEAR_BULL ?? 0} />
         <BubbleChip tone="IN_BEAR" count={counts.IN_BEAR ?? 0} />
-        <BubbleChip tone="NEAR_BEAR" count={counts.NEAR_BEAR ?? 0} />
-        <BubbleChip tone="UNSCANNED" count={counts.UNSCANNED ?? 0} />
 
         {headerActions ? (
           <div className="ml-auto flex items-center shrink-0">{headerActions}</div>
@@ -304,6 +299,10 @@ export function LevelsBubblesView({
                 : pop === "out"
                   ? "levels-bubble-pop-out"
                   : "";
+            const borderW =
+              item.scope === "index"
+                ? style.borderWidth + INDEX_BORDER_EXTRA_PX
+                : style.borderWidth;
 
             return (
               <button
@@ -311,28 +310,21 @@ export function LevelsBubblesView({
                 ref={(el) => setBubbleRef(item.id, el)}
                 type="button"
                 onClick={() => onBubbleOpen(item)}
-                className={`absolute flex flex-col items-center justify-center rounded-full hover:scale-[1.05] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 cursor-pointer will-change-transform ${popAnim}`}
+                className={`absolute flex flex-col items-center justify-center rounded-full hover:scale-[1.05] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 cursor-pointer will-change-[left,top] ${popAnim}`}
                 style={{
                   left: 0,
                   top: 0,
                   width: r * 2,
                   height: r * 2,
                   background: style.fill,
-                  border: `${style.borderWidth}px ${style.borderStyle} ${style.border}`,
+                  border: `${borderW}px ${style.borderStyle} ${style.border}`,
                   boxShadow: style.glow,
-                  transition: "box-shadow 0.35s ease, background 0.35s ease, border-color 0.35s ease",
+                  transition:
+                    "box-shadow 0.35s ease, background 0.35s ease, border-color 0.35s ease, border-width 0.35s ease",
                 }}
                 aria-label={`${item.label}, ${style.label}`}
                 title={`${item.label} · ${style.label} — click for chart`}
               >
-                {item.scope === "index" && (
-                  <span
-                    className="font-black uppercase tracking-widest opacity-70 pointer-events-none"
-                    style={{ fontSize: Math.max(7, fontSub - 1), color: "#e2e8f0" }}
-                  >
-                    IDX
-                  </span>
-                )}
                 <span
                   className="font-black leading-none text-center px-1 truncate max-w-[92%] pointer-events-none"
                   style={{ fontSize: fontMain, color: style.textColor }}
@@ -358,69 +350,30 @@ export function LevelsBubblesView({
   );
 }
 
-export type StockBubbleSource = {
+/** Same symbols as slideshow In-Zone list (directional + min POC RR). */
+export function inZoneItemToBubbleItem(it: {
+  scope: "index" | "stock";
   symbol: string;
   label: string;
   spot: number | null;
-  maxPain: number | null;
-  bullZoneLow: number | null;
-  bullZoneHigh: number | null;
-  bearZoneLow: number | null;
-  bearZoneHigh: number | null;
-  computedAt?: string | null;
-};
-
-/** Indices + full F&O universe merged with cron aggregate. */
-export function buildLevelsBubbleItems(
-  indices: { symbol?: string; label: string; data: PublicLevels | null }[],
-  stockBySymbol: Map<string, StockBubbleSource>,
-): LevelsBubbleItem[] {
-  const out: LevelsBubbleItem[] = [];
-
-  for (const it of indices) {
-    const symbol = (it.symbol ?? it.label).toUpperCase();
-    const bands: ZoneBands = {
-      spot: it.data?.spot ?? null,
-      bullLow: it.data?.bullLow ?? null,
-      bullHigh: it.data?.bullHigh ?? null,
-      bearLow: it.data?.bearLow ?? null,
-      bearHigh: it.data?.bearHigh ?? null,
-    };
-    out.push({
-      id: `index-${symbol}`,
-      symbol,
-      label: it.label,
-      scope: "index",
-      tone: deriveBubbleTone(bands, true),
-      spot: bands.spot,
-      poc: it.data?.poc ?? null,
-      bands,
-      data: it.data,
-    });
-  }
-
-  for (const sym of FNO_UNIVERSE_ALPHA) {
-    const st = stockBySymbol.get(sym);
-    const scanned = Boolean(st);
-    const bands: ZoneBands = {
-      spot: st?.spot ?? null,
-      bullLow: st?.bullZoneLow ?? null,
-      bullHigh: st?.bullZoneHigh ?? null,
-      bearLow: st?.bearZoneLow ?? null,
-      bearHigh: st?.bearZoneHigh ?? null,
-    };
-    out.push({
-      id: `stock-${sym}`,
-      symbol: sym,
-      label: fnoCompanyName(sym) ?? st?.label ?? sym,
-      scope: "stock",
-      tone: deriveBubbleTone(bands, scanned),
-      spot: bands.spot,
-      poc: st?.maxPain ?? null,
-      bands,
-      data: null,
-    });
-  }
-
-  return out;
+  data: PublicLevels | null;
+}): LevelsBubbleItem {
+  const bands: ZoneBands = {
+    spot: it.spot ?? it.data?.spot ?? null,
+    bullLow: it.data?.bullLow ?? null,
+    bullHigh: it.data?.bullHigh ?? null,
+    bearLow: it.data?.bearLow ?? null,
+    bearHigh: it.data?.bearHigh ?? null,
+  };
+  return {
+    id: `${it.scope}-${it.symbol}`,
+    symbol: it.symbol,
+    label: it.label,
+    scope: it.scope,
+    tone: deriveBubbleTone(bands, true),
+    spot: bands.spot,
+    poc: it.data?.poc ?? null,
+    bands,
+    data: it.data,
+  };
 }

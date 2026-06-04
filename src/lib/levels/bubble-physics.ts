@@ -96,8 +96,8 @@ export function createPhysicsNodes<T extends BubblePhysicsItem>(
       item,
       x: prev?.x ?? x,
       y: prev?.y ?? y,
-      vx: prev?.vx ?? (Math.random() - 0.5) * 0.55,
-      vy: prev?.vy ?? (Math.random() - 0.5) * 0.55,
+      vx: prev?.vx ?? 0,
+      vy: prev?.vy ?? 0,
       r,
     };
   });
@@ -113,8 +113,8 @@ export function stepPhysics(nodes: PhysicsNode[], width: number, height: number)
   const maxSpeed = 0.95;
 
   for (const n of nodes) {
-    n.vx += (Math.random() - 0.5) * 0.022;
-    n.vy += (Math.random() - 0.5) * 0.022;
+    n.vx += (Math.random() - 0.5) * 0.008;
+    n.vy += (Math.random() - 0.5) * 0.008;
     const sp = Math.hypot(n.vx, n.vy);
     if (sp > maxSpeed) {
       n.vx = (n.vx / sp) * maxSpeed;

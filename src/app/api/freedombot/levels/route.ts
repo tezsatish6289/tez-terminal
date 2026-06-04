@@ -92,7 +92,12 @@ function statusOf(data: PublicLevels | null, spotOverride?: number | null): Zone
 }
 
 function isActionableInZone(data: PublicLevels | null, spotOverride?: number | null): boolean {
-  return matchesDirectionalSetup(bandsFromLevels(data, spotOverride), data?.poc ?? null, "all");
+  return matchesDirectionalSetup(
+    bandsFromLevels(data, spotOverride),
+    data?.poc ?? null,
+    "all",
+    data?.bandOffset ?? null,
+  );
 }
 
 async function readDoc(path: string): Promise<Record<string, unknown> | null> {

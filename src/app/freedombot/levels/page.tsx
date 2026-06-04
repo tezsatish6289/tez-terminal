@@ -11,7 +11,7 @@ import {
   LevelsSymbolList,
   type LevelsListEntry,
 } from "@/components/levels/LevelsSplitLayout";
-import { buildLevelsBubbleItems, LevelsBubblesView } from "@/components/levels/LevelsBubblesView";
+import { inZoneItemToBubbleItem, LevelsBubblesView } from "@/components/levels/LevelsBubblesView";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsSlideshowCta } from "@/components/levels/LevelsSlideshowCta";
 import { LevelsSlideshowToolbar } from "@/components/levels/LevelsSlideshowToolbar";
@@ -146,7 +146,6 @@ export default function LevelsPage() {
   const [inZoneChartData, setInZoneChartData] = useState<PublicLevels | null>(null);
   const [inZoneChartLoading, setInZoneChartLoading] = useState(false);
   const [slideshowPaused, setSlideshowPaused] = useState(false);
-  const [bubblesHideNeutral, setBubblesHideNeutral] = useState(false);
   const [chartFullHistory, setChartFullHistory] = useState(false);
   const nativeChartRef = useRef<NativeCandlesChartHandle>(null);
 
@@ -205,29 +204,6 @@ export default function LevelsPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [toggleViewMode]);
 
-  const stockBySymbol = useMemo(() => {
-    const m = new Map<
-      string,
-      {
-        symbol: string;
-        label: string;
-        spot: number | null;
-        maxPain: number | null;
-        bullZoneLow: number | null;
-        bullZoneHigh: number | null;
-        bearZoneLow: number | null;
-        bearZoneHigh: number | null;
-      }
-    >();
-    for (const s of payload?.stocks ?? []) m.set(s.symbol, s);
-    return m;
-  }, [payload?.stocks]);
-
-  const bubbleItems = useMemo(
-    () => (payload ? buildLevelsBubbleItems(payload.indices, stockBySymbol) : []),
-    [payload, stockBySymbol],
-  );
-
   const inZoneListSorted = useMemo(
     () =>
       [...(payload?.inZone ?? [])].sort((a, b) =>
@@ -243,9 +219,10 @@ export default function LevelsPage() {
     for (const it of inZoneListSorted) {
       const bands = bandsFromLevels(it.data, it.spot);
       const poc = it.data?.poc ?? null;
-      if (matchesDirectionalSetup(bands, poc, "all")) all += 1;
-      if (matchesDirectionalSetup(bands, poc, "bull")) bull += 1;
-      if (matchesDirectionalSetup(bands, poc, "bear")) bear += 1;
+      const bandOffset = it.data?.bandOffset ?? null;
+      if (matchesDirectionalSetup(bands, poc, "all", bandOffset)) all += 1;
+      if (matchesDirectionalSetup(bands, poc, "bull", bandOffset)) bull += 1;
+      if (matchesDirectionalSetup(bands, poc, "bear", bandOffset)) bear += 1;
     }
     return { all, bull, bear };
   }, [inZoneListSorted]);
@@ -253,9 +230,20 @@ export default function LevelsPage() {
   const inZoneListFiltered = useMemo(
     () =>
       inZoneListSorted.filter((it) =>
-        matchesDirectionalSetup(bandsFromLevels(it.data, it.spot), it.data?.poc ?? null, zoneFilter),
+        matchesDirectionalSetup(
+          bandsFromLevels(it.data, it.spot),
+          it.data?.poc ?? null,
+          zoneFilter,
+          it.data?.bandOffset ?? null,
+        ),
       ),
     [inZoneListSorted, zoneFilter],
+  );
+
+  /** Bubbles + slideshow share the same filtered In-Zone list. */
+  const bubbleItems = useMemo(
+    () => inZoneListFiltered.map((it) => inZoneItemToBubbleItem(it)),
+    [inZoneListFiltered],
   );
 
   const inZoneCount = inZoneListFiltered.length;
@@ -539,33 +527,31 @@ export default function LevelsPage() {
           </div>
         ) : (
           <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-            {viewMode === "bubbles" ? (
-              <LevelsBubblesView
-                items={bubbleItems}
-                onBubbleOpen={openBubbleChart}
-                hideNeutral={bubblesHideNeutral}
-                onHideNeutralChange={setBubblesHideNeutral}
-                headerActions={viewToggleButton}
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <LevelsSlideshowToolbar
+                zoneFilter={zoneFilter}
+                onZoneFilterChange={(key) => {
+                  setZoneFilter(key);
+                  setInZoneSlide(0);
+                }}
+                filterCounts={inZoneFilterCounts}
+                chartShortcuts={viewMode === "slideshow" ? slideshowChartShortcuts : null}
+                viewToggle={{
+                  label: viewToggleLabel,
+                  onClick: toggleViewMode,
+                  title: viewToggleShortcut,
+                }}
               />
-            ) : (
-              <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                <LevelsSlideshowToolbar
-                  zoneFilter={zoneFilter}
-                  onZoneFilterChange={(key) => {
-                    setZoneFilter(key);
-                    setInZoneSlide(0);
-                  }}
-                  filterCounts={inZoneFilterCounts}
-                  chartShortcuts={slideshowChartShortcuts}
-                  viewToggle={{
-                    label: viewToggleLabel,
-                    onClick: toggleViewMode,
-                    title: viewToggleShortcut,
-                  }}
+              {viewMode === "bubbles" ? (
+                <LevelsBubblesView
+                  items={bubbleItems}
+                  onBubbleOpen={openBubbleChart}
+                  headerActions={null}
                 />
-                {renderSlideshow()}
-              </div>
-            )}
+              ) : (
+                renderSlideshow()
+              )}
+            </div>
           </div>
         )}
       </div>

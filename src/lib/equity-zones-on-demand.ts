@@ -1,13 +1,13 @@
 /**
- * On-demand NSE equity zone compute for a single F&O symbol (user click on
- * /levels → NSE Stocks). Uses the shared safe NSE client; persists to the same
- * Firestore docs as the batch cron so the next read is cached.
+ * On-demand equity zone compute for a single F&O symbol (user click on
+ * /levels chart or slideshow). Uses Dhan option chain — same feed as candles —
+ * so visitors never hit NSE scrape paths or see NSE-specific errors.
+ *
+ * Background cron (`stock-zones-runner`) still uses NSE batching to fill the universe.
  */
 
 import { getAdminFirestore } from "@/firebase/admin";
-import { createNseSession } from "@/lib/nse/client";
-import { NseCircuitOpenError, NseBlockError } from "@/lib/nse/types";
-import { computeEquityZones } from "@/lib/equity-options-zones";
+import { computeEquityZonesDhan } from "@/lib/equity-options-zones-dhan";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
   aggregateEntry,
@@ -16,6 +16,10 @@ import {
   writeStockZoneAggregate,
 } from "@/lib/equity-zones-store";
 import { FNO_UNIVERSE } from "@/lib/nse/fno-universe";
+
+/** Shown in API/UI — never mentions upstream data providers. */
+export const STOCK_LEVELS_PUBLIC_ERROR =
+  "Levels aren't available for this symbol yet. Try again in a moment.";
 
 /** True when the public ladder can render bands (at least one side). */
 export function stockLevelsHasBands(data: PublicLevels | null | undefined): boolean {
@@ -35,7 +39,7 @@ export function isValidFnoSymbol(symbol: string): boolean {
   return FNO_UNIVERSE.includes(normalizeStockSymbol(symbol));
 }
 
-/** Fresh enough to skip an on-demand NSE round-trip (default 15 min). */
+/** Fresh enough to skip an on-demand round-trip (default 15 min). */
 export const STOCK_LEVELS_CACHE_TTL_MS = 15 * 60 * 1000;
 
 export async function computeStockZonesOnDemand(symbol: string): Promise<{
@@ -44,34 +48,35 @@ export async function computeStockZonesOnDemand(symbol: string): Promise<{
 }> {
   const safe = normalizeStockSymbol(symbol);
   if (!isValidFnoSymbol(safe)) {
-    return { ok: false, error: "Symbol is not in the NSE F&O universe" };
+    return { ok: false, error: STOCK_LEVELS_PUBLIC_ERROR };
   }
 
   const db = getAdminFirestore();
 
   try {
-    const session = await createNseSession(db, { maxConsecutiveBlocks: 1 });
-    const zones = await computeEquityZones(safe, session);
-    await persistEquityZonesDoc(db, zones);
-    await writeStockZoneAggregate(db, [aggregateEntry(zones)]);
-    return { ok: true };
+    const zones = await computeEquityZonesDhan(safe);
+    await persistEquityZonesDoc(db, zones, "dhan_equity");
+    if (zones.bullZoneLow != null || zones.bearZoneLow != null) {
+      await writeStockZoneAggregate(db, [aggregateEntry(zones)]);
+    }
+    return { ok: zones.bullZoneLow != null || zones.bearZoneLow != null };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (e instanceof NseCircuitOpenError) {
-      return { ok: false, error: "NSE is temporarily paused — try again in a few minutes" };
-    }
-    if (e instanceof NseBlockError) {
-      return { ok: false, error: `NSE blocked the request (${msg})` };
-    }
+    console.warn(`[stock-zones-on-demand] ${safe}: ${msg}`);
     try {
       await db.doc(stockDocId(safe)).set(
-        { symbol: safe, label: safe, nseFetchError: msg.slice(0, 300), computedAt: new Date().toISOString() },
+        {
+          symbol: safe,
+          label: safe,
+          nseFetchError: "refresh_pending",
+          computedAt: new Date().toISOString(),
+        },
         { merge: true },
       );
     } catch {
       /* best-effort */
     }
-    return { ok: false, error: msg };
+    return { ok: false, error: STOCK_LEVELS_PUBLIC_ERROR };
   }
 }
 

@@ -85,3 +85,75 @@ export function nextBatch(
   }
   return { symbols, nextCursor: (start + symbols.length) % n };
 }
+
+export type StockAggregateMeta = { computedAt: string | null };
+
+function computedAtMs(meta: StockAggregateMeta | undefined): number {
+  if (!meta?.computedAt) return 0;
+  const t = Date.parse(meta.computedAt);
+  return Number.isFinite(t) ? t : 0;
+}
+
+/** Oldest `computedAt` first; ties keep Tier B order from `FNO_UNIVERSE`. */
+export function buildRefreshQueue(
+  aggregateBySymbol: ReadonlyMap<string, StockAggregateMeta>,
+): string[] {
+  return [...FNO_UNIVERSE].sort((a, b) => {
+    const diff = computedAtMs(aggregateBySymbol.get(a)) - computedAtMs(aggregateBySymbol.get(b));
+    if (diff !== 0) return diff;
+    return FNO_UNIVERSE.indexOf(a) - FNO_UNIVERSE.indexOf(b);
+  });
+}
+
+/**
+ * Planned dequeue for stock-zone cron — NOT random.
+ *
+ * 1. Static ordered list: `FNO_UNIVERSE` in code (Tier B liquid names first).
+ * 2. Firestore cursor: `config/stock_zones_cursor.index` — position in the active queue.
+ * 3. Firestore aggregate: `config/zone_status_stocks.entries` keys = already "scanned" on UI.
+ *
+ * Backlog: symbols missing from the aggregate (Tier B order preserved).
+ * Refresh (all scanned): symbols sorted by oldest `computedAt` first (stalest refresh).
+ */
+export function nextStockZonesBatch(
+  cursor: number,
+  size: number,
+  scannedSymbols: ReadonlySet<string>,
+  aggregateBySymbol: ReadonlyMap<string, StockAggregateMeta>,
+): { symbols: string[]; nextCursor: number; mode: "backlog" | "refresh"; queueLength: number } {
+  if (size <= 0) {
+    return { symbols: [], nextCursor: cursor, mode: "refresh", queueLength: 0 };
+  }
+
+  const backlog = FNO_UNIVERSE.filter((s) => !scannedSymbols.has(s));
+  if (backlog.length > 0) {
+    const n = backlog.length;
+    const start = ((cursor % n) + n) % n;
+    const symbols: string[] = [];
+    for (let i = 0; i < Math.min(size, n); i++) {
+      symbols.push(backlog[(start + i) % n]);
+    }
+    return {
+      symbols,
+      nextCursor: (start + symbols.length) % n,
+      mode: "backlog",
+      queueLength: n,
+    };
+  }
+
+  const refreshQueue = buildRefreshQueue(aggregateBySymbol);
+  const n = refreshQueue.length;
+  if (n === 0) return { symbols: [], nextCursor: cursor, mode: "refresh", queueLength: 0 };
+
+  const start = ((cursor % n) + n) % n;
+  const symbols: string[] = [];
+  for (let i = 0; i < Math.min(size, n); i++) {
+    symbols.push(refreshQueue[(start + i) % n]);
+  }
+  return {
+    symbols,
+    nextCursor: (start + symbols.length) % n,
+    mode: "refresh",
+    queueLength: n,
+  };
+}

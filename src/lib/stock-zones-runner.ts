@@ -1,12 +1,26 @@
 /**
- * Round-robin NSE F&O stock zone batch — shared by dedicated cron and the
- * `suggest-zones` piggyback pass (so stocks advance on the same schedule as indices).
+ * F&O stock zone batch for `/api/cron/suggest-stock-zones` only.
+ *
+ * Scheduling (`nextStockZonesBatch` in fno-universe.ts):
+ *   • Universe: static `FNO_UNIVERSE` (193, Tier B first).
+ *   • Cursor: `config/stock_zones_cursor.index`.
+ *   • Backlog: symbols not in `zone_status_stocks.entries`.
+ *   • Refresh: all scanned → oldest `computedAt` first.
+ *
+ * Fetch: NSE option chain per symbol; on block/circuit failure → Dhan fallback.
  */
 
 import type { Firestore } from "firebase-admin/firestore";
-import { runNseBatch } from "@/lib/nse/client";
-import { nextBatch, FNO_UNIVERSE } from "@/lib/nse/fno-universe";
+import type { NseSession } from "@/lib/nse/client";
+import { createNseSession } from "@/lib/nse/client";
+import { NseBlockError, NseCircuitOpenError } from "@/lib/nse/types";
+import {
+  nextStockZonesBatch,
+  FNO_UNIVERSE,
+  type StockAggregateMeta,
+} from "@/lib/nse/fno-universe";
 import { computeEquityZones } from "@/lib/equity-options-zones";
+import { computeEquityZonesDhan } from "@/lib/equity-options-zones-dhan";
 import {
   persistEquityZonesDoc,
   stampEquityZonesError,
@@ -16,12 +30,21 @@ import {
 } from "@/lib/equity-zones-store";
 
 const CURSOR_DOC = "config/stock_zones_cursor";
+const AGGREGATE_DOC = "config/zone_status_stocks";
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function envNum(name: string, fallback: number): number {
   const raw = process.env[name]?.trim();
   if (!raw) return fallback;
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function envBool(name: string, fallback: boolean): boolean {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (!raw) return fallback;
+  return raw === "1" || raw === "true" || raw === "yes";
 }
 
 async function readCursor(db: Firestore): Promise<number> {
@@ -42,19 +65,83 @@ async function writeCursor(db: Firestore, index: number): Promise<void> {
   }
 }
 
+async function readAggregateState(db: Firestore): Promise<{
+  scanned: Set<string>;
+  bySymbol: Map<string, StockAggregateMeta>;
+}> {
+  const scanned = new Set<string>();
+  const bySymbol = new Map<string, StockAggregateMeta>();
+  try {
+    const snap = await db.doc(AGGREGATE_DOC).get();
+    const entries = (snap.data()?.entries ?? {}) as Record<
+      string,
+      { computedAt?: string } | undefined
+    >;
+    for (const [sym, row] of Object.entries(entries)) {
+      scanned.add(sym);
+      bySymbol.set(sym, {
+        computedAt: typeof row?.computedAt === "string" ? row.computedAt : null,
+      });
+    }
+  } catch {
+    /* empty */
+  }
+  return { scanned, bySymbol };
+}
+
+function nseFallbackEligible(err: unknown): boolean {
+  if (err instanceof NseBlockError || err instanceof NseCircuitOpenError) return true;
+  if (err instanceof Error) {
+    const m = err.message.toLowerCase();
+    return (
+      m.includes("nse circuit") ||
+      m.includes("nse empty") ||
+      m.includes("nse non_json") ||
+      m.includes("session not established") ||
+      m.includes("rate limiter")
+    );
+  }
+  return false;
+}
+
+async function computeZonesWithFallback(
+  symbol: string,
+  session: NseSession | null,
+): Promise<{ zones: Awaited<ReturnType<typeof computeEquityZones>>; source: "nse_equity" | "dhan_equity" }> {
+  const preferDhan = envBool("STOCK_ZONES_DHAN_PRIMARY", false);
+
+  if (!preferDhan && session) {
+    try {
+      const zones = await computeEquityZones(symbol, session);
+      return { zones, source: "nse_equity" };
+    } catch (e) {
+      if (!nseFallbackEligible(e)) throw e;
+    }
+  }
+
+  const zones = await computeEquityZonesDhan(symbol);
+  return { zones, source: "dhan_equity" };
+}
+
 export interface StockZonesBatchSummary {
   processed: number;
   ok: number;
   errors: number;
+  nseOk: number;
+  dhanOk: number;
   timedOut: boolean;
   aborted: string | null;
   symbols: string[];
   universeSize: number;
   cursorBefore: number;
+  queueMode: "backlog" | "refresh";
+  scannedInAggregate: number;
+  backlogRemaining: number;
+  queueLength: number;
+  nseSession: "ok" | "circuit_open" | "failed";
 }
 
 export interface StockZonesBatchOptions {
-  /** Max symbols to dequeue this run (default from STOCK_ZONES_BATCH_SIZE). */
   batchSize?: number;
   delayMs?: number;
   maxWallClockMs?: number;
@@ -62,83 +149,127 @@ export interface StockZonesBatchOptions {
 }
 
 /**
- * Run one round-robin batch. `symbolsOverride` bypasses the queue (manual refresh).
+ * Run one planned batch. `symbolsOverride` bypasses the queue (manual refresh).
  */
 export async function runStockZonesBatch(
   db: Firestore,
   opts: StockZonesBatchOptions = {},
 ): Promise<StockZonesBatchSummary> {
   const batchSize = opts.batchSize ?? envNum("STOCK_ZONES_BATCH_SIZE", 32);
-  const delayMs = opts.delayMs ?? envNum("STOCK_ZONES_DELAY_MS", 1_000);
-  const maxWallClockMs = opts.maxWallClockMs ?? envNum("STOCK_ZONES_MAX_RUN_MS", 50_000);
+  const delayMs = opts.delayMs ?? envNum("STOCK_ZONES_DELAY_MS", 800);
+  const dhanDelayMs = envNum("STOCK_ZONES_DHAN_DELAY_MS", 500);
+  const maxWallClockMs = opts.maxWallClockMs ?? envNum("STOCK_ZONES_MAX_RUN_MS", 110_000);
 
   const fromQueue = !(opts.symbolsOverride && opts.symbolsOverride.length);
   const startCursor = fromQueue ? await readCursor(db) : 0;
+  const { scanned, bySymbol } = fromQueue
+    ? await readAggregateState(db)
+    : { scanned: new Set<string>(), bySymbol: new Map<string, StockAggregateMeta>() };
 
-  let symbols: string[];
+  let symbols: string[] = [];
+  let queueMode: "backlog" | "refresh" = "refresh";
+  let queueLength = FNO_UNIVERSE.length;
+
   if (!fromQueue) {
     symbols = opts.symbolsOverride!.filter((s) => FNO_UNIVERSE.includes(s));
   } else {
-    symbols = nextBatch(startCursor, batchSize).symbols;
+    const picked = nextStockZonesBatch(startCursor, batchSize, scanned, bySymbol);
+    symbols = picked.symbols;
+    queueMode = picked.mode;
+    queueLength = picked.queueLength;
   }
 
-  if (!symbols.length) {
-    return {
-      processed: 0,
-      ok: 0,
-      errors: 0,
-      timedOut: false,
-      aborted: null,
-      symbols: [],
-      universeSize: FNO_UNIVERSE.length,
-      cursorBefore: startCursor,
-    };
+  const backlogRemaining = FNO_UNIVERSE.filter((s) => !scanned.has(s)).length;
+
+  const emptySummary = (): StockZonesBatchSummary => ({
+    processed: 0,
+    ok: 0,
+    errors: 0,
+    nseOk: 0,
+    dhanOk: 0,
+    timedOut: false,
+    aborted: null,
+    symbols: [],
+    universeSize: FNO_UNIVERSE.length,
+    cursorBefore: startCursor,
+    queueMode,
+    scannedInAggregate: scanned.size,
+    backlogRemaining,
+    queueLength,
+    nseSession: "failed",
+  });
+
+  if (!symbols.length) return emptySummary();
+
+  let session: NseSession | null = null;
+  let nseSession: StockZonesBatchSummary["nseSession"] = "ok";
+  try {
+    session = await createNseSession(db);
+  } catch (e) {
+    if (e instanceof NseCircuitOpenError) nseSession = "circuit_open";
+    else nseSession = "failed";
+    session = null;
   }
 
-  const batch = await runNseBatch<StockZoneAggregateEntry>(
-    db,
-    symbols,
-    async (symbol, session) => {
-      const zones = await computeEquityZones(symbol, session);
-      await persistEquityZonesDoc(db, zones);
-      return aggregateEntry(zones);
-    },
-    { delayMs, maxWallClockMs },
-  );
-
+  const startedAt = Date.now();
   const entries: StockZoneAggregateEntry[] = [];
+  let processed = 0;
   let okCount = 0;
-  for (const r of batch.results) {
-    if (r.ok && r.data) {
-      entries.push(r.data);
+  let nseOk = 0;
+  let dhanOk = 0;
+  let timedOut = false;
+  let aborted: string | null = null;
+
+  for (let i = 0; i < symbols.length; i++) {
+    const symbol = symbols[i];
+    if (i > 0 && Date.now() - startedAt > maxWallClockMs) {
+      timedOut = true;
+      break;
+    }
+
+    try {
+      const { zones, source } = await computeZonesWithFallback(symbol, session);
+      await persistEquityZonesDoc(db, zones, source);
+      const row = aggregateEntry(zones);
+      entries.push(row);
       okCount++;
-    } else if (r.error && !r.error.startsWith("skipped")) {
-      await stampEquityZonesError(db, r.symbol, r.error);
+      processed++;
+      if (source === "dhan_equity") dhanOk++;
+      else nseOk++;
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      await stampEquityZonesError(db, symbol, error);
+      processed++;
+    }
+
+    if (i < symbols.length - 1) {
+      const gap = session && nseSession === "ok" ? delayMs : Math.max(delayMs, dhanDelayMs);
+      const jitter = Math.round((Math.random() * 2 - 1) * 200);
+      await sleep(Math.max(0, gap + jitter));
     }
   }
 
   await writeStockZoneAggregate(db, entries);
 
-  if (fromQueue && batch.processedCount > 0) {
-    await writeCursor(db, (startCursor + batch.processedCount) % FNO_UNIVERSE.length);
+  if (fromQueue && processed > 0 && queueLength > 0) {
+    await writeCursor(db, (startCursor + processed) % queueLength);
   }
 
   return {
-    processed: batch.processedCount,
+    processed,
     ok: okCount,
-    errors: okCount < batch.processedCount ? batch.processedCount - okCount : 0,
-    timedOut: batch.timedOut,
-    aborted: batch.abortedReason,
+    errors: processed - okCount,
+    nseOk,
+    dhanOk,
+    timedOut,
+    aborted,
     symbols,
     universeSize: FNO_UNIVERSE.length,
     cursorBefore: startCursor,
+    queueMode,
+    scannedInAggregate: scanned.size,
+    backlogRemaining,
+    queueLength,
+    nseSession,
   };
-}
-
-/** Smaller batch for the suggest-zones piggyback (fits ~90s route budget). */
-export function runStockZonesPiggyback(db: Firestore): Promise<StockZonesBatchSummary> {
-  return runStockZonesBatch(db, {
-    batchSize: envNum("STOCK_ZONES_PIGGYBACK_SIZE", 12),
-    maxWallClockMs: envNum("STOCK_ZONES_PIGGYBACK_MAX_MS", 38_000),
-  });
 }

@@ -21,16 +21,10 @@ import { type ZoneBotAsset } from "@/lib/zone-bot-config";
 import { recordCronHeartbeat } from "@/lib/cron-health";
 import { refreshIndexZones, type IndexZonesRefreshResult } from "@/lib/index-zones-store";
 import { isNiftyOptionChainCronWindow } from "@/lib/market-hours";
-import {
-  runStockZonesPiggyback,
-  type StockZonesBatchSummary,
-} from "@/lib/stock-zones-runner";
 
 export const dynamic     = "force-dynamic";
-/** Crypto (Deribit) finishes in ~10s; the extra headroom covers the
- *  best-effort NSE index pass that rides this same schedule. */
-/** Crypto ~10s + NSE indices + F&O stock piggyback (~40s) during market hours. */
-export const maxDuration = 120;
+/** Crypto (Deribit) ~10s + optional NSE index pass during market hours. */
+export const maxDuration = 90;
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -213,10 +207,15 @@ export async function GET(request: NextRequest) {
     const indexZones = inNseWindow
       ? await safeRefreshIndexZones(db)
       : { skipped: "outside_market_hours" };
-    const stockZones = inNseWindow
-      ? await safeRunStockZonesPiggyback(db)
-      : { skipped: "outside_market_hours" };
-    return NextResponse.json({ success: true, ...payload, indexZones, stockZones });
+    return NextResponse.json({
+      success: true,
+      ...payload,
+      indexZones,
+      stockZones: {
+        skipped: "use_dedicated_cron",
+        hint: "F&O stocks run only on /api/cron/suggest-stock-zones",
+      },
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[SuggestZones] Failed:", err);
@@ -235,8 +234,12 @@ export async function POST(_request: NextRequest) {
     // Manual refresh always attempts NSE (no market-hours gate), still isolated.
     const db = getAdminFirestore();
     const indexZones = await safeRefreshIndexZones(db);
-    const stockZones = await safeRunStockZonesPiggyback(db);
-    return NextResponse.json({ success: true, ...payload, indexZones, stockZones });
+    return NextResponse.json({
+      success: true,
+      ...payload,
+      indexZones,
+      stockZones: { skipped: "use_dedicated_cron" },
+    });
   } catch (err) {
     console.error("[SuggestZones] Failed:", err);
     return NextResponse.json(
@@ -259,15 +262,3 @@ async function safeRefreshIndexZones(
   }
 }
 
-/** F&O stock round-robin — isolated so a slow NSE batch never fails crypto heartbeat. */
-async function safeRunStockZonesPiggyback(
-  db: ReturnType<typeof getAdminFirestore>,
-): Promise<StockZonesBatchSummary | { skipped: string } | { error: string }> {
-  try {
-    return await runStockZonesPiggyback(db);
-  } catch (e) {
-    const error = e instanceof Error ? e.message : String(e);
-    console.error("[SuggestZones] NSE stock piggyback failed (isolated):", error);
-    return { error };
-  }
-}

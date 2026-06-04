@@ -23,7 +23,7 @@ export function stockDocId(symbol: string): string {
 }
 
 /** Serialize to the shared "suggested zones" shape (mirrors index-zones-store). */
-function serialize(z: EquityOptionsZones) {
+function serialize(z: EquityOptionsZones, source: "nse_equity" | "dhan_equity" = "nse_equity") {
   const maxPainByExpiry =
     z.maxPain != null && z.expiryUsed
       ? [{ expiry: z.expiryUsed, maxPain: z.maxPain, totalOI: z.expiryOI ?? 0, dayIndex: 0 }]
@@ -51,7 +51,7 @@ function serialize(z: EquityOptionsZones) {
     status: z.status,
     btcPrice: z.spot, // ladder reads deribitIndexPrice ?? btcPrice for the spot line
     deribitIndexPrice: null,
-    source: "nse_equity",
+    source,
     nseFetchError: null,
     computedAt: z.computedAt,
   };
@@ -95,6 +95,7 @@ export function aggregateEntry(z: EquityOptionsZones): StockZoneAggregateEntry {
 export async function persistEquityZonesDoc(
   db: Firestore,
   z: EquityOptionsZones,
+  source: "nse_equity" | "dhan_equity" = "nse_equity",
 ): Promise<boolean> {
   const hasBands = z.bullZoneLow != null || z.bearZoneLow != null;
   if (!hasBands) {
@@ -111,7 +112,7 @@ export async function persistEquityZonesDoc(
     );
     return false;
   }
-  await db.doc(stockDocId(z.symbol)).set(serialize(z));
+  await db.doc(stockDocId(z.symbol)).set(serialize(z, source));
   return true;
 }
 

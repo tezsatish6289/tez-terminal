@@ -58,7 +58,8 @@ let securityIdMap: Map<string, number> | null = null;
 let securityIdLoadedAt = 0;
 const SECURITY_ID_TTL_MS = 60 * 60 * 1000; // 1h — instrument list is stable
 
-async function getSecurityId(symbol: string): Promise<number | null> {
+/** NSE equity underlying ID from `config/dhan_instruments` (shared with option chain). */
+export async function resolveDhanEquitySecurityId(symbol: string): Promise<number | null> {
   const upper = symbol.toUpperCase();
   const fresh = securityIdMap && Date.now() - securityIdLoadedAt < SECURITY_ID_TTL_MS;
   if (!fresh) {
@@ -186,7 +187,7 @@ async function getCandlesCached(
   let promise = inflight.get(key);
   if (!promise) {
     promise = (async () => {
-      const securityId = await resolveSecurityId();
+      const securityId = await resolveDhanEquitySecurityId(cacheKey);
       if (securityId == null) {
         throw new Error(`No Dhan securityId for ${cacheKey}`);
       }

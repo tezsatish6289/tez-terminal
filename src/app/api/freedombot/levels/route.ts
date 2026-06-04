@@ -32,7 +32,9 @@ import {
   isValidFnoSymbol,
   normalizeStockSymbol,
   stockLevelsCacheFresh,
+  stockLevelsHasBands,
   stockLevelsLadderComplete,
+  STOCK_LEVELS_PUBLIC_ERROR,
 } from "@/lib/equity-zones-on-demand";
 import { stockDocId } from "@/lib/equity-zones-store";
 
@@ -161,21 +163,34 @@ async function getSingleStock(symbol: string, forceRefresh: boolean) {
 
   let raw = await readDoc(stockDocId(safe));
   let data = sanitize(raw);
+  const cachedBeforeRefresh = data;
   const cachedFresh = stockLevelsCacheFresh(data?.computedAt) && stockLevelsLadderComplete(data);
 
   if (forceRefresh || !cachedFresh) {
     const result = await computeStockZonesOnDemand(safe);
     raw = await readDoc(stockDocId(safe));
     data = sanitize(raw);
-    if (!stockLevelsLadderComplete(data)) {
+    if (stockLevelsLadderComplete(data)) {
       return NextResponse.json(
         {
           symbol: safe,
           label: (typeof raw?.label === "string" && raw.label) || safe,
           data,
-          source: "nse",
-          computed: result.ok,
-          error: result.error ?? (data?.unavailable ? "Levels unavailable for this symbol" : "No bands derived"),
+          source: "live",
+          computed: true,
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    if (stockLevelsHasBands(cachedBeforeRefresh)) {
+      return NextResponse.json(
+        {
+          symbol: safe,
+          label: (typeof raw?.label === "string" && raw.label) || safe,
+          data: cachedBeforeRefresh,
+          source: "cache",
+          computed: false,
+          stale: true,
         },
         { headers: { "Cache-Control": "no-store" } },
       );
@@ -185,8 +200,9 @@ async function getSingleStock(symbol: string, forceRefresh: boolean) {
         symbol: safe,
         label: (typeof raw?.label === "string" && raw.label) || safe,
         data,
-        source: "nse",
-        computed: true,
+        source: "live",
+        computed: result.ok,
+        error: STOCK_LEVELS_PUBLIC_ERROR,
       },
       { headers: { "Cache-Control": "no-store" } },
     );

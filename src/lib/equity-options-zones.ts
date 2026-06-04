@@ -111,6 +111,84 @@ function inferStrikeStep(strikes: number[]): number | null {
   return best;
 }
 
+export function buildEquityZonesFromStrikes(
+  symbol: string,
+  spot: number,
+  strikes: Map<number, { callOI: number; putOI: number }>,
+  expiryUsed: string | null,
+): EquityOptionsZones {
+  if (spot <= 0 || !strikes.size) return emptyResult(symbol, spot, expiryUsed);
+
+  let totalOI = 0;
+  for (const { callOI, putOI } of strikes.values()) totalOI += callOI + putOI;
+
+  const strikeStep = inferStrikeStep([...strikes.keys()]);
+
+  let halfWidth = spot * HALF_WIDTH_PCT();
+  if (strikeStep) halfWidth = Math.max(halfWidth, strikeStep);
+  halfWidth = Math.round(halfWidth * 100) / 100;
+
+  let bullStrike: number | null = null;
+  let bullOI = 0;
+  let bearStrike: number | null = null;
+  let bearOI = 0;
+  for (const [strike, { putOI, callOI }] of strikes) {
+    if (strike < spot && putOI > bullOI) {
+      bullOI = putOI;
+      bullStrike = strike;
+    }
+    if (strike > spot && callOI > bearOI) {
+      bearOI = callOI;
+      bearStrike = strike;
+    }
+  }
+
+  const maxPain = computeMaxPain(strikes);
+  const gap = bullStrike != null && bearStrike != null ? bearStrike - bullStrike : 0;
+  const insufficientGap = gap > 0 && gap < spot * MIN_GAP_PCT();
+  const illiquid = totalOI < MIN_OI();
+
+  const bullZoneLow = bullStrike != null ? bullStrike - halfWidth : null;
+  const bullZoneHigh = bullStrike != null ? bullStrike + halfWidth : null;
+  const bearZoneLow = bearStrike != null ? bearStrike - halfWidth : null;
+  const bearZoneHigh = bearStrike != null ? bearStrike + halfWidth : null;
+
+  const status = illiquid
+    ? "ILLIQUID"
+    : deriveZoneStatus({
+        spot,
+        bullLow: bullZoneLow,
+        bullHigh: bullZoneHigh,
+        bearLow: bearZoneLow,
+        bearHigh: bearZoneHigh,
+      });
+
+  return {
+    symbol,
+    label: symbol,
+    bullStrike,
+    bullZoneLow,
+    bullZoneHigh,
+    bullExitAbove: bullZoneHigh,
+    bullOI: bullOI > 0 ? bullOI : null,
+    bearStrike,
+    bearZoneLow,
+    bearZoneHigh,
+    bearExitBelow: bearZoneLow,
+    bearOI: bearOI > 0 ? bearOI : null,
+    maxPain,
+    expiryUsed,
+    expiryOI: totalOI > 0 ? totalOI : null,
+    halfWidth,
+    strikeStep,
+    insufficientGap,
+    illiquid,
+    status,
+    spot,
+    computedAt: new Date().toISOString(),
+  };
+}
+
 function computeMaxPain(
   strikes: Map<number, { callOI: number; putOI: number }>,
 ): number | null {
@@ -167,71 +245,16 @@ export async function computeEquityZones(
   if (spot <= 0 || !rows.length) return emptyResult(symbol, spot, expiryUsed);
 
   const strikes = new Map<number, { callOI: number; putOI: number }>();
-  let totalOI = 0;
   for (const row of rows) {
     if (row.strikePrice == null) continue;
     const callOI = row.CE?.openInterest ?? 0;
     const putOI = row.PE?.openInterest ?? 0;
     if (callOI === 0 && putOI === 0) continue;
-    totalOI += callOI + putOI;
     const s = strikes.get(row.strikePrice) ?? { callOI: 0, putOI: 0 };
     s.callOI += callOI;
     s.putOI += putOI;
     strikes.set(row.strikePrice, s);
   }
 
-  if (!strikes.size) return emptyResult(symbol, spot, expiryUsed);
-
-  const strikeStep = inferStrikeStep([...strikes.keys()]);
-
-  // Dynamic half-width: % of spot, snapped up to at least one strike step.
-  let halfWidth = spot * HALF_WIDTH_PCT();
-  if (strikeStep) halfWidth = Math.max(halfWidth, strikeStep);
-  halfWidth = Math.round(halfWidth * 100) / 100;
-
-  let bullStrike: number | null = null; let bullOI = 0;
-  let bearStrike: number | null = null; let bearOI = 0;
-  for (const [strike, { putOI, callOI }] of strikes) {
-    if (strike < spot && putOI > bullOI) { bullOI = putOI; bullStrike = strike; }
-    if (strike > spot && callOI > bearOI) { bearOI = callOI; bearStrike = strike; }
-  }
-
-  const maxPain = computeMaxPain(strikes);
-  const gap = bullStrike != null && bearStrike != null ? bearStrike - bullStrike : 0;
-  const insufficientGap = gap > 0 && gap < spot * MIN_GAP_PCT();
-  const illiquid = totalOI < MIN_OI();
-
-  const bullZoneLow = bullStrike != null ? bullStrike - halfWidth : null;
-  const bullZoneHigh = bullStrike != null ? bullStrike + halfWidth : null;
-  const bearZoneLow = bearStrike != null ? bearStrike - halfWidth : null;
-  const bearZoneHigh = bearStrike != null ? bearStrike + halfWidth : null;
-
-  const status = illiquid
-    ? "ILLIQUID"
-    : deriveZoneStatus({ spot, bullLow: bullZoneLow, bullHigh: bullZoneHigh, bearLow: bearZoneLow, bearHigh: bearZoneHigh });
-
-  return {
-    symbol,
-    label: symbol,
-    bullStrike,
-    bullZoneLow,
-    bullZoneHigh,
-    bullExitAbove: bullZoneHigh,
-    bullOI: bullOI > 0 ? bullOI : null,
-    bearStrike,
-    bearZoneLow,
-    bearZoneHigh,
-    bearExitBelow: bearZoneLow,
-    bearOI: bearOI > 0 ? bearOI : null,
-    maxPain,
-    expiryUsed,
-    expiryOI: totalOI > 0 ? totalOI : null,
-    halfWidth,
-    strikeStep,
-    insufficientGap,
-    illiquid,
-    status,
-    spot,
-    computedAt: new Date().toISOString(),
-  };
+  return buildEquityZonesFromStrikes(symbol, spot, strikes, expiryUsed);
 }

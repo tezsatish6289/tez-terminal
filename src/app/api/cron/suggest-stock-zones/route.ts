@@ -1,12 +1,17 @@
 /**
  * /api/cron/suggest-stock-zones
  *
- * Dedicated cron for NSE single-stock option zones. Also runs automatically as a
- * piggyback on `/api/cron/suggest-zones` during market hours (same schedule as indices).
+ * Sole cron for NSE F&O single-stock option zones (no piggyback on suggest-zones).
  *
- * Schedule on cron-job.org (24/7 OK with key):
+ * Schedule (recommended): every 5 min on cron-job.org with key, 24/7:
  *   GET https://…/api/cron/suggest-stock-zones?key=CRON_SECRET
- * Expect ~30–90s per run when NSE work runs; ~400ms means skipped (no key / outside hours).
+ *
+ * Queue: static FNO_UNIVERSE + Firestore cursor + aggregate entries.
+ *   • backlog — symbols not yet in aggregate (Tier B order)
+ *   • refresh — all scanned → oldest computedAt first
+ * Fetch: NSE per symbol; Dhan fallback on block/circuit (or DHAN_PRIMARY env).
+ *
+ * Response: queueMode, backlogRemaining, nseOk, dhanOk, nseSession, ok, …
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -15,6 +20,7 @@ import { runStockZonesBatch } from "@/lib/stock-zones-runner";
 import { isNiftyOptionChainCronWindow } from "@/lib/market-hours";
 
 export const dynamic = "force-dynamic";
+/** 5-min cron: NSE attempts + Dhan fallback (~3s between Dhan chain calls). */
 export const maxDuration = 300;
 
 const CRON_SECRET = process.env.CRON_SECRET;

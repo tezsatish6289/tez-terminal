@@ -18,6 +18,12 @@ import {
   type PhysicsNode,
 } from "@/lib/levels/bubble-physics";
 import { LEVELS_TOOLBAR_CHIP_HEIGHT } from "@/components/levels/LevelsSlideshowCta";
+import {
+  BLACKBOARD_CHALK,
+  BLACKBOARD_CHALK_DIM,
+  BLACKBOARD_FIELD_BG,
+  BLACKBOARD_FIELD_BORDER,
+} from "@/lib/levels/cta-blackboard";
 import { BUBBLE_TONE_STYLE, deriveBubbleTone, type BubbleTone } from "@/lib/zones/bubble-tone";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
@@ -223,18 +229,18 @@ export function LevelsBubblesView({
       <div className="shrink-0 flex flex-wrap items-center gap-x-2 gap-y-2 mb-2 px-0.5">
         <div className="relative w-full sm:w-auto sm:min-w-[11rem] sm:max-w-[14rem] flex-1 sm:flex-none order-1">
           <Search
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5"
-            style={{ color: "#475569" }}
+            className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none"
+            style={{ color: BLACKBOARD_CHALK_DIM }}
           />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search…"
-            className="w-full pl-8 pr-2.5 py-1.5 rounded-lg text-xs outline-none"
+            className={`w-full pl-8 pr-3 ${LEVELS_TOOLBAR_CHIP_HEIGHT} rounded-full text-xs outline-none placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-slate-400/30`}
             style={{
-              backgroundColor: "rgba(0,0,0,0.45)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              color: "#e2e8f0",
+              backgroundColor: BLACKBOARD_FIELD_BG,
+              border: BLACKBOARD_FIELD_BORDER,
+              color: BLACKBOARD_CHALK,
             }}
           />
         </div>

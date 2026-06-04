@@ -139,7 +139,10 @@ export default function LevelsPage() {
   const [slideshowCountdown, setSlideshowCountdown] = useState(SLIDESHOW_SLIDE_SECONDS);
   const [bubblesHideNeutral, setBubblesHideNeutral] = useState(false);
   const [chartFullHistory, setChartFullHistory] = useState(false);
+  /** Last candle close per symbol — strip tiles match native chart price. */
+  const [liveStripSpot, setLiveStripSpot] = useState<Record<string, number>>({});
   const nativeChartRef = useRef<NativeCandlesChartHandle>(null);
+  const activeStripKeyRef = useRef("");
 
   const load = useCallback(async () => {
     try {
@@ -278,6 +281,18 @@ export default function LevelsPage() {
   const inZoneCount = inZoneListFiltered.length;
   const inZoneCurrent = inZoneCount > 0 ? Math.min(inZoneSlide, inZoneCount - 1) : 0;
   const inZoneActive = inZoneCount > 0 ? inZoneListFiltered[inZoneCurrent] : null;
+
+  useEffect(() => {
+    activeStripKeyRef.current = inZoneActive
+      ? `${inZoneActive.scope}-${inZoneActive.symbol}`
+      : "";
+  }, [inZoneActive?.scope, inZoneActive?.symbol]);
+
+  const handleChartLastClose = useCallback((close: number) => {
+    const key = activeStripKeyRef.current;
+    if (!key || !Number.isFinite(close)) return;
+    setLiveStripSpot((prev) => (prev[key] === close ? prev : { ...prev, [key]: close }));
+  }, []);
 
   const slideshowEnabled = viewMode === "slideshow" && inZoneCount > 1;
 
@@ -418,17 +433,18 @@ export default function LevelsPage() {
   const inZoneEntries: LevelsListEntry[] = useMemo(
     () =>
       inZoneListFiltered.map((it) => {
+        const id = `${it.scope}-${it.symbol}`;
         const status = deriveZoneStatus(bandsFromLevels(it.data, it.spot));
         return {
-          id: `${it.scope}-${it.symbol}`,
+          id,
           label: it.label,
           sublabel: it.scope === "index" ? "Index" : "Stock",
-          spot: it.spot,
+          spot: liveStripSpot[id] ?? it.spot,
           currency: it.currency,
           trailing: <StatusBadge status={status} />,
         };
       }),
-    [inZoneListFiltered],
+    [inZoneListFiltered, liveStripSpot],
   );
 
   const tvChartColumn =
@@ -448,6 +464,7 @@ export default function LevelsPage() {
         showHeader={viewMode !== "slideshow"}
         nativeChartRef={nativeChartRef}
         onFullHistoryZoomChange={setChartFullHistory}
+        onLastCloseChange={activeTv?.nativeCandles ? handleChartLastClose : undefined}
       />
     ) : (
       <div

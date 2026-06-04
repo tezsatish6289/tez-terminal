@@ -107,6 +107,8 @@ export const NativeCandlesChart = forwardRef<
     /** Slideshow: fit all loaded ~30d candles on first paint (and on symbol change). */
     defaultFullHistory?: boolean;
     onFullHistoryZoomChange?: (full: boolean) => void;
+    /** Last candle close — keeps strip / header price in sync with the chart. */
+    onLastCloseChange?: (close: number) => void;
   }
 >(function NativeCandlesChart(
   {
@@ -122,6 +124,7 @@ export const NativeCandlesChart = forwardRef<
     hideShortcuts = false,
     defaultFullHistory = false,
     onFullHistoryZoomChange,
+    onLastCloseChange,
   },
   ref,
 ) {
@@ -345,6 +348,10 @@ export const NativeCandlesChart = forwardRef<
     setError(null);
     setSwapping(false);
     setBootLoading(false);
+    const lastClose = data[data.length - 1]?.close;
+    if (lastClose != null && Number.isFinite(lastClose)) {
+      onLastCloseChange?.(lastClose);
+    }
     return true;
   }
 

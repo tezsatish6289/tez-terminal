@@ -26,6 +26,7 @@ export function LevelsTradingViewChart({
   defaultFullHistory,
   nativeChartRef,
   onFullHistoryZoomChange,
+  onLastCloseChange,
   showHeader = true,
   className = "",
 }: {
@@ -43,6 +44,7 @@ export function LevelsTradingViewChart({
   defaultFullHistory?: boolean;
   nativeChartRef?: React.RefObject<NativeCandlesChartHandle | null>;
   onFullHistoryZoomChange?: (full: boolean) => void;
+  onLastCloseChange?: (close: number) => void;
   /** Deep-dive page: title lives in page chrome; chart fills remaining viewport. */
   showHeader?: boolean;
   className?: string;
@@ -123,6 +125,7 @@ export function LevelsTradingViewChart({
             hideShortcuts={hideChartShortcuts}
             defaultFullHistory={defaultFullHistory}
             onFullHistoryZoomChange={onFullHistoryZoomChange}
+            onLastCloseChange={onLastCloseChange}
           />
         )}
       </div>

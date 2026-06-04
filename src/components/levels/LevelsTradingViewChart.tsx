@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsChartShortcuts } from "@/components/levels/LevelsChartShortcuts";
 import { NativeCandlesChart } from "@/components/levels/NativeCandlesChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
@@ -21,6 +22,9 @@ export function LevelsTradingViewChart({
   showSlideshowControl,
   slideshowPaused,
   onToggleSlideshowPause,
+  hideChartShortcuts,
+  nativeChartRef,
+  onFullHistoryZoomChange,
 }: {
   config: LevelsTvConfig;
   /** NSE ticker / symbol (e.g. BANKINDIA, NIFTY). */
@@ -32,6 +36,9 @@ export function LevelsTradingViewChart({
   showSlideshowControl?: boolean;
   slideshowPaused?: boolean;
   onToggleSlideshowPause?: () => void;
+  hideChartShortcuts?: boolean;
+  nativeChartRef?: React.RefObject<NativeCandlesChartHandle | null>;
+  onFullHistoryZoomChange?: (full: boolean) => void;
 }) {
   const [mounted, setMounted] = useState(false);
   const [chartFading, setChartFading] = useState(false);
@@ -94,6 +101,7 @@ export function LevelsTradingViewChart({
           </div>
         ) : (
           <NativeCandlesChart
+            ref={nativeChartRef}
             symbol={config.symbol}
             candlesScope={config.candlesScope}
             interval={config.interval}
@@ -103,6 +111,8 @@ export function LevelsTradingViewChart({
             showSlideshowControl={showSlideshowControl}
             slideshowPaused={slideshowPaused}
             onToggleSlideshowPause={onToggleSlideshowPause}
+            hideShortcuts={hideChartShortcuts}
+            onFullHistoryZoomChange={onFullHistoryZoomChange}
           />
         )}
       </div>

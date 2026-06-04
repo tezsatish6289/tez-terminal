@@ -81,11 +81,48 @@ function HintRow({
   );
 }
 
+import { LEVELS_TOOLBAR_CHIP_HEIGHT } from "@/components/levels/LevelsSlideshowCta";
+
+function ToolbarPill({
+  label,
+  kbd,
+  onClick,
+  ariaLabel,
+  active,
+  activeColor,
+}: {
+  label: string;
+  kbd: string;
+  onClick: () => void;
+  ariaLabel: string;
+  active?: boolean;
+  activeColor?: string;
+}) {
+  const accent = activeColor ?? "#e2e8f0";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1 px-2.5 ${LEVELS_TOOLBAR_CHIP_HEIGHT} rounded-md text-[9px] font-bold uppercase tracking-wide transition-all shrink-0`}
+      style={{
+        backgroundColor: active ? "rgba(244, 114, 182, 0.14)" : "rgba(0,0,0,0.35)",
+        color: active ? accent : "#94a3b8",
+        border: `1px solid ${active ? "rgba(244, 114, 182, 0.45)" : "rgba(255,255,255,0.08)"}`,
+      }}
+      aria-label={ariaLabel}
+    >
+      <span>{label}</span>
+      <span style={{ color: active ? accent : "#64748b", fontWeight: 800 }}>· {kbd}</span>
+    </button>
+  );
+}
+
 /**
- * Chart shortcuts anchored under the bull invalidation line when possible.
+ * Chart shortcuts: toolbar row on slideshow page, or overlay on chart when layout=overlay.
  * T → TradingView; 3 → 30-day history zoom (native); P → pause/play slideshow.
  */
 export function LevelsChartShortcuts({
+  layout = "overlay",
   webChartUrl,
   resolveTopPx,
   showSqueeze,
@@ -95,6 +132,7 @@ export function LevelsChartShortcuts({
   slideshowPaused,
   onToggleSlideshowPause,
 }: {
+  layout?: "overlay" | "toolbar";
   webChartUrl: string;
   resolveTopPx?: () => number | null;
   showSqueeze?: boolean;
@@ -107,18 +145,19 @@ export function LevelsChartShortcuts({
   const [anchorTopPx, setAnchorTopPx] = useState<number | null>(null);
 
   const syncPosition = useCallback(() => {
-    if (!resolveTopPx) {
+    if (layout !== "overlay" || !resolveTopPx) {
       setAnchorTopPx(null);
       return;
     }
     setAnchorTopPx(resolveTopPx());
-  }, [resolveTopPx]);
+  }, [resolveTopPx, layout]);
 
   useEffect(() => {
+    if (layout !== "overlay") return;
     syncPosition();
     const id = window.setInterval(syncPosition, 400);
     return () => window.clearInterval(id);
-  }, [syncPosition]);
+  }, [syncPosition, layout]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -197,11 +236,50 @@ export function LevelsChartShortcuts({
     });
   }
 
+  if (layout === "toolbar") {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+        <ToolbarPill
+          label="TradingView"
+          kbd="T"
+          onClick={() => window.open(webChartUrl, "_blank", "noopener,noreferrer")}
+          ariaLabel="Open this chart on TradingView in a new tab. Press T or click."
+        />
+        {showSqueeze && onSqueeze ? (
+          <ToolbarPill
+            label={squeezed ? "Recent bars" : "30 day fit"}
+            kbd="3"
+            onClick={onSqueeze}
+            ariaLabel={
+              squeezed
+                ? "Zoom chart to recent sessions. Press 3 or click."
+                : "Show all loaded 30-day candle history on the chart. Press 3 or click."
+            }
+          />
+        ) : null}
+        {showSlideshowControl && onToggleSlideshowPause ? (
+          <ToolbarPill
+            label={slideshowPaused ? "Play" : "Pause"}
+            kbd="P"
+            onClick={onToggleSlideshowPause}
+            active={Boolean(slideshowPaused)}
+            activeColor={PAUSED_PINK}
+            ariaLabel={
+              slideshowPaused
+                ? "Resume auto-advancing symbols every 8 seconds. Press P or click."
+                : "Stop auto-advancing symbols. Press P or click."
+            }
+          />
+        ) : null}
+      </div>
+    );
+  }
+
   let bottomStack = 14;
   return (
     <>
       {rows.map((row, i) => {
-        const topPx = anchored ? anchorTopPx + i * (ROW_HEIGHT + ROW_GAP) : undefined;
+        const topPx = anchored ? anchorTopPx! + i * (ROW_HEIGHT + ROW_GAP) : undefined;
         const bottomPx = anchored ? undefined : bottomStack;
         if (!anchored) bottomStack += ROW_HEIGHT + ROW_GAP;
         return (

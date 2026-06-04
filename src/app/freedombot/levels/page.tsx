@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Loader2, TrendingUp, TrendingDown, Target } from "lucide-react";
 import { type PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
@@ -12,7 +12,9 @@ import {
   type LevelsListEntry,
 } from "@/components/levels/LevelsSplitLayout";
 import { buildLevelsBubbleItems, LevelsBubblesView } from "@/components/levels/LevelsBubblesView";
+import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsSlideshowCta } from "@/components/levels/LevelsSlideshowCta";
+import { LevelsSlideshowToolbar } from "@/components/levels/LevelsSlideshowToolbar";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { levelsChartPagePath } from "@/lib/levels/levels-chart-url";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
@@ -145,6 +147,8 @@ export default function LevelsPage() {
   const [inZoneChartLoading, setInZoneChartLoading] = useState(false);
   const [slideshowPaused, setSlideshowPaused] = useState(false);
   const [bubblesHideNeutral, setBubblesHideNeutral] = useState(false);
+  const [chartFullHistory, setChartFullHistory] = useState(false);
+  const nativeChartRef = useRef<NativeCandlesChartHandle>(null);
 
   const load = useCallback(async () => {
     try {
@@ -277,6 +281,30 @@ export default function LevelsPage() {
   const chartLevelsLoading =
     viewMode === "slideshow" && inZoneChartLoading && inZoneActive?.scope === "stock";
 
+  const slideshowCountLabel =
+    inZoneCount > 0
+      ? zoneFilter === "all"
+        ? `${inZoneCount} aligned`
+        : `${inZoneCount} · ${zoneFilter === "bull" ? "bull + POC above" : "bear + POC below"}`
+      : undefined;
+
+  const slideshowChartShortcuts =
+    viewMode === "slideshow" && activeTv
+      ? {
+          webChartUrl: activeTv.webChartUrl,
+          showSqueeze: Boolean(activeTv.nativeCandles),
+          squeezed: chartFullHistory,
+          onSqueeze: () => nativeChartRef.current?.toggleHistoryZoom(),
+          showSlideshowControl: slideshowEnabled,
+          slideshowPaused,
+          onToggleSlideshowPause: toggleSlideshowPause,
+        }
+      : null;
+
+  useEffect(() => {
+    setChartFullHistory(false);
+  }, [activeTv?.symbol, activeTv?.exchange, activeTv?.candlesScope]);
+
   const goInZone = useCallback(
     (dir: number) => setInZoneSlide((s) => (inZoneCount > 0 ? (s + dir + inZoneCount) % inZoneCount : 0)),
     [inZoneCount],
@@ -353,50 +381,6 @@ export default function LevelsPage() {
     [inZoneListFiltered],
   );
 
-  const zoneFilterChips = (
-    <div className="flex flex-wrap gap-1.5 mb-3 shrink-0">
-      {([
-        { key: "all" as PocDirectionFilter, label: "All aligned" },
-        { key: "bull" as PocDirectionFilter, label: "In bull · POC above" },
-        { key: "bear" as PocDirectionFilter, label: "In bear · POC below" },
-      ]).map(({ key, label }) => {
-        const active = zoneFilter === key;
-        const bull = key === "bull";
-        const bear = key === "bear";
-        return (
-          <button
-            key={key}
-            type="button"
-            onClick={() => {
-              setZoneFilter(key);
-              setInZoneSlide(0);
-            }}
-            className="px-2.5 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-bold uppercase tracking-wide transition-all"
-            style={
-              active
-                ? {
-                    backgroundColor: bull
-                      ? "rgba(16,185,129,0.22)"
-                      : bear
-                        ? "rgba(239,68,68,0.22)"
-                        : "rgba(37,99,235,0.28)",
-                    color: bull ? "#6ee7b7" : bear ? "#fca5a5" : "#e2e8f0",
-                    border: `1px solid ${bull ? "rgba(52,211,153,0.45)" : bear ? "rgba(248,113,113,0.45)" : "rgba(96,165,250,0.4)"}`,
-                  }
-                : {
-                    backgroundColor: "rgba(0,0,0,0.25)",
-                    color: "#64748b",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                  }
-            }
-          >
-            {label}
-          </button>
-        );
-      })}
-    </div>
-  );
-
   const tvChartColumn =
     activeTv != null ? (
       <LevelsTradingViewChart
@@ -408,6 +392,9 @@ export default function LevelsPage() {
         showSlideshowControl={slideshowEnabled}
         slideshowPaused={slideshowPaused}
         onToggleSlideshowPause={toggleSlideshowPause}
+        hideChartShortcuts={viewMode === "slideshow"}
+        nativeChartRef={nativeChartRef}
+        onFullHistoryZoomChange={setChartFullHistory}
       />
     ) : (
       <div
@@ -444,7 +431,6 @@ export default function LevelsPage() {
       const filteredEmpty = zoneFilter !== "all" && inZoneListSorted.length > 0;
       return wrapSlideshowBody(
         <div className="flex flex-col min-h-0 h-full">
-          <div className="shrink-0">{zoneFilterChips}</div>
           <p className="text-sm text-center py-8 px-4" style={{ color: "#64748b" }}>
             {filteredEmpty
               ? "No symbols match this filter right now."
@@ -467,12 +453,6 @@ export default function LevelsPage() {
 
     return wrapSlideshowBody(
       <LevelsSymbolList
-        countLabel={
-          zoneFilter === "all"
-            ? `${inZoneCount} aligned`
-            : `${inZoneCount} · ${zoneFilter === "bull" ? "bull + POC above" : "bear + POC below"}`
-        }
-        header={zoneFilterChips}
         entries={inZoneEntries}
         activeIndex={inZoneCurrent}
         onSelect={setInZoneSlide}
@@ -561,9 +541,16 @@ export default function LevelsPage() {
               />
             ) : (
               <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                <div className="shrink-0 flex flex-wrap items-center justify-end gap-2 mb-2 px-0.5">
-                  {viewToggleButton}
-                </div>
+                <LevelsSlideshowToolbar
+                  zoneFilter={zoneFilter}
+                  onZoneFilterChange={(key) => {
+                    setZoneFilter(key);
+                    setInZoneSlide(0);
+                  }}
+                  countLabel={slideshowCountLabel}
+                  chartShortcuts={slideshowChartShortcuts}
+                  trailing={viewToggleButton}
+                />
                 {renderSlideshow()}
               </div>
             )}

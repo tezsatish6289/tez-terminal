@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import {
   BaselineSeries,
   CandlestickSeries,
@@ -71,28 +78,43 @@ const BEAR_BAND_STYLE = {
  * (/api/freedombot/levels/candles). Used where the TradingView embed
  * can't show licensed NSE equity data.
  */
-export function NativeCandlesChart({
-  symbol,
-  candlesScope = "stock",
-  interval = "15",
-  levels,
-  loading: levelsLoading,
-  webChartUrl,
-  showSlideshowControl,
-  slideshowPaused,
-  onToggleSlideshowPause,
-}: {
-  symbol: string;
-  candlesScope?: "stock" | "index";
-  interval?: string;
-  levels?: PublicLevels | null;
-  /** Parent is still fetching zone levels for overlays. */
-  loading?: boolean;
-  webChartUrl: string;
-  showSlideshowControl?: boolean;
-  slideshowPaused?: boolean;
-  onToggleSlideshowPause?: () => void;
-}) {
+export interface NativeCandlesChartHandle {
+  toggleHistoryZoom: () => void;
+}
+
+export const NativeCandlesChart = forwardRef<
+  NativeCandlesChartHandle,
+  {
+    symbol: string;
+    candlesScope?: "stock" | "index";
+    interval?: string;
+    levels?: PublicLevels | null;
+    /** Parent is still fetching zone levels for overlays. */
+    loading?: boolean;
+    webChartUrl: string;
+    showSlideshowControl?: boolean;
+    slideshowPaused?: boolean;
+    onToggleSlideshowPause?: () => void;
+    /** Slideshow toolbar renders shortcuts; hide chart overlay hints. */
+    hideShortcuts?: boolean;
+    onFullHistoryZoomChange?: (full: boolean) => void;
+  }
+>(function NativeCandlesChart(
+  {
+    symbol,
+    candlesScope = "stock",
+    interval = "15",
+    levels,
+    loading: levelsLoading,
+    webChartUrl,
+    showSlideshowControl,
+    slideshowPaused,
+    onToggleSlideshowPause,
+    hideShortcuts = false,
+    onFullHistoryZoomChange,
+  },
+  ref,
+) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -131,6 +153,7 @@ export function NativeCandlesChart({
     ts.applyOptions({ rightOffset: RIGHT_OFFSET_BARS });
     fullHistoryZoomRef.current = false;
     setFullHistoryZoom(false);
+    onFullHistoryZoomChange?.(false);
   }
 
   /** Fit all loaded bars (30d history); toggle back with S when already full. */
@@ -141,6 +164,7 @@ export function NativeCandlesChart({
     ts.applyOptions({ rightOffset: RIGHT_OFFSET_BARS });
     fullHistoryZoomRef.current = true;
     setFullHistoryZoom(true);
+    onFullHistoryZoomChange?.(true);
   }
 
   const toggleHistoryZoom = useCallback(() => {
@@ -148,7 +172,9 @@ export function NativeCandlesChart({
     if (n < 2) return;
     if (fullHistoryZoomRef.current) applyDefaultZoom(n);
     else applyFullHistoryZoom(n);
-  }, []);
+  }, [onFullHistoryZoomChange]);
+
+  useImperativeHandle(ref, () => ({ toggleHistoryZoom }), [toggleHistoryZoom]);
 
   function fitPriceScale() {
     const series = seriesRef.current;
@@ -383,16 +409,18 @@ export function NativeCandlesChart({
           <p className="text-xs">{error}</p>
         </div>
       )}
-      <LevelsChartShortcuts
-        webChartUrl={webChartUrl}
-        resolveTopPx={resolveHintTopPx}
-        showSqueeze
-        squeezed={fullHistoryZoom}
-        onSqueeze={toggleHistoryZoom}
-        showSlideshowControl={showSlideshowControl}
-        slideshowPaused={slideshowPaused}
-        onToggleSlideshowPause={onToggleSlideshowPause}
-      />
+      {!hideShortcuts ? (
+        <LevelsChartShortcuts
+          webChartUrl={webChartUrl}
+          resolveTopPx={resolveHintTopPx}
+          showSqueeze
+          squeezed={fullHistoryZoom}
+          onSqueeze={toggleHistoryZoom}
+          showSlideshowControl={showSlideshowControl}
+          slideshowPaused={slideshowPaused}
+          onToggleSlideshowPause={onToggleSlideshowPause}
+        />
+      ) : null}
     </div>
   );
-}
+});

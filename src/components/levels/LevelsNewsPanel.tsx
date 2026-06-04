@@ -7,7 +7,7 @@ import {
   type LevelsNews,
   type NewsSentiment,
   type NewsSentimentLabel,
-} from "@/lib/levels/news";
+} from "@/lib/levels/news-types";
 
 const SENTIMENT_DISPLAY: Record<
   NewsSentimentLabel,

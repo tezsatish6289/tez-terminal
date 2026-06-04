@@ -19,61 +19,34 @@ import {
   isValidFnoSymbol,
   normalizeStockSymbol,
 } from "@/lib/equity-zones-on-demand";
+import {
+  LEVELS_NEWS_WINDOW_DAYS,
+  SENTIMENT_LABEL_THRESHOLDS,
+  clampSentimentScore,
+  sentimentLabelFromScore,
+  type LevelsNews,
+  type LevelsNewsScope,
+  type NewsCitation,
+  type NewsSentiment,
+  type NewsSentimentLabel,
+  type NewsWindow,
+} from "@/lib/levels/news-types";
 
-export type LevelsNewsScope = "stock" | "index";
-
-/** Default lookback: 4 weeks of news (UI no longer toggles window). */
-export const LEVELS_NEWS_WINDOW_DAYS = 28;
-export const NEWS_WINDOWS = [LEVELS_NEWS_WINDOW_DAYS] as const;
-export type NewsWindow = (typeof NEWS_WINDOWS)[number];
-
-/** AI-assessed tone from grounded headlines (not a trading signal). */
-export type NewsSentimentLabel = "bullish" | "neutral" | "bearish";
-
-export interface NewsSentiment {
-  label: NewsSentimentLabel;
-  /** 0 = very bearish, 50 = mixed, 100 = very bullish. */
-  score: number;
-  /** One-line rationale shown beside the badge. */
-  note: string;
-}
-
-/** Label thresholds paired with the prompt rubric. */
-export const SENTIMENT_LABEL_THRESHOLDS = {
-  bullishMin: 65,
-  bearishMax: 40,
-} as const;
-
-export function clampSentimentScore(raw: number): number {
-  if (!Number.isFinite(raw)) return 50;
-  return Math.min(100, Math.max(0, Math.round(raw)));
-}
-
-export function sentimentLabelFromScore(score: number): NewsSentimentLabel {
-  if (score >= SENTIMENT_LABEL_THRESHOLDS.bullishMin) return "bullish";
-  if (score <= SENTIMENT_LABEL_THRESHOLDS.bearishMax) return "bearish";
-  return "neutral";
-}
-
-export interface NewsCitation {
-  title: string;
-  url: string;
-}
-
-export interface LevelsNews {
-  scope: LevelsNewsScope;
-  symbol: string;
-  /** Company / index display name used in the query. */
-  name: string;
-  window: NewsWindow;
-  summary: string;
-  highlights: string[];
-  citations: NewsCitation[];
-  sentiment?: NewsSentiment;
-  generatedAt: string;
-  /** True when served from cache past the soft-fresh window. */
-  stale?: boolean;
-}
+export type {
+  LevelsNews,
+  LevelsNewsScope,
+  NewsCitation,
+  NewsSentiment,
+  NewsSentimentLabel,
+  NewsWindow,
+} from "@/lib/levels/news-types";
+export {
+  LEVELS_NEWS_WINDOW_DAYS,
+  NEWS_WINDOWS,
+  SENTIMENT_LABEL_THRESHOLDS,
+  clampSentimentScore,
+  sentimentLabelFromScore,
+} from "@/lib/levels/news-types";
 
 /** Regenerate at most this often per (symbol, window). */
 const FRESH_TTL_MS = 8 * 60 * 60 * 1000; // 8h

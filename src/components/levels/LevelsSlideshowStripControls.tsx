@@ -114,6 +114,8 @@ export function LevelsSlideshowStripControls({
     enabled: boolean;
     paused: boolean;
     onToggle: () => void;
+    /** Seconds until next symbol (shown under pause). */
+    secondsRemaining?: number;
   };
   viewToggle?: {
     viewMode: LevelsStripViewMode;
@@ -148,7 +150,7 @@ export function LevelsSlideshowStripControls({
   }, [slideshowControl, viewToggle]);
 
   return (
-    <div className={`flex items-stretch gap-1.5 shrink-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}>
+    <div className={`flex items-end gap-1.5 shrink-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}>
       {showFilter ? (
       <Popover open={filterOpen} onOpenChange={setFilterOpen}>
         <PopoverTrigger asChild>
@@ -219,24 +221,37 @@ export function LevelsSlideshowStripControls({
       ) : null}
 
       {slideshowControl?.enabled ? (
-        <button
-          type="button"
-          onClick={slideshowControl.onToggle}
-          className={`${LEVELS_STRIP_ICON_BOX_CLASS} flex items-center justify-center transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
-          style={stripIconBoxStyle(slideshowControl.paused)}
-          aria-label={
-            slideshowControl.paused
-              ? "Resume auto-advancing symbols every 8 seconds. Press P or click."
-              : "Pause auto-advancing symbols. Press P or click."
-          }
-          title={slideshowControl.paused ? "Play slideshow" : "Pause slideshow"}
-        >
-          {slideshowControl.paused ? (
-            <Play className="h-5 w-5 fill-current" style={{ color: "#f472b6" }} />
-          ) : (
-            <Pause className="h-5 w-5" style={{ color: BLACKBOARD_CHALK }} />
-          )}
-        </button>
+        <div className="flex flex-col items-center shrink-0 gap-1">
+          <button
+            type="button"
+            onClick={slideshowControl.onToggle}
+            className={`${LEVELS_STRIP_ICON_BOX_CLASS} flex items-center justify-center transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
+            style={stripIconBoxStyle(slideshowControl.paused)}
+            aria-label={
+              slideshowControl.paused
+                ? "Resume slideshow — 60 second countdown per symbol. Press P or click."
+                : "Pause slideshow auto-advance. Press P or click."
+            }
+            title={slideshowControl.paused ? "Play slideshow" : "Pause slideshow"}
+          >
+            {slideshowControl.paused ? (
+              <Play className="h-5 w-5 fill-current" style={{ color: "#f472b6" }} />
+            ) : (
+              <Pause className="h-5 w-5" style={{ color: BLACKBOARD_CHALK }} />
+            )}
+          </button>
+          <span
+            className="text-[11px] font-bold tabular-nums leading-none min-w-[2.5rem] text-center"
+            style={{
+              color: slideshowControl.paused ? "#f472b6" : BLACKBOARD_CHALK_DIM,
+            }}
+            aria-live="polite"
+          >
+            {slideshowControl.paused
+              ? "Paused"
+              : `${Math.max(0, slideshowControl.secondsRemaining ?? 0)}s`}
+          </span>
+        </div>
       ) : null}
 
       {viewToggle ? (

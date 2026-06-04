@@ -189,7 +189,7 @@ export function LevelsChartShortcuts({
       kbdHint: "Press",
       onClick: onToggleSlideshowPause,
       ariaLabel: paused
-        ? "Resume auto-advancing symbols every 8 seconds. Press P or click."
+        ? "Resume auto-advancing symbols every 60 seconds. Press P or click."
         : "Stop auto-advancing symbols. Press P or click.",
       titleColor: paused ? PAUSED_PINK : undefined,
       helperColor: paused ? PAUSED_PINK_MUTED : undefined,

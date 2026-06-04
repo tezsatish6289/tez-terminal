@@ -29,6 +29,7 @@ import {
   buildLevelsActionableList,
   type LevelsActionableItem,
 } from "@/lib/zones/levels-actionable-list";
+import { SLIDESHOW_SLIDE_SECONDS } from "@/components/levels/levels-symbol-strip";
 import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
 import {
   deriveZoneStatus,
@@ -135,6 +136,7 @@ export default function LevelsPage() {
   const [inZoneChartData, setInZoneChartData] = useState<PublicLevels | null>(null);
   const [inZoneChartLoading, setInZoneChartLoading] = useState(false);
   const [slideshowPaused, setSlideshowPaused] = useState(false);
+  const [slideshowCountdown, setSlideshowCountdown] = useState(SLIDESHOW_SLIDE_SECONDS);
   const [bubblesHideNeutral, setBubblesHideNeutral] = useState(false);
   const [chartFullHistory, setChartFullHistory] = useState(false);
   const nativeChartRef = useRef<NativeCandlesChartHandle>(null);
@@ -280,7 +282,10 @@ export default function LevelsPage() {
   const slideshowEnabled = viewMode === "slideshow" && inZoneCount > 1;
 
   const toggleSlideshowPause = useCallback(() => {
-    setSlideshowPaused((p) => !p);
+    setSlideshowPaused((p) => {
+      if (p) setSlideshowCountdown(SLIDESHOW_SLIDE_SECONDS);
+      return !p;
+    });
   }, []);
 
   const scheduleNote = "Updates Mon–Fri during market hours";
@@ -343,10 +348,23 @@ export default function LevelsPage() {
   );
 
   useEffect(() => {
+    setSlideshowCountdown(SLIDESHOW_SLIDE_SECONDS);
+  }, [inZoneCurrent, zoneFilter, viewMode]);
+
+  useEffect(() => {
     if (slideshowPaused || viewMode !== "slideshow" || inZoneCount <= 1) return;
-    const id = setTimeout(() => setInZoneSlide((s) => (s + 1) % inZoneCount), 8000);
-    return () => clearTimeout(id);
-  }, [inZoneCurrent, inZoneCount, viewMode, slideshowPaused]);
+    const id = setInterval(() => {
+      setSlideshowCountdown((c) => c - 1);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [slideshowPaused, viewMode, inZoneCount, inZoneCurrent, zoneFilter]);
+
+  useEffect(() => {
+    if (slideshowCountdown > 0) return;
+    if (slideshowPaused || viewMode !== "slideshow" || inZoneCount <= 1) return;
+    setInZoneSlide((s) => (s + 1) % inZoneCount);
+    setSlideshowCountdown(SLIDESHOW_SLIDE_SECONDS);
+  }, [slideshowCountdown, slideshowPaused, viewMode, inZoneCount]);
 
   useEffect(() => {
     if (inZoneCount === 0) setInZoneSlide(0);
@@ -622,6 +640,7 @@ export default function LevelsPage() {
                         enabled: true,
                         paused: slideshowPaused,
                         onToggle: toggleSlideshowPause,
+                        secondsRemaining: slideshowCountdown,
                       }
                     : undefined
                 }

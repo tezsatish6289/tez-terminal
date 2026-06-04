@@ -55,6 +55,7 @@ export function LevelsSlideshowToolbar({
     enabled: boolean;
     paused: boolean;
     onToggle: () => void;
+    secondsRemaining?: number;
   };
   /** Icon box beside play/pause on slideshow strip row. */
   viewModeToggle?: {
@@ -116,7 +117,7 @@ export function LevelsSlideshowToolbar({
         onClick: chartShortcuts.onToggleSlideshowPause,
         tone: paused ? "paused" : "default-muted",
         ariaLabel: paused
-          ? "Resume auto-advancing symbols every 8 seconds. Press P or click."
+          ? "Resume auto-advancing symbols every 60 seconds. Press P or click."
           : "Stop auto-advancing symbols. Press P or click.",
       });
     }
@@ -127,7 +128,7 @@ export function LevelsSlideshowToolbar({
   if (filtersOnly) {
     return (
       <div
-        className={`shrink-0 flex items-stretch gap-1.5 sm:gap-2 mb-1.5 px-0.5 min-w-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}
+        className={`shrink-0 flex items-end gap-1.5 sm:gap-2 mb-1.5 px-0.5 min-w-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}
       >
         <LevelsSlideshowStripControls
           zoneFilter={zoneFilter}

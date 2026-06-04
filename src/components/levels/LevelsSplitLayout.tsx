@@ -264,7 +264,7 @@ export function LevelsChartPanel({
         {(refreshedLabel || autoAdvanceNote) && (
           <p className="text-[10px] leading-snug" style={{ color: "#64748b" }}>
             {refreshedLabel ?? "Awaiting refresh"}
-            {autoAdvanceNote && slideCount > 1 && !slideshowPaused ? " · 8s" : ""}
+            {autoAdvanceNote && slideCount > 1 && !slideshowPaused ? " · 60s" : ""}
             {autoAdvanceNote && slideCount > 1 && slideshowPaused ? (
               <span style={{ color: "#f472b6" }}> · slideshow paused</span>
             ) : null}
@@ -324,7 +324,7 @@ export function LevelsChartMetaFooter({
       {refreshedLabel && (
         <p className="text-[10px] leading-snug" style={{ color: "#64748b" }}>
           {refreshedLabel}
-          {autoAdvanceNote && slideCount > 1 && !slideshowPaused ? " · 8s" : ""}
+          {autoAdvanceNote && slideCount > 1 && !slideshowPaused ? " · 60s" : ""}
           {autoAdvanceNote && slideCount > 1 && slideshowPaused ? (
             <span style={{ color: "#f472b6" }}> · slideshow paused</span>
           ) : null}

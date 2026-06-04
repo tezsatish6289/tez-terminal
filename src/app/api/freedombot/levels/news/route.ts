@@ -1,6 +1,8 @@
 /**
  * /api/freedombot/levels/news?scope=stock&symbol=ASTRAL&window=28
- * /api/freedombot/levels/news?scope=index&symbol=NIFTYNXT50&window=14
+ * /api/freedombot/levels/news?scope=index&symbol=NIFTY&window=28
+ *
+ * Default window is 28 days (4 weeks). Response includes AI sentiment score + label.
  *
  * AI-grounded recent news + citations for the levels chart side panel.
  * Cached server-side (Firestore + memory) so grounded calls are rare.

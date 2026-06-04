@@ -2,12 +2,36 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, Loader2, Newspaper, RefreshCw } from "lucide-react";
-import type { LevelsNews, NewsWindow } from "@/lib/levels/news";
+import {
+  LEVELS_NEWS_WINDOW_DAYS,
+  type LevelsNews,
+  type NewsSentiment,
+  type NewsSentimentLabel,
+} from "@/lib/levels/news";
 
-const WINDOW_OPTIONS: { value: NewsWindow; label: string }[] = [
-  { value: 28, label: "4 weeks" },
-  { value: 14, label: "2 weeks" },
-];
+const SENTIMENT_DISPLAY: Record<
+  NewsSentimentLabel,
+  { label: string; bg: string; border: string; text: string }
+> = {
+  bullish: {
+    label: "Bullish",
+    bg: "rgba(34,197,94,0.14)",
+    border: "rgba(134,239,172,0.45)",
+    text: "#86efac",
+  },
+  neutral: {
+    label: "Neutral",
+    bg: "rgba(100,116,139,0.12)",
+    border: "rgba(148,163,184,0.35)",
+    text: "#94a3b8",
+  },
+  bearish: {
+    label: "Bearish",
+    bg: "rgba(239,68,68,0.12)",
+    border: "rgba(252,165,165,0.45)",
+    text: "#fca5a5",
+  },
+};
 
 function hostname(url: string): string {
   try {
@@ -27,9 +51,36 @@ function timeAgo(iso: string): string {
   return `${Math.round(hrs / 24)}d ago`;
 }
 
+function NewsSentimentBadge({ sentiment }: { sentiment: NewsSentiment }) {
+  const style = SENTIMENT_DISPLAY[sentiment.label];
+  return (
+    <div
+      className="flex flex-col items-end gap-0.5 shrink-0 max-w-[9.5rem]"
+      title={sentiment.note}
+    >
+      <span
+        className="px-2 py-0.5 rounded-md text-[11px] font-black uppercase tracking-wider tabular-nums"
+        style={{
+          color: style.text,
+          backgroundColor: style.bg,
+          border: `1px solid ${style.border}`,
+        }}
+      >
+        {sentiment.score} · {style.label}
+      </span>
+      <span
+        className="text-[9px] leading-tight text-right line-clamp-2"
+        style={{ color: "#64748b" }}
+      >
+        {sentiment.note}
+      </span>
+    </div>
+  );
+}
+
 /**
  * Right-rail recent news for a levels symbol (stock or index).
- * AI-grounded summary + citations from /api/freedombot/levels/news.
+ * AI-grounded 4-week summary + sentiment + citations from /api/freedombot/levels/news.
  */
 export function LevelsNewsPanel({
   scope,
@@ -40,7 +91,6 @@ export function LevelsNewsPanel({
   symbol: string;
   className?: string;
 }) {
-  const [window, setWindow] = useState<NewsWindow>(28);
   const [news, setNews] = useState<LevelsNews | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +101,7 @@ export function LevelsNewsPanel({
     setError(null);
     try {
       const res = await fetch(
-        `/api/freedombot/levels/news?scope=${encodeURIComponent(scope)}&symbol=${encodeURIComponent(symbol)}&window=${window}`,
+        `/api/freedombot/levels/news?scope=${encodeURIComponent(scope)}&symbol=${encodeURIComponent(symbol)}&window=${LEVELS_NEWS_WINDOW_DAYS}`,
         { cache: "no-store" },
       );
       const json = (await res.json()) as { ok: boolean; news?: LevelsNews; error?: string };
@@ -67,7 +117,7 @@ export function LevelsNewsPanel({
     } finally {
       setLoading(false);
     }
-  }, [scope, symbol, window]);
+  }, [scope, symbol]);
 
   useEffect(() => {
     void load();
@@ -82,38 +132,36 @@ export function LevelsNewsPanel({
       }}
     >
       <div
-        className="shrink-0 flex items-center justify-between gap-2 px-3 py-2"
+        className="shrink-0 flex items-start justify-between gap-2 px-3 py-2"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
       >
-        <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0 pt-0.5">
           <Newspaper className="h-4 w-4 shrink-0" style={{ color: "#60a5fa" }} />
-          <span
-            className="text-[13px] font-black uppercase tracking-[0.12em] truncate"
-            style={{ color: "#e2e8f0" }}
-          >
-            Recent News
-          </span>
+          <div className="min-w-0">
+            <span
+              className="text-[13px] font-black uppercase tracking-[0.12em] truncate block"
+              style={{ color: "#e2e8f0" }}
+            >
+              Recent News
+            </span>
+            <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "#475569" }}>
+              4 weeks
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
-          {WINDOW_OPTIONS.map((opt) => {
-            const active = window === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setWindow(opt.value)}
-                className="px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-colors"
-                style={{
-                  color: active ? "#dbeafe" : "#64748b",
-                  backgroundColor: active ? "rgba(37,99,235,0.28)" : "transparent",
-                  border: `1px solid ${active ? "rgba(59,130,246,0.4)" : "rgba(255,255,255,0.06)"}`,
-                }}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
-        </div>
+        {news ? (
+          <NewsSentimentBadge
+            sentiment={
+              news.sentiment ?? {
+                label: "neutral",
+                score: 50,
+                note: news.stale
+                  ? "Cached summary — refresh for sentiment score."
+                  : "Sentiment not available.",
+              }
+            }
+          />
+        ) : null}
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2.5 [scrollbar-width:thin]">

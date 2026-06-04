@@ -9,6 +9,7 @@ import { useUser, useAuth } from "@/firebase";
 import { initiateGoogleSignIn } from "@/firebase/non-blocking-login";
 
 import { isFreedomBotDashboardPath } from "@/lib/freedombot/dashboard-path";
+import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
 
 export function FreedomBotNav() {
   const pathname = usePathname();
@@ -87,7 +88,7 @@ export function FreedomBotNav() {
           backdropFilter: "blur(20px)",
         }}
       >
-        <div className="max-w-[1200px] mx-auto w-full px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-3 min-w-0">
+        <div className={`${FB_CONTENT_SHELL} h-14 sm:h-16 flex items-center justify-between gap-3 min-w-0`}>
           {/* Logo */}
           <Link href={pathBase || "/"} className="flex items-center gap-2 min-w-0 flex-shrink">
             <Image

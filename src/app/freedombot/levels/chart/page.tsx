@@ -13,6 +13,7 @@ import {
   type LevelsTvScope,
 } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
+import { FB_FULL_HEIGHT_MAIN } from "@/lib/freedombot/responsive";
 
 /** Deep-dive: full viewport width; slideshow keeps max-w-[100rem] + side list. */
 const CHART_PAGE_SHELL = "w-full max-w-none flex flex-col flex-1 min-h-0";
@@ -132,12 +133,12 @@ function ChartContent() {
 
   return (
     <main
-      className="h-[calc(100dvh-3.5rem)] sm:h-[calc(100dvh-4rem)] overflow-hidden flex flex-col"
+      className={`${FB_FULL_HEIGHT_MAIN} min-w-0`}
       style={{ backgroundColor: "#060912" }}
     >
-      <div className={`${CHART_PAGE_SHELL} px-2 sm:px-3 py-2 sm:py-2.5 overflow-hidden`}>
-        <div className="shrink-0 flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 sm:gap-2">
-          <div className="min-w-0 flex flex-col gap-0 leading-tight">
+      <div className={`${CHART_PAGE_SHELL} px-2 sm:px-3 py-2 sm:py-2.5 overflow-hidden min-w-0`}>
+        <div className="shrink-0 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-x-2 min-w-0">
+          <div className="min-w-0 flex-1 flex flex-col gap-0 leading-tight">
             <h1
               className="text-base sm:text-lg font-black tracking-tight truncate"
               style={{ color: "#f8fafc" }}

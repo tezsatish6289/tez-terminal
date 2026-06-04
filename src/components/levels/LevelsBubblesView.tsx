@@ -281,8 +281,8 @@ export function LevelsBubblesView({
     <div className="flex flex-col flex-1 min-h-0 h-full">
       <style dangerouslySetInnerHTML={{ __html: BUBBLE_ANIM_CSS }} />
 
-      <div className="shrink-0 flex flex-wrap items-center gap-x-2 gap-y-2 mb-2 px-0.5">
-        <div className="relative w-full sm:w-auto sm:min-w-[11rem] sm:max-w-[14rem] flex-1 sm:flex-none order-1">
+      <div className="shrink-0 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center mb-2 px-0.5 min-w-0">
+        <div className="relative w-full sm:w-auto sm:min-w-[11rem] sm:max-w-[14rem] sm:flex-none order-1 min-w-0">
           <Search
             className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none"
             style={{ color: BLACKBOARD_CHALK_DIM }}
@@ -314,22 +314,27 @@ export function LevelsBubblesView({
             Hide unscanned
           </label>
         ) : null}
-        <span
-          className="text-[9px] font-bold uppercase tracking-wide shrink-0"
-          style={{ color: "#64748b" }}
-        >
-          {filtered.length} shown · {items.length} total
-          {actionableCount > 0 ? ` · ${actionableCount} in-zone setups` : ""}
-        </span>
-
-        <BubbleChip tone="IN_BULL" count={counts.IN_BULL ?? 0} />
-        <BubbleChip tone="NEAR_BULL" count={counts.NEAR_BULL ?? 0} />
-        <BubbleChip tone="IN_BEAR" count={counts.IN_BEAR ?? 0} />
-        <BubbleChip tone="NEAR_BEAR" count={counts.NEAR_BEAR ?? 0} />
-        <BubbleChip tone="UNSCANNED" count={counts.UNSCANNED ?? 0} />
+        <div className="w-full min-w-0 overflow-x-auto pb-0.5 order-2 sm:order-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 w-max sm:w-auto min-w-0">
+            <span
+              className="text-[9px] font-bold uppercase tracking-wide shrink-0"
+              style={{ color: "#64748b" }}
+            >
+              {filtered.length} shown · {items.length} total
+              {actionableCount > 0 ? ` · ${actionableCount} in-zone` : ""}
+            </span>
+            <BubbleChip tone="IN_BULL" count={counts.IN_BULL ?? 0} />
+            <BubbleChip tone="NEAR_BULL" count={counts.NEAR_BULL ?? 0} />
+            <BubbleChip tone="IN_BEAR" count={counts.IN_BEAR ?? 0} />
+            <BubbleChip tone="NEAR_BEAR" count={counts.NEAR_BEAR ?? 0} />
+            <BubbleChip tone="UNSCANNED" count={counts.UNSCANNED ?? 0} />
+          </div>
+        </div>
 
         {headerActions ? (
-          <div className="ml-auto flex items-center shrink-0">{headerActions}</div>
+          <div className="w-full sm:w-auto sm:ml-auto flex items-center shrink-0 order-3 sm:order-none">
+            {headerActions}
+          </div>
         ) : null}
       </div>
 

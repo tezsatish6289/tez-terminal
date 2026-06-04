@@ -31,6 +31,7 @@ import {
   sortTradesForDashboard,
 } from "@/lib/freedombot/trade-display";
 import { tradeMatchesDeployBot } from "@/lib/freedombot/trade-bot-match";
+import { FB_COMPACT_SHELL, FB_DASHBOARD_DETAIL_SHELL } from "@/lib/freedombot/responsive";
 
 interface Deployment {
   id: string;
@@ -213,7 +214,7 @@ export default function BotDetailPage() {
 
   if (isUserLoading || deploymentsLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#080f1e" }}>
+      <div className="min-h-[50dvh] flex flex-1 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#3b82f6" }} />
       </div>
     );
@@ -221,7 +222,7 @@ export default function BotDetailPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#080f1e" }}>
+      <div className="min-h-[50dvh] flex flex-1 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#3b82f6" }} />
       </div>
     );
@@ -229,7 +230,7 @@ export default function BotDetailPage() {
 
   if (!deployment) {
     return (
-      <div className="min-h-screen px-4 py-12" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
+      <div className={`${FB_COMPACT_SHELL} py-12 min-w-0`}>
         <div className="max-w-lg mx-auto text-center space-y-4">
           <p className="text-lg font-black">Bot not found</p>
           <p className="text-sm" style={{ color: "#64748b" }}>
@@ -273,8 +274,8 @@ export default function BotDetailPage() {
       : { label: "Running", color: "#22c55e", bg: "rgba(34,197,94,0.1)", border: "rgba(34,197,94,0.25)" };
 
   return (
-    <div className="min-h-screen font-sans antialiased" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-4">
+    <>
+    <div className={`${FB_DASHBOARD_DETAIL_SHELL} py-4 sm:py-6 space-y-4 min-w-0`}>
         <Link
           href={dashboardHref}
           className="inline-flex items-center gap-2 text-xs font-bold transition-colors hover:text-white"
@@ -495,6 +496,6 @@ export default function BotDetailPage() {
         lifetimeRealizedPnl={tradesAggregates?.lifetimeRealizedPnl ?? deployment.lifetimeRealizedPnl ?? null}
         onMutated={handleSettingsMutated}
       />
-    </div>
+    </>
   );
 }

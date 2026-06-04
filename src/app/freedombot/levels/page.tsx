@@ -28,6 +28,7 @@ import {
   buildLevelsActionableList,
   type LevelsActionableItem,
 } from "@/lib/zones/levels-actionable-list";
+import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
 import {
   deriveZoneStatus,
   type PocDirectionFilter,
@@ -477,6 +478,7 @@ export default function LevelsPage() {
         entries={inZoneEntries}
         activeIndex={inZoneCurrent}
         onSelect={setInZoneSlide}
+        layout="responsive"
       />,
       inZoneActive ? (
         inZoneNativeChart ? (
@@ -531,6 +533,7 @@ export default function LevelsPage() {
   const viewToggleButton = (
     <LevelsSlideshowCta
       label={viewToggleLabel}
+      shortLabel={viewMode === "bubbles" ? "Slideshow" : "Bubbles"}
       onClick={toggleViewMode}
       title={viewToggleShortcut}
     />
@@ -538,14 +541,14 @@ export default function LevelsPage() {
 
   return (
     <main
-      className="h-[calc(100dvh-3.5rem)] sm:h-[calc(100dvh-4rem)] overflow-hidden flex flex-col shrink-0"
+      className={`${FB_FULL_HEIGHT_MAIN} shrink-0 min-w-0`}
       style={{
         backgroundColor: "#060912",
         backgroundImage: HEX_BG,
         backgroundSize: "100% 100%, 48px 48px, 48px 48px, 100% 100%",
       }}
     >
-      <div className="flex-1 min-h-0 w-full max-w-[100rem] mx-auto p-4 sm:p-5 flex flex-col overflow-hidden">
+      <div className={`${FB_LEVELS_SHELL} flex-1 min-h-0 flex flex-col overflow-hidden`}>
         {loading ? (
           <div className="flex flex-1 items-center justify-center py-24">
             <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
@@ -563,6 +566,7 @@ export default function LevelsPage() {
                 chartShortcuts={viewMode === "slideshow" ? slideshowChartShortcuts : null}
                 viewToggle={{
                   label: viewToggleLabel,
+                  shortLabel: viewMode === "bubbles" ? "Slideshow" : "Bubbles",
                   onClick: toggleViewMode,
                   title: viewToggleShortcut,
                 }}

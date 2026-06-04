@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Shield, Lock, Eye, Server, Trash2, Mail } from "lucide-react";
+import { FB_NARROW_SHELL } from "@/lib/freedombot/responsive";
 
 export const metadata = {
   title: "Privacy Policy — FreedomBot.ai",
@@ -75,11 +76,7 @@ function BulletRow({ label, value }: { label: string; value: React.ReactNode }) 
 
 export default function PrivacyPage() {
   return (
-    <div
-      className="min-h-screen font-sans antialiased"
-      style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}
-    >
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
+    <div className={`${FB_NARROW_SHELL} py-12 sm:py-20 min-w-0`}>
         <Link
           href="/"
           className="flex items-center gap-2 text-sm mb-12 transition-colors hover:text-blue-300 w-fit"
@@ -470,11 +467,10 @@ export default function PrivacyPage() {
         <p className="text-center mt-12 text-xs" style={{ color: "#334155" }}>
           FreedomBot.ai · Trading involves risk. Past performance does not guarantee future results.
         </p>
-      </div>
 
       {/* Footer */}
       <footer className="py-10" style={{ borderTop: "1px solid rgba(90,140,220,0.1)" }}>
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs" style={{ color: "#334155" }}>
             © 2026 FreedomBot.ai
           </p>

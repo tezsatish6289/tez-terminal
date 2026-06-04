@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Rocket,
 } from "lucide-react";
+import { FB_DOC_SHELL } from "@/lib/freedombot/responsive";
 
 export const metadata: Metadata = {
   title: "How It Works — FreedomBot.ai",
@@ -80,11 +81,7 @@ function Bullet({ children }: { children: React.ReactNode }) {
 
 export default function MethodologyPage() {
   return (
-    <div
-      className="min-h-screen font-sans antialiased overflow-x-hidden"
-      style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}
-    >
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-14">
+    <main className={`${FB_DOC_SHELL} py-8 sm:py-12 space-y-14 min-w-0`}>
 
         {/* ── Hero ── */}
         <div className="text-center py-6 sm:py-10 space-y-4">
@@ -380,11 +377,9 @@ export default function MethodologyPage() {
           </p>
         </div>
 
-      </main>
-
       {/* Footer */}
       <footer className="py-8 border-t" style={{ borderColor: "rgba(90,140,220,0.08)" }}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-70">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -404,6 +399,6 @@ export default function MethodologyPage() {
           </p>
         </div>
       </footer>
-    </div>
+    </main>
   );
 }

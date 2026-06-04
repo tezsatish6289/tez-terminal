@@ -37,6 +37,7 @@ export function LevelsSlideshowToolbar({
   } | null;
   viewToggle: {
     label: string;
+    shortLabel?: string;
     onClick: () => void;
     title?: string;
   };
@@ -103,10 +104,12 @@ export function LevelsSlideshowToolbar({
   }, [chartShortcuts]);
 
   return (
-    <div className="shrink-0 flex flex-wrap items-center gap-x-2 gap-y-2 mb-2 px-0.5">
-      <LevelsCtaCluster actions={filterActions} align="start" />
+    <div className="shrink-0 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center mb-2 px-0.5 min-w-0">
+      <div className="w-full min-w-0 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <LevelsCtaCluster actions={filterActions} align="start" />
+      </div>
 
-      <div className="ml-auto flex items-center gap-1.5 shrink-0">
+      <div className="w-full sm:w-auto sm:ml-auto flex flex-col xs:flex-row flex-wrap items-stretch sm:items-center justify-end gap-1.5 shrink-0 min-w-0">
         {shortcutActions.length > 0 ? (
           <LevelsCtaCluster
             actions={shortcutActions}
@@ -126,6 +129,7 @@ export function LevelsSlideshowToolbar({
         ) : null}
         <LevelsSlideshowCta
           label={viewToggle.label}
+          shortLabel={viewToggle.shortLabel}
           onClick={viewToggle.onClick}
           title={viewToggle.title}
         />

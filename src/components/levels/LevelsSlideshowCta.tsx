@@ -23,13 +23,17 @@ const RUNNER_MID = "rgba(203, 213, 225, 0.75)";
 /** View toggle only — blackboard fill + running light on the border. */
 export function LevelsSlideshowCta({
   label,
+  shortLabel,
   onClick,
   title,
 }: {
   label: string;
+  /** Shown below sm when label is long (e.g. view toggle). */
+  shortLabel?: string;
   onClick: () => void;
   title?: string;
 }) {
+  const displayLabel = shortLabel ?? label;
   const wrapRef = useRef<HTMLSpanElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
 
@@ -127,10 +131,11 @@ export function LevelsSlideshowCta({
           }}
         >
           <span
-            className="text-[9px] font-bold uppercase tracking-wide whitespace-nowrap"
+            className="text-[9px] font-bold uppercase tracking-wide sm:whitespace-nowrap max-w-[min(72vw,16rem)] sm:max-w-none truncate"
             style={{ color: BLACKBOARD_CHALK, lineHeight: 1.2 }}
           >
-            {label}
+            <span className="sm:hidden">{displayLabel}</span>
+            <span className="hidden sm:inline">{label}</span>
           </span>
           <span
             className="text-[8px] font-semibold uppercase tracking-wider whitespace-nowrap hidden sm:inline"

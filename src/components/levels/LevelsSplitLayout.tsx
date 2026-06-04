@@ -42,6 +42,7 @@ export function LevelsSymbolList({
   activeIndex,
   onSelect,
   emptyMessage = "Nothing to show yet.",
+  layout = "vertical",
 }: {
   countLabel?: string;
   header?: ReactNode;
@@ -49,6 +50,8 @@ export function LevelsSymbolList({
   activeIndex: number;
   onSelect: (index: number) => void;
   emptyMessage?: string;
+  /** Sidebar on desktop; horizontal strip on mobile (responsive = both). */
+  layout?: "vertical" | "horizontal" | "responsive";
 }) {
   if (!entries.length) {
     return (
@@ -70,16 +73,26 @@ export function LevelsSymbolList({
         </p>
       )}
       <div
-        className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5 pr-0.5"
-        style={{ scrollbarGutter: "stable" }}
+        className={
+          layout === "horizontal"
+            ? "flex-1 min-h-0 overflow-x-auto overflow-y-hidden flex flex-row gap-1.5 pb-1 pr-0.5 snap-x snap-mandatory [scrollbar-width:thin]"
+            : layout === "responsive"
+              ? "flex-1 min-h-0 overflow-x-auto overflow-y-hidden flex flex-row gap-1.5 pb-1 pr-0.5 snap-x snap-mandatory [scrollbar-width:thin] lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:snap-none lg:pb-0"
+              : "flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5 pr-0.5"
+        }
+        style={{ scrollbarGutter: layout === "horizontal" ? undefined : "stable" }}
       >
         {entries.map((entry, i) => {
           const active = i === activeIndex;
+          const stripCard =
+            layout === "horizontal" || layout === "responsive"
+              ? "min-w-[9.5rem] max-w-[11rem] snap-start lg:min-w-0 lg:max-w-none lg:snap-align-none"
+              : "";
           return (
             <button
               key={entry.id}
               onClick={() => onSelect(i)}
-              className="flex flex-col gap-1 px-3 py-2 rounded-lg text-left transition-all shrink-0"
+              className={`flex flex-col gap-1 px-3 py-2 rounded-lg text-left transition-all shrink-0 ${stripCard}`}
               style={{
                 backgroundColor: active ? "rgba(37,99,235,0.18)" : "rgba(255,255,255,0.02)",
                 border: `1px solid ${active ? "rgba(59,130,246,0.35)" : "rgba(255,255,255,0.05)"}`,
@@ -336,22 +349,22 @@ export function LevelsTripleColumnShell({
 }) {
   return (
     <div
-      className="flex flex-col lg:flex-row flex-1 min-h-0 gap-3 lg:gap-4 items-stretch pt-3 overflow-hidden"
+      className="flex flex-col lg:flex-row flex-1 min-h-0 gap-2 sm:gap-3 lg:gap-4 items-stretch pt-2 sm:pt-3 overflow-hidden min-w-0"
       style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
     >
-      <div className="flex flex-col min-h-0 w-full lg:w-[min(220px,22vw)] lg:shrink-0 lg:max-w-[240px]">
+      <div className="order-2 lg:order-none flex flex-col min-h-0 w-full min-w-0 max-h-[min(32dvh,240px)] sm:max-h-[min(36dvh,280px)] lg:max-h-none lg:w-[min(220px,22vw)] lg:shrink-0 lg:max-w-[240px]">
         {list}
       </div>
       <ColumnDivider />
       {!hideLevelsColumn && (
         <>
-          <div className="flex flex-col min-h-0 w-full lg:w-[min(300px,28vw)] lg:shrink-0 lg:max-w-[340px]">
+          <div className="hidden lg:flex flex-col min-h-0 w-full lg:w-[min(300px,28vw)] lg:shrink-0 lg:max-w-[340px]">
             {levels}
           </div>
           <ColumnDivider />
         </>
       )}
-      <div className="flex flex-col flex-1 min-w-0 min-h-[280px] lg:min-h-0 h-full">
+      <div className="order-1 lg:order-none flex flex-col flex-1 min-w-0 min-h-[min(46dvh,400px)] sm:min-h-[min(50dvh,460px)] lg:min-h-0 h-full">
         {chart}
       </div>
     </div>

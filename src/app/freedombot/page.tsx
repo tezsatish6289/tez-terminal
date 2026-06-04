@@ -25,6 +25,13 @@ import { freedombotDashboardBase, freedombotSitePath } from "@/lib/freedombot/da
 import { COUNTRIES, POPULAR_COUNTRY_CODES } from "@/lib/countries";
 import { CRYPTO_BOTS, type CryptoBotId } from "@/lib/crypto-bots";
 import type { PublicBotApiRow } from "@/hooks/use-public-bots";
+import {
+  FB_COMPACT_SHELL,
+  FB_DOC_SHELL,
+  FB_HERO_SHELL,
+  FB_MEDIUM_SHELL,
+  FB_NARROW_SHELL,
+} from "@/lib/freedombot/responsive";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -584,10 +591,7 @@ export default function FreedomBotPage() {
   }, []);
 
   return (
-    <div
-      className="min-h-screen font-sans antialiased"
-      style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}
-    >
+    <div className="font-sans antialiased min-w-0 flex flex-col flex-1">
       {/* Auto-open deploy modal from ?deploy=1 query param */}
       <Suspense fallback={null}>
         <DeployParamWatcher onDeploy={openDeploy} />
@@ -619,7 +623,7 @@ export default function FreedomBotPage() {
           />
         </div>
 
-        <div className="relative max-w-3xl mx-auto px-6 pt-28 pb-24 sm:pt-40 sm:pb-32 text-center">
+        <div className={`relative ${FB_HERO_SHELL} pt-20 pb-16 sm:pt-32 sm:pb-28 text-center`}>
           {/* Live badge */}
           <div className="flex justify-center mb-7">
             <div
@@ -693,7 +697,7 @@ export default function FreedomBotPage() {
         id="bots"
         className="py-20 sm:py-28"
       >
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className={FB_DOC_SHELL}>
           <div className="text-center mb-14">
             <div
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-5"
@@ -756,7 +760,7 @@ export default function FreedomBotPage() {
           SECTION 3 — TRUST / BLOCKCHAIN
       ══════════════════════════════════════════════════════════ */}
       <section className="py-16 sm:py-20 px-4 sm:px-6">
-        <div className="max-w-6xl mx-auto">
+        <div className={FB_DOC_SHELL}>
           <div
             className="rounded-3xl p-8 sm:p-12 grid md:grid-cols-2 gap-10 items-center"
             style={{ backgroundColor: "#0b1829", border: "1px solid rgba(90,140,220,0.15)" }}
@@ -834,7 +838,7 @@ export default function FreedomBotPage() {
           SECTION 3b — RISK DISCLOSURE
       ══════════════════════════════════════════════════════════ */}
       <section className="py-16 sm:py-24 px-4 sm:px-6">
-        <div className="max-w-6xl mx-auto">
+        <div className={FB_DOC_SHELL}>
           <div className="text-center mb-12">
             <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "#3b82f6" }}>Honest about risk</p>
             <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4">
@@ -894,7 +898,7 @@ export default function FreedomBotPage() {
           SECTION 4 — STATS + SOCIAL PROOF
       ══════════════════════════════════════════════════════════ */}
       <section className="py-16 sm:py-24 px-4 sm:px-6">
-        <div className="max-w-6xl mx-auto">
+        <div className={FB_DOC_SHELL}>
 
           {/* Testimonials */}
           <div className="text-center mb-10">
@@ -965,7 +969,7 @@ export default function FreedomBotPage() {
         id="pricing"
         className="py-16 sm:py-20 px-4 sm:px-6"
       >
-        <div className="max-w-3xl mx-auto">
+        <div className={FB_NARROW_SHELL}>
           <div className="text-center mb-10">
             <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "#3b82f6" }}>Pricing</p>
             <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-3">
@@ -1097,7 +1101,7 @@ export default function FreedomBotPage() {
           SECTION 6 — FAQ
       ══════════════════════════════════════════════════════════ */}
       <section id="faq" className="py-16 sm:py-24 px-4 sm:px-6">
-        <div className="max-w-3xl mx-auto">
+        <div className={FB_NARROW_SHELL}>
           {/* Header */}
           <div className="text-center mb-10">
             <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "#3b82f6" }}>FAQ</p>
@@ -1205,7 +1209,7 @@ export default function FreedomBotPage() {
           FINAL CTA SECTION
       ══════════════════════════════════════════════════════════ */}
       <section className="py-24 sm:py-32 px-4 sm:px-6">
-        <div className="max-w-2xl mx-auto text-center">
+        <div className={`${FB_COMPACT_SHELL} text-center`}>
           <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-5">
             Start small.{" "}
             <span
@@ -1237,7 +1241,7 @@ export default function FreedomBotPage() {
           INTEGRATIONS STRIP
       ══════════════════════════════════════════════════════════ */}
       <section className="py-12 px-4 sm:px-6" style={{ borderTop: "1px solid rgba(90,140,220,0.06)" }}>
-        <div className="max-w-4xl mx-auto text-center">
+        <div className={`${FB_MEDIUM_SHELL} text-center`}>
           <p className="text-[10px] font-bold uppercase tracking-widest mb-8" style={{ color: "#1e293b" }}>
             Powered by
           </p>
@@ -1283,7 +1287,7 @@ export default function FreedomBotPage() {
 
       {/* ── Footer ─────────────────────────────────────────────── */}
       <footer className="py-14 px-4 sm:px-6" style={{ borderTop: "1px solid rgba(90,140,220,0.08)" }}>
-        <div className="max-w-6xl mx-auto">
+        <div className={FB_DOC_SHELL}>
           <div className="grid sm:grid-cols-3 gap-10 mb-12">
             {/* Brand */}
             <div>

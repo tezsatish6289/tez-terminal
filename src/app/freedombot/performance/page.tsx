@@ -35,6 +35,9 @@ import {
 } from "@/components/stats/dashboard-section-spacing";
 import type { SimTrade } from "@/lib/simulator";
 import { useSearchParams } from "next/navigation";
+import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
+
+const DASHBOARD_SHELL = FB_CONTENT_SHELL;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -80,9 +83,6 @@ function fmtMoney(n: number | null | undefined) {
   if (n == null) return "—";
   return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
-
-/** Same width + card treatment as /stats (StatsDashboard). */
-const DASHBOARD_SHELL = "max-w-[1200px] mx-auto w-full px-4 sm:px-6";
 
 function SummaryCard({
   label,
@@ -278,9 +278,7 @@ function PerformancePageContent() {
   const yearlyIsProjected  = yearlyPnl.isProjected;
 
   return (
-    <div className="min-h-screen font-sans antialiased overflow-x-hidden" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
-
-      <main className={cn(DASHBOARD_SHELL, "py-8 space-y-6")}>
+    <main className={cn(DASHBOARD_SHELL, "py-6 sm:py-8 space-y-6 min-w-0 flex-1")}>
 
         {/* ── Hero header ── */}
         <div className="text-center py-4 sm:py-8 space-y-4">
@@ -479,8 +477,6 @@ function PerformancePageContent() {
           </Link>
         </div>
 
-      </main>
-
       {/* Footer */}
       <footer className="py-8 border-t" style={{ borderColor: "rgba(90,140,220,0.08)" }}>
         <div className={cn(DASHBOARD_SHELL, "flex flex-col sm:flex-row items-center justify-between gap-3")}>
@@ -493,6 +489,6 @@ function PerformancePageContent() {
           </p>
         </div>
       </footer>
-    </div>
+    </main>
   );
 }

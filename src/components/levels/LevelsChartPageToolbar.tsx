@@ -65,7 +65,7 @@ export function LevelsChartPageToolbar({
   );
 
   return (
-    <div className="shrink-0 flex flex-wrap items-center justify-end gap-x-2 gap-y-2">
+    <div className="shrink-0 w-full sm:w-auto flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-end gap-2 min-w-0">
       <LevelsCtaCluster
         actions={actions}
         align="end"
@@ -78,6 +78,7 @@ export function LevelsChartPageToolbar({
       />
       <LevelsSlideshowCta
         label="Switch to bubbles view"
+        shortLabel="Bubbles"
         onClick={goToBubbles}
         title="Return to Market Bubbles map. Press S or click."
       />

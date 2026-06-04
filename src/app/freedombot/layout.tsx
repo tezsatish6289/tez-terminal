@@ -5,6 +5,7 @@ import {
   FREEDOMBOT_WEBSITE_JSON_LD,
 } from "@/lib/seo/constants";
 import { FreedomBotNav } from "./components/FreedomBotNav";
+import { FB_PAGE_ROOT, FB_VIEWPORT_MAIN } from "@/lib/freedombot/responsive";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://freedombot.ai"),
@@ -58,10 +59,10 @@ export default function FreedomBotLayout({
   children: React.ReactNode;
 }) {
   return (
-    <>
+    <div className={FB_PAGE_ROOT} style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
       <JsonLd data={[FREEDOMBOT_ORGANIZATION_JSON_LD, FREEDOMBOT_WEBSITE_JSON_LD]} />
       <FreedomBotNav />
-      {children}
-    </>
+      <div className={FB_VIEWPORT_MAIN}>{children}</div>
+    </div>
   );
 }

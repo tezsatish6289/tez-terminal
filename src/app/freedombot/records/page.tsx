@@ -25,6 +25,7 @@ import {
   calcHeadlineYearlyReturn,
   MIN_DAYS_FOR_RELIABLE_ANNUALIZATION,
 } from "@/lib/performance-metrics";
+import { FB_WIDE_SHELL } from "@/lib/freedombot/responsive";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -576,11 +577,7 @@ export default function RecordsPage() {
   const isLoading = statsLoading || tradesLoading || publicBotsLoading;
 
   return (
-    <div
-      className="min-h-screen font-sans antialiased"
-      style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}
-    >
-      <main className="w-full max-w-[1440px] mx-auto px-4 sm:px-8 py-12">
+    <main className={`${FB_WIDE_SHELL} py-6 sm:py-10 min-w-0 flex-1`}>
         {/* Page header */}
         <div className="mb-10 max-w-2xl">
           <h1 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4 leading-[1.05]">
@@ -709,11 +706,10 @@ export default function RecordsPage() {
             </div>
           </div>
         )}
-      </main>
 
       {/* Footer */}
       <footer className="py-8 mt-10" style={{ borderTop: "1px solid rgba(90,140,220,0.08)" }}>
-        <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-70">
             <Image src="/freedombot/icon.png" alt="FreedomBot.ai" width={28} height={28} className="rounded-lg object-contain" />
             <span className="text-xs font-bold" style={{ color: "#334155" }}>freedombot.ai</span>
@@ -723,6 +719,6 @@ export default function RecordsPage() {
           </p>
         </div>
       </footer>
-    </div>
+    </main>
   );
 }

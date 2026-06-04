@@ -24,6 +24,7 @@ import {
 import { ExchangeCapitalCurve } from "@/components/freedombot/dashboard/ExchangeCapitalCurve";
 import { freedombotDashboardBase, freedombotHomePath } from "@/lib/freedombot/dashboard-path";
 import { CRYPTO_PERP_EXCHANGES } from "@/lib/crypto-bots";
+import { FB_DOC_SHELL, FB_MEDIUM_SHELL } from "@/lib/freedombot/responsive";
 
 const CRYPTO_EXCHANGES = new Set<string>(CRYPTO_PERP_EXCHANGES);
 
@@ -40,7 +41,7 @@ function NotConnected({ onDeploy }: { onDeploy: () => void }) {
   const { bots: publicBots } = usePublicBots();
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-20">
+    <div className={`${FB_MEDIUM_SHELL} py-10 sm:py-16 min-w-0`}>
       <div className="text-center mb-16">
         <div
           className="relative p-1 rounded-3xl inline-block mb-8"
@@ -125,7 +126,7 @@ function ConnectedDashboard({
       : [...new Set(deployments.map((d) => d.exchange).filter(Boolean))];
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-10">
+    <div className={`${FB_DOC_SHELL} py-6 sm:py-8 space-y-8 sm:space-y-10 min-w-0`}>
       <DashboardSummary
         user={user}
         deployments={deployments}
@@ -151,7 +152,7 @@ export default function FreedomBotDashboard() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#080f1e" }}>
+        <div className="min-h-[50dvh] flex flex-1 items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#3b82f6" }} />
         </div>
       }
@@ -336,7 +337,7 @@ function FreedomBotDashboardInner() {
 
   if (isUserLoading || deployments === undefined || summary === undefined) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#080f1e" }}>
+      <div className="min-h-[50dvh] flex flex-1 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#3b82f6" }} />
       </div>
     );
@@ -344,14 +345,14 @@ function FreedomBotDashboardInner() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#080f1e" }}>
+      <div className="min-h-[50dvh] flex flex-1 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#3b82f6" }} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen font-sans antialiased" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
+    <div className="min-w-0 flex flex-col flex-1">
       {!deployments.length ? (
         <NotConnected onDeploy={() => setDeployOpen(true)} />
       ) : (

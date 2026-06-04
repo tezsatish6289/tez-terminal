@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Send, CheckCircle2, Loader2, ChevronDown } from "lucide-react";
 import { COUNTRIES, POPULAR_COUNTRY_CODES } from "@/lib/countries";
+import { FB_COMPACT_SHELL } from "@/lib/freedombot/responsive";
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: "", mobile: "", email: "", country: "", message: "" });
@@ -50,8 +51,7 @@ export default function ContactPage() {
   };
 
   return (
-    <div className="min-h-screen font-sans antialiased" style={{ backgroundColor: "#080f1e", color: "#f0f4ff" }}>
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
+    <div className={`${FB_COMPACT_SHELL} py-12 sm:py-20 min-w-0`}>
         <Link href="/" className="flex items-center gap-2 text-sm mb-12 transition-colors hover:text-blue-300 w-fit" style={{ color: "#64748b" }}>
           <ArrowLeft className="h-4 w-4" /> Back to home
         </Link>
@@ -227,11 +227,10 @@ export default function ContactPage() {
             </p>
           </form>
         )}
-      </div>
 
       {/* Footer */}
       <footer className="py-10" style={{ borderTop: "1px solid rgba(90,140,220,0.1)" }}>
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs" style={{ color: "#334155" }}>© 2026 FreedomBot.ai</p>
           <div className="flex gap-6">
             <Link href="/privacy" className="text-xs transition-colors hover:text-blue-300" style={{ color: "#475569" }}>Privacy</Link>

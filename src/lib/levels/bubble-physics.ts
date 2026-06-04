@@ -104,17 +104,23 @@ export function createPhysicsNodes<T extends BubblePhysicsItem>(
 }
 
 /** Gentle drift, wall bounce, soft collisions (Banter-style float). */
-export function stepPhysics(nodes: PhysicsNode[], width: number, height: number): void {
-  if (width < 40 || height < 40 || nodes.length === 0) return;
+export function stepPhysics(
+  nodes: PhysicsNode[],
+  width: number,
+  height: number,
+  intensity = 1,
+): void {
+  if (width < 40 || height < 40 || nodes.length === 0 || intensity <= 0) return;
 
   const edgePad = 10;
   const collidePad = 5;
-  const damp = 0.988;
-  const maxSpeed = 0.95;
+  const damp = 0.988 - (1 - intensity) * 0.04;
+  const maxSpeed = 0.95 * intensity;
+  const drift = 0.004 * intensity;
 
   for (const n of nodes) {
-    n.vx += (Math.random() - 0.5) * 0.008;
-    n.vy += (Math.random() - 0.5) * 0.008;
+    n.vx += (Math.random() - 0.5) * drift;
+    n.vy += (Math.random() - 0.5) * drift;
     const sp = Math.hypot(n.vx, n.vy);
     if (sp > maxSpeed) {
       n.vx = (n.vx / sp) * maxSpeed;

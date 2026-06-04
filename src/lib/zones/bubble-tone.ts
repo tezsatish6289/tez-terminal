@@ -141,3 +141,22 @@ export function deriveBubbleTone(bands: ZoneBands, scanned: boolean): BubbleTone
   if (spot == null || !Number.isFinite(spot)) return "ILLIQUID";
   return nearestBandKind(bands, spot) === "bull" ? "NEAR_BULL" : "NEAR_BEAR";
 }
+
+/**
+ * Bubble-map tone: solid in-zone only when the symbol passes the same actionable
+ * gate as the slideshow (directional + min POC RR). Otherwise geographic
+ * in-zone is shown as near-zone styling.
+ */
+export function deriveBubbleDisplayTone(
+  bands: ZoneBands,
+  scanned: boolean,
+  meetsActionableSetup: boolean,
+): BubbleTone {
+  const raw = deriveBubbleTone(bands, scanned);
+  if (meetsActionableSetup && (raw === "IN_BULL" || raw === "IN_BEAR")) {
+    return raw;
+  }
+  if (raw === "IN_BULL") return "NEAR_BULL";
+  if (raw === "IN_BEAR") return "NEAR_BEAR";
+  return raw;
+}

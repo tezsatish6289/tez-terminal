@@ -24,7 +24,11 @@ import {
   BLACKBOARD_FIELD_BG,
   BLACKBOARD_FIELD_BORDER,
 } from "@/lib/levels/cta-blackboard";
-import { BUBBLE_TONE_STYLE, deriveBubbleTone, type BubbleTone } from "@/lib/zones/bubble-tone";
+import {
+  BUBBLE_TONE_STYLE,
+  deriveBubbleDisplayTone,
+  type BubbleTone,
+} from "@/lib/zones/bubble-tone";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
 import type { ZoneBands } from "@/lib/zones/zone-status";
@@ -116,7 +120,7 @@ export function LevelsBubblesView({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<PhysicsNode<LevelsBubbleItem>[]>([]);
-  const elRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const elRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const prevTonesRef = useRef<Map<string, BubbleTone>>(new Map());
   const rafRef = useRef<number>(0);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -128,16 +132,26 @@ export function LevelsBubblesView({
   const syncSize = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
-    setSize({ w: el.clientWidth, h: el.clientHeight });
+    const w = el.clientWidth;
+    const h = el.clientHeight;
+    if (w < 40 || h < 40) return;
+    setSize({ w, h });
   }, []);
 
   useEffect(() => {
     syncSize();
     const el = containerRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(syncSize);
+    let debounceId = 0;
+    const ro = new ResizeObserver(() => {
+      window.clearTimeout(debounceId);
+      debounceId = window.setTimeout(syncSize, 120);
+    });
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      window.clearTimeout(debounceId);
+      ro.disconnect();
+    };
   }, [syncSize]);
 
   const filtered = useMemo(() => {
@@ -175,9 +189,9 @@ export function LevelsBubblesView({
       return;
     }
     setLayoutReady(false);
-    const t = window.setTimeout(() => setLayoutReady(true), 200);
+    const t = window.setTimeout(() => setLayoutReady(true), 400);
     return () => window.clearTimeout(t);
-  }, [size.w, size.h, filteredIds]);
+  }, [size.w, size.h]);
 
   const counts = useMemo(() => {
     const m: Partial<Record<BubbleTone, number>> = {};
@@ -230,13 +244,13 @@ export function LevelsBubblesView({
       for (const n of nodesRef.current) {
         const el = elRefs.current.get(n.id);
         if (!el) continue;
-        el.style.left = `${n.x - n.r}px`;
-        el.style.top = `${n.y - n.r}px`;
-        el.style.width = `${n.r * 2}px`;
-        el.style.height = `${n.r * 2}px`;
+        const d = n.r * 2;
+        el.style.width = `${d}px`;
+        el.style.height = `${d}px`;
+        el.style.transform = `translate3d(${n.x - n.r}px, ${n.y - n.r}px, 0)`;
         const baseZ = n.item.scope === "index" ? 12 : 8;
         el.style.zIndex = String(
-          n.item.meetsActionableFilter && isInZoneTone(n.item.tone) ? baseZ + 6 : baseZ,
+          isInZoneTone(n.item.tone) ? baseZ + 8 : baseZ,
         );
       }
     };
@@ -245,8 +259,10 @@ export function LevelsBubblesView({
 
     const loop = () => {
       physicsFrameRef.current += 1;
-      if (physicsFrameRef.current > 45) {
-        stepPhysics(nodesRef.current, size.w, size.h);
+      const frame = physicsFrameRef.current;
+      if (frame > 60) {
+        const t = Math.min(1, (frame - 60) / 90);
+        stepPhysics(nodesRef.current, size.w, size.h, 0.25 + t * 0.35);
       }
       applyPositions();
       rafRef.current = requestAnimationFrame(loop);
@@ -254,9 +270,9 @@ export function LevelsBubblesView({
     rafRef.current = requestAnimationFrame(loop);
 
     return () => cancelAnimationFrame(rafRef.current);
-  }, [filteredIds, size.w, size.h, filtered, layoutReady]);
+  }, [filteredIds, size.w, size.h, layoutReady]);
 
-  const setBubbleRef = useCallback((id: string, el: HTMLButtonElement | null) => {
+  const setBubbleRef = useCallback((id: string, el: HTMLDivElement | null) => {
     if (el) elRefs.current.set(id, el);
     else elRefs.current.delete(id);
   }, []);
@@ -352,50 +368,45 @@ export function LevelsBubblesView({
               item.scope === "index"
                 ? style.borderWidth + INDEX_BORDER_EXTRA_PX
                 : style.borderWidth;
-            const actionable = Boolean(item.meetsActionableFilter);
-            const ring =
-              actionable && (item.tone === "IN_BULL" || item.tone === "IN_BEAR")
-                ? `0 0 0 2px ${style.border}, 0 0 14px ${style.border}`
-                : "";
-
             return (
-              <button
+              <div
                 key={item.id}
                 ref={(el) => setBubbleRef(item.id, el)}
-                type="button"
-                onClick={() => onBubbleOpen(item)}
-                className={`absolute flex flex-col items-center justify-center rounded-full hover:scale-[1.05] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 cursor-pointer will-change-[left,top] ${popAnim}`}
-                style={{
-                  left: 0,
-                  top: 0,
-                  width: r * 2,
-                  height: r * 2,
-                  background: style.fill,
-                  border: `${borderW}px ${style.borderStyle} ${style.border}`,
-                  boxShadow: ring || style.glow,
-                  transition:
-                    "box-shadow 0.35s ease, background 0.35s ease, border-color 0.35s ease, border-width 0.35s ease",
-                }}
-                aria-label={`${item.label}, ${style.label}`}
-                title={`${item.label} · ${style.label} — click for chart`}
+                className="absolute left-0 top-0 will-change-transform"
+                style={{ width: r * 2, height: r * 2 }}
               >
-                <span
-                  className="font-black leading-none text-center px-1 truncate max-w-[92%] pointer-events-none"
-                  style={{ fontSize: fontMain, color: style.textColor }}
+                <button
+                  type="button"
+                  onClick={() => onBubbleOpen(item)}
+                  className={`w-full h-full flex flex-col items-center justify-center rounded-full hover:scale-[1.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 cursor-pointer ${popAnim}`}
+                  style={{
+                    background: style.fill,
+                    border: `${borderW}px ${style.borderStyle} ${style.border}`,
+                    boxShadow: style.glow,
+                    transition:
+                      "box-shadow 0.35s ease, background 0.35s ease, border-color 0.35s ease, border-width 0.35s ease",
+                  }}
+                  aria-label={`${item.label}, ${style.label}`}
+                  title={`${item.label} · ${style.label} — click for chart`}
                 >
-                  {item.symbol}
-                </span>
-                {item.spot != null && (
                   <span
-                    className="font-mono tabular-nums mt-0.5 opacity-90 pointer-events-none"
-                    style={{ fontSize: fontSub, color: style.textMutedColor }}
+                    className="font-black leading-none text-center px-1 truncate max-w-[92%] pointer-events-none"
+                    style={{ fontSize: fontMain, color: style.textColor }}
                   >
-                    {item.spot >= 1000
-                      ? item.spot.toLocaleString("en-IN", { maximumFractionDigits: 0 })
-                      : item.spot.toFixed(2)}
+                    {item.symbol}
                   </span>
-                )}
-              </button>
+                  {item.spot != null && (
+                    <span
+                      className="font-mono tabular-nums mt-0.5 opacity-90 pointer-events-none"
+                      style={{ fontSize: fontSub, color: style.textMutedColor }}
+                    >
+                      {item.spot >= 1000
+                        ? item.spot.toLocaleString("en-IN", { maximumFractionDigits: 0 })
+                        : item.spot.toFixed(2)}
+                    </span>
+                  )}
+                </button>
+              </div>
             );
           })
         )}
@@ -435,17 +446,18 @@ export function buildLevelsBubbleItems(
       bearLow: it.data?.bearLow ?? null,
       bearHigh: it.data?.bearHigh ?? null,
     };
+    const actionable = actionableIds?.has(id) ?? false;
     out.push({
       id,
       symbol,
       label: it.label,
       scope: "index",
-      tone: deriveBubbleTone(bands, true),
+      tone: deriveBubbleDisplayTone(bands, true, actionable),
       spot: bands.spot,
       poc: it.data?.poc ?? null,
       bands,
       data: it.data,
-      meetsActionableFilter: actionableIds?.has(id) ?? false,
+      meetsActionableFilter: actionable,
     });
   }
 
@@ -460,17 +472,18 @@ export function buildLevelsBubbleItems(
       bearHigh: st?.bearZoneHigh ?? null,
     };
     const id = `stock-${sym}`;
+    const actionable = actionableIds?.has(id) ?? false;
     out.push({
       id,
       symbol: sym,
       label: fnoCompanyName(sym) ?? st?.label ?? sym,
       scope: "stock",
-      tone: deriveBubbleTone(bands, scanned),
+      tone: deriveBubbleDisplayTone(bands, scanned, actionable),
       spot: bands.spot,
       poc: st?.maxPain ?? null,
       bands,
       data: null,
-      meetsActionableFilter: actionableIds?.has(id) ?? false,
+      meetsActionableFilter: actionable,
     });
   }
 
@@ -497,7 +510,7 @@ export function inZoneItemToBubbleItem(it: {
     symbol: it.symbol,
     label: it.label,
     scope: it.scope,
-    tone: deriveBubbleTone(bands, true),
+    tone: deriveBubbleDisplayTone(bands, true, true),
     spot: bands.spot,
     poc: it.data?.poc ?? null,
     bands,

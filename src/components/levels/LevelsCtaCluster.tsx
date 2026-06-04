@@ -12,11 +12,27 @@ export interface LevelsCtaAction {
   id: string;
   label: string;
   kbd?: string;
-  onClick: () => void;
+  onClick?: () => void;
   title?: string;
   ariaLabel?: string;
-  /** Pause/play uses pink accent while paused. */
-  tone?: "default" | "paused";
+  /** Read-only pill (e.g. aligned count). */
+  static?: boolean;
+  tone?: "default" | "paused" | "bull" | "bear" | "inactive";
+}
+
+function pillStyle(tone: LevelsCtaAction["tone"]): { fill: string; border: string } {
+  switch (tone) {
+    case "paused":
+      return { fill: "rgba(157, 23, 77, 0.92)", border: PAUSED_PINK };
+    case "bull":
+      return { fill: "rgba(4, 120, 87, 0.95)", border: "#4ade80" };
+    case "bear":
+      return { fill: "rgba(153, 27, 27, 0.95)", border: "#f87171" };
+    case "inactive":
+      return { fill: "rgba(30, 58, 138, 0.75)", border: "rgba(96, 165, 250, 0.35)" };
+    default:
+      return { fill: LEVELS_CTA_FILL, border: LEVELS_CTA_ACCENT };
+  }
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -27,22 +43,14 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 function CtaPill({ action }: { action: LevelsCtaAction }) {
-  const paused = action.tone === "paused";
-  const fill = paused ? "rgba(157, 23, 77, 0.92)" : LEVELS_CTA_FILL;
-  const border = paused ? PAUSED_PINK : LEVELS_CTA_ACCENT;
-
-  return (
-    <button
-      type="button"
-      onClick={action.onClick}
-      title={action.title}
-      aria-label={action.ariaLabel ?? action.label}
-      className={`inline-flex items-center gap-1 px-2.5 sm:px-3 ${LEVELS_TOOLBAR_CHIP_HEIGHT} rounded-full transition-all hover:brightness-[1.06] active:scale-[0.98] shrink-0`}
-      style={{
-        background: fill,
-        border: `1px solid ${border}`,
-      }}
-    >
+  const { fill, border } = pillStyle(action.tone ?? "default");
+  const className = `inline-flex items-center gap-1 px-2.5 sm:px-3 ${LEVELS_TOOLBAR_CHIP_HEIGHT} rounded-full shrink-0`;
+  const style = {
+    background: fill,
+    border: `1px solid ${border}`,
+  };
+  const labelEl = (
+    <>
       <span
         className="text-[9px] font-black uppercase tracking-wide whitespace-nowrap"
         style={{
@@ -61,6 +69,27 @@ function CtaPill({ action }: { action: LevelsCtaAction }) {
           · {action.kbd}
         </span>
       ) : null}
+    </>
+  );
+
+  if (action.static || !action.onClick) {
+    return (
+      <span className={className} style={style} title={action.title}>
+        {labelEl}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={action.onClick}
+      title={action.title}
+      aria-label={action.ariaLabel ?? action.label}
+      className={`${className} transition-all hover:brightness-[1.06] active:scale-[0.98]`}
+      style={style}
+    >
+      {labelEl}
     </button>
   );
 }
@@ -68,10 +97,13 @@ function CtaPill({ action }: { action: LevelsCtaAction }) {
 /** Clubbed blue CTA pills — shared outer glow, tight grouping. */
 export function LevelsCtaCluster({
   actions,
+  align = "end",
   enableChartKeys,
   chartKeys,
 }: {
   actions: LevelsCtaAction[];
+  /** `start` = filter cluster (left); `end` = shortcuts (right). */
+  align?: "start" | "end";
   enableChartKeys?: boolean;
   chartKeys?: {
     webChartUrl: string;
@@ -114,7 +146,7 @@ export function LevelsCtaCluster({
 
   return (
     <div
-      className="ml-auto shrink-0 inline-flex items-center gap-1 rounded-full p-[3px]"
+      className={`shrink-0 inline-flex items-center gap-1 rounded-full p-[3px] ${align === "end" ? "ml-auto" : ""}`}
       style={{
         background: "rgba(29, 78, 216, 0.22)",
         border: `1px solid ${LEVELS_CTA_ACCENT}`,

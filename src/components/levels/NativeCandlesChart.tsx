@@ -42,9 +42,13 @@ interface ApiCandle {
 
 const POLL_MS = 60_000;
 /** Empty bars on the right so candles sit left of zone price labels (Support/Resistance). */
-const RIGHT_OFFSET_BARS = 32;
+const RIGHT_OFFSET_BARS = 40;
+/** Slideshow / 30-day view: scale offset with bar count so labels stay clear when bars are dense. */
+const RIGHT_OFFSET_SLIDESHOW_MIN = 56;
+const RIGHT_OFFSET_SLIDESHOW_MAX = 110;
 /** Extra width for longer right-axis level titles (Support H/L/Break, Resistance…). */
 const RIGHT_PRICE_SCALE_MIN_WIDTH = 108;
+const RIGHT_PRICE_SCALE_SLIDESHOW_WIDTH = 152;
 /** Default zoom: ~5 NSE sessions visible (15m ≈ 25 bars/day). */
 const DEFAULT_VISIBLE_BARS = 125;
 
@@ -138,14 +142,36 @@ export const NativeCandlesChart = forwardRef<
   const [error, setError] = useState<string | null>(null);
 
   levelsRef.current = levels;
+  const defaultFullHistoryRef = useRef(defaultFullHistory);
+  defaultFullHistoryRef.current = defaultFullHistory;
 
-  function applyRightPadding() {
+  function rightOffsetBars(barCount: number): number {
+    const wide = defaultFullHistoryRef.current || fullHistoryZoomRef.current;
+    if (!wide) return RIGHT_OFFSET_BARS;
+    const scaled = Math.round(barCount * 0.12);
+    return Math.min(RIGHT_OFFSET_SLIDESHOW_MAX, Math.max(RIGHT_OFFSET_SLIDESHOW_MIN, scaled));
+  }
+
+  function applyRightPadding(barCount = candlesRef.current.length) {
+    const offset = rightOffsetBars(barCount);
     const ts = chartRef.current?.timeScale();
     if (!ts) return;
-    ts.applyOptions({ rightOffset: RIGHT_OFFSET_BARS });
+    ts.applyOptions({ rightOffset: offset });
+    chartRef.current?.priceScale("right").applyOptions({
+      minimumWidth: defaultFullHistoryRef.current
+        ? RIGHT_PRICE_SCALE_SLIDESHOW_WIDTH
+        : RIGHT_PRICE_SCALE_MIN_WIDTH,
+    });
     // Re-apply after layout so fitPriceScale does not collapse the gap.
     requestAnimationFrame(() => {
-      chartRef.current?.timeScale().applyOptions({ rightOffset: RIGHT_OFFSET_BARS });
+      const n = candlesRef.current.length;
+      const off = rightOffsetBars(n);
+      chartRef.current?.timeScale().applyOptions({ rightOffset: off });
+      chartRef.current?.priceScale("right").applyOptions({
+        minimumWidth: defaultFullHistoryRef.current
+          ? RIGHT_PRICE_SCALE_SLIDESHOW_WIDTH
+          : RIGHT_PRICE_SCALE_MIN_WIDTH,
+      });
       chartRef.current?.timeScale().scrollToRealTime();
     });
   }
@@ -154,9 +180,10 @@ export const NativeCandlesChart = forwardRef<
   function applyDefaultZoom(barCount: number) {
     const ts = chartRef.current?.timeScale();
     if (!ts || barCount < 2) return;
+    const offset = rightOffsetBars(barCount);
     const from = Math.max(0, barCount - DEFAULT_VISIBLE_BARS);
-    ts.setVisibleLogicalRange({ from, to: barCount - 1 + RIGHT_OFFSET_BARS });
-    ts.applyOptions({ rightOffset: RIGHT_OFFSET_BARS });
+    ts.setVisibleLogicalRange({ from, to: barCount - 1 + offset });
+    ts.applyOptions({ rightOffset: offset });
     fullHistoryZoomRef.current = false;
     setFullHistoryZoom(false);
     onFullHistoryZoomChange?.(false);
@@ -166,8 +193,9 @@ export const NativeCandlesChart = forwardRef<
   function applyFullHistoryZoom(barCount: number) {
     const ts = chartRef.current?.timeScale();
     if (!ts || barCount < 2) return;
-    ts.setVisibleLogicalRange({ from: 0, to: barCount - 1 + RIGHT_OFFSET_BARS });
-    ts.applyOptions({ rightOffset: RIGHT_OFFSET_BARS });
+    const offset = rightOffsetBars(barCount);
+    ts.setVisibleLogicalRange({ from: 0, to: barCount - 1 + offset });
+    ts.applyOptions({ rightOffset: offset });
     fullHistoryZoomRef.current = true;
     setFullHistoryZoom(true);
     onFullHistoryZoomChange?.(true);
@@ -247,15 +275,17 @@ export const NativeCandlesChart = forwardRef<
       crosshair: { mode: CrosshairMode.Normal },
       rightPriceScale: {
         borderColor: "rgba(255,255,255,0.08)",
-        minimumWidth: RIGHT_PRICE_SCALE_MIN_WIDTH,
+        minimumWidth: defaultFullHistory
+          ? RIGHT_PRICE_SCALE_SLIDESHOW_WIDTH
+          : RIGHT_PRICE_SCALE_MIN_WIDTH,
       },
       timeScale: {
         borderColor: "rgba(255,255,255,0.08)",
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: RIGHT_OFFSET_BARS,
+        rightOffset: defaultFullHistory ? RIGHT_OFFSET_SLIDESHOW_MIN : RIGHT_OFFSET_BARS,
         fixRightEdge: false,
-        minimumHeight: 28,
+        minimumHeight: defaultFullHistory ? 30 : 28,
         ticksVisible: true,
       },
     });
@@ -309,7 +339,7 @@ export const NativeCandlesChart = forwardRef<
       if (fullHistoryZoomRef.current) applyFullHistoryZoom(data.length);
       else applyDefaultZoom(data.length);
     } else {
-      applyRightPadding();
+      applyRightPadding(data.length);
     }
     hasDisplayedCandlesRef.current = true;
     setError(null);
@@ -410,8 +440,8 @@ export const NativeCandlesChart = forwardRef<
     syncZoneBands(candlesRef.current, levels);
     applyLevelPriceLines(series, priceLinesRef, levels);
     fitPriceScale();
-    applyRightPadding();
-  }, [levels]);
+    applyRightPadding(candlesRef.current.length);
+  }, [levels, defaultFullHistory]);
 
   const showBootOverlay = bootLoading || (levelsLoading && !hasDisplayedCandlesRef.current);
 

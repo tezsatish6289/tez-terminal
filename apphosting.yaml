@@ -76,7 +76,7 @@ env:
     secret: PUBLIC_LIVE_PASSPHRASE
     availability:
       - RUNTIME
-  # suggest-stock-zones: fit one tick inside 120s Cloud Run limit (Dhan ~6s/symbol).
+  # suggest-stock-zones: background batch after cron GET returns (cron-job.org 30s HTTP cap).
   - variable: STOCK_ZONES_BATCH_SIZE
     value: "10"
     availability:

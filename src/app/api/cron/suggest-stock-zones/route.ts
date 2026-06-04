@@ -3,35 +3,36 @@
  *
  * Sole cron for NSE F&O single-stock option zones (no piggyback on suggest-zones).
  *
- * Schedule (recommended): every 5 min on cron-job.org with key, 24/7:
- *   GET https://…/api/cron/suggest-stock-zones?key=CRON_SECRET
- * Set cron-job.org request timeout ≥ 180s (platform limit 120s per HTTP request).
+ * Schedule: every 5 min on cron-job.org (GET + key). cron-job.org max HTTP timeout is 30s,
+ * so keyed GET returns immediately and runs the batch in the background via after().
  *
- * Queue: static FNO_UNIVERSE + Firestore cursor + aggregate entries.
- *   • backlog — symbols not yet in aggregate (Tier B order)
- *   • refresh — all scanned → oldest computedAt first
- * Fetch: NSE per symbol; Dhan fallback on block/circuit (or DHAN_PRIMARY env).
- *
- * Response: queueMode, backlogRemaining, nseOk, dhanOk, nseSession, ok, …
+ *   GET ?key=CRON_SECRET           → 202, work continues up to maxDuration (120s)
+ *   GET ?key=…&sync=1              → waits for full batch (debug only; needs long timeout)
+ *   POST                           → synchronous (UI refresh)
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
-import { runStockZonesBatch } from "@/lib/stock-zones-runner";
+import {
+  releaseStockZonesRunLock,
+  runStockZonesBatch,
+  tryAcquireStockZonesRunLock,
+} from "@/lib/stock-zones-runner";
 import { isNiftyOptionChainCronWindow } from "@/lib/market-hours";
 
 export const dynamic = "force-dynamic";
-/** Must match apphosting.yaml runConfig.timeoutSeconds (120). */
+/** Background batch after() may run up to platform limit (apphosting timeoutSeconds). */
 export const maxDuration = 120;
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
 export async function GET(request: NextRequest) {
-  const key = new URL(request.url).searchParams.get("key");
+  const { searchParams } = new URL(request.url);
+  const key = searchParams.get("key");
   if (CRON_SECRET && key !== CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  // cron-job.org runs 24/7; a keyed call is trusted — do not no-op after 4pm IST.
+
   const keyedCron = Boolean(CRON_SECRET && key === CRON_SECRET);
   if (!keyedCron && !isNiftyOptionChainCronWindow()) {
     return NextResponse.json({
@@ -42,14 +43,51 @@ export async function GET(request: NextRequest) {
       hint: "Add ?key=CRON_SECRET so scheduled crons scan stocks outside 9–16 IST.",
     });
   }
-  try {
-    const summary = await runStockZonesBatch(getAdminFirestore());
-    return NextResponse.json({ success: true, ...summary });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[SuggestStockZones] Failed:", err);
-    return NextResponse.json({ error: msg }, { status: 500 });
+
+  const sync = searchParams.get("sync") === "1";
+
+  if (sync) {
+    try {
+      const summary = await runStockZonesBatch(getAdminFirestore());
+      return NextResponse.json({ success: true, mode: "sync", ...summary });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[SuggestStockZones] sync failed:", err);
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
   }
+
+  const db = getAdminFirestore();
+  const acquired = await tryAcquireStockZonesRunLock(db);
+  if (!acquired) {
+    return NextResponse.json({
+      success: true,
+      accepted: false,
+      skipped: "already_running",
+      hint: "Previous background batch still in progress. cron-job.org 30s timeout is OK — wait for next tick.",
+    });
+  }
+
+  after(async () => {
+    try {
+      const summary = await runStockZonesBatch(db);
+      console.log("[SuggestStockZones] background batch done", JSON.stringify(summary));
+    } catch (err) {
+      console.error("[SuggestStockZones] background batch failed:", err);
+    } finally {
+      await releaseStockZonesRunLock(db);
+    }
+  });
+
+  return NextResponse.json(
+    {
+      success: true,
+      accepted: true,
+      mode: "background",
+      hint: "Batch runs after response (for cron-job.org 30s limit). Check logs or Firestore zone_status_stocks.",
+    },
+    { status: 202 },
+  );
 }
 
 export async function POST(request: NextRequest) {

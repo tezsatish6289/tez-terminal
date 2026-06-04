@@ -31,6 +31,36 @@ import {
 
 const CURSOR_DOC = "config/stock_zones_cursor";
 const AGGREGATE_DOC = "config/zone_status_stocks";
+const RUN_LOCK_DOC = "config/stock_zones_run_lock";
+
+/** Prevent overlapping background batches when cron fires every 5 min. */
+export async function tryAcquireStockZonesRunLock(
+  db: Firestore,
+  ttlMs = 100_000,
+): Promise<boolean> {
+  const ref = db.doc(RUN_LOCK_DOC);
+  const now = Date.now();
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const untilMs = snap.exists
+      ? new Date(String((snap.data() as { until?: string }).until ?? 0)).getTime()
+      : 0;
+    if (untilMs > now) return false;
+    tx.set(ref, {
+      until: new Date(now + ttlMs).toISOString(),
+      startedAt: new Date(now).toISOString(),
+    });
+    return true;
+  });
+}
+
+export async function releaseStockZonesRunLock(db: Firestore): Promise<void> {
+  try {
+    await db.doc(RUN_LOCK_DOC).delete();
+  } catch {
+    /* best-effort */
+  }
+}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

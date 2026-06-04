@@ -334,8 +334,8 @@ export default function LevelsPage() {
       : null;
 
   useEffect(() => {
-    setChartFullHistory(false);
-  }, [activeTv?.symbol, activeTv?.exchange, activeTv?.candlesScope]);
+    setChartFullHistory(viewMode === "slideshow");
+  }, [activeTv?.symbol, activeTv?.exchange, activeTv?.candlesScope, viewMode]);
 
   const goInZone = useCallback(
     (dir: number) => setInZoneSlide((s) => (inZoneCount > 0 ? (s + dir + inZoneCount) % inZoneCount : 0)),
@@ -426,6 +426,7 @@ export default function LevelsPage() {
         slideshowPaused={slideshowPaused}
         onToggleSlideshowPause={toggleSlideshowPause}
         hideChartShortcuts={viewMode === "slideshow"}
+        defaultFullHistory={viewMode === "slideshow"}
         showHeader={viewMode !== "slideshow"}
         nativeChartRef={nativeChartRef}
         onFullHistoryZoomChange={setChartFullHistory}
@@ -462,10 +463,7 @@ export default function LevelsPage() {
         config={activeTv}
         nativeChartRef={nativeChartRef}
         chartFullHistory={chartFullHistory}
-        onBubblesClick={toggleViewMode}
-        bubblesLabel={viewToggleLabel}
-        bubblesShortLabel="Bubbles"
-        bubblesTitle={viewToggleShortcut}
+        hideToolbar
       />
     ) : null;
 

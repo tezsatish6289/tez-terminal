@@ -17,6 +17,7 @@ export function LevelsChartChrome({
   bubblesLabel,
   bubblesShortLabel,
   bubblesTitle,
+  hideToolbar = false,
   className = "",
 }: {
   symbol: string;
@@ -28,6 +29,8 @@ export function LevelsChartChrome({
   bubblesLabel?: string;
   bubblesShortLabel?: string;
   bubblesTitle?: string;
+  /** Slideshow: symbol header only (no TradingView / 30-day toolbar pills). */
+  hideToolbar?: boolean;
   className?: string;
 }) {
   return (
@@ -35,15 +38,17 @@ export function LevelsChartChrome({
       className={`shrink-0 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-x-2 min-w-0 ${className}`.trim()}
     >
       <LevelsChartSymbolHeader symbol={symbol} subtitle={subtitle} config={config} />
-      <LevelsChartPageToolbar
-        webChartUrl={config.webChartUrl}
-        nativeChartRef={nativeChartRef}
-        chartFullHistory={chartFullHistory}
-        onBubblesClick={onBubblesClick}
-        bubblesLabel={bubblesLabel}
-        bubblesShortLabel={bubblesShortLabel}
-        bubblesTitle={bubblesTitle}
-      />
+      {!hideToolbar ? (
+        <LevelsChartPageToolbar
+          webChartUrl={config.webChartUrl}
+          nativeChartRef={nativeChartRef}
+          chartFullHistory={chartFullHistory}
+          onBubblesClick={onBubblesClick}
+          bubblesLabel={bubblesLabel}
+          bubblesShortLabel={bubblesShortLabel}
+          bubblesTitle={bubblesTitle}
+        />
+      ) : null}
     </div>
   );
 }

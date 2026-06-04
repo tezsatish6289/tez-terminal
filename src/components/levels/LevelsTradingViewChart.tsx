@@ -23,6 +23,7 @@ export function LevelsTradingViewChart({
   slideshowPaused,
   onToggleSlideshowPause,
   hideChartShortcuts,
+  defaultFullHistory,
   nativeChartRef,
   onFullHistoryZoomChange,
   showHeader = true,
@@ -39,6 +40,7 @@ export function LevelsTradingViewChart({
   slideshowPaused?: boolean;
   onToggleSlideshowPause?: () => void;
   hideChartShortcuts?: boolean;
+  defaultFullHistory?: boolean;
   nativeChartRef?: React.RefObject<NativeCandlesChartHandle | null>;
   onFullHistoryZoomChange?: (full: boolean) => void;
   /** Deep-dive page: title lives in page chrome; chart fills remaining viewport. */
@@ -119,6 +121,7 @@ export function LevelsTradingViewChart({
             slideshowPaused={slideshowPaused}
             onToggleSlideshowPause={onToggleSlideshowPause}
             hideShortcuts={hideChartShortcuts}
+            defaultFullHistory={defaultFullHistory}
             onFullHistoryZoomChange={onFullHistoryZoomChange}
           />
         )}

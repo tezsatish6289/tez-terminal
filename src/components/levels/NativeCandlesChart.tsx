@@ -23,6 +23,7 @@ import {
 import { Loader2 } from "lucide-react";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { LevelsChartShortcuts } from "@/components/levels/LevelsChartShortcuts";
+import { LevelsChartTvFooterHint } from "@/components/levels/LevelsChartTvFooterHint";
 import {
   applyLevelPriceLines,
   bandLineData,
@@ -41,9 +42,9 @@ interface ApiCandle {
 
 const POLL_MS = 60_000;
 /** Empty bars on the right so candles sit left of zone price labels (Support/Resistance). */
-const RIGHT_OFFSET_BARS = 20;
-/** Extra width for longer right-axis level titles (+10px vs prior 80). */
-const RIGHT_PRICE_SCALE_MIN_WIDTH = 90;
+const RIGHT_OFFSET_BARS = 32;
+/** Extra width for longer right-axis level titles (Support H/L/Break, Resistance…). */
+const RIGHT_PRICE_SCALE_MIN_WIDTH = 108;
 /** Default zoom: ~5 NSE sessions visible (15m ≈ 25 bars/day). */
 const DEFAULT_VISIBLE_BARS = 125;
 
@@ -97,8 +98,10 @@ export const NativeCandlesChart = forwardRef<
     showSlideshowControl?: boolean;
     slideshowPaused?: boolean;
     onToggleSlideshowPause?: () => void;
-    /** Slideshow toolbar renders shortcuts; hide chart overlay hints. */
+    /** Slideshow: no overlay shortcut stack; use tvFooterHint instead. */
     hideShortcuts?: boolean;
+    /** Slideshow: fit all loaded ~30d candles on first paint (and on symbol change). */
+    defaultFullHistory?: boolean;
     onFullHistoryZoomChange?: (full: boolean) => void;
   }
 >(function NativeCandlesChart(
@@ -113,6 +116,7 @@ export const NativeCandlesChart = forwardRef<
     slideshowPaused,
     onToggleSlideshowPause,
     hideShortcuts = false,
+    defaultFullHistory = false,
     onFullHistoryZoomChange,
   },
   ref,
@@ -322,8 +326,8 @@ export const NativeCandlesChart = forwardRef<
 
     async function load(isPoll: boolean) {
       if (!isPoll) {
-        fullHistoryZoomRef.current = false;
-        setFullHistoryZoom(false);
+        fullHistoryZoomRef.current = defaultFullHistory;
+        setFullHistoryZoom(defaultFullHistory);
         hasDisplayedCandlesRef.current = false;
       }
       const isBoot = !hasDisplayedCandlesRef.current;
@@ -396,7 +400,7 @@ export const NativeCandlesChart = forwardRef<
       if (timer) clearInterval(timer);
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [symbol, candlesScope, interval]);
+  }, [symbol, candlesScope, interval, defaultFullHistory]);
 
   // Zone bands, lines, and vertical fit when levels arrive (same symbol).
   useEffect(() => {
@@ -455,7 +459,9 @@ export const NativeCandlesChart = forwardRef<
           slideshowPaused={slideshowPaused}
           onToggleSlideshowPause={onToggleSlideshowPause}
         />
-      ) : null}
+      ) : (
+        <LevelsChartTvFooterHint webChartUrl={webChartUrl} />
+      )}
     </div>
   );
 });

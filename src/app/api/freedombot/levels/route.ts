@@ -22,11 +22,9 @@ import { getAdminFirestore } from "@/firebase/admin";
 import { INDEX_KEYS, INDEX_SPECS } from "@/lib/index-options-zones";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
-  deriveZoneStatus,
-  matchesDirectionalSetup,
-  type ZoneBands,
-  type ZoneStatus,
-} from "@/lib/zones/zone-status";
+  buildLevelsActionableList,
+  type LevelsActionableItem,
+} from "@/lib/zones/levels-actionable-list";
 import {
   computeStockZonesOnDemand,
   isValidFnoSymbol,
@@ -76,30 +74,6 @@ function sanitize(raw: Record<string, unknown> | null): PublicLevels | null {
   };
 }
 
-function bandsFromLevels(data: PublicLevels | null, spotOverride?: number | null): ZoneBands {
-  return {
-    spot: spotOverride ?? data?.spot ?? null,
-    bullLow: data?.bullLow ?? null,
-    bullHigh: data?.bullHigh ?? null,
-    bearLow: data?.bearLow ?? null,
-    bearHigh: data?.bearHigh ?? null,
-  };
-}
-
-/** Status from a sanitized payload (for the In-Zone aggregation). */
-function statusOf(data: PublicLevels | null, spotOverride?: number | null): ZoneStatus {
-  return deriveZoneStatus(bandsFromLevels(data, spotOverride));
-}
-
-function isActionableInZone(data: PublicLevels | null, spotOverride?: number | null): boolean {
-  return matchesDirectionalSetup(
-    bandsFromLevels(data, spotOverride),
-    data?.poc ?? null,
-    "all",
-    data?.bandOffset ?? null,
-  );
-}
-
 async function readDoc(path: string): Promise<Record<string, unknown> | null> {
   try {
     const snap = await getAdminFirestore().doc(path).get();
@@ -107,19 +81,6 @@ async function readDoc(path: string): Promise<Record<string, unknown> | null> {
   } catch {
     return null;
   }
-}
-
-type Scope = "index" | "stock";
-
-interface InZoneItem {
-  scope: Scope;
-  symbol: string;
-  label: string;
-  status: ZoneStatus;
-  spot: number | null;
-  currency: "₹" | "$";
-  /** Sanitized ladder payload for the In-Zone slideshow (no extra fetch). */
-  data: PublicLevels | null;
 }
 
 interface StockAggregateEntry {
@@ -134,26 +95,6 @@ interface StockAggregateEntry {
   bearZoneHigh?: number | null;
   halfWidth?: number | null;
   computedAt?: string;
-}
-
-/** Build a render-safe ladder from the stock aggregate row (bands + POC when present). */
-function levelsFromStockAggregate(e: StockAggregateEntry): PublicLevels | null {
-  const bullLow = num(e.bullZoneLow);
-  const bearLow = num(e.bearZoneLow);
-  if (bullLow == null && bearLow == null) return null;
-  return {
-    spot: num(e.spot),
-    poc: num(e.maxPain),
-    bullLow,
-    bullHigh: num(e.bullZoneHigh),
-    bearLow,
-    bearHigh: num(e.bearZoneHigh),
-    bandOffset: num(e.halfWidth),
-    bullActive: null,
-    bearActive: null,
-    computedAt: typeof e.computedAt === "string" ? e.computedAt : null,
-    unavailable: false,
-  };
 }
 
 /**
@@ -253,43 +194,15 @@ export async function GET(request: NextRequest) {
       bullZoneHigh: num(e.bullZoneHigh),
       bearZoneLow: num(e.bearZoneLow),
       bearZoneHigh: num(e.bearZoneHigh),
+      halfWidth: num(e.halfWidth),
+      computedAt: typeof e.computedAt === "string" ? e.computedAt : null,
     }))
     .sort((a, b) => a.symbol.localeCompare(b.symbol));
 
-  // ── Cross-tab In-Zone aggregation ──────────────────────────────
-  const inZone: InZoneItem[] = [];
-
-  for (const it of indices) {
-    const data = it.data;
-    if (!isActionableInZone(data)) continue;
-    const bands = bandsFromLevels(data);
-    inZone.push({
-      scope: "index",
-      symbol: it.symbol,
-      label: it.label,
-      status: deriveZoneStatus(bands),
-      spot: bands.spot,
-      currency: "₹",
-      data,
-    });
-  }
-  for (const e of Object.values(stockEntries)) {
-    if (!e || typeof e.symbol !== "string") continue;
-    const data = levelsFromStockAggregate(e);
-    if (!isActionableInZone(data, e.spot ?? null)) continue;
-    const bands = bandsFromLevels(data, e.spot ?? null);
-    inZone.push({
-      scope: "stock",
-      symbol: e.symbol,
-      label: e.label ?? e.symbol,
-      status: deriveZoneStatus(bands),
-      spot: bands.spot,
-      currency: "₹",
-      data,
-    });
-  }
-
-  inZone.sort((a, b) => a.label.localeCompare(b.label, "en", { sensitivity: "base" }));
+  const inZone: LevelsActionableItem[] = buildLevelsActionableList({
+    indices,
+    stocks,
+  });
 
   return NextResponse.json(
     { indices, stocks, inZone, updatedAt: new Date().toISOString() },

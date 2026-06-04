@@ -11,7 +11,10 @@ import {
   LevelsSymbolList,
   type LevelsListEntry,
 } from "@/components/levels/LevelsSplitLayout";
-import { inZoneItemToBubbleItem, LevelsBubblesView } from "@/components/levels/LevelsBubblesView";
+import {
+  buildLevelsBubbleItems,
+  LevelsBubblesView,
+} from "@/components/levels/LevelsBubblesView";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsSlideshowCta } from "@/components/levels/LevelsSlideshowCta";
 import { LevelsSlideshowToolbar } from "@/components/levels/LevelsSlideshowToolbar";
@@ -21,10 +24,13 @@ import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import { levelsTradingViewParams } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import {
+  bandsFromLevels,
+  buildLevelsActionableList,
+  type LevelsActionableItem,
+} from "@/lib/zones/levels-actionable-list";
+import {
   deriveZoneStatus,
-  matchesDirectionalSetup,
   type PocDirectionFilter,
-  type ZoneBands,
   type ZoneStatus,
 } from "@/lib/zones/zone-status";
 
@@ -44,17 +50,11 @@ interface StockListItem {
   bullZoneHigh: number | null;
   bearZoneLow: number | null;
   bearZoneHigh: number | null;
+  halfWidth?: number | null;
+  computedAt?: string | null;
 }
 
-interface InZoneItem {
-  scope: "index" | "stock";
-  symbol: string;
-  label: string;
-  status: ZoneStatus;
-  spot: number | null;
-  currency: "₹";
-  data: PublicLevels | null;
-}
+type InZoneItem = LevelsActionableItem;
 
 interface LevelsPayload {
   indices: RawItem[];
@@ -124,19 +124,6 @@ function formatRefreshed(computedAt: string | null | undefined): string | null {
   });
 }
 
-function bandsFromLevels(
-  data: PublicLevels | null | undefined,
-  spotOverride?: number | null,
-): ZoneBands {
-  return {
-    spot: spotOverride ?? data?.spot ?? null,
-    bullLow: data?.bullLow ?? null,
-    bullHigh: data?.bullHigh ?? null,
-    bearLow: data?.bearLow ?? null,
-    bearHigh: data?.bearHigh ?? null,
-  };
-}
-
 export default function LevelsPage() {
   const [payload, setPayload] = useState<LevelsPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -146,6 +133,7 @@ export default function LevelsPage() {
   const [inZoneChartData, setInZoneChartData] = useState<PublicLevels | null>(null);
   const [inZoneChartLoading, setInZoneChartLoading] = useState(false);
   const [slideshowPaused, setSlideshowPaused] = useState(false);
+  const [bubblesHideNeutral, setBubblesHideNeutral] = useState(false);
   const [chartFullHistory, setChartFullHistory] = useState(false);
   const nativeChartRef = useRef<NativeCandlesChartHandle>(null);
 
@@ -206,44 +194,81 @@ export default function LevelsPage() {
 
   const inZoneListSorted = useMemo(
     () =>
-      [...(payload?.inZone ?? [])].sort((a, b) =>
-        a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
-      ),
-    [payload?.inZone],
+      payload
+        ? buildLevelsActionableList({
+            indices: payload.indices,
+            stocks: payload.stocks,
+            filter: "all",
+          })
+        : [],
+    [payload],
   );
 
-  const inZoneFilterCounts = useMemo(() => {
-    let all = 0;
-    let bull = 0;
-    let bear = 0;
-    for (const it of inZoneListSorted) {
-      const bands = bandsFromLevels(it.data, it.spot);
-      const poc = it.data?.poc ?? null;
-      const bandOffset = it.data?.bandOffset ?? null;
-      if (matchesDirectionalSetup(bands, poc, "all", bandOffset)) all += 1;
-      if (matchesDirectionalSetup(bands, poc, "bull", bandOffset)) bull += 1;
-      if (matchesDirectionalSetup(bands, poc, "bear", bandOffset)) bear += 1;
-    }
-    return { all, bull, bear };
-  }, [inZoneListSorted]);
+  const inZoneFilterCounts = useMemo(
+    () => ({
+      all: inZoneListSorted.length,
+      bull: payload
+        ? buildLevelsActionableList({
+            indices: payload.indices,
+            stocks: payload.stocks,
+            filter: "bull",
+          }).length
+        : 0,
+      bear: payload
+        ? buildLevelsActionableList({
+            indices: payload.indices,
+            stocks: payload.stocks,
+            filter: "bear",
+          }).length
+        : 0,
+    }),
+    [payload, inZoneListSorted.length],
+  );
 
   const inZoneListFiltered = useMemo(
     () =>
-      inZoneListSorted.filter((it) =>
-        matchesDirectionalSetup(
-          bandsFromLevels(it.data, it.spot),
-          it.data?.poc ?? null,
-          zoneFilter,
-          it.data?.bandOffset ?? null,
-        ),
-      ),
-    [inZoneListSorted, zoneFilter],
+      payload
+        ? buildLevelsActionableList({
+            indices: payload.indices,
+            stocks: payload.stocks,
+            filter: zoneFilter,
+          })
+        : [],
+    [payload, zoneFilter],
   );
 
-  /** Bubbles + slideshow share the same filtered In-Zone list. */
-  const bubbleItems = useMemo(
-    () => inZoneListFiltered.map((it) => inZoneItemToBubbleItem(it)),
+  const actionableBubbleIds = useMemo(
+    () => new Set(inZoneListFiltered.map((it) => `${it.scope}-${it.symbol}`)),
     [inZoneListFiltered],
+  );
+
+  const stockBySymbol = useMemo(() => {
+    const m = new Map<
+      string,
+      {
+        symbol: string;
+        label: string;
+        spot: number | null;
+        maxPain: number | null;
+        bullZoneLow: number | null;
+        bullZoneHigh: number | null;
+        bearZoneLow: number | null;
+        bearZoneHigh: number | null;
+        halfWidth?: number | null;
+        computedAt?: string | null;
+      }
+    >();
+    for (const s of payload?.stocks ?? []) m.set(s.symbol, s);
+    return m;
+  }, [payload?.stocks]);
+
+  /** Full F&O map (all tones); actionable setups match slideshow filter. */
+  const bubbleItems = useMemo(
+    () =>
+      payload
+        ? buildLevelsBubbleItems(payload.indices, stockBySymbol, actionableBubbleIds)
+        : [],
+    [payload, stockBySymbol, actionableBubbleIds],
   );
 
   const inZoneCount = inZoneListFiltered.length;
@@ -546,6 +571,9 @@ export default function LevelsPage() {
                 <LevelsBubblesView
                   items={bubbleItems}
                   onBubbleOpen={openBubbleChart}
+                  hasMarketData={Boolean(payload)}
+                  hideNeutral={bubblesHideNeutral}
+                  onHideNeutralChange={setBubblesHideNeutral}
                   headerActions={null}
                 />
               ) : (

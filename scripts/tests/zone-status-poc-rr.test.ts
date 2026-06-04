@@ -25,10 +25,10 @@ function bands(input: ZoneBands & { halfWidth: number }) {
   assert.equal(matchesDirectionalSetup(b, 13, "bear", halfWidth), false);
 }
 
-// Synthetic bull — 2:1 from spot to POC vs Bull Inv
+// Synthetic bull — 2:1 from zone center (100) to POC vs Bull Inv
 {
   const { bands: b, halfWidth } = bands({
-    spot: 100,
+    spot: 108,
     bullLow: 90,
     bullHigh: 110,
     bearLow: 130,

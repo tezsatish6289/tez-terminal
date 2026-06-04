@@ -59,9 +59,21 @@ export type PocDirectionFilter = "all" | "bull" | "bear";
 /** Minimum reward:risk from spot → POC vs band invalidation (Bull/Bear Inv.). */
 export const MIN_POC_RISK_REWARD = 2;
 
+/** Zone strike proxy — same center the bands are built around (not live spot). */
+function zoneBandCenter(bands: ZoneBands, side: "bull" | "bear"): number | null {
+  if (side === "bull" && bands.bullLow != null && bands.bullHigh != null) {
+    return (bands.bullLow + bands.bullHigh) / 2;
+  }
+  if (side === "bear" && bands.bearLow != null && bands.bearHigh != null) {
+    return (bands.bearLow + bands.bearHigh) / 2;
+  }
+  return null;
+}
+
 /**
- * Reward:risk using the same invalidation anchors as the public chart
- * (one half-width outside the active band). Entry = spot; target = POC.
+ * Reward:risk using invalidation anchors on the chart (one half-width outside the band).
+ * Entry = zone center (OI cluster strike), target = POC — matches zone-bot TP-room math.
+ * Live spot is only used for the directional gate, not RR sizing.
  */
 export function pocRiskRewardRatio(
   bands: ZoneBands,
@@ -74,6 +86,9 @@ export function pocRiskRewardRatio(
     return null;
   }
 
+  const entry = zoneBandCenter(bands, side);
+  if (entry == null || !Number.isFinite(entry)) return null;
+
   const { bullSl, bearSl } = computeZoneSlAnchors({
     halfWidthUsd: bandOffset ?? null,
     bullZoneLow: bands.bullLow,
@@ -83,16 +98,16 @@ export function pocRiskRewardRatio(
   });
 
   if (side === "bull") {
-    if (bullSl == null || poc <= spot) return null;
-    const risk = spot - bullSl;
-    const reward = poc - spot;
+    if (bullSl == null || poc <= entry) return null;
+    const risk = entry - bullSl;
+    const reward = poc - entry;
     if (risk <= 0 || reward <= 0) return null;
     return reward / risk;
   }
 
-  if (bearSl == null || poc >= spot) return null;
-  const risk = bearSl - spot;
-  const reward = spot - poc;
+  if (bearSl == null || poc >= entry) return null;
+  const risk = bearSl - entry;
+  const reward = entry - poc;
   if (risk <= 0 || reward <= 0) return null;
   return reward / risk;
 }

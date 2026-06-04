@@ -25,6 +25,8 @@ import {
   BLACKBOARD_FIELD_BORDER,
 } from "@/lib/levels/cta-blackboard";
 import { BUBBLE_TONE_STYLE, deriveBubbleTone, type BubbleTone } from "@/lib/zones/bubble-tone";
+import { fnoCompanyName } from "@/lib/nse/fno-company-names";
+import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
 import type { ZoneBands } from "@/lib/zones/zone-status";
 
 export interface LevelsBubbleItem {
@@ -37,6 +39,8 @@ export interface LevelsBubbleItem {
   poc: number | null;
   bands: ZoneBands;
   data: PublicLevels | null;
+  /** Passes directional + 1:2 POC RR (same gate as slideshow In-Zone list). */
+  meetsActionableFilter?: boolean;
 }
 
 const BUBBLE_ANIM_CSS = `
@@ -96,10 +100,17 @@ const INDEX_BORDER_EXTRA_PX = 3;
 export function LevelsBubblesView({
   items,
   onBubbleOpen,
+  hasMarketData = true,
+  hideNeutral,
+  onHideNeutralChange,
   headerActions,
 }: {
   items: LevelsBubbleItem[];
   onBubbleOpen: (item: LevelsBubbleItem) => void;
+  /** False when /api/freedombot/levels has not loaded yet or failed. */
+  hasMarketData?: boolean;
+  hideNeutral?: boolean;
+  onHideNeutralChange?: (hide: boolean) => void;
   /** View toggle — same toolbar row as search + legend. */
   headerActions?: ReactNode;
 }) {
@@ -132,13 +143,26 @@ export function LevelsBubblesView({
   const filtered = useMemo(() => {
     const q = query.trim().toUpperCase();
     return items.filter((it) => {
+      if (
+        hideNeutral &&
+        (it.tone === "NEUTRAL" ||
+          it.tone === "ILLIQUID" ||
+          it.tone === "UNSCANNED")
+      ) {
+        return false;
+      }
       if (!q) return true;
       return (
         it.symbol.toUpperCase().includes(q) ||
         it.label.toUpperCase().includes(q)
       );
     });
-  }, [items, query]);
+  }, [items, query, hideNeutral]);
+
+  const actionableCount = useMemo(
+    () => items.filter((it) => it.meetsActionableFilter).length,
+    [items],
+  );
 
   const filteredIds = useMemo(
     () => filtered.map((it) => it.id).join("|"),
@@ -210,7 +234,10 @@ export function LevelsBubblesView({
         el.style.top = `${n.y - n.r}px`;
         el.style.width = `${n.r * 2}px`;
         el.style.height = `${n.r * 2}px`;
-        el.style.zIndex = String(n.item.scope === "index" ? 12 : 8);
+        const baseZ = n.item.scope === "index" ? 12 : 8;
+        el.style.zIndex = String(
+          n.item.meetsActionableFilter && isInZoneTone(n.item.tone) ? baseZ + 6 : baseZ,
+        );
       }
     };
 
@@ -257,15 +284,33 @@ export function LevelsBubblesView({
           />
         </div>
 
+        {onHideNeutralChange ? (
+          <label
+            className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider cursor-pointer select-none shrink-0"
+            style={{ color: "#94a3b8" }}
+          >
+            <input
+              type="checkbox"
+              checked={hideNeutral ?? false}
+              onChange={(e) => onHideNeutralChange(e.target.checked)}
+              className="rounded border-slate-600"
+            />
+            Hide unscanned
+          </label>
+        ) : null}
         <span
           className="text-[9px] font-bold uppercase tracking-wide shrink-0"
           style={{ color: "#64748b" }}
         >
-          {filtered.length} setup{filtered.length === 1 ? "" : "s"}
+          {filtered.length} shown · {items.length} total
+          {actionableCount > 0 ? ` · ${actionableCount} in-zone setups` : ""}
         </span>
 
         <BubbleChip tone="IN_BULL" count={counts.IN_BULL ?? 0} />
+        <BubbleChip tone="NEAR_BULL" count={counts.NEAR_BULL ?? 0} />
         <BubbleChip tone="IN_BEAR" count={counts.IN_BEAR ?? 0} />
+        <BubbleChip tone="NEAR_BEAR" count={counts.NEAR_BEAR ?? 0} />
+        <BubbleChip tone="UNSCANNED" count={counts.UNSCANNED ?? 0} />
 
         {headerActions ? (
           <div className="ml-auto flex items-center shrink-0">{headerActions}</div>
@@ -282,8 +327,12 @@ export function LevelsBubblesView({
       >
         {filtered.length === 0 ? (
           <div className="absolute inset-0 flex items-center justify-center">
-            <p className="text-xs" style={{ color: "#64748b" }}>
-              {items.length === 0 ? "No market data yet." : "No symbols match your filters."}
+            <p className="text-xs text-center px-4" style={{ color: "#64748b" }}>
+              {!hasMarketData
+                ? "Loading market data…"
+                : items.length === 0
+                  ? "No market data yet."
+                  : "No symbols match your filters."}
             </p>
           </div>
         ) : (
@@ -303,6 +352,11 @@ export function LevelsBubblesView({
               item.scope === "index"
                 ? style.borderWidth + INDEX_BORDER_EXTRA_PX
                 : style.borderWidth;
+            const actionable = Boolean(item.meetsActionableFilter);
+            const ring =
+              actionable && (item.tone === "IN_BULL" || item.tone === "IN_BEAR")
+                ? `0 0 0 2px ${style.border}, 0 0 14px ${style.border}`
+                : "";
 
             return (
               <button
@@ -318,7 +372,7 @@ export function LevelsBubblesView({
                   height: r * 2,
                   background: style.fill,
                   border: `${borderW}px ${style.borderStyle} ${style.border}`,
-                  boxShadow: style.glow,
+                  boxShadow: ring || style.glow,
                   transition:
                     "box-shadow 0.35s ease, background 0.35s ease, border-color 0.35s ease, border-width 0.35s ease",
                 }}
@@ -350,7 +404,80 @@ export function LevelsBubblesView({
   );
 }
 
-/** Same symbols as slideshow In-Zone list (directional + min POC RR). */
+export type StockBubbleSource = {
+  symbol: string;
+  label: string;
+  spot: number | null;
+  maxPain: number | null;
+  bullZoneLow: number | null;
+  bullZoneHigh: number | null;
+  bearZoneLow: number | null;
+  bearZoneHigh: number | null;
+  halfWidth?: number | null;
+  computedAt?: string | null;
+};
+
+/** Full map: indices + F&O universe; optional highlight for slideshow/actionable symbols. */
+export function buildLevelsBubbleItems(
+  indices: { symbol?: string; label: string; data: PublicLevels | null }[],
+  stockBySymbol: Map<string, StockBubbleSource>,
+  actionableIds?: ReadonlySet<string>,
+): LevelsBubbleItem[] {
+  const out: LevelsBubbleItem[] = [];
+
+  for (const it of indices) {
+    const symbol = (it.symbol ?? it.label).toUpperCase();
+    const id = `index-${symbol}`;
+    const bands: ZoneBands = {
+      spot: it.data?.spot ?? null,
+      bullLow: it.data?.bullLow ?? null,
+      bullHigh: it.data?.bullHigh ?? null,
+      bearLow: it.data?.bearLow ?? null,
+      bearHigh: it.data?.bearHigh ?? null,
+    };
+    out.push({
+      id,
+      symbol,
+      label: it.label,
+      scope: "index",
+      tone: deriveBubbleTone(bands, true),
+      spot: bands.spot,
+      poc: it.data?.poc ?? null,
+      bands,
+      data: it.data,
+      meetsActionableFilter: actionableIds?.has(id) ?? false,
+    });
+  }
+
+  for (const sym of FNO_UNIVERSE_ALPHA) {
+    const st = stockBySymbol.get(sym);
+    const scanned = Boolean(st);
+    const bands: ZoneBands = {
+      spot: st?.spot ?? null,
+      bullLow: st?.bullZoneLow ?? null,
+      bullHigh: st?.bullZoneHigh ?? null,
+      bearLow: st?.bearZoneLow ?? null,
+      bearHigh: st?.bearZoneHigh ?? null,
+    };
+    const id = `stock-${sym}`;
+    out.push({
+      id,
+      symbol: sym,
+      label: fnoCompanyName(sym) ?? st?.label ?? sym,
+      scope: "stock",
+      tone: deriveBubbleTone(bands, scanned),
+      spot: bands.spot,
+      poc: st?.maxPain ?? null,
+      bands,
+      data: null,
+      meetsActionableFilter: actionableIds?.has(id) ?? false,
+    });
+  }
+
+  return out;
+}
+
+/** Slideshow row → bubble shape (subset of the full map). */
 export function inZoneItemToBubbleItem(it: {
   scope: "index" | "stock";
   symbol: string;
@@ -375,5 +502,6 @@ export function inZoneItemToBubbleItem(it: {
     poc: it.data?.poc ?? null,
     bands,
     data: it.data,
+    meetsActionableFilter: true,
   };
 }

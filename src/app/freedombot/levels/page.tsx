@@ -236,6 +236,20 @@ export default function LevelsPage() {
     [payload?.inZone],
   );
 
+  const inZoneFilterCounts = useMemo(() => {
+    let all = 0;
+    let bull = 0;
+    let bear = 0;
+    for (const it of inZoneListSorted) {
+      const bands = bandsFromLevels(it.data, it.spot);
+      const poc = it.data?.poc ?? null;
+      if (matchesDirectionalSetup(bands, poc, "all")) all += 1;
+      if (matchesDirectionalSetup(bands, poc, "bull")) bull += 1;
+      if (matchesDirectionalSetup(bands, poc, "bear")) bear += 1;
+    }
+    return { all, bull, bear };
+  }, [inZoneListSorted]);
+
   const inZoneListFiltered = useMemo(
     () =>
       inZoneListSorted.filter((it) =>
@@ -280,13 +294,6 @@ export default function LevelsPage() {
 
   const chartLevelsLoading =
     viewMode === "slideshow" && inZoneChartLoading && inZoneActive?.scope === "stock";
-
-  const slideshowCountLabel =
-    inZoneCount > 0
-      ? zoneFilter === "all"
-        ? `${inZoneCount} aligned`
-        : `${inZoneCount} · ${zoneFilter === "bull" ? "bull + POC above" : "bear + POC below"}`
-      : undefined;
 
   const slideshowChartShortcuts =
     viewMode === "slideshow" && activeTv
@@ -547,7 +554,7 @@ export default function LevelsPage() {
                     setZoneFilter(key);
                     setInZoneSlide(0);
                   }}
-                  countLabel={slideshowCountLabel}
+                  filterCounts={inZoneFilterCounts}
                   chartShortcuts={slideshowChartShortcuts}
                   viewToggle={{
                     label: viewToggleLabel,

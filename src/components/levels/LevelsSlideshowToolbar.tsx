@@ -4,22 +4,27 @@ import { useMemo } from "react";
 import { LevelsCtaCluster } from "@/components/levels/LevelsCtaCluster";
 import type { PocDirectionFilter } from "@/lib/zones/zone-status";
 
-const FILTER_OPTIONS: { key: PocDirectionFilter; label: string }[] = [
-  { key: "all", label: "All aligned" },
-  { key: "bull", label: "In bull · POC above" },
-  { key: "bear", label: "In bear · POC below" },
+const FILTER_OPTIONS: {
+  key: PocDirectionFilter;
+  label: string;
+  activeTone: "default" | "bull" | "bear";
+  mutedTone: "default-muted" | "bull-muted" | "bear-muted";
+}[] = [
+  { key: "all", label: "All", activeTone: "default", mutedTone: "default-muted" },
+  { key: "bull", label: "Bullish", activeTone: "bull", mutedTone: "bull-muted" },
+  { key: "bear", label: "Bearish", activeTone: "bear", mutedTone: "bear-muted" },
 ];
 
 export function LevelsSlideshowToolbar({
   zoneFilter,
   onZoneFilterChange,
-  countLabel,
+  filterCounts,
   chartShortcuts,
   viewToggle,
 }: {
   zoneFilter: PocDirectionFilter;
   onZoneFilterChange: (filter: PocDirectionFilter) => void;
-  countLabel?: string;
+  filterCounts: { all: number; bull: number; bear: number };
   chartShortcuts?: {
     webChartUrl: string;
     showSqueeze?: boolean;
@@ -35,37 +40,21 @@ export function LevelsSlideshowToolbar({
     title?: string;
   };
 }) {
-  const filterActions = useMemo(() => {
-    const out: Parameters<typeof LevelsCtaCluster>[0]["actions"] = FILTER_OPTIONS.map(
-      ({ key, label }) => {
+  const filterActions = useMemo(
+    () =>
+      FILTER_OPTIONS.map(({ key, label, activeTone, mutedTone }) => {
         const active = zoneFilter === key;
         return {
           id: `filter-${key}`,
           label,
+          count: filterCounts[key],
           onClick: () => onZoneFilterChange(key),
-          tone: active
-            ? key === "bull"
-              ? "bull"
-              : key === "bear"
-                ? "bear"
-                : "default"
-            : "inactive",
-          ariaLabel: `Filter: ${label}`,
+          tone: active ? activeTone : mutedTone,
+          ariaLabel: `${label}, ${filterCounts[key]} symbols`,
         };
-      },
-    );
-
-    if (countLabel) {
-      out.push({
-        id: "count",
-        label: countLabel,
-        static: true,
-        tone: "inactive",
-      });
-    }
-
-    return out;
-  }, [zoneFilter, onZoneFilterChange, countLabel]);
+      }),
+    [zoneFilter, onZoneFilterChange, filterCounts],
+  );
 
   const shortcutActions = useMemo(() => {
     const out: Parameters<typeof LevelsCtaCluster>[0]["actions"] = [];
@@ -121,7 +110,7 @@ export function LevelsSlideshowToolbar({
 
   return (
     <div className="shrink-0 flex flex-wrap items-center gap-x-2 gap-y-2 mb-2 px-0.5">
-      <LevelsCtaCluster actions={filterActions} align="start" />
+      <LevelsCtaCluster actions={filterActions} align="start" variant="filters" />
 
       <LevelsCtaCluster
         actions={shortcutActions}

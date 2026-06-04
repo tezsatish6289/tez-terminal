@@ -155,10 +155,12 @@ export async function runStockZonesBatch(
   db: Firestore,
   opts: StockZonesBatchOptions = {},
 ): Promise<StockZonesBatchSummary> {
-  const batchSize = opts.batchSize ?? envNum("STOCK_ZONES_BATCH_SIZE", 32);
-  const delayMs = opts.delayMs ?? envNum("STOCK_ZONES_DELAY_MS", 800);
-  const dhanDelayMs = envNum("STOCK_ZONES_DHAN_DELAY_MS", 500);
-  const maxWallClockMs = opts.maxWallClockMs ?? envNum("STOCK_ZONES_MAX_RUN_MS", 110_000);
+  /** App Hosting runConfig.timeoutSeconds is 120 — keep each cron tick under ~95s. */
+  const batchSize = opts.batchSize ?? envNum("STOCK_ZONES_BATCH_SIZE", 10);
+  const delayMs = opts.delayMs ?? envNum("STOCK_ZONES_DELAY_MS", 600);
+  const dhanDelayMs = envNum("STOCK_ZONES_DHAN_DELAY_MS", 400);
+  const maxWallClockMs = opts.maxWallClockMs ?? envNum("STOCK_ZONES_MAX_RUN_MS", 95_000);
+  const perSymbolMs = envNum("STOCK_ZONES_SYMBOL_TIMEOUT_MS", 40_000);
 
   const fromQueue = !(opts.symbolsOverride && opts.symbolsOverride.length);
   const startCursor = fromQueue ? await readCursor(db) : 0;
@@ -228,7 +230,12 @@ export async function runStockZonesBatch(
     }
 
     try {
-      const { zones, source } = await computeZonesWithFallback(symbol, session);
+      const { zones, source } = await Promise.race([
+        computeZonesWithFallback(symbol, session),
+        sleep(perSymbolMs).then(() => {
+          throw new Error(`symbol_timeout_${perSymbolMs}ms`);
+        }),
+      ]);
       await persistEquityZonesDoc(db, zones, source);
       const row = aggregateEntry(zones);
       entries.push(row);

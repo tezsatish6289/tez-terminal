@@ -76,3 +76,12 @@ env:
     secret: PUBLIC_LIVE_PASSPHRASE
     availability:
       - RUNTIME
+  # suggest-stock-zones: fit one tick inside 120s Cloud Run limit (Dhan ~6s/symbol).
+  - variable: STOCK_ZONES_BATCH_SIZE
+    value: "10"
+    availability:
+      - RUNTIME
+  - variable: STOCK_ZONES_MAX_RUN_MS
+    value: "95000"
+    availability:
+      - RUNTIME

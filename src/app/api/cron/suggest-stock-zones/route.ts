@@ -5,6 +5,7 @@
  *
  * Schedule (recommended): every 5 min on cron-job.org with key, 24/7:
  *   GET https://…/api/cron/suggest-stock-zones?key=CRON_SECRET
+ * Set cron-job.org request timeout ≥ 180s (platform limit 120s per HTTP request).
  *
  * Queue: static FNO_UNIVERSE + Firestore cursor + aggregate entries.
  *   • backlog — symbols not yet in aggregate (Tier B order)
@@ -20,8 +21,8 @@ import { runStockZonesBatch } from "@/lib/stock-zones-runner";
 import { isNiftyOptionChainCronWindow } from "@/lib/market-hours";
 
 export const dynamic = "force-dynamic";
-/** 5-min cron: NSE attempts + Dhan fallback (~3s between Dhan chain calls). */
-export const maxDuration = 300;
+/** Must match apphosting.yaml runConfig.timeoutSeconds (120). */
+export const maxDuration = 120;
 
 const CRON_SECRET = process.env.CRON_SECRET;
 

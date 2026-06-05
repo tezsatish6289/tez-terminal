@@ -12,7 +12,11 @@ import {
   BLACKBOARD_WRAPPER,
 } from "@/lib/levels/cta-blackboard";
 import type { PocDirectionFilter } from "@/lib/zones/zone-status";
-import { LEVELS_STRIP_ICON_BOX_CLASS, LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS } from "@/components/levels/levels-symbol-strip";
+import {
+  LEVELS_STRIP_BOX_LABEL_CLASS,
+  LEVELS_STRIP_ICON_BOX_CLASS,
+  LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS,
+} from "@/components/levels/levels-symbol-strip";
 
 const FILTER_OPTIONS: {
   key: PocDirectionFilter;
@@ -92,7 +96,7 @@ export function LevelsViewModeIconBox({
         <GalleryHorizontal className="h-5 w-5" style={{ color: BLACKBOARD_CHALK }} />
       )}
       <span
-        className="text-[8px] font-bold uppercase tracking-wider leading-none"
+        className={`${LEVELS_STRIP_BOX_LABEL_CLASS} uppercase`}
         style={{ color: BLACKBOARD_CHALK_DIM }}
       >
         {toBubbles ? "Bubbles" : "Show"}
@@ -166,7 +170,7 @@ export function LevelsSlideshowStripControls({
           >
             <Filter className="h-4 w-4" style={{ color: activeMeta.activeText }} />
             <span
-              className="text-[8px] font-bold uppercase tracking-wider leading-none"
+              className={`${LEVELS_STRIP_BOX_LABEL_CLASS} uppercase`}
               style={{ color: BLACKBOARD_CHALK_DIM }}
             >
               {activeMeta.shortLabel}
@@ -242,7 +246,7 @@ export function LevelsSlideshowStripControls({
             <Pause className="h-4 w-4" style={{ color: BLACKBOARD_CHALK }} />
           )}
           <span
-            className="text-[8px] font-bold tabular-nums leading-none"
+            className={`${LEVELS_STRIP_BOX_LABEL_CLASS} tabular-nums`}
             style={{
               color: slideshowControl.paused ? "#f472b6" : BLACKBOARD_CHALK_DIM,
             }}

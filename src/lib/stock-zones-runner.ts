@@ -27,6 +27,7 @@ import {
   aggregateEntry,
   type StockZoneAggregateEntry,
 } from "@/lib/equity-zones-store";
+import { maybeRecordSrZoneEvent } from "@/lib/sr-audit/record-event";
 
 const CURSOR_DOC = "config/stock_zones_cursor";
 const AGGREGATE_DOC = "config/zone_status_stocks";
@@ -91,25 +92,29 @@ async function writeCursor(db: Firestore, index: number): Promise<void> {
 async function readAggregateState(db: Firestore): Promise<{
   scanned: Set<string>;
   bySymbol: Map<string, StockAggregateMeta>;
+  entries: Record<string, StockZoneAggregateEntry>;
 }> {
   const scanned = new Set<string>();
   const bySymbol = new Map<string, StockAggregateMeta>();
+  const entries: Record<string, StockZoneAggregateEntry> = {};
   try {
     const snap = await db.doc(AGGREGATE_DOC).get();
-    const entries = (snap.data()?.entries ?? {}) as Record<
+    const raw = (snap.data()?.entries ?? {}) as Record<
       string,
-      { computedAt?: string } | undefined
+      StockZoneAggregateEntry | undefined
     >;
-    for (const [sym, row] of Object.entries(entries)) {
+    for (const [sym, row] of Object.entries(raw)) {
+      if (!row) continue;
       scanned.add(sym);
+      entries[sym] = row;
       bySymbol.set(sym, {
-        computedAt: typeof row?.computedAt === "string" ? row.computedAt : null,
+        computedAt: typeof row.computedAt === "string" ? row.computedAt : null,
       });
     }
   } catch {
     /* empty */
   }
-  return { scanned, bySymbol };
+  return { scanned, bySymbol, entries };
 }
 
 export interface StockZonesBatchSummary {
@@ -153,9 +158,13 @@ export async function runStockZonesBatch(
 
   const fromQueue = !(opts.symbolsOverride && opts.symbolsOverride.length);
   const startCursor = fromQueue ? await readCursor(db) : 0;
-  const { scanned, bySymbol } = fromQueue
+  const { scanned, bySymbol, entries: prevEntries } = fromQueue
     ? await readAggregateState(db)
-    : { scanned: new Set<string>(), bySymbol: new Map<string, StockAggregateMeta>() };
+    : {
+        scanned: new Set<string>(),
+        bySymbol: new Map<string, StockAggregateMeta>(),
+        entries: {} as Record<string, StockZoneAggregateEntry>,
+      };
 
   let symbols: string[] = [];
   let queueMode: "backlog" | "refresh" = "refresh";
@@ -227,6 +236,7 @@ export async function runStockZonesBatch(
       ]);
       await persistEquityZonesDoc(db, zones, source);
       const row = aggregateEntry(zones, source);
+      await maybeRecordSrZoneEvent(db, zones, source, prevEntries[symbol]);
       entries.push(row);
       okCount++;
       processed++;

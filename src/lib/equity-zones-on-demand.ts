@@ -13,7 +13,11 @@ import {
   persistEquityZonesDoc,
   stockDocId,
   writeStockZoneAggregate,
+  type StockZoneAggregateEntry,
 } from "@/lib/equity-zones-store";
+import { maybeRecordSrZoneEvent } from "@/lib/sr-audit/record-event";
+
+const STOCK_AGGREGATE_DOC = "config/zone_status_stocks";
 import {
   isValidFnoSymbol,
   normalizeStockSymbol,
@@ -61,7 +65,19 @@ export async function computeStockZonesOnDemand(symbol: string): Promise<{
     }
 
     const { zones, source } = await computeStockZonesWithFallback(safe, session);
+    let prevEntry: StockZoneAggregateEntry | undefined;
+    try {
+      const agg = await db.doc(STOCK_AGGREGATE_DOC).get();
+      const entries = (agg.data()?.entries ?? {}) as Record<
+        string,
+        StockZoneAggregateEntry | undefined
+      >;
+      prevEntry = entries[safe];
+    } catch {
+      /* best-effort */
+    }
     await persistEquityZonesDoc(db, zones, source);
+    await maybeRecordSrZoneEvent(db, zones, source, prevEntry);
     if (zones.bullZoneLow != null || zones.bearZoneLow != null) {
       await writeStockZoneAggregate(db, [aggregateEntry(zones, source)]);
     }

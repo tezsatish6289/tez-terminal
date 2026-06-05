@@ -14,13 +14,18 @@
  * Zone *selection* uses ALL-EXPIRY OI for ranking, inside a window
  * around day-0 max pain whose width is the max of:
  *
- *   (a) IV-derived 1-σ daily move × 2.5 — "expand the window when
- *       price is more likely to travel far today";
- *   (b) ANCHOR_STRIKES_PER_SIDE × strikeGridUsd — "always include
- *       at least N closest Deribit strikes either side regardless
- *       of IV", because walls form at the listed strike grid and
- *       low-IV regimes still have meaningful gamma at the closest
- *       strikes.
+ *   (a) Volatility term — IV-derived 1-σ daily move × 2.5 — "expand the
+ *       window when price is more likely to travel far today";
+ *   (b) Trend term — |maxPain − spot| + 1-σ daily move — "always reach
+ *       down (or up) to where price actually is, plus one daily sigma
+ *       beyond". In a trending market spot leaves the max-pain
+ *       neighbourhood entirely; a window pinned to max pain with a fixed
+ *       width goes blind exactly when it matters, so the picker either
+ *       finds nothing or grabs the flimsy wall price is already breaking
+ *       through. The trend term keeps the deeper, meatier wall (the real
+ *       support/resistance price is heading toward) inside the window.
+ *       Replaces the old hard-coded `ANCHOR_STRIKES_PER_SIDE × grid`
+ *       floor — both terms are now market facts, no gut-picked counts.
  *
  * Plus a defence-in-depth near-term (day-0+1) OI floor that rejects
  * the rare strike with huge all-expiry OI but no daily presence
@@ -117,33 +122,19 @@ const DERIBIT_API = "https://www.deribit.com/api/v2/public";
 /** Secondary potency: OI ≥ this fraction of the tallest bar in the anchor window. */
 const MIN_CLUSTER_PCT_OF_MAX = 0.25;
 
-/** Max distance from day-0 max pain for zone-center search, scaled by
- *  the IV-derived 1-σ daily move. Sets the "in a volatile market we
- *  expect price to travel further today, so include strikes further
- *  out" term of the anchor span. The other term is the strike-grid
- *  floor — see `ANCHOR_STRIKES_PER_SIDE` below. The window is the
- *  max of the two. */
+/** Volatility term of the anchor window — IV-derived 1-σ daily move ×
+ *  this multiple. "In a volatile market we expect price to travel
+ *  further today, so include strikes further out." The other term is
+ *  the trend term (`|maxPain − spot| + 1σ`) computed in
+ *  `deriveMaxPainAnchorSpan`. The window is the max of the two. */
 const MAX_PAIN_ANCHOR_REACH_MULT = 2.5;
-
-/** Strike-grid floor on the anchor window — "search at least this many
- *  Deribit strikes either side of max pain." Replaces the previous
- *  per-asset `maxPainAnchorPct` percentages (3% / 8% / 12%) which were
- *  hand-picked numbers; this is one algorithm constant that defers
- *  per-asset behaviour to `strikeGridUsd` (a market fact about Deribit,
- *  not a tuning knob).
- *
- *    BTC: 4 × $500 = $2,000  (IV-derived usually wider)
- *    ETH: 4 × $50  = $200    (catches $2,000 puts at $125 from max pain)
- *    SOL: 4 × $5   = $20     (covers ~4 strikes per side at $5 grid)
- */
-const ANCHOR_STRIKES_PER_SIDE = 4;
 
 /** Near-term (day-0+1) OI floor a strike must clear, as a fraction of
  *  per-asset `minClusterOi`. Defence-in-depth filter — kicks in for the
  *  rare strike that has substantial all-expiry OI but zero daily
  *  presence (which would otherwise out-rank legitimate walls). The
- *  primary proximity filter is `ANCHOR_STRIKES_PER_SIDE × strikeGridUsd`
- *  above. */
+ *  primary proximity filter is the anchor span (volatility + trend
+ *  terms) in `deriveMaxPainAnchorSpan`. */
 const NEAR_TERM_OI_FLOOR_FRAC_OF_MIN_CLUSTER = 0.05;
 
 /** Reach gate = 1-σ daily move. 68% probability price visits any strike
@@ -224,13 +215,10 @@ interface AssetSpec {
    *  need no special config. SOL sets this to `SOL_USDC-` because it
    *  shares the USDC bucket with other assets. */
   instrumentPrefix?: string;
-  /** Approximate strike-grid spacing near ATM, in USD. Two uses:
-   *  (a) floor on half-width so the band can't sit narrower than the
-   *      gap between adjacent listed strikes;
-   *  (b) floor on the anchor window
-   *      (`ANCHOR_STRIKES_PER_SIDE × strikeGridUsd`) so the picker
-   *      always sees at least the closest N strikes either side of
-   *      max pain regardless of IV. */
+  /** Approximate strike-grid spacing near ATM, in USD. Floors
+   *  half-width so the band can't sit narrower than the gap between
+   *  adjacent listed strikes. (The anchor window no longer uses this —
+   *  it's derived from the IV reach and the max-pain↔spot gap.) */
   strikeGridUsd: number;
   /** Annualisation horizon in years for the IV → σ conversion. Black-Scholes
    *  convention is 365 days/year (calendar, not trading days) for crypto. */
@@ -567,13 +555,23 @@ interface ClusterPickInput {
   maxPainAnchorSpanUsd:  number;
 }
 
-function deriveMaxPainAnchorSpan(
+/**
+ * Anchor window half-span around day-0 max pain, in USD. Max of:
+ *   - volatility term: IV 1-σ daily move × MAX_PAIN_ANCHOR_REACH_MULT
+ *   - trend term:      |maxPain − spot| + IV 1-σ daily move
+ * The trend term guarantees the window always reaches spot (and one
+ * sigma beyond) so the picker can see the genuine wall price is heading
+ * toward in a trend — not just the one near the pin that price has
+ * already left behind. `maxPainToSpotGapUsd` is 0 when max pain is
+ * unknown (no-data path), collapsing this to the volatility term.
+ */
+export function deriveMaxPainAnchorSpan(
   maxReachUsd: number,
-  strikeGridUsd: number,
+  maxPainToSpotGapUsd: number,
 ): number {
   return Math.max(
     maxReachUsd * MAX_PAIN_ANCHOR_REACH_MULT,
-    ANCHOR_STRIKES_PER_SIDE * strikeGridUsd,
+    maxPainToSpotGapUsd + maxReachUsd,
   );
 }
 
@@ -722,10 +720,7 @@ export async function computeOptionsZones(
     bullClusterShare: null, bearClusterShare: null,
     expiryUsed: null, expiriesUsed: [], expiryOI: null,
     bullOI: null, bearOI: null,
-    maxPainAnchorSpanUsd: deriveMaxPainAnchorSpan(
-      sizes.maxReachUsd,
-      spec.strikeGridUsd,
-    ),
+    maxPainAnchorSpanUsd: deriveMaxPainAnchorSpan(sizes.maxReachUsd, 0),
     bullLocked: false,
     bearLocked: false,
     btcPrice: currentPrice, deribitIndexPrice,
@@ -834,7 +829,7 @@ export async function computeOptionsZones(
 
   const maxPainAnchorSpanUsd = deriveMaxPainAnchorSpan(
     sizes.maxReachUsd,
-    spec.strikeGridUsd,
+    day0MaxPain !== null ? Math.abs(day0MaxPain - spot) : 0,
   );
 
   const nearTermOiFloor = Math.max(

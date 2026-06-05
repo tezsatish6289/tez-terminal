@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   bearStrikeEligibleForSpot,
   bullStrikeEligibleForSpot,
+  deriveMaxPainAnchorSpan,
 } from "../../src/lib/options-zones";
 import { applyStickyZones } from "../../src/lib/options-zone-sticky";
 
@@ -43,6 +44,24 @@ import { applyStickyZones } from "../../src/lib/options-zone-sticky";
   const half = 929;
   const spot = 75_500;
   assert.equal(bearStrikeEligibleForSpot(strike, half, spot), true);
+}
+
+// Anchor window — calm market (spot ≈ max pain): volatility term wins
+{
+  const reach = 2_000;
+  const span = deriveMaxPainAnchorSpan(reach, 0);
+  assert.equal(span, reach * 2.5);
+}
+
+// Anchor window — bear trend (spot far below max pain): trend term reaches
+// spot plus one daily sigma beyond, so a window pinned to max pain no
+// longer goes blind below price.
+{
+  const reach = 2_000;
+  const gap = 7_900; // e.g. max pain $70,500 vs spot $62,586 (BTC)
+  const span = deriveMaxPainAnchorSpan(reach, gap);
+  assert.equal(span, gap + reach); // 9,900 > 5,000 volatility term
+  assert.ok(span >= gap, "window must at least reach spot");
 }
 
 // Sticky releases when spot breaks below prior bull band

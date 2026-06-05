@@ -52,8 +52,12 @@
  *
  *   5. Pick the **most potent** cluster on each side, **anchored near
  *      day-0 max pain** (not far-away structural walls):
- *        bull (puts):  below maxPain, within an anchor span under the pin
- *        bear (calls): above maxPain, within an anchor span over the pin
+ *        bull (puts):  below maxPain, within an anchor span under the pin,
+ *                      and with bullZoneLow ≤ spot (band not entirely above
+ *                      spot — support must be reachable from here)
+ *        bear (calls): above maxPain, within an anchor span over the pin,
+ *                      and with bearZoneHigh ≥ spot (band not entirely below
+ *                      spot — resistance must be reachable from here)
  *      Potency = OI ≥ per-asset floor AND ≥ 25% of pool max in window.
  *      Priority: highest OI, then closest to max pain.
  *      Bands must sandwich the pin; min gap = max(2×halfWidth, configured).
@@ -573,6 +577,24 @@ function deriveMaxPainAnchorSpan(
   );
 }
 
+/** Bull band eligible when spot is at or inside support (not entirely above spot). */
+export function bullStrikeEligibleForSpot(
+  strike: number,
+  halfWidth: number,
+  spot: number,
+): boolean {
+  return strike - halfWidth <= spot;
+}
+
+/** Bear band eligible when spot is at or inside resistance (not entirely below spot). */
+export function bearStrikeEligibleForSpot(
+  strike: number,
+  halfWidth: number,
+  spot: number,
+): boolean {
+  return strike + halfWidth >= spot;
+}
+
 function filterPotentNearMaxPain(
   input: ClusterPickInput,
   anchorSpanUsd: number,
@@ -581,6 +603,7 @@ function filterPotentNearMaxPain(
     oiByStrike,
     nearTermOiByStrike,
     nearTermOiFloor,
+    spot,
     side,
     zoneHalfWidthUsd,
     day0MaxPain,
@@ -602,12 +625,14 @@ function filterPotentNearMaxPain(
       if (strike >= upper) return false;
       if (strike < lower) return false;
       if (strike + half >= day0MaxPain) return false;
+      if (!bullStrikeEligibleForSpot(strike, half, spot)) return false;
     } else {
       const lower = day0MaxPain + mpGap;
       const upper = day0MaxPain + anchorSpanUsd;
       if (strike <= lower) return false;
       if (strike > upper) return false;
       if (strike - half <= day0MaxPain) return false;
+      if (!bearStrikeEligibleForSpot(strike, half, spot)) return false;
     }
 
     // Premium-magnet sanity filter — see file header. A strike with
@@ -954,7 +979,9 @@ export async function computeOptionsZones(
         ? `No potent cluster within ${fmtUsd(maxPainAnchorSpanUsd)} of max pain ${fmtUsd(day0MaxPain)} (need ≥${spec.minClusterOi.toLocaleString()} OI)`
         : `No potent cluster within reach (±${fmtUsd(sizes.maxReachUsd)} = ${fmtPct(sizes.maxReachUsd / spot)} of spot)`;
     } else if (bullStrike === null && day0MaxPain !== null && day0MaxPain > spot) {
-      notActionableReason = `No potent put cluster within ${fmtUsd(maxPainAnchorSpanUsd)} below max pain ${fmtUsd(day0MaxPain)}`;
+      notActionableReason = `No potent put cluster within ${fmtUsd(maxPainAnchorSpanUsd)} below max pain ${fmtUsd(day0MaxPain)} and at/below spot ${fmtUsd(spot)}`;
+    } else if (bearStrike === null && day0MaxPain !== null && day0MaxPain < spot) {
+      notActionableReason = `No potent call cluster within ${fmtUsd(maxPainAnchorSpanUsd)} above max pain ${fmtUsd(day0MaxPain)} and at/above spot ${fmtUsd(spot)}`;
     } else if (bearStrike === null && day0MaxPain !== null && day0MaxPain > spot) {
       notActionableReason = `No potent call cluster within ${fmtUsd(maxPainAnchorSpanUsd)} above max pain ${fmtUsd(day0MaxPain)}`;
     } else {

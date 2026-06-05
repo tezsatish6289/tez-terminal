@@ -1,4 +1,4 @@
-import { INDEX_KEYS, INDEX_SPECS } from "@/lib/index-options-zones";
+import { INDEX_KEYS, INDEX_SPECS } from "@/lib/index-specs";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FNO_UNIVERSE_ALPHA } from "@/lib/nse/fno-universe";
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";

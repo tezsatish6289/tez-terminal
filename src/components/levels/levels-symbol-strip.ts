@@ -10,4 +10,4 @@ export const LEVELS_STRIP_ICON_BOX_CLASS =
 
 /** Icon-box caption — max size that fits widest label (BUBBLES) with horizontal padding. */
 export const LEVELS_STRIP_BOX_LABEL_CLASS =
-  "w-full px-1.5 text-center text-[15px] font-bold leading-none tracking-wide";
+  "w-full px-1.5 text-center text-[13px] font-bold leading-none tracking-wide";

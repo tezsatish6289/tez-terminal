@@ -50,9 +50,6 @@ export function LevelsTradingViewChart({
   className?: string;
 }) {
   const [mounted, setMounted] = useState(false);
-  const [chartFading, setChartFading] = useState(false);
-
-  const chartKey = `${config.exchange}:${config.symbol}:${config.interval}:${config.candlesScope}`;
   const symbolTicker = ticker.trim() || config.symbol;
   const subName = companyName?.trim();
   const showCompany =
@@ -63,12 +60,6 @@ export function LevelsTradingViewChart({
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  useEffect(() => {
-    setChartFading(true);
-    const id = window.setTimeout(() => setChartFading(false), 320);
-    return () => window.clearTimeout(id);
-  }, [chartKey]);
 
   return (
     <section className={`flex flex-col min-h-0 h-full w-full ${className}`.trim()}>
@@ -99,11 +90,10 @@ export function LevelsTradingViewChart({
         </div>
       ) : null}
       <div
-        className="relative flex-1 min-h-0 w-full rounded-xl overflow-hidden transition-opacity duration-300 ease-in-out"
+        className="relative flex-1 min-h-0 w-full rounded-xl overflow-hidden"
         style={{
           border: BLACKBOARD_FIELD_BORDER,
           backgroundColor: "rgba(0,0,0,0.45)",
-          opacity: chartFading ? 0.38 : 1,
         }}
       >
         {!mounted ? (

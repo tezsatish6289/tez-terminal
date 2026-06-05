@@ -314,8 +314,9 @@ export default function LevelsPage() {
 
   const activeChartLevels = useMemo<PublicLevels | null>(() => {
     if (viewMode !== "slideshow" || !inZoneActive) return null;
+    if (inZoneChartLoading) return null;
     return inZoneChartData;
-  }, [viewMode, inZoneActive, inZoneChartData]);
+  }, [viewMode, inZoneActive, inZoneChartData, inZoneChartLoading]);
 
   const chartShowsZones = Boolean(activeTv?.nativeCandles && levelsHaveBands(activeChartLevels));
 

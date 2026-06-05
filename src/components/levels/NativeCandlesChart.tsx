@@ -138,6 +138,7 @@ export const NativeCandlesChart = forwardRef<
   const levelsRef = useRef<PublicLevels | null | undefined>(levels);
 
   const hasDisplayedCandlesRef = useRef(false);
+  const loadedForSymbolRef = useRef<string | null>(null);
   const fullHistoryZoomRef = useRef(false);
   const [fullHistoryZoom, setFullHistoryZoom] = useState(false);
   const [bootLoading, setBootLoading] = useState(true);
@@ -345,6 +346,7 @@ export const NativeCandlesChart = forwardRef<
       applyRightPadding(data.length);
     }
     hasDisplayedCandlesRef.current = true;
+    loadedForSymbolRef.current = symbol;
     setError(null);
     setSwapping(false);
     setBootLoading(false);
@@ -353,6 +355,16 @@ export const NativeCandlesChart = forwardRef<
       onLastCloseChange?.(lastClose);
     }
     return true;
+  }
+
+  function clearChartCanvas() {
+    candlesRef.current = [];
+    loadedForSymbolRef.current = null;
+    const series = seriesRef.current;
+    if (!series) return;
+    series.setData([]);
+    syncZoneBands([], null);
+    applyLevelPriceLines(series, priceLinesRef, null);
   }
 
   // Load + poll candles for the active symbol/interval.
@@ -366,13 +378,14 @@ export const NativeCandlesChart = forwardRef<
         fullHistoryZoomRef.current = defaultFullHistory;
         setFullHistoryZoom(defaultFullHistory);
         hasDisplayedCandlesRef.current = false;
+        loadedForSymbolRef.current = null;
+        clearChartCanvas();
       }
       const isBoot = !hasDisplayedCandlesRef.current;
-      if (isBoot) {
+      if (!isPoll) {
         setBootLoading(true);
-        setError(null);
-      } else if (!isPoll) {
         setSwapping(true);
+        setError(null);
       }
       try {
         const res = await fetch(
@@ -385,6 +398,7 @@ export const NativeCandlesChart = forwardRef<
           if (isBoot) {
             setError(json.error ?? "No chart data available");
             setBootLoading(false);
+            setSwapping(false);
           } else {
             setSwapping(false);
           }
@@ -411,6 +425,7 @@ export const NativeCandlesChart = forwardRef<
             } else if (isBoot) {
               setError("Chart could not initialize — try refreshing");
               setBootLoading(false);
+              setSwapping(false);
             } else {
               setSwapping(false);
             }
@@ -423,8 +438,10 @@ export const NativeCandlesChart = forwardRef<
         if (!cancelled && isBoot) {
           setError(e instanceof Error ? e.message : "Failed to load chart");
           setBootLoading(false);
+          setSwapping(false);
+        } else if (!cancelled && !isPoll) {
+          setSwapping(false);
         }
-        if (!cancelled && !isPoll) setSwapping(false);
       }
     }
 
@@ -443,14 +460,18 @@ export const NativeCandlesChart = forwardRef<
   useEffect(() => {
     const series = seriesRef.current;
     if (!series || candlesRef.current.length === 0) return;
+    if (loadedForSymbolRef.current !== symbol) return;
 
     syncZoneBands(candlesRef.current, levels);
     applyLevelPriceLines(series, priceLinesRef, levels);
     fitPriceScale();
     applyRightPadding(candlesRef.current.length);
-  }, [levels, defaultFullHistory]);
+  }, [levels, defaultFullHistory, symbol]);
 
-  const showBootOverlay = bootLoading || (levelsLoading && !hasDisplayedCandlesRef.current);
+  const awaitingLevels =
+    levelsLoading && (hideShortcuts || !hasDisplayedCandlesRef.current);
+  const showChartOverlay = bootLoading || swapping || awaitingLevels;
+  const chartReady = !showChartOverlay && !error;
 
   const resolveHintTopPx = useCallback(() => {
     const series = seriesRef.current;
@@ -469,14 +490,22 @@ export const NativeCandlesChart = forwardRef<
     <div className="relative w-full h-full min-h-[200px] flex-1">
       <div
         ref={containerRef}
-        className="absolute inset-0 min-h-[200px] transition-opacity duration-300 ease-in-out"
-        style={{ opacity: swapping ? 0.38 : 1 }}
+        className="absolute inset-0 min-h-[200px]"
+        style={{
+          opacity: chartReady ? 1 : 0,
+          visibility: chartReady ? "visible" : "hidden",
+        }}
       />
-      {showBootOverlay && (
-        <div className="absolute inset-0 flex items-center justify-center gap-2" style={{ color: "#64748b" }}>
+      {showChartOverlay && (
+        <div
+          className="absolute inset-0 flex items-center justify-center gap-2"
+          style={{ color: "#64748b", backgroundColor: "rgba(0,0,0,0.45)" }}
+        >
           <Loader2 className="h-4 w-4 animate-spin" />
           <span className="text-xs">
-            {levelsLoading && !bootLoading ? `Loading ${symbol} levels…` : `Loading ${symbol} candles…`}
+            {awaitingLevels && !bootLoading && !swapping
+              ? `Loading ${symbol} levels…`
+              : `Loading ${symbol} chart…`}
           </span>
         </div>
       )}

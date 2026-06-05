@@ -1,13 +1,10 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
-import { LevelsBubbleMapFilters } from "@/components/levels/LevelsBubbleMapFilters";
 import { LevelsBubblesToolbar } from "@/components/levels/LevelsBubblesToolbar";
-import { LevelsToolbarSearchInput } from "@/components/levels/LevelsToolbarSearchInput";
 import { LevelsCtaCluster } from "@/components/levels/LevelsCtaCluster";
 import { LevelsSlideshowStripControls } from "@/components/levels/LevelsSlideshowStripControls";
 import {
-  SLIDESHOW_MAP_FILTER_KEYS,
   type BubbleMapFilter,
   type SlideshowMapFilter,
 } from "@/lib/zones/bubble-map-filter";
@@ -158,50 +155,44 @@ export function LevelsSlideshowToolbar({
 
   if (filtersOnly) {
     return (
-      <div className="shrink-0 flex flex-col gap-1.5 mb-1.5 px-0.5 min-w-0">
-        {slideshowFilter != null &&
-        onSlideshowFilterChange &&
-        slideshowFilterCounts ? (
-          <div className="flex items-center gap-1.5 w-full min-w-0 overflow-x-auto pb-0.5 [scrollbar-width:thin]">
-            {onBubbleSearchChange ? (
-              <LevelsToolbarSearchInput
-                value={bubbleSearch}
-                onChange={onBubbleSearchChange}
-              />
-            ) : null}
-            <div className="flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <LevelsBubbleMapFilters
-                filter={slideshowFilter}
-                onFilterChange={onSlideshowFilterChange}
-                counts={slideshowFilterCounts}
-                filterKeys={SLIDESHOW_MAP_FILTER_KEYS}
-              />
-            </div>
-          </div>
-        ) : null}
-        <div
-          className={`flex items-stretch gap-1.5 sm:gap-2 min-w-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}
-        >
-          <LevelsSlideshowStripControls
-            zoneFilter={zoneFilter ?? "all"}
-            onZoneFilterChange={onZoneFilterChange ?? (() => {})}
-            filterCounts={
-              filterCounts ?? {
-                all: 0,
-                bull: 0,
-                bear: 0,
-                near_bull: 0,
-                near_bear: 0,
-              }
+      <div
+        className={`shrink-0 flex items-stretch gap-1.5 sm:gap-2 mb-1.5 px-0.5 min-w-0 ${LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS}`}
+      >
+        <LevelsSlideshowStripControls
+          zoneFilter={zoneFilter ?? "all"}
+          onZoneFilterChange={onZoneFilterChange ?? (() => {})}
+          filterCounts={
+            filterCounts ?? {
+              all: 0,
+              bull: 0,
+              bear: 0,
+              near_bull: 0,
+              near_bear: 0,
             }
-            showFilter={false}
-            slideshowControl={slideshowControl}
-            viewToggle={viewModeToggle}
-          />
-          {symbolStrip ? (
-            <div className="flex-1 min-w-0 min-h-0 h-full">{symbolStrip}</div>
-          ) : null}
-        </div>
+          }
+          showFilter={false}
+          search={
+            onBubbleSearchChange
+              ? { value: bubbleSearch, onChange: onBubbleSearchChange }
+              : undefined
+          }
+          mapFilter={
+            slideshowFilter != null &&
+            onSlideshowFilterChange &&
+            slideshowFilterCounts
+              ? {
+                  filter: slideshowFilter,
+                  onChange: onSlideshowFilterChange,
+                  counts: slideshowFilterCounts,
+                }
+              : undefined
+          }
+          slideshowControl={slideshowControl}
+          viewToggle={viewModeToggle}
+        />
+        {symbolStrip ? (
+          <div className="flex-1 min-w-0 min-h-0 h-full">{symbolStrip}</div>
+        ) : null}
       </div>
     );
   }

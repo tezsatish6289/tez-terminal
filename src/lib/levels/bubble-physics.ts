@@ -7,13 +7,22 @@ export interface BubblePhysicsItem {
   tone: BubbleTone;
 }
 
+/** Index circles are always the largest on the map (easy to spot). */
+const INDEX_BUBBLE_RADIUS = 84;
+const STOCK_RADIUS = {
+  unscanned: 26,
+  neutral: 30,
+  near: 40,
+  inZone: 48,
+} as const;
+
 export function bubbleRadius(scope: "index" | "stock", tone: BubbleTone): number {
-  if (tone === "UNSCANNED") return 30;
-  if (tone === "ILLIQUID") return scope === "index" ? 36 : 28;
-  if (tone === "NEUTRAL") return scope === "index" ? 44 : 34;
-  if (scope === "index") return tone === "IN_BULL" || tone === "IN_BEAR" ? 78 : 64;
-  if (tone === "IN_BULL" || tone === "IN_BEAR") return 52;
-  return 44;
+  if (scope === "index") return INDEX_BUBBLE_RADIUS;
+  if (tone === "UNSCANNED") return STOCK_RADIUS.unscanned;
+  if (tone === "ILLIQUID" || tone === "NEUTRAL") return STOCK_RADIUS.neutral;
+  if (tone === "IN_BULL" || tone === "IN_BEAR") return STOCK_RADIUS.inZone;
+  if (tone === "NEAR_BULL" || tone === "NEAR_BEAR") return STOCK_RADIUS.near;
+  return STOCK_RADIUS.neutral;
 }
 
 export interface PhysicsNode<T extends BubblePhysicsItem = BubblePhysicsItem> {

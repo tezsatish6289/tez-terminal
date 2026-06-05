@@ -23,7 +23,7 @@ export interface BubbleToneStyle {
   fill: string;
   glow: string;
   border: string;
-  borderStyle: "solid" | "dashed";
+  borderStyle: "solid" | "dashed" | "dotted";
   borderWidth: number;
   label: string;
   /** Symbol/price text on the bubble (in-zone matches chart zone labels). */
@@ -33,47 +33,50 @@ export interface BubbleToneStyle {
 
 const { bull, bear } = LEVELS_ZONE_CHART;
 
+/** Dark bubble center — zone status reads from the ring, not fill. */
+const BUBBLE_CORE_FILL = "rgba(10, 14, 22, 0.92)";
+
 export const BUBBLE_TONE_STYLE: Record<BubbleTone, BubbleToneStyle> = {
   IN_BULL: {
-    solid: true,
-    fill: bull.bandFill,
-    glow: bull.bandGlow,
+    solid: false,
+    fill: BUBBLE_CORE_FILL,
+    glow: "0 0 22px rgba(34, 197, 94, 0.35), inset 0 0 12px rgba(34, 197, 94, 0.08)",
     border: bull.bandBorderSolid,
     borderStyle: "solid",
-    borderWidth: 3,
+    borderWidth: 4,
     label: "At Support",
     textColor: bull.labelText,
     textMutedColor: bull.labelTextMuted,
   },
   IN_BEAR: {
-    solid: true,
-    fill: bear.bandFill,
-    glow: bear.bandGlow,
+    solid: false,
+    fill: BUBBLE_CORE_FILL,
+    glow: "0 0 22px rgba(239, 68, 68, 0.35), inset 0 0 12px rgba(239, 68, 68, 0.08)",
     border: bear.bandBorderSolid,
     borderStyle: "solid",
-    borderWidth: 3,
+    borderWidth: 4,
     label: "At Resistance",
     textColor: bear.labelText,
     textMutedColor: bear.labelTextMuted,
   },
   NEAR_BULL: {
     solid: false,
-    fill: "rgba(15, 23, 42, 0.88)",
-    glow: bull.bandGlow,
+    fill: BUBBLE_CORE_FILL,
+    glow: "0 0 14px rgba(34, 197, 94, 0.2)",
     border: bull.bandBorderSolid,
-    borderStyle: "dashed",
-    borderWidth: 2,
+    borderStyle: "dotted",
+    borderWidth: 3,
     label: "Near Support",
     textColor: "#f8fafc",
     textMutedColor: "#cbd5e1",
   },
   NEAR_BEAR: {
     solid: false,
-    fill: "rgba(15, 23, 42, 0.88)",
-    glow: bear.bandGlow,
+    fill: BUBBLE_CORE_FILL,
+    glow: "0 0 14px rgba(239, 68, 68, 0.2)",
     border: bear.bandBorderSolid,
-    borderStyle: "dashed",
-    borderWidth: 2,
+    borderStyle: "dotted",
+    borderWidth: 3,
     label: "Near Resistance",
     textColor: "#f8fafc",
     textMutedColor: "#cbd5e1",
@@ -158,4 +161,37 @@ export function deriveBubbleDisplayTone(
     return "NEUTRAL";
   }
   return tone;
+}
+
+const INDEX_SILVER_RING = "rgba(192, 202, 214, 0.92)";
+
+/** Index bubbles are always largest; neutral indices use a silver ring. */
+export function resolveBubbleVisual(
+  scope: "index" | "stock",
+  tone: BubbleTone,
+): BubbleToneStyle {
+  const base = BUBBLE_TONE_STYLE[tone];
+  if (scope !== "index") return base;
+
+  if (tone === "NEUTRAL" || tone === "ILLIQUID" || tone === "UNSCANNED") {
+    return {
+      ...base,
+      fill: BUBBLE_CORE_FILL,
+      border: INDEX_SILVER_RING,
+      borderStyle: "solid",
+      borderWidth: 3,
+      glow: "0 0 18px rgba(148, 163, 184, 0.28)",
+      label: tone === "UNSCANNED" ? base.label : "Index · between zones",
+    };
+  }
+
+  if (tone === "IN_BULL" || tone === "IN_BEAR") {
+    return { ...base, borderWidth: 5 };
+  }
+
+  if (tone === "NEAR_BULL" || tone === "NEAR_BEAR") {
+    return { ...base, borderWidth: 4, borderStyle: "dotted" };
+  }
+
+  return base;
 }

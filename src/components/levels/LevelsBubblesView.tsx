@@ -10,8 +10,8 @@ import {
   type PhysicsNode,
 } from "@/lib/levels/bubble-physics";
 import {
-  BUBBLE_TONE_STYLE,
   deriveBubbleDisplayTone,
+  resolveBubbleVisual,
   type BubbleTone,
 } from "@/lib/zones/bubble-tone";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
@@ -57,8 +57,12 @@ const BUBBLE_ANIM_CSS = `
 }
 `;
 
-/** Index circles use a thicker ring (no IDX label). */
-const INDEX_BORDER_EXTRA_PX = 3;
+const BUBBLE_MAP_BG = `
+  radial-gradient(ellipse 75% 60% at 50% 42%, rgba(37, 99, 235, 0.1), transparent),
+  linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+  linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+  radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0.15), rgba(3, 7, 18, 0.95))
+`;
 
 export function LevelsBubblesView({
   items,
@@ -187,9 +191,13 @@ export function LevelsBubblesView({
         el.style.width = `${d}px`;
         el.style.height = `${d}px`;
         el.style.transform = `translate3d(${n.x - n.r}px, ${n.y - n.r}px, 0)`;
-        const baseZ = n.item.scope === "index" ? 12 : 8;
+        const baseZ = n.item.scope === "index" ? 20 : 6;
         el.style.zIndex = String(
-          isInZoneTone(n.item.tone) ? baseZ + 8 : baseZ,
+          n.item.scope === "index"
+            ? baseZ + 10
+            : isInZoneTone(n.item.tone)
+              ? baseZ + 8
+              : baseZ,
         );
       }
     };
@@ -224,8 +232,10 @@ export function LevelsBubblesView({
         ref={containerRef}
         className="relative flex-1 min-h-0 rounded-xl overflow-hidden"
         style={{
-          backgroundColor: "rgba(0,0,0,0.55)",
-          border: "1px solid rgba(255,255,255,0.06)",
+          backgroundColor: "#060912",
+          backgroundImage: BUBBLE_MAP_BG,
+          backgroundSize: "100% 100%, 44px 44px, 44px 44px, 100% 100%",
+          border: "1px solid rgba(255,255,255,0.08)",
         }}
       >
         {filtered.length === 0 ? (
@@ -240,9 +250,12 @@ export function LevelsBubblesView({
           </div>
         ) : (
           filtered.map((item) => {
-            const style = BUBBLE_TONE_STYLE[item.tone];
+            const style = resolveBubbleVisual(item.scope, item.tone);
             const r = bubbleRadius(item.scope, item.tone);
-            const fontMain = Math.max(10, Math.min(15, r * 0.28));
+            const fontMain = Math.max(
+              10,
+              Math.min(item.scope === "index" ? 17 : 14, r * 0.22),
+            );
             const fontSub = Math.max(8, fontMain - 2);
             const pop = popClass[item.id];
             const popAnim =
@@ -251,10 +264,7 @@ export function LevelsBubblesView({
                 : pop === "out"
                   ? "levels-bubble-pop-out"
                   : "";
-            const borderW =
-              item.scope === "index"
-                ? style.borderWidth + INDEX_BORDER_EXTRA_PX
-                : style.borderWidth;
+            const borderW = style.borderWidth;
             return (
               <div
                 key={item.id}

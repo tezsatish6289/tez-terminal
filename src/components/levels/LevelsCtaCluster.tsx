@@ -26,6 +26,8 @@ export interface LevelsCtaAction {
     | "bear-muted"
     | "paused"
     | "paused-muted";
+  /** Dotted ring for near-zone filters (matches bubble map). */
+  ringStyle?: "solid" | "dotted";
   count?: number;
 }
 
@@ -95,6 +97,69 @@ function pillStyle(tone: LevelsCtaAction["tone"]): {
   }
 }
 
+const FILTER_WRAPPER = {
+  background: "rgba(14, 20, 32, 0.96)",
+  border: "1px solid rgba(148, 163, 184, 0.22)",
+  boxShadow: "0 4px 18px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04)",
+} as const;
+
+function isActiveTone(tone: LevelsCtaAction["tone"]): boolean {
+  return tone != null && !tone.endsWith("-muted");
+}
+
+/** Higher-contrast pills for zone filter tabs. */
+function filterPillStyle(tone: LevelsCtaAction["tone"]): ReturnType<typeof pillStyle> & {
+  glow?: string;
+} {
+  switch (tone) {
+    case "bull":
+      return {
+        fill: "rgba(6, 78, 59, 0.58)",
+        border: "#4ade80",
+        text: "#ecfdf5",
+        countText: "#bbf7d0",
+        glow: "0 0 14px rgba(34, 197, 94, 0.35)",
+      };
+    case "bull-muted":
+      return {
+        fill: "rgba(6, 78, 59, 0.18)",
+        border: "rgba(74, 222, 128, 0.42)",
+        text: "rgba(134, 239, 172, 0.92)",
+        countText: "rgba(110, 231, 183, 0.78)",
+      };
+    case "bear":
+      return {
+        fill: "rgba(127, 29, 29, 0.58)",
+        border: "#f87171",
+        text: "#fef2f2",
+        countText: "#fecaca",
+        glow: "0 0 14px rgba(239, 68, 68, 0.35)",
+      };
+    case "bear-muted":
+      return {
+        fill: "rgba(127, 29, 29, 0.18)",
+        border: "rgba(248, 113, 113, 0.42)",
+        text: "rgba(252, 165, 165, 0.92)",
+        countText: "rgba(248, 113, 113, 0.78)",
+      };
+    case "default-muted":
+      return {
+        fill: "rgba(22, 28, 42, 0.88)",
+        border: "rgba(148, 163, 184, 0.28)",
+        text: "rgba(203, 213, 225, 0.88)",
+        countText: "rgba(148, 163, 184, 0.75)",
+      };
+    default:
+      return {
+        fill: "rgba(38, 48, 68, 0.98)",
+        border: "#e2e8f0",
+        text: "#f8fafc",
+        countText: "rgba(226, 232, 240, 0.9)",
+        glow: "0 0 12px rgba(148, 163, 184, 0.2)",
+      };
+  }
+}
+
 function isTypingTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
   if (!el?.tagName) return false;
@@ -102,24 +167,41 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable;
 }
 
-function CtaPill({ action }: { action: LevelsCtaAction }) {
-  const { fill, border, text, countText } = pillStyle(action.tone ?? "default");
-  const className = `inline-flex items-center gap-1 px-2.5 sm:px-3 ${LEVELS_TOOLBAR_CHIP_HEIGHT} rounded-full shrink-0`;
+function CtaPill({
+  action,
+  variant = "default",
+}: {
+  action: LevelsCtaAction;
+  variant?: "default" | "filter";
+}) {
+  const isFilter = variant === "filter";
+  const palette = isFilter
+    ? filterPillStyle(action.tone ?? "default")
+    : pillStyle(action.tone ?? "default");
+  const { fill, border, text, countText } = palette;
+  const glow = "glow" in palette ? palette.glow : undefined;
+  const active = isActiveTone(action.tone);
+  const ring = action.ringStyle ?? "solid";
+  const borderW = isFilter ? (active ? 2 : 1.5) : 1;
+  const chipHeight = isFilter ? "h-8" : LEVELS_TOOLBAR_CHIP_HEIGHT;
+  const labelSize = isFilter ? "text-[10px]" : "text-[9px]";
+  const className = `inline-flex items-center gap-1.5 px-3 sm:px-3.5 ${chipHeight} rounded-full shrink-0`;
   const style = {
     background: fill,
-    border: `1px solid ${border}`,
+    border: `${borderW}px ${ring} ${border}`,
+    boxShadow: glow,
   };
   const labelEl = (
     <>
       <span
-        className="text-[9px] font-bold uppercase tracking-wide whitespace-nowrap"
+        className={`${labelSize} font-black uppercase tracking-wide whitespace-nowrap`}
         style={{ color: text, lineHeight: 1.2 }}
       >
         {action.label}
       </span>
       {action.count != null ? (
         <span
-          className="text-[9px] font-semibold tabular-nums whitespace-nowrap"
+          className={`${labelSize} font-bold tabular-nums whitespace-nowrap`}
           style={{ color: countText, lineHeight: 1.2 }}
         >
           ({action.count})
@@ -162,11 +244,13 @@ function CtaPill({ action }: { action: LevelsCtaAction }) {
 export function LevelsCtaCluster({
   actions,
   align = "end",
+  variant = "default",
   enableChartKeys,
   chartKeys,
 }: {
   actions: LevelsCtaAction[];
   align?: "start" | "end";
+  variant?: "default" | "filter";
   enableChartKeys?: boolean;
   chartKeys?: {
     webChartUrl: string;
@@ -207,13 +291,15 @@ export function LevelsCtaCluster({
 
   if (actions.length === 0) return null;
 
+  const isFilter = variant === "filter";
+
   return (
     <div
-      className={`shrink-0 inline-flex items-center gap-1 rounded-full p-[3px] ${align === "end" ? "ml-auto" : ""}`}
-      style={BLACKBOARD_WRAPPER}
+      className={`shrink-0 inline-flex items-center ${isFilter ? "gap-1.5" : "gap-1"} rounded-full ${isFilter ? "p-1" : "p-[3px]"} ${align === "end" ? "ml-auto" : ""}`}
+      style={isFilter ? FILTER_WRAPPER : BLACKBOARD_WRAPPER}
     >
       {actions.map((action) => (
-        <CtaPill key={action.id} action={action} />
+        <CtaPill key={action.id} action={action} variant={variant} />
       ))}
     </div>
   );

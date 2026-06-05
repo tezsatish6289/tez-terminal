@@ -55,16 +55,18 @@ export function LevelsBubbleMapFilters({
     return opts.map(({ key, label }) => {
       const active = filter === key;
       const count = counts[key as keyof typeof counts] ?? 0;
+      const isNear = key === "NEAR_BULL" || key === "NEAR_BEAR";
       return {
         id: `bubble-filter-${key}`,
         label,
         count,
         onClick: () => onFilterChange(key as BubbleMapFilter & SlideshowMapFilter),
         tone: filterTone(key, active),
+        ringStyle: isNear ? ("dotted" as const) : ("solid" as const),
         ariaLabel: `${label}, ${count} symbols`,
       };
     });
   }, [filter, onFilterChange, counts, filterKeys]);
 
-  return <LevelsCtaCluster actions={actions} align="start" />;
+  return <LevelsCtaCluster actions={actions} align="start" variant="filter" />;
 }

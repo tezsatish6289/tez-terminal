@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { ZonePriceLadder, formatHeroPrice, type PublicLevels } from "@/components/levels/ZonePriceLadder";
 
@@ -43,6 +43,7 @@ export function LevelsSymbolList({
   onSelect,
   emptyMessage = "Nothing to show yet.",
   layout = "vertical",
+  runnerMode = false,
 }: {
   countLabel?: string;
   header?: ReactNode;
@@ -52,7 +53,29 @@ export function LevelsSymbolList({
   emptyMessage?: string;
   /** Sidebar on desktop; horizontal strip on mobile (responsive = both). */
   layout?: "vertical" | "horizontal" | "responsive";
+  /** Slideshow strip: auto-scroll active tile + edge fade ticker feel. */
+  runnerMode?: boolean;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const prevActiveRef = useRef(activeIndex);
+  const [runnerPulse, setRunnerPulse] = useState(false);
+
+  useEffect(() => {
+    if (!runnerMode || layout !== "horizontal") return;
+
+    const container = scrollRef.current;
+    const tile = container?.querySelector(
+      `[data-strip-index="${activeIndex}"]`,
+    ) as HTMLElement | null;
+    tile?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+
+    if (prevActiveRef.current !== activeIndex) {
+      setRunnerPulse(true);
+      prevActiveRef.current = activeIndex;
+      const id = window.setTimeout(() => setRunnerPulse(false), 700);
+      return () => window.clearTimeout(id);
+    }
+  }, [activeIndex, runnerMode, layout, entries.length]);
   if (!entries.length) {
     return (
       <p className="text-sm text-center py-8 px-4" style={{ color: "#64748b" }}>
@@ -60,6 +83,15 @@ export function LevelsSymbolList({
       </p>
     );
   }
+
+  const stripScrollClass =
+    layout === "horizontal"
+      ? runnerMode
+        ? "flex-1 min-h-0 overflow-x-auto overflow-y-hidden flex flex-row gap-1.5 pr-0.5 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        : "flex-1 min-h-0 overflow-x-auto overflow-y-hidden flex flex-row gap-1.5 pb-1 pr-0.5 snap-x snap-mandatory [scrollbar-width:thin]"
+      : layout === "responsive"
+        ? "flex-1 min-h-0 overflow-x-auto overflow-y-hidden flex flex-row gap-1.5 pb-1 pr-0.5 snap-x snap-mandatory [scrollbar-width:thin] lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:snap-none lg:pb-0"
+        : "flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5 pr-0.5";
 
   return (
     <aside className="flex flex-col min-h-0 w-full h-full">
@@ -72,30 +104,54 @@ export function LevelsSymbolList({
           {countLabel}
         </p>
       )}
-      <div
-        className={
-          layout === "horizontal"
-            ? "flex-1 min-h-0 overflow-x-auto overflow-y-hidden flex flex-row gap-1.5 pb-1 pr-0.5 snap-x snap-mandatory [scrollbar-width:thin]"
-            : layout === "responsive"
-              ? "flex-1 min-h-0 overflow-x-auto overflow-y-hidden flex flex-row gap-1.5 pb-1 pr-0.5 snap-x snap-mandatory [scrollbar-width:thin] lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:snap-none lg:pb-0"
-              : "flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5 pr-0.5"
-        }
-        style={{ scrollbarGutter: layout === "horizontal" ? undefined : "stable" }}
-      >
+      <div className={runnerMode && layout === "horizontal" ? "relative flex-1 min-h-0 min-w-0" : "flex flex-col flex-1 min-h-0"}>
+        {runnerMode && layout === "horizontal" ? (
+          <>
+            <div
+              className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 z-10"
+              style={{
+                background: "linear-gradient(to right, #060912 0%, #060912 35%, transparent 100%)",
+              }}
+            />
+            <div
+              className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 z-10"
+              style={{
+                background: "linear-gradient(to left, #060912 0%, #060912 35%, transparent 100%)",
+              }}
+            />
+          </>
+        ) : null}
+        <div
+          ref={runnerMode && layout === "horizontal" ? scrollRef : undefined}
+          className={stripScrollClass}
+          style={{ scrollbarGutter: layout === "horizontal" && !runnerMode ? undefined : layout !== "horizontal" ? "stable" : undefined }}
+        >
         {entries.map((entry, i) => {
           const active = i === activeIndex;
           const stripCard =
             layout === "horizontal" || layout === "responsive"
-              ? "min-w-[9.5rem] max-w-[11rem] snap-start lg:min-w-0 lg:max-w-none lg:snap-align-none"
+              ? runnerMode && layout === "horizontal"
+                ? "min-w-[9.5rem] max-w-[11rem] snap-center"
+                : "min-w-[9.5rem] max-w-[11rem] snap-start lg:min-w-0 lg:max-w-none lg:snap-align-none"
               : "";
+          const pulse = runnerMode && active && runnerPulse;
           return (
             <button
               key={entry.id}
+              data-strip-index={i}
               onClick={() => onSelect(i)}
-              className={`flex flex-col gap-1 px-3 py-2 rounded-lg text-left transition-all shrink-0 h-full ${stripCard}`}
+              className={`flex flex-col gap-1 px-3 py-2 rounded-lg text-left shrink-0 h-full ${stripCard} ${
+                runnerMode ? "transition-[transform,box-shadow,background-color,border-color] duration-500 ease-out" : "transition-all"
+              }`}
               style={{
                 backgroundColor: active ? "rgba(37,99,235,0.18)" : "rgba(255,255,255,0.02)",
-                border: `1px solid ${active ? "rgba(59,130,246,0.35)" : "rgba(255,255,255,0.05)"}`,
+                border: `1px solid ${active ? (pulse ? "rgba(96,165,250,0.65)" : "rgba(59,130,246,0.35)") : "rgba(255,255,255,0.05)"}`,
+                transform: pulse ? "scale(1.04)" : active && runnerMode ? "scale(1.01)" : "scale(1)",
+                boxShadow: pulse
+                  ? "0 0 20px rgba(59,130,246,0.4), 0 0 40px rgba(59,130,246,0.12)"
+                  : active && runnerMode
+                    ? "0 0 10px rgba(59,130,246,0.15)"
+                    : undefined,
               }}
             >
               {(entry.sublabel || entry.trailing) && (
@@ -124,6 +180,7 @@ export function LevelsSymbolList({
             </button>
           );
         })}
+        </div>
       </div>
     </aside>
   );

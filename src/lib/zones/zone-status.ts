@@ -54,6 +54,25 @@ export function isInZoneStatus(status: ZoneStatus): boolean {
   return status === "IN_BULL" || status === "IN_BEAR" || status === "NEAR";
 }
 
+/** UI badge key — splits generic NEAR into support vs resistance. */
+export type ZoneDisplayKey =
+  | "IN_BULL"
+  | "IN_BEAR"
+  | "NEAR_BULL"
+  | "NEAR_BEAR"
+  | "NEUTRAL"
+  | "ILLIQUID";
+
+export function zoneStatusDisplayKey(bands: ZoneBands): ZoneDisplayKey {
+  const status = deriveZoneStatus(bands);
+  if (status === "NEAR") {
+    const spot = bands.spot;
+    if (spot == null || !Number.isFinite(spot)) return "NEAR_BULL";
+    return nearestBandKind(bands, spot) === "bull" ? "NEAR_BULL" : "NEAR_BEAR";
+  }
+  return status;
+}
+
 export type PocDirectionFilter =
   | "all"
   | "bull"

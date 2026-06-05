@@ -42,9 +42,10 @@ import {
   type BubbleMapFilter,
 } from "@/lib/zones/bubble-map-filter";
 import {
-  deriveZoneStatus,
   type PocDirectionFilter,
-  type ZoneStatus,
+  type ZoneDisplayKey,
+  zoneStatusDisplayKey,
+  type ZoneBands,
 } from "@/lib/zones/zone-status";
 
 interface RawItem {
@@ -85,7 +86,7 @@ const HEX_BG = `
   #060912
 `;
 
-const STATUS_META: Record<ZoneStatus, { label: string; color: string; bg: string }> = {
+const STATUS_META: Record<ZoneDisplayKey, { label: string; color: string; bg: string }> = {
   IN_BULL: {
     label: "At Support",
     color: LEVELS_ZONE_CHART.bull.badgeText,
@@ -96,21 +97,36 @@ const STATUS_META: Record<ZoneStatus, { label: string; color: string; bg: string
     color: LEVELS_ZONE_CHART.bear.badgeText,
     bg: LEVELS_ZONE_CHART.bear.badgeBg,
   },
-  NEAR: { label: "Near Zone", color: "#fbbf24", bg: "rgba(251,191,36,0.14)" },
+  NEAR_BULL: {
+    label: "Near Support",
+    color: LEVELS_ZONE_CHART.bull.badgeText,
+    bg: LEVELS_ZONE_CHART.bull.bandFillSoft,
+  },
+  NEAR_BEAR: {
+    label: "Near Resistance",
+    color: LEVELS_ZONE_CHART.bear.badgeText,
+    bg: LEVELS_ZONE_CHART.bear.bandFillSoft,
+  },
   NEUTRAL: { label: "Neutral", color: "#94a3b8", bg: "rgba(148,163,184,0.12)" },
   ILLIQUID: { label: "No Data", color: "#64748b", bg: "rgba(100,116,139,0.1)" },
 };
 
-function StatusBadge({ status }: { status: ZoneStatus }) {
-  const m = STATUS_META[status];
-  const Icon = status === "IN_BULL" ? TrendingUp : status === "IN_BEAR" ? TrendingDown : Target;
+function StatusBadge({ bands }: { bands: ZoneBands }) {
+  const key = zoneStatusDisplayKey(bands);
+  const m = STATUS_META[key];
+  const Icon =
+    key === "IN_BULL" || key === "NEAR_BULL"
+      ? TrendingUp
+      : key === "IN_BEAR" || key === "NEAR_BEAR"
+        ? TrendingDown
+        : Target;
   return (
     <span
-      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider shrink-0"
+      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-wide shrink-0 max-w-[5.75rem] leading-tight text-right"
       style={{ color: m.color, backgroundColor: m.bg }}
     >
-      <Icon className="h-3 w-3" />
-      {m.label}
+      <Icon className="h-2.5 w-2.5 shrink-0" />
+      <span className="truncate">{m.label}</span>
     </span>
   );
 }
@@ -507,14 +523,14 @@ export default function LevelsPage() {
     () =>
       inZoneListFiltered.map((it) => {
         const id = `${it.scope}-${it.symbol}`;
-        const status = deriveZoneStatus(bandsFromLevels(it.data, it.spot));
+        const bands = bandsFromLevels(it.data, it.spot);
         return {
           id,
           label: it.label,
           sublabel: it.scope === "index" ? "Index" : "Stock",
           spot: liveStripSpot[id] ?? it.spot,
           currency: it.currency,
-          trailing: <StatusBadge status={status} />,
+          trailing: <StatusBadge bands={bands} />,
         };
       }),
     [inZoneListFiltered, liveStripSpot],
@@ -582,6 +598,7 @@ export default function LevelsPage() {
         activeIndex={inZoneCurrent}
         onSelect={setInZoneSlide}
         layout="horizontal"
+        runnerMode
       />
     ) : null;
 

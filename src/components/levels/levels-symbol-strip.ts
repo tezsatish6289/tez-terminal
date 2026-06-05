@@ -8,6 +8,10 @@ export const LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS = "h-[4.75rem]";
 export const LEVELS_STRIP_ICON_BOX_CLASS =
   "h-[4.75rem] w-[4.75rem] shrink-0 rounded-lg";
 
+/** Icon stacked above caption inside strip control boxes. */
+export const LEVELS_STRIP_ICON_INNER_CLASS =
+  "flex flex-col items-center justify-center gap-1.5";
+
 /** Icon-box caption — max size that fits widest label (BUBBLES) with horizontal padding. */
 export const LEVELS_STRIP_BOX_LABEL_CLASS =
   "w-full px-1.5 text-center text-[13px] font-bold leading-none tracking-wide";

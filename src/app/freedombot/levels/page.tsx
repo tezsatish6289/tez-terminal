@@ -160,6 +160,7 @@ export default function LevelsPage() {
   const [liveStripSpot, setLiveStripSpot] = useState<Record<string, number>>({});
   const nativeChartRef = useRef<NativeCandlesChartHandle>(null);
   const activeStripKeyRef = useRef("");
+  const chartLevelsSymbolRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -330,11 +331,13 @@ export default function LevelsPage() {
 
   const activeChartLevels = useMemo<PublicLevels | null>(() => {
     if (viewMode !== "slideshow" || !inZoneActive) return null;
-    if (inZoneChartLoading) return null;
     return inZoneChartData;
-  }, [viewMode, inZoneActive, inZoneChartData, inZoneChartLoading]);
+  }, [viewMode, inZoneActive, inZoneChartData]);
 
-  const chartShowsZones = Boolean(activeTv?.nativeCandles && levelsHaveBands(activeChartLevels));
+  /** Chart + news rail — stable for all native-candle slideshow symbols (not gated on levels load). */
+  const slideshowNativeLayout = Boolean(
+    viewMode === "slideshow" && activeTv?.nativeCandles && inZoneActive != null,
+  );
 
   const activeTicker = inZoneActive?.symbol ?? null;
 
@@ -357,7 +360,10 @@ export default function LevelsPage() {
   }, [activeTicker, activeCompanyName, inZoneActive?.label]);
 
   const chartLevelsLoading =
-    viewMode === "slideshow" && inZoneChartLoading && inZoneActive?.scope === "stock";
+    viewMode === "slideshow" &&
+    inZoneChartLoading &&
+    inZoneActive?.scope === "stock" &&
+    !levelsHaveBands(inZoneChartData);
 
   const slideshowChartShortcuts =
     viewMode === "slideshow" && activeTv
@@ -426,9 +432,14 @@ export default function LevelsPage() {
 
   useEffect(() => {
     if (!inZoneActive) {
+      chartLevelsSymbolRef.current = null;
       setInZoneChartData(null);
       return;
     }
+    const activeKey = `${inZoneActive.scope}-${inZoneActive.symbol}`;
+    const symbolChanged = chartLevelsSymbolRef.current !== activeKey;
+    chartLevelsSymbolRef.current = activeKey;
+
     const bundled = inZoneActive.data;
     const hasBands = bundled != null && (bundled.bullLow != null || bundled.bearLow != null);
     const stockNeedsFullFetch =
@@ -450,6 +461,9 @@ export default function LevelsPage() {
     }
     let cancelled = false;
     setInZoneChartLoading(true);
+    if (symbolChanged) {
+      setInZoneChartData(null);
+    }
     const q = viewMode === "slideshow" ? "&slideshow=1" : "";
     fetch(
       `/api/freedombot/levels?symbol=${encodeURIComponent(inZoneActive.symbol)}${q}`,
@@ -617,7 +631,7 @@ export default function LevelsPage() {
         list={opts?.listAboveChart ? <></> : list}
         levels={levels}
         news={opts?.news}
-        hideLevelsColumn={opts?.hideLevelsColumn ?? chartShowsZones}
+        hideLevelsColumn={opts?.hideLevelsColumn ?? slideshowNativeLayout}
         listAboveChart={opts?.listAboveChart}
         chartChrome={opts?.listAboveChart ? slideshowChartChrome : undefined}
         chart={
@@ -654,10 +668,8 @@ export default function LevelsPage() {
 
     const chartSpot = inZoneChartData?.spot ?? inZoneActive?.spot ?? null;
     const zonesUpdatedLabel = zonesUpdatedFooterLabel(inZoneChartData?.computedAt);
-    const inZoneNativeChart = chartShowsZones && inZoneActive != null;
-
     return wrapSlideshowBody(
-      inZoneNativeChart ? (
+      slideshowNativeLayout ? (
         <></>
       ) : (
         <LevelsSymbolList
@@ -667,33 +679,31 @@ export default function LevelsPage() {
           layout="responsive"
         />
       ),
-      inZoneActive ? (
-        inZoneNativeChart ? (
-          <></>
-        ) : (
-          <LevelsChartPanel
-            title={`${inZoneActive.label} Market Levels`}
-            spot={chartSpot}
-            currency={inZoneActive.currency}
-            levels={inZoneChartData}
-            loading={inZoneChartLoading}
-            slideCount={inZoneCount}
-            activeIndex={inZoneCurrent}
-            onPrev={() => goInZone(-1)}
-            onNext={() => goInZone(1)}
-            onGoTo={setInZoneSlide}
-            zonesUpdatedLabel={zonesUpdatedLabel}
-            slideshowAdvanceHint
-            slideshowPaused={slideshowPaused}
-            showCarouselArrows={false}
-          />
-        )
+      slideshowNativeLayout ? (
+        <></>
+      ) : inZoneActive ? (
+        <LevelsChartPanel
+          title={`${inZoneActive.label} Market Levels`}
+          spot={chartSpot}
+          currency={inZoneActive.currency}
+          levels={inZoneChartData}
+          loading={inZoneChartLoading}
+          slideCount={inZoneCount}
+          activeIndex={inZoneCurrent}
+          onPrev={() => goInZone(-1)}
+          onNext={() => goInZone(1)}
+          onGoTo={setInZoneSlide}
+          zonesUpdatedLabel={zonesUpdatedLabel}
+          slideshowAdvanceHint
+          slideshowPaused={slideshowPaused}
+          showCarouselArrows={false}
+        />
       ) : (
         <div className="flex flex-1 items-center justify-center" style={{ color: "#64748b" }}>
           <p className="text-xs">No selection</p>
         </div>
       ),
-      inZoneNativeChart
+      slideshowNativeLayout
         ? {
             hideLevelsColumn: true,
             news: slideshowNews,

@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getIndexCandles, getStockCandles } from "@/lib/dhan-candles";
-import { isValidFnoSymbol, normalizeStockSymbol } from "@/lib/equity-zones-on-demand";
+import { isValidFnoSymbol, normalizeStockSymbol } from "@/lib/nse/fno-symbol";
 import { normalizeIndexKey } from "@/lib/nse/dhan-index-ids";
 
 export const dynamic = "force-dynamic";

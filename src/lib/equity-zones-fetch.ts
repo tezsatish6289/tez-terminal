@@ -2,6 +2,8 @@
  * Shared NSE → Dhan fallback for single-stock zone fetches (cron + on-demand).
  */
 
+import "server-only";
+
 import type { NseSession } from "@/lib/nse/client";
 import { NseBlockError, NseCircuitOpenError } from "@/lib/nse/types";
 import { computeEquityZones } from "@/lib/equity-options-zones";

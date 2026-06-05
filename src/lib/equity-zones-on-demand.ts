@@ -3,6 +3,7 @@
  * Tries NSE first (same as cron); falls back to Dhan when NSE blocks.
  */
 
+import "server-only";
 import { getAdminFirestore } from "@/firebase/admin";
 import { createNseSession } from "@/lib/nse/client";
 import { computeStockZonesWithFallback } from "@/lib/equity-zones-fetch";
@@ -13,7 +14,12 @@ import {
   stockDocId,
   writeStockZoneAggregate,
 } from "@/lib/equity-zones-store";
-import { FNO_UNIVERSE } from "@/lib/nse/fno-universe";
+import {
+  isValidFnoSymbol,
+  normalizeStockSymbol,
+} from "@/lib/nse/fno-symbol";
+
+export { isValidFnoSymbol, normalizeStockSymbol };
 
 /** Shown in API/UI — never mentions upstream data providers. */
 export const STOCK_LEVELS_PUBLIC_ERROR =
@@ -27,14 +33,6 @@ export function stockLevelsHasBands(data: PublicLevels | null | undefined): bool
 /** Bands + Point of Control (max pain) — required for a complete cached stock ladder. */
 export function stockLevelsLadderComplete(data: PublicLevels | null | undefined): boolean {
   return stockLevelsHasBands(data) && data!.poc != null;
-}
-
-export function normalizeStockSymbol(symbol: string): string {
-  return symbol.toUpperCase().replace(/[^A-Z0-9&-]/g, "");
-}
-
-export function isValidFnoSymbol(symbol: string): boolean {
-  return FNO_UNIVERSE.includes(normalizeStockSymbol(symbol));
 }
 
 /** Fresh enough to skip an on-demand round-trip (default 15 min). */

@@ -12,13 +12,10 @@
 import "server-only";
 import { ai } from "@/ai/genkit";
 import { getAdminFirestore } from "@/firebase/admin";
-import { INDEX_SPECS } from "@/lib/index-options-zones";
+import { INDEX_SPECS } from "@/lib/index-specs";
 import { normalizeIndexKey } from "@/lib/nse/dhan-index-ids";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
-import {
-  isValidFnoSymbol,
-  normalizeStockSymbol,
-} from "@/lib/equity-zones-on-demand";
+import { isValidFnoSymbol, normalizeStockSymbol } from "@/lib/nse/fno-symbol";
 import {
   LEVELS_NEWS_WINDOW_DAYS,
   SENTIMENT_LABEL_THRESHOLDS,

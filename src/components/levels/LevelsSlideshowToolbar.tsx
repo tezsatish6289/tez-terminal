@@ -5,7 +5,11 @@ import { LevelsBubbleMapFilters } from "@/components/levels/LevelsBubbleMapFilte
 import { LevelsBubblesToolbar } from "@/components/levels/LevelsBubblesToolbar";
 import { LevelsCtaCluster } from "@/components/levels/LevelsCtaCluster";
 import { LevelsSlideshowStripControls } from "@/components/levels/LevelsSlideshowStripControls";
-import type { BubbleMapFilter } from "@/lib/zones/bubble-map-filter";
+import {
+  SLIDESHOW_MAP_FILTER_KEYS,
+  type BubbleMapFilter,
+  type SlideshowMapFilter,
+} from "@/lib/zones/bubble-map-filter";
 import { LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS } from "@/components/levels/levels-symbol-strip";
 import type { PocDirectionFilter } from "@/lib/zones/zone-status";
 
@@ -36,6 +40,9 @@ export function LevelsSlideshowToolbar({
   bubbleMapFilter,
   onBubbleMapFilterChange,
   bubbleFilterCounts,
+  slideshowFilter,
+  onSlideshowFilterChange,
+  slideshowFilterCounts,
   bubbleSearch = "",
   onBubbleSearchChange,
 }: {
@@ -47,6 +54,9 @@ export function LevelsSlideshowToolbar({
   bubbleMapFilter?: BubbleMapFilter;
   onBubbleMapFilterChange?: (filter: BubbleMapFilter) => void;
   bubbleFilterCounts?: Record<BubbleMapFilter, number>;
+  slideshowFilter?: SlideshowMapFilter;
+  onSlideshowFilterChange?: (filter: SlideshowMapFilter) => void;
+  slideshowFilterCounts?: Record<SlideshowMapFilter, number>;
   bubbleSearch?: string;
   onBubbleSearchChange?: (value: string) => void;
   chartShortcuts?: {
@@ -148,14 +158,15 @@ export function LevelsSlideshowToolbar({
   if (filtersOnly) {
     return (
       <div className="shrink-0 flex flex-col gap-1.5 mb-1.5 px-0.5 min-w-0">
-        {bubbleMapFilter != null &&
-        onBubbleMapFilterChange &&
-        bubbleFilterCounts ? (
+        {slideshowFilter != null &&
+        onSlideshowFilterChange &&
+        slideshowFilterCounts ? (
           <div className="w-full min-w-0 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <LevelsBubbleMapFilters
-              filter={bubbleMapFilter}
-              onFilterChange={onBubbleMapFilterChange}
-              counts={bubbleFilterCounts}
+              filter={slideshowFilter}
+              onFilterChange={onSlideshowFilterChange}
+              counts={slideshowFilterCounts}
+              filterKeys={SLIDESHOW_MAP_FILTER_KEYS}
             />
           </div>
         ) : null}

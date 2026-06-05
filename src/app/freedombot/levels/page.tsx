@@ -39,12 +39,16 @@ import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsiv
 import {
   bubbleMatchesMapFilter,
   countBubbleMapFilters,
+  countSlideshowMapFilters,
+  slideshowMatchesMapFilter,
   type BubbleMapFilter,
+  type SlideshowMapFilter,
 } from "@/lib/zones/bubble-map-filter";
 import {
   deriveZoneStatus,
   matchesDirectionalSetup,
   type ZoneDisplayKey,
+  type ZoneStatus,
   zoneStatusDisplayKey,
   type ZoneBands,
 } from "@/lib/zones/zone-status";
@@ -172,6 +176,7 @@ export default function LevelsPage() {
   const [slideshowPaused, setSlideshowPaused] = useState(false);
   const [slideshowCountdown, setSlideshowCountdown] = useState(SLIDESHOW_SLIDE_SECONDS);
   const [bubbleMapFilter, setBubbleMapFilter] = useState<BubbleMapFilter>("all");
+  const [slideshowFilter, setSlideshowFilter] = useState<SlideshowMapFilter>("all");
   const [bubbleSearch, setBubbleSearch] = useState("");
   const [chartFullHistory, setChartFullHistory] = useState(false);
   /** Last candle close per symbol — strip tiles match native chart price. */
@@ -299,12 +304,17 @@ export default function LevelsPage() {
     [bubbleItems],
   );
 
-  /** Slideshow strip — same filter + search as the bubbles map. */
+  const slideshowFilterCounts = useMemo(
+    () => countSlideshowMapFilters(bubbleItems),
+    [bubbleItems],
+  );
+
+  /** Slideshow strip — zone setups only (at/near support/resistance). */
   const inZoneListFiltered = useMemo(() => {
     const q = bubbleSearch.trim().toUpperCase();
     return bubbleItems
       .filter((it) => {
-        if (!bubbleMatchesMapFilter(it.tone, bubbleMapFilter)) return false;
+        if (!slideshowMatchesMapFilter(it.tone, slideshowFilter)) return false;
         if (!q) return true;
         return (
           it.symbol.toUpperCase().includes(q) ||
@@ -313,7 +323,7 @@ export default function LevelsPage() {
       })
       .map((it) => bubbleItemToActionable(it, stockBySymbol))
       .sort((a, b) => a.label.localeCompare(b.label, "en", { sensitivity: "base" }));
-  }, [bubbleItems, bubbleMapFilter, bubbleSearch, stockBySymbol]);
+  }, [bubbleItems, slideshowFilter, bubbleSearch, stockBySymbol]);
 
   const inZoneCount = inZoneListFiltered.length;
   const inZoneCurrent = inZoneCount > 0 ? Math.min(inZoneSlide, inZoneCount - 1) : 0;
@@ -407,7 +417,7 @@ export default function LevelsPage() {
 
   useEffect(() => {
     setSlideshowCountdown(SLIDESHOW_SLIDE_SECONDS);
-  }, [inZoneCurrent, bubbleMapFilter, viewMode]);
+  }, [inZoneCurrent, slideshowFilter, viewMode]);
 
   useEffect(() => {
     if (slideshowPaused || viewMode !== "slideshow" || inZoneCount <= 1) return;
@@ -415,7 +425,7 @@ export default function LevelsPage() {
       setSlideshowCountdown((c) => c - 1);
     }, 1000);
     return () => clearInterval(id);
-  }, [slideshowPaused, viewMode, inZoneCount, inZoneCurrent, bubbleMapFilter]);
+  }, [slideshowPaused, viewMode, inZoneCount, inZoneCurrent, slideshowFilter]);
 
   useEffect(() => {
     if (slideshowCountdown > 0) return;
@@ -665,7 +675,8 @@ export default function LevelsPage() {
 
   const renderSlideshow = () => {
     if (inZoneCount === 0) {
-      const filteredEmpty = bubbleMapFilter !== "all" && bubbleItems.length > 0;
+      const filteredEmpty =
+        slideshowFilter !== "all" && slideshowFilterCounts.all > 0;
       return wrapSlideshowBody(
         <div className="flex flex-col min-h-0 h-full">
           <p className="text-sm text-center py-8 px-4" style={{ color: "#64748b" }}>
@@ -763,17 +774,18 @@ export default function LevelsPage() {
                 bubbleSearch={bubbleSearch}
                 onBubbleSearchChange={setBubbleSearch}
                 bubbleMapFilter={bubbleMapFilter}
-                onBubbleMapFilterChange={(filter) => {
-                  setBubbleMapFilter(filter);
+                onBubbleMapFilterChange={setBubbleMapFilter}
+                bubbleFilterCounts={bubbleFilterCounts}
+                slideshowFilter={slideshowFilter}
+                onSlideshowFilterChange={(filter) => {
+                  setSlideshowFilter(filter);
                   setInZoneSlide(0);
                 }}
-                bubbleFilterCounts={bubbleFilterCounts}
-                filtersOnly={viewMode === "slideshow" && activeTv != null}
-                symbolStrip={
-                  viewMode === "slideshow" && activeTv != null ? slideshowSymbolStrip : undefined
-                }
+                slideshowFilterCounts={slideshowFilterCounts}
+                filtersOnly={viewMode === "slideshow"}
+                symbolStrip={viewMode === "slideshow" ? slideshowSymbolStrip : undefined}
                 slideshowControl={
-                  viewMode === "slideshow" && activeTv != null && slideshowEnabled
+                  viewMode === "slideshow" && slideshowEnabled
                     ? {
                         enabled: true,
                         paused: slideshowPaused,
@@ -783,7 +795,7 @@ export default function LevelsPage() {
                     : undefined
                 }
                 viewModeToggle={
-                  viewMode === "slideshow" && activeTv != null
+                  viewMode === "slideshow"
                     ? {
                         viewMode: "slideshow",
                         onToggle: toggleViewMode,

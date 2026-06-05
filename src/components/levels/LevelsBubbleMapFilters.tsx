@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { LevelsCtaCluster, type LevelsCtaAction } from "@/components/levels/LevelsCtaCluster";
 import {
   BUBBLE_MAP_FILTER_KEYS,
+  SLIDESHOW_MAP_FILTER_KEYS,
   type BubbleMapFilter,
+  type SlideshowMapFilter,
 } from "@/lib/zones/bubble-map-filter";
 import { BUBBLE_TONE_STYLE } from "@/lib/zones/bubble-tone";
 
@@ -20,35 +22,49 @@ function filterTone(
   return "bear-muted";
 }
 
+type BubbleMapFilterProps = {
+  filter: BubbleMapFilter;
+  onFilterChange: (next: BubbleMapFilter) => void;
+  counts: Record<BubbleMapFilter, number>;
+  filterKeys?: typeof BUBBLE_MAP_FILTER_KEYS;
+};
+
+type SlideshowMapFilterProps = {
+  filter: SlideshowMapFilter;
+  onFilterChange: (next: SlideshowMapFilter) => void;
+  counts: Record<SlideshowMapFilter, number>;
+  filterKeys?: typeof SLIDESHOW_MAP_FILTER_KEYS;
+};
+
+export function LevelsBubbleMapFilters(props: BubbleMapFilterProps): ReactNode;
+export function LevelsBubbleMapFilters(props: SlideshowMapFilterProps): ReactNode;
 export function LevelsBubbleMapFilters({
   filter,
   onFilterChange,
   counts,
-}: {
-  filter: BubbleMapFilter;
-  onFilterChange: (next: BubbleMapFilter) => void;
-  counts: Record<BubbleMapFilter, number>;
-}) {
+  filterKeys = BUBBLE_MAP_FILTER_KEYS,
+}: BubbleMapFilterProps | SlideshowMapFilterProps) {
   const actions = useMemo((): LevelsCtaAction[] => {
     const opts: { key: BubbleMapFilter; label: string }[] = [
       { key: "all", label: "All" },
-      ...BUBBLE_MAP_FILTER_KEYS.map((key) => ({
+      ...filterKeys.map((key) => ({
         key,
         label: BUBBLE_TONE_STYLE[key].label,
       })),
     ];
     return opts.map(({ key, label }) => {
       const active = filter === key;
+      const count = counts[key as keyof typeof counts] ?? 0;
       return {
         id: `bubble-filter-${key}`,
         label,
-        count: counts[key],
-        onClick: () => onFilterChange(key),
+        count,
+        onClick: () => onFilterChange(key as BubbleMapFilter & SlideshowMapFilter),
         tone: filterTone(key, active),
-        ariaLabel: `${label}, ${counts[key]} symbols`,
+        ariaLabel: `${label}, ${count} symbols`,
       };
     });
-  }, [filter, onFilterChange, counts]);
+  }, [filter, onFilterChange, counts, filterKeys]);
 
   return <LevelsCtaCluster actions={actions} align="start" />;
 }

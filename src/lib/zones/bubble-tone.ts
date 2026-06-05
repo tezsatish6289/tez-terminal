@@ -1,5 +1,5 @@
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
-import { deriveZoneStatus, type ZoneBands } from "@/lib/zones/zone-status";
+import { deriveZoneStatus, nearestBandKind, type ZoneBands } from "@/lib/zones/zone-status";
 
 /** Visual tone for the levels bubble map (splits generic NEAR by closest band). */
 export type BubbleTone =
@@ -106,27 +106,6 @@ export const BUBBLE_TONE_STYLE: Record<BubbleTone, BubbleToneStyle> = {
     textMutedColor: "#cbd5e1",
   },
 };
-
-function nearestBandKind(bands: ZoneBands, spot: number): "bull" | "bear" {
-  const edges: { kind: "bull" | "bear"; edge: number }[] = [];
-  if (bands.bullLow != null) edges.push({ kind: "bull", edge: bands.bullLow });
-  if (bands.bullHigh != null) edges.push({ kind: "bull", edge: bands.bullHigh });
-  if (bands.bearLow != null) edges.push({ kind: "bear", edge: bands.bearLow });
-  if (bands.bearHigh != null) edges.push({ kind: "bear", edge: bands.bearHigh });
-
-  if (edges.length === 0) return "bull";
-
-  let best = edges[0];
-  let bestDist = Math.abs(spot - best.edge);
-  for (let i = 1; i < edges.length; i++) {
-    const d = Math.abs(spot - edges[i].edge);
-    if (d < bestDist) {
-      best = edges[i];
-      bestDist = d;
-    }
-  }
-  return best.kind;
-}
 
 export function deriveBubbleTone(bands: ZoneBands, scanned: boolean): BubbleTone {
   if (!scanned) return "UNSCANNED";

@@ -17,12 +17,15 @@ import { LEVELS_STRIP_ICON_BOX_CLASS, LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS } fro
 const FILTER_OPTIONS: {
   key: PocDirectionFilter;
   label: string;
+  shortLabel: string;
   activeBorder: string;
   activeText: string;
 }[] = [
-  { key: "all", label: "All", activeBorder: "rgba(226, 232, 240, 0.35)", activeText: "#e2e8f0" },
-  { key: "bull", label: "Bullish", activeBorder: "rgba(134, 239, 172, 0.45)", activeText: "#86efac" },
-  { key: "bear", label: "Bearish", activeBorder: "rgba(252, 165, 165, 0.45)", activeText: "#fca5a5" },
+  { key: "all", label: "All", shortLabel: "All", activeBorder: "rgba(226, 232, 240, 0.35)", activeText: "#e2e8f0" },
+  { key: "bull", label: "At Support", shortLabel: "AtSu", activeBorder: "rgba(134, 239, 172, 0.45)", activeText: "#86efac" },
+  { key: "bear", label: "At Resistance", shortLabel: "AtRe", activeBorder: "rgba(252, 165, 165, 0.45)", activeText: "#fca5a5" },
+  { key: "near_bull", label: "Near Support", shortLabel: "NSup", activeBorder: "rgba(134, 239, 172, 0.35)", activeText: "#86efac" },
+  { key: "near_bear", label: "Near Resistance", shortLabel: "NRes", activeBorder: "rgba(252, 165, 165, 0.35)", activeText: "#fca5a5" },
 ];
 
 function stripIconBoxStyle(active?: boolean) {
@@ -109,7 +112,7 @@ export function LevelsSlideshowStripControls({
 }: {
   zoneFilter: PocDirectionFilter;
   onZoneFilterChange: (filter: PocDirectionFilter) => void;
-  filterCounts: { all: number; bull: number; bear: number };
+  filterCounts: Record<PocDirectionFilter, number>;
   slideshowControl?: {
     enabled: boolean;
     paused: boolean;
@@ -166,14 +169,14 @@ export function LevelsSlideshowStripControls({
               className="text-[8px] font-bold uppercase tracking-wider leading-none"
               style={{ color: BLACKBOARD_CHALK_DIM }}
             >
-              {activeMeta.label.slice(0, 4)}
+              {activeMeta.shortLabel}
             </span>
           </button>
         </PopoverTrigger>
         <PopoverContent
           align="start"
           sideOffset={6}
-          className="w-auto min-w-[10.5rem] p-1.5 border-0 shadow-lg"
+          className="w-auto min-w-[12.5rem] p-1.5 border-0 shadow-lg"
           style={{
             background: "rgba(12, 16, 26, 0.98)",
             border: BLACKBOARD_FIELD_BORDER,

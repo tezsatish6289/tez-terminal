@@ -27,6 +27,7 @@ import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import {
   bandsFromLevels,
   buildLevelsActionableList,
+  buildSlideshowFilterCounts,
   type LevelsActionableItem,
 } from "@/lib/zones/levels-actionable-list";
 import { SLIDESHOW_SLIDE_SECONDS } from "@/components/levels/levels-symbol-strip";
@@ -212,24 +213,20 @@ export default function LevelsPage() {
   );
 
   const inZoneFilterCounts = useMemo(
-    () => ({
-      all: inZoneListSorted.length,
-      bull: payload
-        ? buildLevelsActionableList({
+    () =>
+      payload
+        ? buildSlideshowFilterCounts({
             indices: payload.indices,
             stocks: payload.stocks,
-            filter: "bull",
-          }).length
-        : 0,
-      bear: payload
-        ? buildLevelsActionableList({
-            indices: payload.indices,
-            stocks: payload.stocks,
-            filter: "bear",
-          }).length
-        : 0,
-    }),
-    [payload, inZoneListSorted.length],
+          })
+        : {
+            all: 0,
+            bull: 0,
+            bear: 0,
+            near_bull: 0,
+            near_bear: 0,
+          },
+    [payload],
   );
 
   const inZoneListFiltered = useMemo(

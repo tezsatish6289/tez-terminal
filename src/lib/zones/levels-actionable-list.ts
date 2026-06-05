@@ -1,8 +1,9 @@
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
   deriveZoneStatus,
-  matchesDirectionalSetup,
+  matchesSlideshowSetup,
   type PocDirectionFilter,
+  type SlideshowFilterCounts,
   type ZoneBands,
   type ZoneStatus,
 } from "@/lib/zones/zone-status";
@@ -93,7 +94,7 @@ export function buildLevelsActionableList(input: {
     const symbol = (it.symbol ?? it.label).toUpperCase();
     const data = it.data;
     const bands = bandsFromLevels(data);
-    if (!matchesDirectionalSetup(bands, data?.poc ?? null, filter, data?.bandOffset ?? null)) {
+    if (!matchesSlideshowSetup(bands, data?.poc ?? null, filter, data?.bandOffset ?? null)) {
       continue;
     }
     out.push({
@@ -111,7 +112,7 @@ export function buildLevelsActionableList(input: {
     const data = levelsFromStockRow(row);
     if (!data) continue;
     const bands = bandsFromLevels(data, row.spot);
-    if (!matchesDirectionalSetup(bands, data.poc, filter, data.bandOffset)) continue;
+    if (!matchesSlideshowSetup(bands, data.poc, filter, data.bandOffset)) continue;
     out.push({
       scope: "stock",
       symbol: row.symbol,
@@ -125,4 +126,34 @@ export function buildLevelsActionableList(input: {
 
   out.sort((a, b) => a.label.localeCompare(b.label, "en", { sensitivity: "base" }));
   return out;
+}
+
+export function buildSlideshowFilterCounts(input: {
+  indices: { symbol?: string; label: string; data: PublicLevels | null }[];
+  stocks: {
+    symbol: string;
+    label: string;
+    spot: number | null;
+    maxPain?: number | null;
+    bullZoneLow?: number | null;
+    bullZoneHigh?: number | null;
+    bearZoneLow?: number | null;
+    bearZoneHigh?: number | null;
+    halfWidth?: number | null;
+    computedAt?: string | null;
+  }[];
+}): SlideshowFilterCounts {
+  const filters: PocDirectionFilter[] = [
+    "all",
+    "bull",
+    "bear",
+    "near_bull",
+    "near_bear",
+  ];
+  return Object.fromEntries(
+    filters.map((filter) => [
+      filter,
+      buildLevelsActionableList({ ...input, filter }).length,
+    ]),
+  ) as SlideshowFilterCounts;
 }

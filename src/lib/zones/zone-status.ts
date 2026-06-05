@@ -54,7 +54,48 @@ export function isInZoneStatus(status: ZoneStatus): boolean {
   return status === "IN_BULL" || status === "IN_BEAR" || status === "NEAR";
 }
 
-export type PocDirectionFilter = "all" | "bull" | "bear";
+export type PocDirectionFilter =
+  | "all"
+  | "bull"
+  | "bear"
+  | "near_bull"
+  | "near_bear";
+
+export type SlideshowFilterCounts = Record<PocDirectionFilter, number>;
+
+/** Closest band edge for NEAR classification (support vs resistance). */
+export function nearestBandKind(bands: ZoneBands, spot: number): "bull" | "bear" {
+  const edges: { kind: "bull" | "bear"; edge: number }[] = [];
+  if (bands.bullLow != null) edges.push({ kind: "bull", edge: bands.bullLow });
+  if (bands.bullHigh != null) edges.push({ kind: "bull", edge: bands.bullHigh });
+  if (bands.bearLow != null) edges.push({ kind: "bear", edge: bands.bearLow });
+  if (bands.bearHigh != null) edges.push({ kind: "bear", edge: bands.bearHigh });
+  if (edges.length === 0) return "bull";
+  let best = edges[0];
+  let bestDist = Math.abs(spot - best.edge);
+  for (let i = 1; i < edges.length; i++) {
+    const d = Math.abs(spot - edges[i].edge);
+    if (d < bestDist) {
+      best = edges[i];
+      bestDist = d;
+    }
+  }
+  return best.kind;
+}
+
+export function isNearSupport(bands: ZoneBands): boolean {
+  const spot = bands.spot;
+  if (spot == null || !Number.isFinite(spot) || spot <= 0) return false;
+  if (deriveZoneStatus(bands) !== "NEAR") return false;
+  return nearestBandKind(bands, spot) === "bull";
+}
+
+export function isNearResistance(bands: ZoneBands): boolean {
+  const spot = bands.spot;
+  if (spot == null || !Number.isFinite(spot) || spot <= 0) return false;
+  if (deriveZoneStatus(bands) !== "NEAR") return false;
+  return nearestBandKind(bands, spot) === "bear";
+}
 
 /** Minimum reward:risk from spot → POC vs band invalidation (Bull/Bear Inv.). */
 export const MIN_POC_RISK_REWARD = 2;
@@ -161,7 +202,34 @@ export function matchesDirectionalSetup(
     bearRr >= MIN_POC_RISK_REWARD;
   if (filter === "all") return bullOk || bearOk;
   if (filter === "bull") return bullOk;
-  return bearOk;
+  if (filter === "bear") return bearOk;
+  return false;
+}
+
+/** Slideshow strip: actionable in-zone + near support / near resistance. */
+export function matchesSlideshowSetup(
+  bands: ZoneBands,
+  poc: number | null | undefined,
+  filter: PocDirectionFilter,
+  bandOffset?: number | null,
+): boolean {
+  const bullOk = matchesDirectionalSetup(bands, poc, "bull", bandOffset);
+  const bearOk = matchesDirectionalSetup(bands, poc, "bear", bandOffset);
+  const nearBullOk = isNearSupport(bands);
+  const nearBearOk = isNearResistance(bands);
+
+  switch (filter) {
+    case "all":
+      return bullOk || bearOk || nearBullOk || nearBearOk;
+    case "bull":
+      return bullOk;
+    case "bear":
+      return bearOk;
+    case "near_bull":
+      return nearBullOk;
+    case "near_bear":
+      return nearBearOk;
+  }
 }
 
 /** Rank for sorting the In-Zone list (lower = more urgent / shown first). */

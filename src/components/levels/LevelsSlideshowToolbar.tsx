@@ -15,8 +15,10 @@ const FILTER_OPTIONS: {
   mutedTone: "default-muted" | "bull-muted" | "bear-muted";
 }[] = [
   { key: "all", label: "All", activeTone: "default", mutedTone: "default-muted" },
-  { key: "bull", label: "Bullish", activeTone: "bull", mutedTone: "bull-muted" },
-  { key: "bear", label: "Bearish", activeTone: "bear", mutedTone: "bear-muted" },
+  { key: "bull", label: "At Support", activeTone: "bull", mutedTone: "bull-muted" },
+  { key: "bear", label: "At Resistance", activeTone: "bear", mutedTone: "bear-muted" },
+  { key: "near_bull", label: "Near Support", activeTone: "bull", mutedTone: "bull-muted" },
+  { key: "near_bear", label: "Near Resistance", activeTone: "bear", mutedTone: "bear-muted" },
 ];
 
 export function LevelsSlideshowToolbar({
@@ -38,7 +40,7 @@ export function LevelsSlideshowToolbar({
 }: {
   zoneFilter: PocDirectionFilter;
   onZoneFilterChange: (filter: PocDirectionFilter) => void;
-  filterCounts: { all: number; bull: number; bear: number };
+  filterCounts: Record<PocDirectionFilter, number>;
   /** Bubbles map: tone filters instead of All / Bullish / Bearish. */
   bubblesMode?: boolean;
   bubbleMapFilter?: BubbleMapFilter;

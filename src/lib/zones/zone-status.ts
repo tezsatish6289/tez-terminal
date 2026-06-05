@@ -225,7 +225,43 @@ export function matchesDirectionalSetup(
   return false;
 }
 
-/** Slideshow strip: actionable in-zone + near support / near resistance. */
+/**
+ * Near support: within tolerance of bull band, max pain above spot,
+ * and at least {@link MIN_POC_RISK_REWARD}:1 to POC from band center vs invalidation.
+ */
+export function matchesNearBullSetup(
+  bands: ZoneBands,
+  poc: number | null | undefined,
+  bandOffset?: number | null,
+): boolean {
+  const spot = bands.spot;
+  if (spot == null || poc == null || !Number.isFinite(spot) || !Number.isFinite(poc) || spot <= 0) {
+    return false;
+  }
+  if (!isNearSupport(bands)) return false;
+  const rr = pocRiskRewardRatio(bands, poc, bandOffset, "bull");
+  return poc > spot && rr != null && rr >= MIN_POC_RISK_REWARD;
+}
+
+/**
+ * Near resistance: within tolerance of bear band, max pain below spot,
+ * and at least {@link MIN_POC_RISK_REWARD}:1 to POC from band center vs invalidation.
+ */
+export function matchesNearBearSetup(
+  bands: ZoneBands,
+  poc: number | null | undefined,
+  bandOffset?: number | null,
+): boolean {
+  const spot = bands.spot;
+  if (spot == null || poc == null || !Number.isFinite(spot) || !Number.isFinite(poc) || spot <= 0) {
+    return false;
+  }
+  if (!isNearResistance(bands)) return false;
+  const rr = pocRiskRewardRatio(bands, poc, bandOffset, "bear");
+  return poc < spot && rr != null && rr >= MIN_POC_RISK_REWARD;
+}
+
+/** Slideshow strip: actionable in-zone + qualified near support / near resistance. */
 export function matchesSlideshowSetup(
   bands: ZoneBands,
   poc: number | null | undefined,
@@ -234,8 +270,8 @@ export function matchesSlideshowSetup(
 ): boolean {
   const bullOk = matchesDirectionalSetup(bands, poc, "bull", bandOffset);
   const bearOk = matchesDirectionalSetup(bands, poc, "bear", bandOffset);
-  const nearBullOk = isNearSupport(bands);
-  const nearBearOk = isNearResistance(bands);
+  const nearBullOk = matchesNearBullSetup(bands, poc, bandOffset);
+  const nearBearOk = matchesNearBearSetup(bands, poc, bandOffset);
 
   switch (filter) {
     case "all":

@@ -1,5 +1,11 @@
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
-import { deriveZoneStatus, nearestBandKind, type ZoneBands } from "@/lib/zones/zone-status";
+import {
+  deriveZoneStatus,
+  matchesNearBearSetup,
+  matchesNearBullSetup,
+  nearestBandKind,
+  type ZoneBands,
+} from "@/lib/zones/zone-status";
 
 /** Visual tone for the levels bubble map (splits generic NEAR by closest band). */
 export type BubbleTone =
@@ -130,12 +136,26 @@ export function deriveBubbleDisplayTone(
   bands: ZoneBands,
   scanned: boolean,
   meetsActionableSetup: boolean,
+  poc?: number | null,
+  bandOffset?: number | null,
 ): BubbleTone {
   const raw = deriveBubbleTone(bands, scanned);
+  let tone: BubbleTone;
   if (meetsActionableSetup && (raw === "IN_BULL" || raw === "IN_BEAR")) {
-    return raw;
+    tone = raw;
+  } else if (raw === "IN_BULL") {
+    tone = "NEAR_BULL";
+  } else if (raw === "IN_BEAR") {
+    tone = "NEAR_BEAR";
+  } else {
+    tone = raw;
   }
-  if (raw === "IN_BULL") return "NEAR_BULL";
-  if (raw === "IN_BEAR") return "NEAR_BEAR";
-  return raw;
+  // Geographic near only — same directional + min POC RR gate as the slideshow.
+  if (raw === "NEAR_BULL" && !matchesNearBullSetup(bands, poc, bandOffset)) {
+    return "NEUTRAL";
+  }
+  if (raw === "NEAR_BEAR" && !matchesNearBearSetup(bands, poc, bandOffset)) {
+    return "NEUTRAL";
+  }
+  return tone;
 }

@@ -20,6 +20,7 @@ import {
   bubbleMatchesMapFilter,
   type BubbleMapFilter,
 } from "@/lib/zones/bubble-map-filter";
+import { levelsFromStockRow } from "@/lib/zones/levels-actionable-list";
 import type { ZoneBands } from "@/lib/zones/zone-status";
 
 export interface LevelsBubbleItem {
@@ -333,14 +334,16 @@ export function buildLevelsBubbleItems(
       bearHigh: it.data?.bearHigh ?? null,
     };
     const actionable = actionableIds?.has(id) ?? false;
+    const poc = it.data?.poc ?? null;
+    const bandOffset = it.data?.bandOffset ?? null;
     out.push({
       id,
       symbol,
       label: it.label,
       scope: "index",
-      tone: deriveBubbleDisplayTone(bands, true, actionable),
+      tone: deriveBubbleDisplayTone(bands, true, actionable, poc, bandOffset),
       spot: bands.spot,
-      poc: it.data?.poc ?? null,
+      poc,
       bands,
       data: it.data,
       meetsActionableFilter: actionable,
@@ -359,14 +362,17 @@ export function buildLevelsBubbleItems(
     };
     const id = `stock-${sym}`;
     const actionable = actionableIds?.has(id) ?? false;
+    const stockLevels = st ? levelsFromStockRow(st) : null;
+    const poc = stockLevels?.poc ?? null;
+    const bandOffset = stockLevels?.bandOffset ?? null;
     out.push({
       id,
       symbol: sym,
       label: fnoCompanyName(sym) ?? st?.label ?? sym,
       scope: "stock",
-      tone: deriveBubbleDisplayTone(bands, scanned, actionable),
+      tone: deriveBubbleDisplayTone(bands, scanned, actionable, poc, bandOffset),
       spot: bands.spot,
-      poc: st?.maxPain ?? null,
+      poc,
       bands,
       data: null,
       meetsActionableFilter: actionable,
@@ -396,7 +402,13 @@ export function inZoneItemToBubbleItem(it: {
     symbol: it.symbol,
     label: it.label,
     scope: it.scope,
-    tone: deriveBubbleDisplayTone(bands, true, true),
+    tone: deriveBubbleDisplayTone(
+      bands,
+      true,
+      true,
+      it.data?.poc ?? null,
+      it.data?.bandOffset ?? null,
+    ),
     spot: bands.spot,
     poc: it.data?.poc ?? null,
     bands,

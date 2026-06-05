@@ -26,8 +26,7 @@ import { levelsTradingViewParams } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import {
   bandsFromLevels,
-  buildLevelsActionableList,
-  buildSlideshowFilterCounts,
+  levelsFromStockRow,
   type LevelsActionableItem,
 } from "@/lib/zones/levels-actionable-list";
 import { SLIDESHOW_SLIDE_SECONDS } from "@/components/levels/levels-symbol-strip";
@@ -38,15 +37,18 @@ import {
 } from "@/lib/levels/slideshow-zones";
 import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
 import {
+  bubbleMatchesMapFilter,
   countBubbleMapFilters,
   type BubbleMapFilter,
 } from "@/lib/zones/bubble-map-filter";
 import {
-  type PocDirectionFilter,
+  deriveZoneStatus,
+  matchesDirectionalSetup,
   type ZoneDisplayKey,
   zoneStatusDisplayKey,
   type ZoneBands,
 } from "@/lib/zones/zone-status";
+import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
 
 interface RawItem {
   symbol?: string;
@@ -135,6 +137,23 @@ function levelsHaveBands(data: PublicLevels | null | undefined): boolean {
   return data != null && (data.bullLow != null || data.bearLow != null);
 }
 
+function bubbleItemToActionable(
+  it: LevelsBubbleItem,
+  stockBySymbol: Map<string, Parameters<typeof levelsFromStockRow>[0]>,
+): LevelsActionableItem {
+  const row = it.scope === "stock" ? stockBySymbol.get(it.symbol) : undefined;
+  const data = it.data ?? (row ? levelsFromStockRow(row) : null);
+  return {
+    scope: it.scope,
+    symbol: it.symbol,
+    label: it.label,
+    status: deriveZoneStatus(it.bands),
+    spot: it.spot,
+    currency: "₹",
+    data,
+  };
+}
+
 function resolveStockCompanyName(symbol: string, fallback?: string | null): string | null {
   const fromMap = fnoCompanyName(symbol);
   if (fromMap) return fromMap;
@@ -147,7 +166,6 @@ export default function LevelsPage() {
   const [payload, setPayload] = useState<LevelsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<LevelsViewMode>("bubbles");
-  const [zoneFilter, setZoneFilter] = useState<PocDirectionFilter>("all");
   const [inZoneSlide, setInZoneSlide] = useState(0);
   const [inZoneChartData, setInZoneChartData] = useState<PublicLevels | null>(null);
   const [inZoneChartLoading, setInZoneChartLoading] = useState(false);
@@ -217,52 +235,6 @@ export default function LevelsPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [toggleViewMode]);
 
-  const inZoneListSorted = useMemo(
-    () =>
-      payload
-        ? buildLevelsActionableList({
-            indices: payload.indices,
-            stocks: payload.stocks,
-            filter: "all",
-          })
-        : [],
-    [payload],
-  );
-
-  const inZoneFilterCounts = useMemo(
-    () =>
-      payload
-        ? buildSlideshowFilterCounts({
-            indices: payload.indices,
-            stocks: payload.stocks,
-          })
-        : {
-            all: 0,
-            bull: 0,
-            bear: 0,
-            near_bull: 0,
-            near_bear: 0,
-          },
-    [payload],
-  );
-
-  const inZoneListFiltered = useMemo(
-    () =>
-      payload
-        ? buildLevelsActionableList({
-            indices: payload.indices,
-            stocks: payload.stocks,
-            filter: zoneFilter,
-          })
-        : [],
-    [payload, zoneFilter],
-  );
-
-  const actionableBubbleIds = useMemo(
-    () => new Set(inZoneListFiltered.map((it) => `${it.scope}-${it.symbol}`)),
-    [inZoneListFiltered],
-  );
-
   const stockBySymbol = useMemo(() => {
     const m = new Map<
       string,
@@ -283,7 +255,37 @@ export default function LevelsPage() {
     return m;
   }, [payload?.stocks]);
 
-  /** Full F&O map (all tones); actionable setups match slideshow filter. */
+  /** Solid in-zone bubbles (directional + min POC RR) — not the slideshow strip list. */
+  const actionableBubbleIds = useMemo(() => {
+    if (!payload) return new Set<string>();
+    const ids = new Set<string>();
+    for (const it of payload.indices) {
+      const symbol = (it.symbol ?? it.label).toUpperCase();
+      const bands = bandsFromLevels(it.data);
+      const poc = it.data?.poc ?? null;
+      const bandOffset = it.data?.bandOffset ?? null;
+      if (
+        matchesDirectionalSetup(bands, poc, "bull", bandOffset) ||
+        matchesDirectionalSetup(bands, poc, "bear", bandOffset)
+      ) {
+        ids.add(`index-${symbol}`);
+      }
+    }
+    for (const row of payload.stocks) {
+      const data = levelsFromStockRow(row);
+      if (!data) continue;
+      const bands = bandsFromLevels(data, row.spot);
+      if (
+        matchesDirectionalSetup(bands, data.poc, "bull", data.bandOffset) ||
+        matchesDirectionalSetup(bands, data.poc, "bear", data.bandOffset)
+      ) {
+        ids.add(`stock-${row.symbol}`);
+      }
+    }
+    return ids;
+  }, [payload]);
+
+  /** Full F&O map (all tones). */
   const bubbleItems = useMemo(
     () =>
       payload
@@ -296,6 +298,22 @@ export default function LevelsPage() {
     () => countBubbleMapFilters(bubbleItems),
     [bubbleItems],
   );
+
+  /** Slideshow strip — same filter + search as the bubbles map. */
+  const inZoneListFiltered = useMemo(() => {
+    const q = bubbleSearch.trim().toUpperCase();
+    return bubbleItems
+      .filter((it) => {
+        if (!bubbleMatchesMapFilter(it.tone, bubbleMapFilter)) return false;
+        if (!q) return true;
+        return (
+          it.symbol.toUpperCase().includes(q) ||
+          it.label.toUpperCase().includes(q)
+        );
+      })
+      .map((it) => bubbleItemToActionable(it, stockBySymbol))
+      .sort((a, b) => a.label.localeCompare(b.label, "en", { sensitivity: "base" }));
+  }, [bubbleItems, bubbleMapFilter, bubbleSearch, stockBySymbol]);
 
   const inZoneCount = inZoneListFiltered.length;
   const inZoneCurrent = inZoneCount > 0 ? Math.min(inZoneSlide, inZoneCount - 1) : 0;
@@ -389,7 +407,7 @@ export default function LevelsPage() {
 
   useEffect(() => {
     setSlideshowCountdown(SLIDESHOW_SLIDE_SECONDS);
-  }, [inZoneCurrent, zoneFilter, viewMode]);
+  }, [inZoneCurrent, bubbleMapFilter, viewMode]);
 
   useEffect(() => {
     if (slideshowPaused || viewMode !== "slideshow" || inZoneCount <= 1) return;
@@ -397,7 +415,7 @@ export default function LevelsPage() {
       setSlideshowCountdown((c) => c - 1);
     }, 1000);
     return () => clearInterval(id);
-  }, [slideshowPaused, viewMode, inZoneCount, inZoneCurrent, zoneFilter]);
+  }, [slideshowPaused, viewMode, inZoneCount, inZoneCurrent, bubbleMapFilter]);
 
   useEffect(() => {
     if (slideshowCountdown > 0) return;
@@ -647,7 +665,7 @@ export default function LevelsPage() {
 
   const renderSlideshow = () => {
     if (inZoneCount === 0) {
-      const filteredEmpty = zoneFilter !== "all" && inZoneListSorted.length > 0;
+      const filteredEmpty = bubbleMapFilter !== "all" && bubbleItems.length > 0;
       return wrapSlideshowBody(
         <div className="flex flex-col min-h-0 h-full">
           <p className="text-sm text-center py-8 px-4" style={{ color: "#64748b" }}>
@@ -745,14 +763,11 @@ export default function LevelsPage() {
                 bubbleSearch={bubbleSearch}
                 onBubbleSearchChange={setBubbleSearch}
                 bubbleMapFilter={bubbleMapFilter}
-                onBubbleMapFilterChange={setBubbleMapFilter}
-                bubbleFilterCounts={bubbleFilterCounts}
-                zoneFilter={zoneFilter}
-                onZoneFilterChange={(key) => {
-                  setZoneFilter(key);
+                onBubbleMapFilterChange={(filter) => {
+                  setBubbleMapFilter(filter);
                   setInZoneSlide(0);
                 }}
-                filterCounts={inZoneFilterCounts}
+                bubbleFilterCounts={bubbleFilterCounts}
                 filtersOnly={viewMode === "slideshow" && activeTv != null}
                 symbolStrip={
                   viewMode === "slideshow" && activeTv != null ? slideshowSymbolStrip : undefined

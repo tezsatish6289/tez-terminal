@@ -1,6 +1,6 @@
 "use client";
 
-import type { RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 import { LevelsChartPageToolbar } from "@/components/levels/LevelsChartPageToolbar";
 import { LevelsChartSymbolHeader } from "@/components/levels/LevelsChartSymbolHeader";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
@@ -18,6 +18,7 @@ export function LevelsChartChrome({
   bubblesShortLabel,
   bubblesTitle,
   hideToolbar = false,
+  symbolSearch,
   className = "",
 }: {
   symbol: string;
@@ -31,6 +32,8 @@ export function LevelsChartChrome({
   bubblesTitle?: string;
   /** Slideshow: symbol header only (no TradingView / 30-day toolbar pills). */
   hideToolbar?: boolean;
+  /** Chart deep-dive: symbol jump search beside header when toolbar is hidden. */
+  symbolSearch?: ReactNode;
   className?: string;
 }) {
   return (
@@ -48,6 +51,8 @@ export function LevelsChartChrome({
           bubblesShortLabel={bubblesShortLabel}
           bubblesTitle={bubblesTitle}
         />
+      ) : symbolSearch ? (
+        <div className="shrink-0 self-start">{symbolSearch}</div>
       ) : null}
     </div>
   );

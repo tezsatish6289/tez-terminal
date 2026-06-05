@@ -772,7 +772,10 @@ export default function LevelsPage() {
               <LevelsSlideshowToolbar
                 bubblesMode={viewMode === "bubbles"}
                 bubbleSearch={bubbleSearch}
-                onBubbleSearchChange={setBubbleSearch}
+                onBubbleSearchChange={(value) => {
+                  setBubbleSearch(value);
+                  setInZoneSlide(0);
+                }}
                 bubbleMapFilter={bubbleMapFilter}
                 onBubbleMapFilterChange={setBubbleMapFilter}
                 bubbleFilterCounts={bubbleFilterCounts}

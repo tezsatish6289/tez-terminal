@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "rea
 import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
+import { LevelsSymbolNavigateSearch } from "@/components/levels/LevelsSymbolNavigateSearch";
 import { LevelsChartMetaFooter } from "@/components/levels/LevelsSplitLayout";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
@@ -170,6 +171,14 @@ function ChartContent() {
           nativeChartRef={nativeChartRef}
           chartFullHistory={chartFullHistory}
           hideToolbar
+          symbolSearch={
+            scope ? (
+              <LevelsSymbolNavigateSearch
+                currentScope={scope}
+                currentSymbol={symbol}
+              />
+            ) : undefined
+          }
         />
 
         {error ? (

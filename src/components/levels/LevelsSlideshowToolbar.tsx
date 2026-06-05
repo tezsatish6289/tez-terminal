@@ -3,6 +3,7 @@
 import { useMemo, type ReactNode } from "react";
 import { LevelsBubbleMapFilters } from "@/components/levels/LevelsBubbleMapFilters";
 import { LevelsBubblesToolbar } from "@/components/levels/LevelsBubblesToolbar";
+import { LevelsToolbarSearchInput } from "@/components/levels/LevelsToolbarSearchInput";
 import { LevelsCtaCluster } from "@/components/levels/LevelsCtaCluster";
 import { LevelsSlideshowStripControls } from "@/components/levels/LevelsSlideshowStripControls";
 import {
@@ -161,13 +162,21 @@ export function LevelsSlideshowToolbar({
         {slideshowFilter != null &&
         onSlideshowFilterChange &&
         slideshowFilterCounts ? (
-          <div className="w-full min-w-0 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <LevelsBubbleMapFilters
-              filter={slideshowFilter}
-              onFilterChange={onSlideshowFilterChange}
-              counts={slideshowFilterCounts}
-              filterKeys={SLIDESHOW_MAP_FILTER_KEYS}
-            />
+          <div className="flex items-center gap-1.5 w-full min-w-0 overflow-x-auto pb-0.5 [scrollbar-width:thin]">
+            {onBubbleSearchChange ? (
+              <LevelsToolbarSearchInput
+                value={bubbleSearch}
+                onChange={onBubbleSearchChange}
+              />
+            ) : null}
+            <div className="flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <LevelsBubbleMapFilters
+                filter={slideshowFilter}
+                onFilterChange={onSlideshowFilterChange}
+                counts={slideshowFilterCounts}
+                filterKeys={SLIDESHOW_MAP_FILTER_KEYS}
+              />
+            </div>
           </div>
         ) : null}
         <div

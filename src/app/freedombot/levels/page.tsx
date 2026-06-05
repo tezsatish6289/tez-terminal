@@ -30,6 +30,7 @@ import {
   type LevelsActionableItem,
 } from "@/lib/zones/levels-actionable-list";
 import { SLIDESHOW_SLIDE_SECONDS } from "@/components/levels/levels-symbol-strip";
+import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
 import {
   isSlideshowZoneStale,
   SLIDESHOW_ZONE_TICK_MS,
@@ -72,6 +73,7 @@ interface StockListItem {
   bearZoneHigh: number | null;
   halfWidth?: number | null;
   computedAt?: string | null;
+  levelsSource?: PublicLevels["levelsSource"];
 }
 
 type InZoneItem = LevelsActionableItem;
@@ -254,6 +256,7 @@ export default function LevelsPage() {
         bearZoneHigh: number | null;
         halfWidth?: number | null;
         computedAt?: string | null;
+        levelsSource?: PublicLevels["levelsSource"];
       }
     >();
     for (const s of payload?.stocks ?? []) m.set(s.symbol, s);
@@ -621,6 +624,9 @@ export default function LevelsPage() {
       : "Switch to bubbles view";
   const viewToggleShortcut = "(Press S for shortcut)";
 
+  const chartHighConfidence =
+    inZoneActive?.scope === "index" || isHighConfidenceLevels(activeChartLevels);
+
   const slideshowChartChrome =
     activeTv != null && activeTicker ? (
       <LevelsChartChrome
@@ -630,6 +636,7 @@ export default function LevelsPage() {
         nativeChartRef={nativeChartRef}
         chartFullHistory={chartFullHistory}
         hideToolbar
+        highConfidence={chartHighConfidence}
       />
     ) : null;
 

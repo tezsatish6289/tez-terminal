@@ -19,6 +19,7 @@ export function LevelsChartChrome({
   bubblesTitle,
   hideToolbar = false,
   symbolSearch,
+  highConfidence = false,
   className = "",
 }: {
   symbol: string;
@@ -34,13 +35,19 @@ export function LevelsChartChrome({
   hideToolbar?: boolean;
   /** Chart deep-dive: symbol jump search beside header when toolbar is hidden. */
   symbolSearch?: ReactNode;
+  highConfidence?: boolean;
   className?: string;
 }) {
   return (
     <div
       className={`shrink-0 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-x-2 min-w-0 ${className}`.trim()}
     >
-      <LevelsChartSymbolHeader symbol={symbol} subtitle={subtitle} config={config} />
+      <LevelsChartSymbolHeader
+        symbol={symbol}
+        subtitle={subtitle}
+        config={config}
+        highConfidence={highConfidence}
+      />
       {!hideToolbar ? (
         <LevelsChartPageToolbar
           webChartUrl={config.webChartUrl}

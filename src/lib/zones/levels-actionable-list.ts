@@ -1,4 +1,5 @@
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
+import type { PublicLevelsSource } from "@/lib/levels/levels-source";
 import {
   deriveZoneStatus,
   matchesSlideshowSetup,
@@ -40,6 +41,7 @@ export function levelsFromStockRow(row: {
   bearZoneHigh?: number | null;
   halfWidth?: number | null;
   computedAt?: string | null;
+  levelsSource?: PublicLevelsSource | null;
 }): PublicLevels | null {
   const bullLow = row.bullZoneLow ?? null;
   const bearLow = row.bearZoneLow ?? null;
@@ -67,6 +69,7 @@ export function levelsFromStockRow(row: {
     bearActive: null,
     computedAt: row.computedAt ?? null,
     unavailable: false,
+    levelsSource: row.levelsSource ?? null,
   };
 }
 
@@ -84,6 +87,7 @@ export function buildLevelsActionableList(input: {
     bearZoneHigh?: number | null;
     halfWidth?: number | null;
     computedAt?: string | null;
+    levelsSource?: PublicLevelsSource | null;
   }[];
   filter?: PocDirectionFilter;
 }): LevelsActionableItem[] {
@@ -141,6 +145,7 @@ export function buildSlideshowFilterCounts(input: {
     bearZoneHigh?: number | null;
     halfWidth?: number | null;
     computedAt?: string | null;
+    levelsSource?: PublicLevelsSource | null;
   }[];
 }): SlideshowFilterCounts {
   const filters: PocDirectionFilter[] = [

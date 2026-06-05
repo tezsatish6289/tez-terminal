@@ -18,6 +18,7 @@ import {
 import { levelsTradingViewParams, type LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FB_FULL_HEIGHT_MAIN } from "@/lib/freedombot/responsive";
+import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
 
 /** Deep-dive: full viewport width; slideshow keeps max-w-[100rem] + side list. */
 const CHART_PAGE_SHELL = "w-full max-w-none flex flex-col flex-1 min-h-0";
@@ -171,6 +172,7 @@ function ChartContent() {
           nativeChartRef={nativeChartRef}
           chartFullHistory={chartFullHistory}
           hideToolbar
+          highConfidence={scope === "index" || isHighConfidenceLevels(levels)}
           symbolSearch={
             scope ? (
               <LevelsSymbolNavigateSearch

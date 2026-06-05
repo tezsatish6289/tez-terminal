@@ -1,13 +1,11 @@
 /**
- * On-demand equity zone compute for a single F&O symbol (user click on
- * /levels chart or slideshow). Uses Dhan option chain — same feed as candles —
- * so visitors never hit NSE scrape paths or see NSE-specific errors.
- *
- * Background cron (`stock-zones-runner`) still uses NSE batching to fill the universe.
+ * On-demand equity zone compute for a single F&O symbol (chart / slideshow).
+ * Tries NSE first (same as cron); falls back to Dhan when NSE blocks.
  */
 
 import { getAdminFirestore } from "@/firebase/admin";
-import { computeEquityZonesDhan } from "@/lib/equity-options-zones-dhan";
+import { createNseSession } from "@/lib/nse/client";
+import { computeStockZonesWithFallback } from "@/lib/equity-zones-fetch";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
   aggregateEntry,
@@ -57,10 +55,17 @@ export async function computeStockZonesOnDemand(symbol: string): Promise<{
   const db = getAdminFirestore();
 
   try {
-    const zones = await computeEquityZonesDhan(safe);
-    await persistEquityZonesDoc(db, zones, "dhan_equity");
+    let session = null;
+    try {
+      session = await createNseSession(db);
+    } catch {
+      session = null;
+    }
+
+    const { zones, source } = await computeStockZonesWithFallback(safe, session);
+    await persistEquityZonesDoc(db, zones, source);
     if (zones.bullZoneLow != null || zones.bearZoneLow != null) {
-      await writeStockZoneAggregate(db, [aggregateEntry(zones)]);
+      await writeStockZoneAggregate(db, [aggregateEntry(zones, source)]);
     }
     return { ok: zones.bullZoneLow != null || zones.bearZoneLow != null };
   } catch (e) {

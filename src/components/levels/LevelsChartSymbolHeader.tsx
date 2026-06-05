@@ -10,11 +10,14 @@ export function LevelsChartSymbolHeader({
   symbol,
   subtitle,
   config,
+  highConfidence = false,
 }: {
   symbol: string;
   /** Company or index label when different from ticker. */
   subtitle?: string | null;
   config: LevelsTvConfig;
+  /** NSE option chain — show ★ beside ticker. */
+  highConfidence?: boolean;
 }) {
   const showSubtitle =
     subtitle != null &&
@@ -27,7 +30,19 @@ export function LevelsChartSymbolHeader({
         className="text-base sm:text-lg font-black tracking-tight truncate"
         style={{ color: "#f8fafc" }}
       >
-        {symbol}
+        <span className="inline-flex items-center gap-1 min-w-0">
+          <span className="truncate">{symbol}</span>
+          {highConfidence ? (
+            <span
+              className="shrink-0 text-sm leading-none"
+              style={{ color: "#fbbf24" }}
+              title="High confidence — NSE option chain"
+              aria-label="High confidence levels"
+            >
+              ★
+            </span>
+          ) : null}
+        </span>
       </h1>
       {showSubtitle ? (
         <p

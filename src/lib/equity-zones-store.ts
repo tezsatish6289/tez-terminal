@@ -14,6 +14,10 @@
 
 import type { Firestore } from "firebase-admin/firestore";
 import type { EquityOptionsZones } from "@/lib/equity-options-zones";
+import {
+  storedSourceToPublic,
+  type PublicLevelsSource,
+} from "@/lib/levels/levels-source";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
 
 const AGGREGATE_DOC = "config/zone_status_stocks";
@@ -70,9 +74,13 @@ export interface StockZoneAggregateEntry {
   bearZoneHigh: number | null;
   halfWidth: number | null;
   computedAt: string;
+  levelsSource: PublicLevelsSource | null;
 }
 
-export function aggregateEntry(z: EquityOptionsZones): StockZoneAggregateEntry {
+export function aggregateEntry(
+  z: EquityOptionsZones,
+  source: "nse_equity" | "dhan_equity" = "nse_equity",
+): StockZoneAggregateEntry {
   return {
     symbol: z.symbol,
     label: z.label,
@@ -85,6 +93,7 @@ export function aggregateEntry(z: EquityOptionsZones): StockZoneAggregateEntry {
     bearZoneHigh: z.bearZoneHigh,
     halfWidth: z.halfWidth > 0 ? z.halfWidth : null,
     computedAt: z.computedAt,
+    levelsSource: storedSourceToPublic(source),
   };
 }
 

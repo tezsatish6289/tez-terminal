@@ -19,5 +19,6 @@ export function toPublicLevels(
     bearActive: raw.bearActionable ?? null,
     computedAt: raw.computedAt ?? null,
     unavailable: false,
+    levelsSource: null,
   };
 }

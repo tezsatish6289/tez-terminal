@@ -13,14 +13,13 @@
 import type { Firestore } from "firebase-admin/firestore";
 import type { NseSession } from "@/lib/nse/client";
 import { createNseSession } from "@/lib/nse/client";
-import { NseBlockError, NseCircuitOpenError } from "@/lib/nse/types";
+import { NseCircuitOpenError } from "@/lib/nse/types";
 import {
   nextStockZonesBatch,
   FNO_UNIVERSE,
   type StockAggregateMeta,
 } from "@/lib/nse/fno-universe";
-import { computeEquityZones } from "@/lib/equity-options-zones";
-import { computeEquityZonesDhan } from "@/lib/equity-options-zones-dhan";
+import { computeStockZonesWithFallback } from "@/lib/equity-zones-fetch";
 import {
   persistEquityZonesDoc,
   stampEquityZonesError,
@@ -71,12 +70,6 @@ function envNum(name: string, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-function envBool(name: string, fallback: boolean): boolean {
-  const raw = process.env[name]?.trim().toLowerCase();
-  if (!raw) return fallback;
-  return raw === "1" || raw === "true" || raw === "yes";
-}
-
 async function readCursor(db: Firestore): Promise<number> {
   try {
     const snap = await db.doc(CURSOR_DOC).get();
@@ -117,40 +110,6 @@ async function readAggregateState(db: Firestore): Promise<{
     /* empty */
   }
   return { scanned, bySymbol };
-}
-
-function nseFallbackEligible(err: unknown): boolean {
-  if (err instanceof NseBlockError || err instanceof NseCircuitOpenError) return true;
-  if (err instanceof Error) {
-    const m = err.message.toLowerCase();
-    return (
-      m.includes("nse circuit") ||
-      m.includes("nse empty") ||
-      m.includes("nse non_json") ||
-      m.includes("session not established") ||
-      m.includes("rate limiter")
-    );
-  }
-  return false;
-}
-
-async function computeZonesWithFallback(
-  symbol: string,
-  session: NseSession | null,
-): Promise<{ zones: Awaited<ReturnType<typeof computeEquityZones>>; source: "nse_equity" | "dhan_equity" }> {
-  const preferDhan = envBool("STOCK_ZONES_DHAN_PRIMARY", false);
-
-  if (!preferDhan && session) {
-    try {
-      const zones = await computeEquityZones(symbol, session);
-      return { zones, source: "nse_equity" };
-    } catch (e) {
-      if (!nseFallbackEligible(e)) throw e;
-    }
-  }
-
-  const zones = await computeEquityZonesDhan(symbol);
-  return { zones, source: "dhan_equity" };
 }
 
 export interface StockZonesBatchSummary {
@@ -261,13 +220,13 @@ export async function runStockZonesBatch(
 
     try {
       const { zones, source } = await Promise.race([
-        computeZonesWithFallback(symbol, session),
+        computeStockZonesWithFallback(symbol, session),
         sleep(perSymbolMs).then(() => {
           throw new Error(`symbol_timeout_${perSymbolMs}ms`);
         }),
       ]);
       await persistEquityZonesDoc(db, zones, source);
-      const row = aggregateEntry(zones);
+      const row = aggregateEntry(zones, source);
       entries.push(row);
       okCount++;
       processed++;

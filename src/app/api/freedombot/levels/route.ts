@@ -36,6 +36,7 @@ import {
   STOCK_LEVELS_PUBLIC_ERROR,
 } from "@/lib/equity-zones-on-demand";
 import { stockDocId } from "@/lib/equity-zones-store";
+import { storedSourceToPublic } from "@/lib/levels/levels-source";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -72,6 +73,9 @@ function sanitize(raw: Record<string, unknown> | null): PublicLevels | null {
     bearActive: bool(raw.bearActionable),
     computedAt: typeof raw.computedAt === "string" ? raw.computedAt : null,
     unavailable: typeof raw.nseFetchError === "string" && raw.nseFetchError !== "",
+    levelsSource: storedSourceToPublic(
+      typeof raw.source === "string" ? raw.source : null,
+    ),
   };
 }
 
@@ -96,6 +100,7 @@ interface StockAggregateEntry {
   bearZoneHigh?: number | null;
   halfWidth?: number | null;
   computedAt?: string;
+  levelsSource?: string | null;
 }
 
 /**
@@ -178,11 +183,18 @@ export async function GET(request: NextRequest) {
     readDoc(STOCK_AGGREGATE_DOC),
   ]);
 
-  const indices = INDEX_KEYS.map((k, i) => ({
-    symbol: k,
-    label: INDEX_SPECS[k].label,
-    data: sanitize(indexDocs[i]),
-  }));
+  const indices = INDEX_KEYS.map((k, i) => {
+    const data = sanitize(indexDocs[i]);
+    const withSource =
+      data && !data.levelsSource && (data.bullLow != null || data.bearLow != null)
+        ? { ...data, levelsSource: "nse" as const }
+        : data;
+    return {
+      symbol: k,
+      label: INDEX_SPECS[k].label,
+      data: withSource,
+    };
+  });
 
   // Compact stock list (from the aggregate doc — one read, not N).
   const stockEntries = (stockAgg?.entries ?? {}) as Record<string, StockAggregateEntry>;
@@ -200,6 +212,9 @@ export async function GET(request: NextRequest) {
       bearZoneHigh: num(e.bearZoneHigh),
       halfWidth: num(e.halfWidth),
       computedAt: typeof e.computedAt === "string" ? e.computedAt : null,
+      levelsSource: storedSourceToPublic(
+        typeof e.levelsSource === "string" ? e.levelsSource : null,
+      ),
     }))
     .sort((a, b) => a.symbol.localeCompare(b.symbol));
 

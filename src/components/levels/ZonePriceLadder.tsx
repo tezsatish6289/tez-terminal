@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
+import type { PublicLevelsSource } from "@/lib/levels/levels-source";
 import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
 
 /**
@@ -22,6 +23,8 @@ export interface PublicLevels {
   bearActive: boolean | null;
   computedAt: string | null;
   unavailable: boolean;
+  /** `nse` = high confidence (★); `dhan` = low; null = unknown / awaiting scan. */
+  levelsSource: PublicLevelsSource | null;
 }
 
 function fmtPrice(p: number): string {

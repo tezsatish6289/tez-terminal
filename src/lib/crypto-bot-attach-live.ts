@@ -154,7 +154,8 @@ export function evaluateAttachUserGate(
 
 // ── I/O: orchestrator ───────────────────────────────────────────────
 
-/** Fan a zone-bot trade out to live Crypto Bot subscribers.
+/** Fan a just-opened Crypto Bot mirror sim trade out to live Crypto
+ *  Bot subscribers.
  *
  *  • "live" mode: delegates to the shared `executeForAllUsers` engine
  *    with `botSource: "PATTERN"` (so the trade rolls under Crypto Bot
@@ -167,19 +168,10 @@ export function evaluateAttachUserGate(
  *    live order. No exchange calls, no `live_trades` writes, no
  *    `dispatch_state` claims.
  *
- *  `mirror` / `mirrorDocId` / `mirrorSignalId` are the template trade
- *  and its anchor ids. The anchor doc (`mirrorDocId`) MUST be a
- *  `simulator_trades` doc that exists for the full trade lifecycle, so
- *  `sync-live-trades` can drive closes off it — a live trade whose
- *  linked sim doc is missing is force-closed as orphaned. Callers pass
- *  either:
- *    • the Crypto Bot's own mirror sim trade, OR
- *    • the parent zone sim trade directly (re-tagged `botSource:
- *      "PATTERN"`), which is the decoupled path that delivers to
- *      subscribers even when the sim mirror was skipped at its sim cap.
- *  Live sizing is recomputed per-user from each subscriber's risk%, so
- *  `mirror.positionSize` is only a template — entry / SL / TPs /
- *  leverage are what matter.
+ *  Caller guarantees the mirror sim trade has been persisted with
+ *  `id = mirrorDocId` and `botSource = "PATTERN"`. Everything else
+ *  about the trade (entry, SL, TPs, sizing, leverage) is read from
+ *  `mirror.*`.
  *
  *  Soft-failure: any throw is captured and logged to `live_trade_logs`
  *  with `ATTACH_SKIP_EVAL_ERROR`. The caller (sync-zone-bots) catches

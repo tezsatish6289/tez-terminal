@@ -94,9 +94,11 @@ import { canBotOpenMore } from "@/lib/sim-slot-policy";
 import { loadSimBotSettings, toZoneBotSettings } from "@/lib/sim-bot-settings";
 import {
   ATTACHED_ZONE_BOTS_DEFAULT,
+  attachModeForBotSource,
   loadAttachedZoneBots,
   type AttachedZoneBots,
 } from "@/lib/crypto-bot-attach";
+import { BOT_SOURCE_PATTERN } from "@/lib/bot-source-constants";
 import {
   openCryptoMirrorForZoneTrade,
   reconcileMirrorCloses,
@@ -468,21 +470,21 @@ async function openZoneBotTrade(args: {
   }
 
   // PR 2b: open a parallel Crypto Bot mirror sim trade when admin has
-  // attached this zone bot via `attachedZoneBots`. Failure is
-  // swallowed inside the helper — parent zone trade is never affected
-  // by mirror open errors. Skipped silently when attach mode is "off",
-  // Crypto Bot is OFF, or Crypto Bot is at cap. See
+  // attached this zone bot via `attachedZoneBots`. This is the Crypto
+  // Bot's *simulated* ledger only (records tab, sim capital / PnL) and
+  // keeps its own 3-trade cap + capital limits. Failure is swallowed
+  // inside the helper — parent zone trade is never affected by mirror
+  // open errors. Skipped silently when attach mode is "off", Crypto Bot
+  // is OFF, or Crypto Bot is at its sim cap. See
   // `crypto-bot-attach-mirror.ts` for the full gate / sizing model.
   //
-  // PR 2c: when the mirror open succeeded AND attach mode is "sim" or
-  // "live", fan the mirror out via `fanOutCryptoMirrorLive`. "sim"
-  // emits shadow logs only; "live" dispatches via the shared
-  // `executeForAllUsers` engine with an `attachContext` that skips
-  // users already on the solo zone. Errors here are isolated from the
-  // mirror open AND from the parent zone trade — every layer fails
-  // closed independently.
+  // The mirror outcome is used ONLY to detect a paused Crypto Bot
+  // (CRYPTO_BOT_OFF) below — it no longer gates live delivery.
+  let mirrorOutcome:
+    | Awaited<ReturnType<typeof openCryptoMirrorForZoneTrade>>
+    | null = null;
   try {
-    const mirrorOutcome = await openCryptoMirrorForZoneTrade({
+    mirrorOutcome = await openCryptoMirrorForZoneTrade({
       db,
       parent: { ...tradeWithSource, id: docId },
       parentSimTradeId: docId,
@@ -490,38 +492,11 @@ async function openZoneBotTrade(args: {
       simConfig,
       now,
     });
-
-    if (mirrorOutcome.fired) {
-      try {
-        await fanOutCryptoMirrorLive({
-          db,
-          mirror: mirrorOutcome.mirror,
-          mirrorDocId: mirrorOutcome.mirrorDocId,
-          mirrorSignalId: mirrorOutcome.mirrorSignalId,
-          attachedFromAsset: mirrorOutcome.attachedFromAsset,
-          attachMode: mirrorOutcome.attachMode,
-          simConfig,
-          now,
-        });
-      } catch (e) {
-        // fanOutCryptoMirrorLive has its own try/catch and writes its
-        // own ATTACH_SKIP_EVAL_ERROR log; this catch is for the
-        // pathological synchronous-throw-before-internal-catch case.
-        await db.collection("simulator_logs").add({
-          timestamp: new Date(now).toISOString(),
-          action: "ATTACH_MIRROR_LIVE_ERROR",
-          details: `[CRYPTO_MIRROR] fanOutCryptoMirrorLive threw outside helper for mirror=${mirrorOutcome.mirrorDocId}: ${e instanceof Error ? e.message : String(e)}. Mirror sim trade unaffected.`,
-          symbol: tradeWithSource.symbol,
-          capital: result.updatedState.capital,
-          assetType: "CRYPTO",
-        }).catch(() => {});
-      }
-    }
   } catch (e) {
     // Defence in depth — the helper already wraps everything in
-    // try/catch and writes a log. This second catch is for the
-    // pathological case where the helper itself throws synchronously
-    // before its own try/catch can engage.
+    // try/catch and writes a log. This catch is for the pathological
+    // case where the helper itself throws synchronously before its own
+    // try/catch can engage. Live delivery below still runs.
     await db.collection("simulator_logs").add({
       timestamp: new Date(now).toISOString(),
       action: "ATTACH_MIRROR_OPEN_ERROR",
@@ -530,6 +505,73 @@ async function openZoneBotTrade(args: {
       capital: result.updatedState.capital,
       assetType: "CRYPTO",
     }).catch(() => {});
+  }
+
+  // PR 2c (fixed): live fan-out to Crypto Bot subscribers — DECOUPLED
+  // from whether the sim mirror above opened. Real subscribers must
+  // receive this zone trade whenever the bot is attached "live",
+  // regardless of the *simulated* Crypto Bot's 3-trade cap or sim
+  // capital. Gating live delivery on the sim mirror firing was the bug:
+  // because the sim pattern engine routinely holds its max open trades,
+  // the mirror was skipped (CRYPTO_CAP_REACHED) and every zone signal
+  // silently failed to reach crypto-only subscribers.
+  //
+  // The ONLY condition that suppresses live delivery here is the Crypto
+  // Bot being turned OFF via manual override — a paused bot takes no
+  // trades, attached or otherwise. The SIM-ONLY live policy and each
+  // subscriber's own max-open cap / risk% / daily-loss halt are still
+  // enforced downstream inside fanOutCryptoMirrorLive →
+  // executeForAllUsers (botSource = PATTERN → Crypto Bot pool + sizing).
+  //
+  // Anchored to the PARENT zone sim trade (`docId`), which ALWAYS exists
+  // and drives closes via sync-live-trades — a live trade whose linked
+  // sim doc is missing gets force-closed as orphaned, so we must never
+  // point live trades at a mirror sim doc that may not have opened.
+  // "sim" attach mode runs shadow logging only; "off" does nothing.
+  const cryptoAttachMode = attachModeForBotSource(
+    attachedZoneBots,
+    ZONE_BOT_SOURCE[asset],
+  );
+  const cryptoBotPaused =
+    mirrorOutcome != null &&
+    !mirrorOutcome.fired &&
+    mirrorOutcome.reason === "CRYPTO_BOT_OFF";
+
+  if (cryptoAttachMode !== "off" && !cryptoBotPaused) {
+    try {
+      await fanOutCryptoMirrorLive({
+        db,
+        // Live trades are sized per-user from each subscriber's own
+        // risk% inside trade-engine, so the sim mirror's position size
+        // is irrelevant here — we hand the parent zone trade straight
+        // through, re-tagged as PATTERN so it rolls under the Crypto
+        // Bot pool (cap + reports + dashboard).
+        mirror: {
+          ...tradeWithSource,
+          id: docId,
+          signalId,
+          botSource: BOT_SOURCE_PATTERN,
+        },
+        mirrorDocId: docId,
+        mirrorSignalId: signalId,
+        attachedFromAsset: asset,
+        attachMode: cryptoAttachMode,
+        simConfig,
+        now,
+      });
+    } catch (e) {
+      // fanOutCryptoMirrorLive has its own try/catch and writes its
+      // own ATTACH_SKIP_EVAL_ERROR log; this catch is for the
+      // pathological synchronous-throw-before-internal-catch case.
+      await db.collection("simulator_logs").add({
+        timestamp: new Date(now).toISOString(),
+        action: "ATTACH_MIRROR_LIVE_ERROR",
+        details: `[CRYPTO_MIRROR] fanOutCryptoMirrorLive threw outside helper for parent=${docId}: ${e instanceof Error ? e.message : String(e)}. Sim trade unaffected.`,
+        symbol: tradeWithSource.symbol,
+        capital: result.updatedState.capital,
+        assetType: "CRYPTO",
+      }).catch(() => {});
+    }
   }
 
   return { tradeId: docId, updatedState: result.updatedState, log: decoratedLog, sizing };

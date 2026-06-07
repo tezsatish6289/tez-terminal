@@ -481,7 +481,7 @@ export function BotCockpit({
 
       {/* ── Chart left · trades right ── */}
       <div className="flex flex-col lg:flex-row flex-1 min-h-0 gap-2 sm:gap-3 lg:gap-4">
-        <div className="flex flex-col lg:flex-[7] lg:min-w-0 min-h-[min(42dvh,400px)] lg:min-h-0 h-full">
+        <div className="flex flex-col lg:w-1/2 lg:min-w-0 min-h-[min(42dvh,400px)] lg:min-h-0 h-full">
           <HeatmapAssetCard
             botId={selectedBot.id}
             label={selectedBot.label}
@@ -528,7 +528,7 @@ export function BotCockpit({
                 capital={selectedMetrics?.capital ?? startingCapital}
                 suggested={selectedSuggested}
                 onTradeOpened={refetchAll}
-                stacked
+                stacked={false}
               />
             }
           />
@@ -537,7 +537,7 @@ export function BotCockpit({
         {children && (
           <>
             <div className="hidden lg:block w-px shrink-0 bg-white/[0.08] self-stretch" />
-            <div className="flex flex-col lg:flex-[3] lg:min-w-0 min-h-[min(36dvh,320px)] lg:min-h-0 rounded-xl border border-white/[0.1] bg-[#101013] overflow-hidden">
+            <div className="flex flex-col lg:w-1/2 lg:min-w-0 min-h-[min(36dvh,320px)] lg:min-h-0 rounded-xl border border-white/[0.1] bg-[#101013] overflow-hidden">
               {children}
             </div>
           </>

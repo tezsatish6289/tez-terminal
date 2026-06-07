@@ -21,21 +21,18 @@ export function SimulatorToolbar({
   const streakActive = (simState?.consecutiveWins ?? 0) >= 2;
 
   return (
-    <div className={cn(SIM_PANEL, "p-3 sm:px-4 sm:py-3")}>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-sm font-black uppercase tracking-wide text-foreground/90">
-            Simulator cockpit
+    <div className={cn(SIM_PANEL, "shrink-0 px-3 py-2 sm:px-4")}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex items-center gap-2 flex-wrap">
+          <h1 className="text-xs font-black uppercase tracking-wide text-foreground/90 whitespace-nowrap">
+            Simulator
           </h1>
-          <p className="text-[10px] text-muted-foreground/45 mt-0.5">
-            Capital &amp; open slots are per bot on each zone card ·{" "}
-            <Link
-              href="/stats"
-              className="text-accent hover:text-accent/90 underline underline-offset-2 font-semibold"
-            >
-              Performance &amp; stats
-            </Link>
-          </p>
+          <Link
+            href="/stats"
+            className="text-[9px] text-muted-foreground/45 hover:text-accent transition-colors whitespace-nowrap"
+          >
+            Stats →
+          </Link>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0 flex-wrap sm:flex-nowrap">

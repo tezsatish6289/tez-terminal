@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { TrendingDown, TrendingUp, Clock, Globe, EyeOff } from "lucide-react";
 import { useIsoTimeLabel } from "@/hooks/use-auto-refresh";
 import { cn } from "@/lib/utils";
@@ -235,6 +235,7 @@ export function HeatmapAssetCard({
                 spot={spot}
                 engineDirection={engineDirection}
                 compact
+                fillHeight={hideCarousel}
               />
             )}
           </div>
@@ -387,13 +388,82 @@ function CockpitChromePanel({
 
   if (hideCarousel) {
     return (
-      <div className="shrink-0 px-4 py-4 border-b border-white/[0.1] bg-gradient-to-b from-[#1c1c24] to-[#141418]">
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(240px,280px)] gap-4 items-start">
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(200px,240px)] gap-4 items-start">
-            {headerBlock}
-            {controlsBlock}
+      <div className="shrink-0 px-2.5 sm:px-3 py-2 border-b border-white/[0.08] bg-[#12121a]">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <div className="flex items-center gap-2 min-w-0 shrink-0">
+            <span
+              className={cn(
+                "shrink-0 inline-block w-2 h-2 rounded-full",
+                POWER_DOT[cardStatus.power],
+              )}
+              aria-hidden
+            />
+            <span className="text-[13px] font-black tracking-tight text-white whitespace-nowrap">
+              {label}
+            </span>
+            <div className="flex items-center gap-1 flex-wrap">
+              <CockpitTag>{ASSET_TAG[botId]}</CockpitTag>
+              {ivPct != null && (
+                <IvBadge
+                  pct={ivPct}
+                  title={formatIvExplainer(ivPct, spot, ASSET_TAG[botId])}
+                />
+              )}
+              <DiscoveryBadge publicLive={publicLive === true} />
+              {liveMirroringEnabled === false && <SimOnlyBadge />}
+            </div>
           </div>
-          {performanceBlock}
+
+          {settingsSlot != null && (
+            <div
+              className="flex items-center shrink-0"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              {settingsSlot}
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 justify-end flex-wrap">
+            <div className="flex items-baseline gap-2 shrink-0">
+              <span className="text-lg font-mono font-black tabular-nums text-white leading-none">
+                {cs}
+                {capital.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+              <span
+                className={cn(
+                  "flex items-center gap-0.5 text-[10px] font-mono font-bold tabular-nums leading-none",
+                  delta >= 0 ? "text-emerald-400" : "text-rose-400",
+                )}
+              >
+                {delta >= 0 ? (
+                  <TrendingUp className="h-3 w-3" />
+                ) : (
+                  <TrendingDown className="h-3 w-3" />
+                )}
+                {delta >= 0 ? "+" : ""}
+                {deltaPct.toFixed(2)}%
+              </span>
+            </div>
+            <LastRanInline
+              botId={botId}
+              botLastRanAt={botLastRanAt}
+              zonesRefreshedAt={zonesRefreshedAt}
+            />
+            <span
+              className={cn(
+                "text-[9px] font-black uppercase tracking-wide truncate max-w-[min(100%,22rem)]",
+                POWER_TEXT[cardStatus.power],
+              )}
+              title={cardStatus.detail ?? cardStatus.headline}
+            >
+              {cardStatus.headline}
+              {cardStatus.detail ? ` — ${cardStatus.detail}` : ""}
+            </span>
+          </div>
         </div>
       </div>
     );
@@ -557,12 +627,31 @@ function ZonePriceLadder({
   spot,
   engineDirection,
   compact = false,
+  fillHeight = false,
 }: {
   suggested: SuggestedZonesSnapshot;
   spot: number | null;
   engineDirection?: ZoneBotDirection | null;
   compact?: boolean;
+  /** Stretch ladder to fill the parent column (simulation split layout). */
+  fillHeight?: boolean;
 }) {
+  const chartWrapRef = useRef<HTMLDivElement>(null);
+  const [chartHeight, setChartHeight] = useState(fillHeight ? 400 : compact ? 300 : 360);
+
+  useEffect(() => {
+    if (!fillHeight) return;
+    const el = chartWrapRef.current;
+    if (!el) return;
+    const measure = () => {
+      const h = el.clientHeight;
+      if (h > 0) setChartHeight(Math.max(h, 220));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fillHeight]);
   const bullLow = suggested.bullZoneLow;
   const bullHigh = suggested.bullZoneHigh;
   const bullStrike = suggested.bullStrike;
@@ -645,9 +734,8 @@ function ZonePriceLadder({
   const renderMax = maxP + padPx;
   const renderSpan = renderMax - renderMin;
 
-  const CHART_HEIGHT = compact ? 300 : 360;
   const yFor = (price: number): number =>
-    CHART_HEIGHT * (1 - (price - renderMin) / renderSpan);
+    chartHeight * (1 - (price - renderMin) / renderSpan);
 
   const fmt = (p: number): string =>
     p >= 1000
@@ -705,33 +793,40 @@ function ZonePriceLadder({
   return (
     <div
       className={cn(
-        "flex-1 flex flex-col justify-center min-h-[280px]",
-        compact ? "px-2 py-2 sm:px-3 sm:py-3" : "px-3 py-3 sm:px-4 sm:py-4 min-h-[360px]",
+        "flex flex-col min-h-0",
+        fillHeight ? "flex-1 h-full px-2 py-2" : "flex-1 justify-center min-h-[280px]",
+        !fillHeight && (compact ? "px-2 py-2 sm:px-3 sm:py-3" : "px-3 py-3 sm:px-4 sm:py-4 min-h-[360px]"),
       )}
     >
       <div
-        className="relative w-full rounded-lg border border-white/[0.06] bg-[#0a0a0c] overflow-hidden"
-        style={{ height: CHART_HEIGHT }}
+        ref={fillHeight ? chartWrapRef : undefined}
+        className={cn(
+          "relative w-full rounded-lg border border-white/[0.1] bg-[#0c0c10] overflow-hidden",
+          fillHeight ? "flex-1 min-h-0" : undefined,
+        )}
+        style={fillHeight ? undefined : { height: chartHeight }}
       >
         {/* ── Bear band ── */}
         {bearBandStyle && (
           <div
             className={cn(
-              "absolute left-0 right-0 border-y border-rose-500/40 bg-rose-500/[0.14]",
-              bearIdle && "opacity-60",
+              "absolute left-0 right-0 border-y-2 border-rose-400/70",
+              "bg-gradient-to-b from-rose-500/30 via-rose-500/22 to-rose-500/30",
+              "shadow-[inset_0_0_24px_rgba(251,113,133,0.12)]",
+              bearIdle && "opacity-55 saturate-50",
             )}
             style={bearBandStyle}
           >
             <span
               className={cn(
-                "absolute top-0.5 left-1.5 text-[8px] sm:text-[9px] font-mono font-bold text-rose-300/95",
+                "absolute top-0.5 left-1.5 text-[8px] sm:text-[9px] font-mono font-bold text-rose-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]",
                 compact ? "leading-tight max-w-[85%]" : "whitespace-nowrap",
               )}
             >
               {compact ? (
                 <>
                   <span className="block">Bear zone</span>
-                  <span className="block font-normal text-rose-300/70 truncate" title={bearDetail}>
+                  <span className="block font-normal text-rose-200/80 truncate" title={bearDetail}>
                     {bearDetail}
                   </span>
                 </>
@@ -739,10 +834,10 @@ function ZonePriceLadder({
                 <>Bear zone {bearDetail}</>
               )}
             </span>
-            <span className="absolute top-0.5 right-2 text-[9px] font-mono font-bold text-rose-300/90 tabular-nums">
+            <span className="absolute top-0.5 right-2 text-[10px] font-mono font-black text-rose-100 tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
               ${bearHigh != null ? fmt(bearHigh) : "—"}
             </span>
-            <span className="absolute bottom-0.5 right-2 text-[9px] font-mono text-rose-300/55 tabular-nums">
+            <span className="absolute bottom-0.5 right-2 text-[9px] font-mono font-bold text-rose-200/90 tabular-nums">
               ${bearLow != null ? fmt(bearLow) : "—"}
             </span>
           </div>
@@ -755,23 +850,27 @@ function ZonePriceLadder({
             <div
               key={`mp-${g.price}`}
               className={cn(
-                "absolute left-0 right-0 border-t border-dashed",
-                isToday ? "border-accent/70" : "border-white/35",
+                "absolute left-0 right-0 border-t-2 border-dashed",
+                isToday
+                  ? "border-sky-400/85 shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                  : "border-slate-300/50",
               )}
               style={{ top: yFor(g.price) }}
             >
               <span
                 className={cn(
-                  "absolute left-2 -top-3 text-[9px] font-mono font-bold whitespace-nowrap",
-                  isToday ? "text-accent" : "text-foreground/75",
+                  "absolute left-2 -top-3 text-[9px] font-mono font-black whitespace-nowrap",
+                  isToday
+                    ? "text-sky-300 drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]"
+                    : "text-slate-200/90",
                 )}
               >
                 Max pain ({g.labels.join(" & ")})
               </span>
               <span
                 className={cn(
-                  "absolute right-2 -top-3 text-[9px] font-mono font-bold tabular-nums",
-                  isToday ? "text-accent" : "text-foreground/75",
+                  "absolute right-2 -top-3 text-[9px] font-mono font-black tabular-nums",
+                  isToday ? "text-sky-300" : "text-slate-200/90",
                 )}
               >
                 ${fmt(g.price)}
@@ -805,13 +904,13 @@ function ZonePriceLadder({
         {/* ── Current price (the anchor) ── */}
         {spot != null && (
           <div
-            className="absolute left-0 right-0 border-t-2 border-amber-300"
+            className="absolute left-0 right-0 border-t-[3px] border-amber-300 shadow-[0_0_16px_rgba(252,211,77,0.45)]"
             style={{ top: yFor(spot) }}
           >
-            <span className="absolute left-2 -top-3.5 text-[10px] font-mono font-black text-amber-300 whitespace-nowrap drop-shadow">
+            <span className="absolute left-2 -top-3.5 text-[10px] font-mono font-black text-amber-200 whitespace-nowrap drop-shadow-[0_0_8px_rgba(252,211,77,0.6)]">
               Current price
             </span>
-            <span className="absolute right-2 -top-3.5 text-[10px] font-mono font-black text-amber-300 tabular-nums">
+            <span className="absolute right-2 -top-3.5 text-[11px] font-mono font-black text-amber-100 tabular-nums drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
               ${fmt(spot)}
             </span>
           </div>
@@ -821,24 +920,26 @@ function ZonePriceLadder({
         {bullBandStyle && (
           <div
             className={cn(
-              "absolute left-0 right-0 border-y border-emerald-500/40 bg-emerald-500/[0.14]",
-              bullIdle && "opacity-60",
+              "absolute left-0 right-0 border-y-2 border-emerald-400/70",
+              "bg-gradient-to-b from-emerald-500/30 via-emerald-500/22 to-emerald-500/30",
+              "shadow-[inset_0_0_24px_rgba(52,211,153,0.12)]",
+              bullIdle && "opacity-55 saturate-50",
             )}
             style={bullBandStyle}
           >
-            <span className="absolute top-0.5 right-2 text-[9px] font-mono font-bold text-emerald-300/90 tabular-nums">
+            <span className="absolute top-0.5 right-2 text-[10px] font-mono font-black text-emerald-100 tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
               ${bullHigh != null ? fmt(bullHigh) : "—"}
             </span>
             <span
               className={cn(
-                "absolute bottom-0.5 left-1.5 text-[8px] sm:text-[9px] font-mono font-bold text-emerald-300/95",
+                "absolute bottom-0.5 left-1.5 text-[8px] sm:text-[9px] font-mono font-bold text-emerald-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]",
                 compact ? "leading-tight max-w-[85%]" : "whitespace-nowrap",
               )}
             >
               {compact ? (
                 <>
                   <span className="block">Bull zone</span>
-                  <span className="block font-normal text-emerald-300/70 truncate" title={bullDetail}>
+                  <span className="block font-normal text-emerald-200/80 truncate" title={bullDetail}>
                     {bullDetail}
                   </span>
                 </>
@@ -846,7 +947,7 @@ function ZonePriceLadder({
                 <>Bull zone {bullDetail}</>
               )}
             </span>
-            <span className="absolute bottom-0.5 right-2 text-[9px] font-mono text-emerald-300/55 tabular-nums">
+            <span className="absolute bottom-0.5 right-2 text-[9px] font-mono font-bold text-emerald-200/90 tabular-nums">
               ${bullLow != null ? fmt(bullLow) : "—"}
             </span>
           </div>
@@ -893,27 +994,27 @@ function SlAnchorLine({
   return (
     <div
       className={cn(
-        "absolute left-0 right-0 border-t border-dotted",
+        "absolute left-0 right-0 border-t-2 border-dotted",
         active
           ? isEmerald
-            ? "border-emerald-400/90"
-            : "border-rose-400/90"
+            ? "border-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.35)]"
+            : "border-rose-300 shadow-[0_0_10px_rgba(251,113,133,0.35)]"
           : isEmerald
-            ? "border-emerald-500/45"
-            : "border-rose-500/45",
+            ? "border-emerald-500/55"
+            : "border-rose-500/55",
       )}
       style={{ top: yFor(price) }}
     >
       <span
         className={cn(
-          "absolute left-2 -top-3 text-[9px] font-mono font-bold whitespace-nowrap",
+          "absolute left-2 -top-3 text-[9px] font-mono font-black whitespace-nowrap",
           active
             ? isEmerald
-              ? "text-emerald-300"
-              : "text-rose-300"
+              ? "text-emerald-200 drop-shadow-[0_0_6px_rgba(52,211,153,0.5)]"
+              : "text-rose-200 drop-shadow-[0_0_6px_rgba(251,113,133,0.5)]"
             : isEmerald
-              ? "text-emerald-400/75"
-              : "text-rose-400/75",
+              ? "text-emerald-300/85"
+              : "text-rose-300/85",
         )}
       >
         {label}
@@ -921,14 +1022,14 @@ function SlAnchorLine({
       </span>
       <span
         className={cn(
-          "absolute right-2 -top-3 text-[9px] font-mono font-bold tabular-nums",
+          "absolute right-2 -top-3 text-[9px] font-mono font-black tabular-nums",
           active
             ? isEmerald
-              ? "text-emerald-300"
-              : "text-rose-300"
+              ? "text-emerald-100"
+              : "text-rose-100"
             : isEmerald
-              ? "text-emerald-400/75"
-              : "text-rose-400/75",
+              ? "text-emerald-300/85"
+              : "text-rose-300/85",
         )}
       >
         ${fmt(price)}

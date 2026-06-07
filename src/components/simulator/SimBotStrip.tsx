@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { CRYPTO_BOTS } from "@/lib/crypto-bots";
 import type { CockpitBotId } from "@/lib/sim-cockpit-bots";
@@ -47,6 +47,8 @@ export function SimBotStrip({
   className?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const prevSelectedRef = useRef(selectedId);
+  const [runnerPulse, setRunnerPulse] = useState(false);
 
   useEffect(() => {
     const container = scrollRef.current;
@@ -54,6 +56,13 @@ export function SimBotStrip({
       `[data-sim-bot="${selectedId}"]`,
     ) as HTMLElement | null;
     tile?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+
+    if (prevSelectedRef.current !== selectedId) {
+      setRunnerPulse(true);
+      prevSelectedRef.current = selectedId;
+      const id = window.setTimeout(() => setRunnerPulse(false), 700);
+      return () => window.clearTimeout(id);
+    }
   }, [selectedId]);
 
   return (
@@ -84,6 +93,7 @@ export function SimBotStrip({
       >
         {items.map((bot) => {
           const active = bot.id === selectedId;
+          const pulse = active && runnerPulse;
           const meta = BOT_META.get(bot.id);
           const status = deriveCockpitCardStatus({
             botId: bot.id,
@@ -106,10 +116,12 @@ export function SimBotStrip({
               aria-pressed={active}
               className={cn(
                 "flex flex-col justify-center gap-1 px-3 py-2 rounded-lg text-left shrink-0 h-full",
-                "min-w-[9.5rem] max-w-[11rem] snap-center transition-all duration-300",
+                "min-w-[9.5rem] max-w-[11rem] snap-center transition-[transform,box-shadow,background-color,border-color] duration-500 ease-out",
                 active
-                  ? "bg-blue-500/[0.18] border border-blue-500/35 shadow-[0_0_10px_rgba(59,130,246,0.15)]"
-                  : "bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.04]",
+                  ? pulse
+                    ? "bg-blue-500/[0.22] border border-blue-400/65 shadow-[0_0_20px_rgba(59,130,246,0.4),0_0_40px_rgba(59,130,246,0.12)] scale-[1.04]"
+                    : "bg-blue-500/[0.18] border border-blue-500/35 shadow-[0_0_10px_rgba(59,130,246,0.15)] scale-[1.01]"
+                  : "bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.04] scale-100",
               )}
             >
               <div className="flex items-center gap-1.5 min-w-0 w-full">

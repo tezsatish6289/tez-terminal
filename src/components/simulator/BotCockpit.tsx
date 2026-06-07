@@ -23,7 +23,9 @@ import {
 } from "@/lib/zone-bot-config";
 import { HeatmapAssetCard } from "@/components/simulator/HeatmapAssetCard";
 import { SimBotStrip } from "@/components/simulator/SimBotStrip";
+import { SimSlideshowTransport } from "@/components/simulator/SimSlideshowTransport";
 import { BotCardControls } from "@/components/simulator/BotCardControls";
+import { LevelsChartMetaFooter } from "@/components/levels/LevelsSplitLayout";
 import {
   LEVELS_STRIP_ICON_BOX_CLASS,
   LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS,
@@ -48,10 +50,19 @@ interface BtcMacroStatus {
  *
  *   ┌─ [Refresh] │ Crypto │ BTC │ ETH │ SOL │ XRP ────────────────┐
  *   ├────────────────────────────────────┬────────────────────────┤
- *   │ Zone ladder + controls (70%)       │ Open / History / Logs  │
- *   │                                    │ sim & live trades (30%)│
+ *   │ Zone ladder + controls (60%)       │ Open / History / Logs  │
+ *   │                                    │ sim & live trades (40%)│
  *   └────────────────────────────────────┴────────────────────────┘
  */
+export interface SimSlideshowControl {
+  enabled: boolean;
+  paused: boolean;
+  secondsRemaining: number;
+  activeIndex: number;
+  onToggle: () => void;
+  onGoTo: (index: number) => void;
+}
+
 export function BotCockpit({
   openTrades,
   closedTrades,
@@ -59,6 +70,7 @@ export function BotCockpit({
   cs,
   selectedBotId,
   onSelectBot,
+  slideshow,
   children,
 }: {
   openTrades: SimTrade[];
@@ -67,6 +79,7 @@ export function BotCockpit({
   cs: string;
   selectedBotId: CockpitBotId;
   onSelectBot: (id: CockpitBotId) => void;
+  slideshow?: SimSlideshowControl;
   /** Right-pane tab panel (Open / History / Logs) — page owns the tab state */
   children: React.ReactNode;
 }) {
@@ -472,6 +485,13 @@ export function BotCockpit({
             {refreshing ? "…" : "Refresh"}
           </span>
         </button>
+        {slideshow?.enabled ? (
+          <SimSlideshowTransport
+            paused={slideshow.paused}
+            secondsRemaining={slideshow.secondsRemaining}
+            onToggle={slideshow.onToggle}
+          />
+        ) : null}
         <SimBotStrip
           items={stripItems}
           selectedId={selectedBotId}
@@ -481,7 +501,8 @@ export function BotCockpit({
 
       {/* ── Chart left · trades right ── */}
       <div className="flex flex-col lg:flex-row flex-1 min-h-0 gap-2 sm:gap-3 lg:gap-4">
-        <div className="flex flex-col lg:w-1/2 lg:min-w-0 flex-1 lg:min-h-0 min-h-[40dvh]">
+        <div className="flex flex-col lg:w-[60%] lg:min-w-0 flex-1 lg:min-h-0 min-h-[40dvh]">
+          <div className="flex-1 min-h-0">
           <HeatmapAssetCard
             botId={selectedBot.id}
             label={selectedBot.label}
@@ -532,12 +553,22 @@ export function BotCockpit({
               />
             }
           />
+          </div>
+          {slideshow?.enabled ? (
+            <LevelsChartMetaFooter
+              slideCount={SIM_COCKPIT_BOTS.length}
+              activeIndex={slideshow.activeIndex}
+              onGoTo={slideshow.onGoTo}
+              slideshowAdvanceHint
+              slideshowPaused={slideshow.paused}
+            />
+          ) : null}
         </div>
 
         {children && (
           <>
             <div className="hidden lg:block w-px shrink-0 bg-white/[0.08] self-stretch" />
-            <div className="flex flex-col lg:w-1/2 lg:min-w-0 min-h-[min(36dvh,320px)] lg:min-h-0 rounded-xl border border-white/[0.1] bg-[#101013] overflow-hidden">
+            <div className="flex flex-col lg:w-[40%] lg:min-w-0 min-h-[min(36dvh,320px)] lg:min-h-0 rounded-xl border border-white/[0.1] bg-[#101013] overflow-hidden">
               {children}
             </div>
           </>

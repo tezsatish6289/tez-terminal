@@ -59,6 +59,7 @@ import type { SimulatorState, SimTrade, SimLog, SimTradeEvent } from "@/lib/simu
 import { getSimStateDocId, getSlDisplay } from "@/lib/simulator";
 import { SimulatorParamsDialog } from "@/components/simulator/SimulatorParamsDialog";
 import { BotCockpit } from "@/components/simulator/BotCockpit";
+import { SLIDESHOW_SLIDE_SECONDS } from "@/components/levels/levels-symbol-strip";
 import { format, startOfDay, startOfWeek, startOfMonth, isAfter } from "date-fns";
 import { buildEquityCurve } from "@/lib/equity-curve";
 import { matchesBotSource } from "@/lib/bot-source-filter";
@@ -122,13 +123,68 @@ export default function SimulationPage() {
   const router = useRouter();
   const [tab, setTab] = useState<"overview" | "trades" | "logs">("overview");
   const [selectedBotId, setSelectedBotId] = useState<CockpitBotId>("crypto");
+  const [slideshowPaused, setSlideshowPaused] = useState(false);
+  const [slideshowCountdown, setSlideshowCountdown] = useState(SLIDESHOW_SLIDE_SECONDS);
   const [selectedTrade, setSelectedTrade] = useState<SimTrade | null>(null);
   const selectedBot = useMemo(
     () => SIM_COCKPIT_BOTS.find((b) => b.id === selectedBotId) ?? SIM_COCKPIT_BOTS[0],
     [selectedBotId],
   );
+  const selectedBotIndex = useMemo(
+    () => Math.max(0, SIM_COCKPIT_BOTS.findIndex((b) => b.id === selectedBotId)),
+    [selectedBotId],
+  );
+  const slideshowEnabled = SIM_COCKPIT_BOTS.length > 1;
   const [botMaxOpenTrades, setBotMaxOpenTrades] = useState<number | null>(null);
   const cs = "$";
+
+  const toggleSlideshowPause = useCallback(() => {
+    setSlideshowPaused((p) => {
+      if (p) setSlideshowCountdown(SLIDESHOW_SLIDE_SECONDS);
+      return !p;
+    });
+  }, []);
+
+  useEffect(() => {
+    setSlideshowCountdown(SLIDESHOW_SLIDE_SECONDS);
+  }, [selectedBotId]);
+
+  useEffect(() => {
+    if (slideshowPaused || !slideshowEnabled) return;
+    const id = setInterval(() => {
+      setSlideshowCountdown((c) => c - 1);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [slideshowPaused, slideshowEnabled, selectedBotId]);
+
+  useEffect(() => {
+    if (slideshowCountdown > 0) return;
+    if (slideshowPaused || !slideshowEnabled) return;
+    const next = (selectedBotIndex + 1) % SIM_COCKPIT_BOTS.length;
+    setSelectedBotId(SIM_COCKPIT_BOTS[next]!.id);
+    setSlideshowCountdown(SLIDESHOW_SLIDE_SECONDS);
+  }, [slideshowCountdown, slideshowPaused, slideshowEnabled, selectedBotIndex]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const t = e.target;
+      if (
+        t instanceof HTMLInputElement ||
+        t instanceof HTMLTextAreaElement ||
+        t instanceof HTMLSelectElement ||
+        (t instanceof HTMLElement && t.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.key === "p" || e.key === "P") {
+        if (!slideshowEnabled) return;
+        e.preventDefault();
+        toggleSlideshowPause();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [slideshowEnabled, toggleSlideshowPause]);
 
   useEffect(() => {
     fetch(`/api/settings/sim-bot/${selectedBotId}`)
@@ -507,6 +563,19 @@ export default function SimulationPage() {
               cs={cs}
               selectedBotId={selectedBotId}
               onSelectBot={setSelectedBotId}
+              slideshow={
+                slideshowEnabled
+                  ? {
+                      enabled: true,
+                      paused: slideshowPaused,
+                      secondsRemaining: slideshowCountdown,
+                      activeIndex: selectedBotIndex,
+                      onToggle: toggleSlideshowPause,
+                      onGoTo: (index) =>
+                        setSelectedBotId(SIM_COCKPIT_BOTS[index]!.id),
+                    }
+                  : undefined
+              }
             >
             {isLoading ? (
               <div className="flex items-center justify-center min-h-[200px] py-6">

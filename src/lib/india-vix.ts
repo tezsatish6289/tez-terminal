@@ -16,8 +16,13 @@
 
 import type { Firestore } from "firebase-admin/firestore";
 import type { NseSession } from "@/lib/nse/client";
+import { nseFetch } from "@/lib/nse-fetch";
+import { API_HEADERS } from "@/lib/nse-session";
 import { ivPercentile } from "@/lib/zones/vol-regime";
 import { istDateKey, IV_HISTORY_CAP } from "@/lib/iv-history";
+
+/** NSE historical endpoints reject the option-chain Referer the session sends. */
+const HISTORICAL_REFERER = "https://www.nseindia.com/reports-indices-historical-index-data";
 
 const NSE_ALL_INDICES = "https://www.nseindia.com/api/allIndices";
 const NSE_VIX_HISTORY = "https://www.nseindia.com/api/historical/vixhistory";
@@ -119,6 +124,25 @@ function extractHistoryRows(json: unknown): VixHistoryRow[] {
 }
 
 /**
+ * Raw NSE history GET with the historical-page Referer + the session's cookies.
+ * The shared `session.fetchJson` sends the option-chain Referer, which the
+ * historical endpoints answer with non-JSON — hence this dedicated path.
+ */
+async function fetchHistoryJson(url: string, cookies: string): Promise<unknown> {
+  const res = await nseFetch(url, {
+    headers: { ...API_HEADERS, Cookie: cookies, Referer: HISTORICAL_REFERER },
+    signal: AbortSignal.timeout(20_000),
+  });
+  const body = (await res.text()).trim();
+  if (!body) throw new Error(`empty body (HTTP ${res.status}) for ${url}`);
+  try {
+    return JSON.parse(body);
+  } catch {
+    throw new Error(`non-JSON (HTTP ${res.status}) for ${url}: ${body.slice(0, 120)}`);
+  }
+}
+
+/**
  * Fetch India VIX OHLC history for the last `days` days. Tries the dedicated
  * `vixhistory` endpoint first, then falls back to `indicesHistory?indexType=
  * INDIA VIX` (the path that returns `data.indexCloseOnlineRecords`). Throws only
@@ -140,7 +164,7 @@ export async function fetchIndiaVixHistory(
   let lastErr: unknown = null;
   for (const url of urls) {
     try {
-      const json = await session.fetchJson<unknown>(url);
+      const json = await fetchHistoryJson(url, session.cookies);
       const parsed = parseVixHistory(extractHistoryRows(json));
       if (parsed.length) return parsed;
     } catch (e) {

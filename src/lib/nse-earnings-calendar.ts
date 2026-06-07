@@ -17,10 +17,18 @@ import type { Firestore } from "firebase-admin/firestore";
 import type { NseSession } from "@/lib/nse/client";
 import { normalizeStockSymbol } from "@/lib/nse/fno-symbol";
 
-const NSE_BOARD_MEETINGS =
-  "https://www.nseindia.com/api/corporate-board-meetings?index=equities";
+const NSE_BOARD_MEETINGS = "https://www.nseindia.com/api/corporate-board-meetings";
+
+/** How far ahead to pull forthcoming results meetings (days). */
+const EARNINGS_LOOKAHEAD_DAYS = 45;
 
 export const EARNINGS_CALENDAR_DOC = "config/earnings_calendar";
+
+function ddmmyyyy(d: Date): string {
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const mon = String(d.getUTCMonth() + 1).padStart(2, "0");
+  return `${day}-${mon}-${d.getUTCFullYear()}`;
+}
 
 /** Loose shape of an NSE board-meeting row (field names vary across responses). */
 export interface BoardMeetingRow {
@@ -119,11 +127,21 @@ export function parseEarningsFromBoardMeetings(
   return out;
 }
 
-/** Fetch raw board meetings via the shared NSE session. Throws on NSE block. */
-export async function fetchBoardMeetings(session: NseSession): Promise<BoardMeetingRow[]> {
-  const json = await session.fetchJson<BoardMeetingRow[] | { data?: BoardMeetingRow[] }>(
-    NSE_BOARD_MEETINGS,
-  );
+/**
+ * Fetch board meetings via the shared NSE session. Without a date range the
+ * endpoint returns only recent filings; we pass a forward window (today →
+ * +`lookaheadDays`) so we actually get the *upcoming* results meetings.
+ * Throws on NSE block.
+ */
+export async function fetchBoardMeetings(
+  session: NseSession,
+  lookaheadDays: number = EARNINGS_LOOKAHEAD_DAYS,
+  now: number = Date.now(),
+): Promise<BoardMeetingRow[]> {
+  const from = ddmmyyyy(new Date(now));
+  const to = ddmmyyyy(new Date(now + lookaheadDays * 86_400_000));
+  const url = `${NSE_BOARD_MEETINGS}?index=equities&from_date=${from}&to_date=${to}`;
+  const json = await session.fetchJson<BoardMeetingRow[] | { data?: BoardMeetingRow[] }>(url);
   if (Array.isArray(json)) return json;
   if (json && Array.isArray(json.data)) return json.data;
   return [];

@@ -487,11 +487,11 @@ export default function SimulationPage() {
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0 min-h-0 h-[calc(100dvh-4rem)]">
         <TopBar />
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 bg-[#08080a]">
-          <div className="w-full mx-auto space-y-3 sm:space-y-4">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden p-3 sm:p-4 lg:p-5 bg-[#08080a]">
+          <div className="w-full mx-auto flex flex-col flex-1 min-h-0 gap-2 sm:gap-3">
             <CronHealthBanner variant="compact" />
 
             <SimulatorToolbar

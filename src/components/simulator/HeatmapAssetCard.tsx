@@ -66,6 +66,7 @@ export function HeatmapAssetCard({
   settingsSlot,
   footerSlot,
   zoneCarouselItems,
+  hideCarousel,
   selected,
   onSelect,
 }: {
@@ -115,6 +116,8 @@ export function HeatmapAssetCard({
   /** Other bots' zone snapshots — rendered as an auto-scrolling carousel
    *  beside the selected bot's full detail ladder. */
   zoneCarouselItems?: ZoneCarouselItem[];
+  /** Slideshow-style split layout — primary ladder only, no carousel. */
+  hideCarousel?: boolean;
   selected?: boolean;
   onSelect?: () => void;
 }) {
@@ -176,7 +179,7 @@ export function HeatmapAssetCard({
       className={cn(
         SIM_CARD,
         "flex flex-col overflow-hidden",
-        !footerSlot && "min-h-[400px] lg:min-h-[448px]",
+        !footerSlot && "min-h-[400px] lg:min-h-0 lg:h-full",
         onSelect && "cursor-pointer transition-shadow",
         selected &&
           "ring-2 ring-accent/80 shadow-[0_0_0_1px_rgba(0,212,170,0.25),0_8px_28px_rgba(0,212,170,0.12)]",
@@ -299,7 +302,7 @@ export function HeatmapAssetCard({
             )}
           </div>
 
-          {zoneCarouselItems && zoneCarouselItems.length > 0 && (
+          {!hideCarousel && zoneCarouselItems && zoneCarouselItems.length > 0 && (
             <div className="flex-1 min-w-0 min-h-[280px] xl:min-h-0 border-t xl:border-t-0 xl:border-l border-white/[0.08] bg-[#0a0a0c]/40">
               <AutoScrollZonesPanel items={zoneCarouselItems} />
             </div>

@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { RefreshCw, Zap } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { doc } from "firebase/firestore";
 import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { useAutoRefresh } from "@/hooks/use-auto-refresh";
 import { cn } from "@/lib/utils";
 import { SIM_PANEL } from "@/components/simulator/simulator-surfaces";
+import { CRYPTO_BOTS } from "@/lib/crypto-bots";
 import { SIM_COCKPIT_BOTS, type CockpitBotId } from "@/lib/sim-cockpit-bots";
 import {
   computeBotCapital,
@@ -21,8 +22,12 @@ import {
   type ZoneBotSettings,
 } from "@/lib/zone-bot-config";
 import { HeatmapAssetCard } from "@/components/simulator/HeatmapAssetCard";
-import { CockpitCompactRow } from "@/components/simulator/CockpitCompactRow";
+import { SimBotStrip } from "@/components/simulator/SimBotStrip";
 import { BotCardControls } from "@/components/simulator/BotCardControls";
+import {
+  LEVELS_STRIP_ICON_BOX_CLASS,
+  LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS,
+} from "@/components/levels/levels-symbol-strip";
 import {
   liveSpotFromExchangePrices,
   normalizeSuggestedZones,
@@ -39,23 +44,13 @@ interface BtcMacroStatus {
 }
 
 /**
- * Cockpit master-detail layout — replaces the older 4-up grid.
+ * Cockpit slideshow layout — mirrors freedombot levels slideshow.
  *
- *   ┌──── left rail (sticky) ────┐  ┌──── right pane ───────────────────┐
- *   │ ▣ Crypto Bot   AUTO   $77k │  │ Selected bot detail card          │
- *   │ ▣ BTC Zone    AUTO   $77k │  │   • full status banner            │
- *   │ ▣ ETH Zone    AUTO   $2.1k│  │   • zone tiles (or pattern signals│
- *   │ ▣ SOL Zone    AUTO   $86  │  │     for Crypto Bot)               │
- *   │ ▣ XRP Zone    AUTO   $1.4 │  │   • max-pain by expiry            │
- *   └────────────────────────────┘  ├───────────────────────────────────┤
- *                                   │ Tabs: Open / History / Logs       │
- *                                   │ (children prop — page owns state) │
- *                                   └───────────────────────────────────┘
- *
- * One row in the rail tells you everything you need to scan all five bots
- * at once; clicking a row routes the selection both to the detail card
- * and to the tabs underneath (the page filters open trades / history /
- * logs by botSource via the same `selectedBotId`).
+ *   ┌─ [Refresh] │ Crypto │ BTC │ ETH │ SOL │ XRP ────────────────┐
+ *   ├────────────────────────────────────┬────────────────────────┤
+ *   │ Zone ladder + controls (70%)       │ Open / History / Logs  │
+ *   │                                    │ sim & live trades (30%)│
+ *   └────────────────────────────────────┴────────────────────────┘
  */
 export function BotCockpit({
   openTrades,
@@ -395,15 +390,41 @@ export function BotCockpit({
   const selectedSuggested = suggestedByBot[selectedBotId];
   const selectedMetrics = botMetrics[selectedBotId];
 
-  const zoneCarouselItems = useMemo(
+  const stripItems = useMemo(
     () =>
-      SIM_COCKPIT_BOTS.filter((b) => b.id !== selectedBotId).map((b) => ({
-        id: b.id,
-        label: b.label,
-        suggested: suggestedByBot[b.id],
-        liveSpot: liveSpotByBot[b.id],
-      })),
-    [selectedBotId, suggestedByBot, liveSpotByBot],
+      SIM_COCKPIT_BOTS.map((bot) => {
+        const isCrypto = bot.id === "crypto";
+        const zc =
+          bot.id === "crypto"
+            ? { state: null, settings: heatmapZones }
+            : zoneContext[bot.id as ZoneBotAsset];
+        const meta = CRYPTO_BOTS.find((b) => b.id === bot.id);
+        return {
+          id: bot.id,
+          label: bot.label,
+          shortLabel: meta?.shortLabel ?? bot.label,
+          suggested: suggestedByBot[bot.id],
+          liveSpot: liveSpotByBot[bot.id],
+          manualOverride: zc?.settings?.manualOverride ?? null,
+          engineReason: isCrypto
+            ? cryptoMacro?.reason ?? null
+            : zc?.state?.reason ?? null,
+          engineDirection: isCrypto ? null : zc?.state?.direction ?? null,
+          simEnabled: isCrypto ? cryptoMacro?.simEnabled : undefined,
+          botEngineLive: isCrypto
+            ? !!cryptoMacro?.updatedAt
+            : !!zc?.state?.updatedAt,
+          liveCount: botMetrics[bot.id]?.liveCount ?? 0,
+        };
+      }),
+    [
+      suggestedByBot,
+      liveSpotByBot,
+      heatmapZones,
+      zoneContext,
+      cryptoMacro,
+      botMetrics,
+    ],
   );
 
   const selectedZone =
@@ -421,78 +442,46 @@ export function BotCockpit({
   }, [selectedBotId, onSelectBot]);
 
   return (
-    <section className={cn(SIM_PANEL, "p-3 sm:p-4 space-y-3 sm:space-y-4")}>
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Zap className="w-4 h-4 text-accent/70" />
-          <div>
-            <h2 className="text-[11px] font-black uppercase tracking-widest text-foreground/85">
-              Bot cockpit
-            </h2>
-            <p className="text-[10px] text-muted-foreground/45">
-              Five Deribit zone bots · pick one on the left to drill in
-            </p>
-          </div>
-        </div>
+    <section
+      className={cn(
+        SIM_PANEL,
+        "flex flex-col flex-1 min-h-0 p-3 sm:p-4 gap-2 sm:gap-3 overflow-hidden",
+      )}
+    >
+      {/* ── Bot strip (top) ── */}
+      <div
+        className={cn(
+          "shrink-0 flex items-stretch gap-1.5",
+          LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS,
+        )}
+      >
         <button
           type="button"
           onClick={() => void handleRefreshZones()}
           disabled={refreshing}
+          title={refreshing ? "Fetching zones…" : "Refresh all zones"}
           className={cn(
-            "flex items-center gap-1.5 rounded-lg border border-white/[0.12] bg-[#1a1a1f]",
-            "px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground",
-            "shadow-[0_2px_10px_rgba(0,0,0,0.35)] hover:text-foreground hover:bg-[#222228] hover:border-white/[0.18] transition-all disabled:opacity-40",
+            LEVELS_STRIP_ICON_BOX_CLASS,
+            "flex flex-col items-center justify-center gap-1.5 rounded-lg",
+            "border border-white/[0.1] bg-[#1a1a1f] text-muted-foreground",
+            "hover:text-foreground hover:bg-[#222228] hover:border-white/[0.18] transition-all disabled:opacity-40",
           )}
         >
-          <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
-          {refreshing ? "Fetching…" : "Refresh all"}
+          <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+          <span className="text-[10px] font-bold leading-none tracking-wide">
+            {refreshing ? "…" : "Refresh"}
+          </span>
         </button>
+        <SimBotStrip
+          items={stripItems}
+          selectedId={selectedBotId}
+          onSelect={onSelectBot}
+        />
       </div>
 
-      {/* ── Master-detail body ── */}
-      <div className="flex flex-col lg:flex-row gap-3 sm:gap-4">
-        {/* Left rail */}
-        <aside className="w-full lg:w-72 lg:shrink-0 space-y-2">
-          {SIM_COCKPIT_BOTS.map((bot) => {
-            const metrics = botMetrics[bot.id];
-            const zc =
-              bot.id === "crypto"
-                ? { state: null, settings: heatmapZones }
-                : zoneContext[bot.id as ZoneBotAsset];
-            const isCrypto = bot.id === "crypto";
-            const engineLive = isCrypto
-              ? !!cryptoMacro?.updatedAt
-              : !!zc?.state?.updatedAt;
-            return (
-              <CockpitCompactRow
-                key={bot.id}
-                botId={bot.id}
-                label={bot.label}
-                suggested={suggestedByBot[bot.id]}
-                liveSpot={liveSpotByBot[bot.id]}
-                manualOverride={zc?.settings?.manualOverride ?? null}
-                engineReason={
-                  isCrypto
-                    ? cryptoMacro?.reason ?? null
-                    : zc?.state?.reason ?? null
-                }
-                engineDirection={isCrypto ? null : zc?.state?.direction ?? null}
-                simEnabled={isCrypto ? cryptoMacro?.simEnabled : undefined}
-                botEngineLive={engineLive}
-                liveCount={metrics?.liveCount ?? 0}
-                closedCount={metrics?.closedCount ?? 0}
-                publicLive={policyByBot[bot.id]?.publicLive ?? false}
-                liveMirroringEnabled={policyByBot[bot.id]?.liveMirroringEnabled ?? true}
-                selected={selectedBotId === bot.id}
-                onSelect={() => onSelectBot(bot.id)}
-              />
-            );
-          })}
-        </aside>
-
-        {/* Right pane — heatmap detail (tabs render full-width below) */}
-        <div className="flex-1 min-w-0">
+      {/* ── Chart left · trades right ── */}
+      <div className="flex flex-col lg:flex-row flex-1 min-h-0 gap-2 sm:gap-3 lg:gap-4">
+        <div className="flex flex-col lg:flex-[7] lg:min-w-0 min-h-[min(42dvh,400px)] lg:min-h-0 h-full">
           <HeatmapAssetCard
             botId={selectedBot.id}
             label={selectedBot.label}
@@ -500,7 +489,9 @@ export function BotCockpit({
             liveSpot={liveSpotByBot[selectedBot.id]}
             manualOverride={selectedZone?.settings?.manualOverride ?? null}
             publicLive={policyByBot[selectedBot.id]?.publicLive ?? false}
-            liveMirroringEnabled={policyByBot[selectedBot.id]?.liveMirroringEnabled ?? true}
+            liveMirroringEnabled={
+              policyByBot[selectedBot.id]?.liveMirroringEnabled ?? true
+            }
             engineReason={
               selectedBot.id === "crypto"
                 ? cryptoMacro?.reason ?? null
@@ -529,7 +520,7 @@ export function BotCockpit({
             startingCapital={startingCapital}
             liveCount={selectedMetrics?.liveCount ?? 0}
             cs={cs}
-            zoneCarouselItems={zoneCarouselItems}
+            hideCarousel
             settingsSlot={
               <BotCardControls
                 botId={selectedBot.id}
@@ -542,14 +533,16 @@ export function BotCockpit({
             }
           />
         </div>
-      </div>
 
-      {/* Open / History / Logs — full cockpit width for legible trade cards */}
-      {children && (
-        <div className="rounded-xl border border-white/[0.1] bg-[#101013] overflow-hidden">
-          {children}
-        </div>
-      )}
+        {children && (
+          <>
+            <div className="hidden lg:block w-px shrink-0 bg-white/[0.08] self-stretch" />
+            <div className="flex flex-col lg:flex-[3] lg:min-w-0 min-h-[min(36dvh,320px)] lg:min-h-0 rounded-xl border border-white/[0.1] bg-[#101013] overflow-hidden">
+              {children}
+            </div>
+          </>
+        )}
+      </div>
     </section>
   );
 }

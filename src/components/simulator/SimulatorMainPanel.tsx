@@ -6,13 +6,7 @@ import { cn } from "@/lib/utils";
 type SimTab = "overview" | "trades" | "logs";
 
 /**
- * Bottom section of the cockpit — Open / History / Logs tabs.
- *
- * Renders without its own outer panel so it can be folded into the
- * selected bot's HeatmapAssetCard footer slot. The card above already
- * shows the bot label + mode buttons, and the left rail handles bot
- * switching, so we drop both the duplicate title and the
- * "Select another card" hint that used to live here.
+ * Right rail of the cockpit — Open / History / Logs tabs beside the zone chart.
  */
 export function SimulatorMainPanel({
   tab,
@@ -39,9 +33,9 @@ export function SimulatorMainPanel({
   ];
 
   return (
-    <div className="flex flex-col">
-      <div className="px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[#0a0a0c] border border-white/[0.1] shadow-[inset_0_2px_6px_rgba(0,0,0,0.45)]">
+    <div className="flex flex-col flex-1 min-h-0 h-full">
+      <div className="shrink-0 px-2.5 sm:px-3 py-2 flex items-center justify-between gap-2 border-b border-white/[0.08]">
+        <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-[#0a0a0c] border border-white/[0.1] shadow-[inset_0_2px_6px_rgba(0,0,0,0.45)]">
           {tabs.map((t) => {
             const active = tab === t.id;
             return (
@@ -50,7 +44,7 @@ export function SimulatorMainPanel({
                 type="button"
                 onClick={() => onTabChange(t.id)}
                 className={cn(
-                  "relative px-3 sm:px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all",
+                  "relative px-2.5 sm:px-3 py-1.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all",
                   active
                     ? "bg-accent text-black shadow-[0_2px_10px_rgba(0,212,170,0.3)]"
                     : "text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.04]",
@@ -60,7 +54,7 @@ export function SimulatorMainPanel({
                 {t.count != null && (
                   <span
                     className={cn(
-                      "ml-1.5 tabular-nums",
+                      "ml-1 tabular-nums",
                       active ? "text-black/50" : "text-muted-foreground/40",
                     )}
                   >
@@ -73,12 +67,14 @@ export function SimulatorMainPanel({
         </div>
         <Link
           href="/stats"
-          className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/45 hover:text-accent transition-colors shrink-0"
+          className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground/45 hover:text-accent transition-colors shrink-0"
         >
-          Performance &amp; stats →
+          Stats →
         </Link>
       </div>
-      <div className="flex-1 px-4 sm:px-5 lg:px-6 pb-4 sm:pb-5 min-h-0">{children}</div>
+      <div className="flex-1 min-h-0 overflow-y-auto px-2.5 sm:px-3 py-2.5 sm:py-3">
+        {children}
+      </div>
     </div>
   );
 }

@@ -186,106 +186,43 @@ export function HeatmapAssetCard({
         onSelect && !selected && "hover:ring-1 hover:ring-white/20",
       )}
     >
-      {/* ── Split body: metadata left · zone ladder right ── */}
-      <div className="flex flex-1 min-h-0 flex-col sm:flex-row">
-        {/* Left — bot identity, controls, capital, status */}
-        <div className="shrink-0 sm:w-[260px] md:w-[280px] lg:w-[300px] xl:w-[320px] flex flex-col gap-4 px-4 py-5 border-b sm:border-b-0 sm:border-r border-white/[0.1] bg-gradient-to-b from-[#1c1c24] to-[#141418]">
-          {/* Header */}
-          <div className="space-y-2.5">
-            <div className="flex items-center gap-2 min-w-0">
-              <span
-                className={cn(
-                  "shrink-0 inline-block w-2.5 h-2.5 rounded-full",
-                  POWER_DOT[cardStatus.power],
-                )}
-                aria-hidden
-              />
-              <span className="text-base font-black tracking-tight text-white truncate">
-                {label}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <CockpitTag>{ASSET_TAG[botId]}</CockpitTag>
-              {ivPct != null && (
-                <IvBadge
-                  pct={ivPct}
-                  title={formatIvExplainer(ivPct, spot, ASSET_TAG[botId])}
-                />
-              )}
-              <DiscoveryBadge publicLive={publicLive === true} />
-              {liveMirroringEnabled === false && <SimOnlyBadge />}
-            </div>
-          </div>
+      {/* ── Chrome above chart (split) · or sidebar + ladder (legacy) ── */}
+      <div
+        className={cn(
+          "flex flex-1 min-h-0",
+          hideCarousel ? "flex-col" : "flex-col sm:flex-row",
+        )}
+      >
+        <CockpitChromePanel
+          hideCarousel={hideCarousel}
+          botId={botId}
+          label={label}
+          ivPct={ivPct}
+          spot={spot}
+          publicLive={publicLive}
+          liveMirroringEnabled={liveMirroringEnabled}
+          cardStatus={cardStatus}
+          capital={capital}
+          cs={cs}
+          delta={delta}
+          deltaPct={deltaPct}
+          botLastRanAt={botLastRanAt}
+          zonesRefreshedAt={zonesRefreshedAt}
+          settingsSlot={settingsSlot}
+        />
 
-          {/* Controls card */}
-          {settingsSlot && (
-            <div className={COCKPIT_RAIL_GLASS}>
-              <div
-                className="w-full"
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => e.stopPropagation()}
-              >
-                {settingsSlot}
-              </div>
-            </div>
+        <div
+          className={cn(
+            "flex-1 flex flex-col min-w-0 min-h-0",
+            !hideCarousel && "xl:flex-row min-h-[360px]",
           )}
-
-          {/* Performance + status card */}
-          <div className={cn(COCKPIT_RAIL_GLASS, "mt-auto space-y-3")}>
-            <div className="flex items-end justify-between gap-2">
-              <span className="text-2xl font-mono font-black tabular-nums text-white leading-none">
-                {cs}
-                {capital.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </span>
-              <span
-                className={cn(
-                  "flex items-center gap-1 text-[11px] font-mono font-bold tabular-nums leading-none shrink-0",
-                  delta >= 0 ? "text-emerald-400" : "text-rose-400",
-                )}
-              >
-                {delta >= 0 ? (
-                  <TrendingUp className="h-3.5 w-3.5" />
-                ) : (
-                  <TrendingDown className="h-3.5 w-3.5" />
-                )}
-                {delta >= 0 ? "+" : ""}
-                {deltaPct.toFixed(2)}%
-                <span className="text-[10px]">{delta >= 0 ? "▲" : "▼"}</span>
-              </span>
-            </div>
-            <LastRanInline
-              botId={botId}
-              botLastRanAt={botLastRanAt}
-              zonesRefreshedAt={zonesRefreshedAt}
-              stacked
-            />
-            <div className="flex flex-col gap-1 min-w-0 pt-3 border-t border-white/[0.08]">
-              <span
-                className={cn(
-                  "text-[10px] font-black uppercase tracking-[0.12em]",
-                  POWER_TEXT[cardStatus.power],
-                )}
-              >
-                {cardStatus.headline}
-              </span>
-              {cardStatus.detail && (
-                <span
-                  className="text-[11px] text-muted-foreground/65 leading-snug"
-                  title={cardStatus.detail}
-                >
-                  {cardStatus.detail}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Right — selected bot ladder · auto-scroll carousel */}
-        <div className="flex-1 flex flex-col xl:flex-row min-w-0 min-h-[360px]">
-          <div className="flex-1 flex flex-col min-w-0 min-h-[360px]">
+        >
+          <div
+            className={cn(
+              "flex-1 flex flex-col min-w-0 min-h-0",
+              !hideCarousel && "min-h-[360px]",
+            )}
+          >
             {!suggested ? (
               <div className="flex-1 flex items-center justify-center px-4 py-8">
                 <p className="text-[10px] text-muted-foreground/40 text-center">
@@ -316,6 +253,157 @@ export function HeatmapAssetCard({
           {footerSlot}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Bot identity, controls, capital, and regime status — sidebar or top chrome. */
+function CockpitChromePanel({
+  hideCarousel,
+  botId,
+  label,
+  ivPct,
+  spot,
+  publicLive,
+  liveMirroringEnabled,
+  cardStatus,
+  capital,
+  cs,
+  delta,
+  deltaPct,
+  botLastRanAt,
+  zonesRefreshedAt,
+  settingsSlot,
+}: {
+  hideCarousel?: boolean;
+  botId: CockpitBotId;
+  label: string;
+  ivPct: number | null;
+  spot: number | null;
+  publicLive?: boolean;
+  liveMirroringEnabled?: boolean;
+  cardStatus: CockpitCardStatus;
+  capital: number;
+  cs: string;
+  delta: number;
+  deltaPct: number;
+  botLastRanAt?: string | null;
+  zonesRefreshedAt?: string | null;
+  settingsSlot?: React.ReactNode;
+}) {
+  const headerBlock = (
+    <div className="space-y-2.5 min-w-0">
+      <div className="flex items-center gap-2 min-w-0">
+        <span
+          className={cn(
+            "shrink-0 inline-block w-2.5 h-2.5 rounded-full",
+            POWER_DOT[cardStatus.power],
+          )}
+          aria-hidden
+        />
+        <span className="text-base font-black tracking-tight text-white truncate">
+          {label}
+        </span>
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <CockpitTag>{ASSET_TAG[botId]}</CockpitTag>
+        {ivPct != null && (
+          <IvBadge
+            pct={ivPct}
+            title={formatIvExplainer(ivPct, spot, ASSET_TAG[botId])}
+          />
+        )}
+        <DiscoveryBadge publicLive={publicLive === true} />
+        {liveMirroringEnabled === false && <SimOnlyBadge />}
+      </div>
+    </div>
+  );
+
+  const controlsBlock =
+    settingsSlot != null ? (
+      <div className={COCKPIT_RAIL_GLASS}>
+        <div
+          className="w-full"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          {settingsSlot}
+        </div>
+      </div>
+    ) : null;
+
+  const performanceBlock = (
+    <div className={cn(COCKPIT_RAIL_GLASS, !hideCarousel && "mt-auto", "space-y-3")}>
+      <div className="flex items-end justify-between gap-2">
+        <span className="text-2xl font-mono font-black tabular-nums text-white leading-none">
+          {cs}
+          {capital.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
+        </span>
+        <span
+          className={cn(
+            "flex items-center gap-1 text-[11px] font-mono font-bold tabular-nums leading-none shrink-0",
+            delta >= 0 ? "text-emerald-400" : "text-rose-400",
+          )}
+        >
+          {delta >= 0 ? (
+            <TrendingUp className="h-3.5 w-3.5" />
+          ) : (
+            <TrendingDown className="h-3.5 w-3.5" />
+          )}
+          {delta >= 0 ? "+" : ""}
+          {deltaPct.toFixed(2)}%
+          <span className="text-[10px]">{delta >= 0 ? "▲" : "▼"}</span>
+        </span>
+      </div>
+      <LastRanInline
+        botId={botId}
+        botLastRanAt={botLastRanAt}
+        zonesRefreshedAt={zonesRefreshedAt}
+        stacked
+      />
+      <div className="flex flex-col gap-1 min-w-0 pt-3 border-t border-white/[0.08]">
+        <span
+          className={cn(
+            "text-[10px] font-black uppercase tracking-[0.12em]",
+            POWER_TEXT[cardStatus.power],
+          )}
+        >
+          {cardStatus.headline}
+        </span>
+        {cardStatus.detail && (
+          <span
+            className="text-[11px] text-muted-foreground/65 leading-snug"
+            title={cardStatus.detail}
+          >
+            {cardStatus.detail}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+
+  if (hideCarousel) {
+    return (
+      <div className="shrink-0 px-4 py-4 border-b border-white/[0.1] bg-gradient-to-b from-[#1c1c24] to-[#141418]">
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(240px,280px)] gap-4 items-start">
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(200px,240px)] gap-4 items-start">
+            {headerBlock}
+            {controlsBlock}
+          </div>
+          {performanceBlock}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="shrink-0 sm:w-[260px] md:w-[280px] lg:w-[300px] xl:w-[320px] flex flex-col gap-4 px-4 py-5 border-b sm:border-b-0 sm:border-r border-white/[0.1] bg-gradient-to-b from-[#1c1c24] to-[#141418]">
+      {headerBlock}
+      {controlsBlock}
+      {performanceBlock}
     </div>
   );
 }

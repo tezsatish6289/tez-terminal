@@ -15,15 +15,28 @@
  * the public one.
  */
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { useUser } from "@/firebase";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { StatsDashboard } from "@/components/stats/StatsDashboard";
+import { CRYPTO_BOTS, type CryptoBotId } from "@/lib/crypto-bots";
+
+function StatsDashboardFromQuery({ shareView }: { shareView: boolean }) {
+  const searchParams = useSearchParams();
+  const raw = searchParams.get("bot");
+  const initialBotId =
+    raw && CRYPTO_BOTS.some((b) => b.id === raw) ? (raw as CryptoBotId) : undefined;
+
+  return (
+    <StatsDashboard assetType="CRYPTO" shareView={shareView} initialBotId={initialBotId} />
+  );
+}
+
 export default function StatsPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
@@ -94,7 +107,15 @@ export default function StatsPage() {
               </button>
             </div>
 
-            <StatsDashboard assetType="CRYPTO" shareView={shareView} />
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="h-6 w-6 animate-spin text-accent" />
+                </div>
+              }
+            >
+              <StatsDashboardFromQuery shareView={shareView} />
+            </Suspense>
           </div>
         </div>
       </main>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import Link from "next/link";
 import { TrendingDown, TrendingUp, Clock, Globe, EyeOff } from "lucide-react";
 import { useIsoTimeLabel } from "@/hooks/use-auto-refresh";
 import { cn } from "@/lib/utils";
@@ -388,44 +389,52 @@ function CockpitChromePanel({
   );
 
   if (hideCarousel) {
+    const regimeLine = cardStatus.detail
+      ? `${cardStatus.headline} — ${cardStatus.detail}`
+      : cardStatus.headline;
+
     return (
       <div className="shrink-0 px-2.5 sm:px-3 py-2 border-b border-white/[0.08] bg-[#12121a]">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <div className="flex items-center gap-2 min-w-0 shrink-0">
-            <span
-              className={cn(
-                "shrink-0 inline-block w-2 h-2 rounded-full",
-                POWER_DOT[cardStatus.power],
-              )}
-              aria-hidden
-            />
-            <span className="text-[13px] font-black tracking-tight text-white whitespace-nowrap">
-              {label}
-            </span>
-            <div className="flex items-center gap-1 flex-wrap">
-              <CockpitTag>{ASSET_TAG[botId]}</CockpitTag>
-              {ivPct != null && (
-                <IvBadge
-                  pct={ivPct}
-                  title={formatIvExplainer(ivPct, spot, ASSET_TAG[botId])}
-                />
-              )}
-              <DiscoveryBadge publicLive={publicLive === true} />
-              {liveMirroringEnabled === false && <SimOnlyBadge />}
+        <div className="flex flex-col gap-2 min-w-0">
+          {/* Row 1 — bot identity + Manual / Config / mode toggles */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <div className="flex items-center gap-2 min-w-0 shrink-0">
+              <span
+                className={cn(
+                  "shrink-0 inline-block w-2 h-2 rounded-full",
+                  POWER_DOT[cardStatus.power],
+                )}
+                aria-hidden
+              />
+              <span className="text-[13px] font-black tracking-tight text-white whitespace-nowrap">
+                {label}
+              </span>
+              <div className="flex items-center gap-1 flex-wrap">
+                <CockpitTag>{ASSET_TAG[botId]}</CockpitTag>
+                {ivPct != null && (
+                  <IvBadge
+                    pct={ivPct}
+                    title={formatIvExplainer(ivPct, spot, ASSET_TAG[botId])}
+                  />
+                )}
+                <DiscoveryBadge publicLive={publicLive === true} />
+                {liveMirroringEnabled === false && <SimOnlyBadge />}
+              </div>
             </div>
+
+            {settingsSlot != null && (
+              <div
+                className="flex items-center shrink-0"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
+                {settingsSlot}
+              </div>
+            )}
           </div>
 
-          {settingsSlot != null && (
-            <div
-              className="flex items-center shrink-0"
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
-            >
-              {settingsSlot}
-            </div>
-          )}
-
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 justify-end flex-wrap">
+          {/* Row 2 — capital, delta %, last updated */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <div className="flex items-baseline gap-2 shrink-0">
               <span className="text-lg font-mono font-black tabular-nums text-white leading-none">
                 {cs}
@@ -454,17 +463,28 @@ function CockpitChromePanel({
               botLastRanAt={botLastRanAt}
               zonesRefreshedAt={zonesRefreshedAt}
             />
-            <span
+            <span className="text-muted-foreground/35 text-[10px] leading-none" aria-hidden>
+              ·
+            </span>
+            <Link
+              href={`/stats?bot=${botId}`}
+              className="text-[10px] font-bold lowercase tracking-wide text-muted-foreground/55 hover:text-accent transition-colors shrink-0"
+            >
+              performance
+            </Link>
+          </div>
+
+          {/* Row 3 — regime / engine status */}
+          {regimeLine ? (
+            <p
               className={cn(
-                "text-[9px] font-black uppercase tracking-wide truncate max-w-[min(100%,22rem)]",
+                "text-[9px] font-black uppercase tracking-wide leading-snug break-words",
                 POWER_TEXT[cardStatus.power],
               )}
-              title={cardStatus.detail ?? cardStatus.headline}
             >
-              {cardStatus.headline}
-              {cardStatus.detail ? ` — ${cardStatus.detail}` : ""}
-            </span>
-          </div>
+              {regimeLine}
+            </p>
+          ) : null}
         </div>
       </div>
     );

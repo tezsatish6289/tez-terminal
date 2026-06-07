@@ -66,6 +66,7 @@ import {
   type ZoneSimStatesMap,
 } from "@/lib/stats-dashboard-capital";
 import type { PublicBotFlags } from "@/lib/public-bot-flags";
+import { getCryptoBot, type CryptoBotId } from "@/lib/crypto-bots";
 
 // ── Formatting helpers (mirrored from /simulation so the two pages
 //    cannot drift apart). Intentionally local — these are presentation
@@ -146,9 +147,15 @@ export interface StatsDashboardProps {
   assetType: "CRYPTO" | "INDIAN_STOCKS";
   /** LinkedIn screenshot layout — FreedomBot branded card only */
   shareView?: boolean;
+  /** Pre-select bot tab when opened from simulation cockpit (?bot=btc etc.). */
+  initialBotId?: CryptoBotId;
 }
 
-export function StatsDashboard({ assetType, shareView = false }: StatsDashboardProps) {
+export function StatsDashboard({
+  assetType,
+  shareView = false,
+  initialBotId,
+}: StatsDashboardProps) {
   const cs = assetType === "INDIAN_STOCKS" ? "₹" : "$";
   const { user } = useUser();
   const firestore = useFirestore();
@@ -205,7 +212,14 @@ export function StatsDashboard({ assetType, shareView = false }: StatsDashboardP
 
   // Bot-source filter — drives EVERY metric on this page, including the
   // headline cards (counterfactual per-bot view).
-  const [botSourceFilter, setBotSourceFilter] = useState<BotSourceFilterValue>("ALL");
+  const [botSourceFilter, setBotSourceFilter] = useState<BotSourceFilterValue>(() =>
+    initialBotId ? getCryptoBot(initialBotId).botSource : "ALL",
+  );
+
+  useEffect(() => {
+    if (!initialBotId) return;
+    setBotSourceFilter(getCryptoBot(initialBotId).botSource);
+  }, [initialBotId]);
   const botSourcePredicate = useMemo(() => matchesBotSource(botSourceFilter), [botSourceFilter]);
   const isBotFiltered = botSourceFilter !== "ALL";
 

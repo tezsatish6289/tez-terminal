@@ -242,6 +242,60 @@ export async function backfillIndiaVix(
   }
 }
 
+/**
+ * Parse an NSE "Download (.csv)" India VIX export into a clean daily series.
+ * Header looks like `Date ,Open ,High ,Low ,Close ,Prev. Close ,Change ,% Change`
+ * with `DD-MON-YYYY` dates. Permissive: locates the date + close columns by
+ * name so column order / spacing changes don't break it. Pure.
+ */
+export function parseVixCsv(text: string): VixHistoryEntry[] {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length < 2) return [];
+
+  const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
+  const dateIdx = header.findIndex((h) => h === "date" || h.startsWith("date"));
+  let closeIdx = header.findIndex((h) => h === "close");
+  if (closeIdx === -1) closeIdx = header.findIndex((h) => h.includes("close") && !h.includes("prev"));
+  if (dateIdx === -1 || closeIdx === -1) return [];
+
+  const byDate = new Map<string, number>();
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",");
+    const date = vixDateKey(cols[dateIdx]?.trim());
+    const value = Number(String(cols[closeIdx] ?? "").replace(/["',]/g, "").trim());
+    if (!date || !Number.isFinite(value) || value <= 0) continue;
+    byDate.set(date, value);
+  }
+  return [...byDate.entries()]
+    .map(([date, value]) => ({ date, value }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
+ * Seed the India VIX state from an already-parsed series (e.g. a CSV upload),
+ * with no NSE dependency. Caps to ~1 trading year and ranks the latest reading
+ * against the rest so the percentile is live immediately.
+ */
+export async function seedIndiaVix(
+  db: Firestore,
+  entries: VixHistoryEntry[],
+): Promise<IndiaVixBackfillResult> {
+  const history = [...entries].sort((a, b) => a.date.localeCompare(b.date)).slice(-IV_HISTORY_CAP);
+  if (!history.length) {
+    return { ok: false, samples: 0, value: null, percentile: null, error: "no usable rows" };
+  }
+  const latest = history[history.length - 1];
+  const percentile = ivPercentile(history.slice(0, -1).map((e) => e.value), latest.value);
+  await db.doc(INDIA_VIX_DOC).set({
+    value: latest.value,
+    percentile,
+    history,
+    updatedAt: new Date().toISOString(),
+    seededAt: new Date().toISOString(),
+  });
+  return { ok: true, samples: history.length, value: latest.value, percentile };
+}
+
 /** Append today's VIX, deduped by IST day, capped to ~1 trading year. Pure. */
 export function appendDailyVix(
   history: readonly VixHistoryEntry[],

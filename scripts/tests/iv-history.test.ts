@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { appendDailyIv, istDateKey, IV_HISTORY_CAP } from "../../src/lib/iv-history";
-import { appendDailyVix, parseVixHistory, vixDateKey } from "../../src/lib/india-vix";
+import { appendDailyVix, parseVixCsv, parseVixHistory, vixDateKey } from "../../src/lib/india-vix";
 
 // ── istDateKey ────────────────────────────────────────────────────────────
 // 19:00 UTC on Jun 7 is already Jun 8 in IST (UTC+5:30).
@@ -78,6 +78,28 @@ import { appendDailyVix, parseVixHistory, vixDateKey } from "../../src/lib/india
   );
   assert.equal(out[0].value, 22.0); // dedupe kept the last
   assert.equal(out[2].value, 19.4);
+}
+
+// ── parseVixCsv ───────────────────────────────────────────────────────────
+// Real NSE "Download (.csv)" India VIX export shape (note trailing spaces in
+// headers, DD-MON-YYYY dates, a Prev. Close column that must not be picked).
+{
+  const csv = [
+    "Date ,Open ,High ,Low ,Close ,Prev. Close ,Change ,% Change ",
+    "09-JUN-2025,14.63,15.52,14.63,14.69,14.63,0.06,0.41",
+    "10-JUN-2025,14.6925,14.74,13.9325,14.02,14.6925,-0.67,-4.58",
+    "11-JUN-2025,14.015,14.155,13.5575,13.67,14.015,-0.35,-2.46",
+    "", // trailing blank line
+  ].join("\n");
+  const out = parseVixCsv(csv);
+  assert.equal(out.length, 3);
+  assert.deepEqual(out[0], { date: "2025-06-09", value: 14.69 });
+  assert.equal(out[2].value, 13.67); // Close, not Prev. Close (14.015)
+}
+// Junk / empty → no rows, never throws.
+{
+  assert.deepEqual(parseVixCsv(""), []);
+  assert.deepEqual(parseVixCsv("not,a,vix,csv\n1,2,3,4"), []);
 }
 
 console.log("iv-history.test.ts ok");

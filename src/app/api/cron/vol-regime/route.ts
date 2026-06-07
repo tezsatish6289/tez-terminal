@@ -31,7 +31,9 @@ import {
   backfillIndiaVix,
   fetchIndiaVix,
   loadIndiaVixState,
+  parseVixCsv,
   refreshIndiaVix,
+  seedIndiaVix,
 } from "@/lib/india-vix";
 
 export const dynamic = "force-dynamic";
@@ -136,6 +138,44 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[cron/vol-regime]", msg);
+    return NextResponse.json({ success: false, error: msg }, { status: 500 });
+  }
+}
+
+/**
+ * POST ?seedVix=1&key=… with an NSE India VIX CSV export as the body — seeds the
+ * India VIX history with no NSE call (use when historical endpoints are blocked
+ * from the host). Body is the raw CSV text.
+ */
+export async function POST(request: NextRequest) {
+  const params = new URL(request.url).searchParams;
+  const key = params.get("key");
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || key !== cronSecret) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (params.get("seedVix") !== "1") {
+    return NextResponse.json(
+      { success: false, error: "Pass ?seedVix=1 with a VIX CSV body." },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const csv = await request.text();
+    const entries = parseVixCsv(csv);
+    if (!entries.length) {
+      return NextResponse.json(
+        { success: false, error: "No rows parsed — expected an NSE India VIX CSV with Date + Close columns." },
+        { status: 400 },
+      );
+    }
+    const result = await seedIndiaVix(getAdminFirestore(), entries);
+    return NextResponse.json({ success: result.ok, mode: "seedVix", result });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[cron/vol-regime] seedVix", msg);
     return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }

@@ -154,7 +154,9 @@ export async function runStockZonesBatch(
   opts: StockZonesBatchOptions = {},
 ): Promise<StockZonesBatchSummary> {
   /** App Hosting runConfig.timeoutSeconds is 120 — keep each cron tick under ~95s. */
-  const batchSize = opts.batchSize ?? envNum("STOCK_ZONES_BATCH_SIZE", 10);
+  // Halved from 10 → 5 since term-structure doubles option-chain calls per
+  // symbol; this keeps NSE calls-per-tick near the pre-term-structure level.
+  const batchSize = opts.batchSize ?? envNum("STOCK_ZONES_BATCH_SIZE", 5);
   const delayMs = opts.delayMs ?? envNum("STOCK_ZONES_DELAY_MS", 600);
   const dhanDelayMs = envNum("STOCK_ZONES_DHAN_DELAY_MS", 400);
   const maxWallClockMs = opts.maxWallClockMs ?? envNum("STOCK_ZONES_MAX_RUN_MS", 95_000);

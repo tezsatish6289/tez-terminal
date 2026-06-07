@@ -129,11 +129,24 @@ export async function fetchDhanEquityOptionChain(
 
 /** Resolve symbol → security id, nearest expiry, and full OI map. */
 export async function loadDhanEquityOptionChain(symbol: string): Promise<DhanEquityChainSnapshot> {
+  const { snapshot } = await loadDhanEquityOptionChainWithExpiries(symbol);
+  return snapshot;
+}
+
+/**
+ * Like {@link loadDhanEquityOptionChain} but also returns the security id + full
+ * expiry list, so callers can fetch a 2nd expiry for term-structure parity with
+ * the NSE path. (Each extra option-chain call still pays Dhan's ~3.1s throttle.)
+ */
+export async function loadDhanEquityOptionChainWithExpiries(symbol: string): Promise<{
+  snapshot: DhanEquityChainSnapshot;
+  securityId: number;
+  expiries: string[];
+}> {
   const securityId = await resolveDhanEquitySecurityId(symbol);
   if (securityId == null) throw new Error("unknown_symbol");
 
   const expiries = await fetchDhanEquityExpiries(securityId);
-  const expiry = expiries[0];
-  const chain = await fetchDhanEquityOptionChain(symbol, expiry, securityId);
-  return chain;
+  const snapshot = await fetchDhanEquityOptionChain(symbol, expiries[0], securityId);
+  return { snapshot, securityId, expiries };
 }

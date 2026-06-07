@@ -74,7 +74,7 @@ function envBool(name: string, fallback: boolean): boolean {
  * best-effort, so a rate-limited call just leaves term structure unknown).
  * Disable with `EQUITY_TERM_STRUCTURE=0` if the NSE rate budget gets tight.
  */
-const TERM_STRUCTURE_ENABLED = () => envBool("EQUITY_TERM_STRUCTURE", true);
+export const TERM_STRUCTURE_ENABLED = () => envBool("EQUITY_TERM_STRUCTURE", true);
 
 /** Half-width as a fraction of spot (default 0.75%). */
 const HALF_WIDTH_PCT = () => envNum("STOCK_ZONE_HALF_WIDTH_PCT", 0.0075);

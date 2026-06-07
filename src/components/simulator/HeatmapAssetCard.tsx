@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { TrendingDown, TrendingUp, Clock, Globe, EyeOff } from "lucide-react";
 import { useIsoTimeLabel } from "@/hooks/use-auto-refresh";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,7 @@ import {
   AutoScrollZonesPanel,
   type ZoneCarouselItem,
 } from "@/components/simulator/AutoScrollZonesPanel";
+import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 
 const POWER_DOT: Record<CockpitCardStatus["power"], string> = {
   on: "bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.55)]",
@@ -623,14 +624,27 @@ function IvBadge({ pct, title }: { pct: number; title?: string }) {
  * right-side tags show the raw price number per level.
  */
 
-/** Shared ladder palette — identical across every bot. */
+/** Brighter zone fills — same structure as levels chart, tuned for sim cockpit. */
+const SIM_ZONE_BAND = {
+  bull: {
+    fill: "rgba(34, 197, 94, 0.55)",
+    fillSoft: "rgba(34, 197, 94, 0.3)",
+    border: LEVELS_ZONE_CHART.bull.bandBorderSolid,
+    glow: "inset 0 0 52px rgba(34, 197, 94, 0.28), 0 0 32px rgba(34, 197, 94, 0.2)",
+    label: LEVELS_ZONE_CHART.bull.labelText,
+    labelMuted: LEVELS_ZONE_CHART.bull.labelTextMuted,
+  },
+  bear: {
+    fill: "rgba(239, 68, 68, 0.55)",
+    fillSoft: "rgba(239, 68, 68, 0.3)",
+    border: LEVELS_ZONE_CHART.bear.bandBorderSolid,
+    glow: "inset 0 0 52px rgba(239, 68, 68, 0.28), 0 0 32px rgba(239, 68, 68, 0.2)",
+    label: LEVELS_ZONE_CHART.bear.labelText,
+    labelMuted: LEVELS_ZONE_CHART.bear.labelTextMuted,
+  },
+} as const;
+
 const LADDER_THEME = {
-  bearZone:
-    "border-y-2 border-rose-400/75 bg-gradient-to-b from-rose-500/32 via-rose-500/24 to-rose-500/32 shadow-[inset_0_0_28px_rgba(251,113,133,0.14)]",
-  bullZone:
-    "border-y-2 border-emerald-400/75 bg-gradient-to-b from-emerald-500/32 via-emerald-500/24 to-emerald-500/32 shadow-[inset_0_0_28px_rgba(52,211,153,0.14)]",
-  bearLabel: "text-rose-100",
-  bullLabel: "text-emerald-100",
   spot: "border-t-[3px] border-amber-300 shadow-[0_0_18px_rgba(252,211,77,0.5)]",
   spotLabel: "text-amber-100",
   mpTodayBorder: "border-sky-400/90 shadow-[0_0_12px_rgba(56,189,248,0.25)]",
@@ -640,6 +654,20 @@ const LADDER_THEME = {
 } as const;
 
 const LADDER_EDGE_PAD = 0.06;
+
+function zoneBandPaint(
+  geom: CSSProperties,
+  side: "bull" | "bear",
+): CSSProperties {
+  const z = SIM_ZONE_BAND[side];
+  return {
+    ...geom,
+    background: `linear-gradient(90deg, ${z.fill}, ${z.fillSoft})`,
+    borderTop: `2px solid ${z.border}`,
+    borderBottom: `2px solid ${z.border}`,
+    boxShadow: z.glow,
+  };
+}
 
 function ZonePriceLadder({
   suggested,
@@ -797,11 +825,17 @@ function ZonePriceLadder({
 
   const bullBandStyle: React.CSSProperties | null =
     bullLow != null && bullHigh != null
-      ? { top: yFor(bullHigh), height: yFor(bullLow) - yFor(bullHigh) }
+      ? {
+          top: yFor(bullHigh),
+          height: Math.max(yFor(bullLow) - yFor(bullHigh), 4),
+        }
       : null;
   const bearBandStyle: React.CSSProperties | null =
     bearLow != null && bearHigh != null
-      ? { top: yFor(bearHigh), height: yFor(bearLow) - yFor(bearHigh) }
+      ? {
+          top: yFor(bearHigh),
+          height: Math.max(yFor(bearLow) - yFor(bearHigh), 4),
+        }
       : null;
 
   // Detail strings — match the user's chart annotation style.
@@ -860,21 +894,25 @@ function ZonePriceLadder({
           <div
             className={cn(
               "absolute left-0 right-0",
-              LADDER_THEME.bearZone,
-              bearIdle && "opacity-55 saturate-50",
+              bearIdle && "opacity-70 saturate-75",
             )}
-            style={bearBandStyle}
+            style={zoneBandPaint(bearBandStyle, "bear")}
           >
             <span
               className={cn(
-                "absolute top-0.5 left-1.5 text-[8px] sm:text-[9px] font-mono font-bold text-rose-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]",
-                compact ? "leading-tight max-w-[85%]" : "whitespace-nowrap",
+                "absolute top-1/2 -translate-y-1/2 left-2 sm:left-3 text-[9px] sm:text-[10px] font-bold tracking-wide",
+                compact ? "leading-tight max-w-[55%]" : "whitespace-nowrap",
               )}
+              style={{ color: SIM_ZONE_BAND.bear.labelMuted }}
             >
               {compact ? (
                 <>
                   <span className="block">Bear zone</span>
-                  <span className="block font-normal text-rose-200/80 truncate" title={bearDetail}>
+                  <span
+                    className="block font-normal text-[8px] truncate"
+                    style={{ color: SIM_ZONE_BAND.bear.label }}
+                    title={bearDetail}
+                  >
                     {bearDetail}
                   </span>
                 </>
@@ -882,10 +920,16 @@ function ZonePriceLadder({
                 <>Bear zone {bearDetail}</>
               )}
             </span>
-            <span className={cn("absolute top-0.5 right-2 text-[10px] font-mono font-black tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]", LADDER_THEME.bearLabel)}>
+            <span
+              className="absolute top-0.5 right-2 text-[10px] font-mono font-bold tabular-nums"
+              style={{ color: SIM_ZONE_BAND.bear.labelMuted }}
+            >
               ${bearHigh != null ? fmt(bearHigh) : "—"}
             </span>
-            <span className={cn("absolute bottom-0.5 right-2 text-[9px] font-mono font-bold tabular-nums", LADDER_THEME.bearLabel)}>
+            <span
+              className="absolute bottom-0.5 right-2 text-[10px] font-mono font-bold tabular-nums"
+              style={{ color: SIM_ZONE_BAND.bear.label }}
+            >
               ${bearLow != null ? fmt(bearLow) : "—"}
             </span>
           </div>
@@ -929,9 +973,10 @@ function ZonePriceLadder({
         {bullSl != null && (
           <SlAnchorLine
             price={bullSl}
-            label="Bull SL"
+            label="Bull Inv."
             active={engineDirection === "BULL"}
             tone="emerald"
+            lineColor={LEVELS_ZONE_CHART.bull.lineInv}
             yFor={yFor}
             fmt={fmt}
           />
@@ -939,9 +984,10 @@ function ZonePriceLadder({
         {bearSl != null && (
           <SlAnchorLine
             price={bearSl}
-            label="Bear SL"
+            label="Bear Inv."
             active={engineDirection === "BEAR"}
             tone="rose"
+            lineColor={LEVELS_ZONE_CHART.bear.lineInv}
             yFor={yFor}
             fmt={fmt}
           />
@@ -967,24 +1013,31 @@ function ZonePriceLadder({
           <div
             className={cn(
               "absolute left-0 right-0",
-              LADDER_THEME.bullZone,
-              bullIdle && "opacity-55 saturate-50",
+              bullIdle && "opacity-70 saturate-75",
             )}
-            style={bullBandStyle}
+            style={zoneBandPaint(bullBandStyle, "bull")}
           >
-            <span className={cn("absolute top-0.5 right-2 text-[10px] font-mono font-black tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]", LADDER_THEME.bullLabel)}>
+            <span
+              className="absolute top-0.5 right-2 text-[10px] font-mono font-bold tabular-nums"
+              style={{ color: SIM_ZONE_BAND.bull.label }}
+            >
               ${bullHigh != null ? fmt(bullHigh) : "—"}
             </span>
             <span
               className={cn(
-                "absolute bottom-0.5 left-1.5 text-[8px] sm:text-[9px] font-mono font-bold text-emerald-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]",
-                compact ? "leading-tight max-w-[85%]" : "whitespace-nowrap",
+                "absolute top-1/2 -translate-y-1/2 left-2 sm:left-3 text-[9px] sm:text-[10px] font-bold tracking-wide",
+                compact ? "leading-tight max-w-[55%]" : "whitespace-nowrap",
               )}
+              style={{ color: SIM_ZONE_BAND.bull.label }}
             >
               {compact ? (
                 <>
                   <span className="block">Bull zone</span>
-                  <span className="block font-normal text-emerald-200/80 truncate" title={bullDetail}>
+                  <span
+                    className="block font-normal text-[8px] truncate"
+                    style={{ color: SIM_ZONE_BAND.bull.labelMuted }}
+                    title={bullDetail}
+                  >
                     {bullDetail}
                   </span>
                 </>
@@ -992,7 +1045,10 @@ function ZonePriceLadder({
                 <>Bull zone {bullDetail}</>
               )}
             </span>
-            <span className="absolute bottom-0.5 right-2 text-[9px] font-mono font-bold text-emerald-200/90 tabular-nums">
+            <span
+              className="absolute bottom-0.5 right-2 text-[10px] font-mono font-bold tabular-nums"
+              style={{ color: SIM_ZONE_BAND.bull.labelMuted }}
+            >
               ${bullLow != null ? fmt(bullLow) : "—"}
             </span>
           </div>
@@ -1025,6 +1081,7 @@ function SlAnchorLine({
   label,
   active,
   tone,
+  lineColor,
   yFor,
   fmt,
 }: {
@@ -1032,50 +1089,34 @@ function SlAnchorLine({
   label: string;
   active?: boolean;
   tone: "emerald" | "rose";
+  lineColor: string;
   yFor: (price: number) => number;
   fmt: (p: number) => string;
 }) {
-  const isEmerald = tone === "emerald";
+  const labelColor =
+    tone === "emerald"
+      ? LEVELS_ZONE_CHART.bull.labelText
+      : LEVELS_ZONE_CHART.bear.labelText;
   return (
     <div
-      className={cn(
-        "absolute left-0 right-0 border-t-2 border-dotted",
-        active
-          ? isEmerald
-            ? "border-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.35)]"
-            : "border-rose-300 shadow-[0_0_10px_rgba(251,113,133,0.35)]"
-          : isEmerald
-            ? "border-emerald-500/55"
-            : "border-rose-500/55",
-      )}
-      style={{ top: yFor(price) }}
+      className="absolute left-0 right-0 border-t-2 border-dotted"
+      style={{
+        top: yFor(price),
+        borderColor: lineColor,
+        boxShadow: active ? `0 0 12px ${lineColor}55` : undefined,
+        opacity: active ? 1 : 0.85,
+      }}
     >
       <span
-        className={cn(
-          "absolute left-2 -top-3 text-[9px] font-mono font-black whitespace-nowrap",
-          active
-            ? isEmerald
-              ? "text-emerald-200 drop-shadow-[0_0_6px_rgba(52,211,153,0.5)]"
-              : "text-rose-200 drop-shadow-[0_0_6px_rgba(251,113,133,0.5)]"
-            : isEmerald
-              ? "text-emerald-300/85"
-              : "text-rose-300/85",
-        )}
+        className="absolute left-2 -top-3 text-[9px] font-mono font-black whitespace-nowrap"
+        style={{ color: labelColor }}
       >
         {label}
         {active ? " · active" : ""}
       </span>
       <span
-        className={cn(
-          "absolute right-2 -top-3 text-[9px] font-mono font-black tabular-nums",
-          active
-            ? isEmerald
-              ? "text-emerald-100"
-              : "text-rose-100"
-            : isEmerald
-              ? "text-emerald-300/85"
-              : "text-rose-300/85",
-        )}
+        className="absolute right-2 -top-3 text-[9px] font-mono font-black tabular-nums"
+        style={{ color: labelColor }}
       >
         ${fmt(price)}
       </span>

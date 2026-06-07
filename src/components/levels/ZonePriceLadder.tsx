@@ -5,6 +5,7 @@ import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import type { PublicLevelsSource } from "@/lib/levels/levels-source";
 import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
 import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
+import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
 
 /**
  * Neutral, render-only level data for the public page. Mirrors the shape the
@@ -164,6 +165,17 @@ export function ZonePriceLadder({
             : "relative w-full min-h-[320px] h-[min(520px,52vh)] sm:h-[min(540px,56vh)]"
         }
       >
+        {/* Volatility-regime chip (display only — never filters the setup). */}
+        <div className="pointer-events-none absolute right-1 top-1 z-10">
+          <VolRegimeBadge
+            flag={levels.volRegime}
+            reason={levels.volRegimeReason}
+            atmIV={levels.atmIV}
+            daysToEarnings={levels.daysToEarnings}
+            className="pointer-events-auto"
+          />
+        </div>
+
         {/* Left label rail */}
         <div className="absolute inset-y-0 left-0 w-[38%] max-w-[168px] min-w-[108px] sm:w-[36%] sm:max-w-[172px] sm:min-w-[112px]">
           <div

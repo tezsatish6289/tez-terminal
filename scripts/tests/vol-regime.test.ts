@@ -5,6 +5,7 @@ import {
   crossSectionalPercentile,
   daysUntil,
   ivPercentile,
+  ivScaledHalfWidth,
   termStructureRatio,
 } from "../../src/lib/zones/vol-regime";
 
@@ -101,6 +102,27 @@ import {
 {
   const r = classifyVolRegime({ atmIv: 22, ivPercentile: 40, termRatio: 0.98, vixPercentile: 30 });
   assert.equal(r.flag, "CALM");
+}
+
+// ── ivScaledHalfWidth ─────────────────────────────────────────────────────
+{
+  const round = (n: number) => Math.round(n * 100) / 100;
+  // σ formula: spot × IV/100 × √(days/365). 1000 × 0.25 × √(1/365) ≈ 13.08.
+  assert.equal(ivScaledHalfWidth(1000, 25, { horizonDays: 1 }), round(1000 * 0.25 * Math.sqrt(1 / 365)));
+  // Higher IV widens the band, lower IV tightens it.
+  assert.ok(ivScaledHalfWidth(1000, 50, { horizonDays: 1 }) > ivScaledHalfWidth(1000, 20, { horizonDays: 1 }));
+  // Cap: 80% IV would be ~41.8 but maxPct 2% of 1000 = 20.
+  assert.equal(ivScaledHalfWidth(1000, 80, { horizonDays: 1, maxPct: 0.02 }), 20);
+  // Floor: tiny IV clamps up to minPct 0.4% of 1000 = 4.
+  assert.equal(ivScaledHalfWidth(1000, 1, { horizonDays: 1, minPct: 0.004 }), 4);
+  // Unknown IV → flat fallback percentage of spot (legacy behaviour).
+  assert.equal(ivScaledHalfWidth(1000, null, { fallbackPct: 0.0075 }), 7.5);
+  // Unknown IV with absolute fallback (index points) takes precedence.
+  assert.equal(ivScaledHalfWidth(25000, null, { fallbackAbs: 150 }), 150);
+  // Strike-step floor: band must span at least one strike.
+  assert.equal(ivScaledHalfWidth(1000, 1, { horizonDays: 1, strikeStep: 10 }), 10);
+  // Bad spot → 0, never throws.
+  assert.equal(ivScaledHalfWidth(0, 25), 0);
 }
 
 console.log("vol-regime.test.ts ok");

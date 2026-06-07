@@ -10,6 +10,7 @@ import {
   classifyVolRegime,
   computeAtmIv,
   ivPercentile,
+  ivScaledHalfWidth,
   termStructureRatio,
   type VolRegime,
 } from "@/lib/zones/vol-regime";
@@ -35,8 +36,23 @@ function envBool(name: string, fallback: boolean): boolean {
   return raw === "1" || raw === "true" || raw === "yes";
 }
 
+function envNum(name: string, fallback: number): number {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
 /** Read a 2nd expiry for term structure. ON by default; disable with INDEX_TERM_STRUCTURE=0. */
 const INDEX_TERM_STRUCTURE_ENABLED = () => envBool("INDEX_TERM_STRUCTURE", true);
+
+/** IV-scale the band off ATM IV. Disable with INDEX_IV_SIZING=0 for fixed points. */
+const INDEX_IV_SIZING_ENABLED = () => envBool("INDEX_IV_SIZING", true);
+/** σ horizon (days). ~1d reproduces the listed point bands at ~15% VIX. */
+const INDEX_IV_HORIZON_DAYS = () => envNum("INDEX_ZONE_IV_HORIZON_DAYS", 1);
+/** Floor / cap on the band as a fraction of spot. */
+const INDEX_HALF_WIDTH_MIN_PCT = () => envNum("INDEX_ZONE_HALF_WIDTH_MIN_PCT", 0.004);
+const INDEX_HALF_WIDTH_MAX_PCT = () => envNum("INDEX_ZONE_HALF_WIDTH_MAX_PCT", 0.02);
 
 export type { IndexKey, IndexSpec };
 export { INDEX_KEYS, INDEX_SPECS };
@@ -237,7 +253,6 @@ export async function computeIndexZones(
   regimeInputs: IndexRegimeInputs = {},
 ): Promise<IndexOptionsZones> {
   const spec = INDEX_SPECS[key];
-  const halfWidth = spec.zoneHalfWidthPts;
 
   const expiries = await fetchExpiries(key, cookies);
   const expiryUsed = expiries[0];
@@ -280,6 +295,22 @@ export async function computeIndexZones(
   }
 
   const atmIV = computeAtmIv(strikes, spot);
+
+  // IV-scaled band: 1-σ move off ATM IV, falling back to the listed point band
+  // for this index when IV is unknown. Floored at one strike step.
+  const halfWidth = INDEX_IV_SIZING_ENABLED()
+    ? ivScaledHalfWidth(spot, atmIV, {
+        horizonDays: INDEX_IV_HORIZON_DAYS(),
+        minPct: INDEX_HALF_WIDTH_MIN_PCT(),
+        maxPct: INDEX_HALF_WIDTH_MAX_PCT(),
+        fallbackAbs: spec.zoneHalfWidthPts,
+        strikeStep: spec.strikeStep,
+      })
+    : ivScaledHalfWidth(spot, null, {
+        fallbackAbs: spec.zoneHalfWidthPts,
+        strikeStep: spec.strikeStep,
+      });
+
   const illiquid = totalOI < MIN_OI_THRESHOLD;
   const volRegime = classifyVolRegime({
     atmIv: atmIV,

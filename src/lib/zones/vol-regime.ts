@@ -70,6 +70,69 @@ export const DEFAULT_VOL_REGIME_THRESHOLDS: VolRegimeThresholds = {
 const MIN_USABLE_IV = 0.5;
 const MAX_USABLE_IV = 300;
 
+export interface IvHalfWidthOptions {
+  /**
+   * Horizon (in days) for the 1-σ move. Pick it to roughly reproduce the old
+   * flat band at *typical* IV, so calm names stay familiar and only unusual IV
+   * moves the band: e.g. stocks ~0.33d ≈ 0.75% at 25% IV, indices ~1d ≈ 0.8%
+   * at 15% VIX.
+   */
+  horizonDays?: number;
+  /** Floor as a fraction of spot (default 0.4%). */
+  minPct?: number;
+  /** Cap as a fraction of spot (default 2%). */
+  maxPct?: number;
+  /** Flat fraction of spot used when ATM IV is unknown (cold start / illiquid). */
+  fallbackPct?: number;
+  /** Flat absolute fallback (points) — takes precedence over fallbackPct when set. */
+  fallbackAbs?: number | null;
+  /** Strike step — the band is floored to at least one step so it spans a strike. */
+  strikeStep?: number | null;
+}
+
+/**
+ * IV-scaled band half-width — the same Black-Scholes σ sizing the crypto path
+ * uses (`spot × IV × √(t)`), adapted for positional NSE levels:
+ *
+ *   halfWidth = spot × (atmIv/100) × √(horizonDays/365)
+ *
+ * Clamped to [minPct, maxPct] × spot, then floored at one strike step. When ATM
+ * IV is unknown it falls back to a flat band (`fallbackAbs` or `fallbackPct`),
+ * preserving the legacy behaviour. Pure + unit-testable.
+ */
+export function ivScaledHalfWidth(
+  spot: number,
+  atmIv: number | null | undefined,
+  opts: IvHalfWidthOptions = {},
+): number {
+  const {
+    horizonDays = 1,
+    minPct = 0.004,
+    maxPct = 0.02,
+    fallbackPct = 0.0075,
+    fallbackAbs = null,
+    strikeStep = null,
+  } = opts;
+
+  if (!Number.isFinite(spot) || spot <= 0) return 0;
+
+  const iv = usableIv(atmIv);
+  let hw: number;
+  if (iv != null) {
+    hw = spot * (iv / 100) * Math.sqrt(Math.max(horizonDays, 0) / 365);
+    hw = Math.min(Math.max(hw, spot * minPct), spot * maxPct);
+  } else {
+    hw = fallbackAbs != null && Number.isFinite(fallbackAbs) && fallbackAbs > 0
+      ? fallbackAbs
+      : spot * fallbackPct;
+  }
+
+  if (strikeStep != null && Number.isFinite(strikeStep) && strikeStep > 0) {
+    hw = Math.max(hw, strikeStep);
+  }
+  return Math.round(hw * 100) / 100;
+}
+
 function usableIv(iv: number | null | undefined): number | null {
   if (typeof iv !== "number" || !Number.isFinite(iv)) return null;
   if (iv < MIN_USABLE_IV || iv > MAX_USABLE_IV) return null;

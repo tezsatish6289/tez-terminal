@@ -5,8 +5,9 @@
  * equity segment, with two stock-specific differences:
  *   1. `type=Equities` (not `Indices`) on `option-chain-v3`.
  *   2. **Dynamic band width** — a fixed point half-width is meaningless across a
- *      ₹150 stock and a ₹3,000 stock, so the half-width is a % of spot, snapped
- *      to the chain's own strike grid for clean numbers.
+ *      ₹150 stock and a ₹3,000 stock, so the half-width is IV-scaled (a 1-σ move
+ *      off ATM IV, floored/capped as a % of spot and snapped to the strike grid),
+ *      falling back to a flat % of spot when ATM IV is unknown.
  *
  * It performs NO NSE I/O itself — it receives a pre-bootstrapped `NseSession`
  * (rate-limited + circuit-broken) and reuses it. This keeps every NSE call on
@@ -20,6 +21,7 @@ import {
   computeAtmIv,
   crossSectionalPercentile,
   ivPercentile,
+  ivScaledHalfWidth,
   termStructureRatio,
   type VolRegime,
 } from "@/lib/zones/vol-regime";
@@ -76,7 +78,14 @@ function envBool(name: string, fallback: boolean): boolean {
  */
 export const TERM_STRUCTURE_ENABLED = () => envBool("EQUITY_TERM_STRUCTURE", true);
 
-/** Half-width as a fraction of spot (default 0.75%). */
+/** IV-scale the band off ATM IV. Disable with EQUITY_IV_SIZING=0 for flat %. */
+const IV_SIZING_ENABLED = () => envBool("EQUITY_IV_SIZING", true);
+/** σ horizon (days). ~0.33d reproduces the old 0.75% band at ~25% IV. */
+const IV_HORIZON_DAYS = () => envNum("STOCK_ZONE_IV_HORIZON_DAYS", 0.33);
+/** Floor / cap on the band as a fraction of spot. */
+const HALF_WIDTH_MIN_PCT = () => envNum("STOCK_ZONE_HALF_WIDTH_MIN_PCT", 0.004);
+const HALF_WIDTH_MAX_PCT = () => envNum("STOCK_ZONE_HALF_WIDTH_MAX_PCT", 0.02);
+/** Flat half-width as a fraction of spot — fallback when ATM IV is unknown. */
 const HALF_WIDTH_PCT = () => envNum("STOCK_ZONE_HALF_WIDTH_PCT", 0.0075);
 /** Minimum bear−bull strike gap as a fraction of spot (default 2%). */
 const MIN_GAP_PCT = () => envNum("STOCK_ZONE_MIN_GAP_PCT", 0.02);
@@ -181,9 +190,18 @@ export function buildEquityZonesFromStrikes(
 
   const strikeStep = inferStrikeStep([...strikes.keys()]);
 
-  let halfWidth = spot * HALF_WIDTH_PCT();
-  if (strikeStep) halfWidth = Math.max(halfWidth, strikeStep);
-  halfWidth = Math.round(halfWidth * 100) / 100;
+  // IV-scaled band: 1-σ move sized from ATM IV (falls back to flat % when IV is
+  // unknown). Computed before the zones since the band width defines them.
+  const atmIV = computeAtmIv(strikes, spot);
+  const halfWidth = IV_SIZING_ENABLED()
+    ? ivScaledHalfWidth(spot, atmIV, {
+        horizonDays: IV_HORIZON_DAYS(),
+        minPct: HALF_WIDTH_MIN_PCT(),
+        maxPct: HALF_WIDTH_MAX_PCT(),
+        fallbackPct: HALF_WIDTH_PCT(),
+        strikeStep,
+      })
+    : ivScaledHalfWidth(spot, null, { fallbackPct: HALF_WIDTH_PCT(), strikeStep });
 
   let bullStrike: number | null = null;
   let bullOI = 0;
@@ -220,7 +238,6 @@ export function buildEquityZonesFromStrikes(
         bearHigh: bearZoneHigh,
       });
 
-  const atmIV = computeAtmIv(strikes, spot);
   const termRatio =
     regimeInputs.termRatio ?? termStructureRatio(atmIV, regimeInputs.nextAtmIv ?? null);
   const ivPct =

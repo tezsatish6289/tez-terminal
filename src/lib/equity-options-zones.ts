@@ -69,12 +69,12 @@ function envBool(name: string, fallback: boolean): boolean {
 }
 
 /**
- * Fetch a 2nd expiry to read term structure (near vs next ATM IV). OFF by
- * default: it doubles NSE option-chain calls per symbol, which halves how fast
- * the universe cycles. Enable with `EQUITY_TERM_STRUCTURE=1` once headroom on
- * the NSE rate budget is confirmed.
+ * Fetch a 2nd expiry to read term structure (near vs next ATM IV). ON by
+ * default. It doubles NSE option-chain calls per symbol (the fetch is
+ * best-effort, so a rate-limited call just leaves term structure unknown).
+ * Disable with `EQUITY_TERM_STRUCTURE=0` if the NSE rate budget gets tight.
  */
-const TERM_STRUCTURE_ENABLED = () => envBool("EQUITY_TERM_STRUCTURE", false);
+const TERM_STRUCTURE_ENABLED = () => envBool("EQUITY_TERM_STRUCTURE", true);
 
 /** Half-width as a fraction of spot (default 0.75%). */
 const HALF_WIDTH_PCT = () => envNum("STOCK_ZONE_HALF_WIDTH_PCT", 0.0075);

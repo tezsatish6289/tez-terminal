@@ -35,8 +35,8 @@ function envBool(name: string, fallback: boolean): boolean {
   return raw === "1" || raw === "true" || raw === "yes";
 }
 
-/** Read a 2nd expiry for term structure. OFF by default (doubles NSE calls). */
-const INDEX_TERM_STRUCTURE_ENABLED = () => envBool("INDEX_TERM_STRUCTURE", false);
+/** Read a 2nd expiry for term structure. ON by default; disable with INDEX_TERM_STRUCTURE=0. */
+const INDEX_TERM_STRUCTURE_ENABLED = () => envBool("INDEX_TERM_STRUCTURE", true);
 
 export type { IndexKey, IndexSpec };
 export { INDEX_KEYS, INDEX_SPECS };

@@ -41,10 +41,20 @@ function firstString(...vals: (string | undefined)[]): string | null {
   return null;
 }
 
-/** True when a board-meeting purpose indicates a financial-results meeting. */
+/**
+ * True when board-meeting text indicates a *financial results* meeting.
+ *
+ * NSE's `bm_purpose` is usually the generic "Board Meeting Intimation"; the real
+ * agenda lives in `bm_desc` ("…to consider the Audited Financial Results…").
+ * We require a financial qualifier near "results" so unrelated hits like
+ * "results of the postal ballot" / "voting results" don't false-positive.
+ */
+const RESULTS_RE =
+  /\b(?:financial|audited|un-?audited|quarterly|half[-\s]?yearly|yearly|annual|standalone|consolidated)\b[\s\S]{0,40}?\bresults?\b/i;
+
 export function purposeIsResults(purpose: string | null): boolean {
   if (!purpose) return false;
-  return /result/i.test(purpose);
+  return RESULTS_RE.test(purpose);
 }
 
 /**
@@ -87,8 +97,11 @@ export function parseEarningsFromBoardMeetings(
   const startOfToday = now - (now % 86_400_000);
 
   for (const row of rows) {
-    const purpose = firstString(row.purpose, row.bm_purpose, row.bm_desc);
-    if (!purposeIsResults(purpose)) continue;
+    // Combine every text field — the results agenda is usually only in bm_desc.
+    const purposeText = [row.purpose, row.bm_purpose, row.bm_desc]
+      .filter((v): v is string => typeof v === "string" && v.trim() !== "")
+      .join(" ");
+    if (!purposeIsResults(purposeText)) continue;
 
     const rawSym = firstString(row.symbol, row.bm_symbol);
     if (!rawSym) continue;

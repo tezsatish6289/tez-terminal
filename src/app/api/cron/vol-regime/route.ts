@@ -18,6 +18,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { createNseSession } from "@/lib/nse/client";
+import { nseFetch } from "@/lib/nse-fetch";
+import { API_HEADERS } from "@/lib/nse-session";
 import {
   EARNINGS_CALENDAR_DOC,
   fetchBoardMeetings,
@@ -56,6 +58,33 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Raw-body inspection for the two VIX history endpoints — use when backfill
+    // reports non_json so we can see exactly what NSE returns for this path.
+    if (params.get("debugVix") === "1") {
+      const ddmmyyyy = (d: Date) =>
+        `${String(d.getUTCDate()).padStart(2, "0")}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${d.getUTCFullYear()}`;
+      const to = ddmmyyyy(new Date());
+      const from = ddmmyyyy(new Date(Date.now() - 30 * 86_400_000));
+      const urls = [
+        `https://www.nseindia.com/api/historical/vixhistory?from=${from}&to=${to}`,
+        `https://www.nseindia.com/api/historical/indicesHistory?indexType=${encodeURIComponent("INDIA VIX")}&from=${from}&to=${to}`,
+      ];
+      const probes = [];
+      for (const url of urls) {
+        try {
+          const res = await nseFetch(url, {
+            headers: { ...API_HEADERS, Cookie: session.cookies, Referer: "https://www.nseindia.com/reports-indices-historical-index-data" },
+            signal: AbortSignal.timeout(20_000),
+          });
+          const body = await res.text();
+          probes.push({ url, status: res.status, length: body.length, snippet: body.slice(0, 600) });
+        } catch (e) {
+          probes.push({ url, error: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      return NextResponse.json({ success: true, mode: "debugVix", probes });
+    }
+
     if (params.get("backfillVix") === "1") {
       const days = Math.min(2000, Math.max(30, Number(params.get("days") ?? 365) || 365));
       const result = await backfillIndiaVix(db, session, days);

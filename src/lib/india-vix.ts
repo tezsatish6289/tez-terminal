@@ -21,6 +21,7 @@ import { istDateKey, IV_HISTORY_CAP } from "@/lib/iv-history";
 
 const NSE_ALL_INDICES = "https://www.nseindia.com/api/allIndices";
 const NSE_VIX_HISTORY = "https://www.nseindia.com/api/historical/vixhistory";
+const NSE_INDICES_HISTORY = "https://www.nseindia.com/api/historical/indicesHistory";
 export const INDIA_VIX_DOC = "config/india_vix_state";
 
 interface AllIndicesRow {
@@ -107,7 +108,22 @@ function ddmmyyyy(d: Date): string {
   return `${day}-${mon}-${d.getUTCFullYear()}`;
 }
 
-/** Fetch India VIX OHLC history for the last `days` days. Throws on NSE block. */
+/** Pull rows out of the assorted shapes NSE history endpoints return. */
+function extractHistoryRows(json: unknown): VixHistoryRow[] {
+  if (Array.isArray(json)) return json as VixHistoryRow[];
+  const obj = json as { data?: unknown };
+  if (Array.isArray(obj?.data)) return obj.data as VixHistoryRow[];
+  const nested = (obj?.data as { indexCloseOnlineRecords?: unknown })?.indexCloseOnlineRecords;
+  if (Array.isArray(nested)) return nested as VixHistoryRow[];
+  return [];
+}
+
+/**
+ * Fetch India VIX OHLC history for the last `days` days. Tries the dedicated
+ * `vixhistory` endpoint first, then falls back to `indicesHistory?indexType=
+ * INDIA VIX` (the path that returns `data.indexCloseOnlineRecords`). Throws only
+ * if both yield nothing usable.
+ */
 export async function fetchIndiaVixHistory(
   session: NseSession,
   days: number,
@@ -115,10 +131,24 @@ export async function fetchIndiaVixHistory(
 ): Promise<VixHistoryEntry[]> {
   const to = new Date(now);
   const from = new Date(now - days * 86_400_000);
-  const url = `${NSE_VIX_HISTORY}?from=${ddmmyyyy(from)}&to=${ddmmyyyy(to)}`;
-  const json = await session.fetchJson<{ data?: VixHistoryRow[] } | VixHistoryRow[]>(url);
-  const rows = Array.isArray(json) ? json : json.data ?? [];
-  return parseVixHistory(rows);
+  const range = `from=${ddmmyyyy(from)}&to=${ddmmyyyy(to)}`;
+  const urls = [
+    `${NSE_VIX_HISTORY}?${range}`,
+    `${NSE_INDICES_HISTORY}?indexType=${encodeURIComponent("INDIA VIX")}&${range}`,
+  ];
+
+  let lastErr: unknown = null;
+  for (const url of urls) {
+    try {
+      const json = await session.fetchJson<unknown>(url);
+      const parsed = parseVixHistory(extractHistoryRows(json));
+      if (parsed.length) return parsed;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  if (lastErr) throw lastErr;
+  return [];
 }
 
 export interface IndiaVixBackfillResult {

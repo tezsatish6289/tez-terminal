@@ -17,7 +17,7 @@
 import type { Firestore } from "firebase-admin/firestore";
 import type { NseSession } from "@/lib/nse/client";
 import { nseFetch } from "@/lib/nse-fetch";
-import { API_HEADERS } from "@/lib/nse-session";
+import { API_HEADERS, BROWSER_HEADERS } from "@/lib/nse-session";
 import { ivPercentile } from "@/lib/zones/vol-regime";
 import { istDateKey, IV_HISTORY_CAP } from "@/lib/iv-history";
 
@@ -124,13 +124,41 @@ function extractHistoryRows(json: unknown): VixHistoryRow[] {
 }
 
 /**
- * Raw NSE history GET with the historical-page Referer + the session's cookies.
- * The shared `session.fetchJson` sends the option-chain Referer, which the
- * historical endpoints answer with non-JSON — hence this dedicated path.
+ * Visit the historical-data page to pick up the extra cookies NSE sets there
+ * (its `/api/historical/*` endpoints serve a bot-challenge page without them).
+ * Returns the session cookies augmented with any Set-Cookie from the page.
+ */
+async function warmHistoricalCookies(baseCookies: string): Promise<string> {
+  try {
+    const res = await nseFetch(HISTORICAL_REFERER, {
+      headers: { ...BROWSER_HEADERS, Cookie: baseCookies },
+      signal: AbortSignal.timeout(15_000),
+    });
+    const set = (res.headers as { getSetCookie?: () => string[] }).getSetCookie?.() ?? [];
+    const extra = set.map((c) => c.split(";")[0]).filter(Boolean).join("; ");
+    return extra ? `${baseCookies}; ${extra}` : baseCookies;
+  } catch {
+    return baseCookies;
+  }
+}
+
+/**
+ * Raw NSE history GET with the historical-page Referer + warmed cookies + a
+ * browser-like header set. The shared `session.fetchJson` sends the option-chain
+ * Referer, which the historical endpoints answer with non-JSON — hence this
+ * dedicated path.
  */
 async function fetchHistoryJson(url: string, cookies: string): Promise<unknown> {
   const res = await nseFetch(url, {
-    headers: { ...API_HEADERS, Cookie: cookies, Referer: HISTORICAL_REFERER },
+    headers: {
+      ...API_HEADERS,
+      Cookie: cookies,
+      Referer: HISTORICAL_REFERER,
+      "Sec-Fetch-Site": "same-origin",
+      "Sec-Fetch-Mode": "cors",
+      "Sec-Fetch-Dest": "empty",
+      "X-Requested-With": "XMLHttpRequest",
+    },
     signal: AbortSignal.timeout(20_000),
   });
   const body = (await res.text()).trim();
@@ -161,10 +189,11 @@ export async function fetchIndiaVixHistory(
     `${NSE_INDICES_HISTORY}?indexType=${encodeURIComponent("INDIA VIX")}&${range}`,
   ];
 
+  const cookies = await warmHistoricalCookies(session.cookies);
   let lastErr: unknown = null;
   for (const url of urls) {
     try {
-      const json = await fetchHistoryJson(url, session.cookies);
+      const json = await fetchHistoryJson(url, cookies);
       const parsed = parseVixHistory(extractHistoryRows(json));
       if (parsed.length) return parsed;
     } catch (e) {

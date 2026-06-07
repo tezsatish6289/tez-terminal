@@ -445,7 +445,7 @@ export function BotCockpit({
     <section
       className={cn(
         SIM_PANEL,
-        "flex flex-col flex-1 min-h-0 p-3 sm:p-4 gap-2 sm:gap-3 overflow-hidden",
+        "flex flex-col flex-1 min-h-0 p-2 sm:p-3 gap-1.5 sm:gap-2 overflow-hidden",
       )}
     >
       {/* ── Bot strip (top) ── */}
@@ -481,7 +481,7 @@ export function BotCockpit({
 
       {/* ── Chart left · trades right ── */}
       <div className="flex flex-col lg:flex-row flex-1 min-h-0 gap-2 sm:gap-3 lg:gap-4">
-        <div className="flex flex-col lg:w-1/2 lg:min-w-0 min-h-[min(42dvh,400px)] lg:min-h-0 h-full">
+        <div className="flex flex-col lg:w-1/2 lg:min-w-0 flex-1 lg:min-h-0 min-h-[40dvh]">
           <HeatmapAssetCard
             botId={selectedBot.id}
             label={selectedBot.label}

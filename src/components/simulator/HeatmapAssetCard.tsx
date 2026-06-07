@@ -179,7 +179,7 @@ export function HeatmapAssetCard({
       className={cn(
         SIM_CARD,
         "flex flex-col overflow-hidden",
-        !footerSlot && "min-h-[400px] lg:min-h-0 lg:h-full",
+        !footerSlot && (hideCarousel ? "min-h-0 h-full" : "min-h-[400px] lg:min-h-0 lg:h-full"),
         onSelect && "cursor-pointer transition-shadow",
         selected &&
           "ring-2 ring-accent/80 shadow-[0_0_0_1px_rgba(0,212,170,0.25),0_8px_28px_rgba(0,212,170,0.12)]",
@@ -622,6 +622,25 @@ function IvBadge({ pct, title }: { pct: number; title?: string }) {
  * Left-side label tags carry the metadata (strike, OI, half-width, TP);
  * right-side tags show the raw price number per level.
  */
+
+/** Shared ladder palette — identical across every bot. */
+const LADDER_THEME = {
+  bearZone:
+    "border-y-2 border-rose-400/75 bg-gradient-to-b from-rose-500/32 via-rose-500/24 to-rose-500/32 shadow-[inset_0_0_28px_rgba(251,113,133,0.14)]",
+  bullZone:
+    "border-y-2 border-emerald-400/75 bg-gradient-to-b from-emerald-500/32 via-emerald-500/24 to-emerald-500/32 shadow-[inset_0_0_28px_rgba(52,211,153,0.14)]",
+  bearLabel: "text-rose-100",
+  bullLabel: "text-emerald-100",
+  spot: "border-t-[3px] border-amber-300 shadow-[0_0_18px_rgba(252,211,77,0.5)]",
+  spotLabel: "text-amber-100",
+  mpTodayBorder: "border-sky-400/90 shadow-[0_0_12px_rgba(56,189,248,0.25)]",
+  mpTodayText: "text-sky-200",
+  mpOtherBorder: "border-slate-300/55",
+  mpOtherText: "text-slate-200/90",
+} as const;
+
+const LADDER_EDGE_PAD = 0.06;
+
 function ZonePriceLadder({
   suggested,
   spot,
@@ -636,16 +655,16 @@ function ZonePriceLadder({
   /** Stretch ladder to fill the parent column (simulation split layout). */
   fillHeight?: boolean;
 }) {
-  const chartWrapRef = useRef<HTMLDivElement>(null);
+  const chartHostRef = useRef<HTMLDivElement>(null);
   const [chartHeight, setChartHeight] = useState(fillHeight ? 400 : compact ? 300 : 360);
 
   useEffect(() => {
     if (!fillHeight) return;
-    const el = chartWrapRef.current;
+    const el = chartHostRef.current;
     if (!el) return;
     const measure = () => {
       const h = el.clientHeight;
-      if (h > 0) setChartHeight(Math.max(h, 220));
+      if (h > 0) setChartHeight(h);
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -705,18 +724,19 @@ function ZonePriceLadder({
     return Array.from(buckets.values()).sort((a, b) => b.price - a.price);
   }, [days]);
 
-  // Compute the visualization range — every level we'll plot, plus padding.
-  const prices: number[] = [];
-  if (spot != null) prices.push(spot);
-  if (bullLow != null) prices.push(bullLow);
-  if (bullHigh != null) prices.push(bullHigh);
-  if (bearLow != null) prices.push(bearLow);
-  if (bearHigh != null) prices.push(bearHigh);
-  for (const g of mpGroups) prices.push(g.price);
-  if (bullSl != null) prices.push(bullSl);
-  if (bearSl != null) prices.push(bearSl);
+  // Uniform Y scale: anchor on SL + zone bands (+ spot). Max pain is mapped
+  // separately on the relative corridor between bearLow and bullHigh so an
+  // outlier D+2 magnet cannot squash every bot into a different layout.
+  const structurePrices: number[] = [];
+  if (bullSl != null) structurePrices.push(bullSl);
+  if (bearSl != null) structurePrices.push(bearSl);
+  if (bullLow != null) structurePrices.push(bullLow);
+  if (bullHigh != null) structurePrices.push(bullHigh);
+  if (bearLow != null) structurePrices.push(bearLow);
+  if (bearHigh != null) structurePrices.push(bearHigh);
+  if (spot != null) structurePrices.push(spot);
 
-  if (prices.length < 2) {
+  if (structurePrices.length < 2) {
     return (
       <div className="px-3 py-6 text-center">
         <p className="text-[10px] text-muted-foreground/40">
@@ -726,16 +746,39 @@ function ZonePriceLadder({
     );
   }
 
-  const minP = Math.min(...prices);
-  const maxP = Math.max(...prices);
-  const span = Math.max(maxP - minP, 1);
-  const padPx = span * 0.12;
-  const renderMin = minP - padPx;
-  const renderMax = maxP + padPx;
-  const renderSpan = renderMax - renderMin;
+  const structureMin =
+    bullSl ?? bullLow ?? Math.min(...structurePrices);
+  const structureMax =
+    bearSl ?? bearHigh ?? Math.max(...structurePrices);
+  const structureSpan = Math.max(
+    structureMax - structureMin,
+    structureMin > 0 ? structureMin * 0.0005 : 1,
+  );
+
+  let renderMin = structureMin - structureSpan * LADDER_EDGE_PAD;
+  let renderMax = structureMax + structureSpan * LADDER_EDGE_PAD;
+  if (spot != null) {
+    const spotPad = structureSpan * 0.035;
+    if (spot < renderMin) renderMin = spot - spotPad;
+    if (spot > renderMax) renderMax = spot + spotPad;
+  }
+  const renderSpan = Math.max(renderMax - renderMin, 1e-9);
 
   const yFor = (price: number): number =>
     chartHeight * (1 - (price - renderMin) / renderSpan);
+
+  // Max-pain corridor: gap between bear zone floor and bull zone ceiling.
+  const corridorTop = bearLow ?? bearHigh ?? structureMax;
+  const corridorBottom = bullHigh ?? bullLow ?? structureMin;
+  const corridorSpan = Math.max(corridorTop - corridorBottom, 1e-9);
+  const yCorridorTop = yFor(corridorTop);
+  const yCorridorBottom = yFor(corridorBottom);
+
+  const yForMaxPain = (mpPrice: number): number => {
+    const clamped = Math.min(corridorTop, Math.max(corridorBottom, mpPrice));
+    const frac = (corridorTop - clamped) / corridorSpan;
+    return yCorridorTop + frac * (yCorridorBottom - yCorridorTop);
+  };
 
   const fmt = (p: number): string =>
     p >= 1000
@@ -794,25 +837,30 @@ function ZonePriceLadder({
     <div
       className={cn(
         "flex flex-col min-h-0",
-        fillHeight ? "flex-1 h-full px-2 py-2" : "flex-1 justify-center min-h-[280px]",
+        fillHeight ? "flex-1 h-full px-1.5 py-1" : "flex-1 justify-center min-h-[280px]",
         !fillHeight && (compact ? "px-2 py-2 sm:px-3 sm:py-3" : "px-3 py-3 sm:px-4 sm:py-4 min-h-[360px]"),
       )}
     >
       <div
-        ref={fillHeight ? chartWrapRef : undefined}
+        ref={fillHeight ? chartHostRef : undefined}
         className={cn(
-          "relative w-full rounded-lg border border-white/[0.1] bg-[#0c0c10] overflow-hidden",
+          "relative w-full",
           fillHeight ? "flex-1 min-h-0" : undefined,
         )}
         style={fillHeight ? undefined : { height: chartHeight }}
       >
-        {/* ── Bear band ── */}
+        <div
+          className={cn(
+            "rounded-lg border border-white/[0.12] bg-[#0a0a0e] overflow-hidden",
+            fillHeight ? "absolute inset-0" : "relative w-full h-full",
+          )}
+        >
+        {/* ── Bear band (top) ── */}
         {bearBandStyle && (
           <div
             className={cn(
-              "absolute left-0 right-0 border-y-2 border-rose-400/70",
-              "bg-gradient-to-b from-rose-500/30 via-rose-500/22 to-rose-500/30",
-              "shadow-[inset_0_0_24px_rgba(251,113,133,0.12)]",
+              "absolute left-0 right-0",
+              LADDER_THEME.bearZone,
               bearIdle && "opacity-55 saturate-50",
             )}
             style={bearBandStyle}
@@ -834,10 +882,10 @@ function ZonePriceLadder({
                 <>Bear zone {bearDetail}</>
               )}
             </span>
-            <span className="absolute top-0.5 right-2 text-[10px] font-mono font-black text-rose-100 tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+            <span className={cn("absolute top-0.5 right-2 text-[10px] font-mono font-black tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]", LADDER_THEME.bearLabel)}>
               ${bearHigh != null ? fmt(bearHigh) : "—"}
             </span>
-            <span className="absolute bottom-0.5 right-2 text-[9px] font-mono font-bold text-rose-200/90 tabular-nums">
+            <span className={cn("absolute bottom-0.5 right-2 text-[9px] font-mono font-bold tabular-nums", LADDER_THEME.bearLabel)}>
               ${bearLow != null ? fmt(bearLow) : "—"}
             </span>
           </div>
@@ -851,18 +899,16 @@ function ZonePriceLadder({
               key={`mp-${g.price}`}
               className={cn(
                 "absolute left-0 right-0 border-t-2 border-dashed",
-                isToday
-                  ? "border-sky-400/85 shadow-[0_0_12px_rgba(56,189,248,0.25)]"
-                  : "border-slate-300/50",
+                isToday ? LADDER_THEME.mpTodayBorder : LADDER_THEME.mpOtherBorder,
               )}
-              style={{ top: yFor(g.price) }}
+              style={{ top: yForMaxPain(g.price) }}
             >
               <span
                 className={cn(
                   "absolute left-2 -top-3 text-[9px] font-mono font-black whitespace-nowrap",
                   isToday
-                    ? "text-sky-300 drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]"
-                    : "text-slate-200/90",
+                    ? `${LADDER_THEME.mpTodayText} drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]`
+                    : LADDER_THEME.mpOtherText,
                 )}
               >
                 Max pain ({g.labels.join(" & ")})
@@ -870,7 +916,7 @@ function ZonePriceLadder({
               <span
                 className={cn(
                   "absolute right-2 -top-3 text-[9px] font-mono font-black tabular-nums",
-                  isToday ? "text-sky-300" : "text-slate-200/90",
+                  isToday ? LADDER_THEME.mpTodayText : LADDER_THEME.mpOtherText,
                 )}
               >
                 ${fmt(g.price)}
@@ -904,13 +950,13 @@ function ZonePriceLadder({
         {/* ── Current price (the anchor) ── */}
         {spot != null && (
           <div
-            className="absolute left-0 right-0 border-t-[3px] border-amber-300 shadow-[0_0_16px_rgba(252,211,77,0.45)]"
+            className={cn("absolute left-0 right-0", LADDER_THEME.spot)}
             style={{ top: yFor(spot) }}
           >
-            <span className="absolute left-2 -top-3.5 text-[10px] font-mono font-black text-amber-200 whitespace-nowrap drop-shadow-[0_0_8px_rgba(252,211,77,0.6)]">
+            <span className={cn("absolute left-2 -top-3.5 text-[10px] font-mono font-black whitespace-nowrap drop-shadow-[0_0_8px_rgba(252,211,77,0.6)]", LADDER_THEME.spotLabel)}>
               Current price
             </span>
-            <span className="absolute right-2 -top-3.5 text-[11px] font-mono font-black text-amber-100 tabular-nums drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+            <span className={cn("absolute right-2 -top-3.5 text-[11px] font-mono font-black tabular-nums drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]", LADDER_THEME.spotLabel)}>
               ${fmt(spot)}
             </span>
           </div>
@@ -920,14 +966,13 @@ function ZonePriceLadder({
         {bullBandStyle && (
           <div
             className={cn(
-              "absolute left-0 right-0 border-y-2 border-emerald-400/70",
-              "bg-gradient-to-b from-emerald-500/30 via-emerald-500/22 to-emerald-500/30",
-              "shadow-[inset_0_0_24px_rgba(52,211,153,0.12)]",
+              "absolute left-0 right-0",
+              LADDER_THEME.bullZone,
               bullIdle && "opacity-55 saturate-50",
             )}
             style={bullBandStyle}
           >
-            <span className="absolute top-0.5 right-2 text-[10px] font-mono font-black text-emerald-100 tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+            <span className={cn("absolute top-0.5 right-2 text-[10px] font-mono font-black tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]", LADDER_THEME.bullLabel)}>
               ${bullHigh != null ? fmt(bullHigh) : "—"}
             </span>
             <span
@@ -960,11 +1005,11 @@ function ZonePriceLadder({
         <span className="absolute bottom-1 right-2 text-[8px] font-mono text-muted-foreground/30 tabular-nums pointer-events-none">
           {!bullBandStyle && `${fmt(renderMin)}`}
         </span>
+        </div>
       </div>
 
-      {/* ── Missing-side fallback text (e.g. "No bull setup") ── */}
       {(!bullBandStyle || !bearBandStyle) && (
-        <p className="text-[9px] text-muted-foreground/45 italic mt-2 text-center">
+        <p className="shrink-0 text-[9px] text-muted-foreground/45 italic mt-1.5 text-center">
           {!bullBandStyle && noClusterLine("bull", suggested)}
           {!bullBandStyle && !bearBandStyle ? " · " : ""}
           {!bearBandStyle && noClusterLine("bear", suggested)}

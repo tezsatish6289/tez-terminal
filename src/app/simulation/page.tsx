@@ -486,11 +486,10 @@ export default function SimulationPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
-      <main className="flex-1 flex flex-col min-w-0 min-h-0 h-[calc(100dvh-4rem)]">
-        <TopBar />
+    <div className="flex flex-col h-[100dvh] overflow-hidden bg-background text-foreground">
+      <TopBar />
 
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden p-2 sm:p-3 lg:p-4 bg-[#08080a]">
+      <main className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden p-2 sm:p-3 lg:p-4 bg-[#08080a]">
           <div className="w-full mx-auto flex flex-col flex-1 min-h-0 gap-1.5 sm:gap-2">
             <CronHealthBanner variant="compact" />
 
@@ -618,7 +617,6 @@ export default function SimulationPage() {
             )}
             </BotCockpit>
           </div>
-        </div>
       </main>
 
       {/* Trade Narration Dialog */}

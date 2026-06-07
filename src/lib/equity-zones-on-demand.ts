@@ -16,6 +16,10 @@ import {
   type StockZoneAggregateEntry,
 } from "@/lib/equity-zones-store";
 import { maybeRecordSrZoneEvent } from "@/lib/sr-audit/record-event";
+import { loadEarningsCalendar } from "@/lib/nse-earnings-calendar";
+import { daysUntil } from "@/lib/zones/vol-regime";
+import { loadIndiaVixState } from "@/lib/india-vix";
+import { loadIvHistory, recordDailyAtmIv } from "@/lib/iv-history";
 
 const STOCK_AGGREGATE_DOC = "config/zone_status_stocks";
 import {
@@ -64,8 +68,10 @@ export async function computeStockZonesOnDemand(symbol: string): Promise<{
       session = null;
     }
 
-    const { zones, source } = await computeStockZonesWithFallback(safe, session);
+    // Read the aggregate up front: yields both last-good prev entry (SR audit)
+    // and the cross-sectional cohort of peer ATM IVs (cold-start percentile).
     let prevEntry: StockZoneAggregateEntry | undefined;
+    let cohortIvs: number[] = [];
     try {
       const agg = await db.doc(STOCK_AGGREGATE_DOC).get();
       const entries = (agg.data()?.entries ?? {}) as Record<
@@ -73,10 +79,25 @@ export async function computeStockZonesOnDemand(symbol: string): Promise<{
         StockZoneAggregateEntry | undefined
       >;
       prevEntry = entries[safe];
+      cohortIvs = Object.values(entries)
+        .map((e) => e?.atmIV)
+        .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
     } catch {
       /* best-effort */
     }
+
+    const earningsCalendar = await loadEarningsCalendar(db);
+    const daysToEarnings = daysUntil(earningsCalendar[safe], Date.now());
+    const vix = await loadIndiaVixState(db);
+    const ivHist = await loadIvHistory(db, safe);
+    const { zones, source } = await computeStockZonesWithFallback(safe, session, {
+      daysToEarnings,
+      ivHistory: ivHist.values,
+      crossSectionalIvs: cohortIvs,
+      vixPercentile: vix.percentile,
+    });
     await persistEquityZonesDoc(db, zones, source);
+    await recordDailyAtmIv(db, safe, zones.atmIV, ivHist);
     await maybeRecordSrZoneEvent(db, zones, source, prevEntry);
     if (zones.bullZoneLow != null || zones.bearZoneLow != null) {
       await writeStockZoneAggregate(db, [aggregateEntry(zones, source)]);

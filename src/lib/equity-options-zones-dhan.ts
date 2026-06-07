@@ -7,6 +7,7 @@ import { loadDhanEquityOptionChain } from "@/lib/dhan-option-chain";
 import {
   buildEquityZonesFromStrikes,
   type EquityOptionsZones,
+  type EquityRegimeInputs,
 } from "@/lib/equity-options-zones";
 
 function emptyResult(symbol: string, spot = 0, expiryUsed: string | null = null): EquityOptionsZones {
@@ -16,10 +17,13 @@ function emptyResult(symbol: string, spot = 0, expiryUsed: string | null = null)
 /**
  * Returns illiquid empty result for thin chains instead of throwing.
  */
-export async function computeEquityZonesDhan(symbol: string): Promise<EquityOptionsZones> {
+export async function computeEquityZonesDhan(
+  symbol: string,
+  regimeInputs: EquityRegimeInputs = {},
+): Promise<EquityOptionsZones> {
   const chain = await loadDhanEquityOptionChain(symbol);
   if (chain.spot <= 0 || !chain.strikes.size) {
     return emptyResult(symbol, chain.spot, chain.expiry);
   }
-  return buildEquityZonesFromStrikes(symbol, chain.spot, chain.strikes, chain.expiry);
+  return buildEquityZonesFromStrikes(symbol, chain.spot, chain.strikes, chain.expiry, regimeInputs);
 }

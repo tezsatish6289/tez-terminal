@@ -17,6 +17,8 @@ import {
   type IndexKey,
   type IndexOptionsZones,
 } from "@/lib/index-options-zones";
+import { loadIndiaVixState } from "@/lib/india-vix";
+import { loadIvHistory, recordDailyAtmIv } from "@/lib/iv-history";
 
 function docId(symbol: IndexKey): string {
   return `config/suggested_index_zones_${symbol}`;
@@ -53,6 +55,10 @@ function serialize(z: IndexOptionsZones) {
     expiryUsed: z.expiryUsed,
     expiryOI: z.expiryOI,
     insufficientGap: z.insufficientGap,
+    atmIV: z.atmIV,
+    volRegimeFlag: z.volRegime.flag,
+    volRegimeReason: z.volRegime.reason,
+    daysToEarnings: null, // indices have no earnings event
     btcPrice: z.spot,
     deribitIndexPrice: null,
     source: "nse",
@@ -80,6 +86,9 @@ export async function refreshIndexZones(db: Firestore): Promise<IndexZonesRefres
     cookieError = e instanceof Error ? e.message : String(e);
   }
 
+  // India VIX percentile is the market-wide backdrop for every index regime.
+  const vix = await loadIndiaVixState(db);
+
   for (const key of INDEX_KEYS) {
     if (cookieError) {
       results[key] = "error";
@@ -87,7 +96,12 @@ export async function refreshIndexZones(db: Firestore): Promise<IndexZonesRefres
       continue;
     }
     try {
-      const zones = await computeIndexZones(key, cookies);
+      const ivHist = await loadIvHistory(db, key);
+      const zones = await computeIndexZones(key, cookies, {
+        ivHistory: ivHist.values,
+        vixPercentile: vix.percentile,
+      });
+      await recordDailyAtmIv(db, key, zones.atmIV, ivHist);
       const hasBands = zones.bullZoneLow != null || zones.bearZoneLow != null;
       if (!hasBands) {
         // Don't overwrite last-good bands with an empty result.

@@ -37,6 +37,16 @@ import {
 } from "@/lib/equity-zones-on-demand";
 import { stockDocId } from "@/lib/equity-zones-store";
 import { storedSourceToPublic } from "@/lib/levels/levels-source";
+import type { ZoneStatus } from "@/lib/zones/zone-status";
+import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
+
+const VOL_REGIME_FLAGS: readonly VolRegimeFlag[] = ["CALM", "ELEVATED", "EARNINGS", "UNKNOWN"];
+
+function volRegimeFlag(raw: unknown): VolRegimeFlag | null {
+  return typeof raw === "string" && (VOL_REGIME_FLAGS as readonly string[]).includes(raw)
+    ? (raw as VolRegimeFlag)
+    : null;
+}
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -76,6 +86,10 @@ function sanitize(raw: Record<string, unknown> | null): PublicLevels | null {
     levelsSource: storedSourceToPublic(
       typeof raw.source === "string" ? raw.source : null,
     ),
+    volRegime: volRegimeFlag(raw.volRegimeFlag),
+    volRegimeReason: typeof raw.volRegimeReason === "string" ? raw.volRegimeReason : null,
+    atmIV: num(raw.atmIV),
+    daysToEarnings: num(raw.daysToEarnings),
   };
 }
 
@@ -99,6 +113,10 @@ interface StockAggregateEntry {
   bearZoneLow?: number | null;
   bearZoneHigh?: number | null;
   halfWidth?: number | null;
+  atmIV?: number | null;
+  volRegimeFlag?: string | null;
+  volRegimeReason?: string | null;
+  daysToEarnings?: number | null;
   computedAt?: string;
   levelsSource?: string | null;
 }
@@ -211,6 +229,10 @@ export async function GET(request: NextRequest) {
       bearZoneLow: num(e.bearZoneLow),
       bearZoneHigh: num(e.bearZoneHigh),
       halfWidth: num(e.halfWidth),
+      atmIV: num(e.atmIV),
+      volRegime: volRegimeFlag(e.volRegimeFlag),
+      volRegimeReason: typeof e.volRegimeReason === "string" ? e.volRegimeReason : null,
+      daysToEarnings: num(e.daysToEarnings),
       computedAt: typeof e.computedAt === "string" ? e.computedAt : null,
       levelsSource: storedSourceToPublic(
         typeof e.levelsSource === "string" ? e.levelsSource : null,

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import type { PublicLevelsSource } from "@/lib/levels/levels-source";
 import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
+import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
 
 /**
  * Neutral, render-only level data for the public page. Mirrors the shape the
@@ -25,6 +26,14 @@ export interface PublicLevels {
   unavailable: boolean;
   /** `nse` = high confidence (★); `dhan` = low; null = unknown / awaiting scan. */
   levelsSource: PublicLevelsSource | null;
+  /**
+   * Volatility-regime qualifier (stocks only for now). Display/warning use —
+   * does NOT affect zone selection. Null on indices / awaiting scan.
+   */
+  volRegime?: VolRegimeFlag | null;
+  volRegimeReason?: string | null;
+  atmIV?: number | null;
+  daysToEarnings?: number | null;
 }
 
 function fmtPrice(p: number): string {

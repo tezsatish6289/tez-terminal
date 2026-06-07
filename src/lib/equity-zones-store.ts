@@ -19,6 +19,7 @@ import {
   type PublicLevelsSource,
 } from "@/lib/levels/levels-source";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
+import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
 
 const AGGREGATE_DOC = "config/zone_status_stocks";
 
@@ -53,6 +54,10 @@ function serialize(z: EquityOptionsZones, source: "nse_equity" | "dhan_equity" =
     insufficientGap: z.insufficientGap,
     illiquid: z.illiquid,
     status: z.status,
+    atmIV: z.atmIV,
+    volRegimeFlag: z.volRegime.flag,
+    volRegimeReason: z.volRegime.reason,
+    daysToEarnings: z.volRegime.daysToEarnings,
     btcPrice: z.spot, // ladder reads deribitIndexPrice ?? btcPrice for the spot line
     deribitIndexPrice: null,
     source,
@@ -73,6 +78,10 @@ export interface StockZoneAggregateEntry {
   bearZoneLow: number | null;
   bearZoneHigh: number | null;
   halfWidth: number | null;
+  atmIV: number | null;
+  volRegimeFlag: VolRegimeFlag;
+  volRegimeReason: string;
+  daysToEarnings: number | null;
   computedAt: string;
   levelsSource: PublicLevelsSource | null;
 }
@@ -92,6 +101,10 @@ export function aggregateEntry(
     bearZoneLow: z.bearZoneLow,
     bearZoneHigh: z.bearZoneHigh,
     halfWidth: z.halfWidth > 0 ? z.halfWidth : null,
+    atmIV: z.atmIV,
+    volRegimeFlag: z.volRegime.flag,
+    volRegimeReason: z.volRegime.reason,
+    daysToEarnings: z.volRegime.daysToEarnings,
     computedAt: z.computedAt,
     levelsSource: storedSourceToPublic(source),
   };

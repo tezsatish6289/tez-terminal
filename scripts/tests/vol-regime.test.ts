@@ -1,0 +1,106 @@
+import assert from "node:assert/strict";
+import {
+  classifyVolRegime,
+  computeAtmIv,
+  crossSectionalPercentile,
+  daysUntil,
+  ivPercentile,
+  termStructureRatio,
+} from "../../src/lib/zones/vol-regime";
+
+// ── computeAtmIv ──────────────────────────────────────────────────────────
+// Averages call+put across the nearest strikes to spot.
+{
+  const m = new Map<number, { callIV?: number | null; putIV?: number | null }>([
+    [90, { callIV: 30, putIV: 32 }],
+    [100, { callIV: 20, putIV: 22 }], // nearest to spot 101
+    [110, { callIV: 28, putIV: 30 }],
+    [105, { callIV: 24, putIV: 26 }], // 2nd nearest
+  ]);
+  // nearest two strikes: 100 (avg 21) and 105 (avg 25) → 23
+  assert.equal(computeAtmIv(m, 101, 2), 23);
+}
+
+// Drops zero / insane IVs; null when nothing usable near spot.
+{
+  const m = new Map<number, { callIV?: number | null; putIV?: number | null }>([
+    [100, { callIV: 0, putIV: 0 }],
+    [105, { callIV: 999, putIV: null }],
+  ]);
+  assert.equal(computeAtmIv(m, 101, 2), null);
+}
+
+// Single usable leg still counts.
+{
+  const m = new Map<number, { callIV?: number | null; putIV?: number | null }>([
+    [100, { callIV: 18, putIV: 0 }],
+  ]);
+  assert.equal(computeAtmIv(m, 100, 2), 18);
+}
+
+// ── ivPercentile / crossSectionalPercentile ───────────────────────────────
+{
+  const hist = Array.from({ length: 100 }, (_, i) => i); // 0..99
+  assert.equal(ivPercentile(hist, 80), 80); // 80 values below 80
+  assert.equal(ivPercentile(hist, 0), 0);
+  // Below minimum sample → null
+  assert.equal(ivPercentile([1, 2, 3], 2), null);
+  assert.equal(crossSectionalPercentile(hist, 50, 20), 50);
+}
+
+// ── termStructureRatio ────────────────────────────────────────────────────
+{
+  assert.equal(termStructureRatio(22, 20), 1.1);
+  assert.equal(termStructureRatio(20, 0), null); // guard divide-by-zero
+  assert.equal(termStructureRatio(null, 20), null);
+}
+
+// ── daysUntil ─────────────────────────────────────────────────────────────
+{
+  const now = Date.parse("2026-06-07T00:00:00Z");
+  assert.equal(daysUntil("2026-06-07T05:00:00Z", now), 0);
+  assert.equal(daysUntil("2026-06-14T00:00:00Z", now), 7);
+  assert.equal(daysUntil("2026-06-01T00:00:00Z", now), null); // past
+  assert.equal(daysUntil(null, now), null);
+}
+
+// ── classifyVolRegime ─────────────────────────────────────────────────────
+// No usable IV → UNKNOWN
+{
+  const r = classifyVolRegime({ atmIv: null });
+  assert.equal(r.flag, "UNKNOWN");
+}
+// Illiquid → UNKNOWN even with an IV number
+{
+  const r = classifyVolRegime({ atmIv: 25, illiquid: true });
+  assert.equal(r.flag, "UNKNOWN");
+}
+// Earnings within window wins over everything
+{
+  const r = classifyVolRegime({ atmIv: 25, daysToEarnings: 2, ivPercentile: 95 });
+  assert.equal(r.flag, "EARNINGS");
+  assert.match(r.reason, /Earnings in 2d/);
+  assert.match(r.reason, /elevated/i); // notes co-incident elevation
+}
+// Earnings just outside window → not EARNINGS
+{
+  const r = classifyVolRegime({ atmIv: 25, daysToEarnings: 10, ivPercentile: 50 });
+  assert.equal(r.flag, "CALM");
+}
+// High IV percentile, no earnings → ELEVATED
+{
+  const r = classifyVolRegime({ atmIv: 40, ivPercentile: 90 });
+  assert.equal(r.flag, "ELEVATED");
+}
+// Term-structure inversion alone → ELEVATED
+{
+  const r = classifyVolRegime({ atmIv: 30, termRatio: 1.2 });
+  assert.equal(r.flag, "ELEVATED");
+}
+// Everything normal → CALM
+{
+  const r = classifyVolRegime({ atmIv: 22, ivPercentile: 40, termRatio: 0.98, vixPercentile: 30 });
+  assert.equal(r.flag, "CALM");
+}
+
+console.log("vol-regime.test.ts ok");

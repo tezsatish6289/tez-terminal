@@ -6,6 +6,37 @@ import {
   type IndexKey,
   type IndexSpec,
 } from "@/lib/index-specs";
+import {
+  classifyVolRegime,
+  computeAtmIv,
+  ivPercentile,
+  termStructureRatio,
+  type VolRegime,
+} from "@/lib/zones/vol-regime";
+
+/** Per-strike OI + IV for the index zone math (IV optional). */
+interface IndexStrikeData {
+  callOI: number;
+  putOI: number;
+  callIV?: number | null;
+  putIV?: number | null;
+}
+
+/** Optional volatility-regime inputs threaded in by the caller. */
+export interface IndexRegimeInputs {
+  ivHistory?: number[];
+  nextAtmIv?: number | null;
+  vixPercentile?: number | null;
+}
+
+function envBool(name: string, fallback: boolean): boolean {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (!raw) return fallback;
+  return raw === "1" || raw === "true" || raw === "yes";
+}
+
+/** Read a 2nd expiry for term structure. OFF by default (doubles NSE calls). */
+const INDEX_TERM_STRUCTURE_ENABLED = () => envBool("INDEX_TERM_STRUCTURE", false);
 
 export type { IndexKey, IndexSpec };
 export { INDEX_KEYS, INDEX_SPECS };
@@ -62,6 +93,8 @@ export interface IndexOptionsZones {
   expiryOI:        number | null;
   halfWidthPts:    number;
   insufficientGap: boolean;
+  atmIV:           number | null;
+  volRegime:       VolRegime;
   spot:            number;
   computedAt:      string;
 }
@@ -76,6 +109,8 @@ export function createEmptyIndexZones(key: IndexKey, spot = 0): IndexOptionsZone
     maxPain: null, expiryUsed: null, expiryOI: null,
     halfWidthPts: spec.zoneHalfWidthPts,
     insufficientGap: false,
+    atmIV: null,
+    volRegime: classifyVolRegime({ atmIv: null, illiquid: true }),
     spot: spot > 0 ? spot : 0,
     computedAt: new Date().toISOString(),
   };
@@ -87,8 +122,8 @@ interface NseOptionEntry {
   strikePrice: number;
   expiryDates?: string;
   expiryDate?: string;
-  CE?: { openInterest: number };
-  PE?: { openInterest: number };
+  CE?: { openInterest: number; impliedVolatility?: number };
+  PE?: { openInterest: number; impliedVolatility?: number };
 }
 
 interface NseOcResponse {
@@ -155,8 +190,28 @@ async function fetchOptionChain(
 
 // ── Math helpers ──────────────────────────────────────────────────
 
+/** Aggregate an option-chain response's rows into a strike → OI/IV map. */
+function rowsToStrikes(rows: NseOptionEntry[]): { strikes: Map<number, IndexStrikeData>; totalOI: number } {
+  const strikes = new Map<number, IndexStrikeData>();
+  let totalOI = 0;
+  for (const row of rows) {
+    if (row.strikePrice == null) continue;
+    const callOI = row.CE?.openInterest ?? 0;
+    const putOI = row.PE?.openInterest ?? 0;
+    if (callOI === 0 && putOI === 0) continue;
+    totalOI += callOI + putOI;
+    const s = strikes.get(row.strikePrice) ?? { callOI: 0, putOI: 0 };
+    s.callOI += callOI;
+    s.putOI += putOI;
+    if (typeof row.CE?.impliedVolatility === "number") s.callIV = row.CE.impliedVolatility;
+    if (typeof row.PE?.impliedVolatility === "number") s.putIV = row.PE.impliedVolatility;
+    strikes.set(row.strikePrice, s);
+  }
+  return { strikes, totalOI };
+}
+
 function computeMaxPain(
-  strikes: Map<number, { callOI: number; putOI: number }>,
+  strikes: Map<number, IndexStrikeData>,
 ): number | null {
   const list = [...strikes.keys()].sort((a, b) => a - b);
   if (!list.length) return null;
@@ -179,6 +234,7 @@ function computeMaxPain(
 export async function computeIndexZones(
   key: IndexKey,
   cookies: string,
+  regimeInputs: IndexRegimeInputs = {},
 ): Promise<IndexOptionsZones> {
   const spec = INDEX_SPECS[key];
   const halfWidth = spec.zoneHalfWidthPts;
@@ -197,19 +253,7 @@ export async function computeIndexZones(
   if (spot <= 0 || !rows.length) return empty();
 
   // v3 returns a single expiry's chain — aggregate every row by strike.
-  const strikes = new Map<number, { callOI: number; putOI: number }>();
-  let totalOI = 0;
-  for (const row of rows) {
-    if (row.strikePrice == null) continue;
-    const callOI = row.CE?.openInterest ?? 0;
-    const putOI = row.PE?.openInterest ?? 0;
-    if (callOI === 0 && putOI === 0) continue;
-    totalOI += callOI + putOI;
-    const s = strikes.get(row.strikePrice) ?? { callOI: 0, putOI: 0 };
-    s.callOI += callOI;
-    s.putOI += putOI;
-    strikes.set(row.strikePrice, s);
-  }
+  const { strikes, totalOI } = rowsToStrikes(rows);
 
   if (!strikes.size) return empty();
 
@@ -223,6 +267,27 @@ export async function computeIndexZones(
   const maxPain = computeMaxPain(strikes);
   const gap = bullStrike !== null && bearStrike !== null ? bearStrike - bullStrike : 0;
   const insufficientGap = gap > 0 && gap < spec.minStrikeGap;
+
+  // Optional term structure: read the next expiry's ATM IV (env-gated).
+  let nextAtmIv = regimeInputs.nextAtmIv ?? null;
+  if (nextAtmIv == null && INDEX_TERM_STRUCTURE_ENABLED() && expiries[1]) {
+    try {
+      const ocNext = await fetchOptionChain(key, expiries[1], cookies);
+      nextAtmIv = computeAtmIv(rowsToStrikes(ocNext.records?.data ?? []).strikes, spot);
+    } catch {
+      /* term structure stays unknown */
+    }
+  }
+
+  const atmIV = computeAtmIv(strikes, spot);
+  const illiquid = totalOI < MIN_OI_THRESHOLD;
+  const volRegime = classifyVolRegime({
+    atmIv: atmIV,
+    illiquid,
+    ivPercentile: ivPercentile(regimeInputs.ivHistory ?? [], atmIV),
+    termRatio: termStructureRatio(atmIV, nextAtmIv),
+    vixPercentile: regimeInputs.vixPercentile,
+  });
 
   return {
     symbol: key,
@@ -244,6 +309,8 @@ export async function computeIndexZones(
     expiryOI: totalOI >= MIN_OI_THRESHOLD ? totalOI : totalOI > 0 ? totalOI : null,
     halfWidthPts: halfWidth,
     insufficientGap,
+    atmIV,
+    volRegime,
     spot,
     computedAt: new Date().toISOString(),
   };

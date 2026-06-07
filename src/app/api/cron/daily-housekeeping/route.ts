@@ -28,6 +28,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { autoResumeStaleDailyLossHalts } from "@/lib/freedombot/auto-resume-mirroring";
+import { createNseSession } from "@/lib/nse/client";
+import { refreshEarningsCalendar } from "@/lib/nse-earnings-calendar";
+import { refreshIndiaVix } from "@/lib/india-vix";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -50,18 +53,45 @@ export async function GET(request: NextRequest) {
   try {
     const staleHaltsCleared = await autoResumeStaleDailyLossHalts(db);
 
-    const durationMs = Date.now() - startedAt;
-    if (staleHaltsCleared > 0) {
-      console.log(
-        `[DailyHousekeeping] ${staleHaltsCleared} stale halt(s) cleared (${durationMs}ms)`,
-      );
-    } else {
-      console.log(`[DailyHousekeeping] nothing to do (${durationMs}ms)`);
+    // Refresh the NSE results (earnings) calendar + India VIX snapshot once a
+    // day, reusing one NSE session. Best-effort: an NSE block / failure must not
+    // fail housekeeping, so we swallow + report each.
+    let earnings: { ok: boolean; count: number; error?: string } = {
+      ok: false,
+      count: 0,
+      error: "not_attempted",
+    };
+    let indiaVix: { ok: boolean; value: number | null; percentile: number | null; error?: string } = {
+      ok: false,
+      value: null,
+      percentile: null,
+      error: "not_attempted",
+    };
+    try {
+      const session = await createNseSession(db);
+      earnings = await refreshEarningsCalendar(db, session);
+      const vix = await refreshIndiaVix(db, session);
+      indiaVix = { ok: vix.ok, value: vix.value, percentile: vix.percentile, error: vix.error };
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      if (earnings.error === "not_attempted") earnings = { ok: false, count: 0, error };
+      indiaVix = { ok: false, value: null, percentile: null, error };
     }
+
+    const durationMs = Date.now() - startedAt;
+    console.log(
+      `[DailyHousekeeping] stale halts cleared: ${staleHaltsCleared}; earnings: ${
+        earnings.ok ? `${earnings.count} symbols` : `failed (${earnings.error})`
+      }; India VIX: ${
+        indiaVix.ok ? `${indiaVix.value} (pctl ${indiaVix.percentile ?? "n/a"})` : `failed (${indiaVix.error})`
+      } (${durationMs}ms)`,
+    );
 
     return NextResponse.json({
       success: true,
       staleHaltsCleared,
+      earnings,
+      indiaVix,
       durationMs,
     });
   } catch (e) {

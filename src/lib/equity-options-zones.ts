@@ -15,6 +15,42 @@
 
 import type { NseSession } from "@/lib/nse/client";
 import { deriveZoneStatus, type ZoneStatus } from "@/lib/zones/zone-status";
+import {
+  classifyVolRegime,
+  computeAtmIv,
+  crossSectionalPercentile,
+  ivPercentile,
+  termStructureRatio,
+  type VolRegime,
+} from "@/lib/zones/vol-regime";
+
+/** Per-strike OI + IV used by the zone builder (IV optional — last-good safe). */
+export interface EquityStrikeData {
+  callOI: number;
+  putOI: number;
+  callIV?: number | null;
+  putIV?: number | null;
+}
+
+/**
+ * Optional volatility-regime inputs threaded in by the caller. All optional so
+ * the engine degrades gracefully: earnings + ATM IV work day 1; percentile,
+ * term structure and VIX sharpen the read as history / extra fetches land.
+ */
+export interface EquityRegimeInputs {
+  daysToEarnings?: number | null;
+  /** This name's past daily ATM IVs → self percentile (preferred). */
+  ivHistory?: number[];
+  /** Peer ATM IVs today → cross-sectional percentile (cold-start fallback). */
+  crossSectionalIvs?: number[];
+  /** Next-expiry ATM IV → term-structure ratio (when fetched). */
+  nextAtmIv?: number | null;
+  /** India VIX percentile (market-wide backdrop). */
+  vixPercentile?: number | null;
+  /** Explicit overrides (rare — tests / precomputed). */
+  ivPercentile?: number | null;
+  termRatio?: number | null;
+}
 
 const NSE_OC_V3 = "https://www.nseindia.com/api/option-chain-v3";
 const NSE_CONTRACT_INFO = "https://www.nseindia.com/api/option-chain-contract-info";
@@ -25,6 +61,20 @@ function envNum(name: string, fallback: number): number {
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
+
+function envBool(name: string, fallback: boolean): boolean {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (!raw) return fallback;
+  return raw === "1" || raw === "true" || raw === "yes";
+}
+
+/**
+ * Fetch a 2nd expiry to read term structure (near vs next ATM IV). OFF by
+ * default: it doubles NSE option-chain calls per symbol, which halves how fast
+ * the universe cycles. Enable with `EQUITY_TERM_STRUCTURE=1` once headroom on
+ * the NSE rate budget is confirmed.
+ */
+const TERM_STRUCTURE_ENABLED = () => envBool("EQUITY_TERM_STRUCTURE", false);
 
 /** Half-width as a fraction of spot (default 0.75%). */
 const HALF_WIDTH_PCT = () => envNum("STOCK_ZONE_HALF_WIDTH_PCT", 0.0075);
@@ -57,14 +107,18 @@ export interface EquityOptionsZones {
   insufficientGap: boolean;
   illiquid: boolean;
   status: ZoneStatus;
+  /** ATM implied vol (percent points) for this chain, null when unavailable. */
+  atmIV: number | null;
+  /** Volatility-regime qualifier (earnings/elevated/calm) — display only. */
+  volRegime: VolRegime;
   spot: number;
   computedAt: string;
 }
 
 interface NseOptionEntry {
   strikePrice?: number;
-  CE?: { openInterest?: number };
-  PE?: { openInterest?: number };
+  CE?: { openInterest?: number; impliedVolatility?: number };
+  PE?: { openInterest?: number; impliedVolatility?: number };
 }
 
 interface NseOcResponse {
@@ -89,6 +143,8 @@ function emptyResult(symbol: string, spot = 0, expiryUsed: string | null = null)
     maxPain: null, expiryUsed, expiryOI: null,
     halfWidth: 0, strikeStep: null,
     insufficientGap: false, illiquid: true, status: "ILLIQUID",
+    atmIV: null,
+    volRegime: classifyVolRegime({ atmIv: null, illiquid: true }),
     spot: spot > 0 ? spot : 0,
     computedAt: new Date().toISOString(),
   };
@@ -114,8 +170,9 @@ function inferStrikeStep(strikes: number[]): number | null {
 export function buildEquityZonesFromStrikes(
   symbol: string,
   spot: number,
-  strikes: Map<number, { callOI: number; putOI: number }>,
+  strikes: Map<number, EquityStrikeData>,
   expiryUsed: string | null,
+  regimeInputs: EquityRegimeInputs = {},
 ): EquityOptionsZones {
   if (spot <= 0 || !strikes.size) return emptyResult(symbol, spot, expiryUsed);
 
@@ -163,6 +220,22 @@ export function buildEquityZonesFromStrikes(
         bearHigh: bearZoneHigh,
       });
 
+  const atmIV = computeAtmIv(strikes, spot);
+  const termRatio =
+    regimeInputs.termRatio ?? termStructureRatio(atmIV, regimeInputs.nextAtmIv ?? null);
+  const ivPct =
+    regimeInputs.ivPercentile ??
+    ivPercentile(regimeInputs.ivHistory ?? [], atmIV) ??
+    crossSectionalPercentile(regimeInputs.crossSectionalIvs ?? [], atmIV);
+  const volRegime = classifyVolRegime({
+    atmIv: atmIV,
+    illiquid,
+    daysToEarnings: regimeInputs.daysToEarnings,
+    ivPercentile: ivPct,
+    termRatio,
+    vixPercentile: regimeInputs.vixPercentile,
+  });
+
   return {
     symbol,
     label: symbol,
@@ -184,13 +257,15 @@ export function buildEquityZonesFromStrikes(
     insufficientGap,
     illiquid,
     status,
+    atmIV,
+    volRegime,
     spot,
     computedAt: new Date().toISOString(),
   };
 }
 
 function computeMaxPain(
-  strikes: Map<number, { callOI: number; putOI: number }>,
+  strikes: Map<number, EquityStrikeData>,
 ): number | null {
   const list = [...strikes.keys()].sort((a, b) => a - b);
   if (!list.length) return null;
@@ -232,9 +307,28 @@ async function fetchOptionChain(
  * Throws (via the session) on a block; returns an `illiquid` result for thin
  * or empty chains rather than throwing, so the batch keeps going.
  */
+/** Aggregate an option-chain response's rows into a strike → OI/IV map. */
+function rowsToStrikes(rows: NseOptionEntry[]): Map<number, EquityStrikeData> {
+  const strikes = new Map<number, EquityStrikeData>();
+  for (const row of rows) {
+    if (row.strikePrice == null) continue;
+    const callOI = row.CE?.openInterest ?? 0;
+    const putOI = row.PE?.openInterest ?? 0;
+    if (callOI === 0 && putOI === 0) continue;
+    const s = strikes.get(row.strikePrice) ?? { callOI: 0, putOI: 0 };
+    s.callOI += callOI;
+    s.putOI += putOI;
+    if (typeof row.CE?.impliedVolatility === "number") s.callIV = row.CE.impliedVolatility;
+    if (typeof row.PE?.impliedVolatility === "number") s.putIV = row.PE.impliedVolatility;
+    strikes.set(row.strikePrice, s);
+  }
+  return strikes;
+}
+
 export async function computeEquityZones(
   symbol: string,
   session: NseSession,
+  regimeInputs: EquityRegimeInputs = {},
 ): Promise<EquityOptionsZones> {
   const expiries = await fetchExpiries(symbol, session);
   const expiryUsed = expiries[0];
@@ -244,17 +338,23 @@ export async function computeEquityZones(
   const rows = oc.records?.data ?? [];
   if (spot <= 0 || !rows.length) return emptyResult(symbol, spot, expiryUsed);
 
-  const strikes = new Map<number, { callOI: number; putOI: number }>();
-  for (const row of rows) {
-    if (row.strikePrice == null) continue;
-    const callOI = row.CE?.openInterest ?? 0;
-    const putOI = row.PE?.openInterest ?? 0;
-    if (callOI === 0 && putOI === 0) continue;
-    const s = strikes.get(row.strikePrice) ?? { callOI: 0, putOI: 0 };
-    s.callOI += callOI;
-    s.putOI += putOI;
-    strikes.set(row.strikePrice, s);
+  const strikes = rowsToStrikes(rows);
+
+  // Optional term structure: read the next expiry's ATM IV (env-gated — extra
+  // NSE call). Best-effort: a failure just leaves term structure unknown.
+  let nextAtmIv = regimeInputs.nextAtmIv ?? null;
+  if (nextAtmIv == null && TERM_STRUCTURE_ENABLED() && expiries[1]) {
+    try {
+      const ocNext = await fetchOptionChain(symbol, expiries[1], session);
+      const nextStrikes = rowsToStrikes(ocNext.records?.data ?? []);
+      nextAtmIv = computeAtmIv(nextStrikes, spot);
+    } catch {
+      /* term structure stays unknown */
+    }
   }
 
-  return buildEquityZonesFromStrikes(symbol, spot, strikes, expiryUsed);
+  return buildEquityZonesFromStrikes(symbol, spot, strikes, expiryUsed, {
+    ...regimeInputs,
+    nextAtmIv,
+  });
 }

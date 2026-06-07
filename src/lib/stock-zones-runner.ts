@@ -28,6 +28,10 @@ import {
   type StockZoneAggregateEntry,
 } from "@/lib/equity-zones-store";
 import { maybeRecordSrZoneEvent } from "@/lib/sr-audit/record-event";
+import { loadEarningsCalendar } from "@/lib/nse-earnings-calendar";
+import { daysUntil } from "@/lib/zones/vol-regime";
+import { loadIndiaVixState } from "@/lib/india-vix";
+import { loadIvHistory, recordDailyAtmIv } from "@/lib/iv-history";
 
 const CURSOR_DOC = "config/stock_zones_cursor";
 const AGGREGATE_DOC = "config/zone_status_stocks";
@@ -211,6 +215,16 @@ export async function runStockZonesBatch(
     session = null;
   }
 
+  // Volatility-regime context loaded once for the batch:
+  //   • earnings calendar (symbol → ISO results date)
+  //   • India VIX percentile (market backdrop)
+  //   • cross-sectional cohort of peer ATM IVs (cold-start percentile fallback)
+  const earningsCalendar = await loadEarningsCalendar(db);
+  const vix = await loadIndiaVixState(db);
+  const cohortIvs = Object.values(prevEntries)
+    .map((e) => e?.atmIV)
+    .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+
   const startedAt = Date.now();
   const entries: StockZoneAggregateEntry[] = [];
   let processed = 0;
@@ -228,13 +242,21 @@ export async function runStockZonesBatch(
     }
 
     try {
+      const daysToEarnings = daysUntil(earningsCalendar[symbol], Date.now());
+      const ivHist = await loadIvHistory(db, symbol);
       const { zones, source } = await Promise.race([
-        computeStockZonesWithFallback(symbol, session),
+        computeStockZonesWithFallback(symbol, session, {
+          daysToEarnings,
+          ivHistory: ivHist.values,
+          crossSectionalIvs: cohortIvs,
+          vixPercentile: vix.percentile,
+        }),
         sleep(perSymbolMs).then(() => {
           throw new Error(`symbol_timeout_${perSymbolMs}ms`);
         }),
       ]);
       await persistEquityZonesDoc(db, zones, source);
+      await recordDailyAtmIv(db, symbol, zones.atmIV, ivHist);
       const row = aggregateEntry(zones, source);
       await maybeRecordSrZoneEvent(db, zones, source, prevEntries[symbol]);
       entries.push(row);

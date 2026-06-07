@@ -6,6 +6,7 @@
 import "server-only";
 import { ensureValidToken } from "@/lib/dhan-token";
 import { resolveDhanEquitySecurityId } from "@/lib/dhan-candles";
+import type { EquityStrikeData } from "@/lib/equity-options-zones";
 
 const DHAN_BASE_URL = "https://api.dhan.co/v2";
 const DHAN_TIMEOUT_MS = 15_000;
@@ -25,6 +26,7 @@ async function throttleOptionChain(): Promise<void> {
 
 interface DhanOcLeg {
   oi?: number;
+  implied_volatility?: number;
 }
 
 interface DhanOcStrike {
@@ -90,7 +92,7 @@ export async function fetchDhanEquityExpiries(securityId: number): Promise<strin
 export interface DhanEquityChainSnapshot {
   spot: number;
   expiry: string;
-  strikes: Map<number, { callOI: number; putOI: number }>;
+  strikes: Map<number, EquityStrikeData>;
 }
 
 export async function fetchDhanEquityOptionChain(
@@ -106,7 +108,7 @@ export async function fetchDhanEquityOptionChain(
 
   const spot = Number(json.data?.last_price ?? 0);
   const oc = json.data?.oc ?? {};
-  const strikes = new Map<number, { callOI: number; putOI: number }>();
+  const strikes = new Map<number, EquityStrikeData>();
 
   for (const [strikeKey, row] of Object.entries(oc)) {
     const strike = Number(strikeKey);
@@ -117,6 +119,8 @@ export async function fetchDhanEquityOptionChain(
     const s = strikes.get(strike) ?? { callOI: 0, putOI: 0 };
     s.callOI += callOI;
     s.putOI += putOI;
+    if (typeof row.ce?.implied_volatility === "number") s.callIV = row.ce.implied_volatility;
+    if (typeof row.pe?.implied_volatility === "number") s.putIV = row.pe.implied_volatility;
     strikes.set(strike, s);
   }
 

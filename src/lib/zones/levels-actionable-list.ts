@@ -1,5 +1,6 @@
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import type { PublicLevelsSource } from "@/lib/levels/levels-source";
+import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
 import {
   deriveZoneStatus,
   matchesSlideshowSetup,
@@ -8,6 +9,14 @@ import {
   type ZoneBands,
   type ZoneStatus,
 } from "@/lib/zones/zone-status";
+
+/** Optional volatility-regime fields a stock row may carry (display only). */
+export interface StockRowVolRegime {
+  atmIV?: number | null;
+  volRegime?: VolRegimeFlag | null;
+  volRegimeReason?: string | null;
+  daysToEarnings?: number | null;
+}
 
 export interface LevelsActionableItem {
   scope: "index" | "stock";
@@ -42,7 +51,7 @@ export function levelsFromStockRow(row: {
   halfWidth?: number | null;
   computedAt?: string | null;
   levelsSource?: PublicLevelsSource | null;
-}): PublicLevels | null {
+} & StockRowVolRegime): PublicLevels | null {
   const bullLow = row.bullZoneLow ?? null;
   const bearLow = row.bearZoneLow ?? null;
   if (bullLow == null && bearLow == null) return null;
@@ -70,13 +79,17 @@ export function levelsFromStockRow(row: {
     computedAt: row.computedAt ?? null,
     unavailable: false,
     levelsSource: row.levelsSource ?? null,
+    volRegime: row.volRegime ?? null,
+    volRegimeReason: row.volRegimeReason ?? null,
+    atmIV: row.atmIV ?? null,
+    daysToEarnings: row.daysToEarnings ?? null,
   };
 }
 
 /** Build the actionable In-Zone list (directional + min POC RR). */
 export function buildLevelsActionableList(input: {
   indices: { symbol?: string; label: string; data: PublicLevels | null }[];
-  stocks: {
+  stocks: ({
     symbol: string;
     label: string;
     spot: number | null;
@@ -88,7 +101,7 @@ export function buildLevelsActionableList(input: {
     halfWidth?: number | null;
     computedAt?: string | null;
     levelsSource?: PublicLevelsSource | null;
-  }[];
+  } & StockRowVolRegime)[];
   filter?: PocDirectionFilter;
 }): LevelsActionableItem[] {
   const filter = input.filter ?? "all";
@@ -134,7 +147,7 @@ export function buildLevelsActionableList(input: {
 
 export function buildSlideshowFilterCounts(input: {
   indices: { symbol?: string; label: string; data: PublicLevels | null }[];
-  stocks: {
+  stocks: ({
     symbol: string;
     label: string;
     spot: number | null;
@@ -146,7 +159,7 @@ export function buildSlideshowFilterCounts(input: {
     halfWidth?: number | null;
     computedAt?: string | null;
     levelsSource?: PublicLevelsSource | null;
-  }[];
+  } & StockRowVolRegime)[];
 }): SlideshowFilterCounts {
   const filters: PocDirectionFilter[] = [
     "all",

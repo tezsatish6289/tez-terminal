@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { appendDailyIv, istDateKey, IV_HISTORY_CAP } from "../../src/lib/iv-history";
-import { appendDailyVix } from "../../src/lib/india-vix";
+import { appendDailyVix, parseVixHistory, vixDateKey } from "../../src/lib/india-vix";
 
 // ── istDateKey ────────────────────────────────────────────────────────────
 // 19:00 UTC on Jun 7 is already Jun 8 in IST (UTC+5:30).
@@ -47,6 +47,37 @@ import { appendDailyVix } from "../../src/lib/india-vix";
   const dedup = appendDailyVix(out, "2026-06-07", 99);
   assert.equal(dedup.length, 2);
   assert.equal(dedup[1].value, 14);
+}
+
+// ── vixDateKey ────────────────────────────────────────────────────────────
+{
+  assert.equal(vixDateKey("11-Apr-2025"), "2025-04-11");
+  assert.equal(vixDateKey("2025-04-11"), "2025-04-11");
+  assert.equal(vixDateKey("nonsense"), null);
+  assert.equal(vixDateKey(null), null);
+}
+
+// ── parseVixHistory ───────────────────────────────────────────────────────
+// Permissive across NSE field-name variants; ascending + deduped.
+{
+  const rows = [
+    { EOD_TIMESTAMP: "11-Apr-2025", EOD_CLOSE_INDEX_VAL: 20.11 },
+    { EOD_TIMESTAMP: "10-Apr-2025", EOD_CLOSE_INDEX_VAL: 21.5 },
+    // dupe date, last wins
+    { EOD_TIMESTAMP: "10-Apr-2025", EOD_CLOSE_INDEX_VAL: 22.0 },
+    // alternate field names
+    { date: "2025-04-12", close: 19.4 },
+    // junk dropped
+    { EOD_TIMESTAMP: "bad", EOD_CLOSE_INDEX_VAL: 5 },
+    { EOD_TIMESTAMP: "13-Apr-2025", EOD_CLOSE_INDEX_VAL: 0 },
+  ];
+  const out = parseVixHistory(rows);
+  assert.deepEqual(
+    out.map((e) => e.date),
+    ["2025-04-10", "2025-04-11", "2025-04-12"],
+  );
+  assert.equal(out[0].value, 22.0); // dedupe kept the last
+  assert.equal(out[2].value, 19.4);
 }
 
 console.log("iv-history.test.ts ok");

@@ -20,6 +20,7 @@ import { ivPercentile } from "@/lib/zones/vol-regime";
 import { istDateKey, IV_HISTORY_CAP } from "@/lib/iv-history";
 
 const NSE_ALL_INDICES = "https://www.nseindia.com/api/allIndices";
+const NSE_VIX_HISTORY = "https://www.nseindia.com/api/historical/vixhistory";
 export const INDIA_VIX_DOC = "config/india_vix_state";
 
 interface AllIndicesRow {
@@ -48,6 +49,114 @@ export async function fetchIndiaVix(session: NseSession): Promise<number | null>
     }
   }
   return null;
+}
+
+// ── Historical backfill (one-time seed so percentile is meaningful day 1) ──
+
+interface VixHistoryRow {
+  EOD_TIMESTAMP?: string;
+  TIMESTAMP?: string;
+  mTIMESTAMP?: string;
+  date?: string;
+  EOD_CLOSE_INDEX_VAL?: number | string;
+  close?: number | string;
+  CLOSE?: number | string;
+}
+
+const MONTHS: Record<string, number> = {
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+  jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+};
+
+/** Normalise NSE date strings (`DD-MMM-YYYY` or ISO) to a `YYYY-MM-DD` key. */
+export function vixDateKey(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const s = raw.trim();
+  const m = s.match(/^(\d{1,2})[-\s]([A-Za-z]{3})[-\s](\d{4})$/);
+  if (m) {
+    const mon = MONTHS[m[2].toLowerCase()];
+    if (mon === undefined) return null;
+    const d = new Date(Date.UTC(Number(m[3]), mon, Number(m[1])));
+    return Number.isFinite(d.getTime()) ? d.toISOString().slice(0, 10) : null;
+  }
+  const t = Date.parse(s);
+  return Number.isFinite(t) ? new Date(t).toISOString().slice(0, 10) : null;
+}
+
+/**
+ * Parse NSE vixhistory rows into a clean, ascending, deduped daily series.
+ * Permissive about field names across NSE response variants. Pure.
+ */
+export function parseVixHistory(rows: VixHistoryRow[]): VixHistoryEntry[] {
+  const byDate = new Map<string, number>();
+  for (const row of rows) {
+    const date = vixDateKey(row.EOD_TIMESTAMP ?? row.TIMESTAMP ?? row.mTIMESTAMP ?? row.date);
+    if (!date) continue;
+    const value = Number(row.EOD_CLOSE_INDEX_VAL ?? row.close ?? row.CLOSE);
+    if (!Number.isFinite(value) || value <= 0) continue;
+    byDate.set(date, value); // last write wins on dupes
+  }
+  return [...byDate.entries()]
+    .map(([date, value]) => ({ date, value }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function ddmmyyyy(d: Date): string {
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const mon = String(d.getUTCMonth() + 1).padStart(2, "0");
+  return `${day}-${mon}-${d.getUTCFullYear()}`;
+}
+
+/** Fetch India VIX OHLC history for the last `days` days. Throws on NSE block. */
+export async function fetchIndiaVixHistory(
+  session: NseSession,
+  days: number,
+  now: number = Date.now(),
+): Promise<VixHistoryEntry[]> {
+  const to = new Date(now);
+  const from = new Date(now - days * 86_400_000);
+  const url = `${NSE_VIX_HISTORY}?from=${ddmmyyyy(from)}&to=${ddmmyyyy(to)}`;
+  const json = await session.fetchJson<{ data?: VixHistoryRow[] } | VixHistoryRow[]>(url);
+  const rows = Array.isArray(json) ? json : json.data ?? [];
+  return parseVixHistory(rows);
+}
+
+export interface IndiaVixBackfillResult {
+  ok: boolean;
+  samples: number;
+  value: number | null;
+  percentile: number | null;
+  error?: string;
+}
+
+/**
+ * One-time seed of the India VIX series from NSE history so the percentile is
+ * meaningful immediately instead of after ~20 daily snapshots. Best-effort.
+ */
+export async function backfillIndiaVix(
+  db: Firestore,
+  session: NseSession,
+  days = 365,
+): Promise<IndiaVixBackfillResult> {
+  try {
+    const history = (await fetchIndiaVixHistory(session, days)).slice(-IV_HISTORY_CAP);
+    if (!history.length) {
+      return { ok: false, samples: 0, value: null, percentile: null, error: "no history rows" };
+    }
+    const latest = history[history.length - 1];
+    const prior = history.slice(0, -1).map((e) => e.value);
+    const percentile = ivPercentile(prior, latest.value);
+    await db.doc(INDIA_VIX_DOC).set({
+      value: latest.value,
+      percentile,
+      history,
+      updatedAt: new Date().toISOString(),
+      backfilledAt: new Date().toISOString(),
+    });
+    return { ok: true, samples: history.length, value: latest.value, percentile };
+  } catch (e) {
+    return { ok: false, samples: 0, value: null, percentile: null, error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 /** Append today's VIX, deduped by IST day, capped to ~1 trading year. Pure. */

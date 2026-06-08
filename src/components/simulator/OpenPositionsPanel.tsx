@@ -60,14 +60,6 @@ function formatMoney(val: number | null | undefined, cs: string): string {
   return `${cs}${val.toFixed(2)}`;
 }
 
-function slotGridClass(slots: number): string {
-  if (slots <= 1) return "grid-cols-1";
-  if (slots === 2) return "grid-cols-1 sm:grid-cols-2";
-  if (slots === 3) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
-  if (slots === 4) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4";
-  return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5";
-}
-
 /** Cockpit grid for live positions — max ~5 slots, empty slots shown as
  *  placeholders so the panel never looks broken when idle. */
 export function OpenPositionsPanel({
@@ -120,7 +112,10 @@ export function OpenPositionsPanel({
         )}
       </div>
 
-      <div className={cn("grid gap-3 sm:gap-4", slotGridClass(slots))}>
+      {/* Width-driven grid: cards keep a readable min width and wrap instead of
+          being crushed into N columns by the slot count. In the narrow ~40%
+          cockpit panel this is 1–2 columns; it scales up on wider screens. */}
+      <div className="grid gap-3 sm:gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
         {trades.map((trade) => {
           const simId = simTradeIdFor(trade);
           const mirrorCount = simId ? (mirrorsBySimTradeId[simId]?.length ?? 0) : 0;
@@ -150,21 +145,22 @@ function EmptySlot({ index }: { index: number }) {
     <div
       className={cn(
         SIM_SLOT_EMPTY,
-        "relative flex flex-col items-center justify-center min-h-[220px] sm:min-h-[240px]",
-        "text-center px-4 py-6",
+        "relative flex items-center gap-3 min-h-[88px] px-4 py-4 self-start",
       )}
     >
-      <div className="absolute top-3 right-3 text-[9px] font-mono font-bold text-muted-foreground/30">
-        #{index}
-      </div>
-      <div className="w-10 h-10 rounded-full border border-white/[0.12] bg-[#1a1a1f] shadow-[inset_0_2px_6px_rgba(0,0,0,0.4)] flex items-center justify-center mb-3">
+      <div className="w-9 h-9 rounded-full border border-white/[0.12] bg-[#1a1a1f] shadow-[inset_0_2px_6px_rgba(0,0,0,0.4)] flex items-center justify-center shrink-0">
         <Activity className="w-4 h-4 text-muted-foreground/30" />
       </div>
-      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/30">
-        Slot open
-      </span>
-      <span className="text-[9px] text-muted-foreground/20 mt-1 max-w-[120px]">
-        Next qualified signal fills here
+      <div className="min-w-0">
+        <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/35">
+          Slot open
+        </span>
+        <span className="block text-[9px] text-muted-foreground/25 mt-0.5">
+          Next qualified signal fills here
+        </span>
+      </div>
+      <span className="absolute top-2.5 right-3 text-[9px] font-mono font-bold text-muted-foreground/30">
+        #{index}
       </span>
     </div>
   );

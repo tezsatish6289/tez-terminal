@@ -372,6 +372,9 @@ export const NativeCandlesChart = forwardRef<
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let fetchRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    let fetchRetries = 0;
+    const MAX_FETCH_RETRIES = 3;
 
     async function load(isPoll: boolean) {
       if (!isPoll) {
@@ -392,18 +395,30 @@ export const NativeCandlesChart = forwardRef<
           `/api/freedombot/levels/candles?symbol=${encodeURIComponent(symbol)}&scope=${encodeURIComponent(candlesScope)}&interval=${encodeURIComponent(interval)}`,
           { cache: "no-store" },
         );
-        const json = (await res.json()) as { ok: boolean; candles?: ApiCandle[]; error?: string };
+        const json = (await res.json()) as {
+          ok: boolean;
+          candles?: ApiCandle[];
+          error?: string;
+          retryable?: boolean;
+        };
         if (cancelled) return;
         if (!json.ok || !json.candles?.length) {
           if (isBoot) {
-            setError(json.error ?? "No chart data available");
+            setError(json.error ?? "Chart data is temporarily unavailable.");
             setBootLoading(false);
             setSwapping(false);
+            // Transient failures (rate limit / temporary) — retry soon instead
+            // of waiting for the full 60s poll cycle.
+            if (json.retryable && fetchRetries < MAX_FETCH_RETRIES) {
+              fetchRetries += 1;
+              fetchRetryTimer = setTimeout(() => void load(true), 5000);
+            }
           } else {
             setSwapping(false);
           }
           return;
         }
+        fetchRetries = 0;
         const data: CandlestickData[] = json.candles.map((c) => ({
           time: c.time as UTCTimestamp,
           open: c.open,
@@ -434,11 +449,15 @@ export const NativeCandlesChart = forwardRef<
         };
 
         requestAnimationFrame(finish);
-      } catch (e) {
+      } catch {
         if (!cancelled && isBoot) {
-          setError(e instanceof Error ? e.message : "Failed to load chart");
+          setError("Chart data is temporarily unavailable — retrying shortly.");
           setBootLoading(false);
           setSwapping(false);
+          if (fetchRetries < MAX_FETCH_RETRIES) {
+            fetchRetries += 1;
+            fetchRetryTimer = setTimeout(() => void load(true), 5000);
+          }
         } else if (!cancelled && !isPoll) {
           setSwapping(false);
         }
@@ -453,6 +472,7 @@ export const NativeCandlesChart = forwardRef<
       setSwapping(false);
       if (timer) clearInterval(timer);
       if (retryTimer) clearTimeout(retryTimer);
+      if (fetchRetryTimer) clearTimeout(fetchRetryTimer);
     };
   }, [symbol, candlesScope, interval, defaultFullHistory]);
 

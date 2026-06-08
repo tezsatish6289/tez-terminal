@@ -29,11 +29,23 @@ export interface Candle {
   volume?: number;
 }
 
+/** Coarse failure class so the API/UI can react without parsing vendor text. */
+export type CandleErrorCode = "rate_limit" | "no_data" | "unavailable";
+
 export interface CandleResult {
   ok: boolean;
   candles: Candle[];
+  /** Raw message for server logs only — never forward to the client. */
   error?: string;
+  code?: CandleErrorCode;
   stale?: boolean;
+}
+
+function classifyCandleError(e: unknown): CandleErrorCode {
+  const m = (e instanceof Error ? e.message : String(e)).toLowerCase();
+  if (m.includes("429") || m.includes("rate") || m.includes("dh-904")) return "rate_limit";
+  if (m.includes("securityid") || m.includes("no candles")) return "no_data";
+  return "unavailable";
 }
 
 /** Dhan intraday supports 1, 5, 15, 25, 60 minute candles. */
@@ -51,6 +63,24 @@ interface CacheEntry {
 
 const candleCache = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<Candle[]>>();
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Space out intraday calls so concurrent chart loads (slideshow advancing,
+ * multiple viewers) don't breach Dhan's per-user rate limit. Process-global,
+ * shared across every symbol/interval.
+ */
+const INTRADAY_MIN_GAP_MS = 350;
+const INTRADAY_MAX_ATTEMPTS = 3;
+let lastIntradayCallAt = 0;
+
+async function throttleIntraday(): Promise<void> {
+  const now = Date.now();
+  const wait = lastIntradayCallAt + INTRADAY_MIN_GAP_MS - now;
+  if (wait > 0) await sleep(wait);
+  lastIntradayCallAt = Date.now();
+}
 
 // ── Security ID resolution (Firestore config/dhan_instruments) ──────
 
@@ -123,37 +153,50 @@ async function fetchDhanIntraday(
 
   const to = new Date();
   const from = new Date(to.getTime() - INTRADAY_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+  const body = JSON.stringify({
+    securityId: String(securityId),
+    exchangeSegment: segment.exchangeSegment,
+    instrument: segment.instrument,
+    interval,
+    oi: false,
+    fromDate: fmtDate(from),
+    toDate: fmtDate(to),
+  });
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), DHAN_TIMEOUT_MS);
-  let res: Response;
-  try {
-    res = await fetch(`${DHAN_BASE_URL}/charts/intraday`, {
-      method: "POST",
-      headers: {
-        "access-token": creds.apiKey,
-        "client-id": creds.apiSecret,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        securityId: String(securityId),
-        exchangeSegment: segment.exchangeSegment,
-        instrument: segment.instrument,
-        interval,
-        oi: false,
-        fromDate: fmtDate(from),
-        toDate: fmtDate(to),
-      }),
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timer);
+  let res: Response | null = null;
+  let lastErr = "";
+  for (let attempt = 0; attempt < INTRADAY_MAX_ATTEMPTS; attempt++) {
+    await throttleIntraday();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), DHAN_TIMEOUT_MS);
+    try {
+      res = await fetch(`${DHAN_BASE_URL}/charts/intraday`, {
+        method: "POST",
+        headers: {
+          "access-token": creds.apiKey,
+          "client-id": creds.apiSecret,
+          "Content-Type": "application/json",
+        },
+        body,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (res.ok) break;
+
+    // 429 (rate limit) and 5xx are transient — back off and retry.
+    const transient = res.status === 429 || res.status >= 500;
+    lastErr = `Dhan intraday ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`;
+    if (transient && attempt < INTRADAY_MAX_ATTEMPTS - 1) {
+      await sleep(600 * (attempt + 1) + Math.round(Math.random() * 200));
+      continue;
+    }
+    throw new Error(lastErr);
   }
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Dhan intraday ${res.status}: ${text.slice(0, 200)}`);
-  }
+  if (!res || !res.ok) throw new Error(lastErr || "Dhan intraday failed");
 
   const data = (await res.json()) as DhanIntradayResponse;
   const ts = data.timestamp ?? [];
@@ -213,10 +256,11 @@ async function getCandlesCached(
     return { ok: true, candles };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    // Survive transient errors (rate limit, timeout) with last-good candles.
     if (cached && Date.now() - cached.fetchedAt < STALE_TTL_MS) {
       return { ok: true, candles: cached.candles, stale: true };
     }
-    return { ok: false, candles: [], error: msg };
+    return { ok: false, candles: [], error: msg, code: classifyCandleError(e) };
   }
 }
 

@@ -10,6 +10,7 @@ import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
+import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
 import {
   isSlideshowZoneStale,
   SLIDESHOW_ZONE_TICK_MS,
@@ -173,6 +174,14 @@ function ChartContent() {
           chartFullHistory={chartFullHistory}
           hideToolbar
           highConfidence={scope === "index" || isHighConfidenceLevels(levels)}
+          badge={
+            <VolRegimeBadge
+              flag={levels?.volRegime}
+              reason={levels?.volRegimeReason}
+              atmIV={levels?.atmIV}
+              daysToEarnings={levels?.daysToEarnings}
+            />
+          }
           symbolSearch={
             scope ? (
               <LevelsSymbolNavigateSearch

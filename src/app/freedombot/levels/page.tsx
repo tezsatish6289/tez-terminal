@@ -17,6 +17,7 @@ import {
 } from "@/components/levels/LevelsBubblesView";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
+import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import { LevelsSlideshowToolbar } from "@/components/levels/LevelsSlideshowToolbar";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
@@ -637,6 +638,14 @@ export default function LevelsPage() {
         chartFullHistory={chartFullHistory}
         hideToolbar
         highConfidence={chartHighConfidence}
+        badge={
+          <VolRegimeBadge
+            flag={activeChartLevels?.volRegime}
+            reason={activeChartLevels?.volRegimeReason}
+            atmIV={activeChartLevels?.atmIV}
+            daysToEarnings={activeChartLevels?.daysToEarnings}
+          />
+        }
       />
     ) : null;
 

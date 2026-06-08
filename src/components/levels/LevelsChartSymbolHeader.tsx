@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   formatLevelsChartMeta,
   type LevelsTvConfig,
@@ -11,6 +12,7 @@ export function LevelsChartSymbolHeader({
   subtitle,
   config,
   highConfidence = false,
+  badge,
 }: {
   symbol: string;
   /** Company or index label when different from ticker. */
@@ -18,6 +20,8 @@ export function LevelsChartSymbolHeader({
   config: LevelsTvConfig;
   /** NSE option chain — show ★ beside ticker. */
   highConfidence?: boolean;
+  /** Volatility-regime chip rendered beside the ticker (display only). */
+  badge?: ReactNode;
 }) {
   const showSubtitle =
     subtitle != null &&
@@ -42,6 +46,7 @@ export function LevelsChartSymbolHeader({
               ★
             </span>
           ) : null}
+          {badge ? <span className="shrink-0">{badge}</span> : null}
         </span>
       </h1>
       {showSubtitle ? (

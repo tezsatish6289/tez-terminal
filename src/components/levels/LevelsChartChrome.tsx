@@ -20,6 +20,7 @@ export function LevelsChartChrome({
   hideToolbar = false,
   symbolSearch,
   highConfidence = false,
+  badge,
   className = "",
 }: {
   symbol: string;
@@ -36,6 +37,8 @@ export function LevelsChartChrome({
   /** Chart deep-dive: symbol jump search beside header when toolbar is hidden. */
   symbolSearch?: ReactNode;
   highConfidence?: boolean;
+  /** Volatility-regime chip rendered beside the ticker (display only). */
+  badge?: ReactNode;
   className?: string;
 }) {
   return (
@@ -47,6 +50,7 @@ export function LevelsChartChrome({
         subtitle={subtitle}
         config={config}
         highConfidence={highConfidence}
+        badge={badge}
       />
       {!hideToolbar ? (
         <LevelsChartPageToolbar

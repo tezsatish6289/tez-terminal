@@ -12,6 +12,10 @@
  * exchange-reported PnL display is fine — the user-facing `realizedPnl`
  * is computed locally at close time and never blocks on this job.
  *
+ * cron-job.org caps HTTP at 30s, so keyed GET returns 202 immediately and
+ * runs the batch in the background via after() (same pattern as
+ * suggest-stock-zones). Use ?sync=1 only for manual debugging.
+ *
  * Design — trade-first, not pair-first:
  *   1. Single global query for `live_trades` where `status == CLOSED`
  *      and `exchangeRealizedPnl == null`, capped at MAX_PER_TICK.
@@ -33,7 +37,7 @@
  * called right after a fresh fill in `sync-live-trades`) is intentionally
  * untouched — it's the fast path; this cron is the safety net.
  */
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/firebase/admin";
 import { type LiveTrade, type Credentials } from "@/lib/trade-engine";
@@ -56,10 +60,12 @@ import {
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+/** Background batch after() may run up to platform limit (apphosting timeoutSeconds). */
+export const maxDuration = 120;
 
-/** Hard cap per tick. At 200 we comfortably finish well under the cron
- *  timeout even if every call takes ~300ms. Raise once we add per-call
- *  AbortSignal + venue rate-limit awareness. */
+/** Hard cap per tick. With background after(), we can process more rows per
+ *  run (up to ~120s on App Hosting). Raise once we add per-call AbortSignal +
+ *  venue rate-limit awareness. */
 const MAX_PER_TICK = 200;
 
 /** Per-pair worker concurrency. Keeps us under venue IP rate limits
@@ -71,19 +77,21 @@ interface PairKey {
   exchange: ExchangeName;
 }
 
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const key = searchParams.get("key");
-  const cronSecret = process.env.CRON_SECRET;
+export interface ExchangePnlReconcileSummary {
+  success: boolean;
+  processed: number;
+  reconciled: number;
+  zeroRecord: number;
+  skippedNoCreds: number;
+  errors: number;
+  pairs?: number;
+  durationMs: number;
+  error?: string;
+}
 
-  if (!cronSecret || key !== cronSecret) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 },
-    );
-  }
-
-  const db = getAdminFirestore();
+export async function runExchangePnlReconcileBatch(
+  db: FirebaseFirestore.Firestore,
+): Promise<ExchangePnlReconcileSummary> {
   const startedAt = Date.now();
 
   let processed = 0;
@@ -102,7 +110,7 @@ export async function GET(request: NextRequest) {
       .get();
 
     if (snap.empty) {
-      return NextResponse.json({
+      return {
         success: true,
         processed: 0,
         reconciled: 0,
@@ -110,7 +118,7 @@ export async function GET(request: NextRequest) {
         skippedNoCreds: 0,
         errors: 0,
         durationMs: Date.now() - startedAt,
-      });
+      };
     }
 
     // 2. Bucket trades by (userId, exchange) so we decrypt creds once
@@ -134,7 +142,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (tradesByPair.size === 0) {
-      return NextResponse.json({
+      return {
         success: true,
         processed: snap.size,
         reconciled: 0,
@@ -142,7 +150,7 @@ export async function GET(request: NextRequest) {
         skippedNoCreds: 0,
         errors: 0,
         durationMs: Date.now() - startedAt,
-      });
+      };
     }
 
     // 3. Lazy creds lookup per pair. Walks the user's secret docs for
@@ -324,7 +332,7 @@ export async function GET(request: NextRequest) {
         `skippedNoCreds=${skippedNoCreds} errors=${errors} pairs=${pairKeys.length} (${durationMs}ms)`,
     );
 
-    return NextResponse.json({
+    return {
       success: true,
       processed,
       reconciled,
@@ -333,22 +341,54 @@ export async function GET(request: NextRequest) {
       errors,
       pairs: pairKeys.length,
       durationMs,
-    });
+    };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[ExchangePnl] FAILED:", msg);
+    return {
+      success: false,
+      error: msg,
+      durationMs: Date.now() - startedAt,
+      processed,
+      reconciled,
+      zeroRecord,
+      skippedNoCreds,
+      errors,
+    };
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const key = searchParams.get("key");
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (!cronSecret || key !== cronSecret) {
     return NextResponse.json(
-      {
-        success: false,
-        error: msg,
-        durationMs: Date.now() - startedAt,
-        processed,
-        reconciled,
-        zeroRecord,
-        skippedNoCreds,
-        errors,
-      },
-      { status: 500 },
+      { success: false, error: "Unauthorized" },
+      { status: 401 },
     );
   }
+
+  const sync = searchParams.get("sync") === "1";
+  const db = getAdminFirestore();
+
+  if (sync) {
+    const summary = await runExchangePnlReconcileBatch(db);
+    return NextResponse.json(summary, { status: summary.success ? 200 : 500 });
+  }
+
+  after(async () => {
+    await runExchangePnlReconcileBatch(db);
+  });
+
+  return NextResponse.json(
+    {
+      success: true,
+      accepted: true,
+      mode: "background",
+      hint: "Batch runs after response (cron-job.org 30s HTTP cap). Check server logs for [ExchangePnl].",
+    },
+    { status: 202 },
+  );
 }

@@ -35,7 +35,7 @@ function streakLabel(value: number): string {
     const n = Math.abs(value);
     return `${n} consecutive loss${n === 1 ? "" : "es"}`;
   }
-  return "Streak reset";
+  return "Launch · no streak yet";
 }
 
 function StreakTooltip({
@@ -125,8 +125,8 @@ export function ConsecutiveWinLossChart({
             Consecutive wins / losses
           </h2>
           <p className="text-[11px] text-muted-foreground/45 max-w-xl">
-            Each streak rises from the zero line trade-by-trade, then falls back
-            to zero when direction flips — quiet days stay flat on zero
+            One point per streak episode — lines climb on win runs and dip on loss
+            runs, flipping when direction changes (same-day flips supported)
             {day0Label ? ` (${day0Label})` : ""}
             {botSourceFilter !== "ALL" ? ` · ${filterLabel}` : ""}.
           </p>
@@ -231,8 +231,8 @@ export function ConsecutiveWinLossChart({
                 dataKey="streak"
                 stroke={BRAND_CURVE_STROKE}
                 strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4, fill: BRAND_CURVE_STROKE }}
+                dot={{ r: 3, fill: BRAND_CURVE_STROKE, strokeWidth: 0 }}
+                activeDot={{ r: 5, fill: BRAND_CURVE_STROKE }}
                 isAnimationActive={motion}
               />
             </LineChart>

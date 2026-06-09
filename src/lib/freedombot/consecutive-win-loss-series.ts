@@ -1,7 +1,10 @@
 /**
- * Consecutive win / loss streak as a zig-zag line by days since launch.
- * Steps up (+1, +2, …) on wins, down (−1, −2, …) on losses, crossing zero
- * when the streak direction flips.
+ * Consecutive win / loss streak zig-zag by days since launch.
+ *
+ * Each episode starts on the zero line, steps +1/−1 per closed trade, then
+ * returns to zero when direction flips. Quiet days sit flat on zero between
+ * episodes — matching the hand-drawn sketch (diagonal zigs, always closing
+ * back to the baseline).
  */
 
 export interface ClosedTradeForStreak {
@@ -46,23 +49,56 @@ function utcDateKey(day0Ms: number, day: number): string {
   return new Date(day0Ms + day * MS_PER_DAY).toISOString().slice(0, 10);
 }
 
+function lastPoint(
+  points: ConsecutiveWinLossPoint[],
+): ConsecutiveWinLossPoint | undefined {
+  return points[points.length - 1];
+}
+
 function pushPoint(
   points: ConsecutiveWinLossPoint[],
   day0Ms: number,
   day: number,
   streak: number,
   order: number,
-): void {
+): number {
+  const prev = lastPoint(points);
+  if (prev?.day === day && prev.streak === streak) return order;
   points.push({
     day,
     streak,
     date: utcDateKey(day0Ms, day),
     order,
   });
+  return order + 1;
+}
+
+/** Extend the zero line forward to `day` before the next episode starts. */
+function extendZeroLine(
+  points: ConsecutiveWinLossPoint[],
+  day0Ms: number,
+  day: number,
+  order: number,
+): number {
+  const prev = lastPoint(points);
+  if (!prev || prev.day >= day) return order;
+  if (prev.streak !== 0) return order;
+  return pushPoint(points, day0Ms, day, 0, order);
+}
+
+/** Anchor an episode start on the zero line (skip if already there). */
+function anchorEpisodeStart(
+  points: ConsecutiveWinLossPoint[],
+  day0Ms: number,
+  day: number,
+  order: number,
+): number {
+  order = extendZeroLine(points, day0Ms, day, order);
+  return pushPoint(points, day0Ms, day, 0, order);
 }
 
 /**
- * Build zig-zag streak series — one step per closed trade, crossing zero on flips.
+ * Build zig-zag streak series — episodes from zero, back to zero on flips.
  */
 export function buildConsecutiveWinLossSeries(
   trades: ClosedTradeForStreak[],
@@ -86,7 +122,7 @@ export function buildConsecutiveWinLossSeries(
   let maxWinStreak = 0;
   let maxLossStreak = 0;
 
-  pushPoint(points, day0Ms, 0, 0, order++);
+  order = pushPoint(points, day0Ms, 0, 0, order);
 
   for (const t of closed) {
     const closeMs = parseMs(t.closedAt!);
@@ -96,28 +132,38 @@ export function buildConsecutiveWinLossSeries(
 
     if (pnl > 0) {
       if (lossStreak > 0) {
-        pushPoint(points, day0Ms, day, 0, order++);
+        order = pushPoint(points, day0Ms, day, 0, order);
         lossStreak = 0;
+      }
+      if (winStreak === 0) {
+        order = anchorEpisodeStart(points, day0Ms, day, order);
       }
       winStreak += 1;
       maxWinStreak = Math.max(maxWinStreak, winStreak);
-      pushPoint(points, day0Ms, day, winStreak, order++);
+      order = pushPoint(points, day0Ms, day, winStreak, order);
     } else if (pnl < 0) {
       if (winStreak > 0) {
-        pushPoint(points, day0Ms, day, 0, order++);
+        order = pushPoint(points, day0Ms, day, 0, order);
         winStreak = 0;
+      }
+      if (lossStreak === 0) {
+        order = anchorEpisodeStart(points, day0Ms, day, order);
       }
       lossStreak += 1;
       maxLossStreak = Math.max(maxLossStreak, lossStreak);
-      pushPoint(points, day0Ms, day, -lossStreak, order++);
+      order = pushPoint(points, day0Ms, day, -lossStreak, order);
     }
   }
 
-  const last = points[points.length - 1];
+  const last = lastPoint(points);
   const currentStreak = last?.streak ?? 0;
 
   if (last && last.day < maxDay) {
-    pushPoint(points, day0Ms, maxDay, currentStreak, order++);
+    if (currentStreak === 0) {
+      order = extendZeroLine(points, day0Ms, maxDay, order);
+    } else {
+      order = pushPoint(points, day0Ms, maxDay, 0, order);
+    }
   }
 
   points.sort((a, b) => a.day - b.day || a.order - b.order);

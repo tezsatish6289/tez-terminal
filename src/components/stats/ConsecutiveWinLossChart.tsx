@@ -125,8 +125,8 @@ export function ConsecutiveWinLossChart({
             Consecutive wins / losses
           </h2>
           <p className="text-[11px] text-muted-foreground/45 max-w-xl">
-            Steps up on each win (+1, +2, …), down on each loss (−1, −2, …),
-            crossing zero when direction flips
+            Each streak rises from the zero line trade-by-trade, then falls back
+            to zero when direction flips — quiet days stay flat on zero
             {day0Label ? ` (${day0Label})` : ""}
             {botSourceFilter !== "ALL" ? ` · ${filterLabel}` : ""}.
           </p>
@@ -182,7 +182,17 @@ export function ConsecutiveWinLossChart({
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-              <ReferenceLine y={0} stroke="rgba(255,255,255,0.12)" strokeDasharray="4 4" />
+              <ReferenceLine
+                y={0}
+                stroke="rgba(255,255,255,0.2)"
+                strokeDasharray="4 4"
+                label={{
+                  value: "Zero line",
+                  position: "insideTopLeft",
+                  fill: "rgba(148,163,184,0.4)",
+                  fontSize: 9,
+                }}
+              />
               <XAxis
                 dataKey="day"
                 type="number"
@@ -217,7 +227,7 @@ export function ConsecutiveWinLossChart({
               />
               <Tooltip content={<StreakTooltip />} />
               <Line
-                type="stepAfter"
+                type="linear"
                 dataKey="streak"
                 stroke={BRAND_CURVE_STROKE}
                 strokeWidth={2}

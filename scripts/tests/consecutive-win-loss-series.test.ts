@@ -28,6 +28,7 @@ const series = buildConsecutiveWinLossSeries(
 );
 
 assert(series != null, "series exists");
+assert(series!.points[0].streak === 0 && series!.points[0].day === 0, "starts on zero line");
 assert(
   series!.points.some((p) => p.day === 0 && p.streak === 1),
   "first win steps to +1",
@@ -38,33 +39,42 @@ assert(
 );
 assert(
   series!.points.some((p) => p.day === 2 && p.streak === 0),
-  "loss flip crosses zero",
+  "win episode closes back to zero on flip",
 );
 assert(
   series!.points.some((p) => p.day === 2 && p.streak === -1),
-  "first loss steps to -1",
-);
-assert(
-  series!.points.some((p) => p.day === 3 && p.streak === -2),
-  "second loss steps to -2",
+  "loss episode steps to -1",
 );
 assert(series!.currentStreak === -2, "current streak is -2");
 
-const sameDay = buildConsecutiveWinLossSeries(
+const gap = buildConsecutiveWinLossSeries(
   [
-    { status: "CLOSED", closedAt: "2026-01-05T18:00:00.000Z", realizedPnl: 1 },
-    { status: "CLOSED", closedAt: "2026-01-05T20:00:00.000Z", realizedPnl: 1 },
-    { status: "CLOSED", closedAt: "2026-01-05T22:00:00.000Z", realizedPnl: -1 },
+    { status: "CLOSED", closedAt: "2026-01-02T18:00:00.000Z", realizedPnl: 1 },
+    { status: "CLOSED", closedAt: "2026-01-12T18:00:00.000Z", realizedPnl: -1 },
   ],
   day0Ms,
-  day0Ms + 6 * MS,
+  day0Ms + 14 * MS,
 );
 
-const day5 = sameDay!.points.filter((p) => p.day === 4);
-assert(day5.some((p) => p.streak === 1), "same-day win steps to +1");
-assert(day5.some((p) => p.streak === 2), "same-day win steps to +2");
-assert(day5.some((p) => p.streak === 0), "same-day flip crosses zero");
-assert(day5.some((p) => p.streak === -1), "same-day loss steps to -1");
+const day1 = gap!.points.find((p) => p.day === 1 && p.streak === 1);
+const day11Zero = gap!.points.find((p) => p.day === 11 && p.streak === 0);
+assert(day1 != null, "first win on day 1");
+assert(day11Zero != null, "zero line extends before next episode");
+
+const openStreak = buildConsecutiveWinLossSeries(
+  [
+    { status: "CLOSED", closedAt: "2026-01-08T18:00:00.000Z", realizedPnl: 1 },
+    { status: "CLOSED", closedAt: "2026-01-09T18:00:00.000Z", realizedPnl: 1 },
+  ],
+  day0Ms,
+  day0Ms + 14 * MS,
+);
+
+assert(openStreak!.currentStreak === 2, "open streak stays at +2");
+assert(
+  openStreak!.points.some((p) => p.day === 14 && p.streak === 0),
+  "open streak closes to zero at chart end",
+);
 
 const emptyDay0 = buildConsecutiveWinLossSeries([], NaN);
 assert(emptyDay0 == null, "invalid day0 returns null");

@@ -27,17 +27,15 @@ interface ConsecutiveWinLossChartProps {
   className?: string;
 }
 
-function streakLabel(value: number, length?: number, spanDays?: number): string {
+function streakLabel(value: number): string {
   if (value > 0) {
-    const base = `${length ?? value} consecutive win${(length ?? value) === 1 ? "" : "s"}`;
-    return spanDays && spanDays > 1 ? `${base} · ${spanDays} days` : base;
+    return `${value} consecutive win${value === 1 ? "" : "s"}`;
   }
   if (value < 0) {
-    const n = length ?? Math.abs(value);
-    const base = `${n} consecutive loss${n === 1 ? "" : "es"}`;
-    return spanDays && spanDays > 1 ? `${base} · ${spanDays} days` : base;
+    const n = Math.abs(value);
+    return `${n} consecutive loss${n === 1 ? "" : "es"}`;
   }
-  return "Baseline";
+  return "Streak reset";
 }
 
 function StreakTooltip({
@@ -50,14 +48,11 @@ function StreakTooltip({
       day: number;
       streak: number;
       date: string;
-      streakLength?: number;
-      streakSpanDays?: number;
     };
   }[];
 }) {
   if (!active || !payload?.length) return null;
   const row = payload[0].payload;
-  if (row.streak === 0) return null;
   let dateLabel = row.date;
   try {
     dateLabel = format(parseISO(`${row.date}T12:00:00.000Z`), "MMM d, yyyy");
@@ -83,7 +78,7 @@ function StreakTooltip({
           !positive && !negative && "text-muted-foreground/70",
         )}
       >
-        {streakLabel(row.streak, row.streakLength, row.streakSpanDays)}
+        {streakLabel(row.streak)}
       </p>
     </div>
   );
@@ -130,8 +125,8 @@ export function ConsecutiveWinLossChart({
             Consecutive wins / losses
           </h2>
           <p className="text-[11px] text-muted-foreground/45 max-w-xl">
-            Each streak spikes from zero to its full length, then back to zero — days
-            in between are skipped
+            Steps up on each win (+1, +2, …), down on each loss (−1, −2, …),
+            crossing zero when direction flips
             {day0Label ? ` (${day0Label})` : ""}
             {botSourceFilter !== "ALL" ? ` · ${filterLabel}` : ""}.
           </p>
@@ -222,7 +217,7 @@ export function ConsecutiveWinLossChart({
               />
               <Tooltip content={<StreakTooltip />} />
               <Line
-                type="linear"
+                type="stepAfter"
                 dataKey="streak"
                 stroke={BRAND_CURVE_STROKE}
                 strokeWidth={2}

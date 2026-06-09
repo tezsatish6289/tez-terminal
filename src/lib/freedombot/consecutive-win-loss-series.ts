@@ -1,7 +1,7 @@
 /**
- * Consecutive win / loss streak spikes by days since launch (Day 0).
- * Each completed streak is a single spike: 0 → full count → 0, skipping
- * the calendar days in between while the streak was building.
+ * Consecutive win / loss streak as a zig-zag line by days since launch.
+ * Steps up (+1, +2, …) on wins, down (−1, −2, …) on losses, crossing zero
+ * when the streak direction flips.
  */
 
 export interface ClosedTradeForStreak {
@@ -18,12 +18,8 @@ export interface ConsecutiveWinLossPoint {
   streak: number;
   /** UTC calendar date (YYYY-MM-DD) for tooltips. */
   date: string;
-  /** Sort key when multiple points share the same day (spike up then down). */
+  /** Sort key when multiple points share the same day. */
   order: number;
-  /** Full streak length — only set on the peak point. */
-  streakLength?: number;
-  /** Calendar days the streak spanned (inclusive). */
-  streakSpanDays?: number;
 }
 
 export interface ConsecutiveWinLossSeries {
@@ -33,12 +29,6 @@ export interface ConsecutiveWinLossSeries {
   currentStreak: number;
   maxWinStreak: number;
   maxLossStreak: number;
-}
-
-interface StreakSegment {
-  startDay: number;
-  endDay: number;
-  streak: number;
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -62,88 +52,17 @@ function pushPoint(
   day: number,
   streak: number,
   order: number,
-  meta?: Pick<ConsecutiveWinLossPoint, "streakLength" | "streakSpanDays">,
 ): void {
   points.push({
     day,
     streak,
     date: utcDateKey(day0Ms, day),
     order,
-    ...meta,
   });
 }
 
-function extractStreakSegments(
-  closed: ClosedTradeForStreak[],
-  day0Ms: number,
-): {
-  segments: StreakSegment[];
-  currentStreak: number;
-  maxWinStreak: number;
-  maxLossStreak: number;
-} {
-  const segments: StreakSegment[] = [];
-  let winStreak = 0;
-  let lossStreak = 0;
-  let winStartDay: number | null = null;
-  let lossStartDay: number | null = null;
-  let lastWinDay = 0;
-  let lastLossDay = 0;
-  let maxWinStreak = 0;
-  let maxLossStreak = 0;
-
-  const closeWinStreak = () => {
-    if (winStreak > 0 && winStartDay != null) {
-      segments.push({ startDay: winStartDay, endDay: lastWinDay, streak: winStreak });
-    }
-    winStreak = 0;
-    winStartDay = null;
-  };
-
-  const closeLossStreak = () => {
-    if (lossStreak > 0 && lossStartDay != null) {
-      segments.push({
-        startDay: lossStartDay,
-        endDay: lastLossDay,
-        streak: -lossStreak,
-      });
-    }
-    lossStreak = 0;
-    lossStartDay = null;
-  };
-
-  for (const t of closed) {
-    const closeMs = parseMs(t.closedAt!);
-    if (!Number.isFinite(closeMs)) continue;
-    const day = dayIndex(day0Ms, closeMs);
-    const pnl = t.realizedPnl ?? 0;
-
-    if (pnl > 0) {
-      closeLossStreak();
-      if (winStreak === 0) winStartDay = day;
-      winStreak += 1;
-      lastWinDay = day;
-      maxWinStreak = Math.max(maxWinStreak, winStreak);
-    } else if (pnl < 0) {
-      closeWinStreak();
-      if (lossStreak === 0) lossStartDay = day;
-      lossStreak += 1;
-      lastLossDay = day;
-      maxLossStreak = Math.max(maxLossStreak, lossStreak);
-    }
-  }
-
-  closeWinStreak();
-  closeLossStreak();
-
-  const lastSeg = segments[segments.length - 1];
-  const currentStreak = lastSeg?.streak ?? 0;
-
-  return { segments, currentStreak, maxWinStreak, maxLossStreak };
-}
-
 /**
- * Build sparse spike series — one 0 → peak → 0 arc per streak episode.
+ * Build zig-zag streak series — one step per closed trade, crossing zero on flips.
  */
 export function buildConsecutiveWinLossSeries(
   trades: ClosedTradeForStreak[],
@@ -160,38 +79,45 @@ export function buildConsecutiveWinLossSeries(
     );
 
   const maxDay = dayIndex(day0Ms, nowMs);
-  const { segments, currentStreak, maxWinStreak, maxLossStreak } =
-    extractStreakSegments(closed, day0Ms);
-
   const points: ConsecutiveWinLossPoint[] = [];
   let order = 0;
+  let winStreak = 0;
+  let lossStreak = 0;
+  let maxWinStreak = 0;
+  let maxLossStreak = 0;
+
   pushPoint(points, day0Ms, 0, 0, order++);
 
-  for (const seg of segments) {
-    const spanDays = seg.endDay - seg.startDay + 1;
-    const length = Math.abs(seg.streak);
-    if (length === 0) continue;
+  for (const t of closed) {
+    const closeMs = parseMs(t.closedAt!);
+    if (!Number.isFinite(closeMs)) continue;
+    const day = dayIndex(day0Ms, closeMs);
+    const pnl = t.realizedPnl ?? 0;
 
-    if (seg.startDay === seg.endDay) {
-      pushPoint(points, day0Ms, seg.endDay, 0, order++);
-      pushPoint(points, day0Ms, seg.endDay, seg.streak, order++, {
-        streakLength: length,
-        streakSpanDays: spanDays,
-      });
-      pushPoint(points, day0Ms, seg.endDay, 0, order++);
-      continue;
+    if (pnl > 0) {
+      if (lossStreak > 0) {
+        pushPoint(points, day0Ms, day, 0, order++);
+        lossStreak = 0;
+      }
+      winStreak += 1;
+      maxWinStreak = Math.max(maxWinStreak, winStreak);
+      pushPoint(points, day0Ms, day, winStreak, order++);
+    } else if (pnl < 0) {
+      if (winStreak > 0) {
+        pushPoint(points, day0Ms, day, 0, order++);
+        winStreak = 0;
+      }
+      lossStreak += 1;
+      maxLossStreak = Math.max(maxLossStreak, lossStreak);
+      pushPoint(points, day0Ms, day, -lossStreak, order++);
     }
-
-    pushPoint(points, day0Ms, seg.startDay, 0, order++);
-    pushPoint(points, day0Ms, seg.endDay, seg.streak, order++, {
-      streakLength: length,
-      streakSpanDays: spanDays,
-    });
-    pushPoint(points, day0Ms, seg.endDay, 0, order++);
   }
 
-  if (maxDay > 0) {
-    pushPoint(points, day0Ms, maxDay, 0, order++);
+  const last = points[points.length - 1];
+  const currentStreak = last?.streak ?? 0;
+
+  if (last && last.day < maxDay) {
+    pushPoint(points, day0Ms, maxDay, currentStreak, order++);
   }
 
   points.sort((a, b) => a.day - b.day || a.order - b.order);

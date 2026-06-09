@@ -17,6 +17,28 @@ const ZONE_ASSET_BY_SOURCE = new Map(
 );
 
 /** Starting capital for headline metrics + charts on /stats. */
+/** Launch timestamp for day-indexed charts (All Bots → earliest daily metric). */
+export function launchDay0MsForStatsFilter(
+  filter: BotSourceFilter,
+  serverRunningSince: string | undefined,
+  closedTrades: { openedAt?: string | null }[],
+): number | null {
+  if (filter === "ALL" && serverRunningSince) {
+    const ms = new Date(serverRunningSince).getTime();
+    if (Number.isFinite(ms)) return ms;
+  }
+  if (!closedTrades.length) return null;
+  const earliest = closedTrades.reduce((a, b) => {
+    const ta = new Date(a.openedAt ?? 0).getTime();
+    const tb = new Date(b.openedAt ?? 0).getTime();
+    return ta < tb ? a : b;
+  });
+  const opened = earliest.openedAt;
+  if (!opened) return null;
+  const ms = new Date(opened).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
 /** Track record length for headline cards — per-bot when filtered, global when All Bots. */
 export function runningDaysForStatsFilter(
   filter: BotSourceFilter,

@@ -50,6 +50,7 @@ import type { PerformanceMetrics } from "@/lib/performance-metrics";
 import { botSourceLabel } from "@/lib/bot-source-filter";
 import { StatsSocialShareCard } from "@/components/stats/StatsSocialShareCard";
 import { RiskRatioDrilldowns } from "@/components/stats/RiskRatioDrilldowns";
+import { ConsecutiveWinLossChart } from "@/components/stats/ConsecutiveWinLossChart";
 import { PlatformUserGrowthChart } from "@/components/stats/PlatformUserGrowthChart";
 import { PerformanceMetricsPanel } from "@/components/stats/PerformanceMetricsPanel";
 import {
@@ -61,6 +62,7 @@ import {
   BRAND_LIVE_BADGE,
 } from "@/lib/chart-brand-colors";
 import {
+  launchDay0MsForStatsFilter,
   runningDaysForStatsFilter,
   startingCapitalForStatsFilter,
   type ZoneSimStatesMap,
@@ -201,7 +203,10 @@ export function StatsDashboard({
 
   // Server stats for the authoritative "running days" reading (uses
   // earliest daily_metrics date rather than the earliest trade).
-  const [serverStats, setServerStats] = useState<{ runningDays?: number } | null>(null);
+  const [serverStats, setServerStats] = useState<{
+    runningDays?: number;
+    runningSince?: string | null;
+  } | null>(null);
   useEffect(() => {
     if (assetType !== "CRYPTO") { setServerStats(null); return; }
     fetch(`/api/freedombot/stats`)
@@ -272,6 +277,16 @@ export function StatsDashboard({
         filteredClosedTrades,
       ),
     [botSourceFilter, serverStats?.runningDays, filteredClosedTrades],
+  );
+
+  const launchDay0Ms = useMemo(
+    () =>
+      launchDay0MsForStatsFilter(
+        botSourceFilter,
+        serverStats?.runningSince ?? undefined,
+        filteredClosedTrades,
+      ),
+    [botSourceFilter, serverStats?.runningSince, filteredClosedTrades],
   );
 
   const closedTradeCount = filteredClosedTrades.length;
@@ -502,7 +517,14 @@ export function StatsDashboard({
       />
 
       {assetType === "CRYPTO" && (
-        <PlatformUserGrowthChart botSourceFilter={botSourceFilter} />
+        <>
+          <ConsecutiveWinLossChart
+            trades={filteredClosedTrades}
+            day0Ms={launchDay0Ms}
+            botSourceFilter={botSourceFilter}
+          />
+          <PlatformUserGrowthChart botSourceFilter={botSourceFilter} />
+        </>
       )}
       </div>
     </div>

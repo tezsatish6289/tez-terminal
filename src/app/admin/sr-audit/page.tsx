@@ -3,6 +3,7 @@
 import { TopBar } from "@/components/dashboard/TopBar";
 import { useUser } from "@/firebase";
 import { isAdminEmail } from "@/lib/admin-emails-client";
+import { srCloseComment } from "@/lib/sr-audit/pnl";
 import type { SrAuditSummary, SrZoneEvent } from "@/lib/sr-audit/types";
 import { format } from "date-fns";
 import {
@@ -20,6 +21,13 @@ type SrEventRow = SrZoneEvent & { id?: string };
 function pct(v: number | null | undefined, digits = 1): string {
   if (v == null || !Number.isFinite(v)) return "—";
   return `${v.toFixed(digits)}%`;
+}
+
+function pnlColor(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return "#94a3b8";
+  if (v > 0) return "#86efac";
+  if (v < 0) return "#fca5a5";
+  return "#94a3b8";
 }
 
 function StatCard({
@@ -120,8 +128,8 @@ export default function SrAuditAdminPage() {
               SR Zone Audit
             </h1>
             <p className="text-xs text-muted-foreground/50 mt-0.5 max-w-2xl">
-              In-zone support/resistance entries (stocks). Outcomes scored hourly from Dhan klines
-              until invalidation, left zone, or timeout.
+              In-zone support/resistance entries (stocks). Events stay open until invalidation or
+              zone flip; outcomes scored hourly from Dhan klines.
             </p>
             {summary?.lastOutcomeCronAt ? (
               <p className="text-[10px] text-muted-foreground/40 mt-1">
@@ -146,12 +154,12 @@ export default function SrAuditAdminPage() {
         ) : null}
 
         {summary ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
             <StatCard title="Total events" value={String(summary.total)} sub={`${summary.open} open`} />
             <StatCard
               title="Support resolved"
               value={String(summary.support.resolved)}
-              sub={`Inv hit ${pct(summary.support.invalidationRate)}`}
+              sub={`Inv ${pct(summary.support.invalidationRate)} · Flip ${pct(summary.support.zoneFlipRate)}`}
               tone="green"
             />
             <StatCard
@@ -161,9 +169,15 @@ export default function SrAuditAdminPage() {
               tone="green"
             />
             <StatCard
+              title="Resistance resolved"
+              value={String(summary.resistance.resolved)}
+              sub={`Inv ${pct(summary.resistance.invalidationRate)} · Flip ${pct(summary.resistance.zoneFlipRate)}`}
+              tone="red"
+            />
+            <StatCard
               title="Resistance median MFE"
               value={pct(summary.resistance.medianMfePct)}
-              sub={`Inv ${pct(summary.resistance.invalidationRate)}`}
+              sub={`MAE ${pct(summary.resistance.medianMaePct)}`}
               tone="red"
             />
           </div>
@@ -213,74 +227,93 @@ export default function SrAuditAdminPage() {
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Entry</th>
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Spot</th>
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Inv</th>
+                  <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">PnL</th>
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">MFE</th>
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">MAE</th>
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">POC</th>
-                  <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Resolve</th>
+                  <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Status</th>
+                  <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Close</th>
                   <th className="px-3 py-2 font-bold uppercase tracking-wider text-slate-500">Src</th>
                 </tr>
               </thead>
               <tbody>
                 {loading && filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-3 py-8 text-center text-slate-500">
+                    <td colSpan={12} className="px-3 py-8 text-center text-slate-500">
                       <Loader2 className="h-5 w-5 animate-spin inline-block" />
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-3 py-8 text-center text-slate-500">
+                    <td colSpan={12} className="px-3 py-8 text-center text-slate-500">
                       No events yet — entries appear when stocks newly enter in-zone support/resistance.
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((row) => (
-                    <tr
-                      key={row.id ?? `${row.symbol}-${row.eventAt}`}
-                      className="border-b border-white/5 hover:bg-white/[0.02]"
-                    >
-                      <td className="px-3 py-2 font-bold text-white">{row.symbol}</td>
-                      <td className="px-3 py-2">
-                        <span
-                          className="inline-flex items-center gap-1 font-semibold uppercase"
-                          style={{
-                            color: row.side === "support" ? "#86efac" : "#fca5a5",
-                          }}
+                  filtered.map((row) => {
+                    const isOpen = row.state === "open";
+                    const pnl = isOpen ? row.currentPnlPct : row.finalPnlPct;
+                    const closeLabel = isOpen
+                      ? "—"
+                      : srCloseComment(row.resolveReason, row.closeComment);
+
+                    return (
+                      <tr
+                        key={row.id ?? `${row.symbol}-${row.eventAt}`}
+                        className="border-b border-white/5 hover:bg-white/[0.02]"
+                      >
+                        <td className="px-3 py-2 font-bold text-white">{row.symbol}</td>
+                        <td className="px-3 py-2">
+                          <span
+                            className="inline-flex items-center gap-1 font-semibold uppercase"
+                            style={{
+                              color: row.side === "support" ? "#86efac" : "#fca5a5",
+                            }}
+                          >
+                            {row.side === "support" ? (
+                              <TrendingUp className="h-3 w-3" />
+                            ) : (
+                              <TrendingDown className="h-3 w-3" />
+                            )}
+                            {row.side}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-slate-400 tabular-nums whitespace-nowrap">
+                          {format(new Date(row.eventAt), "MMM d HH:mm")}
+                        </td>
+                        <td className="px-3 py-2 font-mono tabular-nums text-slate-300">
+                          {row.entrySpot.toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2 font-mono tabular-nums text-slate-400">
+                          {row.invalidation != null ? row.invalidation.toFixed(2) : "—"}
+                        </td>
+                        <td
+                          className="px-3 py-2 font-mono tabular-nums font-semibold"
+                          style={{ color: pnlColor(pnl) }}
                         >
-                          {row.side === "support" ? (
-                            <TrendingUp className="h-3 w-3" />
-                          ) : (
-                            <TrendingDown className="h-3 w-3" />
-                          )}
-                          {row.side}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-slate-400 tabular-nums whitespace-nowrap">
-                        {format(new Date(row.eventAt), "MMM d HH:mm")}
-                      </td>
-                      <td className="px-3 py-2 font-mono tabular-nums text-slate-300">
-                        {row.entrySpot.toFixed(2)}
-                      </td>
-                      <td className="px-3 py-2 font-mono tabular-nums text-slate-400">
-                        {row.invalidation != null ? row.invalidation.toFixed(2) : "—"}
-                      </td>
-                      <td className="px-3 py-2 font-mono tabular-nums text-emerald-400/90">
-                        {pct(row.maxFavorablePct)}
-                      </td>
-                      <td className="px-3 py-2 font-mono tabular-nums text-red-400/90">
-                        {pct(row.maxAdversePct)}
-                      </td>
-                      <td className="px-3 py-2 text-slate-400">
-                        {row.hitPoc === true ? "Yes" : row.hitPoc === false ? "No" : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-slate-400 uppercase text-[10px]">
-                        {row.state === "open" ? "open" : row.resolveReason ?? row.state}
-                      </td>
-                      <td className="px-3 py-2 text-slate-500 uppercase text-[10px]">
-                        {row.levelsSource ?? "—"}
-                      </td>
-                    </tr>
-                  ))
+                          {pct(pnl)}
+                        </td>
+                        <td className="px-3 py-2 font-mono tabular-nums text-emerald-400/90">
+                          {pct(row.maxFavorablePct)}
+                        </td>
+                        <td className="px-3 py-2 font-mono tabular-nums text-red-400/90">
+                          {pct(row.maxAdversePct)}
+                        </td>
+                        <td className="px-3 py-2 text-slate-400">
+                          {row.hitPoc === true ? "Yes" : row.hitPoc === false ? "No" : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-slate-300 uppercase text-[10px] font-semibold">
+                          {isOpen ? "open" : "closed"}
+                        </td>
+                        <td className="px-3 py-2 text-slate-400 text-[10px] whitespace-nowrap">
+                          {closeLabel}
+                        </td>
+                        <td className="px-3 py-2 text-slate-500 uppercase text-[10px]">
+                          {row.levelsSource ?? "—"}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

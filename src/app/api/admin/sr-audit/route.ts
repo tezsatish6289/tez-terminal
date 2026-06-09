@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
-import { buildSrAuditSummary, querySrZoneEvents } from "@/lib/sr-audit/summary";
+import { buildSrAuditSummary, enrichSrEventsWithLiveSpot, querySrZoneEvents } from "@/lib/sr-audit/summary";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -29,8 +29,9 @@ export async function GET(request: NextRequest) {
       from: params.get("from"),
       to: params.get("to"),
     });
-    const summary = await buildSrAuditSummary(db, events);
-    const rows = events.map((e) => {
+    const enriched = await enrichSrEventsWithLiveSpot(db, events);
+    const summary = await buildSrAuditSummary(db, enriched);
+    const rows = enriched.map((e) => {
       const row = e as typeof e & { id?: string };
       return { id: row.id, ...e };
     });

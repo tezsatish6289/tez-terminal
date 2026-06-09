@@ -1,7 +1,7 @@
 /**
  * /api/cron/sr-audit-outcomes
  *
- * Hourly: score open SR zone events using Dhan klines until invalidation / exit / timeout.
+ * Hourly: score open SR zone events using Dhan klines until invalidation or zone flip.
  * Schedule on cron-job.org (e.g. every hour during market hours).
  */
 

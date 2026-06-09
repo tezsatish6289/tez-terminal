@@ -1,5 +1,6 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { SR_AUDIT_META_DOC, SR_ZONE_EVENTS_COLLECTION } from "@/lib/sr-audit/constants";
+import { srCloseComment, srPnlPct } from "@/lib/sr-audit/pnl";
 import type { SrAuditSummary, SrZoneEvent, SrZoneSide } from "@/lib/sr-audit/types";
 
 function median(values: number[]): number | null {
@@ -20,6 +21,7 @@ function sideStats(events: SrZoneEvent[], side: SrZoneSide) {
   const rows = events.filter((e) => e.side === side);
   const resolved = rows.filter((e) => e.state === "resolved");
   const invalidations = resolved.filter((e) => e.resolveReason === "invalidation");
+  const zoneFlips = resolved.filter((e) => e.resolveReason === "zone_flip");
   const pocHits = resolved.filter((e) => e.hitPoc === true);
   const mfe = resolved
     .map((e) => e.maxFavorablePct)
@@ -32,6 +34,7 @@ function sideStats(events: SrZoneEvent[], side: SrZoneSide) {
     count: rows.length,
     resolved: resolved.length,
     invalidationRate: pctHit(invalidations.length, resolved.length),
+    zoneFlipRate: pctHit(zoneFlips.length, resolved.length),
     medianMfePct: median(mfe),
     medianMaePct: median(mae),
     pocHitRate: pctHit(pocHits.length, resolved.length),
@@ -112,4 +115,66 @@ export async function querySrZoneEvents(
   }
 
   return rows.slice(0, opts.limit ?? 200);
+}
+
+const STOCK_AGGREGATE_DOC = "config/zone_status_stocks";
+
+/** Refresh live spot + PnL on open rows from the zone aggregate (page load between crons). */
+export async function enrichSrEventsWithLiveSpot(
+  db: Firestore,
+  events: SrZoneEvent[],
+): Promise<SrZoneEvent[]> {
+  const openSymbols = [
+    ...new Set(events.filter((e) => e.state === "open").map((e) => e.symbol.toUpperCase())),
+  ];
+  if (!openSymbols.length) {
+    return events.map((e) =>
+      e.state === "resolved"
+        ? {
+            ...e,
+            closeComment: e.closeComment ?? srCloseComment(e.resolveReason),
+          }
+        : e,
+    );
+  }
+
+  let spotBySymbol = new Map<string, number>();
+  try {
+    const agg = await db.doc(STOCK_AGGREGATE_DOC).get();
+    const entries = (agg.data()?.entries ?? {}) as Record<
+      string,
+      { spot?: number | null } | undefined
+    >;
+    for (const sym of openSymbols) {
+      const spot = entries[sym]?.spot;
+      if (spot != null && Number.isFinite(spot) && spot > 0) spotBySymbol.set(sym, spot);
+    }
+  } catch {
+    spotBySymbol = new Map();
+  }
+
+  return events.map((event) => {
+    if (event.state === "resolved") {
+      return {
+        ...event,
+        closeComment: event.closeComment ?? srCloseComment(event.resolveReason),
+      };
+    }
+    if (event.state !== "open") return event;
+
+    const liveSpot = spotBySymbol.get(event.symbol.toUpperCase());
+    const spot =
+      liveSpot ??
+      (event.currentSpot != null && Number.isFinite(event.currentSpot)
+        ? event.currentSpot
+        : null);
+    const currentPnlPct =
+      spot != null ? srPnlPct(event.side, event.entrySpot, spot) : event.currentPnlPct;
+
+    return {
+      ...event,
+      currentSpot: spot,
+      currentPnlPct,
+    };
+  });
 }

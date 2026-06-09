@@ -1,10 +1,10 @@
-import { SR_EVENT_TIMEOUT_MS } from "@/lib/sr-audit/constants";
-import type { SrResolveReason, SrZoneEvent } from "@/lib/sr-audit/types";
+import type { SrZoneEvent } from "@/lib/sr-audit/types";
 
 export interface SrScoreCandle {
   time: number;
   high: number;
   low: number;
+  close?: number;
 }
 
 function candlesSinceEvent(candles: SrScoreCandle[], eventAtIso: string): SrScoreCandle[] {
@@ -13,25 +13,23 @@ function candlesSinceEvent(candles: SrScoreCandle[], eventAtIso: string): SrScor
   return candles.filter((c) => c.time >= fromSec);
 }
 
-export interface SrScoreResult {
+export interface SrCandleAnalysis {
   maxFavorablePct: number;
   maxAdversePct: number;
   hitPoc: boolean;
-  resolveReason: SrResolveReason;
-  resolvedAt: string;
+  invalidationHit: { resolvedAt: string } | null;
 }
 
-export function scoreEventFromCandles(
+/**
+ * Walk post-entry candles: update running MFE/MAE/POC and detect invalidation (first bar wins).
+ */
+export function analyzeCandlesForEvent(
   event: Pick<
     SrZoneEvent,
     "side" | "entrySpot" | "invalidation" | "maxPain" | "eventAt"
   >,
   candles: SrScoreCandle[],
-  opts?: {
-    forceReason?: SrResolveReason;
-    resolvedAt?: string;
-  },
-): SrScoreResult | null {
+): SrCandleAnalysis | null {
   const bars = candlesSinceEvent(candles, event.eventAt);
   if (!bars.length) return null;
 
@@ -41,8 +39,7 @@ export function scoreEventFromCandles(
   let maxFavorablePct = 0;
   let maxAdversePct = 0;
   let hitPoc = false;
-  let resolveReason: SrResolveReason | null = null;
-  let resolvedAt: string | null = null;
+  let invalidationHit: { resolvedAt: string } | null = null;
 
   for (const bar of bars) {
     if (event.side === "support") {
@@ -52,9 +49,12 @@ export function scoreEventFromCandles(
       );
       maxAdversePct = Math.max(maxAdversePct, ((entry - bar.low) / entry) * 100);
       if (event.maxPain != null && bar.high >= event.maxPain) hitPoc = true;
-      if (event.invalidation != null && bar.low <= event.invalidation) {
-        resolveReason = "invalidation";
-        resolvedAt = new Date(bar.time * 1000).toISOString();
+      if (
+        !invalidationHit &&
+        event.invalidation != null &&
+        bar.low <= event.invalidation
+      ) {
+        invalidationHit = { resolvedAt: new Date(bar.time * 1000).toISOString() };
         break;
       }
     } else {
@@ -64,32 +64,28 @@ export function scoreEventFromCandles(
       );
       maxAdversePct = Math.max(maxAdversePct, ((bar.high - entry) / entry) * 100);
       if (event.maxPain != null && bar.low <= event.maxPain) hitPoc = true;
-      if (event.invalidation != null && bar.high >= event.invalidation) {
-        resolveReason = "invalidation";
-        resolvedAt = new Date(bar.time * 1000).toISOString();
+      if (
+        !invalidationHit &&
+        event.invalidation != null &&
+        bar.high >= event.invalidation
+      ) {
+        invalidationHit = { resolvedAt: new Date(bar.time * 1000).toISOString() };
         break;
       }
     }
   }
 
-  if (opts?.forceReason) {
-    resolveReason = opts.forceReason;
-    resolvedAt = opts.resolvedAt ?? new Date().toISOString();
-  } else if (!resolveReason) {
-    const elapsed = Date.now() - Date.parse(event.eventAt);
-    if (Number.isFinite(elapsed) && elapsed >= SR_EVENT_TIMEOUT_MS) {
-      resolveReason = "timeout";
-      resolvedAt = new Date().toISOString();
-    }
-  }
+  return { maxFavorablePct, maxAdversePct, hitPoc, invalidationHit };
+}
 
-  if (!resolveReason || !resolvedAt) return null;
-
-  return {
-    maxFavorablePct,
-    maxAdversePct,
-    hitPoc,
-    resolveReason,
-    resolvedAt,
-  };
+/** Last candle close after event time — spot fallback when aggregate is stale. */
+export function lastCandleCloseSinceEvent(
+  candles: SrScoreCandle[],
+  eventAtIso: string,
+): number | null {
+  const bars = candlesSinceEvent(candles, eventAtIso);
+  if (!bars.length) return null;
+  const last = bars[bars.length - 1];
+  const close = last.close ?? (last.high + last.low) / 2;
+  return Number.isFinite(close) && close > 0 ? close : null;
 }

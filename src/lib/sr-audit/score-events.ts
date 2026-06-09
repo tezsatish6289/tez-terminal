@@ -4,22 +4,29 @@ import type { Firestore } from "firebase-admin/firestore";
 import { getStockCandles } from "@/lib/dhan-candles";
 import {
   SR_AUDIT_META_DOC,
-  SR_EVENT_TIMEOUT_MS,
   SR_SCORE_BATCH_SIZE,
   SR_SCORE_CANDLE_INTERVAL,
   SR_ZONE_EVENTS_COLLECTION,
 } from "@/lib/sr-audit/constants";
-import { scoreEventFromCandles } from "@/lib/sr-audit/score-logic";
-import type { SrZoneEvent, SrZoneSide } from "@/lib/sr-audit/types";
+import {
+  closeCommentForReason,
+  isZoneFlipStatus,
+  srPnlPct,
+} from "@/lib/sr-audit/pnl";
+import {
+  analyzeCandlesForEvent,
+  lastCandleCloseSinceEvent,
+} from "@/lib/sr-audit/score-logic";
+import type { SrZoneEvent } from "@/lib/sr-audit/types";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
 
 const AGGREGATE_DOC = "config/zone_status_stocks";
 
-export { scoreEventFromCandles } from "@/lib/sr-audit/score-logic";
+export { analyzeCandlesForEvent } from "@/lib/sr-audit/score-logic";
 
-function stillInZone(status: ZoneStatus | undefined, side: SrZoneSide): boolean {
-  if (side === "support") return status === "IN_BULL";
-  return status === "IN_BEAR";
+interface AggregateRow {
+  status?: ZoneStatus;
+  spot?: number | null;
 }
 
 export interface SrOutcomeBatchSummary {
@@ -28,6 +35,27 @@ export interface SrOutcomeBatchSummary {
   failed: number;
   stillOpen: number;
   errors: string[];
+}
+
+function resolveSpotPrice(
+  aggregateSpot: number | null | undefined,
+  candleClose: number | null,
+): number | null {
+  if (aggregateSpot != null && Number.isFinite(aggregateSpot) && aggregateSpot > 0) {
+    return aggregateSpot;
+  }
+  return candleClose;
+}
+
+function finalSpotForClose(
+  event: SrZoneEvent,
+  reason: "invalidation" | "zone_flip",
+  markSpot: number | null,
+): number | null {
+  if (reason === "invalidation" && event.invalidation != null) {
+    return event.invalidation;
+  }
+  return markSpot;
 }
 
 export async function scoreOpenSrZoneEvents(
@@ -41,18 +69,18 @@ export async function scoreOpenSrZoneEvents(
     errors: [],
   };
 
-  let statusBySymbol = new Map<string, ZoneStatus>();
+  const aggregateBySymbol = new Map<string, AggregateRow>();
   try {
     const agg = await db.doc(AGGREGATE_DOC).get();
     const entries = (agg.data()?.entries ?? {}) as Record<
       string,
-      { status?: ZoneStatus } | undefined
+      AggregateRow | undefined
     >;
     for (const [sym, row] of Object.entries(entries)) {
-      if (row?.status) statusBySymbol.set(sym.toUpperCase(), row.status);
+      if (row) aggregateBySymbol.set(sym.toUpperCase(), row);
     }
   } catch {
-    statusBySymbol = new Map();
+    /* best-effort */
   }
 
   const snap = await db
@@ -83,51 +111,76 @@ export async function scoreOpenSrZoneEvents(
         continue;
       }
 
-      const currentStatus = statusBySymbol.get(symbol);
-      const inZone = stillInZone(currentStatus, event.side);
-      const timedOut =
-        Date.now() - Date.parse(event.eventAt) >= SR_EVENT_TIMEOUT_MS;
-
-      let score: SrScoreResult | null = scoreEventFromCandles(
-        event,
-        candleResult.candles,
-      );
-
-      if (!score && !inZone) {
-        score = scoreEventFromCandles(event, candleResult.candles, {
-          forceReason: "left_zone",
-          resolvedAt: now,
-        });
-      }
-
-      if (!score && timedOut) {
-        score = scoreEventFromCandles(event, candleResult.candles, {
-          forceReason: "timeout",
-          resolvedAt: now,
-        });
-      }
-
-      if (!score) {
+      const analysis = analyzeCandlesForEvent(event, candleResult.candles);
+      if (!analysis) {
         summary.stillOpen += 1;
         await doc.ref.set({ lastScoredAt: now, updatedAt: now }, { merge: true });
         continue;
       }
 
-      await doc.ref.set(
-        {
-          state: "resolved",
-          resolveReason: score.resolveReason,
-          resolvedAt: score.resolvedAt,
-          maxFavorablePct: score.maxFavorablePct,
-          maxAdversePct: score.maxAdversePct,
-          hitPoc: score.hitPoc,
-          lastScoredAt: now,
-          scoreError: null,
-          updatedAt: now,
-        },
-        { merge: true },
-      );
-      summary.resolved += 1;
+      const agg = aggregateBySymbol.get(symbol);
+      const candleClose = lastCandleCloseSinceEvent(candleResult.candles, event.eventAt);
+      const markSpot = resolveSpotPrice(agg?.spot, candleClose);
+      const currentPnlPct =
+        markSpot != null ? srPnlPct(event.side, event.entrySpot, markSpot) : null;
+
+      const openPatch = {
+        maxFavorablePct: analysis.maxFavorablePct,
+        maxAdversePct: analysis.maxAdversePct,
+        hitPoc: analysis.hitPoc,
+        currentSpot: markSpot,
+        currentPnlPct,
+        lastScoredAt: now,
+        scoreError: null,
+        updatedAt: now,
+      };
+
+      if (analysis.invalidationHit) {
+        const finalSpot = finalSpotForClose(event, "invalidation", markSpot);
+        const finalPnlPct =
+          finalSpot != null ? srPnlPct(event.side, event.entrySpot, finalSpot) : null;
+
+        await doc.ref.set(
+          {
+            ...openPatch,
+            state: "resolved",
+            resolveReason: "invalidation",
+            closeComment: closeCommentForReason("invalidation"),
+            resolvedAt: analysis.invalidationHit.resolvedAt,
+            finalPnlPct,
+            currentSpot: null,
+            currentPnlPct: null,
+          },
+          { merge: true },
+        );
+        summary.resolved += 1;
+        continue;
+      }
+
+      if (isZoneFlipStatus(agg?.status, event.side)) {
+        const finalSpot = finalSpotForClose(event, "zone_flip", markSpot);
+        const finalPnlPct =
+          finalSpot != null ? srPnlPct(event.side, event.entrySpot, finalSpot) : null;
+
+        await doc.ref.set(
+          {
+            ...openPatch,
+            state: "resolved",
+            resolveReason: "zone_flip",
+            closeComment: closeCommentForReason("zone_flip"),
+            resolvedAt: now,
+            finalPnlPct,
+            currentSpot: null,
+            currentPnlPct: null,
+          },
+          { merge: true },
+        );
+        summary.resolved += 1;
+        continue;
+      }
+
+      summary.stillOpen += 1;
+      await doc.ref.set(openPatch, { merge: true });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       summary.failed += 1;

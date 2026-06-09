@@ -4,7 +4,13 @@ export type SrZoneSide = "support" | "resistance";
 
 export type SrEventState = "open" | "resolved" | "failed";
 
-export type SrResolveReason = "invalidation" | "left_zone" | "timeout";
+export type SrResolveReason =
+  | "invalidation"
+  | "zone_flip"
+  /** @deprecated Legacy close reason — kept for existing Firestore rows. */
+  | "left_zone"
+  /** @deprecated Legacy close reason — kept for existing Firestore rows. */
+  | "timeout";
 
 export type SrEntryKind = "at" | "near";
 
@@ -27,10 +33,14 @@ export interface SrZoneEvent {
   statusAtEntry: "IN_BULL" | "IN_BEAR";
   state: SrEventState;
   resolveReason?: SrResolveReason | null;
+  closeComment?: string | null;
   resolvedAt?: string | null;
   maxFavorablePct?: number | null;
   maxAdversePct?: number | null;
   hitPoc?: boolean | null;
+  currentSpot?: number | null;
+  currentPnlPct?: number | null;
+  finalPnlPct?: number | null;
   lastScoredAt?: string | null;
   scoreError?: string | null;
   createdAt: string;
@@ -46,6 +56,7 @@ export interface SrAuditSummary {
     count: number;
     resolved: number;
     invalidationRate: number | null;
+    zoneFlipRate: number | null;
     medianMfePct: number | null;
     medianMaePct: number | null;
     pocHitRate: number | null;
@@ -54,6 +65,7 @@ export interface SrAuditSummary {
     count: number;
     resolved: number;
     invalidationRate: number | null;
+    zoneFlipRate: number | null;
     medianMfePct: number | null;
     medianMaePct: number | null;
     pocHitRate: number | null;

@@ -123,6 +123,7 @@ export default function SimulationPage() {
   const router = useRouter();
   const [tab, setTab] = useState<"overview" | "trades" | "logs">("overview");
   const [selectedBotId, setSelectedBotId] = useState<CockpitBotId>("crypto");
+  const [showAllBots, setShowAllBots] = useState(false);
   const [slideshowPaused, setSlideshowPaused] = useState(false);
   const [slideshowCountdown, setSlideshowCountdown] = useState(SLIDESHOW_SLIDE_SECONDS);
   const [selectedTrade, setSelectedTrade] = useState<SimTrade | null>(null);
@@ -325,6 +326,14 @@ export default function SimulationPage() {
     [openTradesAll, botSourcePredicate],
   );
 
+  const displayedOpenTrades = useMemo(() => {
+    if (!showAllBots) return openTrades;
+    return [...openTradesAll].sort(
+      (a, b) =>
+        new Date(b.openedAt ?? 0).getTime() - new Date(a.openedAt ?? 0).getTime(),
+    );
+  }, [showAllBots, openTrades, openTradesAll]);
+
   // closedTrades — current page of server-side history when filter is
   // ALL. For per-bot filters we render the full filtered list client-
   // side (zone-bot trade counts are small, and Firestore can't index
@@ -513,11 +522,11 @@ export default function SimulationPage() {
   const openSimTradeIds = useMemo(
     () =>
       tab === "overview"
-        ? openTrades
+        ? displayedOpenTrades
             .map((t) => t.id ?? (t.signalId ? `sim-${t.signalId}` : ""))
             .filter(Boolean)
         : [],
-    [openTrades, tab],
+    [displayedOpenTrades, tab],
   );
   const {
     isAdmin: mirrorAdmin,
@@ -607,17 +616,19 @@ export default function SimulationPage() {
               <SimulatorMainPanel
                 tab={tab}
                 onTabChange={setTab}
-                openCount={openTrades.length}
+                openCount={displayedOpenTrades.length}
                 closedCount={filteredClosedTrades.length}
                 logsCount={logs.length}
               >
                 {tab === "overview" && (
                   <OpenPositionsPanel
-                    trades={openTrades}
+                    trades={displayedOpenTrades}
                     maxSlots={
-                      botMaxOpenTrades ??
-                      simState.currentMaxTrades ??
-                      5
+                      showAllBots
+                        ? Math.max(displayedOpenTrades.length, 1)
+                        : botMaxOpenTrades ??
+                          simState.currentMaxTrades ??
+                          5
                     }
                     cs={cs}
                     onSelectTrade={setSelectedTrade}
@@ -628,6 +639,9 @@ export default function SimulationPage() {
                     mirrorsLoading={mirrorsLoading}
                     mirrorsError={mirrorsError}
                     openSimTradeIds={openSimTradeIds}
+                    showAllBots={showAllBots}
+                    onShowAllBotsChange={setShowAllBots}
+                    showBotLabels={showAllBots}
                   />
                 )}
 

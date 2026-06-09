@@ -10,6 +10,8 @@ import {
 import { cn } from "@/lib/utils";
 import type { SimTrade } from "@/lib/simulator";
 import { getSlDisplay } from "@/lib/simulator";
+import { cryptoBotByBotSource } from "@/lib/crypto-bots";
+import { Switch } from "@/components/ui/switch";
 import {
   SIM_CARD_INTERACTIVE,
   SIM_SLOT_EMPTY,
@@ -74,6 +76,9 @@ export function OpenPositionsPanel({
   mirrorsLoading = false,
   mirrorsError = null,
   openSimTradeIds = [],
+  showAllBots = false,
+  onShowAllBotsChange,
+  showBotLabels = false,
 }: {
   trades: SimTrade[];
   maxSlots: number;
@@ -86,12 +91,37 @@ export function OpenPositionsPanel({
   mirrorsLoading?: boolean;
   mirrorsError?: string | null;
   openSimTradeIds?: string[];
+  /** When true, the panel lists every bot's open trades (parent supplies
+   *  the unfiltered list). */
+  showAllBots?: boolean;
+  onShowAllBotsChange?: (value: boolean) => void;
+  /** Show the originating bot name on each card (used with all-bots view). */
+  showBotLabels?: boolean;
 }) {
   const slots = Math.min(Math.max(maxSlots, 1), 6);
-  const emptyCount = Math.max(0, slots - trades.length);
+  const emptyCount = showAllBots ? 0 : Math.max(0, slots - trades.length);
 
   return (
     <div className="space-y-4">
+      {onShowAllBotsChange && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2.5">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-wider text-foreground/90">
+              All bots
+            </p>
+            <p className="text-[9px] text-muted-foreground/45 mt-0.5 leading-snug">
+              {showAllBots
+                ? `Showing ${trades.length} open trade${trades.length === 1 ? "" : "s"} across every bot`
+                : "Only the selected bot above — turn on to see every open position"}
+            </p>
+          </div>
+          <Switch
+            checked={showAllBots}
+            onCheckedChange={onShowAllBotsChange}
+            aria-label="Show open trades from all bots"
+          />
+        </div>
+      )}
       {showMirrorUi && (
         <LiveMirrorExchangeBar
           exchangeSummary={exchangeSummary}
@@ -102,8 +132,17 @@ export function OpenPositionsPanel({
       )}
       <div className="flex items-center justify-between gap-2 px-0.5">
         <p className="text-[10px] text-muted-foreground/50 max-w-md">
-          Up to <span className="text-foreground/70 font-bold">{slots}</span>{" "}
-          concurrent positions. Slots free up when a trade closes or hits TP/SL.
+          {showAllBots ? (
+            <>
+              <span className="text-foreground/70 font-bold">{trades.length}</span>{" "}
+              open across all bots. Select a bot above to filter back to one.
+            </>
+          ) : (
+            <>
+              Up to <span className="text-foreground/70 font-bold">{slots}</span>{" "}
+              concurrent positions. Slots free up when a trade closes or hits TP/SL.
+            </>
+          )}
         </p>
         {trades.length === 0 && (
           <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/35 shrink-0">
@@ -129,6 +168,11 @@ export function OpenPositionsPanel({
               simTradeId={simId}
               mirrorCount={mirrorCount}
               showMirrorUi={showMirrorUi}
+              botLabel={
+                showBotLabels
+                  ? cryptoBotByBotSource(trade.botSource).label
+                  : undefined
+              }
             />
           );
         })}
@@ -174,6 +218,7 @@ function OpenPositionCard({
   simTradeId = "",
   mirrorCount = 0,
   showMirrorUi = false,
+  botLabel,
 }: {
   trade: SimTrade;
   cs: string;
@@ -182,6 +227,7 @@ function OpenPositionCard({
   simTradeId?: string;
   mirrorCount?: number;
   showMirrorUi?: boolean;
+  botLabel?: string;
 }) {
   const isBuy = trade.side === "BUY";
   const pnl = trade.unrealizedPnl ?? 0;
@@ -206,6 +252,11 @@ function OpenPositionCard({
       {/* Header — symbol + badges */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 space-y-2">
+          {botLabel && (
+            <span className="inline-flex text-[8px] font-black uppercase tracking-[0.14em] text-accent/90 px-2 py-0.5 rounded-md border border-accent/25 bg-accent/[0.08]">
+              {botLabel}
+            </span>
+          )}
           <Link
             href={`/chart/${trade.signalId}`}
             target="_blank"

@@ -27,15 +27,17 @@ interface ConsecutiveWinLossChartProps {
   className?: string;
 }
 
-function streakLabel(value: number): string {
+function streakLabel(value: number, length?: number, spanDays?: number): string {
   if (value > 0) {
-    return `${value} consecutive win${value === 1 ? "" : "s"}`;
+    const base = `${length ?? value} consecutive win${(length ?? value) === 1 ? "" : "s"}`;
+    return spanDays && spanDays > 1 ? `${base} · ${spanDays} days` : base;
   }
   if (value < 0) {
-    const n = Math.abs(value);
-    return `${n} consecutive loss${n === 1 ? "" : "es"}`;
+    const n = length ?? Math.abs(value);
+    const base = `${n} consecutive loss${n === 1 ? "" : "es"}`;
+    return spanDays && spanDays > 1 ? `${base} · ${spanDays} days` : base;
   }
-  return "No active streak";
+  return "Baseline";
 }
 
 function StreakTooltip({
@@ -43,10 +45,19 @@ function StreakTooltip({
   payload,
 }: {
   active?: boolean;
-  payload?: { payload: { day: number; streak: number; date: string } }[];
+  payload?: {
+    payload: {
+      day: number;
+      streak: number;
+      date: string;
+      streakLength?: number;
+      streakSpanDays?: number;
+    };
+  }[];
 }) {
   if (!active || !payload?.length) return null;
   const row = payload[0].payload;
+  if (row.streak === 0) return null;
   let dateLabel = row.date;
   try {
     dateLabel = format(parseISO(`${row.date}T12:00:00.000Z`), "MMM d, yyyy");
@@ -72,7 +83,7 @@ function StreakTooltip({
           !positive && !negative && "text-muted-foreground/70",
         )}
       >
-        {streakLabel(row.streak)}
+        {streakLabel(row.streak, row.streakLength, row.streakSpanDays)}
       </p>
     </div>
   );
@@ -119,7 +130,8 @@ export function ConsecutiveWinLossChart({
             Consecutive wins / losses
           </h2>
           <p className="text-[11px] text-muted-foreground/45 max-w-xl">
-            Win streaks above zero, loss streaks below — by days since launch
+            Each streak spikes from zero to its full length, then back to zero — days
+            in between are skipped
             {day0Label ? ` (${day0Label})` : ""}
             {botSourceFilter !== "ALL" ? ` · ${filterLabel}` : ""}.
           </p>
@@ -178,6 +190,9 @@ export function ConsecutiveWinLossChart({
               <ReferenceLine y={0} stroke="rgba(255,255,255,0.12)" strokeDasharray="4 4" />
               <XAxis
                 dataKey="day"
+                type="number"
+                domain={[0, series?.maxDay ?? "dataMax"]}
+                allowDecimals={false}
                 tick={{ fill: "rgba(148,163,184,0.55)", fontSize: 10 }}
                 tickLine={false}
                 axisLine={{ stroke: "rgba(255,255,255,0.06)" }}
@@ -207,7 +222,7 @@ export function ConsecutiveWinLossChart({
               />
               <Tooltip content={<StreakTooltip />} />
               <Line
-                type="stepAfter"
+                type="linear"
                 dataKey="streak"
                 stroke={BRAND_CURVE_STROKE}
                 strokeWidth={2}

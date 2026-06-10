@@ -26,7 +26,17 @@ const nextConfig: NextConfig = {
           {
             key: 'Content-Security-Policy',
             value:
-              "frame-ancestors 'self' https://freedombot.ai https://www.freedombot.ai http://localhost:* https://localhost:*",
+              "frame-ancestors 'self' https://freedombot.ai https://www.freedombot.ai https://fnoninja.com https://www.fnoninja.com http://localhost:* https://localhost:*",
+          },
+        ],
+      },
+      {
+        source: '/embed/levels-bubbles',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value:
+              "frame-ancestors 'self' https://fnoninja.com https://www.fnoninja.com https://tezterminal.com https://www.tezterminal.com http://localhost:* https://localhost:*",
           },
         ],
       },

@@ -3,7 +3,7 @@ export function fnoHomeHref(pathname: string): string {
   return "/";
 }
 
-/** Levels app — tezterminal uses /freedombot/levels; fnoninja.com uses /levels (middleware). */
+/** Levels app — localhost dev uses /freedombot/levels; fnoninja.com uses /levels. */
 export function fnoAnalyticsHref(pathname: string): string {
   if (pathname.startsWith("/fnoninja") || pathname.startsWith("/freedombot")) {
     return "/freedombot/levels";

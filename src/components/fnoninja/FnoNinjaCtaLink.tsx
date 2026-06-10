@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { fnoAnalyticsHref } from "@/lib/fnoninja/paths";
+import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW } from "@/lib/fnoninja/theme";
 
 export function FnoNinjaCtaLink({
   children,
   variant = "primary",
 }: {
   children: React.ReactNode;
-  variant?: "primary" | "nav";
+  variant?: "primary" | "nav" | "secondary";
 }) {
   const href = fnoAnalyticsHref(usePathname());
 
@@ -18,14 +19,32 @@ export function FnoNinjaCtaLink({
     return (
       <Link
         href={href}
-        className="inline-flex items-center rounded-lg px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors"
+        className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold transition-all hover:scale-105"
         style={{
-          backgroundColor: "rgba(16,185,129,0.15)",
-          border: "1px solid rgba(52,211,153,0.35)",
-          color: "#6ee7b7",
+          background: FNO_CTA_GRADIENT,
+          boxShadow: FNO_CTA_SHADOW,
+          color: "#fff",
         }}
       >
         {children}
+        <ArrowRight className="h-3.5 w-3.5" />
+      </Link>
+    );
+  }
+
+  if (variant === "secondary") {
+    return (
+      <Link
+        href={href}
+        className="inline-flex items-center gap-2 rounded-full px-7 py-3 text-sm font-bold transition-all hover:scale-105"
+        style={{
+          border: "1px solid rgba(90,140,220,0.22)",
+          color: "#93c5fd",
+          backgroundColor: "rgba(37,99,235,0.05)",
+        }}
+      >
+        {children}
+        <ArrowRight className="h-4 w-4" />
       </Link>
     );
   }
@@ -33,8 +52,8 @@ export function FnoNinjaCtaLink({
   return (
     <Link
       href={href}
-      className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-xs font-bold uppercase tracking-wider text-emerald-950 transition-opacity hover:opacity-90"
-      style={{ backgroundColor: "#6ee7b7" }}
+      className="inline-flex items-center gap-2 rounded-full px-7 py-3 text-sm font-bold text-white transition-all hover:scale-105"
+      style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
     >
       {children}
       <ArrowRight className="h-4 w-4" />

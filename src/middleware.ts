@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 
 const FREEDOMBOT_HOSTS = ["freedombot.ai", "www.freedombot.ai"];
 const FNONINJA_HOSTS = ["fnoninja.com", "www.fnoninja.com"];
+const TEZTERMINAL_HOSTS = ["tezterminal.com", "www.tezterminal.com"];
+const FNONINJA_PUBLIC_ORIGIN = "https://fnoninja.com";
 
 // Pages that belong to the FreedomBot marketing site (rewritten to /freedombot/*)
 const FREEDOMBOT_SITE_PATHS = new Set(["/", "/about", "/contact", "/privacy", "/terms", "/records", "/dashboard", "/performance", "/methodology", "/levels"]);
@@ -23,10 +25,37 @@ function isFnoNinja(request: NextRequest): boolean {
   return hostCandidates(request).some((h) => FNONINJA_HOSTS.includes(h));
 }
 
+function isTezTerminal(request: NextRequest): boolean {
+  return hostCandidates(request).some((h) => TEZTERMINAL_HOSTS.includes(h));
+}
+
+/** tezterminal.com public URLs → fnoninja.com (localhost keeps /fnoninja for dev). */
+function tezTerminalFnoNinjaRedirect(request: NextRequest, pathname: string): NextResponse | null {
+  if (!isTezTerminal(request)) return null;
+
+  if (pathname === "/fnoninja" || pathname.startsWith("/fnoninja/")) {
+    return NextResponse.redirect(FNONINJA_PUBLIC_ORIGIN, 301);
+  }
+
+  if (pathname === "/freedombot/levels" || pathname.startsWith("/freedombot/levels/")) {
+    const dest = pathname.replace(/^\/freedombot\/levels/, "/levels") || "/levels";
+    return NextResponse.redirect(`${FNONINJA_PUBLIC_ORIGIN}${dest}`, 301);
+  }
+
+  return null;
+}
+
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
+  const tezFnoRedirect = tezTerminalFnoNinjaRedirect(request, pathname);
+  if (tezFnoRedirect) return tezFnoRedirect;
+
   if (isFnoNinja(request)) {
+    if (pathname === "/favicon.ico") {
+      return NextResponse.rewrite(new URL("/freedombot/icon.png", request.url));
+    }
+
     if (
       pathname.startsWith("/_next") ||
       pathname.startsWith("/api") ||
@@ -38,6 +67,10 @@ export function middleware(request: NextRequest) {
     // Analytics app (shared levels engine)
     if (pathname === "/levels" || pathname.startsWith("/levels/")) {
       return NextResponse.rewrite(new URL(`/freedombot${pathname}`, request.url));
+    }
+
+    if (pathname === "/embed" || pathname.startsWith("/embed/")) {
+      return NextResponse.next();
     }
 
     if (pathname === "/fnoninja" || pathname.startsWith("/fnoninja/")) {

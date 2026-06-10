@@ -1,4 +1,7 @@
+import Image from "next/image";
 import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
+import { FnoNinjaFooter } from "@/components/fnoninja/FnoNinjaFooter";
+import { FnoNinjaHero } from "@/components/fnoninja/FnoNinjaHero";
 import {
   BarChart3,
   Clock,
@@ -8,94 +11,95 @@ import {
   Layers,
   LineChart,
   Presentation,
+  ShieldCheck,
   Users,
 } from "lucide-react";
-import { FNO_CONTENT_SHELL, FNO_NARROW_SHELL } from "@/lib/fnoninja/responsive";
+import {
+  FB_CONTENT_SHELL,
+  FB_DOC_SHELL,
+  FB_MEDIUM_SHELL,
+  FB_NARROW_SHELL,
+} from "@/lib/freedombot/responsive";
+import {
+  FNO_CARD_BG,
+  FNO_CARD_BORDER,
+  FNO_GRADIENT_TEXT,
+  FNO_MUTED,
+} from "@/lib/fnoninja/theme";
 
-const CARD =
-  "rounded-2xl p-6 sm:p-8 border border-white/[0.08] bg-white/[0.02]";
+const cardStyle = {
+  backgroundColor: FNO_CARD_BG,
+  border: FNO_CARD_BORDER,
+};
 
 export default function FnoNinjaLandingPage() {
   return (
-    <div className="pb-16">
-      {/* Hero */}
-      <section
-        className="relative border-b border-white/[0.06] overflow-hidden"
-        style={{
-          background: `
-            radial-gradient(ellipse 70% 55% at 50% 0%, rgba(16,185,129,0.1), transparent),
-            radial-gradient(ellipse 50% 40% at 80% 20%, rgba(6,182,212,0.06), transparent),
-            #060912
-          `,
-        }}
-      >
-        <div className={`${FNO_NARROW_SHELL} py-16 sm:py-24 text-center`}>
-          <p
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest mb-6"
-            style={{
-              backgroundColor: "rgba(16,185,129,0.08)",
-              border: "1px solid rgba(52,211,153,0.25)",
-              color: "#6ee7b7",
-            }}
-          >
-            NSE F&O · Data visualization
-          </p>
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.1]">
-            FNONinja — Option-chain analytics for NSE F&amp;O
-          </h1>
-          <p className="mt-6 text-base sm:text-lg leading-relaxed text-slate-400 max-w-2xl mx-auto">
-            View option-interest concentrations, derived support and resistance{" "}
-            <span className="text-slate-300">observations</span>, and price positioning
-            across NSE F&amp;O stocks and indices in one data visualization interface.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <FnoNinjaCtaLink>Explore analytics</FnoNinjaCtaLink>
-          </div>
-          <p className="mt-6 text-[11px] text-slate-500 max-w-xl mx-auto leading-relaxed">
-            Market data visualization · Algorithmically derived observations · Informational
-            only · Not investment advice
-          </p>
-        </div>
-      </section>
+    <div className="font-sans antialiased min-w-0 flex flex-col flex-1">
+      <FnoNinjaHero />
 
       {/* Problem */}
-      <section className={`${FNO_NARROW_SHELL} py-14 sm:py-20`}>
-        <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-          The option chain contains useful market information. Tracking it across hundreds
-          of symbols is difficult.
-        </h2>
-        <p className="mt-4 text-base sm:text-lg text-slate-400 leading-relaxed">
-          FNONinja aggregates publicly available option-chain data across NSE F&amp;O stocks
-          and indices and presents it through visual market maps, zone views, and
-          symbol-level analytics. Instead of manually reviewing individual option chains,
-          you can monitor broader market structure from a single interface — for your own
-          independent research.
+      <section className={`${FB_DOC_SHELL} py-16 sm:py-24`}>
+        <div className="text-center mb-10">
+          <p
+            className="text-[10px] font-bold uppercase tracking-widest mb-4"
+            style={{ color: "#334155" }}
+          >
+            The challenge
+          </p>
+          <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight max-w-3xl mx-auto">
+            The option chain contains useful market information. Tracking it across hundreds of
+            symbols is difficult.
+          </h2>
+        </div>
+        <p
+          className="text-base sm:text-lg leading-relaxed max-w-3xl mx-auto text-center"
+          style={{ color: FNO_MUTED }}
+        >
+          FNONinja aggregates publicly available option-chain data across NSE F&amp;O stocks and
+          indices and presents it through visual market maps, zone views, and symbol-level
+          analytics. Instead of manually reviewing individual option chains, you can monitor
+          broader market structure from a single interface — for your own independent research.
         </p>
       </section>
 
       {/* What is */}
-      <section className={`${FNO_CONTENT_SHELL} pb-14 sm:pb-20`}>
-        <div className={CARD}>
-          <h2 className="text-xl sm:text-2xl font-bold text-white">What is FNONinja</h2>
-          <p className="mt-4 text-slate-400 leading-relaxed">
-            FNONinja is an options-market <strong className="text-slate-300 font-semibold">analytics and data visualization</strong> platform for Indian markets. The platform processes publicly available option-chain information and presents{" "}
-            <strong className="text-slate-300 font-semibold">observed</strong> support zones,
-            resistance zones, open-interest concentrations, and related market-structure
-            metrics through interactive visualizations.
+      <section className={`${FB_CONTENT_SHELL} pb-14 sm:pb-20`}>
+        <div className="rounded-2xl p-6 sm:p-8" style={cardStyle}>
+          <h2 className="text-xl sm:text-2xl font-black text-white">What is FNONinja</h2>
+          <p className="mt-4 leading-relaxed" style={{ color: FNO_MUTED }}>
+            FNONinja is an options-market{" "}
+            <strong className="font-semibold" style={{ color: "#cbd5e1" }}>
+              analytics and data visualization
+            </strong>{" "}
+            platform for Indian markets. The platform processes publicly available option-chain
+            information and presents{" "}
+            <strong className="font-semibold" style={{ color: "#cbd5e1" }}>
+              observed
+            </strong>{" "}
+            support zones, resistance zones, open-interest concentrations, and related
+            market-structure metrics through interactive visualizations.
           </p>
-          <p className="mt-4 text-slate-400 leading-relaxed">
-            Explore symbols individually or monitor the broader market using maps, filters,
-            and symbol-level views. Outputs are shown for user interpretation — not as
-            recommendations.
+          <p className="mt-4 leading-relaxed" style={{ color: FNO_MUTED }}>
+            Explore symbols individually or monitor the broader market using maps, filters, and
+            symbol-level views. Outputs are shown for user interpretation — not as recommendations.
           </p>
         </div>
       </section>
 
       {/* How it works */}
-      <section id="how-it-works" className={`${FNO_CONTENT_SHELL} pb-14 sm:pb-20`}>
-        <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-8">
-          How it works
-        </h2>
+      <section id="how-it-works" className={`${FB_CONTENT_SHELL} pb-14 sm:pb-20`}>
+        <div className="text-center mb-10">
+          <p
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-5"
+            style={{
+              backgroundColor: "rgba(37,99,235,0.08)",
+              border: "1px solid rgba(90,140,220,0.2)",
+              color: "#60a5fa",
+            }}
+          >
+            How it works
+          </p>
+        </div>
         <div className="grid sm:grid-cols-3 gap-4">
           {[
             {
@@ -117,28 +121,36 @@ export default function FnoNinjaLandingPage() {
               icon: Grid3X3,
             },
           ].map(({ step, title, body, icon: Icon }) => (
-            <div key={step} className={CARD}>
+            <div key={step} className="rounded-2xl p-6 sm:p-8" style={cardStyle}>
               <div className="flex items-center gap-3 mb-4">
                 <span
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-black text-emerald-300"
-                  style={{ backgroundColor: "rgba(16,185,129,0.12)" }}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-black"
+                  style={{
+                    backgroundColor: "rgba(37,99,235,0.12)",
+                    color: "#60a5fa",
+                  }}
                 >
                   {step}
                 </span>
-                <Icon className="h-4 w-4 text-slate-500" />
+                <Icon className="h-4 w-4" style={{ color: "#475569" }} />
               </div>
               <h3 className="text-sm font-bold text-white">{title}</h3>
-              <p className="mt-2 text-[13px] text-slate-400 leading-relaxed">{body}</p>
+              <p className="mt-2 text-[13px] leading-relaxed" style={{ color: FNO_MUTED }}>
+                {body}
+              </p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Features */}
-      <section id="features" className={`${FNO_CONTENT_SHELL} pb-14 sm:pb-20`}>
-        <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-8">
-          Features
-        </h2>
+      <section id="features" className={`${FB_CONTENT_SHELL} pb-14 sm:pb-20`}>
+        <div className="text-center mb-10">
+          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Features</h2>
+          <p className="mt-3 text-sm" style={{ color: FNO_MUTED }}>
+            Research tools for exploring option-derived market structure
+          </p>
+        </div>
         <div className="grid sm:grid-cols-2 gap-4">
           {[
             {
@@ -172,11 +184,13 @@ export default function FnoNinjaLandingPage() {
               body: "Narrow the universe by zone position. Filters organize data — they do not constitute advice.",
             },
           ].map(({ icon: Icon, title, body }) => (
-            <div key={title} className={`${CARD} flex gap-4`}>
-              <Icon className="h-5 w-5 text-emerald-400/80 shrink-0 mt-0.5" />
+            <div key={title} className="rounded-2xl p-6 sm:p-8 flex gap-4" style={cardStyle}>
+              <Icon className="h-5 w-5 shrink-0 mt-0.5" style={{ color: "#60a5fa" }} />
               <div>
                 <h3 className="text-sm font-bold text-white">{title}</h3>
-                <p className="mt-1.5 text-[13px] text-slate-400 leading-relaxed">{body}</p>
+                <p className="mt-1.5 text-[13px] leading-relaxed" style={{ color: FNO_MUTED }}>
+                  {body}
+                </p>
               </div>
             </div>
           ))}
@@ -184,8 +198,11 @@ export default function FnoNinjaLandingPage() {
       </section>
 
       {/* Who it's for */}
-      <section className={`${FNO_CONTENT_SHELL} pb-14 sm:pb-20`}>
-        <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-8">
+      <section className={`${FB_CONTENT_SHELL} pb-14 sm:pb-20`}>
+        <h2
+          className="text-xs font-bold uppercase tracking-widest mb-8 text-center"
+          style={{ color: "#334155" }}
+        >
           Who it&apos;s for
         </h2>
         <div className="grid sm:grid-cols-2 gap-4">
@@ -211,20 +228,19 @@ export default function FnoNinjaLandingPage() {
               body: "Explore how options-market positioning evolves throughout the trading session.",
             },
           ].map(({ icon: Icon, title, body }) => (
-            <div key={title} className={CARD}>
-              <Icon className="h-4 w-4 text-slate-500 mb-3" />
+            <div key={title} className="rounded-2xl p-6 sm:p-8" style={cardStyle}>
+              <Icon className="h-4 w-4 mb-3" style={{ color: "#475569" }} />
               <h3 className="text-sm font-bold text-white">{title}</h3>
-              <p className="mt-2 text-[13px] text-slate-400 leading-relaxed">{body}</p>
+              <p className="mt-2 text-[13px] leading-relaxed" style={{ color: FNO_MUTED }}>
+                {body}
+              </p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Differentiation */}
-      <section className={`${FNO_CONTENT_SHELL} pb-14 sm:pb-20`}>
-        <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-8">
-          Approach
-        </h2>
+      {/* Approach */}
+      <section className={`${FB_CONTENT_SHELL} pb-14 sm:pb-20`}>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { title: "Data first", body: "Analytics and visualization — not trade calls or suggestions." },
@@ -232,54 +248,119 @@ export default function FnoNinjaLandingPage() {
             { title: "Broad coverage", body: "Major NSE indices and the F&O stock universe." },
             { title: "Research tools", body: "Maps and dashboards designed for efficient exploration." },
           ].map(({ title, body }) => (
-            <div key={title} className={CARD}>
-              <h3 className="text-sm font-bold text-emerald-300/90">{title}</h3>
-              <p className="mt-2 text-[12px] text-slate-400 leading-relaxed">{body}</p>
+            <div key={title} className="rounded-2xl p-6" style={cardStyle}>
+              <h3 className="text-sm font-bold" style={{ color: "#60a5fa" }}>
+                {title}
+              </h3>
+              <p className="mt-2 text-[12px] leading-relaxed" style={{ color: FNO_MUTED }}>
+                {body}
+              </p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Closing CTA */}
-      <section
-        className="border-y border-white/[0.06]"
-        style={{ backgroundColor: "rgba(16,185,129,0.04)" }}
-      >
-        <div className={`${FNO_NARROW_SHELL} py-14 sm:py-20 text-center`}>
-          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            Explore option-chain-derived market structure across NSE F&amp;O
+      <section className="py-16 sm:py-24" style={{ borderTop: "1px solid rgba(90,140,220,0.06)" }}>
+        <div className={`${FB_NARROW_SHELL} text-center`}>
+          <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
+            Explore option-chain-derived market structure{" "}
+            <span
+              className="bg-clip-text text-transparent"
+              style={{ backgroundImage: FNO_GRADIENT_TEXT }}
+            >
+              across NSE F&amp;O
+            </span>
           </h2>
-          <p className="mt-4 text-slate-400 max-w-lg mx-auto leading-relaxed">
-            Monitor observed support and resistance observations, open-interest
-            concentrations, and price positioning through a unified analytics experience.
+          <p className="mt-4 max-w-lg mx-auto leading-relaxed" style={{ color: FNO_MUTED }}>
+            Monitor observed support and resistance observations, open-interest concentrations, and
+            price positioning through a unified analytics experience.
           </p>
-          <div className="mt-8 flex justify-center">
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             <FnoNinjaCtaLink>Open analytics dashboard</FnoNinjaCtaLink>
           </div>
         </div>
       </section>
 
+      {/* Powered by */}
+      <section className="py-12 px-4 sm:px-6" style={{ borderTop: "1px solid rgba(90,140,220,0.06)" }}>
+        <div className={`${FB_MEDIUM_SHELL} text-center`}>
+          <p
+            className="text-[10px] font-bold uppercase tracking-widest mb-8"
+            style={{ color: "#1e293b" }}
+          >
+            Powered by
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-10">
+            <a
+              href="https://freedombot.ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 opacity-50 hover:opacity-80 transition-opacity"
+            >
+              <Image
+                src="/freedombot/icon.png"
+                alt="FreedomBot.ai"
+                width={24}
+                height={24}
+                className="rounded-lg object-contain"
+              />
+              <span className="text-sm font-bold" style={{ color: "#94a3b8" }}>
+                FreedomBot.ai
+              </span>
+            </a>
+            <div className="flex items-center gap-2 opacity-50">
+              <div className="h-6 w-6 rounded-md bg-white flex items-center justify-center overflow-hidden p-0.5 flex-shrink-0">
+                <Image
+                  src="/freedombot/firebase.png"
+                  alt="Firebase"
+                  width={20}
+                  height={20}
+                  className="object-contain"
+                />
+              </div>
+              <span className="text-sm font-bold" style={{ color: "#94a3b8" }}>
+                Firebase
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Disclaimer */}
-      <section id="disclaimer" className={`${FNO_NARROW_SHELL} py-14 sm:py-16`}>
-        <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">
-          Important disclaimer
-        </h2>
+      <section id="disclaimer" className={`${FB_NARROW_SHELL} py-14 sm:py-16`}>
+        <div className="flex items-center gap-2 mb-4">
+          <ShieldCheck className="h-4 w-4" style={{ color: "#60a5fa" }} />
+          <h2
+            className="text-xs font-bold uppercase tracking-widest"
+            style={{ color: "#334155" }}
+          >
+            Important disclaimer
+          </h2>
+        </div>
         <div
-          className="rounded-xl p-5 sm:p-6 text-[12px] sm:text-[13px] leading-relaxed text-slate-400 border border-amber-500/20"
-          style={{ backgroundColor: "rgba(120, 53, 15, 0.08)" }}
+          className="rounded-2xl p-5 sm:p-6 text-[12px] sm:text-[13px] leading-relaxed"
+          style={{
+            backgroundColor: FNO_CARD_BG,
+            border: "1px solid rgba(90,140,220,0.15)",
+            color: FNO_MUTED,
+          }}
         >
           <p>
-            FNONinja is a market analytics and data visualization platform. Information
-            displayed is generated through automated processing of publicly available market
-            data and is provided solely for{" "}
-            <strong className="text-slate-300">informational and educational purposes</strong>.
+            FNONinja is a market analytics and data visualization platform. Information displayed is
+            generated through automated processing of publicly available market data and is provided
+            solely for{" "}
+            <strong className="font-semibold" style={{ color: "#cbd5e1" }}>
+              informational and educational purposes
+            </strong>
+            .
           </p>
           <p className="mt-3">
             FNONinja does not provide investment advice, investment recommendations, research
-            recommendations, stock recommendations, trading calls, buy/sell suggestions,
-            portfolio management services, order execution, or personalized financial advice.
-            FNONinja is not registered with the Securities and Exchange Board of India (SEBI)
-            as a Research Analyst or Investment Adviser.
+            recommendations, stock recommendations, trading calls, buy/sell suggestions, portfolio
+            management services, order execution, or personalized financial advice. FNONinja is not
+            registered with the Securities and Exchange Board of India (SEBI) as a Research Analyst
+            or Investment Adviser.
           </p>
           <p className="mt-3">
             Market data and derived metrics may be delayed, incomplete, or inaccurate. Past
@@ -288,18 +369,17 @@ export default function FnoNinjaLandingPage() {
           </p>
           <p className="mt-3">
             Users must conduct their own independent analysis and consult qualified financial
-            professionals before making investment decisions. All investment and trading
-            decisions are solely the responsibility of the user.
+            professionals before making investment decisions. All investment and trading decisions
+            are solely the responsibility of the user.
           </p>
           <p className="mt-3">
-            FNONinja is not affiliated with, endorsed by, or sponsored by NSE, BSE, or any
-            exchange or broker.
+            FNONinja is not affiliated with, endorsed by, or sponsored by NSE, BSE, or any exchange
+            or broker.
           </p>
         </div>
-        <p className="mt-8 text-center text-[11px] text-slate-600">
-          © {new Date().getFullYear()} FNONinja · For informational purposes only
-        </p>
       </section>
+
+      <FnoNinjaFooter />
     </div>
   );
 }

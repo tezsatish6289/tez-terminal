@@ -97,7 +97,10 @@ export function levelsIndianChartProxySrc(
   const tvSymbol = resolveTradingViewChartSymbol(params.symbol, params.exchange);
 
   const base =
-    host === "freedombot.ai" || host === "www.freedombot.ai"
+    host === "freedombot.ai" ||
+    host === "www.freedombot.ai" ||
+    host === "fnoninja.com" ||
+    host === "www.fnoninja.com"
       ? TEZ_TERMINAL_CHART_ORIGIN
       : typeof window !== "undefined"
         ? window.location.origin

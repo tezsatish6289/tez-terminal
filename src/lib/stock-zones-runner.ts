@@ -18,9 +18,11 @@ import { NseCircuitOpenError } from "@/lib/nse/types";
 import { computeStockZonesWithFallback, nseFallbackEligible } from "@/lib/equity-zones-fetch";
 import {
   nextStockZonesBatch,
+  buildRefreshQueue,
   FNO_UNIVERSE,
   type StockAggregateMeta,
 } from "@/lib/nse/fno-universe";
+import { resolveDhanEquitySecurityId } from "@/lib/dhan-candles";
 import {
   persistEquityZonesDoc,
   stampEquityZonesError,
@@ -222,6 +224,36 @@ export async function runStockZonesBatch(
       dhanOnly = true;
     }
   }
+
+  // Dhan-only (NSE circuit open): backlog names without a Dhan security ID always fail.
+  // Fall back to the refresh queue so cron keeps making progress on scannable symbols.
+  if (dhanOnly && fromQueue && symbols.length > 0) {
+    const scannable: string[] = [];
+    for (const s of symbols) {
+      if ((await resolveDhanEquitySecurityId(s)) != null) scannable.push(s);
+    }
+    if (scannable.length === 0 && queueMode === "backlog") {
+      const refreshQueue = buildRefreshQueue(bySymbol);
+      const n = refreshQueue.length;
+      if (n > 0) {
+        const start = ((startCursor % n) + n) % n;
+        const picked: string[] = [];
+        for (let i = 0; i < n && picked.length < batchSize; i++) {
+          const sym = refreshQueue[(start + i) % n]!;
+          if ((await resolveDhanEquitySecurityId(sym)) != null) picked.push(sym);
+        }
+        symbols = picked;
+        queueMode = "refresh";
+        queueLength = n;
+      } else {
+        symbols = [];
+      }
+    } else {
+      symbols = scannable;
+    }
+  }
+
+  if (!symbols.length) return emptySummary();
 
   // Volatility-regime context loaded once for the batch:
   //   • earnings calendar (symbol → ISO results date)

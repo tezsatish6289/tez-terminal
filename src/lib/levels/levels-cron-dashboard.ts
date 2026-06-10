@@ -20,26 +20,23 @@ import {
   levelsFromStockRow,
 } from "@/lib/zones/levels-actionable-list";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
+import { istCalendarDateKey } from "@/lib/ist-display";
+import { stockDocId } from "@/lib/equity-zones-store";
 
 const AGGREGATE_DOC = "config/zone_status_stocks";
 const CURSOR_DOC = "config/stock_zones_cursor";
 const RUN_LOCK_DOC = "config/stock_zones_run_lock";
 const NSE_STATE_DOC = "config/nse_fetch_state";
 
-const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
-
-function istDateKey(iso: string): string {
-  const ms = Date.parse(iso);
-  if (!Number.isFinite(ms)) return "";
-  const ist = new Date(ms + IST_OFFSET_MS);
-  const y = ist.getUTCFullYear();
-  const m = String(ist.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(ist.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+function todayIstKey(now = Date.now()): string {
+  return istCalendarDateKey(now);
 }
 
-function todayIstKey(now = Date.now()): string {
-  return istDateKey(new Date(now).toISOString());
+function parseSymbolsFromCronSummary(summary: string | null): string[] {
+  if (!summary) return [];
+  const m = summary.match(/syms=([A-Z0-9,&.-]+)/);
+  if (!m) return [];
+  return m[1].split(",").map((s) => s.trim()).filter(Boolean);
 }
 
 function envNum(name: string, fallback: number): number {
@@ -75,6 +72,12 @@ export interface LevelsCronIndexRow {
   computedAt: string | null;
   spot: number | null;
   ageHours: number | null;
+}
+
+export interface LevelsCronBatchError {
+  symbol: string;
+  error: string | null;
+  computedAt: string | null;
 }
 
 export interface LevelsCronDashboardPayload {
@@ -131,6 +134,7 @@ export interface LevelsCronDashboardPayload {
     expectedScansPerHour: number;
   };
   indices: LevelsCronIndexRow[];
+  recentBatchErrors: LevelsCronBatchError[];
 }
 
 async function loadHeartbeat(
@@ -216,7 +220,7 @@ export async function loadLevelsCronDashboard(
       ageMs != null && Number.isFinite(ageMs) ? Math.round(ageMs / 3_600_000) : null;
 
     if (computedAt) {
-      const dk = istDateKey(computedAt);
+      const dk = istCalendarDateKey(computedAt);
       if (dk) dayCounts.set(dk, (dayCounts.get(dk) ?? 0) + 1);
       if (dk === todayKey) scannedTodayIst++;
       if (ageMs != null && ageMs > 24 * 3_600_000) staleOver24h++;
@@ -253,7 +257,7 @@ export async function loadLevelsCronDashboard(
     .slice(0, 12);
 
   const scannedToday = stockRows
-    .filter((r) => r.computedAt && istDateKey(r.computedAt) === todayKey)
+    .filter((r) => r.computedAt && istCalendarDateKey(r.computedAt) === todayKey)
     .sort((a, b) => Date.parse(b.computedAt!) - Date.parse(a.computedAt!));
 
   const scansByDayIst = [...dayCounts.entries()]
@@ -359,6 +363,23 @@ export async function loadLevelsCronDashboard(
 
   const batchSizeEnv = envNum("STOCK_ZONES_BATCH_SIZE", 3);
 
+  const batchSyms = parseSymbolsFromCronSummary(stockCron.heartbeat.lastSummary);
+  const recentBatchErrors: LevelsCronBatchError[] = await Promise.all(
+    batchSyms.map(async (symbol) => {
+      try {
+        const snap = await db.doc(stockDocId(symbol)).get();
+        const d = snap.data() as Record<string, unknown> | undefined;
+        return {
+          symbol,
+          error: typeof d?.nseFetchError === "string" ? d.nseFetchError : null,
+          computedAt: toIsoString(d?.computedAt),
+        };
+      } catch {
+        return { symbol, error: null, computedAt: null };
+      }
+    }),
+  );
+
   return {
     fetchedAt: new Date(now).toISOString(),
     todayIst: todayKey,
@@ -408,5 +429,6 @@ export async function loadLevelsCronDashboard(
       expectedScansPerHour: Math.floor((60 / 5) * batchSizeEnv),
     },
     indices,
+    recentBatchErrors,
   };
 }

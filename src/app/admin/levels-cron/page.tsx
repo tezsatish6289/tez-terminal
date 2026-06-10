@@ -9,7 +9,8 @@ import type {
   LevelsCronStockRow,
 } from "@/lib/levels/levels-cron-dashboard";
 import type { CronHealthLevel } from "@/lib/cron-health-shared";
-import { format, formatDistanceToNowStrict } from "date-fns";
+import { formatIstDateTime } from "@/lib/ist-display";
+import { formatDistanceToNowStrict } from "date-fns";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -49,14 +50,6 @@ function levelBg(level: CronHealthLevel): string {
   }
 }
 
-function formatIst(iso: string | null): string {
-  if (!iso) return "—";
-  const ms = Date.parse(iso);
-  if (!Number.isFinite(ms)) return "—";
-  const ist = new Date(ms + 5.5 * 60 * 60 * 1000);
-  return `${format(ist, "dd MMM HH:mm")} IST`;
-}
-
 function CronStatusCard({
   title,
   level,
@@ -90,7 +83,7 @@ function CronStatusCard({
       <dl className="mt-3 space-y-1.5 text-[11px] text-slate-400">
         <div className="flex justify-between gap-4">
           <dt>Last attempt</dt>
-          <dd className="text-slate-200 tabular-nums">{formatIst(heartbeat.lastAttemptAt)}</dd>
+          <dd className="text-slate-200 tabular-nums">{formatIstDateTime(heartbeat.lastAttemptAt)}</dd>
         </div>
         <div className="flex justify-between gap-4">
           <dt>Last success</dt>
@@ -177,7 +170,7 @@ function StockTable({
                     {r.spot != null ? `₹${r.spot.toLocaleString("en-IN")}` : "—"}
                   </td>
                   <td className="px-4 py-2 tabular-nums text-slate-400">
-                    {formatIst(r.computedAt)}
+                    {formatIstDateTime(r.computedAt)}
                   </td>
                   <td className="px-4 py-2 tabular-nums text-slate-500">
                     {r.ageHours != null ? `${r.ageHours}h` : "—"}
@@ -349,6 +342,33 @@ export default function LevelsCronDashboardPage() {
                 />
               </div>
 
+              {data.recentBatchErrors.length > 0 ? (
+                <div
+                  className="rounded-xl border px-4 py-3"
+                  style={{ borderColor: "rgba(255,255,255,0.08)", background: "rgba(15,23,42,0.5)" }}
+                >
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                    Last batch errors
+                  </h3>
+                  <ul className="space-y-1.5 text-[11px]">
+                    {data.recentBatchErrors.map((row) => (
+                      <li key={row.symbol} className="flex flex-wrap gap-x-3 gap-y-0.5">
+                        <span className="font-bold text-slate-200">{row.symbol}</span>
+                        <span className="text-rose-300/90 font-mono break-all">
+                          {row.error ?? "no error stored"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {data.nseBreaker.open && data.queueMode === "backlog" ? (
+                    <p className="mt-2 text-[10px] text-amber-300/90">
+                      NSE circuit is open (Dhan-only). Backlog symbols missing from the Dhan
+                      instrument map cannot scan until NSE recovers or IDs are added.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
               <div className="grid lg:grid-cols-3 gap-4">
                 <div
                   className="rounded-xl border p-4 lg:col-span-1"
@@ -462,7 +482,7 @@ export default function LevelsCronDashboardPage() {
                       className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2"
                     >
                       <p className="text-[10px] font-bold text-slate-300">{ix.symbol}</p>
-                      <p className="text-[9px] text-slate-500 mt-0.5">{formatIst(ix.computedAt)}</p>
+                      <p className="text-[9px] text-slate-500 mt-0.5">{formatIstDateTime(ix.computedAt)}</p>
                       <p className="text-[9px] text-slate-500 tabular-nums">
                         {ix.ageHours != null ? `${ix.ageHours}h old` : "—"}
                       </p>
@@ -500,7 +520,7 @@ export default function LevelsCronDashboardPage() {
               ) : null}
 
               <p className="text-[10px] text-slate-600 text-center pb-4">
-                Auto-refreshes every 30s · Last fetch {formatIst(data.fetchedAt)}
+                Auto-refreshes every 30s · Last fetch {formatIstDateTime(data.fetchedAt)}
               </p>
             </>
           ) : null}

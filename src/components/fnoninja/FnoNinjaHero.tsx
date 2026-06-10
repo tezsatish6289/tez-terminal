@@ -31,9 +31,8 @@ export function FnoNinjaHero() {
             </h1>
 
             <p className="text-sm sm:text-base leading-relaxed max-w-lg" style={{ color: FNO_MUTED }}>
-              One interactive map of the full NSE F&amp;O universe. Instantly spot open interest
-              clusters, price positioning vs. key support &amp; resistance zones — built live from
-              option chain data.
+              See one interactive map of the full NSE F&amp;O market. Instantly spot open interest
+              clusters and key price zones — built from live option data.
             </p>
 
             <div>

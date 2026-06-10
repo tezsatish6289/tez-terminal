@@ -2,25 +2,54 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const FREEDOMBOT_HOSTS = ["freedombot.ai", "www.freedombot.ai"];
+const FNONINJA_HOSTS = ["fnoninja.com", "www.fnoninja.com"];
 
 // Pages that belong to the FreedomBot marketing site (rewritten to /freedombot/*)
 const FREEDOMBOT_SITE_PATHS = new Set(["/", "/about", "/contact", "/privacy", "/terms", "/records", "/dashboard", "/performance", "/methodology", "/levels"]);
 
-function isFreedomBot(request: NextRequest): boolean {
-  // Firebase App Hosting CDN may forward the original hostname in x-forwarded-host
+function hostCandidates(request: NextRequest): string[] {
   const forwarded = request.headers.get("x-forwarded-host") || "";
   const host = request.headers.get("host") || "";
-
-  // Strip port and lowercase for comparison
-  const candidates = [forwarded, host]
+  return [forwarded, host]
     .map((h) => h.split(":")[0].trim().toLowerCase())
     .filter(Boolean);
+}
 
-  return candidates.some((h) => FREEDOMBOT_HOSTS.includes(h));
+function isFreedomBot(request: NextRequest): boolean {
+  return hostCandidates(request).some((h) => FREEDOMBOT_HOSTS.includes(h));
+}
+
+function isFnoNinja(request: NextRequest): boolean {
+  return hostCandidates(request).some((h) => FNONINJA_HOSTS.includes(h));
 }
 
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+
+  if (isFnoNinja(request)) {
+    if (
+      pathname.startsWith("/_next") ||
+      pathname.startsWith("/api") ||
+      pathname.match(/\..+$/)
+    ) {
+      return NextResponse.next();
+    }
+
+    // Analytics app (shared levels engine)
+    if (pathname === "/levels" || pathname.startsWith("/levels/")) {
+      return NextResponse.rewrite(new URL(`/freedombot${pathname}`, request.url));
+    }
+
+    if (pathname === "/fnoninja" || pathname.startsWith("/fnoninja/")) {
+      return NextResponse.next();
+    }
+
+    if (pathname === "/") {
+      return NextResponse.rewrite(new URL("/fnoninja", request.url));
+    }
+
+    return NextResponse.redirect(new URL("/", request.url));
+  }
 
   if (isFreedomBot(request)) {
     // Serve the FreedomBot icon for favicon requests on this domain

@@ -1,8 +1,6 @@
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import {
   deriveZoneStatus,
-  matchesNearBearSetup,
-  matchesNearBullSetup,
   nearestBandKind,
   type ZoneBands,
 } from "@/lib/zones/zone-status";
@@ -131,36 +129,19 @@ export function deriveBubbleTone(bands: ZoneBands, scanned: boolean): BubbleTone
 }
 
 /**
- * Bubble-map tone: solid in-zone only when the symbol passes the same actionable
- * gate as the slideshow (directional + min POC RR). Otherwise geographic
- * in-zone is shown as near-zone styling.
+ * Bubble-map + slideshow strip tone from geographic zone position (spot vs bands).
+ * Actionable setups (directional + min POC RR) are tracked separately via
+ * `meetsActionableFilter` on each bubble — do not hide in-zone symbols when RR
+ * math fails or the map looks empty.
  */
 export function deriveBubbleDisplayTone(
   bands: ZoneBands,
   scanned: boolean,
-  meetsActionableSetup: boolean,
-  poc?: number | null,
-  bandOffset?: number | null,
+  _meetsActionableSetup?: boolean,
+  _poc?: number | null,
+  _bandOffset?: number | null,
 ): BubbleTone {
-  const raw = deriveBubbleTone(bands, scanned);
-  let tone: BubbleTone;
-  if (meetsActionableSetup && (raw === "IN_BULL" || raw === "IN_BEAR")) {
-    tone = raw;
-  } else if (raw === "IN_BULL") {
-    tone = "NEAR_BULL";
-  } else if (raw === "IN_BEAR") {
-    tone = "NEAR_BEAR";
-  } else {
-    tone = raw;
-  }
-  // Geographic near only — same directional + min POC RR gate as the slideshow.
-  if (raw === "NEAR_BULL" && !matchesNearBullSetup(bands, poc, bandOffset)) {
-    return "NEUTRAL";
-  }
-  if (raw === "NEAR_BEAR" && !matchesNearBearSetup(bands, poc, bandOffset)) {
-    return "NEUTRAL";
-  }
-  return tone;
+  return deriveBubbleTone(bands, scanned);
 }
 
 const INDEX_SILVER_RING = "rgba(192, 202, 214, 0.92)";

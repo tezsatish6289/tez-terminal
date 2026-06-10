@@ -3,6 +3,7 @@ import type { PublicLevelsSource } from "@/lib/levels/levels-source";
 import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
 import {
   deriveZoneStatus,
+  isInZoneStatus,
   matchesSlideshowSetup,
   type PocDirectionFilter,
   type SlideshowFilterCounts,
@@ -84,6 +85,61 @@ export function levelsFromStockRow(row: {
     atmIV: row.atmIV ?? null,
     daysToEarnings: row.daysToEarnings ?? null,
   };
+}
+
+/** Build the geographic In-Zone list (spot inside or near a band). */
+export function buildGeographicInZoneList(input: {
+  indices: { symbol?: string; label: string; data: PublicLevels | null }[];
+  stocks: ({
+    symbol: string;
+    label: string;
+    spot: number | null;
+    maxPain?: number | null;
+    bullZoneLow?: number | null;
+    bullZoneHigh?: number | null;
+    bearZoneLow?: number | null;
+    bearZoneHigh?: number | null;
+    halfWidth?: number | null;
+    computedAt?: string | null;
+    levelsSource?: PublicLevelsSource | null;
+  } & StockRowVolRegime)[];
+}): LevelsActionableItem[] {
+  const out: LevelsActionableItem[] = [];
+
+  for (const it of input.indices) {
+    const symbol = (it.symbol ?? it.label).toUpperCase();
+    const data = it.data;
+    const bands = bandsFromLevels(data);
+    if (!isInZoneStatus(deriveZoneStatus(bands))) continue;
+    out.push({
+      scope: "index",
+      symbol,
+      label: it.label,
+      status: deriveZoneStatus(bands),
+      spot: bands.spot,
+      currency: "₹",
+      data,
+    });
+  }
+
+  for (const row of input.stocks) {
+    const data = levelsFromStockRow(row);
+    if (!data) continue;
+    const bands = bandsFromLevels(data, row.spot);
+    if (!isInZoneStatus(deriveZoneStatus(bands))) continue;
+    out.push({
+      scope: "stock",
+      symbol: row.symbol,
+      label: row.label ?? row.symbol,
+      status: deriveZoneStatus(bands),
+      spot: bands.spot,
+      currency: "₹",
+      data,
+    });
+  }
+
+  out.sort((a, b) => a.label.localeCompare(b.label, "en", { sensitivity: "base" }));
+  return out;
 }
 
 /** Build the actionable In-Zone list (directional + min POC RR). */

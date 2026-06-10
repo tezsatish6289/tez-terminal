@@ -91,7 +91,7 @@ export function FnoNinjaFooter() {
 
         <div className="pt-6 text-center" style={{ borderTop: `1px solid ${FNO_NAV_BORDER}` }}>
           <p className="text-[11px]" style={{ color: "#1e293b" }}>
-            &copy; {new Date().getFullYear()} FNONinja. Powered by{" "}
+            &copy; {new Date().getFullYear()} FNONINJA. Powered by{" "}
             <a
               href="https://freedombot.ai"
               target="_blank"

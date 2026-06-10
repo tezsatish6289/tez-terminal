@@ -1,4 +1,4 @@
-/** FNONinja blue brand tokens (FreedomBot-aligned). */
+/** FNONINJA blue brand tokens (FreedomBot-aligned). */
 export const FNO_BG = "#080f1e";
 export const FNO_TEXT = "#f0f4ff";
 export const FNO_MUTED = "#64748b";

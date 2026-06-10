@@ -39,37 +39,42 @@ export default function FnoNinjaLandingPage() {
     <div className="font-sans antialiased min-w-0 flex flex-col flex-1">
       <FnoNinjaHero />
 
-      {/* Problem */}
+      {/* Problem / Solution */}
       <section className={`${FB_DOC_SHELL} py-16 sm:py-24`}>
-        <div className="text-center mb-10">
-          <p
-            className="text-[10px] font-bold uppercase tracking-widest mb-4"
-            style={{ color: "#334155" }}
-          >
-            The challenge
-          </p>
-          <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight max-w-3xl mx-auto">
-            The option chain contains useful market information. Tracking it across hundreds of
-            symbols is difficult.
-          </h2>
+        <div className="max-w-3xl mx-auto text-center flex flex-col gap-10 sm:gap-12">
+          <div>
+            <p
+              className="text-[10px] font-bold uppercase tracking-widest mb-4"
+              style={{ color: "#334155" }}
+            >
+              Problem
+            </p>
+            <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight">
+              Option chain data is powerful — but tracking it across hundreds of stocks is
+              overwhelming.
+            </h2>
+          </div>
+          <div>
+            <p
+              className="text-[10px] font-bold uppercase tracking-widest mb-4"
+              style={{ color: FNO_ACCENT }}
+            >
+              Solution
+            </p>
+            <p className="text-base sm:text-lg leading-relaxed" style={{ color: FNO_MUTED }}>
+              FNONINJA turns complex option chain data into clear visual market maps. Spot open
+              interest clusters, key zones, and market structure at a glance — all in one interface.
+            </p>
+          </div>
         </div>
-        <p
-          className="text-base sm:text-lg leading-relaxed max-w-3xl mx-auto text-center"
-          style={{ color: FNO_MUTED }}
-        >
-          FNONinja aggregates publicly available option-chain data across NSE F&amp;O stocks and
-          indices and presents it through visual market maps, zone views, and symbol-level
-          analytics. Instead of manually reviewing individual option chains, you can monitor
-          broader market structure from a single interface — for your own independent research.
-        </p>
       </section>
 
       {/* What is */}
       <section className={`${FB_CONTENT_SHELL} pb-14 sm:pb-20`}>
         <div className="rounded-2xl p-6 sm:p-8" style={cardStyle}>
-          <h2 className="text-xl sm:text-2xl font-black text-white">What is FNONinja</h2>
+          <h2 className="text-xl sm:text-2xl font-black text-white">What is FNONINJA</h2>
           <p className="mt-4 leading-relaxed" style={{ color: FNO_MUTED }}>
-            FNONinja is an options-market{" "}
+            FNONINJA is an options-market{" "}
             <strong className="font-semibold" style={{ color: "#cbd5e1" }}>
               analytics and data visualization
             </strong>{" "}
@@ -336,7 +341,7 @@ export default function FnoNinjaLandingPage() {
           }}
         >
           <p>
-            FNONinja is a market analytics and data visualization platform. Information displayed is
+            FNONINJA is a market analytics and data visualization platform. Information displayed is
             generated through automated processing of publicly available market data and is provided
             solely for{" "}
             <strong className="font-semibold" style={{ color: "#cbd5e1" }}>
@@ -345,9 +350,9 @@ export default function FnoNinjaLandingPage() {
             .
           </p>
           <p className="mt-3">
-            FNONinja does not provide investment advice, investment recommendations, research
+            FNONINJA does not provide investment advice, investment recommendations, research
             recommendations, stock recommendations, trading calls, buy/sell suggestions, portfolio
-            management services, order execution, or personalized financial advice. FNONinja is not
+            management services, order execution, or personalized financial advice. FNONINJA is not
             registered with the Securities and Exchange Board of India (SEBI) as a Research Analyst
             or Investment Adviser.
           </p>
@@ -362,7 +367,7 @@ export default function FnoNinjaLandingPage() {
             are solely the responsibility of the user.
           </p>
           <p className="mt-3">
-            FNONinja is not affiliated with, endorsed by, or sponsored by NSE, BSE, or any exchange
+            FNONINJA is not affiliated with, endorsed by, or sponsored by NSE, BSE, or any exchange
             or broker.
           </p>
         </div>

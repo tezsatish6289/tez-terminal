@@ -37,7 +37,10 @@ export function FnoNinjaLogo({
         </svg>
       </span>
       {showWordmark && (
-        <span className={`font-black tracking-tight truncate ${wordmarkClassName}`}>
+        <span
+          className={`font-black tracking-tight truncate uppercase ${wordmarkClassName}`}
+          aria-label="FNONINJA"
+        >
           <span className="text-[#f0f4ff]">FNO</span>
           <span style={{ color: FNO_ACCENT }}>NINJA</span>
         </span>

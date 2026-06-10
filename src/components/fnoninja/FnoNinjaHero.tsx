@@ -1,13 +1,13 @@
 import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
 import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
-import { FNO_ACCENT, FNO_MUTED, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
+import { FNO_ACCENT, FNO_MUTED } from "@/lib/fnoninja/theme";
 
 const EMBED_SRC = "/embed/levels-bubbles";
 
 export function FnoNinjaHero() {
   return (
     <section
-      className="relative overflow-hidden border-b"
+      className="relative border-b flex flex-col min-h-[calc(100dvh-3.5rem)] sm:h-[calc(100dvh-4rem)] sm:overflow-hidden"
       style={{ borderColor: "rgba(90,140,220,0.08)" }}
     >
       <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
@@ -21,9 +21,11 @@ export function FnoNinjaHero() {
         />
       </div>
 
-      <div className={`relative ${FB_CONTENT_SHELL} py-14 sm:py-20 lg:py-24`}>
-        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 xl:gap-20 items-center">
-          <div className="text-left min-w-0 flex flex-col gap-8 sm:gap-9 lg:gap-10">
+      <div
+        className={`relative ${FB_CONTENT_SHELL} flex-1 flex flex-col min-h-0 py-6 sm:py-8 lg:py-10`}
+      >
+        <div className="grid flex-1 min-h-0 lg:grid-cols-2 gap-8 lg:gap-12 xl:gap-16 items-center lg:items-stretch">
+          <div className="text-left min-w-0 flex flex-col justify-center gap-7 sm:gap-8 lg:gap-9 lg:py-2">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-[3.25rem] font-black tracking-tight leading-[1.08] text-white">
               Map the <span style={{ color: FNO_ACCENT }}>F&amp;O</span> markets with precision.
             </h1>
@@ -43,9 +45,9 @@ export function FnoNinjaHero() {
             </p>
           </div>
 
-          <div className="min-w-0 w-full lg:mt-0 mt-4">
+          <div className="min-w-0 w-full flex flex-col min-h-[min(50vh,400px)] lg:min-h-0 lg:flex-1">
             <div
-              className="rounded-2xl overflow-hidden shadow-2xl"
+              className="rounded-2xl overflow-hidden shadow-2xl flex flex-col flex-1 min-h-0 h-full"
               style={{
                 border: "1px solid rgba(90,140,220,0.18)",
                 backgroundColor: "#0a1628",
@@ -53,7 +55,7 @@ export function FnoNinjaHero() {
               }}
             >
               <div
-                className="flex items-center gap-2 px-4 py-2.5 border-b"
+                className="flex items-center gap-2 px-4 py-2.5 border-b flex-shrink-0"
                 style={{
                   borderColor: "rgba(90,140,220,0.12)",
                   backgroundColor: "rgba(8,15,30,0.9)",
@@ -69,7 +71,7 @@ export function FnoNinjaHero() {
                   NSE-FNO-MARKET-MAP
                 </span>
               </div>
-              <div className="relative aspect-[4/3] sm:aspect-[5/4] lg:aspect-[4/3] min-h-[260px] sm:min-h-[300px] lg:min-h-[340px] bg-[#060912]">
+              <div className="relative flex-1 min-h-[200px] bg-[#060912]">
                 <iframe
                   src={EMBED_SRC}
                   title="NSE F&O market bubble map"

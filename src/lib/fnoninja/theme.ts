@@ -1,13 +1,14 @@
-/** FNONinja green brand tokens. */
-export const FNO_BG = "#0a0d0e";
-export const FNO_TEXT = "#ffffff";
-export const FNO_MUTED = "#8b9aab";
-export const FNO_CARD_BG = "#111618";
-export const FNO_CARD_BORDER = "1px solid rgba(29,185,120,0.14)";
-export const FNO_NAV_BORDER = "rgba(255,255,255,0.06)";
-export const FNO_ACCENT = "#1db978";
-export const FNO_ACCENT_SOFT = "rgba(29,185,120,0.12)";
-export const FNO_GRADIENT_TEXT = "linear-gradient(135deg, #1db978 0%, #34d399 100%)";
-export const FNO_CTA_BG = "#1db978";
-export const FNO_CTA_TEXT = "#0a0d0e";
-export const FNO_CTA_SHADOW = "0 4px 18px rgba(29,185,120,0.38)";
+/** FNONinja blue brand tokens (FreedomBot-aligned). */
+export const FNO_BG = "#080f1e";
+export const FNO_TEXT = "#f0f4ff";
+export const FNO_MUTED = "#64748b";
+export const FNO_CARD_BG = "#0d1b2e";
+export const FNO_CARD_BORDER = "1px solid rgba(90,140,220,0.2)";
+export const FNO_NAV_BORDER = "rgba(90,140,220,0.1)";
+export const FNO_ACCENT = "#60a5fa";
+export const FNO_LOGO_MARK = "#3b82f6";
+export const FNO_ACCENT_SOFT = "rgba(37,99,235,0.08)";
+export const FNO_GRADIENT_TEXT =
+  "linear-gradient(135deg, #3b82f6 0%, #60a5fa 60%, #93c5fd 100%)";
+export const FNO_CTA_GRADIENT = "linear-gradient(135deg, #1d4ed8, #3b82f6)";
+export const FNO_CTA_SHADOW = "0 6px 20px rgba(59,130,246,0.4)";

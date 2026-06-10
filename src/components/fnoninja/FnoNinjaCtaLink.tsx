@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { fnoAnalyticsHref } from "@/lib/fnoninja/paths";
-import { FNO_ACCENT_SOFT, FNO_CTA_BG, FNO_CTA_SHADOW, FNO_CTA_TEXT } from "@/lib/fnoninja/theme";
+import { FNO_ACCENT_SOFT, FNO_CTA_GRADIENT, FNO_CTA_SHADOW } from "@/lib/fnoninja/theme";
 
 export function FnoNinjaCtaLink({
   children,
@@ -15,17 +15,16 @@ export function FnoNinjaCtaLink({
 }) {
   const href = fnoAnalyticsHref(usePathname());
 
-  const greenBtn =
-    "inline-flex items-center justify-center font-bold transition-all hover:brightness-110 active:scale-[0.98]";
+  const baseBtn =
+    "inline-flex items-center justify-center font-bold transition-all hover:scale-105";
 
   if (variant === "nav") {
     return (
       <Link
         href={href}
-        className={`${greenBtn} gap-1.5 rounded-lg px-4 py-2 text-xs sm:text-sm`}
+        className={`${baseBtn} gap-1.5 rounded-lg px-4 py-2 text-xs sm:text-sm text-white`}
         style={{
-          backgroundColor: FNO_CTA_BG,
-          color: FNO_CTA_TEXT,
+          background: FNO_CTA_GRADIENT,
           boxShadow: FNO_CTA_SHADOW,
         }}
       >
@@ -38,10 +37,10 @@ export function FnoNinjaCtaLink({
     return (
       <Link
         href={href}
-        className={`${greenBtn} gap-2 rounded-lg px-7 py-3 text-sm border`}
+        className={`${baseBtn} gap-2 rounded-lg px-7 py-3 text-sm border`}
         style={{
-          borderColor: "rgba(29,185,120,0.35)",
-          color: FNO_CTA_BG,
+          border: "1px solid rgba(90,140,220,0.22)",
+          color: "#93c5fd",
           backgroundColor: FNO_ACCENT_SOFT,
         }}
       >
@@ -54,12 +53,8 @@ export function FnoNinjaCtaLink({
   return (
     <Link
       href={href}
-      className={`${greenBtn} gap-2.5 rounded-lg px-8 py-3.5 text-xs uppercase tracking-widest`}
-      style={{
-        backgroundColor: FNO_CTA_BG,
-        color: FNO_CTA_TEXT,
-        boxShadow: FNO_CTA_SHADOW,
-      }}
+      className={`${baseBtn} gap-2.5 rounded-lg px-8 py-3.5 text-xs uppercase tracking-widest text-white`}
+      style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
     >
       {children}
       <ArrowRight className="h-4 w-4" />

@@ -1,4 +1,4 @@
-import { FNO_ACCENT } from "@/lib/fnoninja/theme";
+import { FNO_ACCENT, FNO_BG, FNO_LOGO_MARK } from "@/lib/fnoninja/theme";
 
 export function FnoNinjaLogo({
   size = 32,
@@ -15,7 +15,7 @@ export function FnoNinjaLogo({
     <span className="inline-flex items-center gap-2.5 min-w-0">
       <span
         className="inline-flex items-center justify-center rounded-lg flex-shrink-0"
-        style={{ width: size, height: size, backgroundColor: FNO_ACCENT }}
+        style={{ width: size, height: size, backgroundColor: FNO_LOGO_MARK }}
         aria-hidden
       >
         <svg
@@ -32,13 +32,13 @@ export function FnoNinjaLogo({
             height="7.5"
             rx="0.5"
             transform="rotate(45 6 6)"
-            fill="#0a0d0e"
+            fill={FNO_BG}
           />
         </svg>
       </span>
       {showWordmark && (
         <span className={`font-black tracking-tight truncate ${wordmarkClassName}`}>
-          <span className="text-white">FNO</span>
+          <span className="text-[#f0f4ff]">FNO</span>
           <span style={{ color: FNO_ACCENT }}>NINJA</span>
         </span>
       )}

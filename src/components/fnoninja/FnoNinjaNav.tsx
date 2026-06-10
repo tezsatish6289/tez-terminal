@@ -37,7 +37,7 @@ export function FnoNinjaNav() {
       <nav
         className="sticky top-0 z-40 border-b"
         style={{
-          backgroundColor: "rgba(10,13,14,0.92)",
+          backgroundColor: "rgba(8,15,30,0.95)",
           borderColor: FNO_NAV_BORDER,
           backdropFilter: "blur(20px)",
         }}
@@ -59,8 +59,8 @@ export function FnoNinjaNav() {
               className="md:hidden flex items-center justify-center h-10 w-10 rounded-lg transition-colors"
               style={{
                 color: "#94a3b8",
-                border: "1px solid rgba(29,185,120,0.2)",
-                backgroundColor: "rgba(29,185,120,0.06)",
+                border: "1px solid rgba(90,140,220,0.15)",
+                backgroundColor: "rgba(37,99,235,0.06)",
               }}
               aria-label={mobileOpen ? "Close menu" : "Open menu"}
               aria-expanded={mobileOpen}
@@ -84,7 +84,7 @@ export function FnoNinjaNav() {
             className="absolute top-0 right-0 h-full w-[min(100vw-3rem,320px)] flex flex-col shadow-2xl"
             style={{
               backgroundColor: FNO_BG,
-              borderLeft: "1px solid rgba(29,185,120,0.12)",
+              borderLeft: "1px solid rgba(90,140,220,0.12)",
             }}
           >
             <div

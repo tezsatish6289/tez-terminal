@@ -95,7 +95,7 @@ export default function FnoNinjaLandingPage() {
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-5"
             style={{
               backgroundColor: FNO_ACCENT_SOFT,
-              border: "1px solid rgba(29,185,120,0.25)",
+              border: "1px solid rgba(90,140,220,0.2)",
               color: FNO_ACCENT,
             }}
           >
@@ -331,7 +331,7 @@ export default function FnoNinjaLandingPage() {
           className="rounded-2xl p-5 sm:p-6 text-[12px] sm:text-[13px] leading-relaxed"
           style={{
             backgroundColor: FNO_CARD_BG,
-            border: "1px solid rgba(29,185,120,0.14)",
+            border: "1px solid rgba(90,140,220,0.15)",
             color: FNO_MUTED,
           }}
         >

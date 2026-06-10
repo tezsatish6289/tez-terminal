@@ -6,15 +6,18 @@ const EMBED_SRC = "/embed/levels-bubbles";
 
 export function FnoNinjaHero() {
   return (
-    <section className="relative overflow-hidden border-b" style={{ borderColor: FNO_NAV_BORDER }}>
+    <section
+      className="relative overflow-hidden border-b"
+      style={{ borderColor: "rgba(90,140,220,0.08)" }}
+    >
       <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
         <div
           className="absolute -top-[30%] -left-[20%] w-[70%] h-[80%] rounded-full blur-[140px]"
-          style={{ backgroundColor: "rgba(29,185,120,0.06)" }}
+          style={{ backgroundColor: "rgba(37,99,235,0.07)" }}
         />
         <div
           className="absolute top-[5%] right-[-10%] w-[50%] h-[60%] rounded-full blur-[120px]"
-          style={{ backgroundColor: "rgba(29,185,120,0.04)" }}
+          style={{ backgroundColor: "rgba(96,165,250,0.05)" }}
         />
       </div>
 
@@ -22,8 +25,7 @@ export function FnoNinjaHero() {
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 xl:gap-20 items-center">
           <div className="text-left min-w-0 flex flex-col gap-8 sm:gap-9 lg:gap-10">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-[3.25rem] font-black tracking-tight leading-[1.08] text-white">
-              Map the{" "}
-              <span style={{ color: FNO_ACCENT }}>F&amp;O</span> markets with precision.
+              Map the <span style={{ color: FNO_ACCENT }}>F&amp;O</span> markets with precision.
             </h1>
 
             <p className="text-sm sm:text-base leading-relaxed max-w-md" style={{ color: FNO_MUTED }}>
@@ -36,7 +38,7 @@ export function FnoNinjaHero() {
               <FnoNinjaCtaLink>See market map</FnoNinjaCtaLink>
             </div>
 
-            <p className="text-[11px]" style={{ color: "#4b5563" }}>
+            <p className="text-[11px]" style={{ color: "#334155" }}>
               Informational only · Not investment advice
             </p>
           </div>
@@ -45,21 +47,21 @@ export function FnoNinjaHero() {
             <div
               className="rounded-2xl overflow-hidden shadow-2xl"
               style={{
-                border: "1px solid rgba(29,185,120,0.16)",
-                backgroundColor: "#111618",
-                boxShadow: "0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(29,185,120,0.05)",
+                border: "1px solid rgba(90,140,220,0.18)",
+                backgroundColor: "#0a1628",
+                boxShadow: "0 24px 60px rgba(0,0,0,0.45), 0 0 0 1px rgba(90,140,220,0.06)",
               }}
             >
               <div
                 className="flex items-center gap-2 px-4 py-2.5 border-b"
                 style={{
-                  borderColor: "rgba(29,185,120,0.1)",
-                  backgroundColor: "rgba(10,13,14,0.95)",
+                  borderColor: "rgba(90,140,220,0.12)",
+                  backgroundColor: "rgba(8,15,30,0.9)",
                 }}
               >
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#ef4444" }} />
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#eab308" }} />
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: FNO_ACCENT }} />
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#22c55e" }} />
                 <span
                   className="ml-2 text-[10px] font-mono font-medium truncate"
                   style={{ color: "#64748b" }}

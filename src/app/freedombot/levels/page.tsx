@@ -48,7 +48,6 @@ import {
 } from "@/lib/zones/bubble-map-filter";
 import {
   deriveZoneStatus,
-  matchesDirectionalSetup,
   type ZoneDisplayKey,
   type ZoneStatus,
   zoneStatusDisplayKey,
@@ -264,43 +263,11 @@ export default function LevelsPage() {
     return m;
   }, [payload?.stocks]);
 
-  /** Solid in-zone bubbles (directional + min POC RR) — not the slideshow strip list. */
-  const actionableBubbleIds = useMemo(() => {
-    if (!payload) return new Set<string>();
-    const ids = new Set<string>();
-    for (const it of payload.indices) {
-      const symbol = (it.symbol ?? it.label).toUpperCase();
-      const bands = bandsFromLevels(it.data);
-      const poc = it.data?.poc ?? null;
-      const bandOffset = it.data?.bandOffset ?? null;
-      if (
-        matchesDirectionalSetup(bands, poc, "bull", bandOffset) ||
-        matchesDirectionalSetup(bands, poc, "bear", bandOffset)
-      ) {
-        ids.add(`index-${symbol}`);
-      }
-    }
-    for (const row of payload.stocks) {
-      const data = levelsFromStockRow(row);
-      if (!data) continue;
-      const bands = bandsFromLevels(data, row.spot);
-      if (
-        matchesDirectionalSetup(bands, data.poc, "bull", data.bandOffset) ||
-        matchesDirectionalSetup(bands, data.poc, "bear", data.bandOffset)
-      ) {
-        ids.add(`stock-${row.symbol}`);
-      }
-    }
-    return ids;
-  }, [payload]);
-
-  /** Full F&O map (all tones). */
+  /** Full F&O map — zone tones gated by 2:1 POC RR (bubble + slideshow). */
   const bubbleItems = useMemo(
     () =>
-      payload
-        ? buildLevelsBubbleItems(payload.indices, stockBySymbol, actionableBubbleIds)
-        : [],
-    [payload, stockBySymbol, actionableBubbleIds],
+      payload ? buildLevelsBubbleItems(payload.indices, stockBySymbol) : [],
+    [payload, stockBySymbol],
   );
 
   const bubbleFilterCounts = useMemo(

@@ -1,5 +1,6 @@
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import {
+  bubbleTonePassesMinRR,
   deriveZoneStatus,
   nearestBandKind,
   type ZoneBands,
@@ -129,19 +130,26 @@ export function deriveBubbleTone(bands: ZoneBands, scanned: boolean): BubbleTone
 }
 
 /**
- * Bubble-map + slideshow strip tone from geographic zone position (spot vs bands).
- * Actionable setups (directional + min POC RR) are tracked separately via
- * `meetsActionableFilter` on each bubble — do not hide in-zone symbols when RR
- * math fails or the map looks empty.
+ * Bubble-map + slideshow strip tone: geographic zone position, gated by min 2:1 POC RR.
+ * Fails RR → NEUTRAL (grey “between zones”) so filter counts match qualified setups only.
  */
 export function deriveBubbleDisplayTone(
   bands: ZoneBands,
   scanned: boolean,
   _meetsActionableSetup?: boolean,
-  _poc?: number | null,
-  _bandOffset?: number | null,
+  poc?: number | null,
+  bandOffset?: number | null,
 ): BubbleTone {
-  return deriveBubbleTone(bands, scanned);
+  const geo = deriveBubbleTone(bands, scanned);
+  if (
+    geo === "IN_BULL" ||
+    geo === "IN_BEAR" ||
+    geo === "NEAR_BULL" ||
+    geo === "NEAR_BEAR"
+  ) {
+    if (!bubbleTonePassesMinRR(geo, bands, poc, bandOffset)) return "NEUTRAL";
+  }
+  return geo;
 }
 
 const INDEX_SILVER_RING = "rgba(192, 202, 214, 0.92)";

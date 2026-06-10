@@ -261,6 +261,25 @@ export function matchesNearBearSetup(
   return poc < spot && rr != null && rr >= MIN_POC_RISK_REWARD;
 }
 
+/** Whether a bubble map tone passes min POC reward:risk for its geographic side. */
+export function bubbleTonePassesMinRR(
+  tone: "IN_BULL" | "IN_BEAR" | "NEAR_BULL" | "NEAR_BEAR",
+  bands: ZoneBands,
+  poc: number | null | undefined,
+  bandOffset?: number | null,
+): boolean {
+  switch (tone) {
+    case "IN_BULL":
+      return matchesDirectionalSetup(bands, poc, "bull", bandOffset);
+    case "IN_BEAR":
+      return matchesDirectionalSetup(bands, poc, "bear", bandOffset);
+    case "NEAR_BULL":
+      return matchesNearBullSetup(bands, poc, bandOffset);
+    case "NEAR_BEAR":
+      return matchesNearBearSetup(bands, poc, bandOffset);
+  }
+}
+
 /** Slideshow strip: actionable in-zone + qualified near support / near resistance. */
 export function matchesSlideshowSetup(
   bands: ZoneBands,

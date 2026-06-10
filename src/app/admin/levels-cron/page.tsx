@@ -2,6 +2,7 @@
 
 import { TopBar } from "@/components/dashboard/TopBar";
 import { AdminStatCard } from "@/components/admin/AdminStatCard";
+import { DhanFnoMapPanel } from "@/components/admin/DhanFnoMapPanel";
 import { useUser } from "@/firebase";
 import { isAdminEmail } from "@/lib/admin-emails-client";
 import type {
@@ -345,6 +346,8 @@ export default function LevelsCronDashboardPage() {
               <p className="text-[10px] text-slate-500 -mt-2">
                 Right card is Deribit BTC/ETH/SOL only — unrelated to F&O stock scanning on the left.
               </p>
+
+              <DhanFnoMapPanel />
 
               {data.recentBatchErrors.length > 0 ? (
                 <div

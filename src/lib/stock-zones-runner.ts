@@ -24,6 +24,10 @@ import {
 } from "@/lib/nse/fno-universe";
 import { resolveDhanEquitySecurityId } from "@/lib/dhan-candles";
 import {
+  isDhanOptionChainBlocked,
+  loadDhanFnoEntries,
+} from "@/lib/dhan-instruments-sync";
+import {
   persistEquityZonesDoc,
   stampEquityZonesError,
   stockDocId,
@@ -106,6 +110,7 @@ async function pickDhanOnlyBatch(
   const n = refreshQueue.length;
   if (n === 0) return { symbols: [], queueMode: "refresh", queueLength: 0 };
 
+  const fnoEntries = await loadDhanFnoEntries(db);
   const dhanFirst = refreshQueue.filter((s) => prevEntries[s]?.levelsSource === "dhan");
   const other = refreshQueue.filter((s) => prevEntries[s]?.levelsSource !== "dhan");
   const ordered = [...dhanFirst, ...other];
@@ -114,6 +119,7 @@ async function pickDhanOnlyBatch(
   const picked: string[] = [];
   for (let i = 0; i < ordered.length && picked.length < batchSize; i++) {
     const sym = ordered[(start + i) % ordered.length]!;
+    if (isDhanOptionChainBlocked(sym, fnoEntries)) continue;
     if ((await resolveDhanEquitySecurityId(sym)) == null) continue;
     if (await isDhanBlockedSymbol(db, sym)) continue;
     picked.push(sym);

@@ -88,6 +88,12 @@ let securityIdMap: Map<string, number> | null = null;
 let securityIdLoadedAt = 0;
 const SECURITY_ID_TTL_MS = 60 * 60 * 1000; // 1h — instrument list is stable
 
+/** Call after Firestore `config/dhan_instruments` is updated. */
+export function invalidateDhanSecurityIdCache(): void {
+  securityIdMap = null;
+  securityIdLoadedAt = 0;
+}
+
 /** Strip cache prefixes (`EQ:`, `NSE:`) before Firestore instrument lookup. */
 function normalizeEquitySymbol(symbol: string): string {
   const s = symbol.trim().toUpperCase();

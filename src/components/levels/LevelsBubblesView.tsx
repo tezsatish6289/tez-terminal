@@ -21,7 +21,7 @@ import {
   type BubbleMapFilter,
 } from "@/lib/zones/bubble-map-filter";
 import { levelsFromStockRow } from "@/lib/zones/levels-actionable-list";
-import type { ZoneBands } from "@/lib/zones/zone-status";
+import { matchesSlideshowSetup, type ZoneBands } from "@/lib/zones/zone-status";
 
 export interface LevelsBubbleItem {
   id: string;
@@ -325,11 +325,10 @@ export type StockBubbleSource = {
   computedAt?: string | null;
 };
 
-/** Full map: indices + F&O universe; optional highlight for slideshow/actionable symbols. */
+/** Full map: indices + F&O universe (tones gated by 2:1 POC RR). */
 export function buildLevelsBubbleItems(
   indices: { symbol?: string; label: string; data: PublicLevels | null }[],
   stockBySymbol: Map<string, StockBubbleSource>,
-  actionableIds?: ReadonlySet<string>,
 ): LevelsBubbleItem[] {
   const out: LevelsBubbleItem[] = [];
 
@@ -343,9 +342,9 @@ export function buildLevelsBubbleItems(
       bearLow: it.data?.bearLow ?? null,
       bearHigh: it.data?.bearHigh ?? null,
     };
-    const actionable = actionableIds?.has(id) ?? false;
     const poc = it.data?.poc ?? null;
     const bandOffset = it.data?.bandOffset ?? null;
+    const actionable = matchesSlideshowSetup(bands, poc, "all", bandOffset);
     out.push({
       id,
       symbol,
@@ -371,10 +370,11 @@ export function buildLevelsBubbleItems(
       bearHigh: st?.bearZoneHigh ?? null,
     };
     const id = `stock-${sym}`;
-    const actionable = actionableIds?.has(id) ?? false;
     const stockLevels = st ? levelsFromStockRow(st) : null;
     const poc = stockLevels?.poc ?? null;
     const bandOffset = stockLevels?.bandOffset ?? null;
+    const actionable =
+      scanned && matchesSlideshowSetup(bands, poc, "all", bandOffset);
     out.push({
       id,
       symbol: sym,
@@ -407,22 +407,19 @@ export function inZoneItemToBubbleItem(it: {
     bearLow: it.data?.bearLow ?? null,
     bearHigh: it.data?.bearHigh ?? null,
   };
+  const poc = it.data?.poc ?? null;
+  const bandOffset = it.data?.bandOffset ?? null;
+  const actionable = matchesSlideshowSetup(bands, poc, "all", bandOffset);
   return {
     id: `${it.scope}-${it.symbol}`,
     symbol: it.symbol,
     label: it.label,
     scope: it.scope,
-    tone: deriveBubbleDisplayTone(
-      bands,
-      true,
-      true,
-      it.data?.poc ?? null,
-      it.data?.bandOffset ?? null,
-    ),
+    tone: deriveBubbleDisplayTone(bands, true, actionable, poc, bandOffset),
     spot: bands.spot,
     poc: it.data?.poc ?? null,
     bands,
     data: it.data,
-    meetsActionableFilter: true,
+    meetsActionableFilter: actionable,
   };
 }

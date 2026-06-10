@@ -22,7 +22,7 @@ import { getAdminFirestore } from "@/firebase/admin";
 import { INDEX_KEYS, INDEX_SPECS } from "@/lib/index-options-zones";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
-  buildGeographicInZoneList,
+  buildLevelsActionableList,
   type LevelsActionableItem,
 } from "@/lib/zones/levels-actionable-list";
 import {
@@ -240,9 +240,10 @@ export async function GET(request: NextRequest) {
     }))
     .sort((a, b) => a.symbol.localeCompare(b.symbol));
 
-  const inZone: LevelsActionableItem[] = buildGeographicInZoneList({
+  const inZone: LevelsActionableItem[] = buildLevelsActionableList({
     indices,
     stocks,
+    filter: "all",
   });
 
   return NextResponse.json(

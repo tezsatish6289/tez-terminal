@@ -13,13 +13,14 @@
 import type { Firestore } from "firebase-admin/firestore";
 import type { NseSession } from "@/lib/nse/client";
 import { createNseSession } from "@/lib/nse/client";
+import { isNseCircuitClosed } from "@/lib/nse/circuit-breaker";
 import { NseCircuitOpenError } from "@/lib/nse/types";
+import { computeStockZonesWithFallback, nseFallbackEligible } from "@/lib/equity-zones-fetch";
 import {
   nextStockZonesBatch,
   FNO_UNIVERSE,
   type StockAggregateMeta,
 } from "@/lib/nse/fno-universe";
-import { computeStockZonesWithFallback } from "@/lib/equity-zones-fetch";
 import {
   persistEquityZonesDoc,
   stampEquityZonesError,
@@ -154,9 +155,7 @@ export async function runStockZonesBatch(
   opts: StockZonesBatchOptions = {},
 ): Promise<StockZonesBatchSummary> {
   /** App Hosting runConfig.timeoutSeconds is 120 — keep each cron tick under ~95s. */
-  // Halved from 10 → 5 since term-structure doubles option-chain calls per
-  // symbol; this keeps NSE calls-per-tick near the pre-term-structure level.
-  const batchSize = opts.batchSize ?? envNum("STOCK_ZONES_BATCH_SIZE", 5);
+  const batchSize = opts.batchSize ?? envNum("STOCK_ZONES_BATCH_SIZE", 3);
   const delayMs = opts.delayMs ?? envNum("STOCK_ZONES_DELAY_MS", 600);
   const dhanDelayMs = envNum("STOCK_ZONES_DHAN_DELAY_MS", 400);
   const maxWallClockMs = opts.maxWallClockMs ?? envNum("STOCK_ZONES_MAX_RUN_MS", 95_000);
@@ -207,14 +206,21 @@ export async function runStockZonesBatch(
 
   if (!symbols.length) return emptySummary();
 
+  const nseAllowed = await isNseCircuitClosed(db);
   let session: NseSession | null = null;
   let nseSession: StockZonesBatchSummary["nseSession"] = "ok";
-  try {
-    session = await createNseSession(db);
-  } catch (e) {
-    if (e instanceof NseCircuitOpenError) nseSession = "circuit_open";
-    else nseSession = "failed";
-    session = null;
+  let dhanOnly = !nseAllowed;
+  if (dhanOnly) {
+    nseSession = "circuit_open";
+  } else {
+    try {
+      session = await createNseSession(db);
+    } catch (e) {
+      if (e instanceof NseCircuitOpenError) nseSession = "circuit_open";
+      else nseSession = "failed";
+      session = null;
+      dhanOnly = true;
+    }
   }
 
   // Volatility-regime context loaded once for the batch:
@@ -235,6 +241,32 @@ export async function runStockZonesBatch(
   let dhanOk = 0;
   let timedOut = false;
   let aborted: string | null = null;
+  const symbolTimeoutMs = dhanOnly ? Math.min(perSymbolMs, 28_000) : perSymbolMs;
+
+  const fetchOne = async (symbol: string, useSession: NseSession | null) => {
+    const daysToEarnings = daysUntil(earningsCalendar[symbol], Date.now());
+    const ivHist = await loadIvHistory(db, symbol);
+    const { zones, source } = await Promise.race([
+      computeStockZonesWithFallback(symbol, useSession, {
+        daysToEarnings,
+        ivHistory: ivHist.values,
+        crossSectionalIvs: cohortIvs,
+        vixPercentile: vix.percentile,
+      }),
+      sleep(symbolTimeoutMs).then(() => {
+        throw new Error(`symbol_timeout_${symbolTimeoutMs}ms`);
+      }),
+    ]);
+    await persistEquityZonesDoc(db, zones, source);
+    await recordDailyAtmIv(db, symbol, zones.atmIV, ivHist);
+    const row = aggregateEntry(zones, source);
+    await maybeRecordSrZoneEvent(db, zones, source, prevEntries[symbol]);
+    entries.push(row);
+    okCount++;
+    processed++;
+    if (source === "dhan_equity") dhanOk++;
+    else nseOk++;
+  };
 
   for (let i = 0; i < symbols.length; i++) {
     const symbol = symbols[i];
@@ -244,36 +276,28 @@ export async function runStockZonesBatch(
     }
 
     try {
-      const daysToEarnings = daysUntil(earningsCalendar[symbol], Date.now());
-      const ivHist = await loadIvHistory(db, symbol);
-      const { zones, source } = await Promise.race([
-        computeStockZonesWithFallback(symbol, session, {
-          daysToEarnings,
-          ivHistory: ivHist.values,
-          crossSectionalIvs: cohortIvs,
-          vixPercentile: vix.percentile,
-        }),
-        sleep(perSymbolMs).then(() => {
-          throw new Error(`symbol_timeout_${perSymbolMs}ms`);
-        }),
-      ]);
-      await persistEquityZonesDoc(db, zones, source);
-      await recordDailyAtmIv(db, symbol, zones.atmIV, ivHist);
-      const row = aggregateEntry(zones, source);
-      await maybeRecordSrZoneEvent(db, zones, source, prevEntries[symbol]);
-      entries.push(row);
-      okCount++;
-      processed++;
-      if (source === "dhan_equity") dhanOk++;
-      else nseOk++;
+      await fetchOne(symbol, dhanOnly ? null : session);
     } catch (e) {
-      const error = e instanceof Error ? e.message : String(e);
-      await stampEquityZonesError(db, symbol, error);
-      processed++;
+      if (!dhanOnly && nseFallbackEligible(e)) {
+        dhanOnly = true;
+        nseSession = "circuit_open";
+        try {
+          await fetchOne(symbol, null);
+          continue;
+        } catch (retryErr) {
+          const error = retryErr instanceof Error ? retryErr.message : String(retryErr);
+          await stampEquityZonesError(db, symbol, error);
+          processed++;
+        }
+      } else {
+        const error = e instanceof Error ? e.message : String(e);
+        await stampEquityZonesError(db, symbol, error);
+        processed++;
+      }
     }
 
     if (i < symbols.length - 1) {
-      const gap = session && nseSession === "ok" ? delayMs : Math.max(delayMs, dhanDelayMs);
+      const gap = dhanOnly ? Math.max(delayMs, dhanDelayMs) : delayMs;
       const jitter = Math.round((Math.random() * 2 - 1) * 200);
       await sleep(Math.max(0, gap + jitter));
     }
@@ -301,5 +325,44 @@ export async function runStockZonesBatch(
     backlogRemaining,
     queueLength,
     nseSession,
+  };
+}
+
+/** One-line summary for cron heartbeat + logs. */
+export function summarizeStockZonesBatch(s: StockZonesBatchSummary): string {
+  const parts = [
+    `ok=${s.ok}/${s.processed}`,
+    `err=${s.errors}`,
+    `nse=${s.nseOk}`,
+    `dhan=${s.dhanOk}`,
+    `mode=${s.queueMode}`,
+  ];
+  if (s.timedOut) parts.push("timedOut");
+  if (s.nseSession !== "ok") parts.push(`nseSession=${s.nseSession}`);
+  if (s.symbols.length) parts.push(`syms=${s.symbols.join(",")}`);
+  return parts.join(" ");
+}
+
+export function stockZonesHeartbeatFromSummary(
+  s: StockZonesBatchSummary,
+  durationMs: number,
+): {
+  ok: boolean;
+  degraded?: boolean;
+  summary?: string;
+  durationMs: number;
+  error?: string;
+} {
+  const summary = summarizeStockZonesBatch(s);
+  if (s.processed === 0 && s.symbols.length === 0) {
+    return { ok: true, summary: "no symbols dequeued", durationMs };
+  }
+  const ok = s.ok > 0;
+  return {
+    ok,
+    degraded: ok && s.errors > 0,
+    summary,
+    durationMs,
+    error: ok ? undefined : `0/${s.processed} symbols succeeded`,
   };
 }

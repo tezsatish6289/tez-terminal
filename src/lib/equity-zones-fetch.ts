@@ -15,7 +15,7 @@ function envBool(name: string, fallback: boolean): boolean {
   return raw === "1" || raw === "true" || raw === "yes";
 }
 
-function nseFallbackEligible(err: unknown): boolean {
+export function nseFallbackEligible(err: unknown): boolean {
   if (err instanceof NseBlockError || err instanceof NseCircuitOpenError) return true;
   if (err instanceof Error) {
     const m = err.message.toLowerCase();

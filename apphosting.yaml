@@ -77,11 +77,14 @@ env:
     availability:
       - RUNTIME
   # suggest-stock-zones: background batch after cron GET returns (cron-job.org 30s HTTP cap).
+  # 3 symbols × ~25s Dhan fits reliably in 95s wall clock (10 was timing out at 2–3).
   - variable: STOCK_ZONES_BATCH_SIZE
-    value: "10"
+    value: "3"
     availability:
       - RUNTIME
   - variable: STOCK_ZONES_MAX_RUN_MS
     value: "95000"
+  - variable: STOCK_ZONES_SYMBOL_TIMEOUT_MS
+    value: "28000"
     availability:
       - RUNTIME

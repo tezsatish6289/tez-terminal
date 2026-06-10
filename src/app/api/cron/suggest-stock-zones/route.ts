@@ -13,9 +13,11 @@
 
 import { after, NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
+import { recordCronHeartbeat } from "@/lib/cron-health";
 import {
   releaseStockZonesRunLock,
   runStockZonesBatch,
+  stockZonesHeartbeatFromSummary,
   tryAcquireStockZonesRunLock,
 } from "@/lib/stock-zones-runner";
 import { isNiftyOptionChainCronWindow } from "@/lib/market-hours";
@@ -25,6 +27,16 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const CRON_SECRET = process.env.CRON_SECRET;
+
+async function recordStockZonesHeartbeat(
+  result: Parameters<typeof recordCronHeartbeat>[2],
+): Promise<void> {
+  try {
+    await recordCronHeartbeat(getAdminFirestore(), "suggest-stock-zones", result);
+  } catch {
+    /* heartbeat must not break cron */
+  }
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -47,12 +59,21 @@ export async function GET(request: NextRequest) {
   const sync = searchParams.get("sync") === "1";
 
   if (sync) {
+    const startedAt = Date.now();
     try {
       const summary = await runStockZonesBatch(getAdminFirestore());
+      await recordStockZonesHeartbeat(
+        stockZonesHeartbeatFromSummary(summary, Date.now() - startedAt),
+      );
       return NextResponse.json({ success: true, mode: "sync", ...summary });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[SuggestStockZones] sync failed:", err);
+      await recordStockZonesHeartbeat({
+        ok: false,
+        error: msg,
+        durationMs: Date.now() - startedAt,
+      });
       return NextResponse.json({ error: msg }, { status: 500 });
     }
   }
@@ -60,6 +81,15 @@ export async function GET(request: NextRequest) {
   const db = getAdminFirestore();
   const acquired = await tryAcquireStockZonesRunLock(db);
   if (!acquired) {
+    console.warn(
+      "[SuggestStockZones] skipped tick — previous background batch still holds run lock",
+    );
+    await recordStockZonesHeartbeat({
+      ok: true,
+      degraded: true,
+      summary: "skipped: already_running",
+      durationMs: 0,
+    });
     return NextResponse.json({
       success: true,
       accepted: false,
@@ -69,11 +99,21 @@ export async function GET(request: NextRequest) {
   }
 
   after(async () => {
+    const startedAt = Date.now();
     try {
       const summary = await runStockZonesBatch(db);
       console.log("[SuggestStockZones] background batch done", JSON.stringify(summary));
+      await recordStockZonesHeartbeat(
+        stockZonesHeartbeatFromSummary(summary, Date.now() - startedAt),
+      );
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error("[SuggestStockZones] background batch failed:", err);
+      await recordStockZonesHeartbeat({
+        ok: false,
+        error: msg,
+        durationMs: Date.now() - startedAt,
+      });
     } finally {
       await releaseStockZonesRunLock(db);
     }
@@ -84,13 +124,14 @@ export async function GET(request: NextRequest) {
       success: true,
       accepted: true,
       mode: "background",
-      hint: "Batch runs after response (for cron-job.org 30s limit). Check logs or Firestore zone_status_stocks.",
+      hint: "Batch runs after response (for cron-job.org 30s limit). Check cron_health/suggest-stock-zones or zone_status_stocks.",
     },
     { status: 202 },
   );
 }
 
 export async function POST(request: NextRequest) {
+  const startedAt = Date.now();
   try {
     let symbolsOverride: string[] | undefined;
     try {
@@ -102,10 +143,18 @@ export async function POST(request: NextRequest) {
       /* no body — full queue batch */
     }
     const summary = await runStockZonesBatch(getAdminFirestore(), { symbolsOverride });
+    await recordStockZonesHeartbeat(
+      stockZonesHeartbeatFromSummary(summary, Date.now() - startedAt),
+    );
     return NextResponse.json({ success: true, ...summary });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[SuggestStockZones] Manual failed:", err);
+    await recordStockZonesHeartbeat({
+      ok: false,
+      error: msg,
+      durationMs: Date.now() - startedAt,
+    });
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

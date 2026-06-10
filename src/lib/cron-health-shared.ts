@@ -5,14 +5,16 @@
 export type CronJobId =
   | "sync-prices"
   | "suggest-zones"
+  | "suggest-stock-zones"
   | "sync-zone-bots"
   | "sync-simulator"
   | "sync-live-trades";
 
-/** Stable UI / API ordering (pipeline: prices → zones → bots → sim → live). */
+/** Stable UI / API ordering (pipeline: prices → zones → stock zones → bots → sim → live). */
 export const CRON_JOB_ORDER: CronJobId[] = [
   "sync-prices",
   "suggest-zones",
+  "suggest-stock-zones",
   "sync-zone-bots",
   "sync-simulator",
   "sync-live-trades",
@@ -49,6 +51,15 @@ export const CRON_JOBS: Record<CronJobId, CronJobConfig> = {
     intervalMs: 15 * 60_000,
     warnAfterMs: 25 * 60_000,
     alertAfterMs: 40 * 60_000,
+    telegram: true,
+  },
+  "suggest-stock-zones": {
+    id: "suggest-stock-zones",
+    label: "Stock zones",
+    shortLabel: "Stocks",
+    intervalMs: 5 * 60_000,
+    warnAfterMs: 12 * 60_000,
+    alertAfterMs: 20 * 60_000,
     telegram: true,
   },
   "sync-zone-bots": {

@@ -259,11 +259,12 @@ export default function LevelsCronDashboardPage() {
                 </h1>
               </div>
               <p className="text-sm text-muted-foreground mt-1 max-w-xl">
-                F&O stock zone cron throughput, NSE circuit state, and freshness of{" "}
+                NSE F&O stock zone cron only (not crypto). Throughput, circuit state, and freshness
+                for{" "}
                 <Link href="https://freedombot.ai/levels" className="text-accent hover:underline">
                   freedombot.ai/levels
                 </Link>{" "}
-                aggregate data.
+                stock aggregate data.
               </p>
             </div>
             <button
@@ -327,20 +328,23 @@ export default function LevelsCronDashboardPage() {
 
               <div className="grid lg:grid-cols-2 gap-4">
                 <CronStatusCard
-                  title="Stock zones cron"
+                  title="F&O stock zones cron"
                   level={data.stockCron.level}
                   heartbeat={data.stockCron.heartbeat}
                   staleMs={data.stockCron.staleMs}
                   intervalMs={data.stockCron.expectedIntervalMs}
                 />
                 <CronStatusCard
-                  title="Index zones cron (suggest-zones)"
+                  title="Crypto zones cron (separate)"
                   level={data.indexCron.level}
                   heartbeat={data.indexCron.heartbeat}
                   staleMs={data.indexCron.staleMs}
                   intervalMs={15 * 60_000}
                 />
               </div>
+              <p className="text-[10px] text-slate-500 -mt-2">
+                Right card is Deribit BTC/ETH/SOL only — unrelated to F&O stock scanning on the left.
+              </p>
 
               {data.recentBatchErrors.length > 0 ? (
                 <div
@@ -360,10 +364,11 @@ export default function LevelsCronDashboardPage() {
                       </li>
                     ))}
                   </ul>
-                  {data.nseBreaker.open && data.queueMode === "backlog" ? (
+                  {data.nseBreaker.open ? (
                     <p className="mt-2 text-[10px] text-amber-300/90">
-                      NSE circuit is open (Dhan-only). Backlog symbols missing from the Dhan
-                      instrument map cannot scan until NSE recovers or IDs are added.
+                      NSE circuit is open — stock cron runs Dhan-only and skips the backlog.
+                      Stale Dhan security IDs (Invalid SecurityId) are skipped; backlog names wait
+                      for NSE recovery.
                     </p>
                   ) : null}
                 </div>
@@ -403,7 +408,11 @@ export default function LevelsCronDashboardPage() {
                     </div>
                     <div className="flex justify-between gap-2">
                       <dt className="text-slate-500">Queue mode</dt>
-                      <dd className="text-slate-200 capitalize">{data.queueMode}</dd>
+                      <dd className="text-slate-200 capitalize">
+                        {data.effectiveQueueMode
+                          ? `${data.queueMode} → ${data.effectiveQueueMode} (dhan)`
+                          : data.queueMode}
+                      </dd>
                     </div>
                     <div className="flex justify-between gap-2">
                       <dt className="text-slate-500">Cursor</dt>
@@ -472,9 +481,12 @@ export default function LevelsCronDashboardPage() {
                 className="rounded-xl border p-4"
                 style={{ borderColor: "rgba(255,255,255,0.08)", background: "rgba(15,23,42,0.5)" }}
               >
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
-                  Index zones
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  NSE index zones (Nifty, Bank Nifty, …)
                 </h3>
+                <p className="text-[10px] text-slate-500 mb-3">
+                  Refreshed by suggest-zones during market hours — not part of the F&O stock cron.
+                </p>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-2">
                   {data.indices.map((ix) => (
                     <div

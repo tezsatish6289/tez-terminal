@@ -26,6 +26,7 @@ import { resolveDhanEquitySecurityId } from "@/lib/dhan-candles";
 import {
   persistEquityZonesDoc,
   stampEquityZonesError,
+  stockDocId,
   writeStockZoneAggregate,
   aggregateEntry,
   type StockZoneAggregateEntry,
@@ -70,6 +71,55 @@ export async function releaseStockZonesRunLock(db: Firestore): Promise<void> {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const DHAN_SKIP_ERROR_RE = /invalid securityid|unknown_symbol/i;
+
+function isDhanFetchError(msg: string): boolean {
+  return DHAN_SKIP_ERROR_RE.test(msg);
+}
+
+async function isDhanBlockedSymbol(
+  db: Firestore,
+  symbol: string,
+): Promise<boolean> {
+  try {
+    const snap = await db.doc(stockDocId(symbol)).get();
+    const err = snap.data()?.nseFetchError;
+    return typeof err === "string" && isDhanFetchError(err);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * When NSE circuit is open the cron is Dhan-only. Backlog symbols often have stale
+ * or missing Dhan security IDs — always refresh already-scanned names instead.
+ */
+async function pickDhanOnlyBatch(
+  db: Firestore,
+  startCursor: number,
+  batchSize: number,
+  bySymbol: ReadonlyMap<string, StockAggregateMeta>,
+  prevEntries: Record<string, StockZoneAggregateEntry>,
+): Promise<{ symbols: string[]; queueMode: "refresh"; queueLength: number }> {
+  const refreshQueue = buildRefreshQueue(bySymbol);
+  const n = refreshQueue.length;
+  if (n === 0) return { symbols: [], queueMode: "refresh", queueLength: 0 };
+
+  const dhanFirst = refreshQueue.filter((s) => prevEntries[s]?.levelsSource === "dhan");
+  const other = refreshQueue.filter((s) => prevEntries[s]?.levelsSource !== "dhan");
+  const ordered = [...dhanFirst, ...other];
+
+  const start = ((startCursor % n) + n) % n;
+  const picked: string[] = [];
+  for (let i = 0; i < ordered.length && picked.length < batchSize; i++) {
+    const sym = ordered[(start + i) % ordered.length]!;
+    if ((await resolveDhanEquitySecurityId(sym)) == null) continue;
+    if (await isDhanBlockedSymbol(db, sym)) continue;
+    picked.push(sym);
+  }
+  return { symbols: picked, queueMode: "refresh", queueLength: n };
+}
 
 function envNum(name: string, fallback: number): number {
   const raw = process.env[name]?.trim();
@@ -225,32 +275,12 @@ export async function runStockZonesBatch(
     }
   }
 
-  // Dhan-only (NSE circuit open): backlog names without a Dhan security ID always fail.
-  // Fall back to the refresh queue so cron keeps making progress on scannable symbols.
-  if (dhanOnly && fromQueue && symbols.length > 0) {
-    const scannable: string[] = [];
-    for (const s of symbols) {
-      if ((await resolveDhanEquitySecurityId(s)) != null) scannable.push(s);
-    }
-    if (scannable.length === 0 && queueMode === "backlog") {
-      const refreshQueue = buildRefreshQueue(bySymbol);
-      const n = refreshQueue.length;
-      if (n > 0) {
-        const start = ((startCursor % n) + n) % n;
-        const picked: string[] = [];
-        for (let i = 0; i < n && picked.length < batchSize; i++) {
-          const sym = refreshQueue[(start + i) % n]!;
-          if ((await resolveDhanEquitySecurityId(sym)) != null) picked.push(sym);
-        }
-        symbols = picked;
-        queueMode = "refresh";
-        queueLength = n;
-      } else {
-        symbols = [];
-      }
-    } else {
-      symbols = scannable;
-    }
+  // NSE circuit open → Dhan-only. Never dequeue backlog (stale/missing security IDs).
+  if (dhanOnly && fromQueue) {
+    const picked = await pickDhanOnlyBatch(db, startCursor, batchSize, bySymbol, prevEntries);
+    symbols = picked.symbols;
+    queueMode = picked.queueMode;
+    queueLength = picked.queueLength;
   }
 
   if (!symbols.length) return emptySummary();
@@ -300,6 +330,13 @@ export async function runStockZonesBatch(
     else nseOk++;
   };
 
+  const refreshOverflow =
+    dhanOnly && fromQueue && queueLength > 0
+      ? (
+          await pickDhanOnlyBatch(db, startCursor + batchSize, batchSize * 4, bySymbol, prevEntries)
+        ).symbols.filter((s) => !symbols.includes(s))
+      : [];
+
   for (let i = 0; i < symbols.length; i++) {
     const symbol = symbols[i];
     if (i > 0 && Date.now() - startedAt > maxWallClockMs) {
@@ -307,26 +344,38 @@ export async function runStockZonesBatch(
       break;
     }
 
+    let done = false;
     try {
       await fetchOne(symbol, dhanOnly ? null : session);
+      done = true;
     } catch (e) {
       if (!dhanOnly && nseFallbackEligible(e)) {
         dhanOnly = true;
         nseSession = "circuit_open";
         try {
           await fetchOne(symbol, null);
-          continue;
+          done = true;
         } catch (retryErr) {
           const error = retryErr instanceof Error ? retryErr.message : String(retryErr);
           await stampEquityZonesError(db, symbol, error);
-          processed++;
         }
       } else {
         const error = e instanceof Error ? e.message : String(e);
         await stampEquityZonesError(db, symbol, error);
-        processed++;
+        if (dhanOnly && isDhanFetchError(error) && refreshOverflow.length > 0) {
+          const next = refreshOverflow.shift()!;
+          try {
+            await fetchOne(next, null);
+            done = true;
+          } catch (overflowErr) {
+            const overflowMsg =
+              overflowErr instanceof Error ? overflowErr.message : String(overflowErr);
+            await stampEquityZonesError(db, next, overflowMsg);
+          }
+        }
       }
     }
+    if (!done) processed++;
 
     if (i < symbols.length - 1) {
       const gap = dhanOnly ? Math.max(delayMs, dhanDelayMs) : delayMs;

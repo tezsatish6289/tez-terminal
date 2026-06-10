@@ -11,6 +11,7 @@ import {
 } from "@/lib/cron-health-shared";
 import {
   FNO_UNIVERSE,
+  buildRefreshQueue,
   nextStockZonesBatch,
   type StockAggregateMeta,
 } from "@/lib/nse/fno-universe";
@@ -113,6 +114,8 @@ export interface LevelsCronDashboardPayload {
   oldestStale: LevelsCronStockRow[];
   nextBatchPreview: string[];
   queueMode: "backlog" | "refresh";
+  /** When NSE circuit is open, stock cron forces refresh (Dhan-only) even if backlog remains. */
+  effectiveQueueMode: "refresh" | null;
   cursorIndex: number;
   nseBreaker: {
     open: boolean;
@@ -248,6 +251,31 @@ export async function loadLevelsCronDashboard(
   const batchSize = envNum("STOCK_ZONES_BATCH_SIZE", 3);
   const picked = nextStockZonesBatch(cursorIndex, batchSize, scanned, bySymbol);
 
+  const nseRaw = nseSnap.data() as Record<string, unknown> | undefined;
+  const blockedUntil = toIsoString(nseRaw?.blockedUntil);
+  const nseOpen =
+    blockedUntil != null &&
+    Number.isFinite(Date.parse(blockedUntil)) &&
+    Date.parse(blockedUntil) > now;
+
+  let nextBatchPreview = picked.symbols;
+  let effectiveQueueMode: "refresh" | null = null;
+  if (nseOpen && scanned.size > 0) {
+    const refreshQueue = buildRefreshQueue(bySymbol);
+    const dhanFirst = refreshQueue.filter((s) => entries[s]?.levelsSource === "dhan");
+    const other = refreshQueue.filter((s) => entries[s]?.levelsSource !== "dhan");
+    const ordered = [...dhanFirst, ...other];
+    const n = ordered.length;
+    if (n > 0) {
+      effectiveQueueMode = "refresh";
+      const start = ((cursorIndex % n) + n) % n;
+      nextBatchPreview = [];
+      for (let i = 0; i < n && nextBatchPreview.length < batchSize; i++) {
+        nextBatchPreview.push(ordered[(start + i) % ordered.length]!);
+      }
+    }
+  }
+
   const oldestStale = [...stockRows]
     .sort((a, b) => {
       const am = a.computedAt ? Date.parse(a.computedAt) : 0;
@@ -348,13 +376,6 @@ export async function loadLevelsCronDashboard(
       .filter((x): x is NonNullable<typeof x> => x != null),
   }).length;
 
-  const nseRaw = nseSnap.data() as Record<string, unknown> | undefined;
-  const blockedUntil = toIsoString(nseRaw?.blockedUntil);
-  const nseOpen =
-    blockedUntil != null &&
-    Number.isFinite(Date.parse(blockedUntil)) &&
-    Date.parse(blockedUntil) > now;
-
   const lockUntil = toIsoString(lockSnap.data()?.until);
   const lockActive =
     lockUntil != null &&
@@ -405,8 +426,9 @@ export async function loadLevelsCronDashboard(
     scansByDayIst,
     scannedToday,
     oldestStale,
-    nextBatchPreview: picked.symbols,
+    nextBatchPreview,
     queueMode: picked.mode,
+    effectiveQueueMode,
     cursorIndex,
     nseBreaker: {
       open: nseOpen,

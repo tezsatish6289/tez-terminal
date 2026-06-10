@@ -49,8 +49,9 @@ export function FnoNinjaHero() {
             </h1>
 
             <p className="mt-5 text-sm sm:text-base leading-relaxed max-w-lg" style={{ color: FNO_MUTED }}>
-              Option-chain derived observations, open-interest concentrations, and zone
-              positioning across NSE F&amp;O — visualized for your own independent research.
+              One map for the full NSE F&amp;O universe. See where open interest clusters and
+              how price sits relative to derived support and resistance zones — built from public
+              option-chain data, for your own research.
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">

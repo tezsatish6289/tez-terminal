@@ -18,21 +18,9 @@ export function FnoNinjaHero() {
         />
       </div>
 
-      <div className={`relative ${FB_CONTENT_SHELL} py-16 sm:py-20 lg:py-28`}>
+      <div className={`relative ${FB_CONTENT_SHELL} py-14 sm:py-20 lg:py-24`}>
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 xl:gap-20 items-center">
-          <div className="text-left min-w-0 flex flex-col">
-            <div
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest mb-10 sm:mb-12"
-              style={{
-                backgroundColor: "rgba(34,197,94,0.1)",
-                border: "1px solid rgba(52,211,153,0.25)",
-                color: "#34d399",
-              }}
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              NSE F&amp;O analytics · Live map
-            </div>
-
+          <div className="text-left min-w-0 flex flex-col gap-8 sm:gap-9 lg:gap-10">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-[3.25rem] font-black tracking-tight leading-[1.08] text-white">
               Map the{" "}
               <span
@@ -44,20 +32,17 @@ export function FnoNinjaHero() {
               markets with precision.
             </h1>
 
-            <p
-              className="mt-8 sm:mt-10 text-sm sm:text-base leading-relaxed max-w-md"
-              style={{ color: FNO_MUTED }}
-            >
+            <p className="text-sm sm:text-base leading-relaxed max-w-md" style={{ color: FNO_MUTED }}>
               One map for the full NSE F&amp;O universe. See where open interest clusters and
               how price sits relative to derived support and resistance zones — built from public
               option-chain data, for your own research.
             </p>
 
-            <div className="mt-10 sm:mt-12">
+            <div>
               <FnoNinjaCtaLink>See market map</FnoNinjaCtaLink>
             </div>
 
-            <p className="mt-10 sm:mt-12 text-[11px]" style={{ color: "#334155" }}>
+            <p className="text-[11px]" style={{ color: "#334155" }}>
               Informational only · Not investment advice
             </p>
           </div>

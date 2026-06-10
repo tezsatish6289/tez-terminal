@@ -1,24 +1,16 @@
-import Image from "next/image";
 import Link from "next/link";
+import { FnoNinjaLogo } from "@/components/fnoninja/FnoNinjaLogo";
 import { FB_DOC_SHELL } from "@/lib/freedombot/responsive";
+import { FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
 export function FnoNinjaFooter() {
   return (
-    <footer className="py-14 px-4 sm:px-6" style={{ borderTop: "1px solid rgba(90,140,220,0.08)" }}>
+    <footer className="py-14 px-4 sm:px-6" style={{ borderTop: `1px solid ${FNO_NAV_BORDER}` }}>
       <div className={FB_DOC_SHELL}>
         <div className="grid sm:grid-cols-3 gap-10 mb-12">
           <div>
-            <div className="flex items-center gap-2.5 mb-3">
-              <Image
-                src="/freedombot/icon.png"
-                alt="FNONinja"
-                width={32}
-                height={32}
-                className="rounded-xl object-contain"
-              />
-              <span className="font-black text-base tracking-tight" style={{ color: "#f0f4ff" }}>
-                FNONinja<span style={{ color: "#60a5fa" }}>.com</span>
-              </span>
+            <div className="mb-3">
+              <FnoNinjaLogo size={32} wordmarkClassName="text-base" />
             </div>
             <p className="text-xs leading-relaxed max-w-xs" style={{ color: "#334155" }}>
               Option-chain analytics and market data visualization for NSE F&amp;O — derived
@@ -97,7 +89,7 @@ export function FnoNinjaFooter() {
           </div>
         </div>
 
-        <div className="pt-6 text-center" style={{ borderTop: "1px solid rgba(90,140,220,0.06)" }}>
+        <div className="pt-6 text-center" style={{ borderTop: `1px solid ${FNO_NAV_BORDER}` }}>
           <p className="text-[11px]" style={{ color: "#1e293b" }}>
             &copy; {new Date().getFullYear()} FNONinja. Powered by{" "}
             <a

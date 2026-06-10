@@ -21,10 +21,12 @@ import {
   FB_NARROW_SHELL,
 } from "@/lib/freedombot/responsive";
 import {
+  FNO_ACCENT,
+  FNO_ACCENT_SOFT,
   FNO_CARD_BG,
   FNO_CARD_BORDER,
-  FNO_GRADIENT_TEXT,
   FNO_MUTED,
+  FNO_NAV_BORDER,
 } from "@/lib/fnoninja/theme";
 
 const cardStyle = {
@@ -92,9 +94,9 @@ export default function FnoNinjaLandingPage() {
           <p
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-5"
             style={{
-              backgroundColor: "rgba(37,99,235,0.08)",
-              border: "1px solid rgba(90,140,220,0.2)",
-              color: "#60a5fa",
+              backgroundColor: FNO_ACCENT_SOFT,
+              border: "1px solid rgba(29,185,120,0.25)",
+              color: FNO_ACCENT,
             }}
           >
             How it works
@@ -126,8 +128,8 @@ export default function FnoNinjaLandingPage() {
                 <span
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-black"
                   style={{
-                    backgroundColor: "rgba(37,99,235,0.12)",
-                    color: "#60a5fa",
+                    backgroundColor: FNO_ACCENT_SOFT,
+                    color: FNO_ACCENT,
                   }}
                 >
                   {step}
@@ -185,7 +187,7 @@ export default function FnoNinjaLandingPage() {
             },
           ].map(({ icon: Icon, title, body }) => (
             <div key={title} className="rounded-2xl p-6 sm:p-8 flex gap-4" style={cardStyle}>
-              <Icon className="h-5 w-5 shrink-0 mt-0.5" style={{ color: "#60a5fa" }} />
+              <Icon className="h-5 w-5 shrink-0 mt-0.5" style={{ color: FNO_ACCENT }} />
               <div>
                 <h3 className="text-sm font-bold text-white">{title}</h3>
                 <p className="mt-1.5 text-[13px] leading-relaxed" style={{ color: FNO_MUTED }}>
@@ -249,7 +251,7 @@ export default function FnoNinjaLandingPage() {
             { title: "Research tools", body: "Maps and dashboards designed for efficient exploration." },
           ].map(({ title, body }) => (
             <div key={title} className="rounded-2xl p-6" style={cardStyle}>
-              <h3 className="text-sm font-bold" style={{ color: "#60a5fa" }}>
+              <h3 className="text-sm font-bold" style={{ color: FNO_ACCENT }}>
                 {title}
               </h3>
               <p className="mt-2 text-[12px] leading-relaxed" style={{ color: FNO_MUTED }}>
@@ -261,29 +263,24 @@ export default function FnoNinjaLandingPage() {
       </section>
 
       {/* Closing CTA */}
-      <section className="py-16 sm:py-24" style={{ borderTop: "1px solid rgba(90,140,220,0.06)" }}>
+      <section className="py-16 sm:py-24" style={{ borderTop: `1px solid ${FNO_NAV_BORDER}` }}>
         <div className={`${FB_NARROW_SHELL} text-center`}>
           <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
             Explore option-chain-derived market structure{" "}
-            <span
-              className="bg-clip-text text-transparent"
-              style={{ backgroundImage: FNO_GRADIENT_TEXT }}
-            >
-              across NSE F&amp;O
-            </span>
+            <span style={{ color: FNO_ACCENT }}>across NSE F&amp;O</span>
           </h2>
           <p className="mt-4 max-w-lg mx-auto leading-relaxed" style={{ color: FNO_MUTED }}>
             Monitor observed support and resistance observations, open-interest concentrations, and
             price positioning through a unified analytics experience.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <FnoNinjaCtaLink>Open analytics dashboard</FnoNinjaCtaLink>
+            <FnoNinjaCtaLink>See market map</FnoNinjaCtaLink>
           </div>
         </div>
       </section>
 
       {/* Powered by */}
-      <section className="py-12 px-4 sm:px-6" style={{ borderTop: "1px solid rgba(90,140,220,0.06)" }}>
+      <section className="py-12 px-4 sm:px-6" style={{ borderTop: `1px solid ${FNO_NAV_BORDER}` }}>
         <div className={`${FB_MEDIUM_SHELL} text-center`}>
           <p
             className="text-[10px] font-bold uppercase tracking-widest mb-8"
@@ -296,18 +293,10 @@ export default function FnoNinjaLandingPage() {
               href="https://freedombot.ai"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 opacity-50 hover:opacity-80 transition-opacity"
+              className="text-sm font-bold opacity-50 hover:opacity-80 transition-opacity"
+              style={{ color: "#94a3b8" }}
             >
-              <Image
-                src="/freedombot/icon.png"
-                alt="FreedomBot.ai"
-                width={24}
-                height={24}
-                className="rounded-lg object-contain"
-              />
-              <span className="text-sm font-bold" style={{ color: "#94a3b8" }}>
-                FreedomBot.ai
-              </span>
+              FreedomBot.ai
             </a>
             <div className="flex items-center gap-2 opacity-50">
               <div className="h-6 w-6 rounded-md bg-white flex items-center justify-center overflow-hidden p-0.5 flex-shrink-0">
@@ -330,7 +319,7 @@ export default function FnoNinjaLandingPage() {
       {/* Disclaimer */}
       <section id="disclaimer" className={`${FB_NARROW_SHELL} py-14 sm:py-16`}>
         <div className="flex items-center gap-2 mb-4">
-          <ShieldCheck className="h-4 w-4" style={{ color: "#60a5fa" }} />
+          <ShieldCheck className="h-4 w-4" style={{ color: FNO_ACCENT }} />
           <h2
             className="text-xs font-bold uppercase tracking-widest"
             style={{ color: "#334155" }}
@@ -342,7 +331,7 @@ export default function FnoNinjaLandingPage() {
           className="rounded-2xl p-5 sm:p-6 text-[12px] sm:text-[13px] leading-relaxed"
           style={{
             backgroundColor: FNO_CARD_BG,
-            border: "1px solid rgba(90,140,220,0.15)",
+            border: "1px solid rgba(29,185,120,0.14)",
             color: FNO_MUTED,
           }}
         >

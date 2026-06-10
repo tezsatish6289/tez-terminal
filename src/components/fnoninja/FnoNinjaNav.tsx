@@ -1,14 +1,14 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
+import { FnoNinjaLogo } from "@/components/fnoninja/FnoNinjaLogo";
 import { fnoHomeHref } from "@/lib/fnoninja/paths";
 import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
-import { FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
+import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
 const ANCHOR_LINKS = [
   { label: "How it works", href: "#how-it-works" },
@@ -37,7 +37,7 @@ export function FnoNinjaNav() {
       <nav
         className="sticky top-0 z-40 border-b"
         style={{
-          backgroundColor: "rgba(8,15,30,0.95)",
+          backgroundColor: "rgba(10,13,14,0.92)",
           borderColor: FNO_NAV_BORDER,
           backdropFilter: "blur(20px)",
         }}
@@ -45,48 +45,22 @@ export function FnoNinjaNav() {
         <div
           className={`${FB_CONTENT_SHELL} h-14 sm:h-16 flex items-center justify-between gap-3 min-w-0`}
         >
-          <Link href={homeHref} className="flex items-center gap-2 min-w-0 flex-shrink">
-            <Image
-              src="/freedombot/icon.png"
-              alt="FNONinja"
-              width={32}
-              height={32}
-              className="rounded-xl object-contain flex-shrink-0"
-              priority
-            />
-            <span
-              className="font-black text-sm sm:text-base tracking-tight truncate"
-              style={{ color: "#f0f4ff" }}
-            >
-              FNONinja<span style={{ color: "#60a5fa" }}>.com</span>
-            </span>
+          <Link href={homeHref} className="min-w-0 flex-shrink">
+            <FnoNinjaLogo size={34} />
           </Link>
-
-          <div className="hidden md:flex items-center gap-1 flex-1 justify-center">
-            {ANCHOR_LINKS.map((l) => (
-              <a
-                key={l.label}
-                href={l.href}
-                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:text-white whitespace-nowrap"
-                style={{ color: "#64748b" }}
-              >
-                {l.label}
-              </a>
-            ))}
-          </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
             <div className="hidden md:block">
-              <FnoNinjaCtaLink variant="nav">Explore analytics</FnoNinjaCtaLink>
+              <FnoNinjaCtaLink variant="nav">See market map</FnoNinjaCtaLink>
             </div>
             <button
               type="button"
               onClick={() => setMobileOpen((v) => !v)}
-              className="md:hidden flex items-center justify-center h-10 w-10 rounded-xl transition-colors"
+              className="md:hidden flex items-center justify-center h-10 w-10 rounded-lg transition-colors"
               style={{
                 color: "#94a3b8",
-                border: "1px solid rgba(90,140,220,0.15)",
-                backgroundColor: "rgba(37,99,235,0.06)",
+                border: "1px solid rgba(29,185,120,0.2)",
+                backgroundColor: "rgba(29,185,120,0.06)",
               }}
               aria-label={mobileOpen ? "Close menu" : "Open menu"}
               aria-expanded={mobileOpen}
@@ -102,27 +76,22 @@ export function FnoNinjaNav() {
           <button
             type="button"
             className="absolute inset-0"
-            style={{ backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+            style={{ backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)" }}
             aria-label="Close menu"
             onClick={() => setMobileOpen(false)}
           />
           <div
             className="absolute top-0 right-0 h-full w-[min(100vw-3rem,320px)] flex flex-col shadow-2xl"
             style={{
-              backgroundColor: "#0a1628",
-              borderLeft: "1px solid rgba(90,140,220,0.12)",
+              backgroundColor: FNO_BG,
+              borderLeft: "1px solid rgba(29,185,120,0.12)",
             }}
           >
             <div
               className="flex items-center justify-between px-4 h-14 border-b flex-shrink-0"
-              style={{ borderColor: "rgba(90,140,220,0.1)" }}
+              style={{ borderColor: FNO_NAV_BORDER }}
             >
-              <span
-                className="text-xs font-bold uppercase tracking-widest"
-                style={{ color: "#64748b" }}
-              >
-                Menu
-              </span>
+              <FnoNinjaLogo size={28} wordmarkClassName="text-sm" />
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
@@ -140,7 +109,7 @@ export function FnoNinjaNav() {
                   key={l.label}
                   href={l.href}
                   onClick={() => setMobileOpen(false)}
-                  className="flex items-center px-4 py-3.5 rounded-xl text-base font-semibold transition-colors"
+                  className="flex items-center px-4 py-3.5 rounded-xl text-base font-semibold transition-colors hover:text-white"
                   style={{ color: "#94a3b8" }}
                 >
                   {l.label}
@@ -148,11 +117,8 @@ export function FnoNinjaNav() {
               ))}
             </nav>
 
-            <div
-              className="p-4 border-t flex-shrink-0"
-              style={{ borderColor: "rgba(90,140,220,0.1)" }}
-            >
-              <FnoNinjaCtaLink variant="nav">Explore analytics</FnoNinjaCtaLink>
+            <div className="p-4 border-t flex-shrink-0" style={{ borderColor: FNO_NAV_BORDER }}>
+              <FnoNinjaCtaLink variant="nav">See market map</FnoNinjaCtaLink>
             </div>
           </div>
         </div>

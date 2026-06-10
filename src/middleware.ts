@@ -53,7 +53,7 @@ export function middleware(request: NextRequest) {
 
   if (isFnoNinja(request)) {
     if (pathname === "/favicon.ico") {
-      return NextResponse.rewrite(new URL("/freedombot/icon.png", request.url));
+      return NextResponse.rewrite(new URL("/fnoninja/icon.svg", request.url));
     }
 
     if (

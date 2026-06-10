@@ -9,8 +9,8 @@ export const metadata: Metadata = {
   description:
     "View option-interest concentrations, derived support and resistance observations, and price positioning across NSE F&O stocks and indices. Informational market data visualization only.",
   icons: {
-    icon: "/freedombot/icon.png",
-    apple: "/freedombot/icon.png",
+    icon: "/fnoninja/icon.svg",
+    apple: "/fnoninja/icon.svg",
   },
   robots: { index: true, follow: true },
   alternates: { canonical: "https://fnoninja.com" },

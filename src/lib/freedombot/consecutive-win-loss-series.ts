@@ -1,9 +1,5 @@
 /**
- * Consecutive win / loss streak — one point per completed episode.
- *
- * Example: (day 0, 0) → (day 5, +5) → (day 7, −2) → (day 10, +4)
- * Linear segments between episodes show win runs climbing and loss runs
- * dipping, with streak flips visible as diagonal crossings.
+ * Daily win/loss counts with cumulative net (wins − losses) by days since launch.
  */
 
 export interface ClosedTradeForStreak {
@@ -13,22 +9,31 @@ export interface ClosedTradeForStreak {
   status?: string;
 }
 
-export interface ConsecutiveWinLossPoint {
+export interface DailyWinLossPoint {
   /** Days since Day 0 (launch). */
   day: number;
-  /** Signed streak length at end of this episode (+ wins, − losses). */
-  streak: number;
   /** UTC calendar date (YYYY-MM-DD) for tooltips. */
   date: string;
-  /** Sort key when multiple episodes share the same day. */
-  order: number;
+  /** Wins closed this day. */
+  wins: number;
+  /** Losses closed this day. */
+  losses: number;
+  /** Negative bar height for chart (−losses, 0 when none). */
+  lossBar: number;
+  /** Running net win count (total wins − total losses through this day). */
+  cumulativeNet: number;
 }
 
 export interface ConsecutiveWinLossSeries {
   day0: string;
   maxDay: number;
-  points: ConsecutiveWinLossPoint[];
+  points: DailyWinLossPoint[];
+  /** Final cumulative net (wins − losses). */
+  cumulativeNet: number;
+  /** Alias kept for the chart badge. */
   currentStreak: number;
+  totalWins: number;
+  totalLosses: number;
   maxWinStreak: number;
   maxLossStreak: number;
 }
@@ -48,27 +53,8 @@ function utcDateKey(day0Ms: number, day: number): string {
   return new Date(day0Ms + day * MS_PER_DAY).toISOString().slice(0, 10);
 }
 
-function pushEpisode(
-  points: ConsecutiveWinLossPoint[],
-  day0Ms: number,
-  day: number,
-  streak: number,
-  order: number,
-): number {
-  if (streak === 0) return order;
-  const prev = points[points.length - 1];
-  if (prev?.day === day && prev.streak === streak) return order;
-  points.push({
-    day,
-    streak,
-    date: utcDateKey(day0Ms, day),
-    order,
-  });
-  return order + 1;
-}
-
 /**
- * Build sparse episode series — one marker per completed win/loss run.
+ * Build daily win/loss bars + cumulative net line series.
  */
 export function buildConsecutiveWinLossSeries(
   trades: ClosedTradeForStreak[],
@@ -85,28 +71,13 @@ export function buildConsecutiveWinLossSeries(
     );
 
   const maxDay = dayIndex(day0Ms, nowMs);
-  const points: ConsecutiveWinLossPoint[] = [
-    { day: 0, streak: 0, date: utcDateKey(day0Ms, 0), order: 0 },
-  ];
-  let order = 1;
-  let winStreak = 0;
-  let lossStreak = 0;
-  let lastWinDay = 0;
-  let lastLossDay = 0;
+  const winsByDay = new Map<number, number>();
+  const lossesByDay = new Map<number, number>();
+
   let maxWinStreak = 0;
   let maxLossStreak = 0;
-
-  const flushWinEpisode = () => {
-    if (winStreak <= 0) return;
-    order = pushEpisode(points, day0Ms, lastWinDay, winStreak, order);
-    winStreak = 0;
-  };
-
-  const flushLossEpisode = () => {
-    if (lossStreak <= 0) return;
-    order = pushEpisode(points, day0Ms, lastLossDay, -lossStreak, order);
-    lossStreak = 0;
-  };
+  let winStreak = 0;
+  let lossStreak = 0;
 
   for (const t of closed) {
     const closeMs = parseMs(t.closedAt!);
@@ -115,31 +86,47 @@ export function buildConsecutiveWinLossSeries(
     const pnl = t.realizedPnl ?? 0;
 
     if (pnl > 0) {
-      if (lossStreak > 0) flushLossEpisode();
+      winsByDay.set(day, (winsByDay.get(day) ?? 0) + 1);
+      if (lossStreak > 0) lossStreak = 0;
       winStreak += 1;
-      lastWinDay = day;
       maxWinStreak = Math.max(maxWinStreak, winStreak);
     } else if (pnl < 0) {
-      if (winStreak > 0) flushWinEpisode();
+      lossesByDay.set(day, (lossesByDay.get(day) ?? 0) + 1);
+      if (winStreak > 0) winStreak = 0;
       lossStreak += 1;
-      lastLossDay = day;
       maxLossStreak = Math.max(maxLossStreak, lossStreak);
     }
   }
 
-  flushWinEpisode();
-  flushLossEpisode();
+  const points: DailyWinLossPoint[] = [];
+  let cumulativeNet = 0;
+  let totalWins = 0;
+  let totalLosses = 0;
 
-  const last = points[points.length - 1];
-  const currentStreak = last?.streak ?? 0;
-
-  points.sort((a, b) => a.day - b.day || a.order - b.order);
+  for (let day = 0; day <= maxDay; day++) {
+    const wins = winsByDay.get(day) ?? 0;
+    const losses = lossesByDay.get(day) ?? 0;
+    cumulativeNet += wins - losses;
+    totalWins += wins;
+    totalLosses += losses;
+    points.push({
+      day,
+      date: utcDateKey(day0Ms, day),
+      wins,
+      losses,
+      lossBar: losses > 0 ? -losses : 0,
+      cumulativeNet,
+    });
+  }
 
   return {
     day0: new Date(day0Ms).toISOString(),
     maxDay,
     points,
-    currentStreak,
+    cumulativeNet,
+    currentStreak: cumulativeNet,
+    totalWins,
+    totalLosses,
     maxWinStreak,
     maxLossStreak,
   };

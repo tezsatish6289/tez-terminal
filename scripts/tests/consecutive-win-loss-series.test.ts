@@ -28,52 +28,19 @@ const series = buildConsecutiveWinLossSeries(
 );
 
 assert(series != null, "series exists");
-assert(series!.points.length === 3, "launch + win episode + loss episode only");
-assert(series!.points[0].day === 0 && series!.points[0].streak === 0, "starts at day 0 zero");
-assert(
-  series!.points.some((p) => p.day === 1 && p.streak === 2),
-  "two-win episode peaks at +2 on last win day",
-);
-assert(
-  series!.points.some((p) => p.day === 3 && p.streak === -2),
-  "two-loss episode ends at -2 on last loss day",
-);
-assert(
-  !series!.points.some((p) => p.streak === 1 || p.streak === -1),
-  "no per-trade intermediate points",
-);
-assert(series!.currentStreak === -2, "current streak is -2");
+assert(series!.points[0].day === 0, "starts at day 0");
 
-const userExample = buildConsecutiveWinLossSeries(
-  [
-    { status: "CLOSED", closedAt: "2026-01-06T18:00:00.000Z", realizedPnl: 1 },
-    { status: "CLOSED", closedAt: "2026-01-06T19:00:00.000Z", realizedPnl: 1 },
-    { status: "CLOSED", closedAt: "2026-01-06T20:00:00.000Z", realizedPnl: 1 },
-    { status: "CLOSED", closedAt: "2026-01-06T21:00:00.000Z", realizedPnl: 1 },
-    { status: "CLOSED", closedAt: "2026-01-06T22:00:00.000Z", realizedPnl: 1 },
-    { status: "CLOSED", closedAt: "2026-01-08T18:00:00.000Z", realizedPnl: -1 },
-    { status: "CLOSED", closedAt: "2026-01-08T20:00:00.000Z", realizedPnl: -1 },
-    { status: "CLOSED", closedAt: "2026-01-11T18:00:00.000Z", realizedPnl: 1 },
-    { status: "CLOSED", closedAt: "2026-01-11T19:00:00.000Z", realizedPnl: 1 },
-    { status: "CLOSED", closedAt: "2026-01-11T20:00:00.000Z", realizedPnl: 1 },
-    { status: "CLOSED", closedAt: "2026-01-11T21:00:00.000Z", realizedPnl: 1 },
-  ],
-  day0Ms,
-  day0Ms + 14 * MS,
-);
+const day0pt = series!.points.find((p) => p.day === 0)!;
+const day1pt = series!.points.find((p) => p.day === 1)!;
+const day2pt = series!.points.find((p) => p.day === 2)!;
+const day3pt = series!.points.find((p) => p.day === 3)!;
 
-assert(
-  userExample!.points.some((p) => p.day === 5 && p.streak === 5),
-  "five-win episode at day 5",
-);
-assert(
-  userExample!.points.some((p) => p.day === 7 && p.streak === -2),
-  "two-loss episode at day 7",
-);
-assert(
-  userExample!.points.some((p) => p.day === 10 && p.streak === 4),
-  "four-win episode at day 10",
-);
+assert(day0pt.wins === 1 && day0pt.cumulativeNet === 1, "day 0 one win, net +1");
+assert(day1pt.wins === 1 && day1pt.cumulativeNet === 2, "day 1 one win, net +2");
+assert(day2pt.losses === 1 && day2pt.lossBar === -1 && day2pt.cumulativeNet === 1, "day 2 one loss");
+assert(day3pt.losses === 1 && day3pt.cumulativeNet === 0, "day 3 net back to 0");
+assert(series!.cumulativeNet === 0, "final cumulative net is 0");
+assert(series!.totalWins === 2 && series!.totalLosses === 2, "totals");
 
 const sameDay = buildConsecutiveWinLossSeries(
   [
@@ -85,28 +52,24 @@ const sameDay = buildConsecutiveWinLossSeries(
   day0Ms + 10 * MS,
 );
 
-const day4 = sameDay!.points.filter((p) => p.day === 4);
-assert(day4.some((p) => p.streak === 2), "same-day win episode +2");
-assert(day4.some((p) => p.streak === -1), "same-day loss episode -1");
-assert(day4.length === 2, "two episodes on one day");
+const day4 = sameDay!.points.find((p) => p.day === 4)!;
+assert(day4.wins === 2 && day4.losses === 1, "same day wins and losses");
+assert(day4.lossBar === -1, "loss bar is negative");
 
-const openStreak = buildConsecutiveWinLossSeries(
+const netRun = buildConsecutiveWinLossSeries(
   [
-    { status: "CLOSED", closedAt: "2026-01-08T18:00:00.000Z", realizedPnl: 1 },
-    { status: "CLOSED", closedAt: "2026-01-09T18:00:00.000Z", realizedPnl: 1 },
+    { status: "CLOSED", closedAt: "2026-01-02T18:00:00.000Z", realizedPnl: 1 },
+    { status: "CLOSED", closedAt: "2026-01-03T18:00:00.000Z", realizedPnl: 1 },
+    { status: "CLOSED", closedAt: "2026-01-04T18:00:00.000Z", realizedPnl: 1 },
   ],
   day0Ms,
-  day0Ms + 14 * MS,
+  day0Ms + 10 * MS,
 );
 
-assert(openStreak!.currentStreak === 2, "open streak is +2");
+assert(netRun!.cumulativeNet === 3, "three wins yields +3 net");
 assert(
-  openStreak!.points.some((p) => p.day === 8 && p.streak === 2),
-  "open two-win episode ends at last win day",
-);
-assert(
-  !openStreak!.points.some((p) => p.streak === 0 && p.day > 0),
-  "no forced zero anchors after launch",
+  netRun!.points.find((p) => p.day === 3)!.cumulativeNet === 3,
+  "cumulative net climbs on line",
 );
 
 const emptyDay0 = buildConsecutiveWinLossSeries([], NaN);

@@ -2,6 +2,7 @@ import Image from "next/image";
 import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
 import { FnoNinjaFooter } from "@/components/fnoninja/FnoNinjaFooter";
 import { FnoNinjaHero } from "@/components/fnoninja/FnoNinjaHero";
+import { FnoNinjaProblemSection } from "@/components/fnoninja/FnoNinjaProblemSection";
 import {
   BarChart3,
   Clock,
@@ -16,7 +17,6 @@ import {
 } from "lucide-react";
 import {
   FB_CONTENT_SHELL,
-  FB_DOC_SHELL,
   FB_MEDIUM_SHELL,
   FB_NARROW_SHELL,
 } from "@/lib/freedombot/responsive";
@@ -39,35 +39,7 @@ export default function FnoNinjaLandingPage() {
     <div className="font-sans antialiased min-w-0 flex flex-col flex-1">
       <FnoNinjaHero />
 
-      {/* Problem / Solution */}
-      <section className={`${FB_DOC_SHELL} py-16 sm:py-24`}>
-        <div className="max-w-3xl mx-auto text-center flex flex-col gap-10 sm:gap-12">
-          <div>
-            <p
-              className="text-[10px] font-bold uppercase tracking-widest mb-4"
-              style={{ color: "#334155" }}
-            >
-              Problem
-            </p>
-            <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight">
-              Option chain data is powerful — but tracking it across hundreds of stocks is
-              overwhelming.
-            </h2>
-          </div>
-          <div>
-            <p
-              className="text-[10px] font-bold uppercase tracking-widest mb-4"
-              style={{ color: FNO_ACCENT }}
-            >
-              Solution
-            </p>
-            <p className="text-base sm:text-lg leading-relaxed" style={{ color: FNO_MUTED }}>
-              FNONINJA turns complex option chain data into clear visual market maps. Spot open
-              interest clusters, key zones, and market structure at a glance — all in one interface.
-            </p>
-          </div>
-        </div>
-      </section>
+      <FnoNinjaProblemSection />
 
       {/* What is */}
       <section className={`${FB_CONTENT_SHELL} pb-14 sm:pb-20`}>

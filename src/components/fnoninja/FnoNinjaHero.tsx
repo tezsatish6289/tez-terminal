@@ -1,13 +1,10 @@
 import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
 import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
-import { FNO_UNIVERSE } from "@/lib/nse/fno-universe";
 import { FNO_GRADIENT_TEXT, FNO_MUTED } from "@/lib/fnoninja/theme";
 
 const EMBED_SRC = "/embed/levels-bubbles";
 
 export function FnoNinjaHero() {
-  const symbolCount = FNO_UNIVERSE.length;
-
   return (
     <section className="relative overflow-hidden border-b" style={{ borderColor: "rgba(90,140,220,0.08)" }}>
       <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
@@ -21,12 +18,11 @@ export function FnoNinjaHero() {
         />
       </div>
 
-      <div className={`relative ${FB_CONTENT_SHELL} py-12 sm:py-16 lg:py-20`}>
-        <div className="grid lg:grid-cols-2 gap-10 lg:gap-12 xl:gap-16 items-center">
-          {/* Left — copy */}
-          <div className="text-left min-w-0">
+      <div className={`relative ${FB_CONTENT_SHELL} py-16 sm:py-20 lg:py-28`}>
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 xl:gap-20 items-center">
+          <div className="text-left min-w-0 flex flex-col">
             <div
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest mb-6"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest mb-10 sm:mb-12"
               style={{
                 backgroundColor: "rgba(34,197,94,0.1)",
                 border: "1px solid rgba(52,211,153,0.25)",
@@ -48,61 +44,25 @@ export function FnoNinjaHero() {
               markets with precision.
             </h1>
 
-            <p className="mt-5 text-sm sm:text-base leading-relaxed max-w-lg" style={{ color: FNO_MUTED }}>
+            <p
+              className="mt-8 sm:mt-10 text-sm sm:text-base leading-relaxed max-w-md"
+              style={{ color: FNO_MUTED }}
+            >
               One map for the full NSE F&amp;O universe. See where open interest clusters and
               how price sits relative to derived support and resistance zones — built from public
               option-chain data, for your own research.
             </p>
 
-            <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              <FnoNinjaCtaLink>Launch analytics</FnoNinjaCtaLink>
-              <FnoNinjaCtaLink variant="secondary">Open full dashboard</FnoNinjaCtaLink>
+            <div className="mt-10 sm:mt-12">
+              <FnoNinjaCtaLink>See market map</FnoNinjaCtaLink>
             </div>
 
-            <div className="mt-10 flex flex-wrap gap-x-10 gap-y-4">
-              <div>
-                <p className="text-2xl sm:text-3xl font-black text-white tabular-nums">
-                  {symbolCount}+
-                </p>
-                <p
-                  className="text-[10px] font-bold uppercase tracking-widest mt-1"
-                  style={{ color: "#475569" }}
-                >
-                  F&amp;O symbols
-                </p>
-              </div>
-              <div>
-                <p
-                  className="text-2xl sm:text-3xl font-black tabular-nums bg-clip-text text-transparent"
-                  style={{ backgroundImage: FNO_GRADIENT_TEXT }}
-                >
-                  4
-                </p>
-                <p
-                  className="text-[10px] font-bold uppercase tracking-widest mt-1"
-                  style={{ color: "#475569" }}
-                >
-                  Major indices
-                </p>
-              </div>
-              <div>
-                <p className="text-2xl sm:text-3xl font-black text-white">2:1</p>
-                <p
-                  className="text-[10px] font-bold uppercase tracking-widest mt-1"
-                  style={{ color: "#475569" }}
-                >
-                  POC reward:risk filter
-                </p>
-              </div>
-            </div>
-
-            <p className="mt-6 text-[11px]" style={{ color: "#334155" }}>
+            <p className="mt-10 sm:mt-12 text-[11px]" style={{ color: "#334155" }}>
               Informational only · Not investment advice
             </p>
           </div>
 
-          {/* Right — terminal + live bubble map */}
-          <div className="min-w-0 w-full">
+          <div className="min-w-0 w-full lg:mt-0 mt-4">
             <div
               className="rounded-2xl overflow-hidden shadow-2xl"
               style={{

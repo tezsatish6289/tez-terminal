@@ -52,7 +52,7 @@ export function FnoNinjaCtaLink({
   return (
     <Link
       href={href}
-      className="inline-flex items-center gap-2 rounded-full px-7 py-3 text-sm font-bold text-white transition-all hover:scale-105"
+      className="inline-flex items-center gap-2.5 rounded-full px-8 py-3.5 text-xs font-bold uppercase tracking-widest text-white transition-all hover:scale-105"
       style={{ background: FNO_CTA_GRADIENT, boxShadow: FNO_CTA_SHADOW }}
     >
       {children}

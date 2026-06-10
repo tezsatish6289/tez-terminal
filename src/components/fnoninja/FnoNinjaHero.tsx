@@ -27,17 +27,17 @@ export function FnoNinjaHero() {
         <div className="grid flex-1 min-h-0 lg:grid-cols-2 gap-8 lg:gap-12 xl:gap-16 items-center lg:items-stretch">
           <div className="text-left min-w-0 flex flex-col justify-center gap-7 sm:gap-8 lg:gap-9 lg:py-2">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-[3.25rem] font-black tracking-tight leading-[1.08] text-white">
-              Map the <span style={{ color: FNO_ACCENT }}>F&amp;O</span> markets with precision.
+              See the Entire <span style={{ color: FNO_ACCENT }}>F&amp;O</span> Market at a Glance
             </h1>
 
-            <p className="text-sm sm:text-base leading-relaxed max-w-md" style={{ color: FNO_MUTED }}>
-              One map for the full NSE F&amp;O universe. See where open interest clusters and
-              how price sits relative to derived support and resistance zones — built from public
-              option-chain data, for your own research.
+            <p className="text-sm sm:text-base leading-relaxed max-w-lg" style={{ color: FNO_MUTED }}>
+              One interactive map of the full NSE F&amp;O universe. Instantly spot open interest
+              clusters, price positioning vs. key support &amp; resistance zones — built live from
+              option chain data.
             </p>
 
             <div>
-              <FnoNinjaCtaLink>See market map</FnoNinjaCtaLink>
+              <FnoNinjaCtaLink>Explore live market map</FnoNinjaCtaLink>
             </div>
 
             <p className="text-[11px]" style={{ color: "#334155" }}>

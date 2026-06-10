@@ -274,7 +274,7 @@ export default function FnoNinjaLandingPage() {
             price positioning through a unified analytics experience.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <FnoNinjaCtaLink>See market map</FnoNinjaCtaLink>
+            <FnoNinjaCtaLink>Explore live market map</FnoNinjaCtaLink>
           </div>
         </div>
       </section>

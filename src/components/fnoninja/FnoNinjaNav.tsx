@@ -51,7 +51,7 @@ export function FnoNinjaNav() {
 
           <div className="flex items-center gap-2 flex-shrink-0">
             <div className="hidden md:block">
-              <FnoNinjaCtaLink variant="nav">See market map</FnoNinjaCtaLink>
+              <FnoNinjaCtaLink variant="nav">Explore live market map</FnoNinjaCtaLink>
             </div>
             <button
               type="button"
@@ -118,7 +118,7 @@ export function FnoNinjaNav() {
             </nav>
 
             <div className="p-4 border-t flex-shrink-0" style={{ borderColor: FNO_NAV_BORDER }}>
-              <FnoNinjaCtaLink variant="nav">See market map</FnoNinjaCtaLink>
+              <FnoNinjaCtaLink variant="nav">Explore live market map</FnoNinjaCtaLink>
             </div>
           </div>
         </div>

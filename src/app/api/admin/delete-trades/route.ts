@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
+import { deleteSimTradeRecords } from "@/lib/admin/delete-sim-trade-records";
 
 export const dynamic = "force-dynamic";
 
@@ -8,13 +9,16 @@ export const dynamic = "force-dynamic";
  *
  * Query params (all optional except key):
  *   key       — CRON_SECRET (required)
+ *   ids       — comma-separated simulator_trades doc ids (precise delete; skips symbol-wide log wipe)
  *   symbols   — comma-separated symbol list (e.g. BANKUSDT.P,ORDERUSDT.P)
  *   asset     — asset type filter (e.g. INDIAN_STOCKS, CRYPTO)
  *   from      — ISO date, only trades opened on or after (e.g. 2026-03-31)
  *   to        — ISO date, only trades opened on or before (e.g. 2026-04-01)
  *   dry       — "true" to preview without deleting
+ *   forceLive — "true" to delete linked live_trades even if OPEN (Firestore only)
  *
  * Examples:
+ *   ?ids=sim-manual-btc-1781173062993&dry=true
  *   ?symbols=BANKUSDT.P&dry=true
  *   ?asset=INDIAN_STOCKS&from=2026-03-31&to=2026-04-01
  *   ?symbols=BANKUSDT.P,ORDERUSDT.P&asset=INDIAN_STOCKS&from=2026-03-31
@@ -25,17 +29,71 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const idsParam = request.nextUrl.searchParams.get("ids");
   const symbolsParam = request.nextUrl.searchParams.get("symbols");
   const assetParam = request.nextUrl.searchParams.get("asset");
   const fromParam = request.nextUrl.searchParams.get("from");
   const toParam = request.nextUrl.searchParams.get("to");
   const dryRun = request.nextUrl.searchParams.get("dry") === "true";
+  const forceLiveDelete = request.nextUrl.searchParams.get("forceLive") === "true";
 
-  if (!symbolsParam && !assetParam && !fromParam) {
+  const ids = idsParam
+    ? idsParam.split(",").map((s) => s.trim()).filter(Boolean)
+    : null;
+
+  if (!ids?.length && !symbolsParam && !assetParam && !fromParam) {
     return NextResponse.json(
-      { error: "Provide at least one filter: symbols, asset, or from" },
+      { error: "Provide at least one filter: ids, symbols, asset, or from" },
       { status: 400 },
     );
+  }
+
+  const db = getAdminFirestore();
+
+  if (ids?.length) {
+    const results = [];
+    const errors = [];
+    for (const simTradeId of ids) {
+      try {
+        results.push(
+          await deleteSimTradeRecords({ db, simTradeId, dryRun, forceLiveDelete }),
+        );
+      } catch (e: unknown) {
+        const err = e as Error & {
+          openLiveTrades?: Array<{ id: string; exchange: string; userId: string }>;
+          preview?: unknown;
+        };
+        errors.push({
+          simTradeId,
+          error: err.message,
+          openLiveTrades: err.openLiveTrades ?? null,
+          preview: err.preview ?? null,
+        });
+      }
+    }
+
+    let reconcileResult: unknown = null;
+    if (!dryRun && results.length > 0) {
+      const origin = new URL(request.url).origin;
+      const cronSecret = process.env.CRON_SECRET;
+      if (cronSecret) {
+        const res = await fetch(
+          `${origin}/api/admin/reconcile-capital?key=${encodeURIComponent(cronSecret)}`,
+          { cache: "no-store" },
+        );
+        reconcileResult = await res.json().catch(() => ({ error: "reconcile failed" }));
+      }
+    }
+
+    return NextResponse.json({
+      success: errors.length === 0,
+      dryRun,
+      mode: "ids",
+      deleted: results.length,
+      errors,
+      details: results,
+      reconcileResult,
+    });
   }
 
   const symbols = symbolsParam
@@ -46,7 +104,6 @@ export async function GET(request: NextRequest) {
     ? new Date(new Date(toParam).getTime() + 86400000).toISOString()
     : null;
 
-  const db = getAdminFirestore();
   const deleted: string[] = [];
   const previewed: string[] = [];
 

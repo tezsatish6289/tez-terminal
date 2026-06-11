@@ -2,6 +2,7 @@ import Image from "next/image";
 import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
 import { FnoNinjaFooter } from "@/components/fnoninja/FnoNinjaFooter";
 import { FnoNinjaHero } from "@/components/fnoninja/FnoNinjaHero";
+import { FnoNinjaHowItWorksSection } from "@/components/fnoninja/FnoNinjaHowItWorksSection";
 import { FnoNinjaProblemSection } from "@/components/fnoninja/FnoNinjaProblemSection";
 import {
   BarChart3,
@@ -9,7 +10,6 @@ import {
   Database,
   Eye,
   Grid3X3,
-  Layers,
   LineChart,
   Presentation,
   ShieldCheck,
@@ -22,7 +22,6 @@ import {
 } from "@/lib/freedombot/responsive";
 import {
   FNO_ACCENT,
-  FNO_ACCENT_SOFT,
   FNO_CARD_BG,
   FNO_CARD_BORDER,
   FNO_MUTED,
@@ -41,86 +40,7 @@ export default function FnoNinjaLandingPage() {
 
       <FnoNinjaProblemSection />
 
-      {/* What is */}
-      <section className={`${FB_CONTENT_SHELL} pb-14 sm:pb-20`}>
-        <div className="rounded-2xl p-6 sm:p-8" style={cardStyle}>
-          <h2 className="text-xl sm:text-2xl font-black text-white">What is FNONINJA</h2>
-          <p className="mt-4 leading-relaxed" style={{ color: FNO_MUTED }}>
-            FNONINJA is an options-market{" "}
-            <strong className="font-semibold" style={{ color: "#cbd5e1" }}>
-              analytics and data visualization
-            </strong>{" "}
-            platform for Indian markets. The platform processes publicly available option-chain
-            information and presents{" "}
-            <strong className="font-semibold" style={{ color: "#cbd5e1" }}>
-              observed
-            </strong>{" "}
-            support zones, resistance zones, open-interest concentrations, and related
-            market-structure metrics through interactive visualizations.
-          </p>
-          <p className="mt-4 leading-relaxed" style={{ color: FNO_MUTED }}>
-            Explore symbols individually or monitor the broader market using maps, filters, and
-            symbol-level views. Outputs are shown for user interpretation — not as recommendations.
-          </p>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section id="how-it-works" className={`${FB_CONTENT_SHELL} pb-14 sm:pb-20`}>
-        <div className="text-center mb-10">
-          <p
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-5"
-            style={{
-              backgroundColor: FNO_ACCENT_SOFT,
-              border: "1px solid rgba(90,140,220,0.2)",
-              color: FNO_ACCENT,
-            }}
-          >
-            How it works
-          </p>
-        </div>
-        <div className="grid sm:grid-cols-3 gap-4">
-          {[
-            {
-              step: "1",
-              title: "Collect market data",
-              body: "Option-chain information is collected and processed for NSE F&O stocks and major indices during trading hours.",
-              icon: Database,
-            },
-            {
-              step: "2",
-              title: "Derive analytical observations",
-              body: "Algorithms highlight areas where open interest is concentrated and display them as derived support and resistance observations — not recommendations.",
-              icon: Layers,
-            },
-            {
-              step: "3",
-              title: "Visualize market structure",
-              body: "Results appear on market maps, symbol dashboards, and charts to support your own research process.",
-              icon: Grid3X3,
-            },
-          ].map(({ step, title, body, icon: Icon }) => (
-            <div key={step} className="rounded-2xl p-6 sm:p-8" style={cardStyle}>
-              <div className="flex items-center gap-3 mb-4">
-                <span
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-black"
-                  style={{
-                    backgroundColor: FNO_ACCENT_SOFT,
-                    color: FNO_ACCENT,
-                  }}
-                >
-                  {step}
-                </span>
-                <Icon className="h-4 w-4" style={{ color: "#475569" }} />
-              </div>
-              <h3 className="text-sm font-bold text-white">{title}</h3>
-              <p className="mt-2 text-[13px] leading-relaxed" style={{ color: FNO_MUTED }}>
-                {body}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <FnoNinjaHowItWorksSection />
 
       {/* Features */}
       <section id="features" className={`${FB_CONTENT_SHELL} pb-14 sm:pb-20`}>

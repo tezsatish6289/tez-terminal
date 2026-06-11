@@ -92,6 +92,8 @@ function sanitize(raw: Record<string, unknown> | null): PublicLevels | null {
     atmIV: num(raw.atmIV),
     daysToEarnings: num(raw.daysToEarnings),
     zonesExpiry: formatZonesExpiryLabel(raw.expiryUsed),
+    putClusterSize: num(raw.bullOI),
+    callClusterSize: num(raw.bearOI),
   };
 }
 

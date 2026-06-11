@@ -37,6 +37,10 @@ export interface PublicLevels {
   daysToEarnings?: number | null;
   /** Nearest option-chain expiry used for zone derivation (DD/MM/YYYY). */
   zonesExpiry?: string | null;
+  /** Dominant put-cluster open interest at support (contracts). */
+  putClusterSize?: number | null;
+  /** Dominant call-cluster open interest at resistance (contracts). */
+  callClusterSize?: number | null;
 }
 
 function fmtPrice(p: number): string {

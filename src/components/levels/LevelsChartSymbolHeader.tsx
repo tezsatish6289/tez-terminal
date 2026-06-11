@@ -2,6 +2,10 @@
 
 import type { ReactNode } from "react";
 import {
+  LevelsChartZoneMeta,
+  type LevelsChartZoneMetaProps,
+} from "@/components/levels/LevelsChartZoneMeta";
+import {
   formatLevelsChartMeta,
   type LevelsTvConfig,
 } from "@/lib/levels/tradingview-symbol";
@@ -13,6 +17,7 @@ export function LevelsChartSymbolHeader({
   config,
   highConfidence = false,
   badge,
+  zoneMeta,
 }: {
   symbol: string;
   /** Company or index label when different from ticker. */
@@ -22,6 +27,8 @@ export function LevelsChartSymbolHeader({
   highConfidence?: boolean;
   /** Volatility-regime chip rendered beside the ticker (display only). */
   badge?: ReactNode;
+  /** Option-chain expiry + put/call cluster sizes (chart deep-dive). */
+  zoneMeta?: LevelsChartZoneMetaProps | null;
 }) {
   const showSubtitle =
     subtitle != null &&
@@ -63,6 +70,7 @@ export function LevelsChartSymbolHeader({
       >
         {formatLevelsChartMeta(config)}
       </p>
+      {zoneMeta ? <LevelsChartZoneMeta {...zoneMeta} /> : null}
     </div>
   );
 }

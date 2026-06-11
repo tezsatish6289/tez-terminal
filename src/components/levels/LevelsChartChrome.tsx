@@ -3,6 +3,7 @@
 import type { ReactNode, RefObject } from "react";
 import { LevelsChartPageToolbar } from "@/components/levels/LevelsChartPageToolbar";
 import { LevelsChartSymbolHeader } from "@/components/levels/LevelsChartSymbolHeader";
+import type { LevelsChartZoneMetaProps } from "@/components/levels/LevelsChartZoneMeta";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
 import type { LevelsTvConfig } from "@/lib/levels/tradingview-symbol";
 
@@ -21,6 +22,7 @@ export function LevelsChartChrome({
   symbolSearch,
   highConfidence = false,
   badge,
+  zoneMeta,
   className = "",
 }: {
   symbol: string;
@@ -39,6 +41,7 @@ export function LevelsChartChrome({
   highConfidence?: boolean;
   /** Volatility-regime chip rendered beside the ticker (display only). */
   badge?: ReactNode;
+  zoneMeta?: LevelsChartZoneMetaProps | null;
   className?: string;
 }) {
   return (
@@ -51,6 +54,7 @@ export function LevelsChartChrome({
         config={config}
         highConfidence={highConfidence}
         badge={badge}
+        zoneMeta={zoneMeta}
       />
       {!hideToolbar ? (
         <LevelsChartPageToolbar

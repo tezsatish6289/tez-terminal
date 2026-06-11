@@ -138,6 +138,18 @@ function ChartContent() {
 
   const zonesUpdatedLabel = zonesUpdatedFooterLabel(levels?.computedAt);
 
+  const zoneMeta = useMemo(
+    () =>
+      levels
+        ? {
+            expiry: levels.zonesExpiry,
+            putClusterSize: levels.putClusterSize,
+            callClusterSize: levels.callClusterSize,
+          }
+        : null,
+    [levels],
+  );
+
   if ((!scope || !symbol) && error) {
     return (
       <main
@@ -193,6 +205,7 @@ function ChartContent() {
               />
             ) : undefined
           }
+          zoneMeta={zoneMeta}
         />
 
         {error ? (

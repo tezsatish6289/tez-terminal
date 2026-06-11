@@ -38,7 +38,7 @@ import {
   zonesUpdatedFooterLabel,
 } from "@/lib/levels/slideshow-zones";
 import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
-import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
+import { FNO_APP_SURFACE_STYLE, FNO_FAVSLIDE_WASH } from "@/lib/fnoninja/theme";
 import {
   bubbleMatchesMapFilter,
   countBubbleMapFilters,
@@ -238,8 +238,8 @@ export default function LevelsPage() {
     setInZoneSlide(0);
   }, [isFnoNinjaHost]);
 
-  const toggleViewMode = useCallback(() => {
-    setViewMode((m) => (m === "bubbles" ? "liveslide" : "bubbles"));
+  const enterBubbles = useCallback(() => {
+    setViewMode("bubbles");
   }, []);
 
   useEffect(() => {
@@ -253,14 +253,26 @@ export default function LevelsPage() {
       ) {
         return;
       }
-      if (e.key === "s" || e.key === "S") {
+      if (e.key === "l" || e.key === "L") {
         e.preventDefault();
-        toggleViewMode();
+        enterLiveslide();
+        return;
+      }
+      if ((e.key === "f" || e.key === "F") && isFnoNinjaHost) {
+        e.preventDefault();
+        enterFavslide();
+        return;
+      }
+      if (e.key === "b" || e.key === "B") {
+        if (viewMode !== "bubbles") {
+          e.preventDefault();
+          enterBubbles();
+        }
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [toggleViewMode]);
+  }, [enterLiveslide, enterFavslide, enterBubbles, isFnoNinjaHost, viewMode]);
 
   const stockBySymbol = useMemo(() => {
     const m = new Map<
@@ -651,12 +663,18 @@ export default function LevelsPage() {
     ) : null;
 
   const viewToggleLabel =
-    viewMode === "bubbles"
-      ? "View Liveslide"
-      : viewMode === "favslide"
-        ? "View Bubbles map"
-        : "View Bubbles map";
-  const viewToggleShortcut = "(Press S for shortcut)";
+    viewMode === "bubbles" ? "View Liveslide" : "View Bubbles map";
+  const bubblesBackTitle = "Back to Market Bubbles map. Press B or click.";
+  const liveslideCtaTitle = "Cycle aligned market setups. Press L or click.";
+  const favslideCtaTitle = "Cycle your favourited stocks. Press F or click.";
+
+  const pageSurfaceStyle =
+    viewMode === "favslide"
+      ? {
+          ...FNO_APP_SURFACE_STYLE,
+          backgroundImage: `${FNO_FAVSLIDE_WASH}, ${FNO_APP_SURFACE_STYLE.backgroundImage}`,
+        }
+      : FNO_APP_SURFACE_STYLE;
 
   const chartHighConfidence =
     inZoneActive?.scope === "index" || isHighConfidenceLevels(activeChartLevels);
@@ -690,6 +708,12 @@ export default function LevelsPage() {
         onSelect={setInZoneSlide}
         layout="horizontal"
         runnerMode
+        stripAccent={viewMode === "favslide" ? "favslide" : "liveslide"}
+        countLabel={
+          viewMode === "favslide"
+            ? `Your watchlist · ${favslideSymbols.length}`
+            : undefined
+        }
       />
     ) : null;
 
@@ -838,7 +862,7 @@ export default function LevelsPage() {
   };
 
   return (
-    <main className={`${FB_FULL_HEIGHT_MAIN} shrink-0 min-w-0`} style={FNO_APP_SURFACE_STYLE}>
+    <main className={`${FB_FULL_HEIGHT_MAIN} shrink-0 min-w-0`} style={pageSurfaceStyle}>
       <div className={`${FB_LEVELS_SHELL} flex-1 min-h-0 flex flex-col overflow-hidden`}>
         {loading ? (
           <div className="flex flex-1 items-center justify-center py-24">
@@ -881,12 +905,20 @@ export default function LevelsPage() {
                       }
                     : undefined
                 }
+                slideModePill={
+                  isSlideView
+                    ? {
+                        mode: viewMode,
+                        count: viewMode === "favslide" ? favslideSymbols.length : undefined,
+                      }
+                    : undefined
+                }
                 viewModeToggle={
                   isSlideView
                     ? {
                         viewMode: viewMode === "favslide" ? "favslide" : "liveslide",
-                        onToggle: toggleViewMode,
-                        title: viewToggleShortcut,
+                        onToggle: enterBubbles,
+                        title: bubblesBackTitle,
                       }
                     : undefined
                 }
@@ -894,25 +926,26 @@ export default function LevelsPage() {
                   isSlideView && !activeTv ? slideshowChartShortcuts : null
                 }
                 favslideToggle={
-                  viewMode === "bubbles" && isFnoNinjaHost
+                  isFnoNinjaHost
                     ? {
                         label: "View favslide",
                         shortLabel: "Favslide",
                         onClick: enterFavslide,
-                        title: "Slideshow your favourited stocks",
+                        title: favslideCtaTitle,
+                        variant: "favslide" as const,
+                        kbd: "F",
+                        active: viewMode === "favslide",
                       }
                     : undefined
                 }
                 viewToggle={{
                   label: viewToggleLabel,
-                  shortLabel:
-                    viewMode === "bubbles"
-                      ? "Liveslide"
-                      : viewMode === "favslide"
-                        ? "Bubbles"
-                        : "Bubbles",
-                  onClick: toggleViewMode,
-                  title: viewToggleShortcut,
+                  shortLabel: viewMode === "bubbles" ? "Liveslide" : "Bubbles",
+                  onClick: viewMode === "bubbles" ? enterLiveslide : enterBubbles,
+                  title: viewMode === "bubbles" ? liveslideCtaTitle : bubblesBackTitle,
+                  variant: "liveslide" as const,
+                  kbd: viewMode === "bubbles" ? "L" : "B",
+                  active: viewMode === "liveslide",
                 }}
               />
               {viewMode === "bubbles" ? (

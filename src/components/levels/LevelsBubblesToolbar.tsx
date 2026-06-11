@@ -1,7 +1,10 @@
 "use client";
 
 import { LevelsBubbleMapFilters } from "@/components/levels/LevelsBubbleMapFilters";
-import { LevelsSlideshowCta } from "@/components/levels/LevelsSlideshowCta";
+import {
+  LevelsSlideshowCta,
+  type LevelsSlideCtaVariant,
+} from "@/components/levels/LevelsSlideshowCta";
 import { LevelsToolbarSearchInput } from "@/components/levels/LevelsToolbarSearchInput";
 import type { BubbleMapFilter } from "@/lib/zones/bubble-map-filter";
 
@@ -25,12 +28,18 @@ export function LevelsBubblesToolbar({
     shortLabel?: string;
     onClick: () => void;
     title?: string;
+    variant: LevelsSlideCtaVariant;
+    kbd: string;
+    active?: boolean;
   };
   favslideToggle?: {
     label: string;
     shortLabel?: string;
     onClick: () => void;
     title?: string;
+    variant: LevelsSlideCtaVariant;
+    kbd: string;
+    active?: boolean;
   };
 }) {
   return (
@@ -53,6 +62,9 @@ export function LevelsBubblesToolbar({
           shortLabel={favslideToggle.shortLabel}
           onClick={favslideToggle.onClick}
           title={favslideToggle.title}
+          variant={favslideToggle.variant}
+          kbd={favslideToggle.kbd}
+          active={favslideToggle.active}
         />
       ) : null}
 
@@ -61,6 +73,9 @@ export function LevelsBubblesToolbar({
         shortLabel={viewToggle.shortLabel}
         onClick={viewToggle.onClick}
         title={viewToggle.title}
+        variant={viewToggle.variant}
+        kbd={viewToggle.kbd}
+        active={viewToggle.active}
       />
     </div>
   );

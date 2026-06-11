@@ -3,6 +3,7 @@
 import { useMemo, type ReactNode } from "react";
 import { LevelsBubblesToolbar } from "@/components/levels/LevelsBubblesToolbar";
 import { LevelsCtaCluster } from "@/components/levels/LevelsCtaCluster";
+import type { LevelsSlideCtaVariant } from "@/components/levels/LevelsSlideshowCta";
 import {
   LevelsSlideshowStripControls,
   type LevelsStripViewMode,
@@ -38,6 +39,7 @@ export function LevelsSlideshowToolbar({
   slideshowControl,
   viewModeToggle,
   favslideToggle,
+  slideModePill,
   bubblesMode = false,
   bubbleMapFilter,
   onBubbleMapFilterChange,
@@ -75,6 +77,9 @@ export function LevelsSlideshowToolbar({
     shortLabel?: string;
     onClick: () => void;
     title?: string;
+    variant: LevelsSlideCtaVariant;
+    kbd: string;
+    active?: boolean;
   };
   /** Slideshow with chart chrome: filters row only (symbol header is separate). */
   filtersOnly?: boolean;
@@ -93,6 +98,13 @@ export function LevelsSlideshowToolbar({
     shortLabel?: string;
     onClick: () => void;
     title?: string;
+    variant: LevelsSlideCtaVariant;
+    kbd: string;
+    active?: boolean;
+  };
+  slideModePill?: {
+    mode: LevelsStripViewMode;
+    count?: number;
   };
   viewModeToggle?: {
     viewMode: LevelsStripViewMode;
@@ -199,6 +211,7 @@ export function LevelsSlideshowToolbar({
           }
           slideshowControl={slideshowControl}
           viewToggle={viewModeToggle}
+          slideModePill={slideModePill}
         />
         {symbolStrip ? (
           <div className="flex-1 min-w-0 min-h-0 h-full">{symbolStrip}</div>

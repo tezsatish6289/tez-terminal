@@ -8,6 +8,12 @@ export const FNO_CARD_BG = "#0d1b2e";
 export const FNO_CARD_BORDER = "1px solid rgba(90,140,220,0.2)";
 export const FNO_NAV_BORDER = "rgba(90,140,220,0.1)";
 export const FNO_ACCENT = "#60a5fa";
+/** Liveslide slideshow — live aligned setups (brand blue). */
+export const FNO_LIVESLIDE_ACCENT = "#60a5fa";
+/** Favslide slideshow — personal watchlist (amber star). */
+export const FNO_FAVSLIDE_ACCENT = "#fbbf24";
+export const FNO_FAVSLIDE_WASH =
+  "radial-gradient(ellipse 80% 40% at 50% 0%, rgba(251,191,36,0.07), transparent)";
 export const FNO_LOGO_MARK = "#3b82f6";
 export const FNO_ACCENT_SOFT = "rgba(37,99,235,0.08)";
 export const FNO_GRADIENT_TEXT =

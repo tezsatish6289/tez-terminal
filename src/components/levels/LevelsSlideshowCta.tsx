@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BLACKBOARD_CHALK, BLACKBOARD_FILL_ACTIVE, BLACKBOARD_WRAPPER } from "@/lib/levels/cta-blackboard";
+import { GalleryHorizontal, Star } from "lucide-react";
+import { BLACKBOARD_CHALK, BLACKBOARD_WRAPPER } from "@/lib/levels/cta-blackboard";
+import {
+  FNO_FAVSLIDE_ACCENT,
+  FNO_LIVESLIDE_ACCENT,
+} from "@/lib/fnoninja/theme";
 
 /** Short bright segment travels along the stroke path (not a spinning fill). */
 const CTA_BORDER_CSS = `
@@ -16,26 +21,71 @@ export const LEVELS_TOOLBAR_CHIP_HEIGHT = "h-7";
 const BORDER_INSET = 1;
 const BORDER_PAD = 3;
 
-const RUNNER_DIM = "rgba(226, 232, 240, 0.35)";
-const RUNNER_BRIGHT = "#e8edf4";
-const RUNNER_MID = "rgba(203, 213, 225, 0.75)";
+export type LevelsSlideCtaVariant = "liveslide" | "favslide";
 
-/** View toggle only — blackboard fill + running light on the border. */
+const VARIANT_STYLE: Record<
+  LevelsSlideCtaVariant,
+  {
+    fill: string;
+    fillActive: string;
+    border: string;
+    borderActive: string;
+    chalk: string;
+    runnerDim: string;
+    runnerBright: string;
+    runnerMid: string;
+    kbdColor: string;
+  }
+> = {
+  liveslide: {
+    fill: "rgba(37,99,235,0.1)",
+    fillActive: "rgba(37,99,235,0.2)",
+    border: "rgba(96,165,250,0.28)",
+    borderActive: "rgba(96,165,250,0.5)",
+    chalk: "#93c5fd",
+    runnerDim: "rgba(96,165,250,0.22)",
+    runnerBright: FNO_LIVESLIDE_ACCENT,
+    runnerMid: "rgba(147,197,253,0.6)",
+    kbdColor: "rgba(147,197,253,0.8)",
+  },
+  favslide: {
+    fill: "rgba(251,191,36,0.1)",
+    fillActive: "rgba(251,191,36,0.18)",
+    border: "rgba(251,191,36,0.3)",
+    borderActive: "rgba(251,191,36,0.52)",
+    chalk: "#fcd34d",
+    runnerDim: "rgba(251,191,36,0.2)",
+    runnerBright: FNO_FAVSLIDE_ACCENT,
+    runnerMid: "rgba(252,211,77,0.58)",
+    kbdColor: "rgba(252,211,77,0.8)",
+  },
+};
+
+/** View toggle — blackboard fill + running light on the border. */
 export function LevelsSlideshowCta({
   label,
   shortLabel,
   onClick,
   title,
+  variant,
+  kbd,
+  active = false,
 }: {
   label: string;
   /** Shown below sm when label is long (e.g. view toggle). */
   shortLabel?: string;
   onClick: () => void;
   title?: string;
+  variant: LevelsSlideCtaVariant;
+  kbd: string;
+  /** Highlight when this slideshow mode is active. */
+  active?: boolean;
 }) {
   const displayLabel = shortLabel ?? label;
   const wrapRef = useRef<HTMLSpanElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
+  const tone = VARIANT_STYLE[variant];
+  const Icon = variant === "favslide" ? Star : GalleryHorizontal;
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -81,7 +131,7 @@ export function LevelsSlideshowCta({
               rx={rx}
               ry={rx}
               fill="none"
-              stroke={RUNNER_DIM}
+              stroke={tone.runnerDim}
               strokeWidth={1.25}
             />
             <rect
@@ -92,8 +142,8 @@ export function LevelsSlideshowCta({
               rx={rx}
               ry={rx}
               fill="none"
-              stroke={RUNNER_BRIGHT}
-              strokeWidth={2}
+              stroke={tone.runnerBright}
+              strokeWidth={active ? 2.25 : 2}
               strokeLinecap="round"
               pathLength={100}
               strokeDasharray="10 90"
@@ -107,7 +157,7 @@ export function LevelsSlideshowCta({
               rx={rx}
               ry={rx}
               fill="none"
-              stroke={RUNNER_MID}
+              stroke={tone.runnerMid}
               strokeWidth={1.5}
               strokeLinecap="round"
               pathLength={100}
@@ -123,25 +173,31 @@ export function LevelsSlideshowCta({
           type="button"
           onClick={onClick}
           title={title}
-          className={`relative z-[1] inline-flex items-center gap-1.5 px-4 ${LEVELS_TOOLBAR_CHIP_HEIGHT} rounded-full transition-colors hover:border-slate-300/35 active:scale-[0.98]`}
+          className={`relative z-[1] inline-flex items-center gap-1.5 px-3 sm:px-4 ${LEVELS_TOOLBAR_CHIP_HEIGHT} rounded-full transition-colors active:scale-[0.98]`}
           style={{
-            background: BLACKBOARD_FILL_ACTIVE,
-            border: "1px solid rgba(226, 232, 240, 0.18)",
-            boxShadow: "none",
+            background: active ? tone.fillActive : tone.fill,
+            border: `1px solid ${active ? tone.borderActive : tone.border}`,
+            boxShadow: active ? `0 0 14px ${tone.runnerDim}` : "none",
           }}
         >
+          <Icon
+            className="h-3 w-3 shrink-0 hidden sm:block"
+            style={{ color: tone.chalk }}
+            fill={variant === "favslide" && active ? tone.chalk : "none"}
+            strokeWidth={2}
+          />
           <span
             className="text-[9px] font-bold uppercase tracking-wide sm:whitespace-nowrap max-w-[min(72vw,16rem)] sm:max-w-none truncate"
-            style={{ color: BLACKBOARD_CHALK, lineHeight: 1.2 }}
+            style={{ color: active ? tone.chalk : BLACKBOARD_CHALK, lineHeight: 1.2 }}
           >
             <span className="sm:hidden">{displayLabel}</span>
             <span className="hidden sm:inline">{label}</span>
           </span>
           <span
             className="text-[8px] font-semibold uppercase tracking-wider whitespace-nowrap hidden sm:inline"
-            style={{ color: "rgba(203, 213, 225, 0.75)", lineHeight: 1.2 }}
+            style={{ color: tone.kbdColor, lineHeight: 1.2 }}
           >
-            · S
+            · {kbd}
           </span>
         </button>
       </span>

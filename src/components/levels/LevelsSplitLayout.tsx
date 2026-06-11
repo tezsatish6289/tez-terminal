@@ -3,7 +3,33 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { ZonePriceLadder, formatHeroPrice, type PublicLevels } from "@/components/levels/ZonePriceLadder";
-import { FNO_BG_CANVAS } from "@/lib/fnoninja/theme";
+import { FNO_BG_CANVAS, FNO_FAVSLIDE_ACCENT } from "@/lib/fnoninja/theme";
+
+export type LevelsStripAccent = "liveslide" | "favslide";
+
+const STRIP_ACCENT_STYLE: Record<
+  LevelsStripAccent,
+  { bg: string; border: string; borderPulse: string; glow: string; glowSoft: string; sublabel: string; sublabelBg: string }
+> = {
+  liveslide: {
+    bg: "rgba(37,99,235,0.18)",
+    border: "rgba(59,130,246,0.35)",
+    borderPulse: "rgba(96,165,250,0.65)",
+    glow: "0 0 20px rgba(59,130,246,0.4), 0 0 40px rgba(59,130,246,0.12)",
+    glowSoft: "0 0 10px rgba(59,130,246,0.15)",
+    sublabel: "#93c5fd",
+    sublabelBg: "rgba(59,130,246,0.1)",
+  },
+  favslide: {
+    bg: "rgba(251,191,36,0.14)",
+    border: "rgba(251,191,36,0.32)",
+    borderPulse: "rgba(252,211,77,0.62)",
+    glow: "0 0 20px rgba(251,191,36,0.35), 0 0 40px rgba(251,191,36,0.1)",
+    glowSoft: "0 0 10px rgba(251,191,36,0.14)",
+    sublabel: FNO_FAVSLIDE_ACCENT,
+    sublabelBg: "rgba(251,191,36,0.12)",
+  },
+};
 
 /** Shared list row for every levels tab (left rail). */
 export interface LevelsListEntry {
@@ -45,6 +71,7 @@ export function LevelsSymbolList({
   emptyMessage = "Nothing to show yet.",
   layout = "vertical",
   runnerMode = false,
+  stripAccent = "liveslide",
 }: {
   countLabel?: string;
   header?: ReactNode;
@@ -56,7 +83,10 @@ export function LevelsSymbolList({
   layout?: "vertical" | "horizontal" | "responsive";
   /** Slideshow strip: auto-scroll active tile + edge fade ticker feel. */
   runnerMode?: boolean;
+  /** Active tile ring color in horizontal runner strip. */
+  stripAccent?: LevelsStripAccent;
 }) {
+  const accent = STRIP_ACCENT_STYLE[stripAccent];
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevActiveRef = useRef(activeIndex);
   const [runnerPulse, setRunnerPulse] = useState(false);
@@ -145,14 +175,10 @@ export function LevelsSymbolList({
                 runnerMode ? "transition-[transform,box-shadow,background-color,border-color] duration-500 ease-out" : "transition-all"
               }`}
               style={{
-                backgroundColor: active ? "rgba(37,99,235,0.18)" : "rgba(255,255,255,0.02)",
-                border: `1px solid ${active ? (pulse ? "rgba(96,165,250,0.65)" : "rgba(59,130,246,0.35)") : "rgba(255,255,255,0.05)"}`,
+                backgroundColor: active ? accent.bg : "rgba(255,255,255,0.02)",
+                border: `1px solid ${active ? (pulse ? accent.borderPulse : accent.border) : "rgba(255,255,255,0.05)"}`,
                 transform: pulse ? "scale(1.04)" : active && runnerMode ? "scale(1.01)" : "scale(1)",
-                boxShadow: pulse
-                  ? "0 0 20px rgba(59,130,246,0.4), 0 0 40px rgba(59,130,246,0.12)"
-                  : active && runnerMode
-                    ? "0 0 10px rgba(59,130,246,0.15)"
-                    : undefined,
+                boxShadow: pulse ? accent.glow : active && runnerMode ? accent.glowSoft : undefined,
               }}
             >
               {(entry.sublabel || entry.trailing) && (
@@ -160,7 +186,7 @@ export function LevelsSymbolList({
                   {entry.sublabel ? (
                     <span
                       className="text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0"
-                      style={{ color: "#93c5fd", backgroundColor: "rgba(59,130,246,0.1)" }}
+                      style={{ color: accent.sublabel, backgroundColor: accent.sublabelBg }}
                     >
                       {entry.sublabel}
                     </span>

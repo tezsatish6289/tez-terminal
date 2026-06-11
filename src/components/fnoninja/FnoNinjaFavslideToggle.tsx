@@ -2,7 +2,7 @@
 
 import { Loader2, Star } from "lucide-react";
 import { useFnoNinjaFavslide } from "@/hooks/useFnoNinjaFavslide";
-import { FNO_ACCENT, FNO_MUTED } from "@/lib/fnoninja/theme";
+import { FNO_FAVSLIDE_ACCENT, FNO_MUTED } from "@/lib/fnoninja/theme";
 
 export function FnoNinjaFavslideToggle({
   symbol,
@@ -25,9 +25,9 @@ export function FnoNinjaFavslideToggle({
       onClick={() => void toggle(symbol)}
       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
       style={{
-        color: favorited ? FNO_ACCENT : FNO_MUTED,
-        backgroundColor: favorited ? "rgba(59,130,246,0.12)" : "rgba(255,255,255,0.04)",
-        border: `1px solid ${favorited ? "rgba(96,165,250,0.35)" : "rgba(90,140,220,0.15)"}`,
+        color: favorited ? FNO_FAVSLIDE_ACCENT : FNO_MUTED,
+        backgroundColor: favorited ? "rgba(251,191,36,0.12)" : "rgba(255,255,255,0.04)",
+        border: `1px solid ${favorited ? "rgba(251,191,36,0.38)" : "rgba(90,140,220,0.15)"}`,
       }}
       title={favorited ? "Remove from favslide" : "Add to favslide"}
       aria-label={favorited ? `Remove ${symbol} from favslide` : `Add ${symbol} to favslide`}

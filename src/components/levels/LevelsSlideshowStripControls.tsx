@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { Filter, GalleryHorizontal, Search } from "lucide-react";
+import { Filter, Search, Star } from "lucide-react";
+import {
+  FNO_FAVSLIDE_ACCENT,
+  FNO_LIVESLIDE_ACCENT,
+} from "@/lib/fnoninja/theme";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { LevelsToolbarSearchInput } from "@/components/levels/LevelsToolbarSearchInput";
 import {
@@ -134,40 +138,92 @@ function SlideshowTransportIcon({
 
 export type LevelsStripViewMode = "bubbles" | "liveslide" | "favslide";
 
-/** Square box: bubbles map ↔ slideshow (dynamic icon by current mode). */
+const SLIDE_MODE_ACCENT: Record<"liveslide" | "favslide", { color: string; border: string }> = {
+  liveslide: { color: FNO_LIVESLIDE_ACCENT, border: "rgba(96,165,250,0.45)" },
+  favslide: { color: FNO_FAVSLIDE_ACCENT, border: "rgba(251,191,36,0.45)" },
+};
+
+/** Persistent pill — which slideshow mode is active. */
+export function LevelsSlideModePill({
+  mode,
+  count,
+}: {
+  mode: "liveslide" | "favslide";
+  count?: number;
+}) {
+  const isFav = mode === "favslide";
+  const accent = SLIDE_MODE_ACCENT[mode];
+  return (
+    <span
+      className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} shrink-0 cursor-default select-none`}
+      style={{
+        ...BLACKBOARD_WRAPPER,
+        background: isFav ? "rgba(251,191,36,0.1)" : "rgba(37,99,235,0.1)",
+        border: `1px solid ${accent.border}`,
+        boxShadow: "none",
+      }}
+      aria-label={
+        isFav
+          ? `Favslide${count != null ? `, ${count} stocks` : ""}`
+          : "Liveslide, aligned market setups"
+      }
+    >
+      {isFav ? (
+        <Star className="h-3.5 w-3.5 shrink-0" style={{ color: accent.color }} fill={accent.color} strokeWidth={2} />
+      ) : (
+        <span
+          className="h-2 w-2 rounded-full shrink-0"
+          style={{ backgroundColor: accent.color, boxShadow: `0 0 6px ${accent.color}` }}
+        />
+      )}
+      <span
+        className={`${LEVELS_STRIP_BOX_LABEL_CLASS} uppercase font-black tracking-[0.12em]`}
+        style={{ color: accent.color }}
+      >
+        {isFav ? (count != null ? `Fav · ${count}` : "Favslide") : "Live"}
+      </span>
+    </span>
+  );
+}
+
+/** Square box: return to bubbles map from slideshow. */
 export function LevelsViewModeIconBox({
   viewMode,
   onToggle,
-  title = "Press S or click",
+  title = "Back to Market Bubbles map. Press B or click.",
 }: {
   viewMode: LevelsStripViewMode;
   onToggle: () => void;
   title?: string;
 }) {
-  const toBubbles = viewMode !== "bubbles";
+  const slideAccent =
+    viewMode === "favslide"
+      ? SLIDE_MODE_ACCENT.favslide
+      : viewMode === "liveslide"
+        ? SLIDE_MODE_ACCENT.liveslide
+        : null;
+
   return (
     <button
       type="button"
       onClick={onToggle}
       className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
-      style={stripIconBoxStyle(false)}
-      aria-label={
-        toBubbles
-          ? "Switch to Market Bubbles map. Press S or click."
-          : "Switch to liveslide view. Press S or click."
-      }
+      style={{
+        ...stripIconBoxStyle(false),
+        ...(slideAccent ? { border: `1px solid ${slideAccent.border}` } : {}),
+      }}
+      aria-label="Back to Market Bubbles map. Press B or click."
       title={title}
     >
-      {toBubbles ? (
-        <BubblesMapIcon className="h-6 w-6" style={{ color: "#93c5fd" }} />
-      ) : (
-        <GalleryHorizontal className="h-5 w-5" style={{ color: BLACKBOARD_CHALK }} />
-      )}
+      <BubblesMapIcon
+        className="h-6 w-6"
+        style={{ color: slideAccent?.color ?? "#93c5fd" }}
+      />
       <span
         className={`${LEVELS_STRIP_BOX_LABEL_CLASS} uppercase`}
-        style={{ color: BLACKBOARD_CHALK_DIM }}
+        style={{ color: slideAccent?.color ?? BLACKBOARD_CHALK_DIM }}
       >
-        {toBubbles ? "Bubbles" : "Show"}
+        Bubbles
       </span>
     </button>
   );
@@ -336,6 +392,7 @@ export function LevelsSlideshowStripControls({
   mapFilter,
   slideshowControl,
   viewToggle,
+  slideModePill,
   showFilter = true,
 }: {
   zoneFilter: PocDirectionFilter;
@@ -362,6 +419,10 @@ export function LevelsSlideshowStripControls({
     onToggle: () => void;
     title?: string;
   };
+  slideModePill?: {
+    mode: LevelsStripViewMode;
+    count?: number;
+  };
   /** Bubbles toolbar: view icon only. */
   showFilter?: boolean;
 }) {
@@ -378,7 +439,7 @@ export function LevelsSlideshowStripControls({
         }
         return;
       }
-      if (e.key === "s" || e.key === "S") {
+      if (e.key === "b" || e.key === "B") {
         if (viewToggle) {
           e.preventDefault();
           viewToggle.onToggle();
@@ -468,6 +529,11 @@ export function LevelsSlideshowStripControls({
           })}
         </PopoverContent>
       </Popover>
+      ) : null}
+
+      {slideModePill &&
+      (slideModePill.mode === "liveslide" || slideModePill.mode === "favslide") ? (
+        <LevelsSlideModePill mode={slideModePill.mode} count={slideModePill.count} />
       ) : null}
 
       {slideshowControl?.enabled ? (

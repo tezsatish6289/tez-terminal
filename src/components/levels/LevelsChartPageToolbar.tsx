@@ -20,7 +20,7 @@ export function LevelsChartPageToolbar({
   onBubblesClick,
   bubblesLabel = "Switch to bubbles view",
   bubblesShortLabel = "Bubbles",
-  bubblesTitle = "Return to Market Bubbles map. Press S or click.",
+  bubblesTitle = "Return to Market Bubbles map. Press B or click.",
 }: {
   webChartUrl: string;
   nativeChartRef: React.RefObject<NativeCandlesChartHandle | null>;
@@ -44,7 +44,7 @@ export function LevelsChartPageToolbar({
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (isTypingTarget(e.target)) return;
-      if (e.key === "s" || e.key === "S") {
+      if (e.key === "b" || e.key === "B") {
         e.preventDefault();
         goToBubbles();
       }
@@ -95,6 +95,8 @@ export function LevelsChartPageToolbar({
           shortLabel={bubblesShortLabel}
           onClick={goToBubbles}
           title={bubblesTitle}
+          variant="liveslide"
+          kbd="B"
         />
       ) : null}
     </div>

@@ -2,16 +2,13 @@ import Image from "next/image";
 import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
 import { FnoNinjaFooter } from "@/components/fnoninja/FnoNinjaFooter";
 import { FnoNinjaHero } from "@/components/fnoninja/FnoNinjaHero";
+import { FnoNinjaFeaturesSection } from "@/components/fnoninja/FnoNinjaFeaturesSection";
 import { FnoNinjaHowItWorksSection } from "@/components/fnoninja/FnoNinjaHowItWorksSection";
 import { FnoNinjaProblemSection } from "@/components/fnoninja/FnoNinjaProblemSection";
 import {
-  BarChart3,
-  Clock,
   Database,
   Eye,
-  Grid3X3,
   LineChart,
-  Presentation,
   ShieldCheck,
   Users,
 } from "lucide-react";
@@ -42,59 +39,7 @@ export default function FnoNinjaLandingPage() {
 
       <FnoNinjaHowItWorksSection />
 
-      {/* Features */}
-      <section id="features" className={`${FB_CONTENT_SHELL} pb-14 sm:pb-20`}>
-        <div className="text-center mb-10">
-          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Features</h2>
-          <p className="mt-3 text-sm" style={{ color: FNO_MUTED }}>
-            Research tools for exploring option-derived market structure
-          </p>
-        </div>
-        <div className="grid sm:grid-cols-2 gap-4">
-          {[
-            {
-              icon: Grid3X3,
-              title: "Market map",
-              body: "Visualize option-derived market structure across the NSE F&O universe in one interactive view.",
-            },
-            {
-              icon: BarChart3,
-              title: "Symbol analytics",
-              body: "Review derived support and resistance observations, open-interest context, and related metrics per symbol.",
-            },
-            {
-              icon: LineChart,
-              title: "Zone dashboard",
-              body: "See how current prices relate to option-derived zone observations — for user interpretation only.",
-            },
-            {
-              icon: Clock,
-              title: "Scheduled data refresh",
-              body: "Data is refreshed during trading hours. Each symbol displays a last-updated timestamp.",
-            },
-            {
-              icon: Presentation,
-              title: "Slideshow mode",
-              body: "Review multiple symbols through a structured analytics interface with charts and zone views.",
-            },
-            {
-              icon: Eye,
-              title: "Display filters",
-              body: "Narrow the universe by zone position. Filters organize data — they do not constitute advice.",
-            },
-          ].map(({ icon: Icon, title, body }) => (
-            <div key={title} className="rounded-2xl p-6 sm:p-8 flex gap-4" style={cardStyle}>
-              <Icon className="h-5 w-5 shrink-0 mt-0.5" style={{ color: FNO_ACCENT }} />
-              <div>
-                <h3 className="text-sm font-bold text-white">{title}</h3>
-                <p className="mt-1.5 text-[13px] leading-relaxed" style={{ color: FNO_MUTED }}>
-                  {body}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <FnoNinjaFeaturesSection />
 
       {/* Who it's for */}
       <section className={`${FB_CONTENT_SHELL} pb-14 sm:pb-20`}>

@@ -8,9 +8,11 @@ import { FNO_CTA_GRADIENT, FNO_CTA_SHADOW } from "@/lib/fnoninja/theme";
 export function FnoNinjaGoogleSignInButton({
   className = "",
   size = "nav",
+  onSignedIn,
 }: {
   className?: string;
   size?: "nav" | "hero";
+  onSignedIn?: () => void;
 }) {
   const auth = useAuth();
 
@@ -18,6 +20,7 @@ export function FnoNinjaGoogleSignInButton({
     if (!auth) return;
     try {
       await initiateGoogleSignIn(auth);
+      onSignedIn?.();
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Could not authenticate with Google.";
       toast({

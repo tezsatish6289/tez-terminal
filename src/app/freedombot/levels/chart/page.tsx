@@ -19,7 +19,7 @@ import {
 import { levelsTradingViewParams, type LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
-import { FB_FULL_HEIGHT_MAIN } from "@/lib/freedombot/responsive";
+import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
 import { requiresFnoNinjaChartAuth } from "@/lib/fnoninja/auth";
 import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
 
@@ -167,7 +167,8 @@ function ChartContent() {
       className={`${FB_FULL_HEIGHT_MAIN} min-w-0`}
       style={{ backgroundColor: "#060912" }}
     >
-      <div className={`${CHART_PAGE_SHELL} px-2 sm:px-3 py-2 sm:py-2.5 overflow-hidden min-w-0`}>
+      <div className={`${FB_LEVELS_SHELL} flex-1 min-h-0 flex flex-col overflow-hidden`}>
+        <div className={`${CHART_PAGE_SHELL} py-2 sm:py-2.5 overflow-hidden min-w-0`}>
         <LevelsChartChrome
           symbol={symbol}
           subtitle={subtitleLine}
@@ -226,6 +227,7 @@ function ChartContent() {
             symbol={symbol}
             className="w-full lg:flex-[3] lg:min-w-0 min-h-[18rem] lg:min-h-0"
           />
+        </div>
         </div>
       </div>
     </main>

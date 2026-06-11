@@ -1,19 +1,21 @@
 import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
-import { FNO_ACCENT, FNO_ACCENT_SOFT, FNO_MUTED } from "@/lib/fnoninja/theme";
+import { FNO_ACCENT, FNO_MUTED } from "@/lib/fnoninja/theme";
 
 const PERSONAS = [
   {
     id: "P-01",
+    index: "01",
     title: "The Swing Participant",
-    subtitle: "Positional trader · 3–10 day horizon",
+    subtitle: "Positional · 3–10 day horizon",
     metricValue: "200+",
-    metricLabel: "symbols watched",
+    metricLabel: "symbols",
     quote: "I need to know where the option market is leaning before I size up.",
     body: "Tracks option-derived zones across 200+ F&O symbols to frame conviction trades. Uses the market map to spot where price sits relative to heavy OI.",
     tags: ["Market map", "Zone dashboard", "Symbol analytics"],
   },
   {
     id: "P-02",
+    index: "02",
     title: "The Quant Researcher",
     subtitle: "Strategy builder · data-driven",
     metricValue: "Live",
@@ -24,8 +26,9 @@ const PERSONAS = [
   },
   {
     id: "P-03",
+    index: "03",
     title: "The Active Intraday User",
-    subtitle: "Same-day decisions · index focused",
+    subtitle: "Same-day · index focused",
     metricValue: "3",
     metricLabel: "core indices",
     quote: "Show me where the action is, fast.",
@@ -34,6 +37,7 @@ const PERSONAS = [
   },
   {
     id: "P-04",
+    index: "04",
     title: "The Market Enthusiast",
     subtitle: "Learner · long-term observer",
     metricValue: "F&O",
@@ -44,12 +48,11 @@ const PERSONAS = [
   },
 ] as const;
 
-const cardStyle = {
-  backgroundColor: "#131a28",
-  border: "1px solid rgba(90,140,220,0.18)",
-};
+const ROW_BORDER = "rgba(90,140,220,0.1)";
 
 export function FnoNinjaWhoItsForSection() {
+  const total = PERSONAS.length;
+
   return (
     <section className={`${FB_CONTENT_SHELL} py-16 sm:py-20 lg:py-24`}>
       <div className="mb-10 sm:mb-12 max-w-3xl">
@@ -68,70 +71,75 @@ export function FnoNinjaWhoItsForSection() {
         </p>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-4 lg:gap-5">
-        {PERSONAS.map(
-          ({ id, title, subtitle, metricValue, metricLabel, quote, body, tags }) => (
-            <div key={id} className="rounded-2xl p-6 sm:p-7 lg:p-8 flex flex-col" style={cardStyle}>
-              <div className="flex items-start justify-between gap-4 mb-5">
-                <span
-                  className="inline-flex items-center rounded-md px-2.5 py-1 text-[11px] font-bold font-mono tracking-wide"
-                  style={{
-                    backgroundColor: FNO_ACCENT_SOFT,
-                    color: FNO_ACCENT,
-                    border: "1px solid rgba(90,140,220,0.2)",
-                  }}
-                >
-                  {id}
-                </span>
-                <div className="text-right">
-                  <p
-                    className="text-xl sm:text-2xl font-black font-mono leading-none"
-                    style={{ color: FNO_ACCENT }}
-                  >
-                    {metricValue}
-                  </p>
-                  <p
-                    className="mt-1 text-[10px] font-bold uppercase tracking-widest"
-                    style={{ color: "#475569" }}
-                  >
-                    {metricLabel}
-                  </p>
-                </div>
-              </div>
+      <div className="border-t" style={{ borderColor: ROW_BORDER }}>
+        {PERSONAS.map(({ id, index, title, subtitle, metricValue, metricLabel, quote, body, tags }) => (
+          <article
+            key={id}
+            className="group grid grid-cols-1 gap-5 sm:gap-6 py-8 sm:py-9 lg:py-10 border-b px-1 sm:px-2 -mx-1 sm:-mx-2 transition-colors duration-200 hover:bg-white/[0.02] lg:grid-cols-[4.5rem_11rem_minmax(0,1fr)_5.5rem] lg:gap-x-8 xl:gap-x-12 lg:items-start"
+            style={{ borderColor: ROW_BORDER }}
+          >
+            <div className="flex lg:flex-col items-center lg:items-start justify-between lg:justify-start gap-2 font-mono text-[11px] sm:text-xs tracking-wide">
+              <span
+                className="font-bold transition-colors duration-200 text-[rgba(96,165,250,0.45)] group-hover:text-[#60a5fa]"
+              >
+                {id}
+              </span>
+              <span className="text-[10px] uppercase tracking-widest" style={{ color: "#334155" }}>
+                {index} / {String(total).padStart(2, "0")}
+              </span>
+            </div>
 
-              <h3 className="text-lg sm:text-xl font-bold text-white leading-snug">{title}</h3>
+            <div className="min-w-0">
+              <h3 className="text-xl sm:text-2xl font-bold text-white leading-snug transition-colors duration-200 group-hover:text-[#60a5fa]">
+                {title}
+              </h3>
               <p
-                className="mt-1 text-[11px] font-bold uppercase tracking-widest"
+                className="mt-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest leading-relaxed"
                 style={{ color: "#475569" }}
               >
                 {subtitle}
               </p>
+            </div>
 
-              <p className="mt-5 text-sm sm:text-[15px] italic text-white/90 leading-relaxed">
+            <div className="min-w-0 lg:pr-4">
+              <p
+                className="text-sm sm:text-[15px] italic leading-relaxed"
+                style={{ color: FNO_ACCENT }}
+              >
                 &ldquo;{quote}&rdquo;
               </p>
-              <p className="mt-4 text-[13px] sm:text-sm leading-relaxed flex-1" style={{ color: FNO_MUTED }}>
+              <p className="mt-3 text-[13px] sm:text-sm leading-relaxed" style={{ color: FNO_MUTED }}>
                 {body}
               </p>
-
-              <div className="mt-6 flex flex-wrap gap-2">
-                {tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-md px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
-                    style={{
-                      backgroundColor: "rgba(15,23,42,0.8)",
-                      color: "#64748b",
-                      border: "1px solid rgba(90,140,220,0.1)",
-                    }}
-                  >
+              <p
+                className="mt-4 text-[10px] font-bold uppercase tracking-widest leading-relaxed"
+                style={{ color: "#334155" }}
+              >
+                {tags.map((tag, tagIndex) => (
+                  <span key={tag}>
+                    {tagIndex > 0 ? <span className="mx-1.5 opacity-40">·</span> : null}
                     {tag}
                   </span>
                 ))}
-              </div>
+              </p>
             </div>
-          ),
-        )}
+
+            <div className="text-left lg:text-right shrink-0">
+              <p
+                className="text-2xl sm:text-3xl font-black font-mono leading-none"
+                style={{ color: FNO_ACCENT }}
+              >
+                {metricValue}
+              </p>
+              <p
+                className="mt-1.5 text-[10px] font-bold uppercase tracking-widest"
+                style={{ color: "#475569" }}
+              >
+                {metricLabel}
+              </p>
+            </div>
+          </article>
+        ))}
       </div>
     </section>
   );

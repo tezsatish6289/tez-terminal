@@ -57,51 +57,26 @@ export function FnoNinjaFooter() {
             </p>
             <div className="flex flex-col gap-3">
               {[
-                { label: "Contact", href: "/contact", external: false },
-                { label: "Privacy", href: "/privacy", external: false },
-                { label: "Terms", href: "/terms", external: false },
-                { label: "FreedomBot.ai", href: "https://freedombot.ai", external: true },
-                { label: "About", href: "https://freedombot.ai/about", external: true },
-              ].map((l) =>
-                l.external ? (
-                  <a
-                    key={l.label}
-                    href={l.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm transition-colors hover:text-white"
-                    style={{ color: "#475569" }}
-                  >
-                    {l.label}
-                  </a>
-                ) : (
-                  <Link
-                    key={l.label}
-                    href={l.href}
-                    className="text-sm transition-colors hover:text-white"
-                    style={{ color: "#475569" }}
-                  >
-                    {l.label}
-                  </Link>
-                ),
-              )}
+                { label: "Contact", href: "/contact" },
+                { label: "Privacy", href: "/privacy" },
+                { label: "Terms", href: "/terms" },
+              ].map((l) => (
+                <Link
+                  key={l.label}
+                  href={l.href}
+                  className="text-sm transition-colors hover:text-white"
+                  style={{ color: "#475569" }}
+                >
+                  {l.label}
+                </Link>
+              ))}
             </div>
           </div>
         </div>
 
         <div className="pt-6 text-center" style={{ borderTop: `1px solid ${FNO_NAV_BORDER}` }}>
           <p className="text-[11px]" style={{ color: "#1e293b" }}>
-            &copy; {new Date().getFullYear()} FNONINJA. Powered by{" "}
-            <a
-              href="https://freedombot.ai"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="transition-colors hover:text-white"
-              style={{ color: "#475569" }}
-            >
-              FreedomBot.ai
-            </a>
-            . All rights reserved.
+            &copy; {new Date().getFullYear()} FNONINJA. All rights reserved.
           </p>
         </div>
       </div>

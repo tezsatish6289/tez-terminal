@@ -32,9 +32,9 @@ export function FnoNinjaFooter() {
             <div className="flex flex-col gap-3">
               {[
                 { label: "Analytics dashboard", href: "/levels" },
-                { label: "How it works", href: "#how-it-works" },
-                { label: "Features", href: "#features" },
-                { label: "Disclaimer", href: "#disclaimer" },
+                { label: "How it works", href: "/fnoninja#how-it-works" },
+                { label: "Features", href: "/fnoninja#features" },
+                { label: "Disclaimer", href: "/fnoninja#disclaimer" },
               ].map((l) => (
                 <a
                   key={l.label}

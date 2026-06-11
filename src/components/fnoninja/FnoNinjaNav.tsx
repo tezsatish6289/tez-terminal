@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
 import { FnoNinjaLogo } from "@/components/fnoninja/FnoNinjaLogo";
-import { fnoHomeHref } from "@/lib/fnoninja/paths";
+import { fnoHomeHref, fnoMarketingHash } from "@/lib/fnoninja/paths";
 import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
 import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
@@ -107,7 +107,7 @@ export function FnoNinjaNav() {
               {ANCHOR_LINKS.map((l) => (
                 <a
                   key={l.label}
-                  href={l.href}
+                  href={fnoMarketingHash(pathname, l.href)}
                   onClick={() => setMobileOpen(false)}
                   className="flex items-center px-4 py-3.5 rounded-xl text-base font-semibold transition-colors hover:text-white"
                   style={{ color: "#94a3b8" }}

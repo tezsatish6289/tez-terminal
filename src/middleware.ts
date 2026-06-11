@@ -64,9 +64,9 @@ export function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
-    // Analytics app (shared levels engine)
+    // Analytics app — FNONINJA shell (nav, footer, favicon)
     if (pathname === "/levels" || pathname.startsWith("/levels/")) {
-      return NextResponse.rewrite(new URL(`/freedombot${pathname}`, request.url));
+      return NextResponse.rewrite(new URL(`/fnoninja${pathname}`, request.url));
     }
 
     if (pathname === "/embed" || pathname.startsWith("/embed/")) {

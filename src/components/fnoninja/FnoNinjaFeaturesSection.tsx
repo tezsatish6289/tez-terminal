@@ -43,7 +43,7 @@ const FEATURES: {
   {
     icon: Eye,
     title: "Smart Filters",
-    body: "Server-side smart filters automatically qualify symbols by zone structure, open-interest context, and volatility regime — surfacing cleaner, higher-signal views and cutting through noise across the full F&O universe.",
+    body: "These filters allow you to sort and view symbols based on zone structure, open interest profiles, and volatility regimes — helping you explore the broader F&O market more efficiently.",
   },
 ];
 

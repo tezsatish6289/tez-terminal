@@ -1,5 +1,4 @@
 import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
-import { FnoNinjaFooter } from "@/components/fnoninja/FnoNinjaFooter";
 import { FnoNinjaHero } from "@/components/fnoninja/FnoNinjaHero";
 import { FnoNinjaFeaturesSection } from "@/components/fnoninja/FnoNinjaFeaturesSection";
 import { FnoNinjaHowItWorksSection } from "@/components/fnoninja/FnoNinjaHowItWorksSection";
@@ -40,8 +39,6 @@ export default function FnoNinjaLandingPage() {
       </section>
 
       <FnoNinjaDisclaimerSection />
-
-      <FnoNinjaFooter />
     </div>
   );
 }

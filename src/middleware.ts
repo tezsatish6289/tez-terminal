@@ -69,6 +69,12 @@ export function middleware(request: NextRequest) {
       return NextResponse.rewrite(new URL(`/fnoninja${pathname}`, request.url));
     }
 
+    // Stale internal paths → same FNONINJA shell
+    if (pathname === "/freedombot/levels" || pathname.startsWith("/freedombot/levels/")) {
+      const dest = pathname.replace(/^\/freedombot\/levels/, "/fnoninja/levels") || "/fnoninja/levels";
+      return NextResponse.rewrite(new URL(dest, request.url));
+    }
+
     if (pathname === "/embed" || pathname.startsWith("/embed/")) {
       return NextResponse.next();
     }

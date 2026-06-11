@@ -1,4 +1,8 @@
 export function fnoHomeHref(pathname: string): string {
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname.toLowerCase();
+    if (h === "fnoninja.com" || h === "www.fnoninja.com") return "/";
+  }
   if (pathname.startsWith("/fnoninja")) return "/fnoninja";
   return "/";
 }
@@ -6,8 +10,11 @@ export function fnoHomeHref(pathname: string): string {
 /** Hash link to a marketing section — works from /levels and other subpages. */
 export function fnoMarketingHash(pathname: string, hash: string): string {
   const home = fnoHomeHref(pathname);
-  if (pathname === home) return hash;
-  if (home === "/fnoninja") return `/fnoninja${hash}`;
+  const onLanding =
+    pathname === home ||
+    pathname === "/fnoninja" ||
+    (home === "/" && (pathname === "/" || pathname === "/fnoninja"));
+  if (onLanding) return hash;
   return `${home}${hash}`;
 }
 

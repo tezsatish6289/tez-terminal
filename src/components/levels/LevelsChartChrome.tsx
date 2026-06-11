@@ -23,6 +23,7 @@ export function LevelsChartChrome({
   highConfidence = false,
   badge,
   zoneMeta,
+  headerTrailing,
   className = "",
 }: {
   symbol: string;
@@ -42,6 +43,8 @@ export function LevelsChartChrome({
   /** Volatility-regime chip rendered beside the ticker (display only). */
   badge?: ReactNode;
   zoneMeta?: LevelsChartZoneMetaProps | null;
+  /** Slideshow: action chip top-right when toolbar is hidden (e.g. remove from favslide). */
+  headerTrailing?: ReactNode;
   className?: string;
 }) {
   return (
@@ -66,6 +69,8 @@ export function LevelsChartChrome({
           bubblesShortLabel={bubblesShortLabel}
           bubblesTitle={bubblesTitle}
         />
+      ) : headerTrailing ? (
+        <div className="shrink-0 self-start sm:ml-auto">{headerTrailing}</div>
       ) : symbolSearch ? (
         <div className="shrink-0 self-start">{symbolSearch}</div>
       ) : null}

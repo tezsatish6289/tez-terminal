@@ -12,6 +12,15 @@ export const FNO_ACCENT = "#60a5fa";
 export const FNO_LIVESLIDE_ACCENT = "#60a5fa";
 /** Favslide slideshow — personal watchlist (amber star). */
 export const FNO_FAVSLIDE_ACCENT = "#fbbf24";
+export const FNO_FAVSLIDE_CHALK = "#fcd34d";
+/** Chip / CTA styling — matches LevelsSlideshowCta favslide variant. */
+export const FNO_FAVSLIDE_CHIP = {
+  text: FNO_FAVSLIDE_CHALK,
+  fill: "rgba(251,191,36,0.12)",
+  fillActive: "rgba(251,191,36,0.18)",
+  border: "rgba(251,191,36,0.38)",
+  borderActive: "rgba(251,191,36,0.52)",
+} as const;
 export const FNO_FAVSLIDE_WASH =
   "radial-gradient(ellipse 80% 40% at 50% 0%, rgba(251,191,36,0.07), transparent)";
 export const FNO_LOGO_MARK = "#3b82f6";

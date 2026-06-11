@@ -55,6 +55,7 @@ import {
   type ZoneBands,
 } from "@/lib/zones/zone-status";
 import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
+import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { useFnoNinjaFavslide } from "@/hooks/useFnoNinjaFavslide";
 import { isFnoNinjaAppContext } from "@/lib/fnoninja/auth";
@@ -616,19 +617,13 @@ export default function LevelsPage() {
         return {
           id,
           label: it.label,
-          sublabel:
-            viewMode === "favslide"
-              ? undefined
-              : it.scope === "index"
-                ? "Index"
-                : "Stock",
+          sublabel: it.scope === "index" ? "Index" : "Stock",
           spot: liveStripSpot[id] ?? it.spot,
           currency: it.currency,
-          trailing:
-            viewMode === "favslide" ? undefined : <StatusBadge bands={bands} />,
+          trailing: <StatusBadge bands={bands} />,
         };
       }),
-    [slideListFiltered, liveStripSpot, viewMode],
+    [slideListFiltered, liveStripSpot],
   );
 
   const tvChartColumn =
@@ -694,6 +689,11 @@ export default function LevelsPage() {
             atmIV={activeChartLevels?.atmIV}
             daysToEarnings={activeChartLevels?.daysToEarnings}
           />
+        }
+        headerTrailing={
+          viewMode === "favslide" && isFnoNinjaHost && activeTicker ? (
+            <FnoNinjaFavslideToggle symbol={activeTicker} enabled removeOnly />
+          ) : undefined
         }
       />
     ) : null;
@@ -902,7 +902,7 @@ export default function LevelsPage() {
                   isSlideView
                     ? {
                         mode: viewMode,
-                        count: viewMode === "favslide" ? favslideSymbols.length : undefined,
+                        count: slideListFiltered.length,
                       }
                     : undefined
                 }

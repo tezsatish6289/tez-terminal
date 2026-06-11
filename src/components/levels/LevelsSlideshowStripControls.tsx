@@ -165,7 +165,7 @@ export function LevelsSlideModePill({
       aria-label={
         isFav
           ? `Favslide${count != null ? `, ${count} stocks` : ""}`
-          : "Liveslide, aligned market setups"
+          : `Liveslide${count != null ? `, ${count} setups` : ", aligned market setups"}`
       }
     >
       {isFav ? (
@@ -180,7 +180,13 @@ export function LevelsSlideModePill({
         className={`${LEVELS_STRIP_BOX_LABEL_CLASS} uppercase font-black tracking-[0.12em]`}
         style={{ color: accent.color }}
       >
-        {isFav ? (count != null ? `Fav · ${count}` : "Favslide") : "Live"}
+        {isFav
+          ? count != null
+            ? `Fav · ${count}`
+            : "Favslide"
+          : count != null
+            ? `Live · ${count}`
+            : "Live"}
       </span>
     </span>
   );

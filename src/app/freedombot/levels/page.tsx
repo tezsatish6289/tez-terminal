@@ -19,7 +19,6 @@ import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandles
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
-import { LevelsSymbolNavigateSearch } from "@/components/levels/LevelsSymbolNavigateSearch";
 import { LevelsSlideshowToolbar } from "@/components/levels/LevelsSlideshowToolbar";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
@@ -186,9 +185,10 @@ export default function LevelsPage() {
   const chartLevelsSymbolRef = useRef<string | null>(null);
   const [isFnoNinjaHost, setIsFnoNinjaHost] = useState(false);
   const {
-    symbols: favslideSymbols,
+    entries: favslideEntries,
     loading: favslideLoading,
     isSignedIn: favslideSignedIn,
+    refresh: refreshFavslide,
     setFavorite: setFavslideFavorite,
     toggle: toggleFavslideFavorite,
     isFavorite: isFavslideFavorite,
@@ -256,9 +256,10 @@ export default function LevelsPage() {
 
   const enterFavslide = useCallback(() => {
     if (!isFnoNinjaHost) return;
+    void refreshFavslide();
     setViewMode("favslide");
     setInZoneSlide(0);
-  }, [isFnoNinjaHost]);
+  }, [isFnoNinjaHost, refreshFavslide]);
 
   const enterBubbles = useCallback(() => {
     setViewMode("bubbles");
@@ -317,6 +318,15 @@ export default function LevelsPage() {
     return m;
   }, [payload?.stocks]);
 
+  const indexBySymbol = useMemo(() => {
+    const m = new Map<string, RawItem>();
+    for (const idx of payload?.indices ?? []) {
+      const sym = idx.symbol?.trim().toUpperCase() ?? idx.label.trim().toUpperCase();
+      if (sym) m.set(sym, idx);
+    }
+    return m;
+  }, [payload?.indices]);
+
   /** Full F&O map — zone tones gated by 2:1 POC RR (bubble + slideshow). */
   const bubbleItems = useMemo(
     () =>
@@ -343,32 +353,45 @@ export default function LevelsPage() {
   }, [bubbleItems, slideshowFilter, stockBySymbol]);
 
   const favslideListFiltered = useMemo((): LevelsActionableItem[] => {
-    return favslideSymbols
-      .map((sym) => {
-        const row = stockBySymbol.get(sym);
-        if (!row) {
-          return {
-            scope: "stock" as const,
-            symbol: sym,
-            label: sym,
-            status: "NEUTRAL" as ZoneStatus,
-            spot: null,
-            currency: "₹" as const,
-            data: null,
-          };
-        }
-        const data = levelsFromStockRow(row);
+    return favslideEntries.map((entry) => {
+      if (entry.scope === "index") {
+        const idx = indexBySymbol.get(entry.symbol);
+        const data = idx?.data ?? null;
+        const spot = data?.spot ?? null;
         return {
-          scope: "stock" as const,
-          symbol: sym,
-          label: row.label ?? sym,
-          status: deriveZoneStatus(bandsFromLevels(data, row.spot)),
-          spot: row.spot,
+          scope: "index" as const,
+          symbol: entry.symbol,
+          label: idx?.label ?? entry.symbol,
+          status: deriveZoneStatus(bandsFromLevels(data, spot)),
+          spot,
           currency: "₹" as const,
           data,
         };
-      });
-  }, [favslideSymbols, stockBySymbol]);
+      }
+      const row = stockBySymbol.get(entry.symbol);
+      if (!row) {
+        return {
+          scope: "stock" as const,
+          symbol: entry.symbol,
+          label: entry.symbol,
+          status: "NEUTRAL" as ZoneStatus,
+          spot: null,
+          currency: "₹" as const,
+          data: null,
+        };
+      }
+      const data = levelsFromStockRow(row);
+      return {
+        scope: "stock" as const,
+        symbol: entry.symbol,
+        label: row.label ?? entry.symbol,
+        status: deriveZoneStatus(bandsFromLevels(data, row.spot)),
+        spot: row.spot,
+        currency: "₹" as const,
+        data,
+      };
+    });
+  }, [favslideEntries, stockBySymbol, indexBySymbol]);
 
   const slideListFiltered =
     viewMode === "favslide" ? favslideListFiltered : inZoneListFiltered;
@@ -696,17 +719,15 @@ export default function LevelsPage() {
           />
         }
         headerTrailing={
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
-            {viewMode === "favslide" && isFnoNinjaHost && activeTicker ? (
-              <FnoNinjaFavslideToggle
-                symbol={activeTicker}
-                enabled
-                removeOnly
-                api={favslideApi}
-              />
-            ) : null}
-            <LevelsSymbolNavigateSearch openInNewTab />
-          </div>
+          viewMode === "favslide" && isFnoNinjaHost && inZoneActive && activeTicker ? (
+            <FnoNinjaFavslideToggle
+              scope={inZoneActive.scope}
+              symbol={activeTicker}
+              enabled
+              removeOnly
+              api={favslideApi}
+            />
+          ) : undefined
         }
       />
     ) : null;
@@ -871,11 +892,6 @@ export default function LevelsPage() {
         ) : (
           <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-              {!isSlideView ? (
-                <div className="shrink-0 flex justify-end mb-1.5 px-0.5">
-                  <LevelsSymbolNavigateSearch openInNewTab />
-                </div>
-              ) : null}
               <LevelsSlideshowToolbar
                 bubblesMode={viewMode === "bubbles"}
                 bubbleMapFilter={bubbleMapFilter}

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "rea
 import { usePathname, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
-import { LevelsSymbolNavigateSearch } from "@/components/levels/LevelsSymbolNavigateSearch";
 import { LevelsChartMetaFooter } from "@/components/levels/LevelsSplitLayout";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
@@ -146,7 +145,7 @@ function ChartContent() {
     setFnoNinjaHost(isFnoNinjaAppContext(pathname, window.location.hostname));
   }, [pathname]);
 
-  const showFavslideToggle = fnoninjaHost && scope === "stock" && Boolean(symbol);
+  const showFavslideToggle = fnoninjaHost && Boolean(scope) && Boolean(symbol);
 
   if ((!scope || !symbol) && error) {
     return (
@@ -193,15 +192,8 @@ function ChartContent() {
             />
           }
           symbolSearch={
-            scope ? (
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
-                {showFavslideToggle ? <FnoNinjaFavslideToggle symbol={symbol} enabled /> : null}
-                <LevelsSymbolNavigateSearch
-                  currentScope={scope}
-                  currentSymbol={symbol}
-                  openInNewTab
-                />
-              </div>
+            showFavslideToggle && scope ? (
+              <FnoNinjaFavslideToggle scope={scope} symbol={symbol} enabled />
             ) : undefined
           }
         />

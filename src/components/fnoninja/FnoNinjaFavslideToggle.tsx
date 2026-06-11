@@ -6,8 +6,10 @@ import {
   type FnoNinjaFavslideApi,
 } from "@/hooks/useFnoNinjaFavslide";
 import { FNO_FAVSLIDE_CHIP, FNO_MUTED } from "@/lib/fnoninja/theme";
+import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 
 export function FnoNinjaFavslideToggle({
+  scope,
   symbol,
   enabled,
   /** Favslide slideshow — always remove, always amber theme. */
@@ -15,6 +17,7 @@ export function FnoNinjaFavslideToggle({
   /** Parent hook — keeps list in sync when toggling from /levels favslide. */
   api: externalApi,
 }: {
+  scope: LevelsTvScope;
   symbol: string;
   enabled: boolean;
   removeOnly?: boolean;
@@ -23,7 +26,7 @@ export function FnoNinjaFavslideToggle({
   const internal = useFnoNinjaFavslide(enabled && !externalApi);
   const api = externalApi ?? internal;
   const { isFavorite, setFavorite, toggle, loading, mutating } = api;
-  const favorited = removeOnly || isFavorite(symbol);
+  const favorited = removeOnly || isFavorite(scope, symbol);
 
   if (!enabled) return null;
 
@@ -31,8 +34,8 @@ export function FnoNinjaFavslideToggle({
   const amber = favorited || removeOnly;
 
   const handleClick = () => {
-    if (removeOnly) void setFavorite(symbol, false);
-    else void toggle(symbol);
+    if (removeOnly) void setFavorite(scope, symbol, false);
+    else void toggle(scope, symbol);
   };
 
   return (
@@ -48,7 +51,11 @@ export function FnoNinjaFavslideToggle({
         boxShadow: amber ? "0 0 12px rgba(251,191,36,0.12)" : undefined,
       }}
       title={favorited ? "Remove from favslide" : "Add to favslide"}
-      aria-label={favorited ? `Remove ${symbol} from favslide` : `Add ${symbol} to favslide`}
+      aria-label={
+        favorited
+          ? `Remove ${symbol} from favslide`
+          : `Add ${symbol} to favslide`
+      }
     >
       {busy ? (
         <Loader2

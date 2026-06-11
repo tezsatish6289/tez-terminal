@@ -1,3 +1,8 @@
+/** Marketing home — no global symbol search in nav. */
+export function isFnoNinjaLandingPath(pathname: string): boolean {
+  return pathname === "/" || pathname === "/fnoninja";
+}
+
 export function fnoHomeHref(pathname: string): string {
   if (typeof window !== "undefined") {
     const h = window.location.hostname.toLowerCase();

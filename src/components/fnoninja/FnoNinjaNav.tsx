@@ -10,7 +10,8 @@ import { FnoNinjaLogo } from "@/components/fnoninja/FnoNinjaLogo";
 import { useAuth, useUser } from "@/firebase";
 import { initiateSignOut } from "@/firebase/non-blocking-login";
 import { isFnoNinjaLevelsPath } from "@/lib/fnoninja/auth";
-import { fnoHomeHref, fnoMarketingHash } from "@/lib/fnoninja/paths";
+import { FnoNinjaNavSearch } from "@/components/fnoninja/FnoNinjaNavSearch";
+import { fnoHomeHref, fnoMarketingHash, isFnoNinjaLandingPath } from "@/lib/fnoninja/paths";
 import { FB_CONTENT_SHELL, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
 import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
@@ -38,6 +39,7 @@ export function FnoNinjaNav() {
   const pathname = usePathname();
   const homeHref = fnoHomeHref(pathname);
   const isLevelsApp = isFnoNinjaLevelsPath(pathname);
+  const showNavSearch = !isFnoNinjaLandingPath(pathname);
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -85,23 +87,26 @@ export function FnoNinjaNav() {
             </Link>
           </div>
 
-          {!isLevelsApp && (
-            <div className="ml-auto flex items-center gap-2 flex-shrink-0">
-              <div className="hidden md:block">
-                <FnoNinjaCtaLink variant="nav">Explore live market map</FnoNinjaCtaLink>
-              </div>
-              <button
-                type="button"
-                onClick={() => setMenuOpen((v) => !v)}
-                className={`md:hidden ${MENU_BTN_CLASS}`}
-                style={MENU_BTN_STYLE}
-                aria-label={menuOpen ? "Close menu" : "Open menu"}
-                aria-expanded={menuOpen}
-              >
-                {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-              </button>
-            </div>
-          )}
+          <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+            {showNavSearch ? <FnoNinjaNavSearch /> : null}
+            {!isLevelsApp && isFnoNinjaLandingPath(pathname) ? (
+              <>
+                <div className="hidden md:block">
+                  <FnoNinjaCtaLink variant="nav">Explore live market map</FnoNinjaCtaLink>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen((v) => !v)}
+                  className={`md:hidden ${MENU_BTN_CLASS}`}
+                  style={MENU_BTN_STYLE}
+                  aria-label={menuOpen ? "Close menu" : "Open menu"}
+                  aria-expanded={menuOpen}
+                >
+                  {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                </button>
+              </>
+            ) : null}
+          </div>
         </div>
       </nav>
 

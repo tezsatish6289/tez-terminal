@@ -5,13 +5,8 @@ import { FnoNinjaHero } from "@/components/fnoninja/FnoNinjaHero";
 import { FnoNinjaFeaturesSection } from "@/components/fnoninja/FnoNinjaFeaturesSection";
 import { FnoNinjaHowItWorksSection } from "@/components/fnoninja/FnoNinjaHowItWorksSection";
 import { FnoNinjaProblemSection } from "@/components/fnoninja/FnoNinjaProblemSection";
-import {
-  Database,
-  Eye,
-  LineChart,
-  ShieldCheck,
-  Users,
-} from "lucide-react";
+import { FnoNinjaWhoItsForSection } from "@/components/fnoninja/FnoNinjaWhoItsForSection";
+import { ShieldCheck } from "lucide-react";
 import {
   FB_CONTENT_SHELL,
   FB_MEDIUM_SHELL,
@@ -41,47 +36,7 @@ export default function FnoNinjaLandingPage() {
 
       <FnoNinjaFeaturesSection />
 
-      {/* Who it's for */}
-      <section className={`${FB_CONTENT_SHELL} pb-14 sm:pb-20`}>
-        <h2
-          className="text-xs font-bold uppercase tracking-widest mb-8 text-center"
-          style={{ color: "#334155" }}
-        >
-          Who it&apos;s for
-        </h2>
-        <div className="grid sm:grid-cols-2 gap-4">
-          {[
-            {
-              icon: Users,
-              title: "Market participants",
-              body: "Monitor option-chain-derived analytics across multiple symbols. Not a substitute for professional advice.",
-            },
-            {
-              icon: Database,
-              title: "Researchers",
-              body: "Study open-interest concentrations and price positioning in a structured format.",
-            },
-            {
-              icon: LineChart,
-              title: "Active market users",
-              body: "Use option-market context as one input among many in independent decision-making.",
-            },
-            {
-              icon: Eye,
-              title: "Market enthusiasts",
-              body: "Explore how options-market positioning evolves throughout the trading session.",
-            },
-          ].map(({ icon: Icon, title, body }) => (
-            <div key={title} className="rounded-2xl p-6 sm:p-8" style={cardStyle}>
-              <Icon className="h-4 w-4 mb-3" style={{ color: "#475569" }} />
-              <h3 className="text-sm font-bold text-white">{title}</h3>
-              <p className="mt-2 text-[13px] leading-relaxed" style={{ color: FNO_MUTED }}>
-                {body}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <FnoNinjaWhoItsForSection />
 
       {/* Approach */}
       <section className={`${FB_CONTENT_SHELL} pb-14 sm:pb-20`}>

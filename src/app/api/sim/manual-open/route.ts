@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
+import { validateEntryVsMarket } from "@/lib/entry-price-sanity";
+import { deserializePrices, getReferencePrice } from "@/lib/exchanges";
 import { executeForAllUsers } from "@/lib/live-execution";
 import { canBotOpenMore } from "@/lib/sim-slot-policy";
 import {
@@ -132,6 +134,19 @@ export async function POST(request: NextRequest) {
   const timeframe = input.timeframe ?? "60";
 
   const db = getAdminFirestore();
+
+  const priceDoc = await db.collection("config").doc("exchange_prices").get();
+  if (priceDoc.exists) {
+    const allPrices = deserializePrices(
+      priceDoc.data() as Record<string, Record<string, number>>,
+    );
+    const livePrice = getReferencePrice(allPrices, symbol, exchange);
+    const marketErr = validateEntryVsMarket(input.entryPrice, livePrice);
+    if (marketErr) {
+      return NextResponse.json({ error: marketErr }, { status: 400 });
+    }
+  }
+
   const botSettings = await loadSimBotSettings(db, input.botId);
 
   const botDef = SIM_COCKPIT_BOTS.find((b) => b.id === input.botId);

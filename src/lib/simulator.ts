@@ -1,4 +1,5 @@
 import { getLeverage } from "./leverage";
+import { effectiveCapitalForSizing } from "./entry-price-sanity";
 
 /**
  * Replace the `lev=Nx` substring inside a `TRADE_OPENED` `SimLog.details`
@@ -721,10 +722,11 @@ export function evaluateTrade(params: {
   }
 
   const leverage = getLeverage(signal.timeframe);
-  const riskAmount = currentState.capital * riskPct;
+  const sizingCapital = effectiveCapitalForSizing(currentState);
+  const riskAmount = sizingCapital * riskPct;
   const positionSize = riskAmount / (slDistancePct * leverage);
 
-  if (positionSize > currentState.capital * 0.05) {
+  if (positionSize > sizingCapital * 0.05) {
     return { canTrade: false, reason: `Position size $${positionSize.toFixed(2)} exceeds 5% of capital` };
   }
 

@@ -10,6 +10,7 @@ import {
   type SimBotSettings,
   type ZoneLeverage,
 } from "@/lib/sim-bot-settings";
+import { effectiveCapitalForSizing } from "@/lib/entry-price-sanity";
 import type { SimTrade, SimulatorState } from "@/lib/simulator";
 import type { ZoneBotAsset } from "@/lib/zone-bot-config";
 import { ZONE_BOT_SOURCE } from "@/lib/zone-bot-config";
@@ -105,9 +106,10 @@ export function computeManualPositionSize(
   if (slDist <= 0 || entryPrice <= 0 || leverage <= 0) {
     return { size: 0, leverage, skip: true, reason: "Invalid entry or stop loss" };
   }
+  const sizingCapital = effectiveCapitalForSizing(state);
   const slDistPct = slDist / entryPrice;
-  let posNotional = (state.capital * riskPct) / (slDistPct * leverage);
-  const hardCap = state.capital * 0.05;
+  let posNotional = (sizingCapital * riskPct) / (slDistPct * leverage);
+  const hardCap = sizingCapital * 0.05;
   if (posNotional > hardCap) posNotional = hardCap;
   posNotional = Math.round(posNotional * 100) / 100;
   if (posNotional < 1) {

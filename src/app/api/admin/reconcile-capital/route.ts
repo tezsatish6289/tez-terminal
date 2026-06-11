@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
+import { clampTradeRealizedPnlForReconcile } from "@/lib/entry-price-sanity";
 import {
   getSimStateDocId,
   checkDailyReset,
-  createInitialState,
   type SimulatorState,
   type SimTrade,
 } from "@/lib/simulator";
-
-export const dynamic = "force-dynamic";
 
 /**
  * GET /api/admin/reconcile-capital?key=...&dry=true
@@ -19,7 +17,12 @@ export const dynamic = "force-dynamic";
  *
  * Safe to run multiple times — idempotent.
  * Use ?dry=true to preview the correction without writing anything.
+ *
+ * Per-trade realizedPnl is clamped before summing so a handful of bad
+ * rows (wrong manual prices + kill-switch at market) cannot corrupt capital.
  */
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const key = searchParams.get("key");
@@ -84,13 +87,19 @@ export async function GET(request: NextRequest) {
 
     let sumEntryFees = 0;
     let sumRealizedPnl = 0;
+    let sumRealizedPnlRaw = 0;
     let sumTotalFees = 0;
     let tradeCount = 0;
+    let clampedTradeCount = 0;
 
     for (const t of trades) {
       const entryFee = (t.events && t.events.length > 0) ? (t.events[0].fee ?? 0) : 0;
+      const rawPnl = t.realizedPnl ?? 0;
+      const clampedPnl = clampTradeRealizedPnlForReconcile(rawPnl, startingCapital);
       sumEntryFees += entryFee;
-      sumRealizedPnl += t.realizedPnl ?? 0;
+      sumRealizedPnl += clampedPnl;
+      sumRealizedPnlRaw += rawPnl;
+      if (clampedPnl !== rawPnl) clampedTradeCount++;
       sumTotalFees += t.fees ?? 0;
       tradeCount++;
     }
@@ -123,6 +132,7 @@ export async function GET(request: NextRequest) {
     results[assetType] = {
       dryRun,
       tradeCount,
+      clampedTradeCount,
       startingCapital,
       before: {
         capital: currentState.capital,

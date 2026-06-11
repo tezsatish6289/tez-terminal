@@ -71,6 +71,7 @@ import { getAdminFirestore } from "@/firebase/admin";
 import { markTradeForBlockchain } from "@/lib/blockchain-logger";
 import { recordCronHeartbeat } from "@/lib/cron-health";
 import { deserializePrices } from "@/lib/exchanges";
+import { effectiveCapitalForSizing } from "@/lib/entry-price-sanity";
 import { getLeverage } from "@/lib/leverage";
 import { executeForAllUsers } from "@/lib/live-execution";
 import {
@@ -278,12 +279,13 @@ function computePositionSize(
   const riskPct    =
     riskPctOverride ??
     (hasStreak ? cfg.RISK_PER_TRADE_STREAK : cfg.RISK_PER_TRADE_BASE);
-  let   posNotional = (state.capital * riskPct) / (slDistPct * leverage);
+  const sizingCapital = effectiveCapitalForSizing(state);
+  let   posNotional = (sizingCapital * riskPct) / (slDistPct * leverage);
 
   // Hard cap at 5% of capital — same guardrail used by the legacy zone
   // block in sync-simulator. Prevents a tiny SL distance from blowing up
   // notional size beyond the trader's intended exposure.
-  const hardCap = state.capital * 0.05;
+  const hardCap = sizingCapital * 0.05;
   if (posNotional > hardCap) posNotional = hardCap;
 
   posNotional = Math.round(posNotional * 100) / 100;

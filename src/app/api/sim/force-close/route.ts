@@ -32,7 +32,7 @@ import {
   applyTradeChangeToAggregates,
   type TradeAggregateSnapshot,
 } from "@/lib/freedombot/aggregates";
-import { markTradeForBlockchain } from "@/lib/blockchain-logger";
+import { killSwitchExitPrice } from "@/lib/entry-price-sanity";
 
 export const dynamic = "force-dynamic";
 
@@ -545,6 +545,7 @@ export async function POST(request: NextRequest) {
       getPrice(allPrices, simTrade.symbol, exchange) ??
       simTrade.currentPrice ??
       simTrade.entryPrice;
+    const killPrice = killSwitchExitPrice(simTrade.entryPrice, currentPrice);
     const assetType = (simTrade as any).assetType ?? "CRYPTO";
     const stateDocId = getSimStateDocId(assetType);
     const simRef = db.collection("simulator_trades").doc(simTradeId);
@@ -585,7 +586,7 @@ export async function POST(request: NextRequest) {
         ? checkDailyReset(freshStateSnap.data() as SimulatorState)
         : createInitialState(assetType);
 
-      const txUnrealized = computeUnrealizedPnl(fresh, currentPrice);
+      const txUnrealized = computeUnrealizedPnl(fresh, killPrice);
       const txExitFee =
         fresh.positionSize * fresh.remainingPct * SIM_CONFIG.EXCHANGE_FEE;
       const txNetPnl = txUnrealized - txExitFee;
@@ -593,7 +594,7 @@ export async function POST(request: NextRequest) {
 
       const txCloseEvent = {
         type: "KILL_SWITCH" as const,
-        price: currentPrice,
+        price: killPrice,
         pnl: txNetPnl,
         fee: txExitFee,
         closePct: fresh.remainingPct,
@@ -617,7 +618,7 @@ export async function POST(request: NextRequest) {
         status: "CLOSED",
         closedAt: new Date().toISOString(),
         closeReason: "KILL_SWITCH",
-        currentPrice,
+        currentPrice: killPrice,
         unrealizedPnl: 0,
         remainingPct: 0,
         realizedPnl: txTotalRealized,

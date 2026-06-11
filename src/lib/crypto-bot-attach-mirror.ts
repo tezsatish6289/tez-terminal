@@ -54,6 +54,7 @@
  */
 import type { Firestore } from "firebase-admin/firestore";
 import { getLeverage } from "@/lib/leverage";
+import { effectiveCapitalForSizing } from "@/lib/entry-price-sanity";
 import {
   ATTACH_LOG_KEYS,
   type AttachMode,
@@ -461,7 +462,7 @@ export async function openCryptoMirrorForZoneTrade(args: {
     // is split out — unit-test-locked to prevent silent regressions.
     const leverage = resolveMirrorLeverage(parent, getLeverage);
     const sizing = computeMirrorPositionSize({
-      capital: cryptoState.capital,
+      capital: effectiveCapitalForSizing(cryptoState),
       riskPerTradePct: cryptoSettings.riskPerTradePct,
       entryPrice: parent.entryPrice,
       stopLoss: parent.stopLoss,

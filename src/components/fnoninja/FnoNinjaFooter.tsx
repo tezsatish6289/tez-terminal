@@ -57,11 +57,11 @@ export function FnoNinjaFooter() {
             </p>
             <div className="flex flex-col gap-3">
               {[
+                { label: "Contact", href: "/contact", external: false },
+                { label: "Privacy", href: "/privacy", external: false },
+                { label: "Terms", href: "/terms", external: false },
                 { label: "FreedomBot.ai", href: "https://freedombot.ai", external: true },
                 { label: "About", href: "https://freedombot.ai/about", external: true },
-                { label: "Contact", href: "https://freedombot.ai/contact", external: true },
-                { label: "Privacy", href: "https://freedombot.ai/privacy", external: true },
-                { label: "Terms", href: "https://freedombot.ai/terms", external: true },
               ].map((l) =>
                 l.external ? (
                   <a

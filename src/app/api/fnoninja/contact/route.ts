@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
-import { CONTACT_SOURCE_FREEDOMBOT } from "@/lib/contact-sources";
+import { CONTACT_SOURCE_FNONINJA } from "@/lib/contact-sources";
 import { encrypt } from "@/lib/crypto";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +16,8 @@ export async function POST(request: NextRequest) {
       message?: string;
     };
 
-    if (!name?.trim())    return NextResponse.json({ error: "Name is required" },    { status: 400 });
-    if (!email?.trim())   return NextResponse.json({ error: "Email is required" },   { status: 400 });
+    if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    if (!email?.trim()) return NextResponse.json({ error: "Email is required" }, { status: 400 });
     if (!country?.trim()) return NextResponse.json({ error: "Country is required" }, { status: 400 });
     if (!message?.trim()) return NextResponse.json({ error: "Message is required" }, { status: 400 });
 
@@ -29,17 +29,13 @@ export async function POST(request: NextRequest) {
     const db = getAdminFirestore();
 
     await db.collection("contact_submissions").add({
-      // Encrypted PII
-      encryptedName:    encrypt(name.trim()),
-      encryptedEmail:   encrypt(email.toLowerCase().trim()),
-      encryptedMobile:  encrypt(mobile?.trim() ?? ""),
-      // Non-PII — stored plaintext for filtering
+      encryptedName: encrypt(name.trim()),
+      encryptedEmail: encrypt(email.toLowerCase().trim()),
+      encryptedMobile: encrypt(mobile?.trim() ?? ""),
       country,
-      // Message stored as-is (needed for admin to act on it)
       message: message.trim(),
-      // Metadata
-      status:    "new",      // new | read | replied
-      source:    CONTACT_SOURCE_FREEDOMBOT,
+      status: "new",
+      source: CONTACT_SOURCE_FNONINJA,
       createdAt: new Date().toISOString(),
     });
 

@@ -5,6 +5,7 @@ import { useUser } from "@/firebase";
 import { useState, useEffect, useMemo } from "react";
 import { Loader2, ShieldAlert, Search, RefreshCw, MessageSquare, Mail, Phone, Globe } from "lucide-react";
 import { format } from "date-fns";
+import { contactSourceLabel } from "@/lib/contact-sources";
 
 const ADMIN_EMAILS = new Set(["hello@tezterminal.com"]);
 
@@ -26,6 +27,14 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }>
   replied: { bg: "rgba(34,197,94,0.15)",   text: "#22c55e",  label: "Replied" },
 };
 
+const SOURCE_STYLES: Record<string, { bg: string; text: string }> = {
+  fnoninja:    { bg: "rgba(59,130,246,0.12)",  text: "#93c5fd" },
+  freedombot:  { bg: "rgba(168,85,247,0.12)",  text: "#c4b5fd" },
+  tezterminal: { bg: "rgba(148,163,184,0.12)", text: "#94a3b8" },
+  "freedombot.ai": { bg: "rgba(168,85,247,0.12)", text: "#c4b5fd" },
+  "fnoninja.com":  { bg: "rgba(59,130,246,0.12)", text: "#93c5fd" },
+};
+
 export default function AdminContactPage() {
   const { user, loading: authLoading } = useUser();
   const [submissions, setSubmissions] = useState<ContactSubmission[]>([]);
@@ -33,6 +42,7 @@ export default function AdminContactPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "new" | "read" | "replied">("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | string>("all");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
@@ -78,14 +88,23 @@ export default function AdminContactPage() {
     }
   };
 
+  const sourceOptions = useMemo(() => {
+    const keys = new Set(submissions.map((s) => s.source).filter(Boolean));
+    return ["all", ...Array.from(keys).sort()];
+  }, [submissions]);
+
   const filtered = useMemo(() => {
     return submissions.filter((s) => {
       const matchesStatus = statusFilter === "all" || s.status === statusFilter;
+      const matchesSource = sourceFilter === "all" || s.source === sourceFilter;
       const q = search.toLowerCase();
-      const matchesSearch = !q || [s.name, s.email, s.country, s.message].some((v) => v.toLowerCase().includes(q));
-      return matchesStatus && matchesSearch;
+      const matchesSearch =
+        !q ||
+        [s.name, s.email, s.country, s.message, s.source, contactSourceLabel(s.source)]
+          .some((v) => v.toLowerCase().includes(q));
+      return matchesStatus && matchesSource && matchesSearch;
     });
-  }, [submissions, search, statusFilter]);
+  }, [submissions, search, statusFilter, sourceFilter]);
 
   const counts = useMemo(() => ({
     all:     submissions.length,
@@ -133,7 +152,7 @@ export default function AdminContactPage() {
         </div>
 
         {/* Status filter tabs */}
-        <div className="flex gap-2 mb-5 flex-wrap">
+        <div className="flex gap-2 mb-3 flex-wrap">
           {(["all", "new", "read", "replied"] as const).map((s) => (
             <button
               key={s}
@@ -146,6 +165,25 @@ export default function AdminContactPage() {
               }}
             >
               {s} ({counts[s]})
+            </button>
+          ))}
+        </div>
+
+        {/* Source filter — fnoninja / freedombot / tezterminal */}
+        <div className="flex gap-2 mb-5 flex-wrap items-center">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-600 mr-1">Source</span>
+          {sourceOptions.map((src) => (
+            <button
+              key={src}
+              onClick={() => setSourceFilter(src)}
+              className="px-3 py-1.5 rounded-full text-xs font-bold transition-all"
+              style={{
+                backgroundColor: sourceFilter === src ? "rgba(37,99,235,0.15)" : "rgba(255,255,255,0.04)",
+                color: sourceFilter === src ? "#93c5fd" : "#475569",
+                border: `1px solid ${sourceFilter === src ? "rgba(96,165,250,0.25)" : "rgba(90,140,220,0.1)"}`,
+              }}
+            >
+              {src === "all" ? "All sources" : contactSourceLabel(src)}
             </button>
           ))}
         </div>
@@ -182,6 +220,7 @@ export default function AdminContactPage() {
           <div className="space-y-3">
             {filtered.map((s) => {
               const st = STATUS_STYLES[s.status] ?? STATUS_STYLES.new;
+              const srcStyle = SOURCE_STYLES[s.source] ?? { bg: "rgba(255,255,255,0.06)", text: "#94a3b8" };
               const isOpen = expanded === s.id;
               return (
                 <div
@@ -206,6 +245,13 @@ export default function AdminContactPage() {
                         >
                           {st.label}
                         </span>
+                        <span
+                          className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: srcStyle.bg, color: srcStyle.text }}
+                          title={`source: ${s.source}`}
+                        >
+                          {contactSourceLabel(s.source)}
+                        </span>
                       </div>
                       <div className="flex items-center gap-4 mt-1 flex-wrap">
                         <span className="flex items-center gap-1 text-xs text-slate-500">
@@ -229,7 +275,12 @@ export default function AdminContactPage() {
                   {/* Expanded message + actions */}
                   {isOpen && (
                     <div className="px-5 pb-5" style={{ borderTop: "1px solid rgba(90,140,220,0.1)" }}>
-                      <p className="text-sm leading-relaxed text-slate-300 mt-4 whitespace-pre-wrap">{s.message}</p>
+                      <p className="text-xs text-slate-500 mt-4">
+                        Source: <span className="text-slate-400 font-mono">{s.source}</span>
+                        {" · "}
+                        {contactSourceLabel(s.source)}
+                      </p>
+                      <p className="text-sm leading-relaxed text-slate-300 mt-3 whitespace-pre-wrap">{s.message}</p>
                       <div className="flex items-center gap-2 mt-4 flex-wrap">
                         <span className="text-xs text-slate-600 mr-2">Mark as:</span>
                         {(["new", "read", "replied"] as const).map((status) => (

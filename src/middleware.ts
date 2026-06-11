@@ -64,8 +64,14 @@ export function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
-    // Analytics app — FNONINJA shell (nav, footer, favicon)
-    if (pathname === "/levels" || pathname.startsWith("/levels/")) {
+    // Marketing + legal pages — FNONINJA shell
+    if (
+      pathname === "/contact" ||
+      pathname === "/privacy" ||
+      pathname === "/terms" ||
+      pathname === "/levels" ||
+      pathname.startsWith("/levels/")
+    ) {
       return NextResponse.rewrite(new URL(`/fnoninja${pathname}`, request.url));
     }
 

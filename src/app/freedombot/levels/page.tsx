@@ -38,7 +38,7 @@ import {
   zonesUpdatedFooterLabel,
 } from "@/lib/levels/slideshow-zones";
 import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
-import { FNO_APP_SURFACE_STYLE, FNO_FAVSLIDE_WASH } from "@/lib/fnoninja/theme";
+import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
 import {
   bubbleMatchesMapFilter,
   countBubbleMapFilters,
@@ -610,19 +610,25 @@ export default function LevelsPage() {
 
   const inZoneEntries: LevelsListEntry[] = useMemo(
     () =>
-      inZoneListFiltered.map((it) => {
+      slideListFiltered.map((it) => {
         const id = `${it.scope}-${it.symbol}`;
         const bands = bandsFromLevels(it.data, it.spot);
         return {
           id,
           label: it.label,
-          sublabel: it.scope === "index" ? "Index" : "Stock",
+          sublabel:
+            viewMode === "favslide"
+              ? undefined
+              : it.scope === "index"
+                ? "Index"
+                : "Stock",
           spot: liveStripSpot[id] ?? it.spot,
           currency: it.currency,
-          trailing: <StatusBadge bands={bands} />,
+          trailing:
+            viewMode === "favslide" ? undefined : <StatusBadge bands={bands} />,
         };
       }),
-    [inZoneListFiltered, liveStripSpot],
+    [slideListFiltered, liveStripSpot, viewMode],
   );
 
   const tvChartColumn =
@@ -668,14 +674,6 @@ export default function LevelsPage() {
   const liveslideCtaTitle = "Cycle aligned market setups. Press L or click.";
   const favslideCtaTitle = "Cycle your favourited stocks. Press F or click.";
 
-  const pageSurfaceStyle =
-    viewMode === "favslide"
-      ? {
-          ...FNO_APP_SURFACE_STYLE,
-          backgroundImage: `${FNO_FAVSLIDE_WASH}, ${FNO_APP_SURFACE_STYLE.backgroundImage}`,
-        }
-      : FNO_APP_SURFACE_STYLE;
-
   const chartHighConfidence =
     inZoneActive?.scope === "index" || isHighConfidenceLevels(activeChartLevels);
 
@@ -709,11 +707,6 @@ export default function LevelsPage() {
         layout="horizontal"
         runnerMode
         stripAccent={viewMode === "favslide" ? "favslide" : "liveslide"}
-        countLabel={
-          viewMode === "favslide"
-            ? `Your watchlist · ${favslideSymbols.length}`
-            : undefined
-        }
       />
     ) : null;
 
@@ -862,7 +855,7 @@ export default function LevelsPage() {
   };
 
   return (
-    <main className={`${FB_FULL_HEIGHT_MAIN} shrink-0 min-w-0`} style={pageSurfaceStyle}>
+    <main className={`${FB_FULL_HEIGHT_MAIN} shrink-0 min-w-0`} style={FNO_APP_SURFACE_STYLE}>
       <div className={`${FB_LEVELS_SHELL} flex-1 min-h-0 flex flex-col overflow-hidden`}>
         {loading ? (
           <div className="flex flex-1 items-center justify-center py-24">

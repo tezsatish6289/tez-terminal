@@ -547,8 +547,16 @@ export default function LevelsPage() {
       isSlideView &&
       inZoneActive.scope === "stock" &&
       isSlideshowZoneStale(bundled?.computedAt);
+    /** Slideshow stocks need per-symbol API ladder (clusters + expiry), not compact list rows. */
+    const slideshowStockNeedsApi =
+      isSlideView && inZoneActive.scope === "stock";
 
-    if (hasBands && !stockNeedsFullFetch && !slideshowStaleStock) {
+    if (
+      hasBands &&
+      !stockNeedsFullFetch &&
+      !slideshowStaleStock &&
+      !slideshowStockNeedsApi
+    ) {
       setInZoneChartData(bundled);
       setInZoneChartLoading(false);
       return;

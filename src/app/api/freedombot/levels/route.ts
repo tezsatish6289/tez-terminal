@@ -37,6 +37,7 @@ import {
 } from "@/lib/equity-zones-on-demand";
 import { stockDocId } from "@/lib/equity-zones-store";
 import { storedSourceToPublic } from "@/lib/levels/levels-source";
+import { formatZonesExpiryLabel } from "@/lib/levels/zones-expiry-label";
 import type { ZoneStatus } from "@/lib/zones/zone-status";
 import type { VolRegimeFlag } from "@/lib/zones/vol-regime";
 
@@ -90,6 +91,7 @@ function sanitize(raw: Record<string, unknown> | null): PublicLevels | null {
     volRegimeReason: typeof raw.volRegimeReason === "string" ? raw.volRegimeReason : null,
     atmIV: num(raw.atmIV),
     daysToEarnings: num(raw.daysToEarnings),
+    zonesExpiry: formatZonesExpiryLabel(raw.expiryUsed),
   };
 }
 

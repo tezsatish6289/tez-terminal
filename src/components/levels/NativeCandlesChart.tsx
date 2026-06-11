@@ -546,7 +546,7 @@ export const NativeCandlesChart = forwardRef<
           onToggleSlideshowPause={onToggleSlideshowPause}
         />
       ) : (
-        <LevelsChartTvFooterHint webChartUrl={webChartUrl} />
+        <LevelsChartTvFooterHint webChartUrl={webChartUrl} zonesExpiry={levels?.zonesExpiry} />
       )}
     </div>
   );

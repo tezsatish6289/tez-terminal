@@ -35,6 +35,8 @@ export interface PublicLevels {
   volRegimeReason?: string | null;
   atmIV?: number | null;
   daysToEarnings?: number | null;
+  /** Nearest option-chain expiry used for zone derivation (DD/MM/YYYY). */
+  zonesExpiry?: string | null;
 }
 
 function fmtPrice(p: number): string {

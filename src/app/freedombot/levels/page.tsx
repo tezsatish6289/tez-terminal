@@ -719,12 +719,12 @@ export default function LevelsPage() {
           />
         }
         headerTrailing={
-          viewMode === "favslide" && isFnoNinjaHost && inZoneActive && activeTicker ? (
+          isFnoNinjaHost && isSlideView && inZoneActive && activeTicker ? (
             <FnoNinjaFavslideToggle
               scope={inZoneActive.scope}
               symbol={activeTicker}
               enabled
-              removeOnly
+              removeOnly={viewMode === "favslide"}
               api={favslideApi}
             />
           ) : undefined

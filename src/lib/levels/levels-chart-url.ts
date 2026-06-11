@@ -13,7 +13,14 @@ export function levelsChartPagePath(scope: LevelsTvScope, symbol: string): strin
   return `/freedombot/levels/chart?${levelsChartQuery(scope, symbol)}`;
 }
 
-/** Public chart path — fnoninja.com uses /levels/chart; others use /freedombot/levels/chart. */
+const PUBLIC_LEVELS_CHART_HOSTS = new Set([
+  "fnoninja.com",
+  "www.fnoninja.com",
+  "freedombot.ai",
+  "www.freedombot.ai",
+]);
+
+/** Public chart path — production domains use /levels/chart; dev uses /freedombot/levels/chart. */
 export function levelsChartPagePathForHost(
   hostname: string,
   scope: LevelsTvScope,
@@ -21,7 +28,7 @@ export function levelsChartPagePathForHost(
 ): string {
   const h = hostname.toLowerCase();
   const q = levelsChartQuery(scope, symbol);
-  if (h === "fnoninja.com" || h === "www.fnoninja.com") {
+  if (PUBLIC_LEVELS_CHART_HOSTS.has(h)) {
     return `/levels/chart?${q}`;
   }
   return `/freedombot/levels/chart?${q}`;

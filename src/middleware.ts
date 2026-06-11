@@ -121,6 +121,11 @@ export function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
+    // Levels app + symbol chart deep-dive (/levels/chart?scope=…&symbol=…)
+    if (pathname === "/levels" || pathname.startsWith("/levels/")) {
+      return NextResponse.rewrite(new URL(`/freedombot${pathname}`, request.url));
+    }
+
     // Marketing site pages → rewrite to /freedombot/* internally
     if (FREEDOMBOT_SITE_PATHS.has(pathname) || pathname.startsWith("/dashboard/")) {
       const newPath =

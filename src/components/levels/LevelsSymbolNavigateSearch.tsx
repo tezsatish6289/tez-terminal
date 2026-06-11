@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LevelsToolbarSearchInput } from "@/components/levels/LevelsToolbarSearchInput";
-import { levelsChartPagePath } from "@/lib/levels/levels-chart-url";
+import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
 import {
   filterLevelsSymbolCatalog,
   type LevelsSymbolEntry,
@@ -36,7 +36,9 @@ export function LevelsSymbolNavigateSearch({
       ) {
         return;
       }
-      router.push(levelsChartPagePath(entry.scope, entry.symbol));
+      router.push(
+        levelsChartPagePathForHost(window.location.hostname, entry.scope, entry.symbol),
+      );
     },
     [currentScope, currentSymbol, router],
   );

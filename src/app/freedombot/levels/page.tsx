@@ -21,7 +21,7 @@ import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
 import { LevelsSlideshowToolbar } from "@/components/levels/LevelsSlideshowToolbar";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
-import { levelsChartPagePath } from "@/lib/levels/levels-chart-url";
+import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import { levelsTradingViewParams } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
@@ -529,7 +529,12 @@ export default function LevelsPage() {
   ]);
 
   const openBubbleChart = useCallback((item: { scope: "index" | "stock"; symbol: string }) => {
-    window.open(levelsChartPagePath(item.scope, item.symbol), "_blank", "noopener,noreferrer");
+    const url = levelsChartPagePathForHost(
+      window.location.hostname,
+      item.scope,
+      item.symbol,
+    );
+    window.open(url, "_blank", "noopener,noreferrer");
   }, []);
 
   const inZoneEntries: LevelsListEntry[] = useMemo(

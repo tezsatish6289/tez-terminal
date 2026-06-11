@@ -1,29 +1,13 @@
-import Image from "next/image";
 import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
 import { FnoNinjaFooter } from "@/components/fnoninja/FnoNinjaFooter";
 import { FnoNinjaHero } from "@/components/fnoninja/FnoNinjaHero";
 import { FnoNinjaFeaturesSection } from "@/components/fnoninja/FnoNinjaFeaturesSection";
 import { FnoNinjaHowItWorksSection } from "@/components/fnoninja/FnoNinjaHowItWorksSection";
 import { FnoNinjaProblemSection } from "@/components/fnoninja/FnoNinjaProblemSection";
+import { FnoNinjaDisclaimerSection } from "@/components/fnoninja/FnoNinjaDisclaimerSection";
 import { FnoNinjaWhoItsForSection } from "@/components/fnoninja/FnoNinjaWhoItsForSection";
-import { ShieldCheck } from "lucide-react";
-import {
-  FB_CONTENT_SHELL,
-  FB_MEDIUM_SHELL,
-  FB_NARROW_SHELL,
-} from "@/lib/freedombot/responsive";
-import {
-  FNO_ACCENT,
-  FNO_CARD_BG,
-  FNO_CARD_BORDER,
-  FNO_MUTED,
-  FNO_NAV_BORDER,
-} from "@/lib/fnoninja/theme";
-
-const cardStyle = {
-  backgroundColor: FNO_CARD_BG,
-  border: FNO_CARD_BORDER,
-};
+import { FB_NARROW_SHELL } from "@/lib/freedombot/responsive";
+import { FNO_ACCENT, FNO_MUTED, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
 export default function FnoNinjaLandingPage() {
   return (
@@ -37,27 +21,6 @@ export default function FnoNinjaLandingPage() {
       <FnoNinjaFeaturesSection />
 
       <FnoNinjaWhoItsForSection />
-
-      {/* Approach */}
-      <section className={`${FB_CONTENT_SHELL} pb-14 sm:pb-20`}>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { title: "Data first", body: "Analytics and visualization — not trade calls or suggestions." },
-            { title: "Visible outputs", body: "Derived zones and metrics are shown on-screen for your interpretation." },
-            { title: "Broad coverage", body: "Major NSE indices and the F&O stock universe." },
-            { title: "Research tools", body: "Maps and dashboards designed for efficient exploration." },
-          ].map(({ title, body }) => (
-            <div key={title} className="rounded-2xl p-6" style={cardStyle}>
-              <h3 className="text-sm font-bold" style={{ color: FNO_ACCENT }}>
-                {title}
-              </h3>
-              <p className="mt-2 text-[12px] leading-relaxed" style={{ color: FNO_MUTED }}>
-                {body}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
 
       {/* Closing CTA */}
       <section className="py-16 sm:py-24" style={{ borderTop: `1px solid ${FNO_NAV_BORDER}` }}>
@@ -76,94 +39,7 @@ export default function FnoNinjaLandingPage() {
         </div>
       </section>
 
-      {/* Powered by */}
-      <section className="py-12 px-4 sm:px-6" style={{ borderTop: `1px solid ${FNO_NAV_BORDER}` }}>
-        <div className={`${FB_MEDIUM_SHELL} text-center`}>
-          <p
-            className="text-[10px] font-bold uppercase tracking-widest mb-8"
-            style={{ color: "#1e293b" }}
-          >
-            Powered by
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-10">
-            <a
-              href="https://freedombot.ai"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-bold opacity-50 hover:opacity-80 transition-opacity"
-              style={{ color: "#94a3b8" }}
-            >
-              FreedomBot.ai
-            </a>
-            <div className="flex items-center gap-2 opacity-50">
-              <div className="h-6 w-6 rounded-md bg-white flex items-center justify-center overflow-hidden p-0.5 flex-shrink-0">
-                <Image
-                  src="/freedombot/firebase.png"
-                  alt="Firebase"
-                  width={20}
-                  height={20}
-                  className="object-contain"
-                />
-              </div>
-              <span className="text-sm font-bold" style={{ color: "#94a3b8" }}>
-                Firebase
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Disclaimer */}
-      <section id="disclaimer" className={`${FB_NARROW_SHELL} py-14 sm:py-16`}>
-        <div className="flex items-center gap-2 mb-4">
-          <ShieldCheck className="h-4 w-4" style={{ color: FNO_ACCENT }} />
-          <h2
-            className="text-xs font-bold uppercase tracking-widest"
-            style={{ color: "#334155" }}
-          >
-            Important disclaimer
-          </h2>
-        </div>
-        <div
-          className="rounded-2xl p-5 sm:p-6 text-[12px] sm:text-[13px] leading-relaxed"
-          style={{
-            backgroundColor: FNO_CARD_BG,
-            border: "1px solid rgba(90,140,220,0.15)",
-            color: FNO_MUTED,
-          }}
-        >
-          <p>
-            FNONINJA is a market analytics and data visualization platform. Information displayed is
-            generated through automated processing of publicly available market data and is provided
-            solely for{" "}
-            <strong className="font-semibold" style={{ color: "#cbd5e1" }}>
-              informational and educational purposes
-            </strong>
-            .
-          </p>
-          <p className="mt-3">
-            FNONINJA does not provide investment advice, investment recommendations, research
-            recommendations, stock recommendations, trading calls, buy/sell suggestions, portfolio
-            management services, order execution, or personalized financial advice. FNONINJA is not
-            registered with the Securities and Exchange Board of India (SEBI) as a Research Analyst
-            or Investment Adviser.
-          </p>
-          <p className="mt-3">
-            Market data and derived metrics may be delayed, incomplete, or inaccurate. Past
-            observations do not indicate future price movement. Derivatives trading involves
-            substantial risk of loss.
-          </p>
-          <p className="mt-3">
-            Users must conduct their own independent analysis and consult qualified financial
-            professionals before making investment decisions. All investment and trading decisions
-            are solely the responsibility of the user.
-          </p>
-          <p className="mt-3">
-            FNONINJA is not affiliated with, endorsed by, or sponsored by NSE, BSE, or any exchange
-            or broker.
-          </p>
-        </div>
-      </section>
+      <FnoNinjaDisclaimerSection />
 
       <FnoNinjaFooter />
     </div>

@@ -1,7 +1,10 @@
 "use client";
 
 import { Loader2, Star } from "lucide-react";
-import { useFnoNinjaFavslide } from "@/hooks/useFnoNinjaFavslide";
+import {
+  useFnoNinjaFavslide,
+  type FnoNinjaFavslideApi,
+} from "@/hooks/useFnoNinjaFavslide";
 import { FNO_FAVSLIDE_CHIP, FNO_MUTED } from "@/lib/fnoninja/theme";
 
 export function FnoNinjaFavslideToggle({
@@ -9,12 +12,17 @@ export function FnoNinjaFavslideToggle({
   enabled,
   /** Favslide slideshow — always remove, always amber theme. */
   removeOnly = false,
+  /** Parent hook — keeps list in sync when toggling from /levels favslide. */
+  api: externalApi,
 }: {
   symbol: string;
   enabled: boolean;
   removeOnly?: boolean;
+  api?: FnoNinjaFavslideApi;
 }) {
-  const { isFavorite, toggle, mutating, loading } = useFnoNinjaFavslide(enabled);
+  const internal = useFnoNinjaFavslide(enabled && !externalApi);
+  const api = externalApi ?? internal;
+  const { isFavorite, setFavorite, toggle, loading, mutating } = api;
   const favorited = removeOnly || isFavorite(symbol);
 
   if (!enabled) return null;
@@ -22,11 +30,16 @@ export function FnoNinjaFavslideToggle({
   const busy = loading || mutating;
   const amber = favorited || removeOnly;
 
+  const handleClick = () => {
+    if (removeOnly) void setFavorite(symbol, false);
+    else void toggle(symbol);
+  };
+
   return (
     <button
       type="button"
       disabled={busy}
-      onClick={() => void toggle(symbol)}
+      onClick={handleClick}
       className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
       style={{
         color: amber ? FNO_FAVSLIDE_CHIP.text : FNO_MUTED,

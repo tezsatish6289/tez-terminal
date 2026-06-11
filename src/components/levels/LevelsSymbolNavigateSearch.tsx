@@ -13,9 +13,12 @@ import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 export function LevelsSymbolNavigateSearch({
   currentScope,
   currentSymbol,
+  openInNewTab = false,
 }: {
-  currentScope: LevelsTvScope;
-  currentSymbol: string;
+  currentScope?: LevelsTvScope;
+  currentSymbol?: string;
+  /** Open chart in a new tab instead of navigating in-place. */
+  openInNewTab?: boolean;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -30,17 +33,27 @@ export function LevelsSymbolNavigateSearch({
       setQuery("");
       setOpen(false);
       setActiveIndex(0);
+      const url = levelsChartPagePathForHost(
+        window.location.hostname,
+        entry.scope,
+        entry.symbol,
+      );
       if (
+        !openInNewTab &&
+        currentScope &&
+        currentSymbol &&
         entry.scope === currentScope &&
         entry.symbol.toUpperCase() === currentSymbol.toUpperCase()
       ) {
         return;
       }
-      router.push(
-        levelsChartPagePathForHost(window.location.hostname, entry.scope, entry.symbol),
-      );
+      if (openInNewTab) {
+        window.open(url, "_blank", "noopener,noreferrer");
+        return;
+      }
+      router.push(url);
     },
-    [currentScope, currentSymbol, router],
+    [currentScope, currentSymbol, openInNewTab, router],
   );
 
   const pickActive = useCallback(() => {

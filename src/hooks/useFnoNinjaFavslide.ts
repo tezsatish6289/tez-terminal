@@ -4,6 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useUser } from "@/firebase";
 import { normalizeFavslideSymbol } from "@/lib/fnoninja/favslide";
 
+export type FnoNinjaFavslideApi = {
+  isFavorite: (rawSymbol: string) => boolean;
+  setFavorite: (rawSymbol: string, favorited: boolean) => Promise<boolean>;
+  toggle: (rawSymbol: string) => Promise<boolean>;
+  loading: boolean;
+  mutating: boolean;
+};
+
 export function useFnoNinjaFavslide(enabled: boolean) {
   const { user, isUserLoading } = useUser();
   const [symbols, setSymbols] = useState<string[]>([]);

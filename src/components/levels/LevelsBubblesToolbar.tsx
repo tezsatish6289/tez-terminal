@@ -5,21 +5,16 @@ import {
   LevelsSlideshowCta,
   type LevelsSlideCtaVariant,
 } from "@/components/levels/LevelsSlideshowCta";
-import { LevelsToolbarSearchInput } from "@/components/levels/LevelsToolbarSearchInput";
 import type { BubbleMapFilter } from "@/lib/zones/bubble-map-filter";
 
-/** One row: search · tone filters · slideshow CTA (all h-7 chips). */
+/** One row: tone filters · slideshow CTAs (all h-7 chips). */
 export function LevelsBubblesToolbar({
-  search,
-  onSearchChange,
   bubbleMapFilter,
   onBubbleMapFilterChange,
   bubbleFilterCounts,
   viewToggle,
   favslideToggle,
 }: {
-  search: string;
-  onSearchChange: (value: string) => void;
   bubbleMapFilter: BubbleMapFilter;
   onBubbleMapFilterChange: (filter: BubbleMapFilter) => void;
   bubbleFilterCounts: Record<BubbleMapFilter, number>;
@@ -46,8 +41,6 @@ export function LevelsBubblesToolbar({
     <div
       className="shrink-0 flex items-center gap-1.5 mb-2 px-0.5 min-w-0 overflow-x-auto pb-0.5 [scrollbar-width:thin]"
     >
-      <LevelsToolbarSearchInput value={search} onChange={onSearchChange} />
-
       <div className="flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <LevelsBubbleMapFilters
           filter={bubbleMapFilter}

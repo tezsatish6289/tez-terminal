@@ -196,7 +196,11 @@ function ChartContent() {
             scope ? (
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
                 {showFavslideToggle ? <FnoNinjaFavslideToggle symbol={symbol} enabled /> : null}
-                <LevelsSymbolNavigateSearch currentScope={scope} currentSymbol={symbol} />
+                <LevelsSymbolNavigateSearch
+                  currentScope={scope}
+                  currentSymbol={symbol}
+                  openInNewTab
+                />
               </div>
             ) : undefined
           }

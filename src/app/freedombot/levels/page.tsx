@@ -19,6 +19,7 @@ import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandles
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
 import { VolRegimeBadge } from "@/components/levels/VolRegimeBadge";
 import { LevelsNewsPanel } from "@/components/levels/LevelsNewsPanel";
+import { LevelsSymbolNavigateSearch } from "@/components/levels/LevelsSymbolNavigateSearch";
 import { LevelsSlideshowToolbar } from "@/components/levels/LevelsSlideshowToolbar";
 import { LevelsTradingViewChart } from "@/components/levels/LevelsTradingViewChart";
 import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
@@ -57,7 +58,7 @@ import {
 import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
-import { useFnoNinjaFavslide } from "@/hooks/useFnoNinjaFavslide";
+import { useFnoNinjaFavslide, type FnoNinjaFavslideApi } from "@/hooks/useFnoNinjaFavslide";
 import { isFnoNinjaAppContext } from "@/lib/fnoninja/auth";
 
 interface RawItem {
@@ -177,7 +178,6 @@ export default function LevelsPage() {
   const [slideshowCountdown, setSlideshowCountdown] = useState(SLIDESHOW_SLIDE_SECONDS);
   const [bubbleMapFilter, setBubbleMapFilter] = useState<BubbleMapFilter>("all");
   const [slideshowFilter, setSlideshowFilter] = useState<SlideshowMapFilter>("all");
-  const [bubbleSearch, setBubbleSearch] = useState("");
   const [chartFullHistory, setChartFullHistory] = useState(false);
   /** Last candle close per symbol — strip tiles match native chart price. */
   const [liveStripSpot, setLiveStripSpot] = useState<Record<string, number>>({});
@@ -189,7 +189,28 @@ export default function LevelsPage() {
     symbols: favslideSymbols,
     loading: favslideLoading,
     isSignedIn: favslideSignedIn,
+    setFavorite: setFavslideFavorite,
+    toggle: toggleFavslideFavorite,
+    isFavorite: isFavslideFavorite,
+    mutating: favslideMutating,
   } = useFnoNinjaFavslide(isFnoNinjaHost);
+
+  const favslideApi = useMemo(
+    (): FnoNinjaFavslideApi => ({
+      isFavorite: isFavslideFavorite,
+      setFavorite: setFavslideFavorite,
+      toggle: toggleFavslideFavorite,
+      loading: favslideLoading,
+      mutating: favslideMutating,
+    }),
+    [
+      isFavslideFavorite,
+      setFavslideFavorite,
+      toggleFavslideFavorite,
+      favslideLoading,
+      favslideMutating,
+    ],
+  );
 
   const isSlideView = viewMode === "liveslide" || viewMode === "favslide";
 
@@ -315,22 +336,13 @@ export default function LevelsPage() {
 
   /** Slideshow strip — zone setups only (at/near support/resistance). */
   const inZoneListFiltered = useMemo(() => {
-    const q = bubbleSearch.trim().toUpperCase();
     return bubbleItems
-      .filter((it) => {
-        if (!slideshowMatchesMapFilter(it.tone, slideshowFilter)) return false;
-        if (!q) return true;
-        return (
-          it.symbol.toUpperCase().includes(q) ||
-          it.label.toUpperCase().includes(q)
-        );
-      })
+      .filter((it) => slideshowMatchesMapFilter(it.tone, slideshowFilter))
       .map((it) => bubbleItemToActionable(it, stockBySymbol))
       .sort((a, b) => a.label.localeCompare(b.label, "en", { sensitivity: "base" }));
-  }, [bubbleItems, slideshowFilter, bubbleSearch, stockBySymbol]);
+  }, [bubbleItems, slideshowFilter, stockBySymbol]);
 
   const favslideListFiltered = useMemo((): LevelsActionableItem[] => {
-    const q = bubbleSearch.trim().toUpperCase();
     return favslideSymbols
       .map((sym) => {
         const row = stockBySymbol.get(sym);
@@ -355,15 +367,8 @@ export default function LevelsPage() {
           currency: "₹" as const,
           data,
         };
-      })
-      .filter((it) => {
-        if (!q) return true;
-        return (
-          it.symbol.toUpperCase().includes(q) ||
-          it.label.toUpperCase().includes(q)
-        );
       });
-  }, [favslideSymbols, stockBySymbol, bubbleSearch]);
+  }, [favslideSymbols, stockBySymbol]);
 
   const slideListFiltered =
     viewMode === "favslide" ? favslideListFiltered : inZoneListFiltered;
@@ -691,9 +696,17 @@ export default function LevelsPage() {
           />
         }
         headerTrailing={
-          viewMode === "favslide" && isFnoNinjaHost && activeTicker ? (
-            <FnoNinjaFavslideToggle symbol={activeTicker} enabled removeOnly />
-          ) : undefined
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+            {viewMode === "favslide" && isFnoNinjaHost && activeTicker ? (
+              <FnoNinjaFavslideToggle
+                symbol={activeTicker}
+                enabled
+                removeOnly
+                api={favslideApi}
+              />
+            ) : null}
+            <LevelsSymbolNavigateSearch openInNewTab />
+          </div>
         }
       />
     ) : null;
@@ -750,17 +763,11 @@ export default function LevelsPage() {
             }
           : favslideLoading
             ? { title: "Loading favslide…", body: "", cta: false as const }
-            : favslideSymbols.length === 0
-              ? {
-                  title: "No stocks in favslide yet",
-                  body: "Open a symbol chart and tap Add to favslide to build your list.",
-                  cta: false as const,
-                }
-              : {
-                  title: "No favourites match your search",
-                  body: "Clear the search box or add more symbols from chart pages.",
-                  cta: false as const,
-                };
+            : {
+                title: "No stocks in favslide yet",
+                body: "Open a symbol chart and tap Add to favslide to build your list.",
+                cta: false as const,
+              };
         return wrapSlideshowBody(
           <div className="flex flex-col min-h-0 h-full items-center justify-center gap-4 py-12 px-4 text-center">
             <p className="text-sm" style={{ color: "#94a3b8" }}>
@@ -864,13 +871,13 @@ export default function LevelsPage() {
         ) : (
           <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              {!isSlideView ? (
+                <div className="shrink-0 flex justify-end mb-1.5 px-0.5">
+                  <LevelsSymbolNavigateSearch openInNewTab />
+                </div>
+              ) : null}
               <LevelsSlideshowToolbar
                 bubblesMode={viewMode === "bubbles"}
-                bubbleSearch={bubbleSearch}
-                onBubbleSearchChange={(value) => {
-                  setBubbleSearch(value);
-                  setInZoneSlide(0);
-                }}
                 bubbleMapFilter={bubbleMapFilter}
                 onBubbleMapFilterChange={setBubbleMapFilter}
                 bubbleFilterCounts={bubbleFilterCounts}
@@ -947,7 +954,6 @@ export default function LevelsPage() {
                   onBubbleOpen={openBubbleChart}
                   hasMarketData={Boolean(payload)}
                   toneFilter={bubbleMapFilter}
-                  searchQuery={bubbleSearch}
                 />
               ) : (
                 renderSlideshow()

@@ -193,11 +193,6 @@ export function LevelsSlideshowToolbar({
             }
           }
           showFilter={false}
-          search={
-            onBubbleSearchChange
-              ? { value: bubbleSearch, onChange: onBubbleSearchChange }
-              : undefined
-          }
           mapFilter={
             slideshowFilter != null &&
             onSlideshowFilterChange &&
@@ -224,13 +219,10 @@ export function LevelsSlideshowToolbar({
     bubblesMode &&
     bubbleFilterCounts &&
     onBubbleMapFilterChange &&
-    bubbleMapFilter != null &&
-    onBubbleSearchChange
+    bubbleMapFilter != null
   ) {
     return (
       <LevelsBubblesToolbar
-        search={bubbleSearch}
-        onSearchChange={onBubbleSearchChange}
         bubbleMapFilter={bubbleMapFilter}
         onBubbleMapFilterChange={onBubbleMapFilterChange}
         bubbleFilterCounts={bubbleFilterCounts}

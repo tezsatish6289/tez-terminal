@@ -6,7 +6,7 @@ import {
   favslideEntryKey,
   MAX_FAVSLIDE_SYMBOLS,
   normalizeFavslideSymbol,
-  parseFavslideSymbols,
+  parseFavslideEntries,
   type FavslideEntry,
 } from "@/lib/fnoninja/favslide";
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
   if (uid instanceof NextResponse) return uid;
 
   const snap = await getAdminFirestore().collection("users").doc(uid).get();
-  const entries = parseFavslideSymbols(snap.data()?.[FNONINJA_FAVSLIDE_FIELD]);
+  const entries = parseFavslideEntries(snap.data()?.[FNONINJA_FAVSLIDE_FIELD]);
   return NextResponse.json({
     symbols: encodeFavslideStorage(entries),
     entries,
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
   try {
     const entries = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
-      const current = parseFavslideSymbols(snap.data()?.[FNONINJA_FAVSLIDE_FIELD]);
+      const current = parseFavslideEntries(snap.data()?.[FNONINJA_FAVSLIDE_FIELD]);
       let next: FavslideEntry[];
 
       if (action === "remove") {

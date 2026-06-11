@@ -25,23 +25,25 @@ export function FnoNinjaFavslideToggle({
 }) {
   const internal = useFnoNinjaFavslide(enabled && !externalApi);
   const api = externalApi ?? internal;
-  const { isFavorite, setFavorite, toggle, loading, mutating } = api;
-  const favorited = removeOnly || isFavorite(scope, symbol);
+  const favorited = removeOnly || api.isFavorite(scope, symbol);
 
   if (!enabled) return null;
 
-  const busy = loading || mutating;
+  const needsSignIn = !externalApi && !internal.isSignedIn;
+  const busy = api.loading || api.mutating;
+  const error = externalApi ? null : internal.error;
   const amber = favorited || removeOnly;
 
   const handleClick = () => {
-    if (removeOnly) void setFavorite(scope, symbol, false);
-    else void toggle(scope, symbol);
+    if (needsSignIn) return;
+    if (removeOnly) void api.setFavorite(scope, symbol, false);
+    else void api.toggle(scope, symbol);
   };
 
   return (
     <button
       type="button"
-      disabled={busy}
+      disabled={busy || needsSignIn}
       onClick={handleClick}
       className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wide transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
       style={{
@@ -50,7 +52,15 @@ export function FnoNinjaFavslideToggle({
         border: `1px solid ${amber ? FNO_FAVSLIDE_CHIP.borderActive : "rgba(148,163,184,0.22)"}`,
         boxShadow: amber ? "0 0 12px rgba(251,191,36,0.12)" : undefined,
       }}
-      title={favorited ? "Remove from favslide" : "Add to favslide"}
+      title={
+        needsSignIn
+          ? "Sign in to use favslide"
+          : error
+            ? error
+            : favorited
+              ? "Remove from favslide"
+              : "Add to favslide"
+      }
       aria-label={
         favorited
           ? `Remove ${symbol} from favslide`

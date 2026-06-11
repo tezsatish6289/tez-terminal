@@ -34,13 +34,23 @@ export function parseFavslideEntry(raw: string): FavslideEntry | null {
   return symbol ? { scope: "stock", symbol } : null;
 }
 
-export function parseFavslideSymbols(raw: unknown): FavslideEntry[] {
+/** Parse stored keys (`stock:BHEL`) or API `{ scope, symbol }` objects. */
+export function parseFavslideEntries(raw: unknown): FavslideEntry[] {
   if (!Array.isArray(raw)) return [];
   const seen = new Set<string>();
   const out: FavslideEntry[] = [];
   for (const item of raw) {
-    if (typeof item !== "string") continue;
-    const entry = parseFavslideEntry(item);
+    let entry: FavslideEntry | null = null;
+    if (typeof item === "string") {
+      entry = parseFavslideEntry(item);
+    } else if (item && typeof item === "object") {
+      const o = item as { scope?: unknown; symbol?: unknown };
+      const scope =
+        o.scope === "index" ? "index" : o.scope === "stock" ? "stock" : null;
+      const symbol =
+        typeof o.symbol === "string" ? normalizeFavslideSymbol(o.symbol) : null;
+      if (scope && symbol) entry = { scope, symbol };
+    }
     if (!entry) continue;
     const key = favslideEntryKey(entry);
     if (seen.has(key)) continue;
@@ -49,6 +59,11 @@ export function parseFavslideSymbols(raw: unknown): FavslideEntry[] {
     if (out.length >= MAX_FAVSLIDE_SYMBOLS) break;
   }
   return out;
+}
+
+/** @deprecated Prefer {@link parseFavslideEntries}. */
+export function parseFavslideSymbols(raw: unknown): FavslideEntry[] {
+  return parseFavslideEntries(raw);
 }
 
 export function encodeFavslideStorage(entries: FavslideEntry[]): string[] {

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useUser } from "@/firebase";
 import {
   favslideEntryKey,
-  parseFavslideSymbols,
+  parseFavslideEntries,
   type FavslideEntry,
 } from "@/lib/fnoninja/favslide";
 import type { LevelsTvScope } from "@/lib/levels/tradingview-symbol";
@@ -44,10 +44,7 @@ export function useFnoNinjaFavslide(enabled: boolean) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to load favslide");
-      const next = Array.isArray(data.entries)
-        ? parseFavslideSymbols(data.entries)
-        : parseFavslideSymbols(data.symbols);
-      setEntries(next);
+      setEntries(parseFavslideEntries(data.entries ?? data.symbols));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load favslide");
       setEntries([]);
@@ -83,10 +80,7 @@ export function useFnoNinjaFavslide(enabled: boolean) {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Failed to update favslide");
-        const next = Array.isArray(data.entries)
-          ? parseFavslideSymbols(data.entries)
-          : parseFavslideSymbols(data.symbols);
-        setEntries(next);
+        setEntries(parseFavslideEntries(data.entries ?? data.symbols));
         return Boolean(data.favorited);
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Failed to update favslide");

@@ -1285,69 +1285,6 @@ export default function FreedomBotPage() {
         </div>
       </section>
 
-      {/* ── Footer ─────────────────────────────────────────────── */}
-      <footer className="py-14 px-4 sm:px-6" style={{ borderTop: "1px solid rgba(90,140,220,0.08)" }}>
-        <div className={FB_DOC_SHELL}>
-          <div className="grid sm:grid-cols-3 gap-10 mb-12">
-            {/* Brand */}
-            <div>
-              <div className="flex items-center gap-2.5 mb-3">
-                <Image src="/freedombot/icon.png" alt="FreedomBot.ai" width={32} height={32} className="rounded-xl object-contain" />
-                <span className="font-black text-base tracking-tight" style={{ color: "#f0f4ff" }}>
-                  FreedomBot<span style={{ color: "#60a5fa" }}>.ai</span>
-                </span>
-              </div>
-              <p className="text-xs leading-relaxed max-w-xs" style={{ color: "#334155" }}>
-                Algorithmic trading you can verify. Every trade recorded on-chain — audit performance yourself, anytime.
-              </p>
-              <p className="text-[10px] mt-3" style={{ color: "#1e293b" }}>
-                Trading involves risk. Past performance does not guarantee future results.
-              </p>
-            </div>
-
-            {/* Product */}
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "#334155" }}>Product</p>
-              <div className="flex flex-col gap-3">
-                {[
-                  { label: "Levels", href: "/levels" },
-                  { label: "Performance", href: "/performance" },
-                  { label: "On-chain Records", href: "/records" },
-                  { label: "Pricing", href: "#pricing" },
-                ].map((l) => (
-                  <a key={l.label} href={l.href} className="text-sm transition-colors hover:text-white" style={{ color: "#475569" }}>{l.label}</a>
-                ))}
-              </div>
-            </div>
-
-            {/* Company */}
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "#334155" }}>Company</p>
-              <div className="flex flex-col gap-3">
-                {[
-                  { label: "Home", href: "/" },
-                  { label: "About", href: "/about" },
-                  { label: "Contact", href: "/contact" },
-                  { label: "Privacy", href: "/privacy" },
-                  { label: "Terms", href: "/terms" },
-                ].map((l) => (
-                  <a key={l.label} href={l.href} className="text-sm transition-colors hover:text-white" style={{ color: "#475569" }}>{l.label}</a>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div
-            className="pt-6 text-center"
-            style={{ borderTop: "1px solid rgba(90,140,220,0.06)" }}
-          >
-            <p className="text-[11px]" style={{ color: "#1e293b" }}>
-              &copy; {new Date().getFullYear()} FreedomBot.ai. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
-
       {/* ── Deploy Bot modal ── */}
       <DeployModal
         isOpen={deployOpen}

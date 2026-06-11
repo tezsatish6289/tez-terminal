@@ -26,3 +26,12 @@ export function levelsChartPagePathForHost(
   }
   return `/freedombot/levels/chart?${q}`;
 }
+
+/** Full bubble-map levels page — fnoninja.com uses /levels; others use /freedombot/levels. */
+export function levelsBubblesPagePathForHost(hostname: string): string {
+  const h = hostname.toLowerCase();
+  if (h === "fnoninja.com" || h === "www.fnoninja.com") {
+    return "/levels";
+  }
+  return "/freedombot/levels";
+}

@@ -2,12 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
-import {
-  buildLevelsBubbleItems,
-  LevelsBubblesView,
-  type LevelsBubbleItem,
-} from "@/components/levels/LevelsBubblesView";
-import { levelsChartPagePathForHost } from "@/lib/levels/levels-chart-url";
+import { buildLevelsBubbleItems, LevelsBubblesView } from "@/components/levels/LevelsBubblesView";
+import { levelsBubblesPagePathForHost } from "@/lib/levels/levels-chart-url";
 interface RawItem {
   symbol?: string;
   label: string;
@@ -33,7 +29,7 @@ interface LevelsPayload {
   updatedAt: string;
 }
 
-/** Live bubble map for landing-page iframe — bubble click opens chart in a new tab. */
+/** Live bubble map for landing-page iframe — any bubble click opens the full map. */
 export default function LevelsBubblesEmbedPage() {
   const [payload, setPayload] = useState<LevelsPayload | null>(null);
 
@@ -64,9 +60,17 @@ export default function LevelsBubblesEmbedPage() {
     [payload, stockBySymbol],
   );
 
-  const openBubbleChart = useCallback((item: LevelsBubbleItem) => {
-    const url = levelsChartPagePathForHost(window.location.hostname, item.scope, item.symbol);
-    window.open(url, "_blank", "noopener,noreferrer");
+  const openFullBubbleMap = useCallback(() => {
+    const url = levelsBubblesPagePathForHost(window.location.hostname);
+    try {
+      if (window.top && window.top !== window.self) {
+        window.top.location.href = url;
+        return;
+      }
+    } catch {
+      /* cross-origin guard */
+    }
+    window.location.href = url;
   }, []);
 
   return (
@@ -76,7 +80,7 @@ export default function LevelsBubblesEmbedPage() {
     >
       <LevelsBubblesView
         items={bubbleItems}
-        onBubbleOpen={openBubbleChart}
+        onBubbleOpen={openFullBubbleMap}
         hasMarketData={Boolean(payload)}
         toneFilter="all"
       />

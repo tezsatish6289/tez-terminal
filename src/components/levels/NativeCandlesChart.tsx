@@ -23,6 +23,7 @@ import {
 import { Loader2 } from "lucide-react";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { LevelsChartShortcuts } from "@/components/levels/LevelsChartShortcuts";
+import { LevelsChartClusterBandLabels } from "@/components/levels/LevelsChartClusterBandLabels";
 import { LevelsChartTvFooterHint } from "@/components/levels/LevelsChartTvFooterHint";
 import {
   applyLevelPriceLines,
@@ -548,6 +549,13 @@ export const NativeCandlesChart = forwardRef<
       ) : (
         <LevelsChartTvFooterHint webChartUrl={webChartUrl} zonesExpiry={levels?.zonesExpiry} />
       )}
+      <LevelsChartClusterBandLabels
+        chartRef={chartRef}
+        seriesRef={seriesRef}
+        containerRef={containerRef}
+        levels={levels}
+        visible={chartReady}
+      />
     </div>
   );
 });

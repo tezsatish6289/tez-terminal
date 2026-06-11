@@ -33,7 +33,9 @@ export const LEVELS_ZONE_CHART = {
     nativeBandTop: "rgba(239, 68, 68, 0.38)",
     nativeBandBottom: "rgba(239, 68, 68, 0.14)",
   },
-  poc: {
-    line: "#f59e0b",
+  /** Max pain — yellow reserved for this level only. */
+  maxPain: {
+    line: "#fbbf24",
+    labelText: "#fbbf24",
   },
 } as const;

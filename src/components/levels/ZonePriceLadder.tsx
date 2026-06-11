@@ -230,13 +230,13 @@ export function ZonePriceLadder({
           {poc != null && (
             <RailLabel
               y={yFor(poc)}
-              label="POC"
-              labelFull="Point of Control"
+              label="Max Pain"
+              labelFull="Max Pain"
               price={poc}
               c={c}
               fmt={fmt}
-              dotColor="#e2e8f0"
-              textColor="#f1f5f9"
+              dotColor={LEVELS_ZONE_CHART.maxPain.line}
+              textColor={LEVELS_ZONE_CHART.maxPain.labelText}
             />
           )}
           {bullBandStyle && bullHigh != null && (
@@ -351,8 +351,12 @@ export function ZonePriceLadder({
 
           {poc != null && (
             <div
-              className="absolute left-0 right-0 border-t border-white/50"
-              style={{ top: yFor(poc), boxShadow: "0 0 8px rgba(255,255,255,0.15)" }}
+              className="absolute left-0 right-0 border-t border-dashed"
+              style={{
+                top: yFor(poc),
+                borderColor: LEVELS_ZONE_CHART.maxPain.line,
+                boxShadow: "0 0 10px rgba(251, 191, 36, 0.2)",
+              }}
             />
           )}
 

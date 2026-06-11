@@ -90,12 +90,17 @@ export async function GET() {
         }
       }
 
+      const products = Array.isArray(u.products) ? (u.products as string[]) : [];
+
       return {
         uid,
         displayName: u.displayName || null,
         email: u.email || null,
         photoURL: u.photoURL || null,
-        createdAt: sub?.createdAt || u.lastSeenAt || null,
+        products,
+        signupSource: u.signupSource || null,
+        fnoninjaJoinedAt: u.fnoninjaJoinedAt || null,
+        createdAt: sub?.createdAt || u.fnoninjaJoinedAt || u.lastSeenAt || null,
         lastSeenAt: u.lastSeenAt || null,
         subscription: {
           status: subStatus,

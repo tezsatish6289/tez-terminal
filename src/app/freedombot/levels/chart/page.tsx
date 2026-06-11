@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { LevelsChartChrome } from "@/components/levels/LevelsChartChrome";
 import { LevelsSymbolNavigateSearch } from "@/components/levels/LevelsSymbolNavigateSearch";
@@ -18,7 +18,9 @@ import {
 } from "@/lib/levels/slideshow-zones";
 import { levelsTradingViewParams, type LevelsTvScope } from "@/lib/levels/tradingview-symbol";
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
+import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { FB_FULL_HEIGHT_MAIN } from "@/lib/freedombot/responsive";
+import { requiresFnoNinjaChartAuth } from "@/lib/fnoninja/auth";
 import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
 
 /** Deep-dive: full viewport width; slideshow keeps max-w-[100rem] + side list. */
@@ -230,6 +232,22 @@ function ChartContent() {
   );
 }
 
+function ChartPageGate() {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const symbol = (searchParams.get("symbol") ?? "").trim().toUpperCase();
+  const hostname = typeof window !== "undefined" ? window.location.hostname : undefined;
+  const gated = requiresFnoNinjaChartAuth(pathname, hostname);
+
+  if (!gated) return <ChartContent />;
+
+  return (
+    <FnoNinjaChartLoginGate symbol={symbol || undefined}>
+      <ChartContent />
+    </FnoNinjaChartLoginGate>
+  );
+}
+
 export default function LevelsChartPage() {
   return (
     <Suspense
@@ -242,7 +260,7 @@ export default function LevelsChartPage() {
         </main>
       }
     >
-      <ChartContent />
+      <ChartPageGate />
     </Suspense>
   );
 }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { FnoNinjaClientProviders } from "@/components/fnoninja/FnoNinjaClientProviders";
 import { FnoNinjaFooter } from "@/components/fnoninja/FnoNinjaFooter";
 import { FnoNinjaNav } from "@/components/fnoninja/FnoNinjaNav";
 import { FB_PAGE_ROOT, FB_VIEWPORT_MAIN } from "@/lib/freedombot/responsive";
@@ -25,10 +26,12 @@ export const metadata: Metadata = {
 
 export default function FnoNinjaLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className={FB_PAGE_ROOT} style={{ backgroundColor: FNO_BG, color: FNO_TEXT }}>
-      <FnoNinjaNav />
-      <div className={`${FB_VIEWPORT_MAIN} flex flex-col flex-1 min-h-0 min-w-0`}>{children}</div>
-      <FnoNinjaFooter />
-    </div>
+    <FnoNinjaClientProviders>
+      <div className={FB_PAGE_ROOT} style={{ backgroundColor: FNO_BG, color: FNO_TEXT }}>
+        <FnoNinjaNav />
+        <div className={`${FB_VIEWPORT_MAIN} flex flex-col flex-1 min-h-0 min-w-0`}>{children}</div>
+        <FnoNinjaFooter />
+      </div>
+    </FnoNinjaClientProviders>
   );
 }

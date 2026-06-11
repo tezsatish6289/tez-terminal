@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { User, LogOut, Zap, History, LineChart, Webhook, Settings, CreditCard, Bell, Gift, Users, Twitter, Activity, Link2, ClipboardList, MessageSquare, Bot, ListChecks, BarChart3, ShieldCheck, Target, Gauge } from "lucide-react";
+import { User, LogOut, Zap, History, LineChart, Webhook, Settings, CreditCard, Bell, Gift, Users, Twitter, Activity, Link2, ClipboardList, MessageSquare, Bot, ListChecks, BarChart3, ShieldCheck, Target, Gauge, Map } from "lucide-react";
 import { RadarIcon } from "@/components/icons/RadarIcon";
 import { Button } from "@/components/ui/button";
 import { useUser, useAuth } from "@/firebase";
@@ -71,6 +71,7 @@ export function TopBar() {
     { name: "Level Cron", icon: Gauge, href: "/admin/levels-cron" },
     { name: "Settings", icon: Bell, href: "/settings" },
     { name: "Users", icon: Users, href: "/admin/users" },
+    { name: "FNONINJA Users", icon: Map, href: "/admin/fnoninja-users" },
     { name: "Bot users", icon: Bot, href: "/admin/bot-users" },
     { name: "Waitlist", icon: ClipboardList, href: "/admin/waitlist" },
     { name: "Ideal Watchlist", icon: ListChecks, href: "/admin/watchlist" },

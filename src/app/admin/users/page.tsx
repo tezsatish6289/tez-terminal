@@ -30,6 +30,9 @@ interface UserData {
   displayName: string | null;
   email: string | null;
   photoURL: string | null;
+  products: string[];
+  signupSource: string | null;
+  fnoninjaJoinedAt: string | null;
   createdAt: string | null;
   lastSeenAt: string | null;
   subscription: {
@@ -406,6 +409,11 @@ export default function AdminUsersPage() {
                             </div>
                           )}
                           <span className="text-sm font-bold text-white truncate">{u.displayName || "—"}</span>
+                          {u.products?.includes("fnoninja") && (
+                            <span className="px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 text-[8px] font-bold uppercase shrink-0">
+                              FNO
+                            </span>
+                          )}
                         </div>
                         <span className="text-[11px] text-muted-foreground truncate">{u.email || "—"}</span>
                         <span><SubBadge status={u.subscription.status} daysLeft={u.subscription.daysLeft} /></span>

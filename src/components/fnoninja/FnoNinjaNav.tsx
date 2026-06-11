@@ -3,9 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Loader2, LogOut, Menu, X } from "lucide-react";
 import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
+import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { FnoNinjaLogo } from "@/components/fnoninja/FnoNinjaLogo";
+import { FnoNinjaProfileMenu } from "@/components/fnoninja/FnoNinjaProfileMenu";
+import { useAuth, useUser } from "@/firebase";
+import { initiateSignOut } from "@/firebase/non-blocking-login";
+import { isFnoNinjaLevelsPath } from "@/lib/fnoninja/auth";
 import { fnoHomeHref, fnoMarketingHash } from "@/lib/fnoninja/paths";
 import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
 import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
@@ -19,6 +24,9 @@ const ANCHOR_LINKS = [
 export function FnoNinjaNav() {
   const pathname = usePathname();
   const homeHref = fnoHomeHref(pathname);
+  const isLevelsApp = isFnoNinjaLevelsPath(pathname);
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -32,6 +40,18 @@ export function FnoNinjaNav() {
     };
   }, [mobileOpen]);
 
+  const rightSlot = isLevelsApp ? (
+    isUserLoading ? (
+      <Loader2 className="h-4 w-4 animate-spin" style={{ color: "#60a5fa" }} />
+    ) : user ? (
+      <FnoNinjaProfileMenu />
+    ) : (
+      <FnoNinjaGoogleSignInButton />
+    )
+  ) : (
+    <FnoNinjaCtaLink variant="nav">Explore live market map</FnoNinjaCtaLink>
+  );
+
   return (
     <>
       <nav
@@ -43,30 +63,34 @@ export function FnoNinjaNav() {
         }}
       >
         <div
-          className={`${FB_CONTENT_SHELL} h-14 sm:h-16 flex items-center justify-between gap-3 min-w-0`}
+          className={`${FB_CONTENT_SHELL} h-14 sm:h-16 flex items-center gap-3 min-w-0`}
         >
-          <Link href={homeHref} className="min-w-0 flex-shrink">
+          <Link href={homeHref} className="flex-shrink-0 min-w-0">
             <FnoNinjaLogo size={34} />
           </Link>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <div className="hidden md:block">
-              <FnoNinjaCtaLink variant="nav">Explore live market map</FnoNinjaCtaLink>
-            </div>
-            <button
-              type="button"
-              onClick={() => setMobileOpen((v) => !v)}
-              className="md:hidden flex items-center justify-center h-10 w-10 rounded-lg transition-colors"
-              style={{
-                color: "#94a3b8",
-                border: "1px solid rgba(90,140,220,0.15)",
-                backgroundColor: "rgba(37,99,235,0.06)",
-              }}
-              aria-label={mobileOpen ? "Close menu" : "Open menu"}
-              aria-expanded={mobileOpen}
-            >
-              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
+          <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+            {isLevelsApp ? (
+              rightSlot
+            ) : (
+              <>
+                <div className="hidden md:block">{rightSlot}</div>
+                <button
+                  type="button"
+                  onClick={() => setMobileOpen((v) => !v)}
+                  className="md:hidden flex items-center justify-center h-10 w-10 rounded-lg transition-colors"
+                  style={{
+                    color: "#94a3b8",
+                    border: "1px solid rgba(90,140,220,0.15)",
+                    backgroundColor: "rgba(37,99,235,0.06)",
+                  }}
+                  aria-label={mobileOpen ? "Close menu" : "Open menu"}
+                  aria-expanded={mobileOpen}
+                >
+                  {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -104,22 +128,69 @@ export function FnoNinjaNav() {
             </div>
 
             <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-              {ANCHOR_LINKS.map((l) => (
-                <a
-                  key={l.label}
-                  href={fnoMarketingHash(pathname, l.href)}
-                  onClick={() => setMobileOpen(false)}
-                  className="flex items-center px-4 py-3.5 rounded-xl text-base font-semibold transition-colors hover:text-white"
-                  style={{ color: "#94a3b8" }}
-                >
-                  {l.label}
-                </a>
-              ))}
+              {isLevelsApp ? (
+                <div className="px-4 py-3 space-y-4">
+                  {isUserLoading ? (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="h-5 w-5 animate-spin" style={{ color: "#60a5fa" }} />
+                    </div>
+                  ) : user ? (
+                    <>
+                      <div
+                        className="rounded-xl px-3 py-3"
+                        style={{
+                          backgroundColor: "rgba(37,99,235,0.08)",
+                          border: "1px solid rgba(90,140,220,0.12)",
+                        }}
+                      >
+                        <p className="text-sm font-semibold text-white truncate">
+                          {user.displayName || "Account"}
+                        </p>
+                        <p className="text-[11px] truncate" style={{ color: "#64748b" }}>
+                          {user.email}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (auth) initiateSignOut(auth);
+                          setMobileOpen(false);
+                        }}
+                        className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold"
+                        style={{
+                          color: "#f87171",
+                          border: "1px solid rgba(90,140,220,0.2)",
+                          backgroundColor: "rgba(15,23,42,0.6)",
+                        }}
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Sign out
+                      </button>
+                    </>
+                  ) : (
+                    <FnoNinjaGoogleSignInButton className="w-full" />
+                  )}
+                </div>
+              ) : (
+                ANCHOR_LINKS.map((l) => (
+                  <a
+                    key={l.label}
+                    href={fnoMarketingHash(pathname, l.href)}
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center px-4 py-3.5 rounded-xl text-base font-semibold transition-colors hover:text-white"
+                    style={{ color: "#94a3b8" }}
+                  >
+                    {l.label}
+                  </a>
+                ))
+              )}
             </nav>
 
-            <div className="p-4 border-t flex-shrink-0" style={{ borderColor: FNO_NAV_BORDER }}>
-              <FnoNinjaCtaLink variant="nav">Explore live market map</FnoNinjaCtaLink>
-            </div>
+            {!isLevelsApp && (
+              <div className="p-4 border-t flex-shrink-0" style={{ borderColor: FNO_NAV_BORDER }}>
+                <FnoNinjaCtaLink variant="nav">Explore live market map</FnoNinjaCtaLink>
+              </div>
+            )}
           </div>
         </div>
       )}

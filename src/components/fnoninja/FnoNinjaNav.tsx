@@ -20,6 +20,11 @@ const ANCHOR_LINKS = [
   { label: "Disclaimer", href: "#disclaimer" },
 ] as const;
 
+const ICON_BTN_CLASS =
+  "flex items-center justify-center shrink-0 p-0 transition-colors hover:text-white";
+
+const ICON_BTN_STYLE = { color: "#94a3b8" } as const;
+
 const MENU_BTN_CLASS =
   "flex items-center justify-center h-10 w-10 rounded-lg transition-colors shrink-0";
 
@@ -61,22 +66,24 @@ export function FnoNinjaNav() {
         }}
       >
         <div className={`${shellClass} h-14 sm:h-16 flex items-center gap-3 min-w-0`}>
-          {isLevelsApp && (
-            <button
-              type="button"
-              onClick={() => setMenuOpen((v) => !v)}
-              className={MENU_BTN_CLASS}
-              style={MENU_BTN_STYLE}
-              aria-label={menuOpen ? "Close account menu" : "Open account menu"}
-              aria-expanded={menuOpen}
-            >
-              {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
-          )}
+          <div className="flex items-center gap-2.5 min-w-0">
+            {isLevelsApp && (
+              <button
+                type="button"
+                onClick={() => setMenuOpen((v) => !v)}
+                className={ICON_BTN_CLASS}
+                style={ICON_BTN_STYLE}
+                aria-label={menuOpen ? "Close account menu" : "Open account menu"}
+                aria-expanded={menuOpen}
+              >
+                {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </button>
+            )}
 
-          <Link href={homeHref} className="flex-shrink-0 min-w-0">
-            <FnoNinjaLogo size={34} />
-          </Link>
+            <Link href={homeHref} className="flex-shrink-0 min-w-0">
+              <FnoNinjaLogo size={34} />
+            </Link>
+          </div>
 
           {!isLevelsApp && (
             <div className="ml-auto flex items-center gap-2 flex-shrink-0">

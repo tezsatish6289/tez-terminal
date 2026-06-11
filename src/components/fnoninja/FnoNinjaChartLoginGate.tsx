@@ -28,9 +28,7 @@ export function FnoNinjaChartLoginGate({
 
   if (user) return <>{children}</>;
 
-  const headline = symbol
-    ? `Sign in to view ${symbol} analytics`
-    : "Sign in to view symbol analytics";
+  const headline = symbol ? `Unlock ${symbol} Analytics` : "Unlock Symbol Analytics";
 
   return (
     <main
@@ -38,22 +36,17 @@ export function FnoNinjaChartLoginGate({
       style={{ backgroundColor: "#060912" }}
     >
       <div className="max-w-md space-y-3">
-        <p
-          className="text-[11px] font-bold uppercase tracking-[0.2em] font-mono"
-          style={{ color: FNO_ACCENT }}
-        >
-          Members only
-        </p>
         <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">{headline}</h1>
         <p className="text-sm leading-relaxed" style={{ color: FNO_MUTED }}>
-          Create a free account or sign in with Google to access option-chain derived zones,
-          charts, and symbol-level analytics. The market map remains open without an account.
+          Sign in with Google to get 1 month free access to option-chain zones, charts &amp; symbol
+          analytics. Market Map is open to all.
         </p>
       </div>
       <FnoNinjaGoogleSignInButton size="hero" />
-      <p className="text-[11px] max-w-sm" style={{ color: "#475569" }}>
-        Informational market data only. Not investment advice.
-      </p>
+      <div className="max-w-sm space-y-1.5 text-[11px] leading-relaxed" style={{ color: "#475569" }}>
+        <p>1 month free • Cancel anytime • No Credit Card required.</p>
+        <p>Informational market data only. Not investment advice.</p>
+      </div>
     </main>
   );
 }

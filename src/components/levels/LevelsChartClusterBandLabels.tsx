@@ -133,7 +133,7 @@ export function LevelsChartClusterBandLabels({
   if (labels.length === 0) return null;
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-[15] overflow-hidden">
+    <div className="pointer-events-none absolute inset-0 z-[15]">
       {labels.map((label) => (
         <BandChartLabel key={label.id} top={label.top} text={label.text} style={label.style} />
       ))}
@@ -152,7 +152,7 @@ function BandChartLabel({
 }) {
   return (
     <div
-      className="absolute left-2 sm:left-3 max-w-[min(72%,16rem)] -translate-y-1/2 rounded-md px-2 py-1 text-[10px] sm:text-[11px] font-bold leading-tight tracking-tight"
+      className="absolute left-2 sm:left-3 max-w-[min(85%,18rem)] -translate-y-1/2 rounded-md px-2 py-1 text-[10px] sm:text-[11px] font-bold leading-snug tracking-tight whitespace-normal"
       style={{ top, ...style }}
     >
       {text}

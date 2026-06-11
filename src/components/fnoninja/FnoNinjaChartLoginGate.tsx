@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { FB_FULL_HEIGHT_MAIN } from "@/lib/freedombot/responsive";
-import { FNO_ACCENT, FNO_MUTED } from "@/lib/fnoninja/theme";
+import { FNO_ACCENT, FNO_APP_SURFACE_STYLE, FNO_MUTED } from "@/lib/fnoninja/theme";
 
 export function FnoNinjaChartLoginGate({
   symbol,
@@ -19,7 +19,7 @@ export function FnoNinjaChartLoginGate({
     return (
       <main
         className={`${FB_FULL_HEIGHT_MAIN} flex items-center justify-center`}
-        style={{ backgroundColor: "#060912" }}
+        style={FNO_APP_SURFACE_STYLE}
       >
         <Loader2 className="h-7 w-7 animate-spin" style={{ color: FNO_ACCENT }} />
       </main>
@@ -33,7 +33,7 @@ export function FnoNinjaChartLoginGate({
   return (
     <main
       className={`${FB_FULL_HEIGHT_MAIN} flex flex-col items-center justify-center gap-6 px-6 text-center`}
-      style={{ backgroundColor: "#060912" }}
+      style={FNO_APP_SURFACE_STYLE}
     >
       <div className="max-w-md space-y-3">
         <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">{headline}</h1>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import { buildLevelsBubbleItems, LevelsBubblesView } from "@/components/levels/LevelsBubblesView";
 import { levelsBubblesPagePathForHost } from "@/lib/levels/levels-chart-url";
+import { FNO_BG_CANVAS } from "@/lib/fnoninja/theme";
 interface RawItem {
   symbol?: string;
   label: string;
@@ -76,7 +77,7 @@ export default function LevelsBubblesEmbedPage() {
   return (
     <div
       className="h-[100dvh] w-full min-h-[240px] overflow-hidden"
-      style={{ backgroundColor: "#060912" }}
+      style={{ backgroundColor: FNO_BG_CANVAS }}
     >
       <LevelsBubblesView
         items={bubbleItems}

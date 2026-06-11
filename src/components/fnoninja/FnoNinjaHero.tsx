@@ -1,6 +1,12 @@
 import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
 import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
-import { FNO_ACCENT, FNO_MUTED } from "@/lib/fnoninja/theme";
+import {
+  FNO_ACCENT,
+  FNO_BG_CANVAS,
+  FNO_HERO_TEXTURE,
+  FNO_HERO_TEXTURE_SIZE,
+  FNO_MUTED,
+} from "@/lib/fnoninja/theme";
 
 const EMBED_SRC = "/embed/levels-bubbles";
 
@@ -11,6 +17,13 @@ export function FnoNinjaHero() {
       style={{ borderColor: "rgba(90,140,220,0.08)" }}
     >
       <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: FNO_HERO_TEXTURE,
+            backgroundSize: FNO_HERO_TEXTURE_SIZE,
+          }}
+        />
         <div
           className="absolute -top-[30%] -left-[20%] w-[70%] h-[80%] rounded-full blur-[140px]"
           style={{ backgroundColor: "rgba(37,99,235,0.07)" }}
@@ -70,7 +83,10 @@ export function FnoNinjaHero() {
                   NSE-FNO-MARKET-MAP
                 </span>
               </div>
-              <div className="relative flex-1 min-h-[200px] bg-[#060912]">
+              <div
+                className="relative flex-1 min-h-[200px]"
+                style={{ backgroundColor: FNO_BG_CANVAS }}
+              >
                 <iframe
                   src={EMBED_SRC}
                   title="NSE F&O market bubble map"

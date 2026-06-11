@@ -38,6 +38,7 @@ import {
   zonesUpdatedFooterLabel,
 } from "@/lib/levels/slideshow-zones";
 import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
+import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
 import {
   bubbleMatchesMapFilter,
   countBubbleMapFilters,
@@ -86,13 +87,6 @@ interface LevelsPayload {
 }
 
 type LevelsViewMode = "bubbles" | "slideshow";
-
-const HEX_BG = `
-  radial-gradient(ellipse 80% 50% at 50% 0%, rgba(37,99,235,0.12), transparent),
-  linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-  linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px),
-  #060912
-`;
 
 const STATUS_META: Record<ZoneDisplayKey, { label: string; color: string; bg: string }> = {
   IN_BULL: {
@@ -741,14 +735,7 @@ export default function LevelsPage() {
   };
 
   return (
-    <main
-      className={`${FB_FULL_HEIGHT_MAIN} shrink-0 min-w-0`}
-      style={{
-        backgroundColor: "#060912",
-        backgroundImage: HEX_BG,
-        backgroundSize: "100% 100%, 48px 48px, 48px 48px, 100% 100%",
-      }}
-    >
+    <main className={`${FB_FULL_HEIGHT_MAIN} shrink-0 min-w-0`} style={FNO_APP_SURFACE_STYLE}>
       <div className={`${FB_LEVELS_SHELL} flex-1 min-h-0 flex flex-col overflow-hidden`}>
         {loading ? (
           <div className="flex flex-1 items-center justify-center py-24">

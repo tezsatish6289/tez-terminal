@@ -22,6 +22,7 @@ import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLogin
 import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
 import { requiresFnoNinjaChartAuth } from "@/lib/fnoninja/auth";
 import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
+import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
 
 /** Deep-dive: full viewport width; slideshow keeps max-w-[100rem] + side list. */
 const CHART_PAGE_SHELL = "w-full max-w-none flex flex-col flex-1 min-h-0";
@@ -142,7 +143,7 @@ function ChartContent() {
     return (
       <main
         className="h-[calc(100dvh-3.5rem)] sm:h-[calc(100dvh-4rem)] flex flex-col items-center justify-center gap-4 px-4"
-        style={{ backgroundColor: "#060912" }}
+        style={FNO_APP_SURFACE_STYLE}
       >
         <p className="text-sm text-center" style={{ color: "#94a3b8" }}>
           {error}
@@ -155,7 +156,7 @@ function ChartContent() {
     return (
       <main
         className="h-[calc(100dvh-3.5rem)] sm:h-[calc(100dvh-4rem)] flex items-center justify-center"
-        style={{ backgroundColor: "#060912" }}
+        style={FNO_APP_SURFACE_STYLE}
       >
         <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
       </main>
@@ -163,10 +164,7 @@ function ChartContent() {
   }
 
   return (
-    <main
-      className={`${FB_FULL_HEIGHT_MAIN} min-w-0`}
-      style={{ backgroundColor: "#060912" }}
-    >
+    <main className={`${FB_FULL_HEIGHT_MAIN} min-w-0`} style={FNO_APP_SURFACE_STYLE}>
       <div className={`${FB_LEVELS_SHELL} flex-1 min-h-0 flex flex-col overflow-hidden`}>
         <div className={`${CHART_PAGE_SHELL} py-2 sm:py-2.5 overflow-hidden min-w-0`}>
         <LevelsChartChrome
@@ -256,7 +254,7 @@ export default function LevelsChartPage() {
       fallback={
         <main
           className="h-[calc(100dvh-3.5rem)] sm:h-[calc(100dvh-4rem)] flex items-center justify-center"
-          style={{ backgroundColor: "#060912" }}
+          style={FNO_APP_SURFACE_STYLE}
         >
           <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
         </main>

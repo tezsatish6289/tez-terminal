@@ -22,6 +22,7 @@ import {
 } from "@/lib/zones/bubble-map-filter";
 import { levelsFromStockRow } from "@/lib/zones/levels-actionable-list";
 import { matchesSlideshowSetup, type ZoneBands } from "@/lib/zones/zone-status";
+import { FNO_BUBBLE_MAP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
 
 export interface LevelsBubbleItem {
   id: string;
@@ -55,13 +56,6 @@ const BUBBLE_ANIM_CSS = `
 .levels-bubble-pop-out {
   animation: levels-bubble-pop-out 0.45s ease-out forwards;
 }
-`;
-
-const BUBBLE_MAP_BG = `
-  radial-gradient(ellipse 75% 60% at 50% 42%, rgba(37, 99, 235, 0.1), transparent),
-  linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
-  linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
-  radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0.15), rgba(3, 7, 18, 0.95))
 `;
 
 export function LevelsBubblesView({
@@ -232,9 +226,7 @@ export function LevelsBubblesView({
         ref={containerRef}
         className="relative flex-1 min-h-0 rounded-xl overflow-hidden"
         style={{
-          backgroundColor: "#060912",
-          backgroundImage: BUBBLE_MAP_BG,
-          backgroundSize: "100% 100%, 44px 44px, 44px 44px, 100% 100%",
+          ...FNO_BUBBLE_MAP_SURFACE_STYLE,
           border: "1px solid rgba(255,255,255,0.08)",
         }}
       >

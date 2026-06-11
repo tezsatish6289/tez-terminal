@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { ZonePriceLadder, formatHeroPrice, type PublicLevels } from "@/components/levels/ZonePriceLadder";
+import { FNO_BG_CANVAS } from "@/lib/fnoninja/theme";
 
 /** Shared list row for every levels tab (left rail). */
 export interface LevelsListEntry {
@@ -110,13 +111,13 @@ export function LevelsSymbolList({
             <div
               className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 z-10"
               style={{
-                background: "linear-gradient(to right, #060912 0%, #060912 35%, transparent 100%)",
+                background: `linear-gradient(to right, ${FNO_BG_CANVAS} 0%, ${FNO_BG_CANVAS} 35%, transparent 100%)`,
               }}
             />
             <div
               className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 z-10"
               style={{
-                background: "linear-gradient(to left, #060912 0%, #060912 35%, transparent 100%)",
+                background: `linear-gradient(to left, ${FNO_BG_CANVAS} 0%, ${FNO_BG_CANVAS} 35%, transparent 100%)`,
               }}
             />
           </>

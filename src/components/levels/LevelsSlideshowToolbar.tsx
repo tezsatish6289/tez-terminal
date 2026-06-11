@@ -3,7 +3,10 @@
 import { useMemo, type ReactNode } from "react";
 import { LevelsBubblesToolbar } from "@/components/levels/LevelsBubblesToolbar";
 import { LevelsCtaCluster } from "@/components/levels/LevelsCtaCluster";
-import { LevelsSlideshowStripControls } from "@/components/levels/LevelsSlideshowStripControls";
+import {
+  LevelsSlideshowStripControls,
+  type LevelsStripViewMode,
+} from "@/components/levels/LevelsSlideshowStripControls";
 import {
   type BubbleMapFilter,
   type SlideshowMapFilter,
@@ -34,6 +37,7 @@ export function LevelsSlideshowToolbar({
   symbolStrip,
   slideshowControl,
   viewModeToggle,
+  favslideToggle,
   bubblesMode = false,
   bubbleMapFilter,
   onBubbleMapFilterChange,
@@ -84,8 +88,14 @@ export function LevelsSlideshowToolbar({
     secondsRemaining?: number;
   };
   /** Icon box beside play/pause on slideshow strip row. */
+  favslideToggle?: {
+    label: string;
+    shortLabel?: string;
+    onClick: () => void;
+    title?: string;
+  };
   viewModeToggle?: {
-    viewMode: "bubbles" | "slideshow";
+    viewMode: LevelsStripViewMode;
     onToggle: () => void;
     title?: string;
   };
@@ -212,6 +222,7 @@ export function LevelsSlideshowToolbar({
         onBubbleMapFilterChange={onBubbleMapFilterChange}
         bubbleFilterCounts={bubbleFilterCounts}
         viewToggle={viewToggle}
+        favslideToggle={favslideToggle}
       />
     );
   }

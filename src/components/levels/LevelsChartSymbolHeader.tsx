@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { ShieldCheck } from "lucide-react";
 import {
   LevelsChartZoneMeta,
   type LevelsChartZoneMetaProps,
@@ -23,7 +24,7 @@ export function LevelsChartSymbolHeader({
   /** Company or index label when different from ticker. */
   subtitle?: string | null;
   config: LevelsTvConfig;
-  /** NSE option chain — show ★ beside ticker. */
+  /** NSE option chain — verified source badge beside ticker. */
   highConfidence?: boolean;
   /** Volatility-regime chip rendered beside the ticker (display only). */
   badge?: ReactNode;
@@ -44,13 +45,8 @@ export function LevelsChartSymbolHeader({
         <span className="inline-flex items-center gap-1 min-w-0">
           <span className="truncate">{symbol}</span>
           {highConfidence ? (
-            <span
-              className="shrink-0 text-sm leading-none"
-              style={{ color: "#fbbf24" }}
-              title="High confidence — NSE option chain"
-              aria-label="High confidence levels"
-            >
-              ★
+            <span title="NSE option chain" aria-label="NSE option chain data source">
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0" style={{ color: "#34d399" }} />
             </span>
           ) : null}
           {badge ? <span className="shrink-0">{badge}</span> : null}

@@ -20,7 +20,8 @@ import { levelsTradingViewParams, type LevelsTvScope } from "@/lib/levels/tradin
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
-import { requiresFnoNinjaChartAuth } from "@/lib/fnoninja/auth";
+import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
+import { isFnoNinjaAppContext, requiresFnoNinjaChartAuth } from "@/lib/fnoninja/auth";
 import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
 import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
 
@@ -138,6 +139,14 @@ function ChartContent() {
   }, [companyName, label, symbol]);
 
   const zonesUpdatedLabel = zonesUpdatedFooterLabel(levels?.computedAt);
+  const pathname = usePathname();
+  const [fnoninjaHost, setFnoNinjaHost] = useState(false);
+
+  useEffect(() => {
+    setFnoNinjaHost(isFnoNinjaAppContext(pathname, window.location.hostname));
+  }, [pathname]);
+
+  const showFavslideToggle = fnoninjaHost && scope === "stock" && Boolean(symbol);
 
   if ((!scope || !symbol) && error) {
     return (
@@ -185,10 +194,10 @@ function ChartContent() {
           }
           symbolSearch={
             scope ? (
-              <LevelsSymbolNavigateSearch
-                currentScope={scope}
-                currentSymbol={symbol}
-              />
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+                {showFavslideToggle ? <FnoNinjaFavslideToggle symbol={symbol} enabled /> : null}
+                <LevelsSymbolNavigateSearch currentScope={scope} currentSymbol={symbol} />
+              </div>
             ) : undefined
           }
         />

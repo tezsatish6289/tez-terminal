@@ -13,6 +13,7 @@ export function LevelsBubblesToolbar({
   onBubbleMapFilterChange,
   bubbleFilterCounts,
   viewToggle,
+  favslideToggle,
 }: {
   search: string;
   onSearchChange: (value: string) => void;
@@ -20,6 +21,12 @@ export function LevelsBubblesToolbar({
   onBubbleMapFilterChange: (filter: BubbleMapFilter) => void;
   bubbleFilterCounts: Record<BubbleMapFilter, number>;
   viewToggle: {
+    label: string;
+    shortLabel?: string;
+    onClick: () => void;
+    title?: string;
+  };
+  favslideToggle?: {
     label: string;
     shortLabel?: string;
     onClick: () => void;
@@ -39,6 +46,15 @@ export function LevelsBubblesToolbar({
           counts={bubbleFilterCounts}
         />
       </div>
+
+      {favslideToggle ? (
+        <LevelsSlideshowCta
+          label={favslideToggle.label}
+          shortLabel={favslideToggle.shortLabel}
+          onClick={favslideToggle.onClick}
+          title={favslideToggle.title}
+        />
+      ) : null}
 
       <LevelsSlideshowCta
         label={viewToggle.label}

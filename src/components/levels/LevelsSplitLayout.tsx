@@ -327,7 +327,7 @@ export function LevelsChartPanel({
               <span> · Advances every 60s</span>
             ) : null}
             {slideshowAdvanceHint && slideCount > 1 && slideshowPaused ? (
-              <span style={{ color: "#f472b6" }}> · Slideshow paused</span>
+              <span style={{ color: "#f472b6" }}> · Slide paused</span>
             ) : null}
           </p>
         )}
@@ -390,7 +390,7 @@ export function LevelsChartMetaFooter({
             <span> · Advances every 60s</span>
           ) : null}
           {slideshowAdvanceHint && slideCount > 1 && slideshowPaused ? (
-            <span style={{ color: "#f472b6" }}> · Slideshow paused</span>
+            <span style={{ color: "#f472b6" }}> · Slide paused</span>
           ) : null}
         </p>
       )}

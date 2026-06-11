@@ -132,7 +132,7 @@ function SlideshowTransportIcon({
   );
 }
 
-export type LevelsStripViewMode = "bubbles" | "slideshow";
+export type LevelsStripViewMode = "bubbles" | "liveslide" | "favslide";
 
 /** Square box: bubbles map ↔ slideshow (dynamic icon by current mode). */
 export function LevelsViewModeIconBox({
@@ -144,7 +144,7 @@ export function LevelsViewModeIconBox({
   onToggle: () => void;
   title?: string;
 }) {
-  const toBubbles = viewMode === "slideshow";
+  const toBubbles = viewMode !== "bubbles";
   return (
     <button
       type="button"
@@ -154,7 +154,7 @@ export function LevelsViewModeIconBox({
       aria-label={
         toBubbles
           ? "Switch to Market Bubbles map. Press S or click."
-          : "Switch to slideshow view. Press S or click."
+          : "Switch to liveslide view. Press S or click."
       }
       title={title}
     >

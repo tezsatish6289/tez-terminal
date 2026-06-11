@@ -55,6 +55,9 @@ import {
   type ZoneBands,
 } from "@/lib/zones/zone-status";
 import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
+import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
+import { useFnoNinjaFavslide } from "@/hooks/useFnoNinjaFavslide";
+import { isFnoNinjaAppContext } from "@/lib/fnoninja/auth";
 
 interface RawItem {
   symbol?: string;
@@ -86,7 +89,7 @@ interface LevelsPayload {
   updatedAt: string;
 }
 
-type LevelsViewMode = "bubbles" | "slideshow";
+type LevelsViewMode = "bubbles" | "liveslide" | "favslide";
 
 const STATUS_META: Record<ZoneDisplayKey, { label: string; color: string; bg: string }> = {
   IN_BULL: {
@@ -180,6 +183,18 @@ export default function LevelsPage() {
   const nativeChartRef = useRef<NativeCandlesChartHandle>(null);
   const activeStripKeyRef = useRef("");
   const chartLevelsSymbolRef = useRef<string | null>(null);
+  const [isFnoNinjaHost, setIsFnoNinjaHost] = useState(false);
+  const {
+    symbols: favslideSymbols,
+    loading: favslideLoading,
+    isSignedIn: favslideSignedIn,
+  } = useFnoNinjaFavslide(isFnoNinjaHost);
+
+  const isSlideView = viewMode === "liveslide" || viewMode === "favslide";
+
+  useEffect(() => {
+    setIsFnoNinjaHost(isFnoNinjaAppContext(window.location.pathname, window.location.hostname));
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -212,8 +227,19 @@ export default function LevelsPage() {
     };
   }, []);
 
+  const enterLiveslide = useCallback(() => {
+    setViewMode("liveslide");
+    setInZoneSlide(0);
+  }, []);
+
+  const enterFavslide = useCallback(() => {
+    if (!isFnoNinjaHost) return;
+    setViewMode("favslide");
+    setInZoneSlide(0);
+  }, [isFnoNinjaHost]);
+
   const toggleViewMode = useCallback(() => {
-    setViewMode((m) => (m === "bubbles" ? "slideshow" : "bubbles"));
+    setViewMode((m) => (m === "bubbles" ? "liveslide" : "bubbles"));
   }, []);
 
   useEffect(() => {
@@ -290,9 +316,48 @@ export default function LevelsPage() {
       .sort((a, b) => a.label.localeCompare(b.label, "en", { sensitivity: "base" }));
   }, [bubbleItems, slideshowFilter, bubbleSearch, stockBySymbol]);
 
-  const inZoneCount = inZoneListFiltered.length;
+  const favslideListFiltered = useMemo((): LevelsActionableItem[] => {
+    const q = bubbleSearch.trim().toUpperCase();
+    return favslideSymbols
+      .map((sym) => {
+        const row = stockBySymbol.get(sym);
+        if (!row) {
+          return {
+            scope: "stock" as const,
+            symbol: sym,
+            label: sym,
+            status: "NEUTRAL" as ZoneStatus,
+            spot: null,
+            currency: "₹" as const,
+            data: null,
+          };
+        }
+        const data = levelsFromStockRow(row);
+        return {
+          scope: "stock" as const,
+          symbol: sym,
+          label: row.label ?? sym,
+          status: deriveZoneStatus(bandsFromLevels(data, row.spot)),
+          spot: row.spot,
+          currency: "₹" as const,
+          data,
+        };
+      })
+      .filter((it) => {
+        if (!q) return true;
+        return (
+          it.symbol.toUpperCase().includes(q) ||
+          it.label.toUpperCase().includes(q)
+        );
+      });
+  }, [favslideSymbols, stockBySymbol, bubbleSearch]);
+
+  const slideListFiltered =
+    viewMode === "favslide" ? favslideListFiltered : inZoneListFiltered;
+
+  const inZoneCount = slideListFiltered.length;
   const inZoneCurrent = inZoneCount > 0 ? Math.min(inZoneSlide, inZoneCount - 1) : 0;
-  const inZoneActive = inZoneCount > 0 ? inZoneListFiltered[inZoneCurrent] : null;
+  const inZoneActive = inZoneCount > 0 ? slideListFiltered[inZoneCurrent] : null;
 
   useEffect(() => {
     activeStripKeyRef.current = inZoneActive
@@ -306,7 +371,7 @@ export default function LevelsPage() {
     setLiveStripSpot((prev) => (prev[key] === close ? prev : { ...prev, [key]: close }));
   }, []);
 
-  const slideshowEnabled = viewMode === "slideshow" && inZoneCount > 1;
+  const slideshowEnabled = isSlideView && inZoneCount > 1;
 
   const toggleSlideshowPause = useCallback(() => {
     setSlideshowPaused((p) => {
@@ -318,18 +383,18 @@ export default function LevelsPage() {
   const scheduleNote = "Updates Mon–Fri during market hours";
 
   const activeTv = useMemo(() => {
-    if (viewMode !== "slideshow" || !inZoneActive) return null;
+    if (!isSlideView || !inZoneActive) return null;
     return levelsTradingViewParams(inZoneActive.scope, inZoneActive.symbol);
   }, [viewMode, inZoneActive]);
 
   const activeChartLevels = useMemo<PublicLevels | null>(() => {
-    if (viewMode !== "slideshow" || !inZoneActive) return null;
+    if (!isSlideView || !inZoneActive) return null;
     return inZoneChartData;
   }, [viewMode, inZoneActive, inZoneChartData]);
 
   /** Chart + news rail — stable for all native-candle slideshow symbols (not gated on levels load). */
   const slideshowNativeLayout = Boolean(
-    viewMode === "slideshow" && activeTv?.nativeCandles && inZoneActive != null,
+    isSlideView && activeTv?.nativeCandles && inZoneActive != null,
   );
 
   const activeTicker = inZoneActive?.symbol ?? null;
@@ -353,13 +418,13 @@ export default function LevelsPage() {
   }, [activeTicker, activeCompanyName, inZoneActive?.label]);
 
   const chartLevelsLoading =
-    viewMode === "slideshow" &&
+    isSlideView &&
     inZoneChartLoading &&
     inZoneActive?.scope === "stock" &&
     !levelsHaveBands(inZoneChartData);
 
   const slideshowChartShortcuts =
-    viewMode === "slideshow" && activeTv
+    isSlideView && activeTv
       ? {
           webChartUrl: activeTv.webChartUrl,
           showSqueeze: Boolean(activeTv.nativeCandles),
@@ -372,7 +437,7 @@ export default function LevelsPage() {
       : null;
 
   useEffect(() => {
-    setChartFullHistory(viewMode === "slideshow");
+    setChartFullHistory(isSlideView);
   }, [activeTv?.symbol, activeTv?.exchange, activeTv?.candlesScope, viewMode]);
 
   const goInZone = useCallback(
@@ -385,7 +450,7 @@ export default function LevelsPage() {
   }, [inZoneCurrent, slideshowFilter, viewMode]);
 
   useEffect(() => {
-    if (slideshowPaused || viewMode !== "slideshow" || inZoneCount <= 1) return;
+    if (slideshowPaused || !isSlideView || inZoneCount <= 1) return;
     const id = setInterval(() => {
       setSlideshowCountdown((c) => c - 1);
     }, 1000);
@@ -394,7 +459,7 @@ export default function LevelsPage() {
 
   useEffect(() => {
     if (slideshowCountdown > 0) return;
-    if (slideshowPaused || viewMode !== "slideshow" || inZoneCount <= 1) return;
+    if (slideshowPaused || !isSlideView || inZoneCount <= 1) return;
     setInZoneSlide((s) => (s + 1) % inZoneCount);
     setSlideshowCountdown(SLIDESHOW_SLIDE_SECONDS);
   }, [slideshowCountdown, slideshowPaused, viewMode, inZoneCount]);
@@ -438,7 +503,7 @@ export default function LevelsPage() {
     const stockNeedsFullFetch =
       inZoneActive.scope === "stock" && hasBands && bundled!.poc == null;
     const slideshowStaleStock =
-      viewMode === "slideshow" &&
+      isSlideView &&
       inZoneActive.scope === "stock" &&
       isSlideshowZoneStale(bundled?.computedAt);
 
@@ -457,7 +522,7 @@ export default function LevelsPage() {
     if (symbolChanged) {
       setInZoneChartData(null);
     }
-    const q = viewMode === "slideshow" ? "&slideshow=1" : "";
+    const q = isSlideView ? "&slideshow=1" : "";
     fetch(
       `/api/freedombot/levels?symbol=${encodeURIComponent(inZoneActive.symbol)}${q}`,
       { cache: "no-store" },
@@ -479,13 +544,13 @@ export default function LevelsPage() {
 
   /** Keep in-zone slideshow stocks on a ≤5m zone refresh cadence (one symbol per tick). */
   useEffect(() => {
-    if (viewMode !== "slideshow") return;
+    if (!isSlideView) return;
 
     let cancelled = false;
     let roundRobin = 0;
 
     const tick = async () => {
-      const stocks = inZoneListFiltered.filter((it) => it.scope === "stock");
+      const stocks = slideListFiltered.filter((it) => it.scope === "stock");
       if (stocks.length === 0 || cancelled) return;
 
       const activeSym =
@@ -516,7 +581,7 @@ export default function LevelsPage() {
     };
   }, [
     viewMode,
-    inZoneListFiltered,
+    slideListFiltered,
     inZoneActive?.scope,
     inZoneActive?.symbol,
     refreshOneSlideshowStockZone,
@@ -560,9 +625,9 @@ export default function LevelsPage() {
         showSlideshowControl={slideshowEnabled}
         slideshowPaused={slideshowPaused}
         onToggleSlideshowPause={toggleSlideshowPause}
-        hideChartShortcuts={viewMode === "slideshow"}
-        defaultFullHistory={viewMode === "slideshow"}
-        showHeader={viewMode !== "slideshow"}
+        hideChartShortcuts={isSlideView}
+        defaultFullHistory={isSlideView}
+        showHeader={!isSlideView}
         nativeChartRef={nativeChartRef}
         onFullHistoryZoomChange={setChartFullHistory}
         onLastCloseChange={activeTv?.nativeCandles ? handleChartLastClose : undefined}
@@ -587,8 +652,10 @@ export default function LevelsPage() {
 
   const viewToggleLabel =
     viewMode === "bubbles"
-      ? "Switch to slideshow view"
-      : "Switch to bubbles view";
+      ? "View Liveslide"
+      : viewMode === "favslide"
+        ? "View Bubbles map"
+        : "View Bubbles map";
   const viewToggleShortcut = "(Press S for shortcut)";
 
   const chartHighConfidence =
@@ -616,7 +683,7 @@ export default function LevelsPage() {
     ) : null;
 
   const slideshowSymbolStrip =
-    viewMode === "slideshow" && inZoneCount > 0 ? (
+    isSlideView && inZoneCount > 0 ? (
       <LevelsSymbolList
         entries={inZoneEntries}
         activeIndex={inZoneCurrent}
@@ -657,6 +724,42 @@ export default function LevelsPage() {
 
   const renderSlideshow = () => {
     if (inZoneCount === 0) {
+      if (viewMode === "favslide") {
+        const emptyCopy = !favslideSignedIn
+          ? {
+              title: "Sign in to use favslide",
+              body: "Save stocks from any symbol chart, then cycle through your personal watchlist here.",
+              cta: true as const,
+            }
+          : favslideLoading
+            ? { title: "Loading favslide…", body: "", cta: false as const }
+            : favslideSymbols.length === 0
+              ? {
+                  title: "No stocks in favslide yet",
+                  body: "Open a symbol chart and tap Add to favslide to build your list.",
+                  cta: false as const,
+                }
+              : {
+                  title: "No favourites match your search",
+                  body: "Clear the search box or add more symbols from chart pages.",
+                  cta: false as const,
+                };
+        return wrapSlideshowBody(
+          <div className="flex flex-col min-h-0 h-full items-center justify-center gap-4 py-12 px-4 text-center">
+            <p className="text-sm" style={{ color: "#94a3b8" }}>
+              {emptyCopy.title}
+            </p>
+            {emptyCopy.body ? (
+              <p className="text-xs max-w-sm leading-relaxed" style={{ color: "#64748b" }}>
+                {emptyCopy.body}
+              </p>
+            ) : null}
+            {emptyCopy.cta ? <FnoNinjaGoogleSignInButton size="hero" /> : null}
+          </div>,
+          <div className="flex flex-1 items-center justify-center" />,
+        );
+      }
+
       const filteredEmpty =
         slideshowFilter !== "all" && slideshowFilterCounts.all > 0;
       return wrapSlideshowBody(
@@ -754,16 +857,22 @@ export default function LevelsPage() {
                 bubbleMapFilter={bubbleMapFilter}
                 onBubbleMapFilterChange={setBubbleMapFilter}
                 bubbleFilterCounts={bubbleFilterCounts}
-                slideshowFilter={slideshowFilter}
-                onSlideshowFilterChange={(filter) => {
-                  setSlideshowFilter(filter);
-                  setInZoneSlide(0);
-                }}
-                slideshowFilterCounts={slideshowFilterCounts}
-                filtersOnly={viewMode === "slideshow"}
-                symbolStrip={viewMode === "slideshow" ? slideshowSymbolStrip : undefined}
+                slideshowFilter={viewMode === "liveslide" ? slideshowFilter : undefined}
+                onSlideshowFilterChange={
+                  viewMode === "liveslide"
+                    ? (filter) => {
+                        setSlideshowFilter(filter);
+                        setInZoneSlide(0);
+                      }
+                    : undefined
+                }
+                slideshowFilterCounts={
+                  viewMode === "liveslide" ? slideshowFilterCounts : undefined
+                }
+                filtersOnly={isSlideView}
+                symbolStrip={isSlideView ? slideshowSymbolStrip : undefined}
                 slideshowControl={
-                  viewMode === "slideshow" && slideshowEnabled
+                  isSlideView && slideshowEnabled
                     ? {
                         enabled: true,
                         paused: slideshowPaused,
@@ -773,20 +882,35 @@ export default function LevelsPage() {
                     : undefined
                 }
                 viewModeToggle={
-                  viewMode === "slideshow"
+                  isSlideView
                     ? {
-                        viewMode: "slideshow",
+                        viewMode: viewMode === "favslide" ? "favslide" : "liveslide",
                         onToggle: toggleViewMode,
                         title: viewToggleShortcut,
                       }
                     : undefined
                 }
                 chartShortcuts={
-                  viewMode === "slideshow" && !activeTv ? slideshowChartShortcuts : null
+                  isSlideView && !activeTv ? slideshowChartShortcuts : null
+                }
+                favslideToggle={
+                  viewMode === "bubbles" && isFnoNinjaHost
+                    ? {
+                        label: "View favslide",
+                        shortLabel: "Favslide",
+                        onClick: enterFavslide,
+                        title: "Slideshow your favourited stocks",
+                      }
+                    : undefined
                 }
                 viewToggle={{
                   label: viewToggleLabel,
-                  shortLabel: viewMode === "bubbles" ? "Slideshow" : "Bubbles",
+                  shortLabel:
+                    viewMode === "bubbles"
+                      ? "Liveslide"
+                      : viewMode === "favslide"
+                        ? "Bubbles"
+                        : "Bubbles",
                   onClick: toggleViewMode,
                   title: viewToggleShortcut,
                 }}

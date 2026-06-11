@@ -52,22 +52,17 @@ const cardStyle = {
 export function FnoNinjaWhoItsForSection() {
   return (
     <section className={`${FB_CONTENT_SHELL} py-16 sm:py-20 lg:py-24`}>
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6 lg:gap-12 mb-10 sm:mb-12">
-        <div className="max-w-2xl">
-          <p
-            className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.2em] font-mono mb-4"
-            style={{ color: FNO_ACCENT }}
-          >
-            Who it&apos;s for
-          </p>
-          <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-black text-white tracking-tight leading-[1.1]">
-            Built for people who read the tape, not the noise.
-          </h2>
-        </div>
+      <div className="mb-10 sm:mb-12 max-w-3xl">
         <p
-          className="text-sm sm:text-base leading-relaxed lg:max-w-sm lg:pt-10 lg:text-right shrink-0"
-          style={{ color: FNO_MUTED }}
+          className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.2em] font-mono mb-4"
+          style={{ color: FNO_ACCENT }}
         >
+          Who it&apos;s for
+        </p>
+        <h2 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-black text-white tracking-tight leading-[1.1]">
+          Built for people who read the tape, not the noise.
+        </h2>
+        <p className="mt-4 text-sm sm:text-base leading-relaxed" style={{ color: FNO_MUTED }}>
           Four personas. One analytics surface. Every view is informational — your interpretation,
           your decision.
         </p>

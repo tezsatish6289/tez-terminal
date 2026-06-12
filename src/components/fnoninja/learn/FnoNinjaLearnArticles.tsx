@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FnoNinjaLearnScreenshot } from "@/components/fnoninja/learn/FnoNinjaLearnScreenshot";
+import { SCIENCE_LEARN_DISCLAIMER } from "@/components/fnoninja/learn/FnoNinjaLearnDisclaimer";
 import { FnoNinjaLearnVerifyChecklist } from "@/components/fnoninja/learn/FnoNinjaLearnVerifyChecklist";
 import { FnoNinjaScienceScrollGuide } from "@/components/fnoninja/learn/FnoNinjaScienceScrollGuide";
 import {
@@ -32,6 +33,7 @@ export function ScienceLearnArticle() {
       article={article}
       learnHubHref={learnHubHref}
       disclaimerPlacement="bottom"
+      disclaimerParagraphs={SCIENCE_LEARN_DISCLAIMER}
     >
       <FnoNinjaScienceScrollGuide />
 

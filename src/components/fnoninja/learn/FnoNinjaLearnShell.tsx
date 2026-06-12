@@ -9,12 +9,14 @@ export function FnoNinjaLearnArticleShell({
   article,
   learnHubHref,
   disclaimerPlacement = "top",
+  disclaimerParagraphs,
   children,
 }: {
   article: LearnArticleMeta;
   learnHubHref: string;
   /** Default top; science guide uses bottom so readers see content first. */
   disclaimerPlacement?: "top" | "bottom" | "none";
+  disclaimerParagraphs?: string[];
   children: React.ReactNode;
 }) {
   const Icon = article.icon;
@@ -56,11 +58,15 @@ export function FnoNinjaLearnArticleShell({
         {article.excerpt}
       </p>
 
-      {disclaimerPlacement === "top" ? <FnoNinjaLearnDisclaimer className="mb-10" /> : null}
+      {disclaimerPlacement === "top" ? (
+        <FnoNinjaLearnDisclaimer className="mb-10" paragraphs={disclaimerParagraphs} />
+      ) : null}
 
       <div className="space-y-8">{children}</div>
 
-      {disclaimerPlacement === "bottom" ? <FnoNinjaLearnDisclaimer className="mt-10" /> : null}
+      {disclaimerPlacement === "bottom" ? (
+        <FnoNinjaLearnDisclaimer className="mt-10" paragraphs={disclaimerParagraphs} />
+      ) : null}
 
       <div
         className="mt-12 rounded-2xl p-6 sm:p-8"

@@ -22,7 +22,7 @@ export const LEARN_ARTICLES: LearnArticleMeta[] = [
     slug: "science",
     title: "The Science Behind the Zones",
     excerpt:
-      "What put and call clusters, max pain, and expiry really mean — explained in simple terms with a beginner-friendly NIFTY example you can check on NSE right now.",
+      "Put Clusters, Call Clusters, Max Pain, and Expiry — scroll through each concept with a live NIFTY zone ladder you can cross-check on NSE.",
     readMinutes: 5,
     readLabel: "5 min · scroll to explore",
     tag: "Foundations",

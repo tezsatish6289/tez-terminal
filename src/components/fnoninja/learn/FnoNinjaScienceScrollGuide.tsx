@@ -13,39 +13,55 @@ type Topic = {
   id: ScienceVisualFocus;
   title: string;
   paragraphs: string[];
+  closingLine?: string;
 };
 
 const TOPICS: Topic[] = [
   {
     id: "put",
-    title: "What is a put cluster?",
+    title: "Put Cluster",
     paragraphs: [
-      "Puts gain value when price falls. When many puts pile up at one strike below the current price, that strike becomes a put cluster — heavy open interest that we shade as a support zone.",
-      "Market makers who sold those puts often buy the underlying as price dips toward the strike. That hedging can slow a fall — like a cushion. It is an observation from data, not a guarantee of a bounce.",
+      "A Put Cluster is a strike where a large number of Put options are concentrated below the current market price.",
+      "As price approaches this level, option writers and market makers often adjust their hedges to manage risk. This additional buying and hedging activity can increase market participation around the zone.",
+      "As a result, price may slow down, consolidate, or sometimes bounce from the area.",
+      "Many traders view Put Clusters as potential support zones, but they are not guaranteed to hold.",
     ],
+    closingLine:
+      "Think of a Put Cluster as an area where both positioning and hedging activity are concentrated.",
   },
   {
     id: "call",
-    title: "What is a call cluster?",
+    title: "Call Cluster",
     paragraphs: [
-      "Calls gain value when price rises. A call cluster is where lots of call contracts stack at a strike above spot — we draw a resistance zone around it.",
-      "Hedging those calls can mean selling into rallies, which may act like a ceiling. Context for your chart only — not a sell signal from us.",
+      "A Call Cluster is a strike where a large number of Call options are concentrated above the current market price.",
+      "When price approaches this zone, option writers and market makers may adjust their hedges, creating increased trading activity around the level.",
+      "This can cause price to slow down, stall, consolidate, or sometimes reverse.",
+      "Because of this behavior, traders often view Call Clusters as potential resistance zones.",
+      "A strong move above the cluster may force participants to reposition at higher strikes.",
     ],
+    closingLine:
+      "Think of a Call Cluster as a zone where market attention and hedging activity become elevated.",
   },
   {
     id: "maxPain",
-    title: "What is max pain?",
+    title: "Max Pain",
     paragraphs: [
-      "At expiry, options settle at the closing price. Max pain is the strike where option writers would pay out the least in total — where the most options would expire worthless.",
-      "We show it as a yellow line. Some researchers watch it as a magnet near expiry. Price does not have to go there — it is one reference point for your own analysis.",
+      "Max Pain is the strike where option buyers would collectively lose the most value at expiry.",
+      "As expiry approaches, traders and market makers often rebalance hedges more aggressively, which can sometimes pull price toward heavily traded strikes.",
+      "This is one reason some markets appear to spend more time near the Max Pain level close to expiry.",
+      "However, Max Pain is not a target and markets can easily ignore it during strong trends or major news events.",
+      "Use it as a reference point for understanding option positioning, not as a prediction.",
     ],
   },
   {
     id: "expiry",
-    title: "What is expiry?",
+    title: "Expiry",
     paragraphs: [
-      "Every option chain is tied to an expiry date. FNONINJA uses the nearest liquid expiry when drawing zones, max pain, and cluster labels.",
-      "When the calendar rolls forward, clusters and max pain can shift. Always match this expiry when you verify strikes on NSE.",
+      "Every option contract has an expiry date after which it ceases to exist.",
+      "As expiry approaches, hedging activity typically increases because option positions become more sensitive to small price movements.",
+      "This can make Put Clusters, Call Clusters, and Max Pain levels more influential than they are earlier in the expiry cycle.",
+      "Once an expiry passes, the entire option structure resets and new clusters often emerge.",
+      "Always check which expiry is being analyzed before interpreting any zone.",
     ],
   },
 ];
@@ -80,6 +96,11 @@ function ScienceTopicSection({
         {topic.paragraphs.map((p) => (
           <p key={p}>{p}</p>
         ))}
+        {topic.closingLine ? (
+          <p className="italic" style={{ color: "#94a3b8" }}>
+            {topic.closingLine}
+          </p>
+        ) : null}
       </div>
       <FnoNinjaScienceLiveVisual levels={levels} focus={topic.id} loading={loading} />
     </section>
@@ -143,7 +164,7 @@ export function FnoNinjaScienceScrollGuide() {
                 backgroundColor: "rgba(8,15,30,0.4)",
               }}
             >
-              {t.title.replace("What is ", "").replace("?", "")}
+              {t.title}
             </a>
           ))}
         </nav>

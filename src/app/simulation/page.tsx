@@ -117,6 +117,24 @@ function formatPrice(val: number | null | undefined): string {
   return val.toLocaleString(undefined, { minimumFractionDigits: 6, maximumFractionDigits: 6 });
 }
 
+const SIM_SHOW_ALL_BOTS_KEY = "tez-sim-show-all-bots";
+
+function readShowAllBotsPref(): boolean {
+  try {
+    return typeof window !== "undefined" && localStorage.getItem(SIM_SHOW_ALL_BOTS_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeShowAllBotsPref(value: boolean): void {
+  try {
+    localStorage.setItem(SIM_SHOW_ALL_BOTS_KEY, value ? "1" : "0");
+  } catch {
+    /* private mode / quota */
+  }
+}
+
 export default function SimulationPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
@@ -126,6 +144,15 @@ export default function SimulationPage() {
   const [showAllBots, setShowAllBots] = useState(false);
   const [slideshowPaused, setSlideshowPaused] = useState(false);
   const [slideshowCountdown, setSlideshowCountdown] = useState(SLIDESHOW_SLIDE_SECONDS);
+
+  useEffect(() => {
+    if (readShowAllBotsPref()) setShowAllBots(true);
+  }, []);
+
+  const handleShowAllBotsChange = useCallback((value: boolean) => {
+    setShowAllBots(value);
+    writeShowAllBotsPref(value);
+  }, []);
   const [selectedTrade, setSelectedTrade] = useState<SimTrade | null>(null);
   const selectedBot = useMemo(
     () => SIM_COCKPIT_BOTS.find((b) => b.id === selectedBotId) ?? SIM_COCKPIT_BOTS[0],
@@ -640,7 +667,7 @@ export default function SimulationPage() {
                     mirrorsError={mirrorsError}
                     openSimTradeIds={openSimTradeIds}
                     showAllBots={showAllBots}
-                    onShowAllBotsChange={setShowAllBots}
+                    onShowAllBotsChange={handleShowAllBotsChange}
                     showBotLabels={showAllBots}
                   />
                 )}

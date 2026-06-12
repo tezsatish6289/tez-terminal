@@ -94,6 +94,8 @@ function sanitize(raw: Record<string, unknown> | null): PublicLevels | null {
     zonesExpiry: resolveZonesExpiryFromStored(raw),
     putClusterSize: num(raw.bullOI),
     callClusterSize: num(raw.bearOI),
+    putClusterStrike: num(raw.bullStrike),
+    callClusterStrike: num(raw.bearStrike),
   };
 }
 

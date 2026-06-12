@@ -6,11 +6,21 @@ import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogle
 import { FB_FULL_HEIGHT_MAIN } from "@/lib/freedombot/responsive";
 import { FNO_ACCENT, FNO_APP_SURFACE_STYLE, FNO_MUTED } from "@/lib/fnoninja/theme";
 
+const DEFAULT_DESCRIPTION =
+  "Sign in with Google to get 1 month free access to option-chain zones, charts & symbol analytics. Market Map is open to all.";
+
 export function FnoNinjaChartLoginGate({
   symbol,
+  headline,
+  description = DEFAULT_DESCRIPTION,
+  backAction,
   children,
 }: {
   symbol?: string;
+  headline?: string;
+  description?: string;
+  /** Lets gated views (e.g. liveslide) return to the public market map without signing in. */
+  backAction?: { label: string; onClick: () => void };
   children: React.ReactNode;
 }) {
   const { user, isUserLoading } = useUser();
@@ -28,7 +38,8 @@ export function FnoNinjaChartLoginGate({
 
   if (user) return <>{children}</>;
 
-  const headline = symbol ? `Unlock ${symbol} Analytics` : "Unlock Symbol Analytics";
+  const resolvedHeadline =
+    headline ?? (symbol ? `Unlock ${symbol} Analytics` : "Unlock Symbol Analytics");
 
   return (
     <main
@@ -36,13 +47,24 @@ export function FnoNinjaChartLoginGate({
       style={FNO_APP_SURFACE_STYLE}
     >
       <div className="max-w-md space-y-3">
-        <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">{headline}</h1>
+        <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+          {resolvedHeadline}
+        </h1>
         <p className="text-sm leading-relaxed" style={{ color: FNO_MUTED }}>
-          Sign in with Google to get 1 month free access to option-chain zones, charts &amp; symbol
-          analytics. Market Map is open to all.
+          {description}
         </p>
       </div>
       <FnoNinjaGoogleSignInButton size="hero" />
+      {backAction ? (
+        <button
+          type="button"
+          onClick={backAction.onClick}
+          className="text-xs font-semibold underline-offset-2 hover:underline"
+          style={{ color: FNO_MUTED }}
+        >
+          {backAction.label}
+        </button>
+      ) : null}
       <div className="max-w-sm space-y-1.5 text-[11px] leading-relaxed" style={{ color: "#475569" }}>
         <p>1 month free • Cancel anytime • No Credit Card required.</p>
         <p>Informational market data only. Not investment advice.</p>

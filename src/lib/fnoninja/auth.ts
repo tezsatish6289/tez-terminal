@@ -21,3 +21,8 @@ export function isFnoNinjaChartPath(pathname: string): boolean {
 export function requiresFnoNinjaChartAuth(pathname: string, hostname?: string): boolean {
   return isFnoNinjaAppContext(pathname, hostname) && isFnoNinjaChartPath(pathname);
 }
+
+/** Liveslide requires sign-in on FNONINJA only — the bubbles market map stays public. */
+export function requiresFnoNinjaLiveslideAuth(pathname: string, hostname?: string): boolean {
+  return isFnoNinjaAppContext(pathname, hostname);
+}

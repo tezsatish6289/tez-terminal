@@ -47,6 +47,8 @@ export function collectOverlayPrices(
   push(levels.bearLow);
   push(levels.bearHigh);
   push(levels.poc);
+  push(levels.putClusterStrike);
+  push(levels.callClusterStrike);
   push(anchors.bullSl);
   push(anchors.bearSl);
   return out;
@@ -107,9 +109,23 @@ export function applyLevelPriceLines(
 
   add(levels.bearHigh, LEVELS_ZONE_CHART.bear.line, "Resistance H");
   add(levels.bearLow, LEVELS_ZONE_CHART.bear.line, "Resistance L");
+  add(
+    levels.callClusterStrike,
+    LEVELS_ZONE_CHART.bear.line,
+    "Call OI peak",
+    LineStyle.Dotted,
+    1,
+  );
   add(anchors.bearSl, LEVELS_ZONE_CHART.bear.lineInv, "Resistance Break", LineStyle.Dotted, 2);
   add(levels.poc, LEVELS_ZONE_CHART.maxPain.line, "Max Pain", LineStyle.Dashed, 2);
   add(levels.bullHigh, LEVELS_ZONE_CHART.bull.line, "Support H");
   add(levels.bullLow, LEVELS_ZONE_CHART.bull.line, "Support L");
+  add(
+    levels.putClusterStrike,
+    LEVELS_ZONE_CHART.bull.line,
+    "Put OI peak",
+    LineStyle.Dotted,
+    1,
+  );
   add(anchors.bullSl, LEVELS_ZONE_CHART.bull.lineInv, "Support Break", LineStyle.Dotted, 2);
 }

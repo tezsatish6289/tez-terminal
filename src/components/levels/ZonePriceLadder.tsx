@@ -41,6 +41,10 @@ export interface PublicLevels {
   putClusterSize?: number | null;
   /** Dominant call-cluster open interest at resistance (contracts). */
   callClusterSize?: number | null;
+  /** Strike with highest put OI below spot (support cluster anchor). */
+  putClusterStrike?: number | null;
+  /** Strike with highest call OI above spot (resistance cluster anchor). */
+  callClusterStrike?: number | null;
 }
 
 function fmtPrice(p: number): string {

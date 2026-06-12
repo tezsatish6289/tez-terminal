@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { IChartApi, ISeriesApi } from "lightweight-charts";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
-import { formatClusterContracts } from "@/lib/levels/format-cluster-size";
+import { formatClusterPeakLabel } from "@/lib/levels/format-cluster-size";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import { FNO_ACCENT } from "@/lib/fnoninja/theme";
 
@@ -69,14 +69,14 @@ export function LevelsChartClusterBandLabels({
     const clamp = (y: number) => Math.min(Math.max(y, 14), height - 14);
     const next: LabelPos[] = [];
 
-    const putText = formatClusterContracts(levels.putClusterSize);
+    const putText = formatClusterPeakLabel("Put", levels.putClusterSize, levels.putClusterStrike);
     if (putText && levels.bullLow != null && levels.bullHigh != null) {
       const center = bandCenterY(series, levels.bullLow, levels.bullHigh);
       if (center != null) {
         next.push({
           id: "put",
           top: clamp(center),
-          text: `Put cluster ${putText} contracts`,
+          text: putText,
           style: CLUSTER_LABEL_STYLE,
         });
       }
@@ -95,14 +95,14 @@ export function LevelsChartClusterBandLabels({
       }
     }
 
-    const callText = formatClusterContracts(levels.callClusterSize);
+    const callText = formatClusterPeakLabel("Call", levels.callClusterSize, levels.callClusterStrike);
     if (callText && levels.bearLow != null && levels.bearHigh != null) {
       const center = bandCenterY(series, levels.bearLow, levels.bearHigh);
       if (center != null) {
         next.push({
           id: "call",
           top: clamp(center),
-          text: `Call cluster ${callText} contracts`,
+          text: callText,
           style: CLUSTER_LABEL_STYLE,
         });
       }

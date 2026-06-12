@@ -56,6 +56,7 @@ import {
 } from "@/lib/zones/zone-status";
 import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
+import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { useFnoNinjaFavslide, type FnoNinjaFavslideApi } from "@/hooks/useFnoNinjaFavslide";
 import { isFnoNinjaAppContext } from "@/lib/fnoninja/auth";
@@ -213,6 +214,7 @@ export default function LevelsPage() {
   );
 
   const isSlideView = viewMode === "liveslide" || viewMode === "favslide";
+  const liveslideGated = isFnoNinjaHost && viewMode === "liveslide";
 
   useEffect(() => {
     setIsFnoNinjaHost(isFnoNinjaAppContext(window.location.pathname, window.location.hostname));
@@ -890,6 +892,107 @@ export default function LevelsPage() {
     );
   };
 
+  const levelsSlideshowToolbar = (
+    <LevelsSlideshowToolbar
+      bubblesMode={viewMode === "bubbles"}
+      bubbleMapFilter={bubbleMapFilter}
+      onBubbleMapFilterChange={setBubbleMapFilter}
+      bubbleFilterCounts={bubbleFilterCounts}
+      slideshowFilter={viewMode === "liveslide" ? slideshowFilter : undefined}
+      onSlideshowFilterChange={
+        viewMode === "liveslide"
+          ? (filter) => {
+              setSlideshowFilter(filter);
+              setInZoneSlide(0);
+            }
+          : undefined
+      }
+      slideshowFilterCounts={viewMode === "liveslide" ? slideshowFilterCounts : undefined}
+      filtersOnly={isSlideView}
+      symbolStrip={isSlideView ? slideshowSymbolStrip : undefined}
+      slideshowControl={
+        isSlideView && slideshowEnabled
+          ? {
+              enabled: true,
+              paused: slideshowPaused,
+              onToggle: toggleSlideshowPause,
+              secondsRemaining: slideshowCountdown,
+            }
+          : undefined
+      }
+      slideModePill={
+        isSlideView
+          ? {
+              mode: viewMode,
+              count: slideListFiltered.length,
+            }
+          : undefined
+      }
+      viewModeToggle={
+        isSlideView
+          ? {
+              viewMode: viewMode === "favslide" ? "favslide" : "liveslide",
+              onToggle: enterBubbles,
+              title: bubblesBackTitle,
+            }
+          : undefined
+      }
+      chartShortcuts={isSlideView && !activeTv ? slideshowChartShortcuts : null}
+      favslideToggle={
+        isFnoNinjaHost
+          ? {
+              label: "View favslide",
+              shortLabel: "Favslide",
+              onClick: enterFavslide,
+              title: favslideCtaTitle,
+              variant: "favslide" as const,
+              kbd: "F",
+              active: viewMode === "favslide",
+            }
+          : undefined
+      }
+      viewToggle={{
+        label: viewToggleLabel,
+        shortLabel: viewMode === "bubbles" ? "Liveslide" : "Bubbles",
+        onClick: viewMode === "bubbles" ? enterLiveslide : enterBubbles,
+        title: viewMode === "bubbles" ? liveslideCtaTitle : bubblesBackTitle,
+        variant: "liveslide" as const,
+        kbd: viewMode === "bubbles" ? "L" : "B",
+        active: viewMode === "liveslide",
+      }}
+    />
+  );
+
+  const levelsMainPane =
+    viewMode === "bubbles" ? (
+      <LevelsBubblesView
+        items={bubbleItems}
+        onBubbleOpen={openBubbleChart}
+        hasMarketData={Boolean(payload)}
+        toneFilter={bubbleMapFilter}
+      />
+    ) : (
+      renderSlideshow()
+    );
+
+  const levelsWorkspace = (
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        {levelsSlideshowToolbar}
+        {levelsMainPane}
+      </div>
+    </div>
+  );
+
+  const liveslideWorkspace = (
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        {levelsSlideshowToolbar}
+        {renderSlideshow()}
+      </div>
+    </div>
+  );
+
   return (
     <main className={`${FB_FULL_HEIGHT_MAIN} shrink-0 min-w-0`} style={FNO_APP_SURFACE_STYLE}>
       <div className={`${FB_LEVELS_SHELL} flex-1 min-h-0 flex flex-col overflow-hidden`}>
@@ -897,93 +1000,16 @@ export default function LevelsPage() {
           <div className="flex flex-1 items-center justify-center py-24">
             <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
           </div>
+        ) : liveslideGated ? (
+          <FnoNinjaChartLoginGate
+            headline="Unlock Liveslide"
+            description="Sign in with Google to cycle aligned market setups with live charts. Market Map is open to all."
+            backAction={{ label: "Back to Market Map", onClick: enterBubbles }}
+          >
+            {liveslideWorkspace}
+          </FnoNinjaChartLoginGate>
         ) : (
-          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-              <LevelsSlideshowToolbar
-                bubblesMode={viewMode === "bubbles"}
-                bubbleMapFilter={bubbleMapFilter}
-                onBubbleMapFilterChange={setBubbleMapFilter}
-                bubbleFilterCounts={bubbleFilterCounts}
-                slideshowFilter={viewMode === "liveslide" ? slideshowFilter : undefined}
-                onSlideshowFilterChange={
-                  viewMode === "liveslide"
-                    ? (filter) => {
-                        setSlideshowFilter(filter);
-                        setInZoneSlide(0);
-                      }
-                    : undefined
-                }
-                slideshowFilterCounts={
-                  viewMode === "liveslide" ? slideshowFilterCounts : undefined
-                }
-                filtersOnly={isSlideView}
-                symbolStrip={isSlideView ? slideshowSymbolStrip : undefined}
-                slideshowControl={
-                  isSlideView && slideshowEnabled
-                    ? {
-                        enabled: true,
-                        paused: slideshowPaused,
-                        onToggle: toggleSlideshowPause,
-                        secondsRemaining: slideshowCountdown,
-                      }
-                    : undefined
-                }
-                slideModePill={
-                  isSlideView
-                    ? {
-                        mode: viewMode,
-                        count: slideListFiltered.length,
-                      }
-                    : undefined
-                }
-                viewModeToggle={
-                  isSlideView
-                    ? {
-                        viewMode: viewMode === "favslide" ? "favslide" : "liveslide",
-                        onToggle: enterBubbles,
-                        title: bubblesBackTitle,
-                      }
-                    : undefined
-                }
-                chartShortcuts={
-                  isSlideView && !activeTv ? slideshowChartShortcuts : null
-                }
-                favslideToggle={
-                  isFnoNinjaHost
-                    ? {
-                        label: "View favslide",
-                        shortLabel: "Favslide",
-                        onClick: enterFavslide,
-                        title: favslideCtaTitle,
-                        variant: "favslide" as const,
-                        kbd: "F",
-                        active: viewMode === "favslide",
-                      }
-                    : undefined
-                }
-                viewToggle={{
-                  label: viewToggleLabel,
-                  shortLabel: viewMode === "bubbles" ? "Liveslide" : "Bubbles",
-                  onClick: viewMode === "bubbles" ? enterLiveslide : enterBubbles,
-                  title: viewMode === "bubbles" ? liveslideCtaTitle : bubblesBackTitle,
-                  variant: "liveslide" as const,
-                  kbd: viewMode === "bubbles" ? "L" : "B",
-                  active: viewMode === "liveslide",
-                }}
-              />
-              {viewMode === "bubbles" ? (
-                <LevelsBubblesView
-                  items={bubbleItems}
-                  onBubbleOpen={openBubbleChart}
-                  hasMarketData={Boolean(payload)}
-                  toneFilter={bubbleMapFilter}
-                />
-              ) : (
-                renderSlideshow()
-              )}
-            </div>
-          </div>
+          levelsWorkspace
         )}
       </div>
     </main>

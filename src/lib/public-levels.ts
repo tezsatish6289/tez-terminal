@@ -20,5 +20,9 @@ export function toPublicLevels(
     computedAt: raw.computedAt ?? null,
     unavailable: false,
     levelsSource: null,
+    putClusterSize: raw.bullOI ?? null,
+    callClusterSize: raw.bearOI ?? null,
+    putClusterStrike: raw.bullStrike ?? null,
+    callClusterStrike: raw.bearStrike ?? null,
   };
 }

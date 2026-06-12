@@ -9,10 +9,17 @@ import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import { computeZoneSlAnchors } from "@/lib/zone-bot-engine";
 import { bandLineData } from "@/components/levels/native-chart-level-overlays";
 
-const MAX_PAIN_TODAY = "#38bdf8";
-const MAX_PAIN_D1 = "#cbd5e1";
-const MAX_PAIN_D2 = "#94a3b8";
-const SPOT_LINE = "#fcd34d";
+/** Amber ladder — dark → mid → light (Today / D+1 / D+2). */
+const MAX_PAIN_TODAY = "#b45309";
+const MAX_PAIN_D1 = "#f59e0b";
+const MAX_PAIN_D2 = "#fde68a";
+
+export function currentPriceLineColor(
+  lastCandle: { open: number; close: number } | null | undefined,
+): string {
+  const bullish = lastCandle ? lastCandle.close >= lastCandle.open : true;
+  return bullish ? LEVELS_ZONE_CHART.bull.line : LEVELS_ZONE_CHART.bear.line;
+}
 
 export interface SimZoneSlAnchors {
   bullSl: number | null;
@@ -184,6 +191,7 @@ export function applySimPriceLines(
   priceLinesRef: { current: IPriceLine[] },
   suggested: SuggestedZonesSnapshot | null | undefined,
   spot: number | null | undefined,
+  lastCandle?: { open: number; close: number } | null,
 ): void {
   for (const line of priceLinesRef.current) series.removePriceLine(line);
   priceLinesRef.current = [];
@@ -228,8 +236,20 @@ export function applySimPriceLines(
     if (entry) add(entry.maxPain, color, label, LineStyle.Dashed, 2);
   }
 
-  if (spot != null && Number.isFinite(spot)) {
-    add(spot, SPOT_LINE, "Current price", LineStyle.Solid, 2);
+  const currentPrice =
+    spot != null && Number.isFinite(spot)
+      ? spot
+      : lastCandle?.close != null && Number.isFinite(lastCandle.close)
+        ? lastCandle.close
+        : null;
+  if (currentPrice != null) {
+    add(
+      currentPrice,
+      currentPriceLineColor(lastCandle),
+      "Current price",
+      LineStyle.Dotted,
+      2,
+    );
   }
 }
 

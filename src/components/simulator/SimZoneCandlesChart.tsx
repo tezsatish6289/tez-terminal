@@ -93,6 +93,7 @@ export function SimZoneCandlesChart({
   const bearBandRef = useRef<ISeriesApi<"Baseline"> | null>(null);
   const priceLinesRef = useRef<IPriceLine[]>([]);
   const candlesRef = useRef<CandlestickData[]>([]);
+  const lastCandleRef = useRef<{ open: number; close: number } | null>(null);
   const suggestedRef = useRef(suggested);
   const spotRef = useRef(spot);
   const hasDisplayedCandlesRef = useRef(false);
@@ -193,6 +194,8 @@ export function SimZoneCandlesChart({
       borderDownColor: "#dc2626",
       wickUpColor: "#16a34a",
       wickDownColor: "#dc2626",
+      priceLineVisible: false,
+      lastValueVisible: false,
       priceFormat: {
         type: "price",
         precision: spot != null && spot < 10 ? 4 : 2,
@@ -240,7 +243,13 @@ export function SimZoneCandlesChart({
       BULL_BAND_STYLE,
       BEAR_BAND_STYLE,
     );
-    applySimPriceLines(series, priceLinesRef, suggestedRef.current, spotRef.current);
+    applySimPriceLines(
+      series,
+      priceLinesRef,
+      suggestedRef.current,
+      spotRef.current,
+      lastCandleRef.current,
+    );
     fitPriceScale();
     if (!isPoll) {
       if (fullHistoryZoomRef.current) applyFullHistoryZoom(data.length);
@@ -258,6 +267,7 @@ export function SimZoneCandlesChart({
 
   function clearChartCanvas() {
     candlesRef.current = [];
+    lastCandleRef.current = null;
     loadedForSymbolRef.current = null;
     const series = seriesRef.current;
     if (!series) return;
@@ -270,7 +280,7 @@ export function SimZoneCandlesChart({
       BULL_BAND_STYLE,
       BEAR_BAND_STYLE,
     );
-    applySimPriceLines(series, priceLinesRef, null, null);
+    applySimPriceLines(series, priceLinesRef, null, null, null);
   }
 
   useEffect(() => {
@@ -329,6 +339,11 @@ export function SimZoneCandlesChart({
           close: c.close,
         }));
         candlesRef.current = data;
+        const last = data[data.length - 1];
+        lastCandleRef.current =
+          last != null
+            ? { open: last.open, close: last.close }
+            : null;
 
         const finish = () => {
           if (cancelled) return;
@@ -391,7 +406,7 @@ export function SimZoneCandlesChart({
       BULL_BAND_STYLE,
       BEAR_BAND_STYLE,
     );
-    applySimPriceLines(series, priceLinesRef, suggested, spot);
+    applySimPriceLines(series, priceLinesRef, suggested, spot, lastCandleRef.current);
     fitPriceScale();
     applyRightPadding(candlesRef.current.length);
   }, [suggested, spot, symbol, fitPriceScale]);

@@ -25,6 +25,7 @@ import {
   type ZoneCarouselItem,
 } from "@/components/simulator/AutoScrollZonesPanel";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
+import { SimZoneCandlesChart } from "@/components/simulator/SimZoneCandlesChart";
 
 const POWER_DOT: Record<CockpitCardStatus["power"], string> = {
   on: "bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.55)]",
@@ -231,13 +232,19 @@ export function HeatmapAssetCard({
                   Tap Refresh all to load zones
                 </p>
               </div>
+            ) : hideCarousel ? (
+              <SimZoneCandlesChart
+                botId={botId}
+                suggested={suggested}
+                spot={spot}
+              />
             ) : (
               <ZonePriceLadder
                 suggested={suggested}
                 spot={spot}
                 engineDirection={engineDirection}
                 compact
-                fillHeight={hideCarousel}
+                fillHeight={false}
               />
             )}
           </div>

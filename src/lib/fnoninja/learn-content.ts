@@ -18,9 +18,9 @@ export type LearnArticleMeta = {
 export const LEARN_ARTICLES: LearnArticleMeta[] = [
   {
     slug: "science",
-    title: "The science behind the zones",
+    title: "The Science Behind the Zones",
     excerpt:
-      "What put and call clusters, max pain, and expiry mean — in plain language, with a sample NIFTY chart you can cross-check on NSE.",
+      "What put and call clusters, max pain, and expiry really mean — explained in simple terms with a beginner-friendly NIFTY example you can check on NSE right now.",
     readMinutes: 8,
     tag: "Foundations",
     icon: BookOpen,

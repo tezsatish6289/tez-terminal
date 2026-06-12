@@ -3,9 +3,9 @@ import { ScienceLearnArticle } from "@/components/fnoninja/learn/FnoNinjaLearnAr
 import { FNONINJA_SITE_URL } from "@/lib/fnoninja/metadata";
 
 export const metadata: Metadata = {
-  title: "The science behind the zones",
+  title: "The Science Behind the Zones",
   description:
-    "Learn what put clusters, call clusters, max pain, and expiry mean on FNONINJA — with a sample NIFTY chart. Informational only.",
+    "Learn what put clusters, call clusters, max pain, and expiry mean on FNONINJA — beginner-friendly NIFTY example you can verify on NSE. Informational only.",
   alternates: { canonical: `${FNONINJA_SITE_URL}/learn/science` },
 };
 

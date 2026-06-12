@@ -23,12 +23,15 @@ const ZONE_DEPLOY_KEYS = ["BTC", "ETH", "SOL", "XRP"] as const;
 
 /**
  * Per-bot allowed values for `maxConcurrentTrades`.
- * Crypto Bot — 1, 2, 3, or 5 concurrent positions.
+ * Crypto Bot — 1, 2, 3, 4, or 5 concurrent positions. This pool is
+ *   shared by native pattern trades AND attached zone-bot mirrors
+ *   (each open trade = 1 slot), so 4 must be selectable to let a
+ *   subscriber hold all four attached zone bots at once.
  * Zone bots — 1 only (one position at a time in the simulator).
  */
 export function allowedMaxConcurrentForBot(bot: string): readonly number[] {
   const key = bot.toUpperCase();
-  if (key === "CRYPTO") return [1, 2, 3, 5];
+  if (key === "CRYPTO") return [1, 2, 3, 4, 5];
   if ((ZONE_DEPLOY_KEYS as readonly string[]).includes(key)) return [1];
   return MAX_CONCURRENT_OPTIONS;
 }

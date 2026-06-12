@@ -49,16 +49,24 @@ import {
 import { tradingPrefsFromSecret } from "./trading-prefs";
 import { getSecretDocIds, docMatchesExchange, type ExchangeName } from "@/lib/exchanges";
 
-/** Per-bot default for `maxConcurrentTrades`. Matches each bot's sim
- *  cap so a user on the platform default gets the same parallelism the
- *  bot actually has signals for. Crypto bot's pattern engine runs up to
- *  3 trades concurrently; each zone bot runs 1.
+/** Per-bot default for `maxConcurrentTrades` — used ONLY when a user
+ *  has no explicit setting on their `(user × bot × exchange)`
+ *  deployment / secrets doc.
  *
- *  Anything that isn't a recognised crypto deploy key falls through to
- *  the legacy platform default (1) — defensive; Indian/Gold/Silver bots
- *  aren't live today but if they ever ship they'll define their own
- *  default here. */
+ *  Crypto Bot's pool is shared by native pattern trades AND attached
+ *  zone-bot mirrors (each open trade counts as 1). With all four zone
+ *  bots attachable, a subscriber on the default must be able to hold
+ *  all four concurrently, so the Crypto default is 4 (matching the
+ *  Crypto Bot admin "max open trades"). The previous implementation
+ *  silently resolved to 1 here — that capped un-customised subscribers
+ *  at a single concurrent trade and is exactly why attached zone trades
+ *  beyond the first were dropped.
+ *
+ *  Each zone bot runs one position at a time → 1. Anything that isn't a
+ *  recognised crypto deploy key falls through to the platform default
+ *  (1) — defensive; Indian/Gold/Silver bots aren't live today. */
 export function defaultMaxConcurrentForBot(deployKey: string): number {
+  if (deployKey.toUpperCase() === "CRYPTO") return 4;
   return clampMaxConcurrentForBot(deployKey, DEFAULT_TRADING_PREFS.maxConcurrentTrades);
 }
 

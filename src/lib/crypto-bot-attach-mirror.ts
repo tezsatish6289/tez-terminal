@@ -329,9 +329,19 @@ export function mirrorSignalIdFor(parentSignalId: string): string {
 
 // ─── I/O helpers ────────────────────────────────────────────────────
 
-/** Count OPEN crypto-bot PATTERN trades — the pool the mirror counts
- *  against for `maxOpenTrades`. Mirrors also have botSource=PATTERN,
- *  so they count themselves correctly without special casing. */
+/** Count OPEN *native* crypto-bot PATTERN trades — i.e. the Crypto Bot
+ *  pattern engine's own positions, EXCLUDING attached zone mirrors
+ *  (which carry `attachedFrom`).
+ *
+ *  This is the value the sim-open gate (`CRYPTO_CAP_REACHED`) checks
+ *  against `maxOpenTrades`. Attached zone mirrors must NOT be counted
+ *  here: they are bounded upstream by each zone bot's own cap (1 per
+ *  asset), and counting them would let a full set of open zone mirrors
+ *  fill the Crypto pattern pool and block every subsequent zone mirror
+ *  from opening — which kills the live fan-out to ALL Crypto Bot
+ *  subscribers before it even runs. Per-subscriber concurrency is
+ *  enforced separately in `executeForAllUsers` (the shared Crypto pool,
+ *  where attached zones DO count as 1 each against the user's cap). */
 async function loadCryptoOpenPatternCount(
   db: Firestore,
 ): Promise<number> {
@@ -343,7 +353,10 @@ async function loadCryptoOpenPatternCount(
   let n = 0;
   for (const d of snap.docs) {
     const data = d.data() as Record<string, unknown>;
-    if (classifyBotSource(data.botSource as string | undefined) === BOT_SOURCE_PATTERN) {
+    if (
+      classifyBotSource(data.botSource as string | undefined) === BOT_SOURCE_PATTERN &&
+      !data.attachedFrom
+    ) {
       n++;
     }
   }

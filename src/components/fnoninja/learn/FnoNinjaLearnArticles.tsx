@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { FnoNinjaLearnScreenshot } from "@/components/fnoninja/learn/FnoNinjaLearnScreenshot";
 import { FnoNinjaLearnVerifyChecklist } from "@/components/fnoninja/learn/FnoNinjaLearnVerifyChecklist";
 import { FnoNinjaScienceConceptExplorer } from "@/components/fnoninja/learn/FnoNinjaScienceConceptExplorer";
 import {

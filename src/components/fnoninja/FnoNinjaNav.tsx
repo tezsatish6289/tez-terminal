@@ -10,8 +10,14 @@ import { FnoNinjaLogo } from "@/components/fnoninja/FnoNinjaLogo";
 import { useAuth, useUser } from "@/firebase";
 import { initiateSignOut } from "@/firebase/non-blocking-login";
 import { isFnoNinjaLevelsPath } from "@/lib/fnoninja/auth";
+import { FnoNinjaNavLearn } from "@/components/fnoninja/FnoNinjaNavLearn";
 import { FnoNinjaNavSearch } from "@/components/fnoninja/FnoNinjaNavSearch";
-import { fnoHomeHref, fnoMarketingHash, isFnoNinjaLandingPath } from "@/lib/fnoninja/paths";
+import {
+  fnoHomeHref,
+  fnoLearnHref,
+  fnoMarketingHash,
+  isFnoNinjaLandingPath,
+} from "@/lib/fnoninja/paths";
 import { FB_CONTENT_SHELL, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
 import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
@@ -88,6 +94,7 @@ export function FnoNinjaNav() {
           </div>
 
           <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+            <FnoNinjaNavLearn />
             {showNavSearch ? <FnoNinjaNavSearch /> : null}
             {!isLevelsApp && isFnoNinjaLandingPath(pathname) ? (
               <>
@@ -231,6 +238,14 @@ export function FnoNinjaNav() {
             </div>
 
             <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+              <Link
+                href={fnoLearnHref(pathname)}
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center px-4 py-3.5 rounded-xl text-base font-semibold transition-colors hover:text-white"
+                style={{ color: "#94a3b8" }}
+              >
+                Learn
+              </Link>
               {ANCHOR_LINKS.map((l) => (
                 <a
                   key={l.label}

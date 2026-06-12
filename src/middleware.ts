@@ -80,6 +80,8 @@ export function middleware(request: NextRequest) {
       pathname === "/contact" ||
       pathname === "/privacy" ||
       pathname === "/terms" ||
+      pathname === "/learn" ||
+      pathname.startsWith("/learn/") ||
       pathname === "/levels" ||
       pathname.startsWith("/levels/")
     ) {

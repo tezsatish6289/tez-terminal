@@ -1,3 +1,5 @@
+import type { LearnArticleSlug } from "@/lib/fnoninja/learn-content";
+
 /** Marketing home — no global symbol search in nav. */
 export function isFnoNinjaLandingPath(pathname: string): boolean {
   return pathname === "/" || pathname === "/fnoninja";
@@ -39,4 +41,17 @@ export function fnoLevelsHrefForHost(hostname: string): string {
   const h = hostname.toLowerCase();
   if (h === "fnoninja.com" || h === "www.fnoninja.com") return "/levels";
   return "/fnoninja/levels";
+}
+
+/** Learn hub and article paths — fnoninja.com uses /learn; dev uses /fnoninja/learn. */
+export function fnoLearnHref(pathname: string, slug?: LearnArticleSlug): string {
+  let base = "/learn";
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname.toLowerCase();
+    if (h === "fnoninja.com" || h === "www.fnoninja.com") base = "/learn";
+    else if (pathname.startsWith("/fnoninja")) base = "/fnoninja/learn";
+  } else if (pathname.startsWith("/fnoninja")) {
+    base = "/fnoninja/learn";
+  }
+  return slug ? `${base}/${slug}` : base;
 }

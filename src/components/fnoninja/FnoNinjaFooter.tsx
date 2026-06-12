@@ -32,6 +32,7 @@ export function FnoNinjaFooter() {
             <div className="flex flex-col gap-3">
               {[
                 { label: "Analytics dashboard", href: "/levels" },
+                { label: "Learn", href: "/learn" },
                 { label: "How it works", href: "/#how-it-works" },
                 { label: "Features", href: "/#features" },
                 { label: "Disclaimer", href: "/#disclaimer" },

@@ -146,6 +146,7 @@ export function SimZoneCandlesChart({
       candlesRef.current,
       suggestedRef.current,
       spotRef.current,
+      DEFAULT_VISIBLE_BARS,
     );
     if (!range) return;
     series.priceScale().setAutoScale(false);
@@ -205,6 +206,7 @@ export function SimZoneCandlesChart({
           candlesRef.current,
           suggestedRef.current,
           spotRef.current,
+          DEFAULT_VISIBLE_BARS,
         );
         return range ? { priceRange: range } : null;
       },

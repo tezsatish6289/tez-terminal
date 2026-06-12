@@ -65,25 +65,74 @@ export function resolveMaxPainEntry(
   return { maxPain: hit.maxPain, dayIndex };
 }
 
+/** Same edge pad as the CSS ZonePriceLadder — keeps zones readable without 7d outliers. */
+const STRUCTURE_EDGE_PAD = 0.06;
+
+function candleOnlyPriceRange(
+  candles: CandlestickData[],
+  padRatio = 0.04,
+): { minValue: number; maxValue: number; from: number; to: number } | null {
+  if (candles.length === 0) return null;
+  const prices: number[] = [];
+  for (const c of candles) prices.push(c.high, c.low);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const pad = Math.max((max - min) * padRatio, max > 100 ? 1 : 0.01);
+  return { minValue: min - pad, maxValue: max + pad, from: min - pad, to: max + pad };
+}
+
+/**
+ * Y-axis fit anchored on zone structure (SL + bands + spot + max pain), not the
+ * full 7-day candle extremes. Matches the old ladder's uniform scale so a
+ * distant weekly wick doesn't squash the active corridor.
+ */
 export function mergedSimPriceRange(
   candles: CandlestickData[],
   suggested: SuggestedZonesSnapshot | null | undefined,
   spot: number | null | undefined,
-  padRatio = 0.06,
+  visibleBarCount = 125,
 ): { minValue: number; maxValue: number; from: number; to: number } | null {
-  const prices: number[] = [];
-  for (const c of candles) {
-    prices.push(c.high, c.low);
+  if (!suggested) return candleOnlyPriceRange(candles);
+
+  const anchors = simZoneSlAnchors(suggested);
+  const overlayPrices = collectOverlayPrices(suggested, anchors, spot);
+  if (overlayPrices.length < 2) return candleOnlyPriceRange(candles);
+
+  const structureMin =
+    anchors.bullSl ??
+    suggested.bullZoneLow ??
+    Math.min(...overlayPrices);
+  const structureMax =
+    anchors.bearSl ??
+    suggested.bearZoneHigh ??
+    Math.max(...overlayPrices);
+  const structureSpan = Math.max(
+    structureMax - structureMin,
+    structureMin > 0 ? structureMin * 0.0005 : 0.01,
+  );
+
+  let renderMin = structureMin - structureSpan * STRUCTURE_EDGE_PAD;
+  let renderMax = structureMax + structureSpan * STRUCTURE_EDGE_PAD;
+
+  if (spot != null && Number.isFinite(spot)) {
+    const spotPad = structureSpan * 0.035;
+    if (spot < renderMin) renderMin = spot - spotPad;
+    if (spot > renderMax) renderMax = spot + spotPad;
   }
-  if (suggested) {
-    prices.push(...collectOverlayPrices(suggested, simZoneSlAnchors(suggested), spot));
+
+  // Only fold visible-window candles that sit near the structure corridor.
+  const clipLo = structureMin - structureSpan * 0.12;
+  const clipHi = structureMax + structureSpan * 0.12;
+  const window = candles.slice(-Math.max(visibleBarCount, 1));
+  for (const c of window) {
+    if (c.high < clipLo || c.low > clipHi) continue;
+    renderMin = Math.min(renderMin, c.low);
+    renderMax = Math.max(renderMax, c.high);
   }
-  if (prices.length === 0) return null;
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
-  const pad = Math.max((max - min) * padRatio, max > 100 ? 1 : 0.01);
-  const from = min - pad;
-  const to = max + pad;
+
+  const pad = Math.max(structureSpan * 0.02, structureMax > 100 ? 0.5 : 0.005);
+  const from = renderMin - pad;
+  const to = renderMax + pad;
   return { minValue: from, maxValue: to, from, to };
 }
 

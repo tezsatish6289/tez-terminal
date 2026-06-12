@@ -43,9 +43,8 @@ const BOT_SYMBOL: Record<CockpitBotId, string> = {
 
 const POLL_MS = 60_000;
 const INTERVAL = "15";
-const RIGHT_OFFSET_BARS = 40;
-const RIGHT_OFFSET_FULL_MIN = 56;
-const RIGHT_OFFSET_FULL_MAX = 110;
+/** Empty bars between the last candle and the right price-scale labels. */
+const RIGHT_OFFSET_CANDLES = 15;
 const RIGHT_PRICE_SCALE_MIN_WIDTH = 108;
 /** Default LWC margins are top 0.2 / bottom 0.1 — far too much for zone charts. */
 const TIGHT_SCALE_MARGINS = { top: 0.03, bottom: 0.03 };
@@ -110,35 +109,29 @@ export function SimZoneCandlesChart({
   suggestedRef.current = suggested;
   spotRef.current = spot;
 
-  function rightOffsetBars(barCount: number): number {
-    if (!fullHistoryZoomRef.current) return RIGHT_OFFSET_BARS;
-    const scaled = Math.round(barCount * 0.12);
-    return Math.min(RIGHT_OFFSET_FULL_MAX, Math.max(RIGHT_OFFSET_FULL_MIN, scaled));
-  }
-
-  function applyRightPadding(barCount = candlesRef.current.length) {
-    const offset = rightOffsetBars(barCount);
+  function applyRightPadding() {
     const ts = chartRef.current?.timeScale();
     if (!ts) return;
-    ts.applyOptions({ rightOffset: offset });
+    ts.applyOptions({ rightOffset: RIGHT_OFFSET_CANDLES });
     chartRef.current?.priceScale("right").applyOptions({
       minimumWidth: RIGHT_PRICE_SCALE_MIN_WIDTH,
     });
     requestAnimationFrame(() => {
-      chartRef.current?.timeScale().applyOptions({ rightOffset: offset });
+      chartRef.current?.timeScale().applyOptions({ rightOffset: RIGHT_OFFSET_CANDLES });
       chartRef.current?.priceScale("right").applyOptions({
         minimumWidth: RIGHT_PRICE_SCALE_MIN_WIDTH,
       });
-      chartRef.current?.timeScale().scrollToRealTime();
+      if (!fullHistoryZoomRef.current) {
+        chartRef.current?.timeScale().scrollToRealTime();
+      }
     });
   }
 
   function applyFullHistoryZoom(barCount: number) {
     const ts = chartRef.current?.timeScale();
     if (!ts || barCount < 2) return;
-    const offset = rightOffsetBars(barCount);
-    ts.setVisibleLogicalRange({ from: 0, to: barCount - 1 + offset });
-    ts.applyOptions({ rightOffset: offset });
+    ts.applyOptions({ rightOffset: RIGHT_OFFSET_CANDLES });
+    ts.setVisibleLogicalRange({ from: 0, to: barCount - 1 });
     fullHistoryZoomRef.current = true;
   }
 
@@ -182,7 +175,7 @@ export function SimZoneCandlesChart({
         borderColor: "rgba(255,255,255,0.08)",
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: RIGHT_OFFSET_BARS,
+        rightOffset: RIGHT_OFFSET_CANDLES,
         fixRightEdge: false,
         minimumHeight: 28,
         ticksVisible: true,
@@ -262,10 +255,10 @@ export function SimZoneCandlesChart({
       lastCandleRef.current,
     );
     fitPriceScale();
-    if (!isPoll) {
+    if (!isPoll || fullHistoryZoomRef.current) {
       applyFullHistoryZoom(data.length);
     } else {
-      applyRightPadding(data.length);
+      applyRightPadding();
     }
     hasDisplayedCandlesRef.current = true;
     loadedForSymbolRef.current = symbol;
@@ -418,8 +411,35 @@ export function SimZoneCandlesChart({
     );
     applySimPriceLines(series, priceLinesRef, suggested, spot, lastCandleRef.current);
     fitPriceScale();
-    applyRightPadding(candlesRef.current.length);
+    applyRightPadding();
   }, [suggested, spot, symbol, fitPriceScale]);
+
+  useEffect(() => {
+    const tvUrl = (() => {
+      const u = new URL("https://www.tradingview.com/chart/");
+      u.searchParams.set("symbol", `BYBIT:${symbol}.P`);
+      u.searchParams.set("interval", INTERVAL);
+      return u.toString();
+    })();
+
+    function isTypingTarget(target: EventTarget | null): boolean {
+      const el = target as HTMLElement | null;
+      if (!el?.tagName) return false;
+      const tag = el.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable;
+    }
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (isTypingTarget(e.target)) return;
+      if (e.key === "t" || e.key === "T") {
+        e.preventDefault();
+        window.open(tvUrl, "_blank", "noopener,noreferrer");
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [symbol]);
 
   const showChartOverlay = bootLoading || swapping;
   const chartReady = !showChartOverlay && !error;

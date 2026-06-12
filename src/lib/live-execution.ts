@@ -1,5 +1,5 @@
 import { FieldValue } from "firebase-admin/firestore";
-import { executeTrade as executeExchangeTrade, type Credentials } from "./trade-engine";
+import { executeTrade as executeExchangeTrade, adoptOrphanedPosition, type Credentials } from "./trade-engine";
 import { decrypt, encrypt } from "./crypto";
 import {
   type ExchangeName,
@@ -644,19 +644,49 @@ export async function executeForAllUsers(
         const alreadyOpen = existingPos && Math.abs(parseFloat(String(existingPos.positionAmt ?? 0))) > 0;
 
         if (alreadyOpen) {
-          // First attempt placed the order but we lost the response — record
-          // and stop. The position is tracked by the exchange; the Firestore
-          // write below will still be skipped (liveResult.success is false).
-          await db.collection("live_trade_logs").add({
-            timestamp: new Date().toISOString(),
-            action: "TRADE_ALREADY_OPEN",
-            details: `${symbol} ${signalType} — execution reported failure but position exists on ${task.exchange}; skipping retry to avoid double-open. Manual review needed.`,
-            signalId,
-            symbol,
-            userId: task.userId,
-            exchange: task.exchange,
-            assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
-          }).catch(() => {});
+          // Lost the entry ack: the order filled but execution threw before
+          // placing exits, so the venue holds a position with NO stop and NO
+          // Firestore record. Adopt it — place protective SL/TP1 on the real
+          // position and persist a tracked record below. If we can't protect
+          // it, emergency-close rather than leave a naked position.
+          const adopted = await adoptOrphanedPosition(
+            task.effectiveSimTrade,
+            task.userId,
+            simTradeId,
+            task.creds,
+            task.exchange,
+            simConfig,
+            botSource,
+          );
+          if (adopted.success && adopted.trade) {
+            liveResult = adopted;
+            await db.collection("live_trade_logs").add({
+              timestamp: new Date().toISOString(),
+              action: "TRADE_ADOPTED_AFTER_LOST_ACK",
+              details: `${symbol} ${signalType} — lost entry ack on ${task.exchange}; adopted open position and placed protective exits.${adopted.warnings.length ? ` ⚠ ${adopted.warnings.join("; ")}` : ""}`,
+              signalId,
+              symbol,
+              userId: task.userId,
+              exchange: task.exchange,
+              assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
+            }).catch(() => {});
+          } else {
+            const orphanQty = Math.abs(parseFloat(String(existingPos?.positionAmt ?? 0)));
+            try { await connector.cancelAllOrders(exchangeSymbol, task.creds as ExchangeCredentials); } catch {}
+            try { await connector.placeMarketClose(exchangeSymbol, task.effectiveSimTrade.side, orphanQty, task.creds as ExchangeCredentials); } catch {}
+            await db.collection("live_trade_logs").add({
+              timestamp: new Date().toISOString(),
+              action: "LIVE_ORPHAN_CLOSED",
+              details: `${symbol} ${signalType} — lost entry ack on ${task.exchange} and could not place protective exits (${adopted.error ?? "unknown"}); emergency-closed to avoid a naked position. Manual review recommended.`,
+              signalId,
+              symbol,
+              userId: task.userId,
+              exchange: task.exchange,
+              assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
+            }).catch(() => {});
+            await finalizeDispatch("FAILED", "ORPHAN_CLOSED_NO_PROTECTION", null);
+            return { success: false, error: "orphaned position closed (could not place protective exits)", warnings: adopted.warnings };
+          }
         } else {
           // No position on exchange — safe to retry once
           await new Promise((r) => setTimeout(r, 1000));
@@ -790,17 +820,25 @@ export async function executeForAllUsers(
         });
         await finalizeDispatch("EXECUTED", null, liveTradeRef.id);
       } else {
+        // Funding shortfalls get a distinct, terminal reason so the trade is
+        // visible in review (the retry sweeper ignores NEEDS_FUNDING) instead
+        // of being lumped in with transient execution failures it would retry.
+        const needsFunding = liveResult.reason === "NEEDS_FUNDING";
         await db.collection("live_trade_logs").add({
           timestamp: new Date().toISOString(),
-          action: "TRADE_FAILED",
-          details: `${symbol} ${signalType} ${task.exchange} execution failed for user ${task.userId}: ${liveResult.error}`,
+          action: needsFunding ? "TRADE_SKIPPED_NEEDS_FUNDING" : "TRADE_FAILED",
+          details: `${symbol} ${signalType} ${task.exchange} ${needsFunding ? "skipped — insufficient funds" : "execution failed"} for user ${task.userId}: ${liveResult.error}`,
           signalId,
           symbol,
           userId: task.userId,
           exchange: task.exchange,
           assetType: isStock ? "INDIAN_STOCKS" : "CRYPTO",
         });
-        await finalizeDispatch("FAILED", liveResult.error ?? "execute_failed", null);
+        await finalizeDispatch(
+          "FAILED",
+          needsFunding ? `NEEDS_FUNDING: ${liveResult.error ?? ""}`.trim() : (liveResult.error ?? "execute_failed"),
+          null,
+        );
       }
 
       return liveResult;

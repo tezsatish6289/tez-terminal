@@ -126,6 +126,11 @@ export interface TradeExecutionResult {
   success: boolean;
   trade?: LiveTrade;
   error?: string;
+  /** Optional structured reason code for a failure. When set to
+   *  "NEEDS_FUNDING" the caller finalizes the dispatch as a terminal
+   *  funding skip (the retry sweeper ignores it) and surfaces it distinctly
+   *  so a thinly-funded subscriber's dropped trades don't vanish silently. */
+  reason?: string;
   warnings: string[];
 }
 
@@ -253,6 +258,150 @@ export async function cancelResidualExitOrders(
   return result;
 }
 
+// ── Shared: place protective exits + assemble LiveTrade ─────────
+
+/**
+ * Place protective exit orders (SL + TP1) for an ALREADY-FILLED entry and
+ * assemble the resulting LiveTrade record. Shared by the normal entry path
+ * (`executeTrade`) and the lost-ack recovery path (`adoptOrphanedPosition`)
+ * so both protect the position identically.
+ *
+ * SL is mandatory: if it can't be placed the position is emergency-closed and
+ * we return failure (a position with no stop is the one outcome we never
+ * accept). TP1 is best-effort with one retry; a missing TP1 only means the
+ * trade relies on the cron price-poll to take profit.
+ */
+async function buildLiveTradeWithExits(args: {
+  connector: ExchangeConnector;
+  exchange: ExchangeName;
+  exchangeSymbol: string;
+  info: SymbolInfo;
+  simTrade: SimTrade;
+  userId: string;
+  simTradeId: string;
+  entryOrderId: string;
+  fillPrice: number;
+  fillQty: number;
+  leverage: number;
+  exchangeCapital: number;
+  creds: Credentials;
+  cfg: SimConfigType;
+  botSource: string;
+  warnings: string[];
+}): Promise<TradeExecutionResult> {
+  const {
+    connector, exchange, exchangeSymbol, info, simTrade, userId, simTradeId,
+    entryOrderId, fillPrice, fillQty, leverage, exchangeCapital, creds, cfg,
+    botSource, warnings,
+  } = args;
+
+  // SL + TP1 only; remaining qty is managed by the trailing SL in the cron.
+  const exitResults = await placeExitOrders(
+    connector,
+    exchangeSymbol,
+    simTrade.side,
+    fillQty,
+    simTrade.stopLoss,
+    simTrade.tp1,
+    cfg.TP1_CLOSE_PCT,
+    info,
+    creds,
+  );
+
+  // If SL placement failed, emergency close.
+  if (!exitResults.slOrder.success) {
+    warnings.push(`SL order failed: ${exitResults.slOrder.error}. Emergency closing position.`);
+    try {
+      await connector.placeMarketClose(exchangeSymbol, simTrade.side, fillQty, creds);
+    } catch {
+      // worst case — will be caught by reconciliation
+    }
+    return { success: false, error: `SL placement failed after entry. Position emergency closed. ${exitResults.slOrder.error}`, warnings };
+  }
+
+  // TP1 is best-effort: retry once before giving up so we don't silently
+  // leave the trade without a resting take-profit order.
+  if (!exitResults.tp1Order.success) {
+    const firstErr = exitResults.tp1Order.error;
+    const exitSide = simTrade.side === "BUY" ? "SELL" : "BUY";
+    const tp1Qty = floorToStep(fillQty * cfg.TP1_CLOSE_PCT, info.stepSize);
+    if (tp1Qty > 0) {
+      try {
+        const retry = await connector.placeTakeProfitMarket(exchangeSymbol, exitSide, simTrade.tp1, tp1Qty, creds, info.tickSize);
+        exitResults.tp1Order = { success: true, order: retry };
+        warnings.push(`TP1 order placed on retry (first attempt failed: ${firstErr}).`);
+      } catch (e) {
+        warnings.push(`TP1 order failed after retry: ${e instanceof Error ? e.message : String(e)}. Trade relies on price-poll TP.`);
+      }
+    }
+  }
+
+  const entryFee = fillPrice * fillQty * SIM_CONFIG.EXCHANGE_FEE;
+
+  const liveTrade: LiveTrade = {
+    userId,
+    signalId: simTrade.signalId,
+    simTradeId,
+    exchange,
+    symbol: exchangeSymbol,
+    signalSymbol: simTrade.symbol,
+    side: simTrade.side,
+    leverage,
+    entryOrderId,
+    entryPrice: fillPrice,
+    quantity: fillQty,
+    positionSize: fillPrice * fillQty,
+    remainingQty: fillQty,
+    stopLoss: simTrade.stopLoss,
+    trailingSl: null,
+    tp1: simTrade.tp1,
+    tp2: simTrade.tp2,
+    tp3: simTrade.tp3,
+    slOrderId: exitResults.slOrder.order?.orderId ?? null,
+    tp1OrderId: exitResults.tp1Order.order?.orderId ?? null,
+    tp2OrderId: null,
+    tp3OrderId: null,
+    tp1Hit: false,
+    tp2Hit: false,
+    tp3Hit: false,
+    slHit: false,
+    currentPrice: fillPrice,
+    unrealizedPnl: 0,
+    status: "OPEN",
+    realizedPnl: 0,
+    fees: entryFee,
+    closeReason: null,
+    exchangeRealizedPnl: null,
+    exchangeAvgEntryPrice: null,
+    exchangeAvgExitPrice: null,
+    exchangeQty: null,
+    events: [
+      {
+        type: "OPEN",
+        price: fillPrice,
+        pnl: 0,
+        fee: entryFee,
+        closePct: 0,
+        quantity: fillQty,
+        orderId: entryOrderId,
+        timestamp: new Date().toISOString(),
+      },
+    ],
+    openedAt: new Date().toISOString(),
+    closedAt: null,
+    confidenceScore: simTrade.confidenceScore,
+    scorePattern: simTrade.scorePattern,
+    biasAtEntry: simTrade.biasAtEntry,
+    capitalAtEntry: exchangeCapital,
+    timeframe: simTrade.timeframe,
+    algo: simTrade.algo,
+    testnet: creds.testnet === true,
+    botSource,
+  };
+
+  return { success: true, trade: liveTrade, warnings };
+}
+
 // ── Core: Execute Trade ────────────────────────────────────────
 
 /**
@@ -316,7 +465,12 @@ export async function executeTrade(
     }
     await connector.setLeverage(exchangeSymbol, leverage, creds);
 
-    // 4. Calculate position size from real exchange balance
+    // 4. Calculate position size from real exchange balance — RISK-BASED.
+    //    The position is sized so that hitting the stop loses ~`riskPct` of
+    //    capital, where `riskPct` is the user's per-(user × bot × exchange)
+    //    risk-per-trade setting (or the platform default). Each trade gets the
+    //    user's FULL risk-per-trade — it is NOT divided across concurrent
+    //    slots. The margin figure below is only a safety ceiling.
     const cfg = simConfig ?? SIM_CONFIG;
     const riskPct =
       creds.riskPerTradePct != null && Number.isFinite(creds.riskPerTradePct)
@@ -329,6 +483,10 @@ export async function executeTrade(
     const riskAmount = capitalForRisk * riskPct;
     const slDistance = Math.abs(simTrade.entryPrice - simTrade.stopLoss) / simTrade.entryPrice;
     let notionalSize = slDistance > 0 ? (riskAmount / slDistance) : riskAmount * leverage;
+
+    // Ceiling only: never deploy more notional than the available margin
+    // supports. This bites only in pathological cases (very tight SL, low
+    // leverage); normal risk-based sizes are well under it.
     const maxNotionalFromMargin = balance.available * leverage * 0.95;
     if (maxNotionalFromMargin > 0 && notionalSize > maxNotionalFromMargin) {
       notionalSize = maxNotionalFromMargin;
@@ -336,7 +494,26 @@ export async function executeTrade(
         `Position capped to ~$${maxNotionalFromMargin.toFixed(0)} notional (${balance.available.toFixed(2)} ${exchange === "HYPERLIQUID" ? "USDC" : "USDT"} available × ${leverage}x).`,
       );
     }
-    const rawQty = notionalSize / simTrade.entryPrice;
+
+    let rawQty = notionalSize / simTrade.entryPrice;
+
+    // Min-notional rescue: a risk-based size can land just under the venue's
+    // min notional (small capital, tiny risk %, high min notional, etc.).
+    // Rather than silently dropping the trade, lift it to the smallest
+    // step-multiple that clears the floor — provided that bumped size still
+    // fits the margin actually available. This does not change risk-per-trade
+    // semantics; it only makes an otherwise-untradeable size tradeable.
+    if (simTrade.entryPrice * floorToStep(rawQty, info.stepSize) < info.minNotional) {
+      const minQty =
+        Math.ceil((info.minNotional / simTrade.entryPrice) / info.stepSize) * info.stepSize;
+      const bumpedMargin = (minQty * simTrade.entryPrice) / leverage;
+      if (minQty <= info.maxQty && balance.available >= bumpedMargin * 1.05) {
+        rawQty = minQty;
+        warnings.push(
+          `Size lifted to venue min notional ($${info.minNotional}); risk-based size was below the floor.`,
+        );
+      }
+    }
 
     const qtyResult = adjustQuantity(rawQty, info);
     if ("error" in qtyResult) {
@@ -345,19 +522,62 @@ export async function executeTrade(
     const { quantity } = qtyResult;
 
     if (!checkNotional(simTrade.entryPrice, quantity, info)) {
-      return { success: false, error: `Below minimum notional: $${(simTrade.entryPrice * quantity).toFixed(2)} < $${info.minNotional} (balance: $${exchangeCapital.toFixed(2)})`, warnings };
+      // Can't meet the venue floor with the margin available — surface as a
+      // terminal funding skip (the retry sweeper ignores NEEDS_FUNDING) so a
+      // thinly-funded subscriber's dropped trade is visible rather than silent.
+      return {
+        success: false,
+        error: `Below minimum notional: $${(simTrade.entryPrice * quantity).toFixed(2)} < $${info.minNotional} — insufficient funds (balance: $${exchangeCapital.toFixed(2)}).`,
+        reason: "NEEDS_FUNDING",
+        warnings,
+      };
     }
 
     // 5. Verify sufficient available margin
     const marginRequired = (quantity * simTrade.entryPrice) / leverage;
     if (balance.available < marginRequired * 1.05) {
-      return { success: false, error: `Insufficient margin: need ~$${marginRequired.toFixed(2)}, have $${balance.available.toFixed(2)} available`, warnings };
+      return {
+        success: false,
+        error: `Insufficient margin: need ~$${marginRequired.toFixed(2)}, have $${balance.available.toFixed(2)} available`,
+        reason: "NEEDS_FUNDING",
+        warnings,
+      };
     }
 
     // 6. Place market entry
     const entryOrder = await connector.placeMarketOrder(exchangeSymbol, simTrade.side, quantity, creds);
-    const fillPrice = parseFloat(entryOrder.avgPrice || entryOrder.price);
-    const fillQty = parseFloat(entryOrder.executedQty);
+    let fillPrice = parseFloat(entryOrder.avgPrice || entryOrder.price);
+    let fillQty = parseFloat(entryOrder.executedQty);
+
+    // Some venues populate avgPrice/executedQty only after the market order
+    // settles. NEVER trust a missing / zero / NaN ack — recover the real fill
+    // from the open position, and if no position can be confirmed, close
+    // anything that may have opened rather than writing a corrupt trade
+    // (a LiveTrade with entryPrice=0/NaN breaks all downstream PnL and
+    // trailing-SL math).
+    if (
+      !Number.isFinite(fillPrice) || fillPrice <= 0 ||
+      !Number.isFinite(fillQty) || fillQty <= 0
+    ) {
+      const pos = await connector.getPosition(exchangeSymbol, creds).catch(() => null);
+      const posQty = pos ? Math.abs(parseFloat(pos.positionAmt)) : 0;
+      const posEntry = pos ? parseFloat(pos.entryPrice) : NaN;
+      if (posQty > 0 && Number.isFinite(posEntry) && posEntry > 0) {
+        if (!Number.isFinite(fillPrice) || fillPrice <= 0) fillPrice = posEntry;
+        if (!Number.isFinite(fillQty) || fillQty <= 0) fillQty = posQty;
+        warnings.push(
+          `Entry fill recovered from open position (price=${fillPrice}, qty=${fillQty}); order ack was incomplete.`,
+        );
+      } else {
+        try { await connector.placeMarketClose(exchangeSymbol, simTrade.side, posQty > 0 ? posQty : quantity, creds); } catch {}
+        try { await connector.cancelAllOrders(exchangeSymbol, creds); } catch {}
+        return {
+          success: false,
+          error: `Entry fill unconfirmed (avgPrice/executedQty missing or zero) and no position to recover — aborted to avoid a corrupt trade.`,
+          warnings,
+        };
+      }
+    }
 
     // Check slippage
     const slippage = Math.abs(fillPrice - simTrade.entryPrice) / simTrade.entryPrice;
@@ -365,102 +585,95 @@ export async function executeTrade(
       warnings.push(`Entry slippage: ${(slippage * 100).toFixed(2)}% (expected ${simTrade.entryPrice}, got ${fillPrice})`);
     }
 
-    // 7. Place exit orders (SL + TP1 only; remaining qty managed by trailing SL)
-    const exitResults = await placeExitOrders(
+    // 7. Place protective exits + assemble the LiveTrade.
+    return await buildLiveTradeWithExits({
       connector,
-      exchangeSymbol,
-      simTrade.side,
-      fillQty,
-      simTrade.stopLoss,
-      simTrade.tp1,
-      cfg.TP1_CLOSE_PCT,
-      info,
-      creds
-    );
-
-    // If SL placement failed, emergency close
-    if (!exitResults.slOrder.success) {
-      warnings.push(`SL order failed: ${exitResults.slOrder.error}. Emergency closing position.`);
-      try {
-        await connector.placeMarketClose(exchangeSymbol, simTrade.side, fillQty, creds);
-      } catch {
-        // worst case — will be caught by reconciliation
-      }
-      return { success: false, error: `SL placement failed after entry. Position emergency closed. ${exitResults.slOrder.error}`, warnings };
-    }
-
-    if (!exitResults.tp1Order.success) warnings.push(`TP1 order failed: ${exitResults.tp1Order.error}`);
-
-    const entryFee = fillPrice * fillQty * SIM_CONFIG.EXCHANGE_FEE;
-
-    const liveTrade: LiveTrade = {
-      userId,
-      signalId: simTrade.signalId,
-      simTradeId,
       exchange,
-      symbol: exchangeSymbol,
-      signalSymbol: simTrade.symbol,
-      side: simTrade.side,
-      leverage,
+      exchangeSymbol,
+      info,
+      simTrade,
+      userId,
+      simTradeId,
       entryOrderId: entryOrder.orderId,
-      entryPrice: fillPrice,
-      quantity: fillQty,
-      positionSize: fillPrice * fillQty,
-      remainingQty: fillQty,
-      stopLoss: simTrade.stopLoss,
-      trailingSl: null,
-      tp1: simTrade.tp1,
-      tp2: simTrade.tp2,
-      tp3: simTrade.tp3,
-      slOrderId: exitResults.slOrder.order?.orderId ?? null,
-      tp1OrderId: exitResults.tp1Order.order?.orderId ?? null,
-      tp2OrderId: null,
-      tp3OrderId: null,
-      tp1Hit: false,
-      tp2Hit: false,
-      tp3Hit: false,
-      slHit: false,
-      currentPrice: fillPrice,
-      unrealizedPnl: 0,
-      status: "OPEN",
-      realizedPnl: 0,
-      fees: entryFee,
-      closeReason: null,
-      exchangeRealizedPnl: null,
-      exchangeAvgEntryPrice: null,
-      exchangeAvgExitPrice: null,
-      exchangeQty: null,
-      events: [
-        {
-          type: "OPEN",
-          price: fillPrice,
-          pnl: 0,
-          fee: entryFee,
-          closePct: 0,
-          quantity: fillQty,
-          orderId: entryOrder.orderId,
-          timestamp: new Date().toISOString(),
-        },
-      ],
-      openedAt: new Date().toISOString(),
-      closedAt: null,
-      confidenceScore: simTrade.confidenceScore,
-      scorePattern: simTrade.scorePattern,
-      biasAtEntry: simTrade.biasAtEntry,
-      capitalAtEntry: exchangeCapital,
-      timeframe: simTrade.timeframe,
-      algo: simTrade.algo,
-      testnet: creds.testnet === true,
+      fillPrice,
+      fillQty,
+      leverage,
+      exchangeCapital,
+      creds,
+      cfg,
       botSource,
-    };
-
-    return { success: true, trade: liveTrade, warnings };
+      warnings,
+    });
   } catch (e) {
     return {
       success: false,
       error: e instanceof Error ? e.message : String(e),
       warnings,
     };
+  }
+}
+
+// ── Lost-ack recovery ──────────────────────────────────────────
+
+/**
+ * Recover a position the exchange shows as OPEN but which we never recorded —
+ * the classic "lost entry ack": `placeMarketOrder` filled, then the response
+ * was lost so `executeTrade` threw BEFORE placing exits. The position is then
+ * live with NO protective stop and NO Firestore record.
+ *
+ * This reads the real fill (qty + entry) from the venue and places SL/TP1 and
+ * assembles the LiveTrade so the caller can persist and manage it. Returns
+ * failure if there is no recoverable position or the protective SL can't be
+ * placed — in which case the caller should emergency-close the orphan.
+ */
+export async function adoptOrphanedPosition(
+  simTrade: SimTrade,
+  userId: string,
+  simTradeId: string,
+  creds: Credentials,
+  exchange: ExchangeName,
+  simConfig?: SimConfigType,
+  botSource: string = "PATTERN",
+): Promise<TradeExecutionResult> {
+  const warnings: string[] = [];
+  const connector = getConnector(exchange);
+  const exchangeSymbol = connector.normalizeSymbol(simTrade.symbol);
+  try {
+    const info = await connector.getSymbolInfo(exchangeSymbol, creds.testnet);
+    const pos = await connector.getPosition(exchangeSymbol, creds).catch(() => null);
+    const posQty = pos ? Math.abs(parseFloat(pos.positionAmt)) : 0;
+    const posEntry = pos ? parseFloat(pos.entryPrice) : NaN;
+    if (!(posQty > 0) || !Number.isFinite(posEntry) || posEntry <= 0) {
+      return { success: false, error: "adopt: no recoverable position on exchange", warnings };
+    }
+
+    const balance = await connector.getUsdtBalance(creds).catch(() => null);
+    const exchangeCapital = balance && balance.total > 0 ? balance.total : posEntry * posQty;
+    const leverage = Math.min(simTrade.leverage, info.maxLeverage);
+    warnings.push(
+      `Adopted orphaned ${exchange} position after lost entry ack (qty=${posQty} @ ${posEntry}); placing protective exits.`,
+    );
+
+    return await buildLiveTradeWithExits({
+      connector,
+      exchange,
+      exchangeSymbol,
+      info,
+      simTrade,
+      userId,
+      simTradeId,
+      entryOrderId: "RECOVERED",
+      fillPrice: posEntry,
+      fillQty: posQty,
+      leverage,
+      exchangeCapital,
+      creds,
+      cfg: simConfig ?? SIM_CONFIG,
+      botSource,
+      warnings,
+    });
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e), warnings };
   }
 }
 

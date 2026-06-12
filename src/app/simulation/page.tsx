@@ -72,7 +72,6 @@ import {
   useOpenTradesMirrors,
 } from "@/components/simulator/OpenTradesLiveMirrors";
 import { TabErrorBoundary } from "@/components/error/TabErrorBoundary";
-import { SimulatorToolbar } from "@/components/simulator/SimulatorToolbar";
 import { SimulatorMainPanel } from "@/components/simulator/SimulatorMainPanel";
 import { OpenPositionsPanel } from "@/components/simulator/OpenPositionsPanel";
 import { SimForceCloseDialog } from "@/components/simulator/SimForceCloseDialog";
@@ -585,13 +584,6 @@ export default function SimulationPage() {
           <div className="w-full mx-auto flex flex-col flex-1 min-h-0 gap-1.5 sm:gap-2">
             <CronHealthBanner variant="compact" />
 
-            <SimulatorToolbar
-              simState={simState}
-              lastRefreshedLabel={lastRefreshedLabel}
-              onRefresh={refresh}
-              paramsControl={<SimulatorParamsDialog />}
-            />
-
             <BotCockpit
               openTrades={openTradesAll}
               closedTrades={allClosedTrades}
@@ -599,6 +591,10 @@ export default function SimulationPage() {
               cs={cs}
               selectedBotId={selectedBotId}
               onSelectBot={setSelectedBotId}
+              simState={simState}
+              lastRefreshedLabel={lastRefreshedLabel}
+              onGlobalRefresh={refresh}
+              paramsControl={<SimulatorParamsDialog variant="strip" />}
               slideshow={
                 slideshowEnabled
                   ? {
@@ -646,6 +642,8 @@ export default function SimulationPage() {
                 openCount={displayedOpenTrades.length}
                 closedCount={filteredClosedTrades.length}
                 logsCount={logs.length}
+                showAllBots={showAllBots}
+                onShowAllBotsChange={handleShowAllBotsChange}
               >
                 {tab === "overview" && (
                   <OpenPositionsPanel
@@ -667,7 +665,6 @@ export default function SimulationPage() {
                     mirrorsError={mirrorsError}
                     openSimTradeIds={openSimTradeIds}
                     showAllBots={showAllBots}
-                    onShowAllBotsChange={handleShowAllBotsChange}
                     showBotLabels={showAllBots}
                   />
                 )}

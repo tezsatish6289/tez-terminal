@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
+import { LEVELS_STRIP_ICON_BOX_CLASS } from "@/components/levels/levels-symbol-strip";
 
 interface ParamDef {
   key: string;
@@ -61,7 +62,11 @@ function formatValue(val: number, format: ParamDef["format"]): string {
 
 type ParamValues = Record<string, number>;
 
-export function SimulatorParamsDialog() {
+export function SimulatorParamsDialog({
+  variant = "default",
+}: {
+  variant?: "default" | "strip";
+}) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -130,9 +135,24 @@ export function SimulatorParamsDialog() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 hover:text-foreground transition-all">
-          <Settings2 className="w-3.5 h-3.5" />
-          Tune Parameters
+        <button
+          className={cn(
+            variant === "strip"
+              ? cn(
+                  LEVELS_STRIP_ICON_BOX_CLASS,
+                  "flex flex-col items-center justify-center gap-1 rounded-lg",
+                  "border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06]",
+                  "text-[9px] font-bold uppercase tracking-wider text-muted-foreground/70 hover:text-foreground transition-all",
+                )
+              : "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 hover:text-foreground transition-all",
+          )}
+        >
+          <Settings2 className={variant === "strip" ? "h-4 w-4" : "w-3.5 h-3.5"} />
+          {variant === "strip" ? (
+            <span className="leading-none text-center">Tune</span>
+          ) : (
+            "Tune Parameters"
+          )}
         </button>
       </SheetTrigger>
       <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto bg-background/95 backdrop-blur-xl border-white/[0.06]">

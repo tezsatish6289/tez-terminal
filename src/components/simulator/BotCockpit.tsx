@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { doc } from "firebase/firestore";
@@ -48,7 +49,7 @@ interface BtcMacroStatus {
 /**
  * Cockpit slideshow layout — mirrors freedombot levels slideshow.
  *
- *   ┌─ [Refresh] │ Crypto │ BTC │ ETH │ SOL │ XRP ────────────────┐
+ *   ┌─ Simulator │ [Zones] │ Crypto │ BTC │ ETH │ SOL │ XRP │ [State] [Tune] ─┐
  *   ├────────────────────────────────────┬────────────────────────┤
  *   │ Zone ladder + controls (60%)       │ Open / History / Logs  │
  *   │                                    │ sim & live trades (40%)│
@@ -71,6 +72,10 @@ export function BotCockpit({
   selectedBotId,
   onSelectBot,
   slideshow,
+  simState,
+  lastRefreshedLabel,
+  onGlobalRefresh,
+  paramsControl,
   children,
 }: {
   openTrades: SimTrade[];
@@ -80,6 +85,10 @@ export function BotCockpit({
   selectedBotId: CockpitBotId;
   onSelectBot: (id: CockpitBotId) => void;
   slideshow?: SimSlideshowControl;
+  simState: SimulatorState | null;
+  lastRefreshedLabel: string;
+  onGlobalRefresh: () => void;
+  paramsControl: React.ReactNode;
   /** Right-pane tab panel (Open / History / Logs) — page owns the tab state */
   children: React.ReactNode;
 }) {
@@ -454,6 +463,8 @@ export function BotCockpit({
     }
   }, [selectedBotId, onSelectBot]);
 
+  const streakActive = (simState?.consecutiveWins ?? 0) >= 2;
+
   return (
     <section
       className={cn(
@@ -461,13 +472,31 @@ export function BotCockpit({
         "flex flex-col flex-1 min-h-0 p-2 sm:p-3 gap-1.5 sm:gap-2 overflow-hidden",
       )}
     >
-      {/* ── Bot strip (top) ── */}
+      {/* ── Title + bot strip (single row) ── */}
       <div
         className={cn(
-          "shrink-0 flex items-stretch gap-1.5",
+          "shrink-0 flex items-stretch gap-1.5 min-w-0",
           LEVELS_SYMBOL_STRIP_ROW_HEIGHT_CLASS,
         )}
       >
+        <div
+          className={cn(
+            LEVELS_STRIP_ICON_BOX_CLASS,
+            "w-auto min-w-[4.75rem] px-2 flex flex-col items-center justify-center gap-0.5",
+            "border border-white/[0.08] bg-white/[0.02]",
+          )}
+        >
+          <h1 className="text-[10px] font-black uppercase tracking-wide text-foreground/90 whitespace-nowrap">
+            Simulator
+          </h1>
+          <Link
+            href="/stats"
+            className="text-[9px] text-muted-foreground/45 hover:text-accent transition-colors whitespace-nowrap"
+          >
+            Stats →
+          </Link>
+        </div>
+
         <button
           type="button"
           onClick={() => void handleRefreshZones()}
@@ -493,10 +522,37 @@ export function BotCockpit({
           />
         ) : null}
         <SimBotStrip
+          className="flex-1 min-w-0"
           items={stripItems}
           selectedId={selectedBotId}
           onSelect={onSelectBot}
         />
+
+        <div className="shrink-0 flex items-center gap-1.5 pl-0.5">
+          {streakActive && simState ? (
+            <span className="hidden xl:inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-2 py-1.5 text-[10px] font-bold text-emerald-400 shadow-[0_2px_10px_rgba(16,185,129,0.12)] max-w-[11rem] truncate">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400 animate-pulse" />
+              {simState.consecutiveWins}× {simState.streakSide === "BUY" ? "bull" : "bear"} streak
+            </span>
+          ) : null}
+          <button
+            type="button"
+            onClick={onGlobalRefresh}
+            title="Refresh state & open trades"
+            className={cn(
+              LEVELS_STRIP_ICON_BOX_CLASS,
+              "flex flex-col items-center justify-center gap-1 rounded-lg",
+              "border border-white/[0.12] bg-[#1a1a1f] text-muted-foreground",
+              "shadow-[0_2px_8px_rgba(0,0,0,0.35)] hover:text-foreground hover:bg-[#222228] hover:border-white/[0.18] transition-all",
+            )}
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span className="text-[9px] font-bold uppercase tracking-wider tabular-nums leading-none">
+              {lastRefreshedLabel}
+            </span>
+          </button>
+          <div className="hidden sm:block">{paramsControl}</div>
+        </div>
       </div>
 
       {/* ── Chart left · trades right ── */}

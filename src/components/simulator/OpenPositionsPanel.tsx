@@ -11,7 +11,6 @@ import { cn } from "@/lib/utils";
 import type { SimTrade } from "@/lib/simulator";
 import { getSlDisplay } from "@/lib/simulator";
 import { cryptoBotByBotSource } from "@/lib/crypto-bots";
-import { Switch } from "@/components/ui/switch";
 import {
   SIM_CARD_INTERACTIVE,
   SIM_SLOT_EMPTY,
@@ -77,7 +76,6 @@ export function OpenPositionsPanel({
   mirrorsError = null,
   openSimTradeIds = [],
   showAllBots = false,
-  onShowAllBotsChange,
   showBotLabels = false,
 }: {
   trades: SimTrade[];
@@ -94,7 +92,6 @@ export function OpenPositionsPanel({
   /** When true, the panel lists every bot's open trades (parent supplies
    *  the unfiltered list). */
   showAllBots?: boolean;
-  onShowAllBotsChange?: (value: boolean) => void;
   /** Show the originating bot name on each card (used with all-bots view). */
   showBotLabels?: boolean;
 }) {
@@ -103,25 +100,6 @@ export function OpenPositionsPanel({
 
   return (
     <div className="space-y-4">
-      {onShowAllBotsChange && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2.5">
-          <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-wider text-foreground/90">
-              All bots
-            </p>
-            <p className="text-[9px] text-muted-foreground/45 mt-0.5 leading-snug">
-              {showAllBots
-                ? `Showing ${trades.length} open trade${trades.length === 1 ? "" : "s"} across every bot`
-                : "Only the selected bot above — turn on to see every open position"}
-            </p>
-          </div>
-          <Switch
-            checked={showAllBots}
-            onCheckedChange={onShowAllBotsChange}
-            aria-label="Show open trades from all bots"
-          />
-        </div>
-      )}
       {showMirrorUi && (
         <LiveMirrorExchangeBar
           exchangeSummary={exchangeSummary}

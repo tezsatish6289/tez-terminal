@@ -58,7 +58,7 @@ export function FnoNinjaScienceLiveVisual({
     const renderMin = minP - pad;
     const renderMax = maxP + pad;
     const span = renderMax - renderMin;
-    const chartHeight = 300;
+    const chartHeight = 360;
 
     const yFor = (price: number) => chartHeight * (1 - (price - renderMin) / span);
 
@@ -87,16 +87,19 @@ export function FnoNinjaScienceLiveVisual({
     };
   }, [levels]);
 
-  const dim = (key: ScienceVisualFocus | "spot") => {
-    if (focus === "expiry") return key === "spot" ? 0.85 : 0.45;
-    return focus === key ? 1 : 0.18;
+  const layerOpacity = (key: ScienceVisualFocus | "spot") => {
+    if (focus === "expiry") return 0.92;
+    return focus === key ? 1 : 0.78;
   };
+
+  const isFocused = (key: ScienceVisualFocus | "spot") =>
+    focus === "expiry" || focus === key;
 
   if (loading) {
     return (
       <div
-        className="flex h-[340px] items-center justify-center rounded-xl"
-        style={{ border: FNO_CARD_BORDER, backgroundColor: "rgba(0,0,0,0.35)" }}
+        className="flex h-[400px] items-center justify-center rounded-xl"
+        style={{ border: FNO_CARD_BORDER, backgroundColor: "rgba(8,15,30,0.55)" }}
       >
         <Loader2 className="h-6 w-6 animate-spin" style={{ color: FNO_ACCENT }} />
         <span className="ml-2 text-sm" style={{ color: "#64748b" }}>
@@ -110,7 +113,7 @@ export function FnoNinjaScienceLiveVisual({
     return (
       <div
         className="flex h-[200px] items-center justify-center rounded-xl px-4 text-center"
-        style={{ border: FNO_CARD_BORDER, backgroundColor: "rgba(0,0,0,0.35)" }}
+        style={{ border: FNO_CARD_BORDER, backgroundColor: "rgba(8,15,30,0.55)" }}
       >
         <p className="text-sm" style={{ color: "#64748b" }}>
           Live NIFTY zones unavailable right now. Open the market map to see current levels.
@@ -127,7 +130,7 @@ export function FnoNinjaScienceLiveVisual({
   return (
     <div
       className="rounded-xl overflow-hidden"
-      style={{ border: FNO_CARD_BORDER, backgroundColor: "rgba(0,0,0,0.45)" }}
+      style={{ border: FNO_CARD_BORDER, backgroundColor: "rgba(8,15,30,0.65)" }}
     >
       <div
         className="px-3 py-2 border-b flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] sm:text-[11px]"
@@ -142,9 +145,9 @@ export function FnoNinjaScienceLiveVisual({
           <span
             className="ml-auto font-semibold rounded px-2 py-0.5 transition-opacity"
             style={{
-              color: focus === "expiry" ? "#93c5fd" : "#64748b",
-              backgroundColor: focus === "expiry" ? "rgba(37,99,235,0.2)" : "transparent",
-              opacity: dim("expiry"),
+              color: focus === "expiry" ? "#93c5fd" : "#94a3b8",
+              backgroundColor: focus === "expiry" ? "rgba(37,99,235,0.25)" : "rgba(90,140,220,0.08)",
+              border: focus === "expiry" ? "1px solid rgba(96,165,250,0.45)" : "1px solid transparent",
             }}
           >
             Expiry {expiry}
@@ -159,9 +162,11 @@ export function FnoNinjaScienceLiveVisual({
               className="absolute left-0 right-12 rounded-sm transition-opacity duration-300"
               style={{
                 ...bearBand,
-                opacity: dim("call"),
+                opacity: layerOpacity("call"),
                 background: `linear-gradient(180deg, ${LEVELS_ZONE_CHART.bear.nativeBandTop}, ${LEVELS_ZONE_CHART.bear.nativeBandBottom})`,
-                boxShadow: focus === "call" ? `0 0 24px ${LEVELS_ZONE_CHART.bear.nativeBandTop}` : "none",
+                boxShadow: isFocused("call")
+                  ? `0 0 28px ${LEVELS_ZONE_CHART.bear.nativeBandTop}, inset 0 0 0 1px ${LEVELS_ZONE_CHART.bear.bandBorder}`
+                  : "none",
               }}
             />
           ) : null}
@@ -171,9 +176,11 @@ export function FnoNinjaScienceLiveVisual({
               className="absolute left-0 right-12 rounded-sm transition-opacity duration-300"
               style={{
                 ...bullBand,
-                opacity: dim("put"),
+                opacity: layerOpacity("put"),
                 background: `linear-gradient(180deg, ${LEVELS_ZONE_CHART.bull.nativeBandTop}, ${LEVELS_ZONE_CHART.bull.nativeBandBottom})`,
-                boxShadow: focus === "put" ? `0 0 24px ${LEVELS_ZONE_CHART.bull.nativeBandTop}` : "none",
+                boxShadow: isFocused("put")
+                  ? `0 0 28px ${LEVELS_ZONE_CHART.bull.nativeBandTop}, inset 0 0 0 1px ${LEVELS_ZONE_CHART.bull.bandBorder}`
+                  : "none",
               }}
             />
           ) : null}
@@ -183,8 +190,9 @@ export function FnoNinjaScienceLiveVisual({
               className="absolute left-0 right-12 border-t-2 border-dotted transition-opacity duration-300"
               style={{
                 top: callStrike.top,
-                opacity: dim("call"),
+                opacity: layerOpacity("call"),
                 borderColor: LEVELS_ZONE_CHART.bear.line,
+                borderTopWidth: isFocused("call") ? 3 : 2,
               }}
             />
           ) : null}
@@ -194,8 +202,10 @@ export function FnoNinjaScienceLiveVisual({
               className="absolute left-0 right-12 border-t-2 border-dashed transition-opacity duration-300"
               style={{
                 top: maxPain.top,
-                opacity: dim("maxPain"),
+                opacity: layerOpacity("maxPain"),
                 borderColor: LEVELS_ZONE_CHART.maxPain.line,
+                borderTopWidth: isFocused("maxPain") ? 3 : 2,
+                boxShadow: isFocused("maxPain") ? `0 0 16px ${LEVELS_ZONE_CHART.maxPain.line}` : "none",
               }}
             />
           ) : null}
@@ -205,8 +215,9 @@ export function FnoNinjaScienceLiveVisual({
               className="absolute left-0 right-12 border-t-2 border-dotted transition-opacity duration-300"
               style={{
                 top: putStrike.top,
-                opacity: dim("put"),
+                opacity: layerOpacity("put"),
                 borderColor: LEVELS_ZONE_CHART.bull.line,
+                borderTopWidth: isFocused("put") ? 3 : 2,
               }}
             />
           ) : null}
@@ -216,45 +227,52 @@ export function FnoNinjaScienceLiveVisual({
               className="absolute left-0 right-12 border-t transition-opacity duration-300"
               style={{
                 top: spot.top,
-                opacity: dim("spot"),
-                borderColor: "rgba(248,250,252,0.7)",
+                opacity: layerOpacity("spot"),
+                borderColor: "rgba(248,250,252,0.85)",
+                borderTopWidth: focus === "expiry" ? 2 : 1,
               }}
             />
           ) : null}
 
-          {focus === "put" && putLabel ? (
+          {putLabel ? (
             <div
-              className="absolute left-2 max-w-[85%] rounded-md px-2 py-1 text-[10px] sm:text-[11px] font-bold"
+              className="absolute left-2 max-w-[85%] rounded-md px-2 py-1 text-[10px] sm:text-[11px] font-bold transition-opacity duration-300"
               style={{
                 top: putStrike ? putStrike.top - 28 : bullBand?.top ?? 8,
                 color: "#86efac",
-                backgroundColor: "rgba(8,15,30,0.85)",
+                backgroundColor: isFocused("put") ? "rgba(8,15,30,0.9)" : "rgba(8,15,30,0.65)",
+                opacity: isFocused("put") ? 1 : 0.85,
+                border: isFocused("put") ? `1px solid ${LEVELS_ZONE_CHART.bull.bandBorder}` : "1px solid transparent",
               }}
             >
               {putLabel}
             </div>
           ) : null}
 
-          {focus === "call" && callLabel ? (
+          {callLabel ? (
             <div
-              className="absolute left-2 max-w-[85%] rounded-md px-2 py-1 text-[10px] sm:text-[11px] font-bold"
+              className="absolute left-2 max-w-[85%] rounded-md px-2 py-1 text-[10px] sm:text-[11px] font-bold transition-opacity duration-300"
               style={{
                 top: callStrike ? callStrike.top - 28 : bearBand?.top ?? 8,
                 color: "#fca5a5",
-                backgroundColor: "rgba(8,15,30,0.85)",
+                backgroundColor: isFocused("call") ? "rgba(8,15,30,0.9)" : "rgba(8,15,30,0.65)",
+                opacity: isFocused("call") ? 1 : 0.85,
+                border: isFocused("call") ? `1px solid ${LEVELS_ZONE_CHART.bear.bandBorder}` : "1px solid transparent",
               }}
             >
               {callLabel}
             </div>
           ) : null}
 
-          {focus === "maxPain" && levels.poc != null ? (
+          {levels.poc != null ? (
             <div
-              className="absolute left-2 rounded-md px-2 py-1 text-[10px] sm:text-[11px] font-bold"
+              className="absolute left-2 rounded-md px-2 py-1 text-[10px] sm:text-[11px] font-bold transition-opacity duration-300"
               style={{
                 top: maxPain ? maxPain.top - 28 : chartHeight / 2,
                 color: LEVELS_ZONE_CHART.maxPain.labelText,
-                backgroundColor: "rgba(8,15,30,0.85)",
+                backgroundColor: isFocused("maxPain") ? "rgba(8,15,30,0.9)" : "rgba(8,15,30,0.65)",
+                opacity: isFocused("maxPain") ? 1 : 0.85,
+                border: isFocused("maxPain") ? "1px solid rgba(251,191,36,0.45)" : "1px solid transparent",
               }}
             >
               Max Pain @ {fmtPrice(levels.poc)}
@@ -283,7 +301,7 @@ export function FnoNinjaScienceLiveVisual({
                 top: spot?.top ?? yFor(levels.spot),
                 color: "#f8fafc",
                 backgroundColor: "rgba(34,197,94,0.35)",
-                opacity: dim("spot"),
+                opacity: layerOpacity("spot"),
               }}
             >
               {fmtPrice(levels.spot)}

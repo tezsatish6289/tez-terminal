@@ -7,7 +7,7 @@ import {
   type ScienceVisualFocus,
 } from "@/components/fnoninja/learn/FnoNinjaScienceLiveVisual";
 import { formatClusterPeakLabel } from "@/lib/levels/format-cluster-size";
-import { FNO_ACCENT, FNO_CARD_BG, FNO_CARD_BORDER } from "@/lib/fnoninja/theme";
+import { FNO_ACCENT } from "@/lib/fnoninja/theme";
 
 type Topic = {
   id: ScienceVisualFocus;
@@ -143,33 +143,6 @@ export function FnoNinjaScienceScrollGuide() {
 
   return (
     <div>
-      <div
-        className="rounded-2xl p-5 sm:p-6 mb-2"
-        style={{ backgroundColor: FNO_CARD_BG, border: FNO_CARD_BORDER }}
-      >
-        <p className="text-sm sm:text-base leading-relaxed" style={{ color: "#94a3b8" }}>
-          Scroll through four short topics. Each one explains a concept, then shows it on a{" "}
-          <strong className="text-slate-200">live NIFTY zone ladder</strong> — real levels from
-          FNONINJA, positioned by price (HTML/CSS, not a screenshot).
-        </p>
-        <nav className="flex flex-wrap gap-2 mt-4">
-          {TOPICS.map((t) => (
-            <a
-              key={t.id}
-              href={`#science-${t.id}`}
-              className="rounded-full px-3 py-1.5 text-xs font-bold transition-colors hover:text-white"
-              style={{
-                color: "#94a3b8",
-                border: "1px solid rgba(90,140,220,0.2)",
-                backgroundColor: "rgba(8,15,30,0.4)",
-              }}
-            >
-              {t.title}
-            </a>
-          ))}
-        </nav>
-      </div>
-
       {TOPICS.map((topic, i) => (
         <ScienceTopicSection
           key={topic.id}

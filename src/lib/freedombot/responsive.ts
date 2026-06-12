@@ -12,6 +12,10 @@ export const FB_NARROW_SHELL = "max-w-3xl mx-auto w-full px-4 sm:px-6";
 
 export const FB_MEDIUM_SHELL = "max-w-4xl mx-auto w-full px-4 sm:px-6";
 
+/** FNONINJA learn article pages — wider than blog-style narrow shell. */
+export const FNO_LEARN_ARTICLE_SHELL =
+  "max-w-[min(1200px,75vw)] mx-auto w-full px-4 sm:px-6";
+
 export const FB_COMPACT_SHELL = "max-w-2xl mx-auto w-full px-4 sm:px-6";
 
 /** Hero / CTA sections on the landing page. */

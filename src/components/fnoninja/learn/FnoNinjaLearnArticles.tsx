@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FnoNinjaLearnScreenshot } from "@/components/fnoninja/learn/FnoNinjaLearnScreenshot";
 import { FnoNinjaLearnVerifyChecklist } from "@/components/fnoninja/learn/FnoNinjaLearnVerifyChecklist";
-import { FnoNinjaScienceConceptExplorer } from "@/components/fnoninja/learn/FnoNinjaScienceConceptExplorer";
+import { FnoNinjaScienceScrollGuide } from "@/components/fnoninja/learn/FnoNinjaScienceScrollGuide";
 import {
   FnoNinjaLearnArticleShell,
   LearnBulletList,
@@ -28,36 +28,26 @@ export function ScienceLearnArticle() {
   const { article, learnHubHref } = useLearnShell("science");
 
   return (
-    <FnoNinjaLearnArticleShell article={article} learnHubHref={learnHubHref}>
-      <LearnSection title="Start here (30 seconds)">
-        <LearnLead>
-          Options are bets on where NIFTY might go by a set date. When many bets pile up at one{" "}
-          <strong className="text-slate-200">strike</strong>, that level can matter — mostly because
-          market makers hedge their risk there.
-        </LearnLead>
-        <LearnLead>
-          Use the chart below: tap each idea and see it on a real NIFTY screenshot. No long read
-          required.
-        </LearnLead>
-      </LearnSection>
-
-      <LearnSection title="Explore the chart">
-        <FnoNinjaScienceConceptExplorer />
-      </LearnSection>
+    <FnoNinjaLearnArticleShell
+      article={article}
+      learnHubHref={learnHubHref}
+      disclaimerPlacement="bottom"
+    >
+      <FnoNinjaScienceScrollGuide />
 
       <FnoNinjaLearnVerifyChecklist
         steps={[
           {
-            title: "Note the levels on FNONINJA",
-            body: "Put OI peak @ 22,500, Call OI peak @ 24,000, expiry 16/06/2026.",
+            title: "Note the levels on the live ladder above",
+            body: "Use the put/call OI peak labels and expiry shown on each topic's chart.",
           },
           {
             title: "Open NSE option chain for NIFTY",
-            body: "Pick the same expiry date as on the chart.",
+            body: "Select the same expiry date as on the FNONINJA chart.",
           },
           {
             title: "Compare open interest at that strike",
-            body: "Counts should be roughly similar — small gaps are normal as the market moves.",
+            body: "Contract counts should be roughly similar — small gaps are normal as the market moves.",
           },
           {
             title: "Decide what it means for you",

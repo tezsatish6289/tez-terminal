@@ -8,10 +8,13 @@ import { FNO_ACCENT, FNO_CARD_BG, FNO_CARD_BORDER, FNO_MUTED } from "@/lib/fnoni
 export function FnoNinjaLearnArticleShell({
   article,
   learnHubHref,
+  disclaimerPlacement = "top",
   children,
 }: {
   article: LearnArticleMeta;
   learnHubHref: string;
+  /** Default top; science guide uses bottom so readers see content first. */
+  disclaimerPlacement?: "top" | "bottom" | "none";
   children: React.ReactNode;
 }) {
   const Icon = article.icon;
@@ -53,9 +56,11 @@ export function FnoNinjaLearnArticleShell({
         {article.excerpt}
       </p>
 
-      <FnoNinjaLearnDisclaimer className="mb-10" />
+      {disclaimerPlacement === "top" ? <FnoNinjaLearnDisclaimer className="mb-10" /> : null}
 
       <div className="space-y-8">{children}</div>
+
+      {disclaimerPlacement === "bottom" ? <FnoNinjaLearnDisclaimer className="mt-10" /> : null}
 
       <div
         className="mt-12 rounded-2xl p-6 sm:p-8"

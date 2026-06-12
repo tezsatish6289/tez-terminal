@@ -67,7 +67,14 @@ export function userOptedIntoBot(
   secretData: Record<string, unknown> | undefined | null,
   botSource: string | null | undefined,
 ): boolean {
-  if (botSource == null || botSource === "PATTERN") return true;
+  // Crypto (pattern) bot: opted in unless explicitly paused via
+  // `patternBotEnabled: false`. Absent ⇒ true, so existing users and
+  // crypto-only users are unaffected. This lets a user pause JUST the Crypto
+  // Bot without the old behaviour of flipping the shared `autoTradeEnabled`
+  // master switch (which also killed their zone bots).
+  if (botSource == null || botSource === "PATTERN") {
+    return (secretData?.patternBotEnabled as boolean | undefined) !== false;
+  }
 
   const field = BOT_SOURCE_TO_FIELD[botSource];
   if (!field) return false;

@@ -38,7 +38,7 @@ import { refreshDeploymentWalletBalance } from "@/lib/freedombot/wallet-balance"
 import { recordCronHeartbeat } from "@/lib/cron-health";
 import { resolveDailyLossLimit } from "@/lib/freedombot/trading-prefs-shared";
 import { dailyLossHaltPatchForToday } from "@/lib/freedombot/daily-loss-gate";
-import { retryFailedDispatches } from "@/lib/freedombot/dispatch-retry";
+import { retryFailedDispatches, reapStuckDispatching } from "@/lib/freedombot/dispatch-retry";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -783,6 +783,31 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     console.warn(
       `[LiveSync] dispatch retry sweeper threw: ${
+        e instanceof Error ? e.message : String(e)
+      } — continuing with close-side reconciliation.`,
+    );
+  }
+
+  // ── 0b. Stuck-DISPATCHING reaper ─────────────────────────
+  // The FAILED sweeper above never sees tickets wedged on DISPATCHING (claim
+  // succeeded, then the cron process died before finalizing). Rescue them on
+  // the same tick — same "ask exchange first" safety so a silent prior fill
+  // becomes NEEDS_REVIEW, never a double-open. Wrapped in try/catch for the
+  // same reason as above.
+  try {
+    const reapReport = await reapStuckDispatching(db);
+    if (
+      reapReport.retried > 0 ||
+      reapReport.needsReview > 0 ||
+      reapReport.failed > 0
+    ) {
+      console.log(
+        `[LiveSync] stuck-dispatching reaper: scanned=${reapReport.scanned} candidates=${reapReport.candidates} retried=${reapReport.retried} succeeded=${reapReport.succeeded} needsReview=${reapReport.needsReview} failed=${reapReport.failed}`,
+      );
+    }
+  } catch (e) {
+    console.warn(
+      `[LiveSync] stuck-dispatching reaper threw: ${
         e instanceof Error ? e.message : String(e)
       } — continuing with close-side reconciliation.`,
     );

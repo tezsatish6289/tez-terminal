@@ -4,10 +4,12 @@
  * Hard-removes a user's deployment. Unlike Pause (which just flips a
  * flag), Delete is destructive and irreversible — it:
  *
- *   1. Closes every still-open `live_trades` row for this (uid, exchange)
- *      via `protectiveClose`, which also cancels residual TP/SL orders
- *      before placing the market close. This ensures no orphan positions
- *      keep running on the venue after we've discarded the keys.
+ *   1. Closes every still-open `live_trades` row for this (uid, bot, exchange)
+ *      — i.e. ONLY the deleted bot's own positions, matched by `botSource`,
+ *      never the user's other bots on the same exchange — via
+ *      `protectiveClose`, which also cancels residual TP/SL orders before
+ *      placing the market close. This ensures no orphan positions keep
+ *      running on the venue after we've discarded the keys.
  *   2. Deletes the `bot_deployments` document.
  *   3. Calls `clearUserExchangeSecretsIfNoDeployments` — if this was the
  *      user's last deployment on this exchange, the encrypted secret doc
@@ -43,6 +45,8 @@ import {
   docMatchesExchange,
   type ExchangeName,
 } from "@/lib/exchanges";
+import { classifyBotSource } from "@/lib/bot-source-constants";
+import { cryptoBotByDeployKey, isCryptoPerpDeployKey } from "@/lib/crypto-bots";
 
 export const dynamic = "force-dynamic";
 // Closing N positions sequentially can take a while on slow venues; give
@@ -162,7 +166,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Enumerate open trades for this (uid, exchange) ────────────────────
+    // ── Enumerate open trades for this (uid, bot, exchange) ───────────────
+    // Scope to ONLY the deleted bot's positions (matched by botSource), so
+    // deleting one bot never market-closes the user's other bots on the same
+    // exchange. `botSource` is missing on legacy pattern rows, so we classify
+    // in code (undefined ⇒ PATTERN) rather than a Firestore equality filter
+    // that would silently skip those rows. Non-crypto-perp bots (Indian
+    // stocks / gold / silver) have no botSource mapping and run one-per-
+    // exchange, so they keep the original (uid, exchange) scope.
     const openSnap = await db
       .collection("live_trades")
       .where("status", "==", "OPEN")
@@ -170,17 +181,31 @@ export async function POST(req: NextRequest) {
       .where("exchange", "==", exchange)
       .get();
 
+    const deployKey = String(deployData.bot ?? "");
+    const targetBotSource = isCryptoPerpDeployKey(deployKey)
+      ? cryptoBotByDeployKey(deployKey).botSource
+      : null;
+    const openDocs =
+      targetBotSource == null
+        ? openSnap.docs
+        : openSnap.docs.filter(
+            (d) =>
+              classifyBotSource(
+                (d.data() as { botSource?: string }).botSource,
+              ) === targetBotSource,
+          );
+
     const outcomes: CloseOutcome[] = [];
 
-    if (openSnap.size > 0 && !creds) {
+    if (openDocs.length > 0 && !creds) {
       // No way to close positions safely — abort. Keep the deployment so
       // the user can re-link keys via Update API key and retry the delete.
       return NextResponse.json(
         {
           success: false,
-          error: `You have ${openSnap.size} open trade(s) on ${exchange} but no API keys are on file to close them with. Update your API keys first, then delete.`,
+          error: `You have ${openDocs.length} open trade(s) for this bot on ${exchange} but no API keys are on file to close them with. Update your API keys first, then delete.`,
           closed: 0,
-          failed: openSnap.size,
+          failed: openDocs.length,
           deploymentPreserved: true,
         },
         { status: 400 },
@@ -191,7 +216,7 @@ export async function POST(req: NextRequest) {
     //    surface the first hard failure and abort cleanly rather than
     //    half-close five positions in parallel and end up in a weird
     //    state mid-flight.
-    for (const tradeDoc of openSnap.docs) {
+    for (const tradeDoc of openDocs) {
       const tradeId = tradeDoc.id;
       const trade = { ...tradeDoc.data(), id: tradeId } as LiveTrade & {
         id: string;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore, getAdminAuth } from "@/firebase/admin";
 import { getSecretDocId, getSecretDocIds, docMatchesExchange } from "@/lib/exchanges";
 import type { ExchangeName } from "@/lib/exchanges";
+import { disableBotPatch } from "@/lib/freedombot/bot-enablement";
 
 export const dynamic = "force-dynamic";
 
@@ -40,13 +41,16 @@ export async function POST(req: NextRequest) {
     // Mark deployment as stopped
     await deployDoc.ref.update({ status: "stopped", stoppedAt: new Date() });
 
-    // Disable auto-trade in the trading engine secrets
+    // Disable ONLY this bot in the trading engine secrets — never blanket-flip
+    // the shared `autoTradeEnabled` master switch, which would also stop the
+    // user's other bots on this exchange (see `disableBotPatch`).
+    const deployKey = String(deployData.bot ?? "");
     const docIds = getSecretDocIds(exchange as ExchangeName);
     for (const docId of docIds) {
       const secretRef = db.collection("users").doc(uid).collection("secrets").doc(docId);
       const secretDoc = await secretRef.get();
       if (secretDoc.exists && docMatchesExchange(secretDoc.data()!, exchange as ExchangeName, docId)) {
-        await secretRef.update({ autoTradeEnabled: false });
+        await secretRef.update(disableBotPatch(deployKey, secretDoc.data()!));
         break;
       }
     }

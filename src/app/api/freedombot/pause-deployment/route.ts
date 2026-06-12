@@ -23,6 +23,7 @@ import {
   docMatchesExchange,
   type ExchangeName,
 } from "@/lib/exchanges";
+import { disableBotPatch } from "@/lib/freedombot/bot-enablement";
 
 export const dynamic = "force-dynamic";
 
@@ -63,9 +64,10 @@ export async function POST(req: NextRequest) {
       pausedAt: new Date().toISOString(),
     });
 
-    // Flip the dispatcher's per-user kill switch. This is the field that
-    // `live-execution.ts` checks before placing new entries — flipping
-    // status alone is not enough.
+    // Disable ONLY this bot in the dispatcher's gates — never blanket-flip the
+    // shared `autoTradeEnabled` master switch, which would also pause the
+    // user's other bots on this exchange (see `disableBotPatch`).
+    const deployKey = String(deployData.bot ?? "");
     const docIds = getSecretDocIds(exchange);
     for (const docId of docIds) {
       const secretRef = db
@@ -78,7 +80,7 @@ export async function POST(req: NextRequest) {
         secretSnap.exists &&
         docMatchesExchange(secretSnap.data()!, exchange, docId)
       ) {
-        await secretRef.update({ autoTradeEnabled: false });
+        await secretRef.update(disableBotPatch(deployKey, secretSnap.data()!));
         break;
       }
     }

@@ -26,6 +26,7 @@ import {
   type ExchangeName,
 } from "@/lib/exchanges";
 import { refreshDeploymentWalletBalance } from "@/lib/freedombot/wallet-balance";
+import { enableBotPatch } from "@/lib/freedombot/bot-enablement";
 
 export const dynamic = "force-dynamic";
 
@@ -82,7 +83,9 @@ export async function POST(req: NextRequest) {
         secretSnap.exists &&
         docMatchesExchange(secretSnap.data()!, exchange, docId)
       ) {
-        await secretRef.update({ autoTradeEnabled: true });
+        // Re-enable ONLY this bot's per-bot switch plus the shared master —
+        // mirror of the per-bot pause (see `enableBotPatch`).
+        await secretRef.update(enableBotPatch(String(deployData.bot ?? "")));
         const data = secretSnap.data()!;
         creds = {
           apiKey: decrypt(String(data.encryptedKey)),

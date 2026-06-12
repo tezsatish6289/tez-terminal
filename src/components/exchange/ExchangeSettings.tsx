@@ -370,6 +370,12 @@ function ExchangeSettingsPanel({
           apiSecret: apiSecretInput,
           ...(isDhan ? { pin: pinInput } : { useTestnet: isTestnet }),
           exchange,
+          // Carry the risk parameters from the UI so a key re-save persists
+          // exactly what the user sees (and never silently reverts them to
+          // defaults). Undefined on first-time setup → server applies defaults.
+          ...(config?.riskPerTrade != null ? { riskPerTrade: config.riskPerTrade } : {}),
+          ...(config?.maxConcurrentTrades != null ? { maxConcurrentTrades: config.maxConcurrentTrades } : {}),
+          ...(config?.dailyLossLimit != null ? { dailyLossLimit: config.dailyLossLimit } : {}),
         }),
       });
       const data = await res.json().catch(() => ({ error: `Server returned ${res.status}` }));

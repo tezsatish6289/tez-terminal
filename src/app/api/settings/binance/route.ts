@@ -95,6 +95,19 @@ export async function POST(request: NextRequest) {
     const docId = getSecretDocId(exchangeName);
     const db = getAdminFirestore();
 
+    // Risk parameters are owned by the UI. On every save (first-time AND
+    // re-save) we take whatever the client sends — only valid, positive
+    // numbers are accepted; anything missing/invalid is ignored so re-saving
+    // keys never resets a configured value. First-time setup falls back to
+    // platform defaults for any field the client didn't provide.
+    const uiPrefs: Record<string, number> = {};
+    const riskPerTradeIn = Number(body.riskPerTrade);
+    const maxConcurrentTradesIn = Number(body.maxConcurrentTrades);
+    const dailyLossLimitIn = Number(body.dailyLossLimit);
+    if (Number.isFinite(riskPerTradeIn) && riskPerTradeIn > 0) uiPrefs.riskPerTrade = riskPerTradeIn;
+    if (Number.isFinite(maxConcurrentTradesIn) && maxConcurrentTradesIn > 0) uiPrefs.maxConcurrentTrades = maxConcurrentTradesIn;
+    if (Number.isFinite(dailyLossLimitIn) && dailyLossLimitIn > 0) uiPrefs.dailyLossLimit = dailyLossLimitIn;
+
     if (exchangeName === "DHAN") {
       // Dhan: apiKey = Client ID, apiSecret = TOTP secret, body.pin = login PIN
       const pin = body.pin as string | undefined;
@@ -110,7 +123,13 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
-      await db.collection("users").doc(uid).collection("secrets").doc(docId).set({
+      const dhanRef = db.collection("users").doc(uid).collection("secrets").doc(docId);
+      const dhanExisting = await dhanRef.get();
+      // Credential fields are always (re)written; trading-config fields
+      // (autoTradeEnabled, risk, caps, per-bot toggles) are written ONLY on
+      // first setup. Re-saving keys must never silently reset a user's live
+      // settings — see GET/PUT for how those are managed from the UI.
+      const dhanCredentialFields = {
         exchange: "DHAN",
         encryptedKey: encrypt(apiKey),       // Client ID
         encryptedSecret: encrypt(apiSecret), // TOTP secret
@@ -118,13 +137,22 @@ export async function POST(request: NextRequest) {
         encryptedCachedToken: encrypt(testToken),
         cachedTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         keyLastFour: apiKey.slice(-4),
-        autoTradeEnabled: false,
-        riskPerTrade: 1,
-        maxConcurrentTrades: 1,
-        dailyLossLimit: 3,
         useTestnet: false,
         savedAt: new Date().toISOString(),
-      });
+      };
+      if (dhanExisting.exists) {
+        // Update credentials + any risk params the UI sent; preserve the
+        // live switch and any field the UI omitted.
+        await dhanRef.set({ ...dhanCredentialFields, ...uiPrefs }, { merge: true });
+      } else {
+        await dhanRef.set({
+          ...dhanCredentialFields,
+          autoTradeEnabled: false,
+          riskPerTrade: uiPrefs.riskPerTrade ?? 1,
+          maxConcurrentTrades: uiPrefs.maxConcurrentTrades ?? 1,
+          dailyLossLimit: uiPrefs.dailyLossLimit ?? 3,
+        });
+      }
 
       return NextResponse.json({ success: true, message: "Dhan credentials verified and saved. Token auto-renews daily." });
     }
@@ -143,18 +171,34 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    await db.collection("users").doc(uid).collection("secrets").doc(docId).set({
+    const secretRef = db.collection("users").doc(uid).collection("secrets").doc(docId);
+    const existing = await secretRef.get();
+    // Credential fields are always (re)written; trading-config fields
+    // (autoTradeEnabled, risk, caps, per-bot toggles) are written ONLY on
+    // first setup. Re-saving keys must NEVER silently reset live trading or a
+    // user's risk/limits back to defaults — those are managed from the UI
+    // (PUT here) and via deploy / pause / resume flows.
+    const credentialFields = {
       exchange: exchangeName,
       encryptedKey: encrypt(apiKey),
       encryptedSecret: encrypt(apiSecret),
       keyLastFour: apiKey.slice(-4),
-      autoTradeEnabled: false,
-      riskPerTrade: 1,
-      maxConcurrentTrades: 1,
-      dailyLossLimit: 3,
       useTestnet,
       savedAt: new Date().toISOString(),
-    });
+    };
+    if (existing.exists) {
+      // Update credentials + any risk params the UI sent; preserve the live
+      // switch and any field the UI omitted.
+      await secretRef.set({ ...credentialFields, ...uiPrefs }, { merge: true });
+    } else {
+      await secretRef.set({
+        ...credentialFields,
+        autoTradeEnabled: false,
+        riskPerTrade: uiPrefs.riskPerTrade ?? 1,
+        maxConcurrentTrades: uiPrefs.maxConcurrentTrades ?? 1,
+        dailyLossLimit: uiPrefs.dailyLossLimit ?? 3,
+      });
+    }
 
     return NextResponse.json({ success: true, message: `${exchangeName} credentials saved and validated.` });
   } catch (e) {

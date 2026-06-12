@@ -176,6 +176,146 @@ export async function retryFailedDispatches(
   return report;
 }
 
+// A dispatch_state ticket is created with status DISPATCHING and flipped to
+// EXECUTED/FAILED in the same per-task closure. These run on short cron pings,
+// not a long-lived worker — so if the process dies/times out after the claim
+// but before finalizing, the ticket is wedged on DISPATCHING forever and the
+// FAILED-only retry sweeper never touches it. A cron invocation completes in
+// seconds, so anything still DISPATCHING after a few minutes is genuinely dead.
+const STUCK_DISPATCHING_MS = 3 * 60 * 1000;
+
+/**
+ * Rescue tickets wedged on DISPATCHING (see STUCK_DISPATCHING_MS). Mirrors the
+ * FAILED sweeper's safety model:
+ *
+ *   - Still within the replay window → run `retryOneDispatch`, which asks the
+ *     exchange FIRST (a stuck ticket may mean the order actually filled before
+ *     the process died; replaying that would double the position → NEEDS_REVIEW
+ *     instead) and otherwise replays the entry.
+ *   - Past the replay window (stale price) → mark NEEDS_REVIEW for manual
+ *     reconciliation rather than replaying at a price that's no longer valid.
+ *
+ * Bounded by MAX_ATTEMPTS / MAX_RETRIES_PER_TICK and wrapped by the caller in
+ * try/catch, exactly like `retryFailedDispatches`.
+ */
+export async function reapStuckDispatching(
+  db: Firestore,
+): Promise<DispatchRetryReport> {
+  const report: DispatchRetryReport = {
+    scanned: 0,
+    candidates: 0,
+    retried: 0,
+    succeeded: 0,
+    needsReview: 0,
+    failed: 0,
+    results: [],
+  };
+
+  let snap;
+  try {
+    snap = await db
+      .collection("dispatch_state")
+      .where("status", "==", "DISPATCHING")
+      .limit(100)
+      .get();
+  } catch (e) {
+    console.warn(
+      `[DispatchReaper] query failed: ${e instanceof Error ? e.message : String(e)}`,
+    );
+    return report;
+  }
+  report.scanned = snap.size;
+
+  const now = Date.now();
+  const candidates: DocumentSnapshot[] = [];
+  for (const doc of snap.docs) {
+    const data = doc.data() ?? {};
+    const createdAt = (
+      data.createdAt as { toDate?: () => Date } | undefined
+    )?.toDate?.();
+    if (!createdAt) continue;
+    const ageMs = now - createdAt.getTime();
+    if (ageMs < STUCK_DISPATCHING_MS) continue; // probably still in-flight
+
+    const attemptCount =
+      typeof data.attemptCount === "number" ? data.attemptCount : 1;
+    if (attemptCount >= MAX_ATTEMPTS) {
+      // Out of replay budget — park it for an operator instead of leaving it
+      // wedged on DISPATCHING forever.
+      await doc.ref
+        .update({
+          status: "NEEDS_REVIEW",
+          reason: "DISPATCH_STUCK: exhausted retries",
+          updatedAt: FieldValue.serverTimestamp(),
+        })
+        .catch(() => {});
+      report.needsReview++;
+      continue;
+    }
+
+    if (String(data.exchange ?? "") === "DHAN") continue;
+
+    candidates.push(doc);
+    if (candidates.length >= MAX_RETRIES_PER_TICK) break;
+  }
+  report.candidates = candidates.length;
+
+  for (const doc of candidates) {
+    const data = doc.data() ?? {};
+    const createdAt = (
+      data.createdAt as { toDate?: () => Date } | undefined
+    )?.toDate?.();
+    const ageMs = createdAt ? now - createdAt.getTime() : Infinity;
+    const attemptCount =
+      typeof data.attemptCount === "number" ? data.attemptCount : 1;
+
+    let result: DispatchRetryResult;
+    if (ageMs > RETRY_WINDOW_MS) {
+      // Too stale to replay at the original price — hand off for review.
+      await doc.ref
+        .update({
+          status: "NEEDS_REVIEW",
+          reason: "DISPATCH_STUCK_EXPIRED: never finalized; too old to replay",
+          attemptCount: attemptCount + 1,
+          updatedAt: FieldValue.serverTimestamp(),
+        })
+        .catch(() => {});
+      await db
+        .collection("live_trade_logs")
+        .add({
+          timestamp: new Date().toISOString(),
+          action: "DISPATCH_STUCK_NEEDS_REVIEW",
+          details: `${String(data.symbol ?? "")} ${String(data.side ?? "")} — dispatch wedged on DISPATCHING and expired on ${String(data.exchange ?? "")}; manual reconciliation required (dispatchKey=${doc.id})`,
+          signalId: String(data.simTradeId ?? doc.id),
+          symbol: String(data.symbol ?? ""),
+          userId: String(data.userId ?? ""),
+          exchange: String(data.exchange ?? ""),
+          assetType: "CRYPTO",
+        })
+        .catch(() => {});
+      result = {
+        dispatchKey: doc.id,
+        userId: String(data.userId ?? ""),
+        exchange: String(data.exchange ?? ""),
+        outcome: "NEEDS_REVIEW",
+        detail: "stuck dispatching, expired",
+      };
+    } else {
+      // Fresh enough to replay — retryOneDispatch asks the exchange first so a
+      // silent prior fill becomes NEEDS_REVIEW, never a double-open.
+      result = await retryOneDispatch(db, doc);
+    }
+
+    report.retried++;
+    if (result.outcome === "EXECUTED") report.succeeded++;
+    else if (result.outcome === "NEEDS_REVIEW") report.needsReview++;
+    else report.failed++;
+    report.results.push(result);
+  }
+
+  return report;
+}
+
 async function retryOneDispatch(
   db: Firestore,
   ticketDoc: DocumentSnapshot,

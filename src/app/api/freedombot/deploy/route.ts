@@ -300,6 +300,10 @@ export async function POST(req: NextRequest) {
       await secretRef.update({
         [zoneBotsEnabledFieldKey(zoneField)]: true,
       });
+    } else if (bot === "CRYPTO") {
+      // Crypto (pattern) bot has no zone flag; ensure its per-bot switch is ON
+      // so a re-deploy after a pause clears any leftover patternBotEnabled:false.
+      await secretRef.update({ patternBotEnabled: true });
     }
 
     // ── Re-activate paused deployment (same bot × exchange) instead of duplicating ─

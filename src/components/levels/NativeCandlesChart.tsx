@@ -27,10 +27,13 @@ import { LevelsChartClusterBandLabels } from "@/components/levels/LevelsChartClu
 import { LevelsChartTvFooterHint } from "@/components/levels/LevelsChartTvFooterHint";
 import {
   applyLevelPriceLines,
+  bandFillForFocus,
   bandLineData,
   mergedPriceRange,
+  type LevelVisualFocus,
   zoneSlAnchors,
 } from "@/components/levels/native-chart-level-overlays";
+import { LevelsChartFocusGlow } from "@/components/levels/LevelsChartFocusGlow";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 
 interface ApiCandle {
@@ -110,6 +113,11 @@ export const NativeCandlesChart = forwardRef<
     onFullHistoryZoomChange?: (full: boolean) => void;
     /** Last candle close — keeps strip / header price in sync with the chart. */
     onLastCloseChange?: (close: number) => void;
+    /** Science learn guide: dim non-focused zones and add glow on the active topic. */
+    visualFocus?: LevelVisualFocus | null;
+    /** When set, skip candle fetch and use parent-provided bars (e.g. learn page). */
+    externalCandles?: CandlestickData[] | null;
+    externalCandlesLoading?: boolean;
   }
 >(function NativeCandlesChart(
   {
@@ -126,6 +134,9 @@ export const NativeCandlesChart = forwardRef<
     defaultFullHistory = false,
     onFullHistoryZoomChange,
     onLastCloseChange,
+    visualFocus = null,
+    externalCandles,
+    externalCandlesLoading = false,
   },
   ref,
 ) {
@@ -147,6 +158,8 @@ export const NativeCandlesChart = forwardRef<
   const [error, setError] = useState<string | null>(null);
 
   levelsRef.current = levels;
+  const visualFocusRef = useRef(visualFocus);
+  visualFocusRef.current = visualFocus;
   const defaultFullHistoryRef = useRef(defaultFullHistory);
   defaultFullHistoryRef.current = defaultFullHistory;
 
@@ -236,9 +249,14 @@ export const NativeCandlesChart = forwardRef<
       return;
     }
 
+    const focus = visualFocusRef.current;
+    const bullFill = bandFillForFocus("bull", focus);
+    const bearFill = bandFillForFocus("bear", focus);
+
     if (lv.bullLow != null && lv.bullHigh != null && lv.bullHigh > lv.bullLow) {
       bullBand.applyOptions({
         ...BULL_BAND_STYLE,
+        ...bullFill,
         visible: true,
         baseValue: { type: "price", price: lv.bullLow },
       });
@@ -251,6 +269,7 @@ export const NativeCandlesChart = forwardRef<
     if (lv.bearLow != null && lv.bearHigh != null && lv.bearHigh > lv.bearLow) {
       bearBand.applyOptions({
         ...BEAR_BAND_STYLE,
+        ...bearFill,
         visible: true,
         baseValue: { type: "price", price: lv.bearLow },
       });
@@ -338,7 +357,7 @@ export const NativeCandlesChart = forwardRef<
     if (!series) return false;
     series.setData(data);
     syncZoneBands(data, levelsRef.current);
-    applyLevelPriceLines(series, priceLinesRef, levelsRef.current);
+    applyLevelPriceLines(series, priceLinesRef, levelsRef.current, visualFocusRef.current);
     fitPriceScale();
     if (!isPoll) {
       if (fullHistoryZoomRef.current) applyFullHistoryZoom(data.length);
@@ -368,8 +387,41 @@ export const NativeCandlesChart = forwardRef<
     applyLevelPriceLines(series, priceLinesRef, null);
   }
 
+  // Apply parent-provided candles (learn guide shares one fetch across sections).
+  useEffect(() => {
+    if (externalCandles === undefined) return;
+    if (externalCandlesLoading) {
+      setBootLoading(true);
+      setSwapping(true);
+      return;
+    }
+    if (!externalCandles || externalCandles.length === 0) {
+      setError("Chart data is temporarily unavailable.");
+      setBootLoading(false);
+      setSwapping(false);
+      return;
+    }
+    candlesRef.current = externalCandles;
+    const finish = () => {
+      if (applyCandlesToChart(externalCandles, false)) return;
+      let attempts = 0;
+      const retry = () => {
+        if (applyCandlesToChart(externalCandles, false)) return;
+        if (++attempts < 40) setTimeout(retry, 50);
+        else {
+          setBootLoading(false);
+          setSwapping(false);
+        }
+      };
+      setTimeout(retry, 0);
+    };
+    requestAnimationFrame(finish);
+  }, [externalCandles, externalCandlesLoading, symbol]);
+
   // Load + poll candles for the active symbol/interval.
   useEffect(() => {
+    if (externalCandles !== undefined) return;
+
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -484,10 +536,10 @@ export const NativeCandlesChart = forwardRef<
     if (loadedForSymbolRef.current !== symbol) return;
 
     syncZoneBands(candlesRef.current, levels);
-    applyLevelPriceLines(series, priceLinesRef, levels);
+    applyLevelPriceLines(series, priceLinesRef, levels, visualFocus);
     fitPriceScale();
     applyRightPadding(candlesRef.current.length);
-  }, [levels, defaultFullHistory, symbol]);
+  }, [levels, defaultFullHistory, symbol, visualFocus]);
 
   const awaitingLevels =
     levelsLoading && (hideShortcuts || !hasDisplayedCandlesRef.current);
@@ -555,7 +607,18 @@ export const NativeCandlesChart = forwardRef<
         containerRef={containerRef}
         levels={levels}
         visible={chartReady}
+        visualFocus={visualFocus}
       />
+      {visualFocus && chartReady ? (
+        <LevelsChartFocusGlow
+          chartRef={chartRef}
+          seriesRef={seriesRef}
+          containerRef={containerRef}
+          levels={levels}
+          focus={visualFocus}
+          visible={chartReady}
+        />
+      ) : null}
     </div>
   );
 });

@@ -76,10 +76,70 @@ export function mergedPriceRange(
   return { minValue: from, maxValue: to, from, to };
 }
 
+export type LevelVisualFocus = "put" | "call" | "maxPain" | "expiry";
+
+function withAlpha(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function lineFocused(title: string, focus: LevelVisualFocus | null | undefined): boolean {
+  if (!focus || focus === "expiry") return true;
+  if (focus === "call") {
+    return (
+      title === "Resistance H" ||
+      title === "Resistance L" ||
+      title === "Call OI peak" ||
+      title === "Resistance Break"
+    );
+  }
+  if (focus === "put") {
+    return (
+      title === "Support H" ||
+      title === "Support L" ||
+      title === "Put OI peak" ||
+      title === "Support Break"
+    );
+  }
+  return title === "Max Pain";
+}
+
+export function bandFillForFocus(
+  side: "bull" | "bear",
+  focus: LevelVisualFocus | null | undefined,
+): { topFillColor1: string; topFillColor2: string } {
+  const palette = side === "bull" ? LEVELS_ZONE_CHART.bull : LEVELS_ZONE_CHART.bear;
+  const focused =
+    focus === "expiry" ||
+    (focus === "put" && side === "bull") ||
+    (focus === "call" && side === "bear");
+
+  if (focused) {
+    return {
+      topFillColor1: palette.nativeBandTop,
+      topFillColor2: palette.nativeBandBottom,
+    };
+  }
+  if (focus === "maxPain") {
+    return {
+      topFillColor1: side === "bull" ? "rgba(34, 197, 94, 0.24)" : "rgba(239, 68, 68, 0.24)",
+      topFillColor2: side === "bull" ? "rgba(34, 197, 94, 0.1)" : "rgba(239, 68, 68, 0.1)",
+    };
+  }
+  return {
+    topFillColor1: side === "bull" ? "rgba(34, 197, 94, 0.22)" : "rgba(239, 68, 68, 0.22)",
+    topFillColor2: side === "bull" ? "rgba(34, 197, 94, 0.09)" : "rgba(239, 68, 68, 0.09)",
+  };
+}
+
 export function applyLevelPriceLines(
   series: ISeriesApi<"Candlestick">,
   priceLinesRef: { current: IPriceLine[] },
   levels: PublicLevels | null | undefined,
+  visualFocus?: LevelVisualFocus | null,
 ): void {
   for (const line of priceLinesRef.current) series.removePriceLine(line);
   priceLinesRef.current = [];
@@ -95,11 +155,14 @@ export function applyLevelPriceLines(
     width: 1 | 2 | 3 | 4 = 1,
   ) => {
     if (price == null || !Number.isFinite(price)) return;
+    const focused = lineFocused(title, visualFocus);
+    const lineColor = visualFocus && !focused ? withAlpha(color, 0.38) : color;
+    const lineWidth = visualFocus && focused ? Math.min(width + 1, 4) as 1 | 2 | 3 | 4 : width;
     priceLinesRef.current.push(
       series.createPriceLine({
         price,
-        color,
-        lineWidth: width,
+        color: lineColor,
+        lineWidth,
         lineStyle: style,
         axisLabelVisible: true,
         title,

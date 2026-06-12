@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { CandlestickData, UTCTimestamp } from "lightweight-charts";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
   FnoNinjaScienceLiveVisual,
@@ -70,11 +71,15 @@ function ScienceTopicSection({
   topic,
   levels,
   loading,
+  candles,
+  candlesLoading,
   index,
 }: {
   topic: Topic;
   levels: PublicLevels | null;
   loading: boolean;
+  candles: CandlestickData[] | null;
+  candlesLoading: boolean;
   index: number;
 }) {
   return (
@@ -102,7 +107,13 @@ function ScienceTopicSection({
           </p>
         ) : null}
       </div>
-      <FnoNinjaScienceLiveVisual levels={levels} focus={topic.id} loading={loading} />
+      <FnoNinjaScienceLiveVisual
+        levels={levels}
+        focus={topic.id}
+        loading={loading}
+        candles={candles}
+        candlesLoading={candlesLoading}
+      />
     </section>
   );
 }
@@ -110,6 +121,8 @@ function ScienceTopicSection({
 export function FnoNinjaScienceScrollGuide() {
   const [levels, setLevels] = useState<PublicLevels | null>(null);
   const [loading, setLoading] = useState(true);
+  const [candles, setCandles] = useState<CandlestickData[] | null>(null);
+  const [candlesLoading, setCandlesLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,6 +147,40 @@ export function FnoNinjaScienceScrollGuide() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    setCandlesLoading(true);
+    void fetch("/api/freedombot/levels/candles?symbol=NIFTY&scope=index&interval=15", {
+      cache: "no-store",
+    })
+      .then((res) => res.json())
+      .then((json: { ok: boolean; candles?: { time: number; open: number; high: number; low: number; close: number }[] }) => {
+        if (cancelled) return;
+        if (!json.ok || !json.candles?.length) {
+          setCandles(null);
+          return;
+        }
+        setCandles(
+          json.candles.map((c) => ({
+            time: c.time as UTCTimestamp,
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close,
+          })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setCandles(null);
+      })
+      .finally(() => {
+        if (!cancelled) setCandlesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const verifyHint = useMemo(() => {
     const put = formatClusterPeakLabel("Put", levels?.putClusterSize, levels?.putClusterStrike);
     const call = formatClusterPeakLabel("Call", levels?.callClusterSize, levels?.callClusterStrike);
@@ -149,6 +196,8 @@ export function FnoNinjaScienceScrollGuide() {
           topic={topic}
           levels={levels}
           loading={loading}
+          candles={candles}
+          candlesLoading={candlesLoading}
           index={i}
         />
       ))}

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { IChartApi, ISeriesApi } from "lightweight-charts";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
+import type { LevelVisualFocus } from "@/components/levels/native-chart-level-overlays";
 import { formatClusterPeakLabel } from "@/lib/levels/format-cluster-size";
 import { LEVELS_ZONE_CHART } from "@/lib/levels/zone-chart-colors";
 import { FNO_ACCENT } from "@/lib/fnoninja/theme";
@@ -42,18 +43,27 @@ const MAX_PAIN_LABEL_STYLE: React.CSSProperties = {
   boxShadow: "0 0 14px rgba(251, 191, 36, 0.12)",
 };
 
+function labelFocused(id: string, focus: LevelVisualFocus | null | undefined): boolean {
+  if (!focus || focus === "expiry") return true;
+  if (focus === "put") return id === "put";
+  if (focus === "call") return id === "call";
+  return id === "maxPain";
+}
+
 export function LevelsChartClusterBandLabels({
   chartRef,
   seriesRef,
   containerRef,
   levels,
   visible,
+  visualFocus,
 }: {
   chartRef: React.RefObject<IChartApi | null>;
   seriesRef: React.RefObject<ISeriesApi<"Candlestick"> | null>;
   containerRef: React.RefObject<HTMLDivElement | null>;
   levels: PublicLevels | null | undefined;
   visible: boolean;
+  visualFocus?: LevelVisualFocus | null;
 }) {
   const [labels, setLabels] = useState<LabelPos[]>([]);
 
@@ -73,11 +83,19 @@ export function LevelsChartClusterBandLabels({
     if (putText && levels.bullLow != null && levels.bullHigh != null) {
       const center = bandCenterY(series, levels.bullLow, levels.bullHigh);
       if (center != null) {
+        const focused = labelFocused("put", visualFocus);
         next.push({
           id: "put",
           top: clamp(center),
           text: putText,
-          style: CLUSTER_LABEL_STYLE,
+          style: {
+            ...CLUSTER_LABEL_STYLE,
+            opacity: focused ? 1 : 0.72,
+            boxShadow: focused
+              ? "0 0 20px rgba(34,197,94,0.35), 0 0 12px rgba(8,15,30,0.5)"
+              : CLUSTER_LABEL_STYLE.boxShadow,
+            border: focused ? `1px solid ${LEVELS_ZONE_CHART.bull.bandBorder}` : "1px solid transparent",
+          },
         });
       }
     }
@@ -86,11 +104,19 @@ export function LevelsChartClusterBandLabels({
       const y = priceY(series, levels.poc);
       if (y != null) {
         const expirySuffix = levels.zonesExpiry ? ` · ${levels.zonesExpiry} Expiry` : "";
+        const focused = labelFocused("maxPain", visualFocus);
         next.push({
           id: "maxPain",
           top: clamp(y),
           text: `Max Pain${expirySuffix}`,
-          style: MAX_PAIN_LABEL_STYLE,
+          style: {
+            ...MAX_PAIN_LABEL_STYLE,
+            opacity: focused ? 1 : 0.72,
+            boxShadow: focused
+              ? "0 0 24px rgba(251,191,36,0.4), 0 0 12px rgba(8,15,30,0.5)"
+              : MAX_PAIN_LABEL_STYLE.boxShadow,
+            border: focused ? "1px solid rgba(251,191,36,0.5)" : "1px solid transparent",
+          },
         });
       }
     }
@@ -99,17 +125,25 @@ export function LevelsChartClusterBandLabels({
     if (callText && levels.bearLow != null && levels.bearHigh != null) {
       const center = bandCenterY(series, levels.bearLow, levels.bearHigh);
       if (center != null) {
+        const focused = labelFocused("call", visualFocus);
         next.push({
           id: "call",
           top: clamp(center),
           text: callText,
-          style: CLUSTER_LABEL_STYLE,
+          style: {
+            ...CLUSTER_LABEL_STYLE,
+            opacity: focused ? 1 : 0.72,
+            boxShadow: focused
+              ? "0 0 20px rgba(239,68,68,0.35), 0 0 12px rgba(8,15,30,0.5)"
+              : CLUSTER_LABEL_STYLE.boxShadow,
+            border: focused ? `1px solid ${LEVELS_ZONE_CHART.bear.bandBorder}` : "1px solid transparent",
+          },
         });
       }
     }
 
     setLabels(next);
-  }, [containerRef, levels, seriesRef, visible]);
+  }, [containerRef, levels, seriesRef, visible, visualFocus]);
 
   useEffect(() => {
     updatePositions();

@@ -3,9 +3,9 @@ import { ScienceLearnArticle } from "@/components/fnoninja/learn/FnoNinjaLearnAr
 import { FNONINJA_SITE_URL } from "@/lib/fnoninja/metadata";
 
 export const metadata: Metadata = {
-  title: "The Science Behind the Zones",
+  title: "Understanding Put & Call Clusters and Max Pain",
   description:
-    "Learn what put clusters, call clusters, max pain, and expiry mean on FNONINJA — beginner-friendly NIFTY example you can verify on NSE. Informational only.",
+    "Simple explanations of option chain zones, why price reacts around them, and how to read them on NIFTY charts.",
   alternates: { canonical: `${FNONINJA_SITE_URL}/learn/science` },
 };
 

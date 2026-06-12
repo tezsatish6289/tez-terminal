@@ -20,9 +20,9 @@ export type LearnArticleMeta = {
 export const LEARN_ARTICLES: LearnArticleMeta[] = [
   {
     slug: "science",
-    title: "The Science Behind the Zones",
+    title: "Understanding Put & Call Clusters and Max Pain",
     excerpt:
-      "Put Clusters, Call Clusters, Max Pain, and Expiry — scroll through each concept with a live NIFTY zone ladder you can cross-check on NSE.",
+      "Simple explanations of option chain zones, why price reacts around them, and how to read them on NIFTY charts.",
     readMinutes: 5,
     readLabel: "5 min · scroll to explore",
     tag: "Foundations",

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FnoNinjaLearnScreenshot } from "@/components/fnoninja/learn/FnoNinjaLearnScreenshot";
+import { FnoNinjaLearnVerifyChecklist } from "@/components/fnoninja/learn/FnoNinjaLearnVerifyChecklist";
+import { FnoNinjaScienceConceptExplorer } from "@/components/fnoninja/learn/FnoNinjaScienceConceptExplorer";
 import {
   FnoNinjaLearnArticleShell,
   LearnBulletList,
@@ -27,196 +29,42 @@ export function ScienceLearnArticle() {
 
   return (
     <FnoNinjaLearnArticleShell article={article} learnHubHref={learnHubHref}>
-      <LearnSection title="In one minute">
+      <LearnSection title="Start here (30 seconds)">
         <LearnLead>
-          NSE F&amp;O options are like bets on where an index (like NIFTY) or stock might go by a
-          specific date. When lots of traders place similar bets at the{" "}
-          <strong className="text-slate-200">same price level</strong> (called a
-          &quot;strike&quot;), that level can influence how price moves — not magically, but because
-          of how big players (like market makers and institutions) manage their risk.
+          Options are bets on where NIFTY might go by a set date. When many bets pile up at one{" "}
+          <strong className="text-slate-200">strike</strong>, that level can matter — mostly because
+          market makers hedge their risk there.
         </LearnLead>
         <LearnLead>
-          FNONINJA scans the public option chain and highlights:
-        </LearnLead>
-        <LearnBulletList
-          items={[
-            "Heavy put interest below current price (potential support)",
-            "Heavy call interest above current price (potential resistance)",
-            "Max pain level (a reference point near expiry)",
-          ]}
-        />
-        <LearnLead>
-          We draw easy-to-see zones so you can compare them to live price action and decide what
-          they mean for you.
+          Use the chart below: tap each idea and see it on a real NIFTY screenshot. No long read
+          required.
         </LearnLead>
       </LearnSection>
 
-      <LearnSection title="Key ideas explained simply (for beginners)">
-        <div className="space-y-4">
-          <LearnTerm term="1. Put cluster (potential support zone)">
-            <p>
-              Puts are options that gain value when the price <strong className="text-slate-200">falls</strong>.
-              Many traders buy puts for protection or to bet on a drop.
-            </p>
-            <p className="mt-3">
-              When a huge number of puts pile up at one strike{" "}
-              <strong className="text-slate-200">below</strong> the current price, we call it a{" "}
-              <strong className="text-slate-200">put cluster</strong>. On FNONINJA you&apos;ll see
-              something like <em>Put OI peak — 221k @ 22,500</em> (221 thousand contracts at the
-              22,500 strike).
-            </p>
-            <p className="mt-3">
-              We shade a <strong className="text-slate-200">support zone</strong> around it.
-            </p>
-            <p className="mt-3">
-              <strong className="text-slate-200">Why it can act as support:</strong> Large open
-              interest often means market makers (who sell these options) hedge their risk by buying
-              the underlying when price dips toward that level. This buying can slow down or pause a
-              fall — like a cushion. It&apos;s an observation from history and data,{" "}
-              <strong className="text-slate-200">not a guarantee</strong> that price will bounce.
-            </p>
-          </LearnTerm>
-
-          <LearnTerm term="2. Call cluster (potential resistance zone)">
-            <p>
-              Calls are options that gain value when the price{" "}
-              <strong className="text-slate-200">rises</strong>.
-            </p>
-            <p className="mt-3">
-              A <strong className="text-slate-200">call cluster</strong> happens when lots of calls
-              stack at a strike <strong className="text-slate-200">above</strong> current price.
-              Example label: <em>Call OI peak — 164k @ 24,000</em>.
-            </p>
-            <p className="mt-3">
-              We draw a <strong className="text-slate-200">resistance zone</strong> around it.
-            </p>
-            <p className="mt-3">
-              <strong className="text-slate-200">Why it can act as resistance:</strong> Market makers
-              hedging these sold calls may sell the underlying as price rises toward the strike. This
-              selling pressure can make it harder for price to break through — like hitting a
-              ceiling. Again, just context for your chart, not a guaranteed wall.
-            </p>
-          </LearnTerm>
-
-          <LearnTerm term="3. Max pain">
-            <p>
-              At expiry, options settle based on the closing price.{" "}
-              <strong className="text-slate-200">Max pain</strong> is the strike where the{" "}
-              <strong className="text-slate-200">total payout</strong> by option sellers (writers)
-              would be the lowest — meaning the most options (calls + puts) would expire worthless.
-            </p>
-            <p className="mt-3">
-              We show it as a yellow line. Many researchers notice price tends to hover or
-              &quot;pin&quot; near max pain as expiry nears, but it&apos;s{" "}
-              <strong className="text-slate-200">not a rule</strong> — just one useful reference
-              point.
-            </p>
-          </LearnTerm>
-
-          <LearnTerm term="4. Expiry">
-            <p>
-              Every option has an expiry date (when the contract ends). FNONINJA uses the nearest
-              liquid expiry (e.g. <em>16/06/2026 Expiry</em> shown on the chart). Clusters and max
-              pain can shift when a new expiry becomes active. Always match the expiry when checking
-              NSE.
-            </p>
-          </LearnTerm>
-        </div>
+      <LearnSection title="Explore the chart">
+        <FnoNinjaScienceConceptExplorer />
       </LearnSection>
 
-      <LearnSection title="How price often reacts around these levels (and why)">
-        <LearnLead>
-          Markets aren&apos;t robots, but heavy option activity creates real effects through{" "}
-          <strong className="text-slate-200">hedging</strong> by market makers — the big
-          intermediaries who take the other side of trades.
-        </LearnLead>
-        <p className="text-sm font-semibold text-white mt-4">Around put / call clusters</p>
-        <p className="text-sm leading-relaxed" style={{ color: "#94a3b8" }}>
-          High open interest (OI) means lots of contracts. Market makers hedge to stay safe. As price
-          approaches a heavy put zone, their hedging often involves <strong className="text-slate-200">buying</strong>{" "}
-          (support). Near heavy calls, hedging can mean <strong className="text-slate-200">selling</strong>{" "}
-          (resistance). Result: price may <strong className="text-slate-200">slow down, pause, or reverse</strong>{" "}
-          temporarily. Breaks beyond the zone can trigger more hedging adjustments, sometimes
-          accelerating the move.
-        </p>
-        <p className="text-sm font-semibold text-white mt-4">Near max pain (especially near expiry)</p>
-        <p className="text-sm leading-relaxed" style={{ color: "#94a3b8" }}>
-          It acts like a <strong className="text-slate-200">magnet</strong>. Dealers&apos; collective
-          hedging flows (buying dips and selling rallies to stay neutral) tend to pull price toward
-          areas of concentrated open interest. This &quot;pinning&quot; effect is stronger in the last
-          few days before expiry when gamma (sensitivity to price moves) increases. Price doesn&apos;t{" "}
-          <em>have</em> to go there, especially if big news or trends overpower it — but it&apos;s a
-          common pattern many researchers watch.
-        </p>
-        <p className="text-sm font-semibold text-white mt-4">Patterns researchers often notice</p>
-        <LearnBulletList
-          items={[
-            "Price often respects these zones more in calm markets.",
-            "Strong moves through a zone can lead to repositioning — the cluster may update on the next refresh.",
-            "These levels are dynamic — they change with new data and trader positions.",
-            "Always combine with your own tools: trend, news, volume, chart support/resistance, and risk management.",
-          ]}
-        />
-        <LearnLead>
-          <strong className="text-slate-200">Bottom line:</strong> These zones give you a map of where
-          big money has placed bets and is managing risk. They add context — not crystal balls.
-        </LearnLead>
-      </LearnSection>
-
-      <LearnSection title="Sample NIFTY chart (annotated)">
-        <LearnLead>
-          Below is a real NIFTY chart from FNONINJA with live-style labels. On the product, numbers
-          update from fresh NSE option-chain data.
-        </LearnLead>
-        <div
-          className="rounded-xl p-4 sm:p-5 text-sm space-y-2 mb-4"
-          style={{
-            backgroundColor: "rgba(8,15,30,0.45)",
-            border: "1px solid rgba(90,140,220,0.12)",
-            color: "#94a3b8",
-          }}
-        >
-          <p className="font-bold text-white">NIFTY · 15m · NSE</p>
-          <p>
-            <span style={{ color: "#fca5a5" }}>Call OI peak — 164k @ 24,000</span> (resistance zone)
-          </p>
-          <p>
-            <span style={{ color: "#fbbf24" }}>Max Pain · 16/06/2026 Expiry</span> (yellow line @
-            23,500)
-          </p>
-          <p>
-            <span style={{ color: "#86efac" }}>Put OI peak — 221k @ 22,500</span> (support zone)
-          </p>
-        </div>
-        <FnoNinjaLearnScreenshot
-          src="/fnoninja/learn/science-chart.png"
-          alt="NIFTY 15m chart on FNONINJA showing call cluster, put cluster, max pain, and support/resistance zones"
-          caption="Live NIFTY example — support and resistance derived from option chain data expiring on 16/06/2026. Levels update as new NSE data arrives."
-        />
-      </LearnSection>
-
-      <LearnSection title="Verify it yourself (easy 4-step process)">
-        <LearnSteps
-          steps={[
-            {
-              title: "Note the levels on FNONINJA",
-              body: "Example: Put OI peak @ 22,500, Call OI peak @ 24,000, expiry 16/06/2026.",
-            },
-            {
-              title: "Go to NSE option chain",
-              body: "Search NIFTY and select the exact same expiry.",
-            },
-            {
-              title: "Check open interest",
-              body: "Look at the strike in the Put or Call column. The contract count should be roughly similar (markets move fast, so small differences are normal).",
-            },
-            {
-              title: "Form your own view",
-              body: "Does this level align with other signals on your chart? Does it fit your timeframe and strategy? Use the zones as extra context — you decide.",
-            },
-          ]}
-        />
-      </LearnSection>
+      <FnoNinjaLearnVerifyChecklist
+        steps={[
+          {
+            title: "Note the levels on FNONINJA",
+            body: "Put OI peak @ 22,500, Call OI peak @ 24,000, expiry 16/06/2026.",
+          },
+          {
+            title: "Open NSE option chain for NIFTY",
+            body: "Pick the same expiry date as on the chart.",
+          },
+          {
+            title: "Compare open interest at that strike",
+            body: "Counts should be roughly similar — small gaps are normal as the market moves.",
+          },
+          {
+            title: "Decide what it means for you",
+            body: "We show the map. You judge fit with your timeframe and strategy — we never tell you to trade.",
+          },
+        ]}
+      />
     </FnoNinjaLearnArticleShell>
   );
 }

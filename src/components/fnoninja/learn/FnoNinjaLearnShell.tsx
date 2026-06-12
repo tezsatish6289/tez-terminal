@@ -45,7 +45,7 @@ export function FnoNinjaLearnArticleShell({
       <div className="flex flex-wrap items-center gap-3 text-xs mb-6" style={{ color: "#64748b" }}>
         <span className="inline-flex items-center gap-1.5">
           <Clock className="h-3.5 w-3.5" />
-          {article.readMinutes} min read
+          {article.readLabel ?? `${article.readMinutes} min read`}
         </span>
       </div>
 

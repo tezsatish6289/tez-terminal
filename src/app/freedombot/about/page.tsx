@@ -236,6 +236,18 @@ export default function AboutPage() {
           </div>
         </div>
 
+      {/* Footer */}
+      <footer className="py-10 mt-4" style={{ borderTop: "1px solid rgba(90,140,220,0.1)" }}>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-xs" style={{ color: "#334155" }}>
+            © 2026 FreedomBot.ai · Trading involves risk. Past performance does not guarantee future results.
+          </p>
+          <div className="flex gap-6">
+            <Link href="/privacy" className="text-xs transition-colors hover:text-blue-300" style={{ color: "#475569" }}>Privacy</Link>
+            <Link href="/terms" className="text-xs transition-colors hover:text-blue-300" style={{ color: "#475569" }}>Terms</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

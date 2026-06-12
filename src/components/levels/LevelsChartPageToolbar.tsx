@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { LevelsCtaCluster } from "@/components/levels/LevelsCtaCluster";
 import { LevelsSlideshowCta } from "@/components/levels/LevelsSlideshowCta";
 import type { NativeCandlesChartHandle } from "@/components/levels/NativeCandlesChart";
+import { levelsBubblesPagePathForHost } from "@/lib/levels/levels-chart-url";
 
 function isTypingTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
@@ -25,7 +26,7 @@ export function LevelsChartPageToolbar({
   webChartUrl: string;
   nativeChartRef: React.RefObject<NativeCandlesChartHandle | null>;
   chartFullHistory: boolean;
-  /** Slideshow: toggle in-page; chart page: defaults to /freedombot/levels. */
+  /** Slideshow: toggle in-page; chart page: defaults to host levels bubbles path. */
   onBubblesClick?: () => void;
   bubblesLabel?: string;
   bubblesShortLabel?: string;
@@ -38,7 +39,12 @@ export function LevelsChartPageToolbar({
       onBubblesClick();
       return;
     }
-    router.push("/freedombot/levels");
+    const path = levelsBubblesPagePathForHost(window.location.hostname);
+    if (path.startsWith("http")) {
+      window.location.href = path;
+      return;
+    }
+    router.push(path);
   }, [onBubblesClick, router]);
 
   useEffect(() => {

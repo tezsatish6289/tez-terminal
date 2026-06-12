@@ -7,7 +7,7 @@ const TEZTERMINAL_HOSTS = ["tezterminal.com", "www.tezterminal.com"];
 const FNONINJA_PUBLIC_ORIGIN = "https://fnoninja.com";
 
 // Pages that belong to the FreedomBot marketing site (rewritten to /freedombot/*)
-const FREEDOMBOT_SITE_PATHS = new Set(["/", "/about", "/contact", "/privacy", "/terms", "/records", "/dashboard", "/performance", "/methodology", "/levels"]);
+const FREEDOMBOT_SITE_PATHS = new Set(["/", "/about", "/contact", "/privacy", "/terms", "/records", "/dashboard", "/performance", "/methodology"]);
 
 function hostCandidates(request: NextRequest): string[] {
   const forwarded = request.headers.get("x-forwarded-host") || "";
@@ -30,6 +30,17 @@ function isTezTerminal(request: NextRequest): boolean {
 }
 
 /** tezterminal.com public URLs → fnoninja.com (localhost keeps /fnoninja for dev). */
+/** Levels analytics moved to fnoninja.com — preserve path + query (e.g. /levels/chart?scope=…). */
+function fnoninjaLevelsRedirect(request: NextRequest, pathname: string): NextResponse {
+  let destPath = pathname;
+  if (pathname === "/freedombot/levels" || pathname.startsWith("/freedombot/levels/")) {
+    destPath = pathname.replace(/^\/freedombot\/levels/, "/levels") || "/levels";
+  }
+  const url = new URL(destPath, FNONINJA_PUBLIC_ORIGIN);
+  url.search = request.nextUrl.search;
+  return NextResponse.redirect(url, 301);
+}
+
 function tezTerminalFnoNinjaRedirect(request: NextRequest, pathname: string): NextResponse | null {
   if (!isTezTerminal(request)) return null;
 
@@ -128,14 +139,19 @@ export function middleware(request: NextRequest) {
       return NextResponse.rewrite(new URL(`/freedombot${pathname}`, request.url));
     }
 
+    // Levels analytics — deprecated on freedombot.ai; live on fnoninja.com
+    if (
+      pathname === "/levels" ||
+      pathname.startsWith("/levels/") ||
+      pathname === "/freedombot/levels" ||
+      pathname.startsWith("/freedombot/levels/")
+    ) {
+      return fnoninjaLevelsRedirect(request, pathname);
+    }
+
     // Already on internal /freedombot/* routes (e.g. mistaken links) — serve directly
     if (pathname === "/freedombot" || pathname.startsWith("/freedombot/")) {
       return NextResponse.next();
-    }
-
-    // Levels app + symbol chart deep-dive (/levels/chart?scope=…&symbol=…)
-    if (pathname === "/levels" || pathname.startsWith("/levels/")) {
-      return NextResponse.rewrite(new URL(`/freedombot${pathname}`, request.url));
     }
 
     // Marketing site pages → rewrite to /freedombot/* internally

@@ -262,8 +262,8 @@ export default function LevelsCronDashboardPage() {
               <p className="text-sm text-muted-foreground mt-1 max-w-xl">
                 NSE F&O stock zone cron only (not crypto). Throughput, circuit state, and freshness
                 for{" "}
-                <Link href="https://freedombot.ai/levels" className="text-accent hover:underline">
-                  freedombot.ai/levels
+                <Link href="https://fnoninja.com/levels" className="text-accent hover:underline">
+                  fnoninja.com/levels
                 </Link>{" "}
                 stock aggregate data.
               </p>

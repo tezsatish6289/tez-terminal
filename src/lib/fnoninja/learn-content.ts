@@ -8,8 +8,6 @@ export type LearnArticleMeta = {
   title: string;
   excerpt: string;
   readMinutes: number;
-  /** Shown beside clock in article header (defaults to “{n} min read”). */
-  readLabel?: string;
   tag: string;
   icon: LucideIcon;
   /** Optional hero/thumbnail under public/fnoninja/learn/ */
@@ -23,8 +21,7 @@ export const LEARN_ARTICLES: LearnArticleMeta[] = [
     title: "The Science Behind the Zones",
     excerpt:
       "What put and call clusters, max pain, and expiry really mean — explained in simple terms with a beginner-friendly NIFTY example you can check on NSE right now.",
-    readMinutes: 5,
-    readLabel: "5 min · tap to explore",
+    readMinutes: 8,
     tag: "Foundations",
     icon: BookOpen,
     thumbnailSrc: "/fnoninja/learn/science-thumb.png",

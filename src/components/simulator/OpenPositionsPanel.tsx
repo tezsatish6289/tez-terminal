@@ -108,26 +108,21 @@ export function OpenPositionsPanel({
           simTradeIds={openSimTradeIds}
         />
       )}
-      <div className="flex items-center justify-between gap-2 px-0.5">
-        <p className="text-[10px] text-muted-foreground/50 max-w-md">
-          {showAllBots ? (
-            <>
-              <span className="text-foreground/70 font-bold">{trades.length}</span>{" "}
-              open across all bots. Select a bot above to filter back to one.
-            </>
-          ) : (
-            <>
+      {(!showAllBots || trades.length === 0) && (
+        <div className="flex items-center justify-between gap-2 px-0.5">
+          {!showAllBots && (
+            <p className="text-[10px] text-muted-foreground/50 max-w-md">
               Up to <span className="text-foreground/70 font-bold">{slots}</span>{" "}
               concurrent positions. Slots free up when a trade closes or hits TP/SL.
-            </>
+            </p>
           )}
-        </p>
-        {trades.length === 0 && (
-          <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/35 shrink-0">
-            Waiting for signal
-          </span>
-        )}
-      </div>
+          {trades.length === 0 && (
+            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/35 shrink-0">
+              Waiting for signal
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Width-driven grid: cards keep a readable min width and wrap instead of
           being crushed into N columns by the slot count. In the narrow ~40%

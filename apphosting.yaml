@@ -76,6 +76,14 @@ env:
     secret: PUBLIC_LIVE_PASSPHRASE
     availability:
       - RUNTIME
+  # India ISP egress proxy for ALL NSE traffic (nseFetch honours NSE_HTTPS_PROXY).
+  # Presents an Indian residential IP so NSE stops blocking us into the Dhan fallback.
+  # NOTE: create the secret BEFORE deploying, else the rollout fails:
+  #   firebase apphosting:secrets:set NSE_HTTPS_PROXY
+  - variable: NSE_HTTPS_PROXY
+    secret: NSE_HTTPS_PROXY
+    availability:
+      - RUNTIME
   # suggest-stock-zones: background batch after cron GET returns (cron-job.org 30s HTTP cap).
   # 3 symbols × ~25s Dhan fits reliably in 95s wall clock (10 was timing out at 2–3).
   - variable: STOCK_ZONES_BATCH_SIZE

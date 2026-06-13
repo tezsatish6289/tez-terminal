@@ -36,6 +36,7 @@ import {
   type ZoneDisplayKey,
 } from "@/lib/zones/zone-status";
 import { FNO_ACCENT, FNO_APP_SURFACE_STYLE, FNO_BG_CANVAS } from "@/lib/fnoninja/theme";
+import { FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
 
 const TOUR_AUTO_SECONDS = 8;
 
@@ -226,6 +227,8 @@ function LearnTourOverlay({
 
   return (
     <div className="absolute inset-0 z-40 pointer-events-none">
+      <div className="absolute inset-0 bg-[rgba(8,15,30,0.18)]" aria-hidden />
+
       {rect ? (
         <div
           className="absolute rounded-lg transition-all duration-300 ease-out"
@@ -234,13 +237,13 @@ function LearnTourOverlay({
             top: rect.y - 3,
             width: rect.width + 6,
             height: rect.height + 6,
-            boxShadow: "0 0 0 9999px rgba(0,0,0,0.78)",
             border: "2px solid rgba(96,165,250,0.95)",
+            boxShadow:
+              "0 0 0 3px rgba(37,99,235,0.2), 0 0 20px rgba(96,165,250,0.35), inset 0 0 0 1px rgba(255,255,255,0.08)",
+            backgroundColor: "transparent",
           }}
         />
-      ) : (
-        <div className="absolute inset-0 bg-black/75" />
-      )}
+      ) : null}
 
       <div
         className="absolute left-3 right-3 sm:left-auto sm:right-4 sm:max-w-sm pointer-events-auto"
@@ -507,7 +510,7 @@ export function FnoNinjaLiveslideGuide() {
     ) : null;
 
   return (
-    <section>
+    <section className="overflow-x-hidden">
       <div className="mb-5">
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-2" style={{ color: FNO_ACCENT }}>
           See it live
@@ -536,15 +539,18 @@ export function FnoNinjaLiveslideGuide() {
         ) : null}
       </div>
 
-      <div
-        ref={containerRef}
-        className="relative rounded-2xl overflow-hidden flex flex-col min-h-[min(88dvh,820px)]"
-        style={{
-          ...FNO_APP_SURFACE_STYLE,
-          border: "1px solid rgba(90,140,220,0.2)",
-          backgroundColor: FNO_BG_CANVAS,
-        }}
-      >
+      {/* Full-bleed — same width canvas as the market map / Liveslide */}
+      <div className="relative w-[100vw] left-1/2 -translate-x-1/2">
+        <div className={`${FB_LEVELS_SHELL} py-1`}>
+          <div
+            ref={containerRef}
+            className="relative overflow-hidden flex flex-col min-h-[min(88dvh,820px)]"
+            style={{
+              ...FNO_APP_SURFACE_STYLE,
+              border: "1px solid rgba(90,140,220,0.12)",
+              backgroundColor: FNO_BG_CANVAS,
+            }}
+          >
         {loading ? (
           <div className="flex flex-1 items-center justify-center gap-2 py-24">
             <Loader2 className="h-5 w-5 animate-spin" style={{ color: FNO_ACCENT }} />
@@ -653,6 +659,8 @@ export function FnoNinjaLiveslideGuide() {
             onDismiss={() => setTourDismissed(true)}
           />
         ) : null}
+          </div>
+        </div>
       </div>
 
       {active && tv ? (

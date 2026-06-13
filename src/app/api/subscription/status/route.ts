@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/firebase/admin";
-import { FREE_TRIAL_DAYS, type SubscriptionDoc } from "@/lib/subscription";
+import { FNONINJA_FREE_TRIAL_DAYS, FREE_TRIAL_DAYS, type SubscriptionDoc } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -32,12 +32,16 @@ export async function GET(request: NextRequest) {
       await db.collection("users").doc(uid).set(profileData, { merge: true });
     }
 
+    const product = searchParams.get("product");
+    const trialDays = product === "fnoninja" ? FNONINJA_FREE_TRIAL_DAYS : FREE_TRIAL_DAYS;
+
     const subRef = db.collection("subscriptions").doc(uid);
     let subSnap = await subRef.get();
+    let trialJustActivated = false;
 
     if (!subSnap.exists) {
       const now = new Date();
-      const trialEnd = new Date(now.getTime() + FREE_TRIAL_DAYS * 24 * 60 * 60 * 1000);
+      const trialEnd = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
 
       const newSub: SubscriptionDoc = {
         userId: uid,
@@ -50,6 +54,7 @@ export async function GET(request: NextRequest) {
 
       await subRef.set(newSub);
       subSnap = await subRef.get();
+      trialJustActivated = true;
     }
 
     const data = subSnap.data() as SubscriptionDoc;
@@ -89,6 +94,7 @@ export async function GET(request: NextRequest) {
       daysRemaining,
       trialEndDate: data.trialEndDate,
       subscriptionEndDate: data.subscriptionEndDate,
+      trialJustActivated,
     });
   } catch (error: any) {
     console.error("[Subscription Status]", error.message);

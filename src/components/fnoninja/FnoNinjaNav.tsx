@@ -25,6 +25,7 @@ import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 const ANCHOR_LINKS = [
   { label: "How it works", href: "#how-it-works" },
   { label: "Features", href: "#features" },
+  { label: "Pricing", href: "#pricing" },
   { label: "Disclaimer", href: "#disclaimer" },
 ] as const;
 

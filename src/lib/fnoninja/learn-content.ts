@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
-import { BookOpen, Layers, PlayCircle, Star } from "lucide-react";
+import { BookOpen } from "lucide-react";
 
-export type LearnArticleSlug = "science" | "liveslide" | "favslide";
+export type LearnArticleSlug = "science";
 
 export type LearnArticleMeta = {
   slug: LearnArticleSlug;
@@ -29,28 +29,6 @@ export const LEARN_ARTICLES: LearnArticleMeta[] = [
     icon: BookOpen,
     thumbnailSrc: "/fnoninja/learn/science-thumb.png",
     thumbnailAccent: "linear-gradient(135deg, rgba(34,197,94,0.35), rgba(251,191,36,0.2))",
-  },
-  {
-    slug: "liveslide",
-    title: "What is Liveslide and how to use it",
-    excerpt:
-      "Open Liveslide on the market map and tap the help icon next to Learn for an in-app intro and guided tour.",
-    readMinutes: 5,
-    tag: "Product guide",
-    icon: PlayCircle,
-    thumbnailSrc: "/fnoninja/learn/liveslide-thumb.png",
-    thumbnailAccent: "linear-gradient(135deg, rgba(37,99,235,0.45), rgba(96,165,250,0.15))",
-  },
-  {
-    slug: "favslide",
-    title: "What is Favslide and how to use it",
-    excerpt:
-      "Build a personal watchlist from any symbol chart, cycle your favourites, and use it to monitor positions you are already running.",
-    readMinutes: 6,
-    tag: "Product guide",
-    icon: Star,
-    thumbnailSrc: "/fnoninja/learn/favslide-thumb.png",
-    thumbnailAccent: "linear-gradient(135deg, rgba(251,191,36,0.35), rgba(37,99,235,0.2))",
   },
 ];
 

@@ -4,6 +4,9 @@
 
 export const FREE_TRIAL_DAYS = 7;
 
+/** Re-export for server routes — FNONINJA uses a longer trial via product=fnoninja. */
+export { FNONINJA_FREE_TRIAL_DAYS } from "@/lib/fnoninja/pricing";
+
 export interface Plan {
   days: number;
   price: number;

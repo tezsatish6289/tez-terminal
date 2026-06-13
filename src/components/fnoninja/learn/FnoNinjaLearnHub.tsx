@@ -63,15 +63,14 @@ export function FnoNinjaLearnHub() {
           Understand the data before you use it
         </h1>
         <p className="text-base sm:text-lg leading-relaxed" style={{ color: FNO_MUTED }}>
-          Short, plain-language guides to option-chain zones, Liveslide, and Favslide — written so
-          you do not need a trading background. We explain what you are looking at; you decide what
-          it means for you.
+          Short, plain-language guides to option-chain zones — written so you do not need a trading
+          background. We explain what you are looking at; you decide what it means for you.
         </p>
       </div>
 
       <FnoNinjaLearnDisclaimer className="mb-10 max-w-3xl" />
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
+      <div className="grid gap-5 lg:gap-6 max-w-xl">
         {LEARN_ARTICLES.map((article) => {
           const Icon = article.icon;
           const href = fnoLearnHref(pathname, article.slug);

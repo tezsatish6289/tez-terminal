@@ -1,5 +1,4 @@
 import { CheckCircle2 } from "lucide-react";
-import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { FB_CONTENT_SHELL } from "@/lib/freedombot/responsive";
 import {
@@ -129,10 +128,6 @@ export function FnoNinjaPricingSection() {
         All plans include market map access. Paid subscriptions unlock symbol charts, liveslide, and
         deep-dive analytics. Informational data only — not investment advice.
       </p>
-
-      <div className="mt-8 flex justify-center">
-        <FnoNinjaCtaLink variant="secondary">Explore live market map</FnoNinjaCtaLink>
-      </div>
     </section>
   );
 }

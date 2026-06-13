@@ -43,9 +43,18 @@ const BOT_SYMBOL: Record<CockpitBotId, string> = {
 
 const POLL_MS = 60_000;
 const INTERVAL = "15";
-/** Empty bars between the last candle and the right price-scale labels. */
-const RIGHT_OFFSET_CANDLES = 15;
-const RIGHT_PRICE_SCALE_MIN_WIDTH = 108;
+/** Empty bars between the last candle and the right price-scale labels (~10% of history). */
+const RIGHT_OFFSET_RATIO = 0.1;
+const RIGHT_OFFSET_MIN = 40;
+const RIGHT_OFFSET_MAX = 110;
+/** Extra width for Support/Resistance, max-pain, and current-price axis labels. */
+const RIGHT_PRICE_SCALE_MIN_WIDTH = 152;
+
+function rightOffsetBars(barCount: number): number {
+  if (barCount < 2) return RIGHT_OFFSET_MIN;
+  const scaled = Math.round(barCount * RIGHT_OFFSET_RATIO);
+  return Math.min(RIGHT_OFFSET_MAX, Math.max(RIGHT_OFFSET_MIN, scaled));
+}
 /** Default LWC margins are top 0.2 / bottom 0.1 — far too much for zone charts. */
 const TIGHT_SCALE_MARGINS = { top: 0.03, bottom: 0.03 };
 
@@ -109,15 +118,18 @@ export function SimZoneCandlesChart({
   suggestedRef.current = suggested;
   spotRef.current = spot;
 
-  function applyRightPadding() {
+  function applyRightPadding(barCount = candlesRef.current.length) {
+    const offset = rightOffsetBars(barCount);
     const ts = chartRef.current?.timeScale();
     if (!ts) return;
-    ts.applyOptions({ rightOffset: RIGHT_OFFSET_CANDLES });
+    ts.applyOptions({ rightOffset: offset });
     chartRef.current?.priceScale("right").applyOptions({
       minimumWidth: RIGHT_PRICE_SCALE_MIN_WIDTH,
     });
     requestAnimationFrame(() => {
-      chartRef.current?.timeScale().applyOptions({ rightOffset: RIGHT_OFFSET_CANDLES });
+      const n = candlesRef.current.length;
+      const off = rightOffsetBars(n);
+      chartRef.current?.timeScale().applyOptions({ rightOffset: off });
       chartRef.current?.priceScale("right").applyOptions({
         minimumWidth: RIGHT_PRICE_SCALE_MIN_WIDTH,
       });
@@ -130,8 +142,9 @@ export function SimZoneCandlesChart({
   function applyFullHistoryZoom(barCount: number) {
     const ts = chartRef.current?.timeScale();
     if (!ts || barCount < 2) return;
-    ts.applyOptions({ rightOffset: RIGHT_OFFSET_CANDLES });
-    ts.setVisibleLogicalRange({ from: 0, to: barCount - 1 });
+    const offset = rightOffsetBars(barCount);
+    ts.applyOptions({ rightOffset: offset });
+    ts.setVisibleLogicalRange({ from: 0, to: barCount - 1 + offset });
     fullHistoryZoomRef.current = true;
   }
 
@@ -175,7 +188,7 @@ export function SimZoneCandlesChart({
         borderColor: "rgba(255,255,255,0.08)",
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: RIGHT_OFFSET_CANDLES,
+        rightOffset: RIGHT_OFFSET_MIN,
         fixRightEdge: false,
         minimumHeight: 28,
         ticksVisible: true,

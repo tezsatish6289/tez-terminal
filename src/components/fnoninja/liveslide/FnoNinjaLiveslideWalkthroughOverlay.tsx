@@ -8,7 +8,7 @@ import {
   LIVESLIDE_WALKTHROUGH_TOUR_STEPS,
   type LiveslideWalkthroughTourStep,
 } from "@/lib/fnoninja/liveslide-walkthrough-content";
-import { FNO_ACCENT, FNO_CARD_BG, FNO_CARD_BORDER } from "@/lib/fnoninja/theme";
+import { FNO_ACCENT, FNO_CARD_BORDER } from "@/lib/fnoninja/theme";
 
 const TOUR_AUTO_SECONDS = 8;
 
@@ -51,81 +51,103 @@ function IntroPanel({ onNext, onClose }: { onNext: () => void; onClose: () => vo
   const intro = LIVESLIDE_WALKTHROUGH_INTRO;
 
   return (
-    <div
-      className="fixed inset-0 z-[120] flex flex-col"
-      style={{ backgroundColor: "rgba(8,15,30,0.97)" }}
-    >
-      <div className="shrink-0 flex items-center justify-end px-4 py-3 border-b border-white/5">
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-white/5"
-          style={{ color: "#94a3b8" }}
-          aria-label="Close guide"
-        >
-          <X className="h-5 w-5" />
-        </button>
-      </div>
+    <div className="fixed inset-0 z-[120] flex flex-col pointer-events-auto">
+      {/* Light scrim — Liveslide stays visible around the guide */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ backgroundColor: "rgba(8,15,30,0.42)" }}
+        aria-hidden
+      />
 
-      <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-8">
-        <div className="max-w-3xl mx-auto">
-          <p
-            className="text-[10px] font-bold uppercase tracking-[0.2em] mb-3"
-            style={{ color: FNO_ACCENT }}
-          >
-            Product guide
-          </p>
-          <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight leading-[1.1] mb-4">
-            {intro.title}
-          </h1>
-          <div
-            className="flex items-center gap-1.5 text-xs mb-6"
-            style={{ color: "#64748b" }}
-          >
-            <Clock className="h-3.5 w-3.5" />
-            {intro.readLabel}
-          </div>
-          <p className="text-base leading-relaxed mb-8" style={{ color: "#94a3b8" }}>
-            {intro.excerpt}
-          </p>
-
-          <section
-            className="rounded-2xl p-6 sm:p-8 mb-6"
-            style={{ backgroundColor: FNO_CARD_BG, border: FNO_CARD_BORDER }}
-          >
-            <h2 className="text-lg sm:text-xl font-bold text-white mb-4">Purpose</h2>
-            <div className="space-y-4 text-sm sm:text-[15px] leading-relaxed text-slate-300">
-              {intro.purpose.map((p) => (
-                <p key={p}>{p}</p>
-              ))}
-            </div>
-          </section>
-
-          <section
-            className="rounded-2xl p-6 sm:p-8 mb-8"
-            style={{ backgroundColor: FNO_CARD_BG, border: FNO_CARD_BORDER }}
-          >
-            <h2 className="text-lg sm:text-xl font-bold text-white mb-4">The advantage</h2>
-            <ul className="space-y-2.5">
-              {intro.advantages.map((item) => (
-                <li key={item} className="flex gap-2.5 text-sm leading-relaxed" style={{ color: "#94a3b8" }}>
-                  <span className="shrink-0 font-bold" style={{ color: FNO_ACCENT }}>
-                    ·
-                  </span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
+      <div className="relative flex flex-col h-dvh max-h-dvh min-h-0 w-full">
+        <div className="shrink-0 flex items-center justify-end px-4 sm:px-6 py-2">
           <button
             type="button"
-            onClick={onNext}
-            className="w-full sm:w-auto rounded-lg px-6 py-3 text-sm font-bold text-white"
-            style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-white/10"
+            style={{ color: "#94a3b8", backgroundColor: "rgba(8,15,30,0.55)" }}
+            aria-label="Close guide"
           >
-            Next — tour the controls
+            <X className="h-5 w-5" />
           </button>
+        </div>
+
+        <div className="flex flex-1 min-h-0 flex-col px-4 sm:px-6 lg:px-10 pb-4 sm:pb-5 w-full">
+          <header className="shrink-0 mb-3 sm:mb-4">
+            <p
+              className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1.5"
+              style={{ color: FNO_ACCENT }}
+            >
+              Product guide
+            </p>
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
+              <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-[1.12]">
+                {intro.title}
+              </h1>
+              <div
+                className="flex items-center gap-1.5 text-xs shrink-0"
+                style={{ color: "#64748b" }}
+              >
+                <Clock className="h-3.5 w-3.5" />
+                {intro.readLabel}
+              </div>
+            </div>
+            <p
+              className="mt-2 text-sm sm:text-[15px] leading-snug max-w-[72rem]"
+              style={{ color: "#94a3b8" }}
+            >
+              {intro.excerpt}
+            </p>
+          </header>
+
+          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4 overflow-y-auto">
+            <section
+              className="rounded-xl p-4 sm:p-5 min-h-0 overflow-hidden"
+              style={{ backgroundColor: "rgba(8,15,30,0.88)", border: FNO_CARD_BORDER }}
+            >
+              <h2 className="text-base sm:text-lg font-bold text-white mb-2.5">Purpose</h2>
+              <div className="space-y-2.5 text-[13px] sm:text-sm leading-snug text-slate-300">
+                {intro.purpose.map((p) => (
+                  <p key={p}>{p}</p>
+                ))}
+              </div>
+            </section>
+
+            <section
+              className="rounded-xl p-4 sm:p-5 min-h-0 overflow-hidden"
+              style={{ backgroundColor: "rgba(8,15,30,0.88)", border: FNO_CARD_BORDER }}
+            >
+              <h2 className="text-base sm:text-lg font-bold text-white mb-2.5">The advantage</h2>
+              <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-2">
+                {intro.advantages.map((item) => (
+                  <li
+                    key={item}
+                    className="flex gap-2 text-[13px] sm:text-sm leading-snug"
+                    style={{ color: "#94a3b8" }}
+                  >
+                    <span className="shrink-0 font-bold" style={{ color: FNO_ACCENT }}>
+                      ·
+                    </span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </div>
+
+          <footer
+            className="shrink-0 flex items-center justify-center sm:justify-start pt-3 border-t"
+            style={{ borderColor: "rgba(255,255,255,0.08)" }}
+          >
+            <button
+              type="button"
+              onClick={onNext}
+              className="rounded-lg px-8 py-3 text-sm font-bold text-white shadow-lg"
+              style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+            >
+              Next — tour the controls
+            </button>
+          </footer>
         </div>
       </div>
     </div>
@@ -164,7 +186,7 @@ function TourStepPanel({
 
   return (
     <>
-      <div className="fixed inset-0 z-[115] bg-[rgba(8,15,30,0.22)] pointer-events-none" aria-hidden />
+      <div className="fixed inset-0 z-[115] bg-[rgba(8,15,30,0.18)] pointer-events-none" aria-hidden />
 
       {rect ? (
         <div

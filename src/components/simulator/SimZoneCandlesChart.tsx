@@ -43,18 +43,11 @@ const BOT_SYMBOL: Record<CockpitBotId, string> = {
 
 const POLL_MS = 60_000;
 const INTERVAL = "15";
-/** Empty bars between the last candle and the right price-scale labels (~10% of history). */
-const RIGHT_OFFSET_RATIO = 0.1;
-const RIGHT_OFFSET_MIN = 40;
-const RIGHT_OFFSET_MAX = 110;
+/** Gap between the last candle and right-axis labels — fraction of chart pane width. */
+const RIGHT_OFFSET_PANE_RATIO = 0.1;
+const RIGHT_OFFSET_PIXELS_MIN = 48;
 /** Extra width for Support/Resistance, max-pain, and current-price axis labels. */
 const RIGHT_PRICE_SCALE_MIN_WIDTH = 152;
-
-function rightOffsetBars(barCount: number): number {
-  if (barCount < 2) return RIGHT_OFFSET_MIN;
-  const scaled = Math.round(barCount * RIGHT_OFFSET_RATIO);
-  return Math.min(RIGHT_OFFSET_MAX, Math.max(RIGHT_OFFSET_MIN, scaled));
-}
 /** Default LWC margins are top 0.2 / bottom 0.1 — far too much for zone charts. */
 const TIGHT_SCALE_MARGINS = { top: 0.03, bottom: 0.03 };
 
@@ -118,34 +111,53 @@ export function SimZoneCandlesChart({
   suggestedRef.current = suggested;
   spotRef.current = spot;
 
-  function applyRightPadding(barCount = candlesRef.current.length) {
-    const offset = rightOffsetBars(barCount);
-    const ts = chartRef.current?.timeScale();
-    if (!ts) return;
-    ts.applyOptions({ rightOffset: offset });
-    chartRef.current?.priceScale("right").applyOptions({
-      minimumWidth: RIGHT_PRICE_SCALE_MIN_WIDTH,
-    });
-    requestAnimationFrame(() => {
-      const n = candlesRef.current.length;
-      const off = rightOffsetBars(n);
-      chartRef.current?.timeScale().applyOptions({ rightOffset: off });
-      chartRef.current?.priceScale("right").applyOptions({
-        minimumWidth: RIGHT_PRICE_SCALE_MIN_WIDTH,
-      });
-      if (!fullHistoryZoomRef.current) {
-        chartRef.current?.timeScale().scrollToRealTime();
-      }
-    });
+  function chartPaneWidthPx(): number {
+    const chart = chartRef.current;
+    const el = containerRef.current;
+    if (chart) {
+      const w = chart.timeScale().width();
+      if (w > 0) return w;
+    }
+    if (el && el.clientWidth > 0) {
+      return Math.max(0, el.clientWidth - RIGHT_PRICE_SCALE_MIN_WIDTH);
+    }
+    return 0;
   }
 
-  function applyFullHistoryZoom(barCount: number) {
-    const ts = chartRef.current?.timeScale();
-    if (!ts || barCount < 2) return;
-    const offset = rightOffsetBars(barCount);
-    ts.applyOptions({ rightOffset: offset });
-    ts.setVisibleLogicalRange({ from: 0, to: barCount - 1 + offset });
-    fullHistoryZoomRef.current = true;
+  function rightOffsetPixels(): number {
+    const pane = chartPaneWidthPx();
+    if (pane <= 0) return RIGHT_OFFSET_PIXELS_MIN;
+    return Math.max(RIGHT_OFFSET_PIXELS_MIN, Math.round(pane * RIGHT_OFFSET_PANE_RATIO));
+  }
+
+  /** Keep ~10% empty pane width between candles and price-line axis labels. */
+  function syncChartViewport() {
+    const chart = chartRef.current;
+    const ts = chart?.timeScale();
+    if (!chart || !ts || candlesRef.current.length < 2) return;
+
+    const apply = () => {
+      const c = chartRef.current;
+      const scale = c?.timeScale();
+      if (!c || !scale) return;
+      const pixels = rightOffsetPixels();
+      c.priceScale("right").applyOptions({
+        minimumWidth: RIGHT_PRICE_SCALE_MIN_WIDTH,
+      });
+      scale.applyOptions({ rightOffsetPixels: pixels });
+      if (fullHistoryZoomRef.current) {
+        scale.fitContent();
+      } else {
+        scale.scrollToRealTime();
+      }
+    };
+
+    apply();
+    // Re-apply after layout / price-scale width settles (chart may boot while hidden).
+    requestAnimationFrame(() => {
+      apply();
+      requestAnimationFrame(apply);
+    });
   }
 
   const fitPriceScale = useCallback(() => {
@@ -188,7 +200,7 @@ export function SimZoneCandlesChart({
         borderColor: "rgba(255,255,255,0.08)",
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: RIGHT_OFFSET_MIN,
+        rightOffsetPixels: RIGHT_OFFSET_PIXELS_MIN,
         fixRightEdge: false,
         minimumHeight: 28,
         ticksVisible: true,
@@ -237,7 +249,13 @@ export function SimZoneCandlesChart({
     bullBandRef.current = bullBand;
     seriesRef.current = series;
 
+    const ro = new ResizeObserver(() => {
+      if (candlesRef.current.length >= 2) syncChartViewport();
+    });
+    ro.observe(el);
+
     return () => {
+      ro.disconnect();
       chart.remove();
       chartRef.current = null;
       bearBandRef.current = null;
@@ -268,11 +286,8 @@ export function SimZoneCandlesChart({
       lastCandleRef.current,
     );
     fitPriceScale();
-    if (!isPoll || fullHistoryZoomRef.current) {
-      applyFullHistoryZoom(data.length);
-    } else {
-      applyRightPadding();
-    }
+    fullHistoryZoomRef.current = !isPoll || fullHistoryZoomRef.current;
+    syncChartViewport();
     hasDisplayedCandlesRef.current = true;
     loadedForSymbolRef.current = symbol;
     setError(null);
@@ -424,7 +439,7 @@ export function SimZoneCandlesChart({
     );
     applySimPriceLines(series, priceLinesRef, suggested, spot, lastCandleRef.current);
     fitPriceScale();
-    applyRightPadding();
+    syncChartViewport();
   }, [suggested, spot, symbol, fitPriceScale]);
 
   useEffect(() => {
@@ -456,6 +471,11 @@ export function SimZoneCandlesChart({
 
   const showChartOverlay = bootLoading || swapping;
   const chartReady = !showChartOverlay && !error;
+
+  useEffect(() => {
+    if (!chartReady || candlesRef.current.length < 2) return;
+    syncChartViewport();
+  }, [chartReady]);
 
   const missingBull = suggested.bullZoneLow == null || suggested.bullZoneHigh == null;
   const missingBear = suggested.bearZoneLow == null || suggested.bearZoneHigh == null;

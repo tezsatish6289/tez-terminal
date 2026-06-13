@@ -66,6 +66,7 @@ export function FnoNinjaFavslideToggle({
           ? `Remove ${symbol} from favslide`
           : `Add ${symbol} to favslide`
       }
+      data-favslide-tour={removeOnly ? "remove" : undefined}
     >
       {busy ? (
         <Loader2

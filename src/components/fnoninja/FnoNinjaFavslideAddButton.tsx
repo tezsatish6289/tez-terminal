@@ -82,6 +82,7 @@ export function FnoNinjaFavslideAddButton({
           }}
           aria-label={needsSignIn ? "Sign in to add to favslide" : "Add symbol to favslide"}
           title={needsSignIn ? "Sign in to add to favslide" : "Search and add to favslide"}
+          data-favslide-tour="add"
         >
           <Plus className="h-5 w-5" style={{ color: FNO_FAVSLIDE_ACCENT }} strokeWidth={2.5} />
           <span
@@ -185,10 +186,11 @@ export function FnoNinjaFavslideAddButton({
                       {entry.scope === "index" ? " · Index" : ""}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    disabled={favorited || busy}
-                    onClick={() => void handleAdd(entry)}
+        <button
+          type="button"
+          disabled={busy || needsSignIn}
+          onClick={() => void handleAdd(entry)}
+          data-favslide-tour="add"
                     className="shrink-0 inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-colors disabled:opacity-60"
                     style={{
                       color: favorited ? "#64748b" : FNO_FAVSLIDE_ACCENT,

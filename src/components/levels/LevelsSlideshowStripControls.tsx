@@ -163,6 +163,7 @@ export function LevelsSlideModePill({
         boxShadow: "none",
       }}
       data-liveslide-tour={isFav ? undefined : "live-count"}
+      data-favslide-tour={isFav ? "fav-count" : undefined}
       aria-label={
         isFav
           ? `Favslide${count != null ? `, ${count} stocks` : ""}`
@@ -222,6 +223,7 @@ export function LevelsViewModeIconBox({
       aria-label="Back to Market Bubbles map. Press B or click."
       title={title}
       data-liveslide-tour="bubbles"
+      data-favslide-tour="bubbles"
     >
       <BubblesMapIcon
         className="h-6 w-6"
@@ -613,6 +615,7 @@ export function LevelsSlideshowStripControls({
           }
           title={slideshowControl.paused ? "Play slideshow" : "Pause slideshow"}
           data-liveslide-tour="pause"
+          data-favslide-tour="pause"
         >
           {slideshowControl.paused ? (
             <SlideshowTransportIcon mode="play" color="#f472b6" />

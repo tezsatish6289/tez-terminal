@@ -283,10 +283,14 @@ export default function LevelsPage() {
     registerLevelsViewMode(viewMode);
   }, [isFnoNinjaHost, registerLevelsViewMode, viewMode]);
 
-  const prepareLiveslideWalkthrough = useCallback(() => {
-    enterLiveslide();
+  const prepareSlideshowWalkthrough = useCallback(() => {
+    if (viewMode === "favslide") {
+      enterFavslide();
+    } else {
+      enterLiveslide();
+    }
     setSlideshowPaused(true);
-  }, [enterLiveslide]);
+  }, [viewMode, enterFavslide, enterLiveslide]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -687,7 +691,7 @@ export default function LevelsPage() {
 
   const tvChartColumn =
     activeTv != null ? (
-      <div data-liveslide-tour="chart" className="flex flex-1 min-h-0 flex-col">
+      <div data-liveslide-tour="chart" data-favslide-tour="chart" className="flex flex-1 min-h-0 flex-col">
         <LevelsTradingViewChart
           className="flex-1 min-h-0"
           config={activeTv}
@@ -717,7 +721,7 @@ export default function LevelsPage() {
 
   const slideshowNews =
     inZoneActive != null && activeTicker ? (
-      <div data-liveslide-tour="news" className="h-full min-h-0">
+      <div data-liveslide-tour="news" data-favslide-tour="news" className="h-full min-h-0">
         <LevelsNewsPanel
           scope={inZoneActive.scope}
           symbol={activeTicker}
@@ -897,7 +901,7 @@ export default function LevelsPage() {
             news: slideshowNews,
             listAboveChart: true,
             chartFooter: (
-              <div data-liveslide-tour="footer">
+              <div data-liveslide-tour="footer" data-favslide-tour="footer">
                 <LevelsChartMetaFooter
                   slideCount={inZoneCount}
                   activeIndex={inZoneCurrent}
@@ -932,7 +936,7 @@ export default function LevelsPage() {
       filtersOnly={isSlideView}
       symbolStrip={
         isSlideView && slideshowSymbolStrip ? (
-          <div data-liveslide-tour="strip" className="h-full min-w-0 flex-1">
+          <div data-liveslide-tour="strip" data-favslide-tour="strip" className="h-full min-w-0 flex-1">
             {slideshowSymbolStrip}
           </div>
         ) : undefined
@@ -1029,7 +1033,7 @@ export default function LevelsPage() {
     >
       {isFnoNinjaHost ? (
         <Suspense fallback={null}>
-          <FnoNinjaLiveslideWalkthroughBridge onPrepare={prepareLiveslideWalkthrough} />
+          <FnoNinjaLiveslideWalkthroughBridge onPrepare={prepareSlideshowWalkthrough} />
         </Suspense>
       ) : null}
       <div className={`${FB_LEVELS_SHELL} flex-1 min-h-0 flex flex-col overflow-hidden`}>

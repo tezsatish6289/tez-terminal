@@ -58,7 +58,7 @@ export function FnoNinjaLiveslideWalkthroughProvider({ children }: { children: R
   return (
     <LiveslideWalkthroughContext.Provider value={value}>
       {children}
-      <FnoNinjaLiveslideWalkthroughOverlay isOpen={isOpen} onClose={close} />
+      <FnoNinjaLiveslideWalkthroughOverlay isOpen={isOpen} onClose={close} mode={levelsViewMode} />
     </LiveslideWalkthroughContext.Provider>
   );
 }

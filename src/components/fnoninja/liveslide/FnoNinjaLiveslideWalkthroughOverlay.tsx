@@ -8,18 +8,60 @@ import {
   LIVESLIDE_WALKTHROUGH_TOUR_STEPS,
   type LiveslideWalkthroughTourStep,
 } from "@/lib/fnoninja/liveslide-walkthrough-content";
-import { FNO_ACCENT, FNO_CARD_BG, FNO_CARD_BORDER } from "@/lib/fnoninja/theme";
+import {
+  FAVSLIDE_WALKTHROUGH_INTRO,
+  FAVSLIDE_WALKTHROUGH_TOUR_STEPS,
+} from "@/lib/fnoninja/favslide-walkthrough-content";
+import type { FnoNinjaLevelsViewMode } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughContext";
+import { FNO_ACCENT, FNO_CARD_BG, FNO_CARD_BORDER, FNO_FAVSLIDE_ACCENT } from "@/lib/fnoninja/theme";
 
 const OVERLAY_Z = 120;
 
-function IntroFocusBinocularIcon({ className }: { className?: string }) {
+function IntroStarWatchlistIcon({ className, color }: { className?: string; color: string }) {
+  return (
+    <svg viewBox="0 0 88 76" fill="none" className={className} aria-hidden style={{ color }}>
+      <path
+        d="M44 12l7.2 14.6 16.1 2.3-11.6 11.3 2.7 16L44 48.8 29.6 56.2l2.7-16L20.7 28.9l16.1-2.3L44 12z"
+        stroke="currentColor"
+        strokeWidth="2.25"
+        strokeLinejoin="round"
+      />
+      <rect x="14" y="58" width="60" height="8" rx="2" stroke="currentColor" strokeWidth="2" opacity="0.45" />
+      <path d="M22 66v4M66 66v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.45" />
+    </svg>
+  );
+}
+
+function walkthroughConfig(mode: "liveslide" | "favslide") {
+  if (mode === "favslide") {
+    return {
+      intro: FAVSLIDE_WALKTHROUGH_INTRO,
+      steps: FAVSLIDE_WALKTHROUGH_TOUR_STEPS,
+      accent: FNO_FAVSLIDE_ACCENT,
+      highlightBorder: "rgba(251,191,36,0.95)",
+      highlightGlow: "0 0 0 3px rgba(251,191,36,0.2), 0 0 20px rgba(251,191,36,0.35), inset 0 0 0 1px rgba(255,255,255,0.08)",
+      calloutBorder: "1px solid rgba(251,191,36,0.45)",
+    };
+  }
+  return {
+    intro: LIVESLIDE_WALKTHROUGH_INTRO,
+    steps: LIVESLIDE_WALKTHROUGH_TOUR_STEPS,
+    accent: FNO_ACCENT,
+    highlightBorder: "rgba(96,165,250,0.95)",
+    highlightGlow:
+      "0 0 0 3px rgba(37,99,235,0.2), 0 0 20px rgba(96,165,250,0.35), inset 0 0 0 1px rgba(255,255,255,0.08)",
+    calloutBorder: "1px solid rgba(96,165,250,0.45)",
+  };
+}
+
+function IntroFocusBinocularIcon({ className, color }: { className?: string; color: string }) {
   return (
     <svg
       viewBox="0 0 96 64"
       fill="none"
       className={className}
       aria-hidden
-      style={{ color: FNO_ACCENT }}
+      style={{ color }}
     >
       <path
         d="M12 38c0-9.941 8.059-18 18-18 4.2 0 8.06 1.44 11.12 3.86C44.18 21.4 48.04 20 52.24 20 62.18 20 70.24 28.06 70.24 38"
@@ -44,14 +86,14 @@ function IntroFocusBinocularIcon({ className }: { className?: string }) {
 }
 
 /** Manual balance scale — beam tilted right (advantage side heavier). */
-function IntroAdvantageScaleIcon({ className }: { className?: string }) {
+function IntroAdvantageScaleIcon({ className, color }: { className?: string; color: string }) {
   return (
     <svg
       viewBox="0 0 88 76"
       fill="none"
       className={className}
       aria-hidden
-      style={{ color: FNO_ACCENT }}
+      style={{ color }}
     >
       <path d="M44 10v38" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
       <circle cx="44" cy="8" r="3" fill="currentColor" opacity="0.65" />
@@ -164,8 +206,17 @@ function useViewportTargetRect(selector: string, enabled: boolean) {
   return rect;
 }
 
-function IntroPanel({ onNext, onClose }: { onNext: () => void; onClose: () => void }) {
-  const intro = LIVESLIDE_WALKTHROUGH_INTRO;
+function IntroPanel({
+  mode,
+  onNext,
+  onClose,
+}: {
+  mode: "liveslide" | "favslide";
+  onNext: () => void;
+  onClose: () => void;
+}) {
+  const { intro, accent } = walkthroughConfig(mode);
+  const isFav = mode === "favslide";
 
   return (
     <div
@@ -189,7 +240,7 @@ function IntroPanel({ onNext, onClose }: { onNext: () => void; onClose: () => vo
           <header className="shrink-0 mb-3 sm:mb-4">
             <p
               className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1.5"
-              style={{ color: FNO_ACCENT }}
+              style={{ color: accent }}
             >
               Product guide
             </p>
@@ -228,7 +279,17 @@ function IntroPanel({ onNext, onClose }: { onNext: () => void; onClose: () => vo
                 className="flex-1 flex items-end justify-center pt-4 sm:pt-6 min-h-[5.5rem]"
                 aria-hidden
               >
-                <IntroFocusBinocularIcon className="w-[5.5rem] h-[3.75rem] sm:w-[6.5rem] sm:h-[4.25rem] opacity-35" />
+                {isFav ? (
+                  <IntroStarWatchlistIcon
+                    color={accent}
+                    className="w-[5.5rem] h-[4.75rem] sm:w-[6.5rem] sm:h-[5.5rem] opacity-35"
+                  />
+                ) : (
+                  <IntroFocusBinocularIcon
+                    color={accent}
+                    className="w-[5.5rem] h-[3.75rem] sm:w-[6.5rem] sm:h-[4.25rem] opacity-35"
+                  />
+                )}
               </div>
             </section>
 
@@ -244,7 +305,7 @@ function IntroPanel({ onNext, onClose }: { onNext: () => void; onClose: () => vo
                     className="flex gap-2 text-[13px] sm:text-sm leading-snug"
                     style={{ color: "#94a3b8" }}
                   >
-                    <span className="shrink-0 font-bold" style={{ color: FNO_ACCENT }}>
+                    <span className="shrink-0 font-bold" style={{ color: accent }}>
                       ·
                     </span>
                     <span>{item}</span>
@@ -255,7 +316,10 @@ function IntroPanel({ onNext, onClose }: { onNext: () => void; onClose: () => vo
                 className="flex-1 flex items-end justify-end pt-4 sm:pt-6 min-h-[5.5rem] pr-1 sm:pr-3"
                 aria-hidden
               >
-                <IntroAdvantageScaleIcon className="w-[5.5rem] h-[4.75rem] sm:w-[6.75rem] sm:h-[5.75rem] opacity-35" />
+                <IntroAdvantageScaleIcon
+                  color={accent}
+                  className="w-[5.5rem] h-[4.75rem] sm:w-[6.75rem] sm:h-[5.75rem] opacity-35"
+                />
               </div>
             </section>
           </div>
@@ -268,7 +332,11 @@ function IntroPanel({ onNext, onClose }: { onNext: () => void; onClose: () => vo
               type="button"
               onClick={onNext}
               className="rounded-lg px-8 py-3 text-sm font-bold text-white shadow-lg"
-              style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+              style={{
+                background: isFav
+                  ? "linear-gradient(135deg, #d97706, #fbbf24)"
+                  : "linear-gradient(135deg, #1d4ed8, #3b82f6)",
+              }}
             >
               Next — tour the controls
             </button>
@@ -284,6 +352,10 @@ function TourStepPanel({
   stepIndex,
   totalSteps,
   rect,
+  accent,
+  highlightBorder,
+  highlightGlow,
+  calloutBorder,
   onNext,
   onPrev,
   onClose,
@@ -292,6 +364,10 @@ function TourStepPanel({
   stepIndex: number;
   totalSteps: number;
   rect: DOMRect | null;
+  accent: string;
+  highlightBorder: string;
+  highlightGlow: string;
+  calloutBorder: string;
   onNext: () => void;
   onPrev: () => void;
   onClose: () => void;
@@ -316,9 +392,8 @@ function TourStepPanel({
             top: rect.top - 3,
             width: rect.width + 6,
             height: rect.height + 6,
-            border: "2px solid rgba(96,165,250,0.95)",
-            boxShadow:
-              "0 0 0 3px rgba(37,99,235,0.2), 0 0 20px rgba(96,165,250,0.35), inset 0 0 0 1px rgba(255,255,255,0.08)",
+            border: `2px solid ${highlightBorder}`,
+            boxShadow: highlightGlow,
           }}
         />
       ) : null}
@@ -331,13 +406,13 @@ function TourStepPanel({
           className="rounded-xl p-4 shadow-2xl"
           style={{
             backgroundColor: "rgba(8,15,30,0.98)",
-            border: "1px solid rgba(96,165,250,0.45)",
+            border: calloutBorder,
           }}
         >
           <div className="flex items-start justify-between gap-2 mb-1.5">
             <p
               className="text-[10px] font-bold uppercase tracking-[0.18em]"
-              style={{ color: FNO_ACCENT }}
+              style={{ color: accent }}
             >
               {stepIndex + 1} of {totalSteps}
             </p>
@@ -368,7 +443,12 @@ function TourStepPanel({
               type="button"
               onClick={onNext}
               className="rounded-lg px-3 py-1.5 text-xs font-bold text-white"
-              style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
+              style={{
+                background:
+                  accent === FNO_FAVSLIDE_ACCENT
+                    ? "linear-gradient(135deg, #d97706, #fbbf24)"
+                    : "linear-gradient(135deg, #1d4ed8, #3b82f6)",
+              }}
             >
               {isLast ? "Finish" : "Next"}
             </button>
@@ -382,16 +462,20 @@ function TourStepPanel({
 export function FnoNinjaLiveslideWalkthroughOverlay({
   isOpen,
   onClose,
+  mode,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  mode: FnoNinjaLevelsViewMode;
 }) {
   const [mounted, setMounted] = useState(false);
   const [phase, setPhase] = useState<"intro" | "tour">("intro");
   const [tourIndex, setTourIndex] = useState(0);
   const wasOpenRef = useRef(false);
 
-  const tourStep = LIVESLIDE_WALKTHROUGH_TOUR_STEPS[tourIndex];
+  const slideshowMode = mode === "favslide" ? "favslide" : "liveslide";
+  const config = walkthroughConfig(slideshowMode);
+  const tourStep = config.steps[tourIndex];
   const tourRect = useViewportTargetRect(
     tourStep?.selector ?? "",
     isOpen && phase === "tour" && Boolean(tourStep),
@@ -423,7 +507,7 @@ export function FnoNinjaLiveslideWalkthroughOverlay({
     el?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [isOpen, phase, tourStep]);
 
-  if (!mounted || !isOpen) return null;
+  if (!mounted || !isOpen || mode === "bubbles") return null;
 
   const handleClose = () => {
     document.body.style.overflow = "";
@@ -437,15 +521,19 @@ export function FnoNinjaLiveslideWalkthroughOverlay({
 
   return createPortal(
     phase === "intro" ? (
-      <IntroPanel onNext={startTour} onClose={handleClose} />
+      <IntroPanel mode={slideshowMode} onNext={startTour} onClose={handleClose} />
     ) : tourStep ? (
       <TourStepPanel
         step={tourStep}
         stepIndex={tourIndex}
-        totalSteps={LIVESLIDE_WALKTHROUGH_TOUR_STEPS.length}
+        totalSteps={config.steps.length}
         rect={tourRect}
+        accent={config.accent}
+        highlightBorder={config.highlightBorder}
+        highlightGlow={config.highlightGlow}
+        calloutBorder={config.calloutBorder}
         onNext={() => {
-          if (tourIndex >= LIVESLIDE_WALKTHROUGH_TOUR_STEPS.length - 1) handleClose();
+          if (tourIndex >= config.steps.length - 1) handleClose();
           else setTourIndex((i) => i + 1);
         }}
         onPrev={() => {

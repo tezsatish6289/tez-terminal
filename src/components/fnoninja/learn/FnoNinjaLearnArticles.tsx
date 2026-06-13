@@ -44,7 +44,11 @@ export function LiveslideLearnArticle() {
   const { article, learnHubHref } = useLearnShell("liveslide");
 
   return (
-    <FnoNinjaLearnArticleShell article={article} learnHubHref={learnHubHref}>
+    <FnoNinjaLearnArticleShell
+      article={article}
+      learnHubHref={learnHubHref}
+      disclaimerPlacement="bottom"
+    >
       <LearnSection title="Purpose">
         <LearnLead>
           The <strong className="text-slate-200">Market Map</strong> shows hundreds of NSE F&amp;O
@@ -69,6 +73,7 @@ export function LiveslideLearnArticle() {
             "Full chart context: zones, OI peaks, and Max Pain are drawn on a live candlestick chart, not tiny map bubbles.",
             "Focus on your side: filter to support or resistance setups depending on what you are hunting.",
             "Study on demand: pause any slide to read the chart and news for as long as you like.",
+            "See long-term trends as well — open a TradingView chart by clicking the link at the bottom of the chart or pressing T on your keyboard.",
           ]}
         />
       </LearnSection>

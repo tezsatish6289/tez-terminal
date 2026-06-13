@@ -35,6 +35,7 @@ import {
   type ZoneBands,
   type ZoneDisplayKey,
 } from "@/lib/zones/zone-status";
+import { FNO_LEARN_LIVESLIDE_DEMO_HEIGHT } from "@/lib/freedombot/responsive";
 import { FNO_ACCENT, FNO_APP_SURFACE_STYLE, FNO_BG_CANVAS } from "@/lib/fnoninja/theme";
 
 const TOUR_AUTO_SECONDS = 8;
@@ -540,7 +541,7 @@ export function FnoNinjaLiveslideGuide() {
 
       <div
         ref={containerRef}
-        className="relative w-full overflow-hidden flex flex-col min-h-[min(88dvh,820px)]"
+        className={`relative w-full overflow-hidden flex flex-col ${FNO_LEARN_LIVESLIDE_DEMO_HEIGHT}`}
         style={{
           ...FNO_APP_SURFACE_STYLE,
           border: "1px solid rgba(90,140,220,0.12)",
@@ -592,10 +593,11 @@ export function FnoNinjaLiveslideGuide() {
                 levels={<></>}
                 hideLevelsColumn
                 listAboveChart
+                compactHeight
                 chartChrome={chartChrome ?? undefined}
                 news={
                   active ? (
-                    <div data-learn-news className="h-full min-h-[16rem] lg:min-h-0">
+                    <div data-learn-news className="h-full min-h-0">
                       <LevelsNewsPanel scope={active.scope} symbol={active.symbol} className="h-full" />
                     </div>
                   ) : undefined
@@ -604,7 +606,7 @@ export function FnoNinjaLiveslideGuide() {
                   <div className="flex flex-col flex-1 min-h-0 min-w-0">
                     <div
                       data-learn-chart
-                      className="relative flex flex-1 min-h-[min(36dvh,360px)] lg:min-h-0 min-w-0"
+                      className="relative flex flex-1 min-h-0 min-w-0"
                     >
                       {tv ? (
                         <NativeCandlesChart

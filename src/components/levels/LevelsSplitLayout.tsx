@@ -432,6 +432,7 @@ export function LevelsTripleColumnShell({
   news,
   hideLevelsColumn = false,
   listAboveChart = false,
+  compactHeight = false,
   chartChrome,
 }: {
   list: ReactNode;
@@ -443,10 +444,14 @@ export function LevelsTripleColumnShell({
   hideLevelsColumn?: boolean;
   /** Slideshow: filters + tickers in one row above; chart 7 : news 3 on lg+. */
   listAboveChart?: boolean;
+  /** Learn embed: drop mobile min-heights so parent height clamp applies. */
+  compactHeight?: boolean;
   /** Stock title + toolbar row directly above the chart (inside chart column). */
   chartChrome?: ReactNode;
 }) {
   if (listAboveChart) {
+    const chartMinH = compactHeight ? "min-h-0" : "min-h-[min(40dvh,360px)] lg:min-h-0";
+    const newsMinH = compactHeight ? "min-h-0" : "min-h-[20rem] lg:min-h-0";
     return (
       <div
         className="flex flex-col lg:flex-row flex-1 min-h-0 gap-2 sm:gap-3 lg:gap-4 items-stretch pt-2 sm:pt-3 overflow-hidden min-w-0"
@@ -456,14 +461,14 @@ export function LevelsTripleColumnShell({
           className={`flex flex-col min-h-0 min-w-0 w-full ${news ? "lg:flex-[7] lg:min-w-0" : "lg:flex-1"}`}
         >
           {chartChrome ? <div className="shrink-0 mb-1.5 sm:mb-2 min-w-0">{chartChrome}</div> : null}
-          <div className="flex flex-col flex-1 min-h-[min(40dvh,360px)] lg:min-h-0 min-w-0">
+          <div className={`flex flex-col flex-1 ${chartMinH} min-w-0`}>
             {chart}
           </div>
         </div>
         {news && (
           <>
             <ColumnDivider />
-            <div className="flex flex-col min-h-[20rem] lg:min-h-0 w-full lg:flex-[3] lg:min-w-0">
+            <div className={`flex flex-col ${newsMinH} w-full lg:flex-[3] lg:min-w-0`}>
               {news}
             </div>
           </>

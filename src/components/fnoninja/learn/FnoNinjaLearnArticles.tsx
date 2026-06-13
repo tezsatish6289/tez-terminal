@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FnoNinjaLearnScreenshot } from "@/components/fnoninja/learn/FnoNinjaLearnScreenshot";
 import { SCIENCE_LEARN_DISCLAIMER } from "@/components/fnoninja/learn/FnoNinjaLearnDisclaimer";
-import { FnoNinjaLearnVerifyChecklist } from "@/components/fnoninja/learn/FnoNinjaLearnVerifyChecklist";
 import { FnoNinjaScienceScrollGuide } from "@/components/fnoninja/learn/FnoNinjaScienceScrollGuide";
 import {
   FnoNinjaLearnArticleShell,
@@ -36,27 +35,6 @@ export function ScienceLearnArticle() {
       disclaimerParagraphs={SCIENCE_LEARN_DISCLAIMER}
     >
       <FnoNinjaScienceScrollGuide />
-
-      <FnoNinjaLearnVerifyChecklist
-        steps={[
-          {
-            title: "Note the levels on the live ladder above",
-            body: "Use the put/call OI peak labels and expiry shown on each topic's chart.",
-          },
-          {
-            title: "Open NSE option chain for NIFTY",
-            body: "Select the same expiry date as on the FNONINJA chart.",
-          },
-          {
-            title: "Compare open interest at that strike",
-            body: "Contract counts should be roughly similar — small gaps are normal as the market moves.",
-          },
-          {
-            title: "Decide what it means for you",
-            body: "We show the map. You judge fit with your timeframe and strategy — we never tell you to trade.",
-          },
-        ]}
-      />
     </FnoNinjaLearnArticleShell>
   );
 }

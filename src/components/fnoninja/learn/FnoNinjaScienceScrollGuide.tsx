@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { CandlestickData, UTCTimestamp } from "lightweight-charts";
 import type { PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
   FnoNinjaScienceLiveVisual,
   type ScienceVisualFocus,
 } from "@/components/fnoninja/learn/FnoNinjaScienceLiveVisual";
-import { formatClusterPeakLabel } from "@/lib/levels/format-cluster-size";
 import { FNO_ACCENT } from "@/lib/fnoninja/theme";
 
 type Topic = {
@@ -181,13 +180,6 @@ export function FnoNinjaScienceScrollGuide() {
     };
   }, []);
 
-  const verifyHint = useMemo(() => {
-    const put = formatClusterPeakLabel("Put", levels?.putClusterSize, levels?.putClusterStrike);
-    const call = formatClusterPeakLabel("Call", levels?.callClusterSize, levels?.callClusterStrike);
-    const exp = levels?.zonesExpiry ?? "the chart expiry";
-    return { put, call, exp };
-  }, [levels]);
-
   return (
     <div>
       {TOPICS.map((topic, i) => (
@@ -201,13 +193,6 @@ export function FnoNinjaScienceScrollGuide() {
           index={i}
         />
       ))}
-
-      {verifyHint.put && verifyHint.call ? (
-        <p className="text-xs pt-4" style={{ color: "#64748b" }}>
-          When you verify on NSE, look for {verifyHint.put} and {verifyHint.call} on expiry{" "}
-          {verifyHint.exp}.
-        </p>
-      ) : null}
     </div>
   );
 }

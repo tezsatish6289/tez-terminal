@@ -20,9 +20,9 @@ export type LearnArticleMeta = {
 export const LEARN_ARTICLES: LearnArticleMeta[] = [
   {
     slug: "science",
-    title: "Understanding Put & Call Clusters and Max Pain",
+    title: "Mastering Option Zones: The Science Behind Put/Call Clusters, Max Pain & Expiry",
     excerpt:
-      "Simple explanations of option chain zones, why price reacts around them, and how to read them on NIFTY charts.",
+      "Understand how Put Clusters act as support, Call Clusters as resistance, Max Pain influences price near expiry, and how hedging activity shapes NIFTY price action — with live charts and practical verification steps.",
     readMinutes: 5,
     readLabel: "5 min · scroll to explore",
     tag: "Foundations",

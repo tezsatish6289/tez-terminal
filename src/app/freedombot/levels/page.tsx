@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense, type ReactNode } from "react";
 import { Loader2, TrendingUp, TrendingDown, Target } from "lucide-react";
 import { type PublicLevels } from "@/components/levels/ZonePriceLadder";
 import {
@@ -57,6 +57,7 @@ import {
 import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
+import { FnoNinjaLiveslideWalkthroughBridge } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughBridge";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { useFnoNinjaFavslide, type FnoNinjaFavslideApi } from "@/hooks/useFnoNinjaFavslide";
 import { isFnoNinjaAppContext } from "@/lib/fnoninja/auth";
@@ -266,6 +267,11 @@ export default function LevelsPage() {
   const enterBubbles = useCallback(() => {
     setViewMode("bubbles");
   }, []);
+
+  const prepareLiveslideWalkthrough = useCallback(() => {
+    enterLiveslide();
+    setSlideshowPaused(true);
+  }, [enterLiveslide]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -666,23 +672,25 @@ export default function LevelsPage() {
 
   const tvChartColumn =
     activeTv != null ? (
-      <LevelsTradingViewChart
-        className="flex-1 min-h-0"
-        config={activeTv}
-        ticker={activeTicker ?? activeTv.symbol}
-        companyName={activeCompanyName ?? undefined}
-        levels={activeChartLevels}
-        loading={chartLevelsLoading}
-        showSlideshowControl={slideshowEnabled}
-        slideshowPaused={slideshowPaused}
-        onToggleSlideshowPause={toggleSlideshowPause}
-        hideChartShortcuts={isSlideView}
-        defaultFullHistory={isSlideView}
-        showHeader={!isSlideView}
-        nativeChartRef={nativeChartRef}
-        onFullHistoryZoomChange={setChartFullHistory}
-        onLastCloseChange={activeTv?.nativeCandles ? handleChartLastClose : undefined}
-      />
+      <div data-liveslide-tour="chart" className="flex flex-1 min-h-0 flex-col">
+        <LevelsTradingViewChart
+          className="flex-1 min-h-0"
+          config={activeTv}
+          ticker={activeTicker ?? activeTv.symbol}
+          companyName={activeCompanyName ?? undefined}
+          levels={activeChartLevels}
+          loading={chartLevelsLoading}
+          showSlideshowControl={slideshowEnabled}
+          slideshowPaused={slideshowPaused}
+          onToggleSlideshowPause={toggleSlideshowPause}
+          hideChartShortcuts={isSlideView}
+          defaultFullHistory={isSlideView}
+          showHeader={!isSlideView}
+          nativeChartRef={nativeChartRef}
+          onFullHistoryZoomChange={setChartFullHistory}
+          onLastCloseChange={activeTv?.nativeCandles ? handleChartLastClose : undefined}
+        />
+      </div>
     ) : (
       <div
         className="flex flex-1 items-center justify-center rounded-xl text-center px-4"
@@ -694,11 +702,13 @@ export default function LevelsPage() {
 
   const slideshowNews =
     inZoneActive != null && activeTicker ? (
-      <LevelsNewsPanel
-        scope={inZoneActive.scope}
-        symbol={activeTicker}
-        className="h-full"
-      />
+      <div data-liveslide-tour="news" className="h-full min-h-0">
+        <LevelsNewsPanel
+          scope={inZoneActive.scope}
+          symbol={activeTicker}
+          className="h-full"
+        />
+      </div>
     ) : null;
 
   const viewToggleLabel =
@@ -878,14 +888,16 @@ export default function LevelsPage() {
             news: slideshowNews,
             listAboveChart: true,
             chartFooter: (
-              <LevelsChartMetaFooter
-                slideCount={inZoneCount}
-                activeIndex={inZoneCurrent}
-                onGoTo={setInZoneSlide}
-                zonesUpdatedLabel={zonesUpdatedLabel}
-                slideshowAdvanceHint
-                slideshowPaused={slideshowPaused}
-              />
+              <div data-liveslide-tour="footer">
+                <LevelsChartMetaFooter
+                  slideCount={inZoneCount}
+                  activeIndex={inZoneCurrent}
+                  onGoTo={setInZoneSlide}
+                  zonesUpdatedLabel={zonesUpdatedLabel}
+                  slideshowAdvanceHint
+                  slideshowPaused={slideshowPaused}
+                />
+              </div>
             ),
           }
         : undefined,
@@ -909,7 +921,13 @@ export default function LevelsPage() {
       }
       slideshowFilterCounts={viewMode === "liveslide" ? slideshowFilterCounts : undefined}
       filtersOnly={isSlideView}
-      symbolStrip={isSlideView ? slideshowSymbolStrip : undefined}
+      symbolStrip={
+        isSlideView && slideshowSymbolStrip ? (
+          <div data-liveslide-tour="strip" className="h-full min-w-0 flex-1">
+            {slideshowSymbolStrip}
+          </div>
+        ) : undefined
+      }
       slideshowControl={
         isSlideView && slideshowEnabled
           ? {
@@ -995,6 +1013,11 @@ export default function LevelsPage() {
 
   return (
     <main className={`${FB_FULL_HEIGHT_MAIN} shrink-0 min-w-0`} style={FNO_APP_SURFACE_STYLE}>
+      {isFnoNinjaHost ? (
+        <Suspense fallback={null}>
+          <FnoNinjaLiveslideWalkthroughBridge onPrepare={prepareLiveslideWalkthrough} />
+        </Suspense>
+      ) : null}
       <div className={`${FB_LEVELS_SHELL} flex-1 min-h-0 flex flex-col overflow-hidden`}>
         {loading ? (
           <div className="flex flex-1 items-center justify-center py-24">

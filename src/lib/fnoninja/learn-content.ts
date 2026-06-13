@@ -34,7 +34,7 @@ export const LEARN_ARTICLES: LearnArticleMeta[] = [
     slug: "liveslide",
     title: "What is Liveslide and how to use it",
     excerpt:
-      "Cycle through market setups that are aligned right now — filters, auto-advance, charts, and news in one view.",
+      "Open Liveslide on the market map and tap the help icon next to Learn for an in-app intro and guided tour.",
     readMinutes: 5,
     tag: "Product guide",
     icon: PlayCircle,

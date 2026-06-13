@@ -11,6 +11,7 @@ import { useAuth, useUser } from "@/firebase";
 import { initiateSignOut } from "@/firebase/non-blocking-login";
 import { isFnoNinjaLevelsPath } from "@/lib/fnoninja/auth";
 import { FnoNinjaNavLearn } from "@/components/fnoninja/FnoNinjaNavLearn";
+import { FnoNinjaNavLiveslideHelp } from "@/components/fnoninja/FnoNinjaNavLiveslideHelp";
 import { FnoNinjaNavSearch } from "@/components/fnoninja/FnoNinjaNavSearch";
 import {
   fnoHomeHref,
@@ -94,6 +95,7 @@ export function FnoNinjaNav() {
           </div>
 
           <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+            {isLevelsApp ? <FnoNinjaNavLiveslideHelp /> : null}
             <FnoNinjaNavLearn />
             {showNavSearch ? <FnoNinjaNavSearch /> : null}
             {!isLevelsApp && isFnoNinjaLandingPath(pathname) ? (

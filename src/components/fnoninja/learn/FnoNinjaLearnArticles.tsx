@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { FnoNinjaLearnScreenshot } from "@/components/fnoninja/learn/FnoNinjaLearnScreenshot";
 import { SCIENCE_LEARN_DISCLAIMER } from "@/components/fnoninja/learn/FnoNinjaLearnDisclaimer";
 import { FnoNinjaScienceScrollGuide } from "@/components/fnoninja/learn/FnoNinjaScienceScrollGuide";
-import { FnoNinjaLiveslideGuide } from "@/components/fnoninja/learn/FnoNinjaLiveslideGuide";
 import {
   FnoNinjaLearnArticleShell,
   LearnBulletList,
@@ -44,52 +43,11 @@ export function LiveslideLearnArticle() {
   const { article, learnHubHref } = useLearnShell("liveslide");
 
   return (
-    <FnoNinjaLearnArticleShell
-      article={article}
-      learnHubHref={learnHubHref}
-      disclaimerPlacement="bottom"
-      shell="wide"
-    >
-      <LearnSection title="Purpose">
-        <LearnLead>
-          The <strong className="text-slate-200">Market Map</strong> shows hundreds of NSE F&amp;O
-          names at once. <strong className="text-slate-200">Liveslide</strong> is the opposite
-          focus: one aligned setup at a time, with a live chart, zone overlays, filters, and news —
-          cycling automatically so you can scan the whole market without clicking every symbol.
-        </LearnLead>
-        <LearnLead>
-          &quot;Aligned&quot; means price has reached a meaningful position relative to derived
-          support / resistance and Max Pain — the same rules shown on the map. Liveslide exists to
-          make that subset effortless to watch. It is for{" "}
-          <strong className="text-slate-200">research and monitoring</strong>, not trade signals
-          from us.
-        </LearnLead>
-      </LearnSection>
-
-      <LearnSection title="The advantage">
-        <LearnBulletList
-          items={[
-            "Hands-free: the market comes to you — qualifying setups rotate automatically so you never scroll a giant grid.",
-            "Pre-filtered for quality: only zone-qualified setups (a 2:1 reward to Max Pain) ever enter the rotation.",
-            "Full chart context: zones, OI peaks, and Max Pain are drawn on a live candlestick chart, not tiny map bubbles.",
-            "Focus on your side: filter to support or resistance setups depending on what you are hunting.",
-            "Study on demand: pause any slide to read the chart and news for as long as you like.",
-            "See long-term trends as well — open a TradingView chart by clicking the link at the bottom of the chart or pressing T on your keyboard.",
-          ]}
-        />
-      </LearnSection>
-
-      <FnoNinjaLiveslideGuide />
-
-      <LearnSection title="Good habits">
-        <LearnBulletList
-          items={[
-            "Treat each slide as a starting point — check expiry, cluster strikes, and your own thesis.",
-            "Use pause on symbols you care about; do not rely on auto-cycle speed alone.",
-            "Combine with NSE or your broker for execution decisions — FNONINJA does not place trades.",
-          ]}
-        />
-      </LearnSection>
+    <FnoNinjaLearnArticleShell article={article} learnHubHref={learnHubHref}>
+      <LearnLead>
+        The Liveslide guide now lives on the market map. Switch to Liveslide and tap the{" "}
+        <strong className="text-slate-200">help icon</strong> next to Learn in the nav bar.
+      </LearnLead>
     </FnoNinjaLearnArticleShell>
   );
 }

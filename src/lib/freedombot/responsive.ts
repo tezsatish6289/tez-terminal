@@ -18,13 +18,6 @@ export const FNO_LEARN_ARTICLE_SHELL = "max-w-4xl mx-auto w-full px-4 sm:px-6";
 /** FNONINJA learn pages with embedded live product demos (edge-to-edge canvas). */
 export const FNO_LEARN_WIDE_SHELL = "w-full min-w-0 px-3 sm:px-5";
 
-/**
- * Embedded Liveslide learn demo — ~75% of the real Liveslide viewport (nav subtracted),
- * capped so it fits on screen with the article header above.
- */
-export const FNO_LEARN_LIVESLIDE_DEMO_HEIGHT =
-  "h-[clamp(24rem,calc((100dvh-3.5rem)*0.72),calc(100dvh-3.5rem-9rem))] sm:h-[clamp(26rem,calc((100dvh-4rem)*0.75),calc(100dvh-4rem-8rem))] min-h-0 max-h-[calc(100dvh-3.5rem-7rem)] sm:max-h-[calc(100dvh-4rem-6rem)]";
-
 export const FB_COMPACT_SHELL = "max-w-2xl mx-auto w-full px-4 sm:px-6";
 
 /** Hero / CTA sections on the landing page. */

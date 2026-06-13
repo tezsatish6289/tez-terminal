@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
-import { LiveslideLearnArticle } from "@/components/fnoninja/learn/FnoNinjaLearnArticles";
+import { FnoNinjaLiveslideLearnRedirect } from "@/components/fnoninja/learn/FnoNinjaLiveslideLearnRedirect";
 import { FNONINJA_SITE_URL } from "@/lib/fnoninja/metadata";
 
 export const metadata: Metadata = {
   title: "What is Liveslide",
   description:
-    "An interactive guide to Liveslide on FNONINJA — explore a live, auto-cycling slideshow of aligned NSE F&O setups with charts, zones, and filters. Informational only.",
+    "Open the in-app Liveslide guide on the market map — intro, purpose, and a guided tour of every control.",
   alternates: { canonical: `${FNONINJA_SITE_URL}/learn/liveslide` },
 };
 
 export default function LiveslideLearnPage() {
-  return <LiveslideLearnArticle />;
+  return <FnoNinjaLiveslideLearnRedirect />;
 }

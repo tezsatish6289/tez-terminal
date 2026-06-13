@@ -12,6 +12,71 @@ import { FNO_ACCENT, FNO_CARD_BG, FNO_CARD_BORDER } from "@/lib/fnoninja/theme";
 
 const OVERLAY_Z = 120;
 
+function IntroFocusBinocularIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 96 64"
+      fill="none"
+      className={className}
+      aria-hidden
+      style={{ color: FNO_ACCENT }}
+    >
+      <path
+        d="M12 38c0-9.941 8.059-18 18-18 4.2 0 8.06 1.44 11.12 3.86C44.18 21.4 48.04 20 52.24 20 62.18 20 70.24 28.06 70.24 38"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+      />
+      <circle cx="30" cy="38" r="14" stroke="currentColor" strokeWidth="2.5" />
+      <circle cx="30" cy="38" r="7" stroke="currentColor" strokeWidth="2" opacity="0.55" />
+      <circle cx="52.24" cy="38" r="14" stroke="currentColor" strokeWidth="2.5" />
+      <circle cx="52.24" cy="38" r="7" stroke="currentColor" strokeWidth="2" opacity="0.55" />
+      <path d="M44.24 38h-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+      <path
+        d="M18 24l-4-8M78 24l4-8"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        opacity="0.45"
+      />
+    </svg>
+  );
+}
+
+/** Manual balance scale — beam tilted right (advantage side heavier). */
+function IntroAdvantageScaleIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 88 76"
+      fill="none"
+      className={className}
+      aria-hidden
+      style={{ color: FNO_ACCENT }}
+    >
+      <path d="M44 10v38" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+      <circle cx="44" cy="8" r="3" fill="currentColor" opacity="0.65" />
+      <g transform="rotate(16 44 28)">
+        <path d="M14 28h60" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M18 28v6M70 28v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <path
+          d="M8 40c0-5 4-9 9-9s9 4 9 9-4 9-9 9-9-4-9-9z"
+          stroke="currentColor"
+          strokeWidth="2"
+        />
+        <path
+          d="M54 44c0-7 5-12 12-12s12 5 12 12-5 12-12 12-12-5-12-12z"
+          stroke="currentColor"
+          strokeWidth="2.25"
+        />
+        <path d="M58 48h16" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" opacity="0.5" />
+      </g>
+      <rect x="30" y="50" width="28" height="5" rx="1.5" stroke="currentColor" strokeWidth="2" />
+      <path d="M36 55v7M52 55v7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M28 62h32" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function tourCalloutStyle(
   rect: DOMRect | null,
   placement: LiveslideWalkthroughTourStep["placement"],
@@ -148,9 +213,9 @@ function IntroPanel({ onNext, onClose }: { onNext: () => void; onClose: () => vo
             </p>
           </header>
 
-          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4 overflow-y-auto">
+          <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4 overflow-y-auto items-stretch">
             <section
-              className="rounded-xl p-4 sm:p-5 min-h-0"
+              className="rounded-xl p-4 sm:p-5 min-h-0 flex flex-col h-full"
               style={{ backgroundColor: FNO_CARD_BG, border: FNO_CARD_BORDER }}
             >
               <h2 className="text-base sm:text-lg font-bold text-white mb-2.5">Purpose</h2>
@@ -159,10 +224,16 @@ function IntroPanel({ onNext, onClose }: { onNext: () => void; onClose: () => vo
                   <p key={p}>{p}</p>
                 ))}
               </div>
+              <div
+                className="flex-1 flex items-end justify-center pt-4 sm:pt-6 min-h-[5.5rem]"
+                aria-hidden
+              >
+                <IntroFocusBinocularIcon className="w-[5.5rem] h-[3.75rem] sm:w-[6.5rem] sm:h-[4.25rem] opacity-35" />
+              </div>
             </section>
 
             <section
-              className="rounded-xl p-4 sm:p-5 min-h-0"
+              className="rounded-xl p-4 sm:p-5 min-h-0 flex flex-col h-full"
               style={{ backgroundColor: FNO_CARD_BG, border: FNO_CARD_BORDER }}
             >
               <h2 className="text-base sm:text-lg font-bold text-white mb-2.5">The advantage</h2>
@@ -180,6 +251,12 @@ function IntroPanel({ onNext, onClose }: { onNext: () => void; onClose: () => vo
                   </li>
                 ))}
               </ul>
+              <div
+                className="flex-1 flex items-end justify-end pt-4 sm:pt-6 min-h-[5.5rem] pr-1 sm:pr-3"
+                aria-hidden
+              >
+                <IntroAdvantageScaleIcon className="w-[5.5rem] h-[4.75rem] sm:w-[6.75rem] sm:h-[5.75rem] opacity-35" />
+              </div>
             </section>
           </div>
 

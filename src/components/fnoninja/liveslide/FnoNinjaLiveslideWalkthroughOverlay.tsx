@@ -10,8 +10,6 @@ import {
 } from "@/lib/fnoninja/liveslide-walkthrough-content";
 import { FNO_ACCENT, FNO_CARD_BORDER } from "@/lib/fnoninja/theme";
 
-const TOUR_AUTO_SECONDS = 8;
-
 function useViewportTargetRect(selector: string, enabled: boolean) {
   const [rect, setRect] = useState<DOMRect | null>(null);
 
@@ -136,7 +134,7 @@ function IntroPanel({ onNext, onClose }: { onNext: () => void; onClose: () => vo
           </div>
 
           <footer
-            className="shrink-0 flex items-center justify-center sm:justify-start pt-3 border-t"
+            className="shrink-0 flex items-center justify-center sm:justify-start pt-3 pb-1 border-t"
             style={{ borderColor: "rgba(255,255,255,0.08)" }}
           >
             <button
@@ -158,9 +156,7 @@ function TourStepPanel({
   step,
   stepIndex,
   totalSteps,
-  tourAuto,
   rect,
-  onToggleAuto,
   onNext,
   onPrev,
   onClose,
@@ -168,9 +164,7 @@ function TourStepPanel({
   step: LiveslideWalkthroughTourStep;
   stepIndex: number;
   totalSteps: number;
-  tourAuto: boolean;
   rect: DOMRect | null;
-  onToggleAuto: () => void;
   onNext: () => void;
   onPrev: () => void;
   onClose: () => void;
@@ -224,7 +218,6 @@ function TourStepPanel({
               style={{ color: FNO_ACCENT }}
             >
               {stepIndex + 1} of {totalSteps}
-              {tourAuto ? " · auto-playing" : ""}
             </p>
             <button
               type="button"
@@ -241,16 +234,14 @@ function TourStepPanel({
             {step.body}
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            {stepIndex > 0 ? (
-              <button
-                type="button"
-                onClick={onPrev}
-                className="rounded-lg px-3 py-1.5 text-xs font-semibold"
-                style={{ color: "#cbd5e1", border: "1px solid rgba(148,163,184,0.35)" }}
-              >
-                Back
-              </button>
-            ) : null}
+            <button
+              type="button"
+              onClick={onPrev}
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold"
+              style={{ color: "#cbd5e1", border: "1px solid rgba(148,163,184,0.35)" }}
+            >
+              Back
+            </button>
             <button
               type="button"
               onClick={onNext}
@@ -258,17 +249,6 @@ function TourStepPanel({
               style={{ background: "linear-gradient(135deg, #1d4ed8, #3b82f6)" }}
             >
               {isLast ? "Finish" : "Next"}
-            </button>
-            <button
-              type="button"
-              onClick={onToggleAuto}
-              className="rounded-lg px-3 py-1.5 text-xs font-semibold"
-              style={{
-                color: tourAuto ? "#86efac" : "#94a3b8",
-                border: "1px solid rgba(148,163,184,0.25)",
-              }}
-            >
-              {tourAuto ? "Pause auto-play" : "Auto-play tour"}
             </button>
           </div>
         </div>
@@ -287,7 +267,6 @@ export function FnoNinjaLiveslideWalkthroughOverlay({
   const [mounted, setMounted] = useState(false);
   const [phase, setPhase] = useState<"intro" | "tour">("intro");
   const [tourIndex, setTourIndex] = useState(0);
-  const [tourAuto, setTourAuto] = useState(true);
 
   const tourStep = LIVESLIDE_WALKTHROUGH_TOUR_STEPS[tourIndex];
   const tourRect = useViewportTargetRect(
@@ -303,26 +282,11 @@ export function FnoNinjaLiveslideWalkthroughOverlay({
     if (!isOpen) return;
     setPhase("intro");
     setTourIndex(0);
-    setTourAuto(true);
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = "";
     };
   }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen || phase !== "tour" || !tourAuto) return;
-    const t = window.setInterval(() => {
-      setTourIndex((i) => {
-        if (i >= LIVESLIDE_WALKTHROUGH_TOUR_STEPS.length - 1) {
-          onClose();
-          return i;
-        }
-        return i + 1;
-      });
-    }, TOUR_AUTO_SECONDS * 1000);
-    return () => window.clearInterval(t);
-  }, [isOpen, phase, tourAuto, onClose]);
 
   if (!mounted || !isOpen) return null;
 
@@ -342,14 +306,15 @@ export function FnoNinjaLiveslideWalkthroughOverlay({
         step={tourStep}
         stepIndex={tourIndex}
         totalSteps={LIVESLIDE_WALKTHROUGH_TOUR_STEPS.length}
-        tourAuto={tourAuto}
         rect={tourRect}
-        onToggleAuto={() => setTourAuto((v) => !v)}
         onNext={() => {
           if (tourIndex >= LIVESLIDE_WALKTHROUGH_TOUR_STEPS.length - 1) handleClose();
           else setTourIndex((i) => i + 1);
         }}
-        onPrev={() => setTourIndex((i) => Math.max(0, i - 1))}
+        onPrev={() => {
+          if (tourIndex <= 0) setPhase("intro");
+          else setTourIndex((i) => i - 1);
+        }}
         onClose={handleClose}
       />
     ) : null,

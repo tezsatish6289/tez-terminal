@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Filter, Search, Star } from "lucide-react";
 import {
   FNO_FAVSLIDE_ACCENT,
@@ -420,6 +420,7 @@ export function LevelsSlideshowStripControls({
   viewToggle,
   slideModePill,
   showFilter = true,
+  stripTrailing,
 }: {
   zoneFilter: PocDirectionFilter;
   onZoneFilterChange: (filter: PocDirectionFilter) => void;
@@ -451,6 +452,8 @@ export function LevelsSlideshowStripControls({
   };
   /** Bubbles toolbar: view icon only. */
   showFilter?: boolean;
+  /** Extra icon boxes after Bubbles (e.g. favslide add). */
+  stripTrailing?: React.ReactNode;
 }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const activeMeta = FILTER_OPTIONS.find((o) => o.key === zoneFilter) ?? FILTER_OPTIONS[0];
@@ -642,6 +645,8 @@ export function LevelsSlideshowStripControls({
           title={viewToggle.title}
         />
       ) : null}
+
+      {stripTrailing}
     </div>
   );
 }

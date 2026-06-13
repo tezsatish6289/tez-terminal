@@ -56,6 +56,7 @@ import {
 } from "@/lib/zones/zone-status";
 import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
+import { FnoNinjaFavslideAddButton } from "@/components/fnoninja/FnoNinjaFavslideAddButton";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { FnoNinjaLiveslideWalkthroughBridge } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughBridge";
 import { useLiveslideWalkthroughOptional } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughContext";
@@ -220,7 +221,7 @@ export default function LevelsPage() {
   );
 
   const isSlideView = viewMode === "liveslide" || viewMode === "favslide";
-  const liveslideGated = isFnoNinjaHost && viewMode === "liveslide";
+  const slideSignInGate = isFnoNinjaHost && isSlideView;
 
   useEffect(() => {
     setIsFnoNinjaHost(isFnoNinjaAppContext(window.location.pathname, window.location.hostname));
@@ -809,17 +810,11 @@ export default function LevelsPage() {
   const renderSlideshow = () => {
     if (inZoneCount === 0) {
       if (viewMode === "favslide") {
-        const emptyCopy = !favslideSignedIn
-          ? {
-              title: "Sign in to use favslide",
-              body: "Save stocks from any symbol chart, then cycle through your personal watchlist here.",
-              cta: true as const,
-            }
-          : favslideLoading
+        const emptyCopy = favslideLoading
             ? { title: "Loading favslide…", body: "", cta: false as const }
             : {
                 title: "No stocks in favslide yet",
-                body: "Open a symbol chart and tap Add to favslide to build your list.",
+                body: "Tap Add after Bubbles to search and add indices or F&O symbols.",
                 cta: false as const,
               };
         return wrapSlideshowBody(
@@ -968,6 +963,17 @@ export default function LevelsPage() {
             }
           : undefined
       }
+      stripTrailing={
+        viewMode === "favslide" && isFnoNinjaHost ? (
+          <FnoNinjaFavslideAddButton
+            api={favslideApi}
+            needsSignIn={!favslideSignedIn}
+            onAdded={() => {
+              setInZoneSlide(favslideEntries.length);
+            }}
+          />
+        ) : undefined
+      }
       chartShortcuts={isSlideView && !activeTv ? slideshowChartShortcuts : null}
       favslideToggle={
         isFnoNinjaHost
@@ -1015,15 +1021,6 @@ export default function LevelsPage() {
     </div>
   );
 
-  const liveslideWorkspace = (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-        {levelsSlideshowToolbar}
-        {renderSlideshow()}
-      </div>
-    </div>
-  );
-
   return (
     <main className={`${FB_FULL_HEIGHT_MAIN} shrink-0 min-w-0`} style={FNO_APP_SURFACE_STYLE}>
       {isFnoNinjaHost ? (
@@ -1036,13 +1033,12 @@ export default function LevelsPage() {
           <div className="flex flex-1 items-center justify-center py-24">
             <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#60a5fa" }} />
           </div>
-        ) : liveslideGated ? (
+        ) : slideSignInGate ? (
           <FnoNinjaChartLoginGate
-            headline="Unlock Liveslide"
-            description="Sign in with Google to cycle aligned market setups with live charts. Market Map is open to all."
+            overlay
             backAction={{ label: "Back to Market Map", onClick: enterBubbles }}
           >
-            {liveslideWorkspace}
+            {levelsWorkspace}
           </FnoNinjaChartLoginGate>
         ) : (
           levelsWorkspace

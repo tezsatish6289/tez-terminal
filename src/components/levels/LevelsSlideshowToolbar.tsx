@@ -49,6 +49,7 @@ export function LevelsSlideshowToolbar({
   slideshowFilterCounts,
   bubbleSearch = "",
   onBubbleSearchChange,
+  stripTrailing,
 }: {
   zoneFilter?: PocDirectionFilter;
   onZoneFilterChange?: (filter: PocDirectionFilter) => void;
@@ -106,6 +107,8 @@ export function LevelsSlideshowToolbar({
     mode: LevelsStripViewMode;
     count?: number;
   };
+  /** Icon box(es) after Bubbles on slideshow strip (e.g. favslide add). */
+  stripTrailing?: ReactNode;
   viewModeToggle?: {
     viewMode: LevelsStripViewMode;
     onToggle: () => void;
@@ -207,6 +210,7 @@ export function LevelsSlideshowToolbar({
           slideshowControl={slideshowControl}
           viewToggle={viewModeToggle}
           slideModePill={slideModePill}
+          stripTrailing={stripTrailing}
         />
         {symbolStrip ? (
           <div className="flex-1 min-w-0 min-h-0 h-full">{symbolStrip}</div>

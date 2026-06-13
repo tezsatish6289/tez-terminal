@@ -127,6 +127,10 @@ export default {
           '0%': { transform: 'translateX(0%)' },
           '100%': { transform: 'translateX(-50%)' },
         },
+        'fno-shimmer-sweep': {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(100%)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -139,6 +143,7 @@ export default {
         'blob-5': 'blob5 28s ease-in-out infinite',
         'bar-flash': 'bar-flash 2s ease-in-out 5',
         marquee: 'marquee 30s linear infinite',
+        'fno-shimmer-sweep': 'fno-shimmer-sweep 2.8s ease-in-out infinite',
       },
     },
   },

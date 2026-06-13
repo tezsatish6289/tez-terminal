@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, Clock } from "lucide-react";
-import { FNO_LEARN_ARTICLE_SHELL } from "@/lib/freedombot/responsive";
+import { FNO_LEARN_ARTICLE_SHELL, FNO_LEARN_WIDE_SHELL } from "@/lib/freedombot/responsive";
 import { FnoNinjaLearnDisclaimer } from "@/components/fnoninja/learn/FnoNinjaLearnDisclaimer";
 import type { LearnArticleMeta } from "@/lib/fnoninja/learn-content";
 import { FNO_ACCENT, FNO_CARD_BG, FNO_CARD_BORDER, FNO_MUTED } from "@/lib/fnoninja/theme";
@@ -10,6 +10,7 @@ export function FnoNinjaLearnArticleShell({
   learnHubHref,
   disclaimerPlacement = "top",
   disclaimerParagraphs,
+  shell = "article",
   children,
 }: {
   article: LearnArticleMeta;
@@ -17,12 +18,15 @@ export function FnoNinjaLearnArticleShell({
   /** Default top; science guide uses bottom so readers see content first. */
   disclaimerPlacement?: "top" | "bottom" | "none";
   disclaimerParagraphs?: string[];
+  /** `wide` — full viewport width for embedded live demos (Liveslide learn page). */
+  shell?: "article" | "wide";
   children: React.ReactNode;
 }) {
   const Icon = article.icon;
+  const shellClass = shell === "wide" ? FNO_LEARN_WIDE_SHELL : FNO_LEARN_ARTICLE_SHELL;
 
   return (
-    <article className={`${FNO_LEARN_ARTICLE_SHELL} py-10 sm:py-16 min-w-0`}>
+    <article className={`${shellClass} py-10 sm:py-16 min-w-0`}>
       <Link
         href={learnHubHref}
         className="flex items-center gap-2 text-sm mb-8 transition-colors hover:text-white w-fit"

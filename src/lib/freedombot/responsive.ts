@@ -15,6 +15,9 @@ export const FB_MEDIUM_SHELL = "max-w-4xl mx-auto w-full px-4 sm:px-6";
 /** FNONINJA learn article pages — between narrow blog and full-width data views. */
 export const FNO_LEARN_ARTICLE_SHELL = "max-w-4xl mx-auto w-full px-4 sm:px-6";
 
+/** FNONINJA learn pages with embedded live product demos (edge-to-edge canvas). */
+export const FNO_LEARN_WIDE_SHELL = "w-full min-w-0 px-3 sm:px-5";
+
 export const FB_COMPACT_SHELL = "max-w-2xl mx-auto w-full px-4 sm:px-6";
 
 /** Hero / CTA sections on the landing page. */

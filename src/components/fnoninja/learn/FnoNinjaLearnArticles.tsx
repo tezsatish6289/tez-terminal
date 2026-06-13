@@ -48,6 +48,7 @@ export function LiveslideLearnArticle() {
       article={article}
       learnHubHref={learnHubHref}
       disclaimerPlacement="bottom"
+      shell="wide"
     >
       <LearnSection title="Purpose">
         <LearnLead>

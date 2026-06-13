@@ -36,7 +36,6 @@ import {
   type ZoneDisplayKey,
 } from "@/lib/zones/zone-status";
 import { FNO_ACCENT, FNO_APP_SURFACE_STYLE, FNO_BG_CANVAS } from "@/lib/fnoninja/theme";
-import { FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
 
 const TOUR_AUTO_SECONDS = 8;
 
@@ -510,8 +509,8 @@ export function FnoNinjaLiveslideGuide() {
     ) : null;
 
   return (
-    <section className="overflow-x-hidden">
-      <div className="mb-5">
+    <section className="w-full min-w-0">
+      <div className="mb-5 max-w-4xl">
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-2" style={{ color: FNO_ACCENT }}>
           See it live
         </p>
@@ -539,18 +538,15 @@ export function FnoNinjaLiveslideGuide() {
         ) : null}
       </div>
 
-      {/* Full-bleed — same width canvas as the market map / Liveslide */}
-      <div className="relative w-[100vw] left-1/2 -translate-x-1/2">
-        <div className={`${FB_LEVELS_SHELL} py-1`}>
-          <div
-            ref={containerRef}
-            className="relative overflow-hidden flex flex-col min-h-[min(88dvh,820px)]"
-            style={{
-              ...FNO_APP_SURFACE_STYLE,
-              border: "1px solid rgba(90,140,220,0.12)",
-              backgroundColor: FNO_BG_CANVAS,
-            }}
-          >
+      <div
+        ref={containerRef}
+        className="relative w-full overflow-hidden flex flex-col min-h-[min(88dvh,820px)]"
+        style={{
+          ...FNO_APP_SURFACE_STYLE,
+          border: "1px solid rgba(90,140,220,0.12)",
+          backgroundColor: FNO_BG_CANVAS,
+        }}
+      >
         {loading ? (
           <div className="flex flex-1 items-center justify-center gap-2 py-24">
             <Loader2 className="h-5 w-5 animate-spin" style={{ color: FNO_ACCENT }} />
@@ -659,8 +655,6 @@ export function FnoNinjaLiveslideGuide() {
             onDismiss={() => setTourDismissed(true)}
           />
         ) : null}
-          </div>
-        </div>
       </div>
 
       {active && tv ? (

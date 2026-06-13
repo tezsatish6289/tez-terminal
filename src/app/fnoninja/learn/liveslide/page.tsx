@@ -5,7 +5,7 @@ import { FNONINJA_SITE_URL } from "@/lib/fnoninja/metadata";
 export const metadata: Metadata = {
   title: "What is Liveslide",
   description:
-    "Step-by-step guide to Liveslide on FNONINJA — cycle aligned market setups with charts and news. Informational only.",
+    "An interactive guide to Liveslide on FNONINJA — explore a live, auto-cycling slideshow of aligned NSE F&O setups with charts, zones, and filters. Informational only.",
   alternates: { canonical: `${FNONINJA_SITE_URL}/learn/liveslide` },
 };
 

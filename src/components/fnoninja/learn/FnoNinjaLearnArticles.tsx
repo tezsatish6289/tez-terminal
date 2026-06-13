@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { FnoNinjaLearnScreenshot } from "@/components/fnoninja/learn/FnoNinjaLearnScreenshot";
 import { SCIENCE_LEARN_DISCLAIMER } from "@/components/fnoninja/learn/FnoNinjaLearnDisclaimer";
 import { FnoNinjaScienceScrollGuide } from "@/components/fnoninja/learn/FnoNinjaScienceScrollGuide";
+import { FnoNinjaLiveslideGuide } from "@/components/fnoninja/learn/FnoNinjaLiveslideGuide";
 import {
   FnoNinjaLearnArticleShell,
   LearnBulletList,
@@ -44,82 +45,35 @@ export function LiveslideLearnArticle() {
 
   return (
     <FnoNinjaLearnArticleShell article={article} learnHubHref={learnHubHref}>
-      <LearnSection title="What is Liveslide?">
+      <LearnSection title="Purpose">
         <LearnLead>
           The <strong className="text-slate-200">Market Map</strong> shows hundreds of NSE F&amp;O
           names at once. <strong className="text-slate-200">Liveslide</strong> is the opposite
           focus: one aligned setup at a time, with a live chart, zone overlays, filters, and news —
-          cycling automatically so you can scan without clicking every symbol.
+          cycling automatically so you can scan the whole market without clicking every symbol.
         </LearnLead>
         <LearnLead>
-          &quot;Aligned&quot; means price is in a meaningful position relative to derived support /
-          resistance and max pain (the same rules shown on the map). Liveslide is for{" "}
+          &quot;Aligned&quot; means price has reached a meaningful position relative to derived
+          support / resistance and Max Pain — the same rules shown on the map. Liveslide exists to
+          make that subset effortless to watch. It is for{" "}
           <strong className="text-slate-200">research and monitoring</strong>, not trade signals
           from us.
         </LearnLead>
       </LearnSection>
 
-      <LearnSection title="Who it is for">
+      <LearnSection title="The advantage">
         <LearnBulletList
           items={[
-            "You want a hands-free tour of names that meet your filter right now.",
-            "You are learning how zones look on real charts across indices and stocks.",
-            "You prefer full-screen chart context instead of tiny map bubbles.",
+            "Hands-free: the market comes to you — qualifying setups rotate automatically so you never scroll a giant grid.",
+            "Pre-filtered for quality: only zone-qualified setups (a 2:1 reward to Max Pain) ever enter the rotation.",
+            "Full chart context: zones, OI peaks, and Max Pain are drawn on a live candlestick chart, not tiny map bubbles.",
+            "Focus on your side: filter to support or resistance setups depending on what you are hunting.",
+            "Study on demand: pause any slide to read the chart and news for as long as you like.",
           ]}
         />
       </LearnSection>
 
-      <LearnSection title="Step-by-step">
-        <LearnSteps
-          steps={[
-            {
-              title: "Open the market map and sign in",
-              body: "Liveslide requires a free Google sign-in on FNONINJA. The map itself stays public.",
-            },
-            {
-              title: "Switch to Liveslide",
-              body: 'Tap the "Liveslide" control in the toolbar (keyboard shortcut L).',
-            },
-            {
-              title: "Pick a filter",
-              body: "Use All aligned, Bullish, or Bearish to narrow which setups appear in the rotation.",
-            },
-            {
-              title: "Watch the chart and strip",
-              body: "Each slide shows the symbol, zones, put/call OI peaks, max pain, and a news panel. The strip at the top lets you jump to a specific name.",
-            },
-            {
-              title: "Pause when you want to study",
-              body: "Use the pause control to stop auto-advance while you read the chart or news.",
-            },
-            {
-              title: "Open a deep-dive chart",
-              body: "From the map or search, open any symbol chart for more detail — still your analysis, not our recommendation.",
-            },
-          ]}
-        />
-      </LearnSection>
-
-      <div className="space-y-6">
-        <FnoNinjaLearnScreenshot
-          src="/fnoninja/learn/liveslide-step-1.png"
-          alt="Market map with Liveslide button"
-          caption="Step 1 — Market map toolbar with Liveslide entry."
-          step={1}
-        />
-        <FnoNinjaLearnScreenshot
-          src="/fnoninja/learn/liveslide-step-2.png"
-          alt="Liveslide view with chart and filters"
-          caption="Step 2 — Liveslide with chart, filters, and symbol strip."
-          step={2}
-        />
-        <FnoNinjaLearnScreenshot
-          src="/fnoninja/learn/liveslide-step-3.png"
-          alt="Paused Liveslide on a single symbol"
-          caption="Step 3 — Paused on one symbol to study zones and news."
-          step={3}
-        />
-      </div>
+      <FnoNinjaLiveslideGuide />
 
       <LearnSection title="Good habits">
         <LearnBulletList

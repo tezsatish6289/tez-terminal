@@ -13,9 +13,13 @@ import {
   FAVSLIDE_WALKTHROUGH_TOUR_STEPS,
 } from "@/lib/fnoninja/favslide-walkthrough-content";
 import type { FnoNinjaLevelsViewMode } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughContext";
+import { FNO_NAV_CLEARANCE_PX } from "@/lib/fnoninja/responsive";
 import { FNO_ACCENT, FNO_CARD_BG, FNO_CARD_BORDER, FNO_FAVSLIDE_ACCENT } from "@/lib/fnoninja/theme";
 
-const OVERLAY_Z = 120;
+/** Above fixed nav (z-200) so tour callouts are not clipped by the header strip. */
+const OVERLAY_Z = 250;
+
+const CALLOUT_EST_HEIGHT = 200;
 
 function IntroStarWatchlistIcon({ className, color }: { className?: string; color: string }) {
   return (
@@ -119,14 +123,23 @@ function IntroAdvantageScaleIcon({ className, color }: { className?: string; col
   );
 }
 
+function navClearancePx() {
+  const nav = document.querySelector("body > nav.fixed");
+  if (nav) {
+    return Math.ceil(nav.getBoundingClientRect().height) + 8;
+  }
+  return FNO_NAV_CLEARANCE_PX;
+}
+
 function tourCalloutStyle(
   rect: DOMRect | null,
   placement: LiveslideWalkthroughTourStep["placement"],
 ): CSSProperties {
   const pad = 12;
   const width = 320;
+  const navClear = navClearancePx();
   if (!rect) {
-    return { top: 80, left: 16, width, maxWidth: width };
+    return { top: navClear + 16, left: 16, width, maxWidth: width };
   }
 
   const vw = window.innerWidth;
@@ -135,15 +148,17 @@ function tourCalloutStyle(
 
   if (placement === "bottom") {
     return {
-      top: Math.min(rect.bottom + pad, vh - 220),
+      top: Math.max(navClear, Math.min(rect.bottom + pad, vh - 220)),
       left: centerLeft,
       width,
       maxWidth: width,
     };
   }
   if (placement === "top") {
+    const idealBottom = rect.top - pad;
+    const minBottom = navClear + CALLOUT_EST_HEIGHT;
     return {
-      top: Math.max(pad + 56, rect.top - pad),
+      top: Math.max(minBottom, idealBottom),
       left: centerLeft,
       width,
       maxWidth: width,
@@ -152,14 +167,14 @@ function tourCalloutStyle(
   }
   if (placement === "left") {
     return {
-      top: Math.max(pad + 56, Math.min(rect.top, vh - 240)),
+      top: Math.max(navClear, Math.min(rect.top, vh - 240)),
       right: Math.max(pad, vw - rect.left + pad),
       width,
       maxWidth: width,
     };
   }
   return {
-    top: Math.max(pad + 56, Math.min(rect.top, vh - 240)),
+    top: Math.max(navClear, Math.min(rect.top, vh - 240)),
     left: Math.min(rect.right + pad, vw - width - pad),
     width,
     maxWidth: width,

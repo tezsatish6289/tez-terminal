@@ -20,6 +20,7 @@ import {
   fnoMarketingHash,
   isFnoNinjaLandingPath,
 } from "@/lib/fnoninja/paths";
+import { FNO_NAV_SPACER_CLASS } from "@/lib/fnoninja/responsive";
 import { FB_CONTENT_SHELL, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
 import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
 
@@ -77,7 +78,7 @@ export function FnoNinjaNav() {
   const header = (
     <>
       <nav
-        className="fixed top-0 left-0 right-0 z-[200] border-b"
+        className={`fixed top-0 left-0 right-0 z-[200] border-b box-border ${FNO_NAV_HEIGHT_CLASS}`}
         style={{
           backgroundColor: "rgba(8,15,30,0.95)",
           borderColor: FNO_NAV_BORDER,
@@ -85,7 +86,7 @@ export function FnoNinjaNav() {
           WebkitBackdropFilter: "blur(20px)",
         }}
       >
-        <div className={`${shellClass} ${FNO_NAV_HEIGHT_CLASS} flex items-center gap-3 min-w-0`}>
+        <div className={`${shellClass} h-full flex items-center gap-3 min-w-0`}>
           <div className="flex items-center gap-2.5 min-w-0">
             {isLevelsApp && (
               <button
@@ -284,7 +285,7 @@ export function FnoNinjaNav() {
   return (
     <>
       {mounted ? createPortal(header, document.body) : null}
-      <div className={`${FNO_NAV_HEIGHT_CLASS} shrink-0`} aria-hidden="true" />
+      <div className={`${FNO_NAV_SPACER_CLASS} shrink-0`} aria-hidden="true" />
     </>
   );
 }

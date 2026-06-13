@@ -2,8 +2,14 @@
 export const FNO_PAGE_ROOT =
   "min-h-dvh w-full overflow-x-hidden flex flex-col";
 
+/** Must match fixed nav outer height (FNO_NAV_HEIGHT_CLASS with box-border). */
+export const FNO_NAV_SPACER_CLASS = "h-14 sm:h-16";
+
+/** Fallback nav clearance for tour callouts when nav is not mounted yet. */
+export const FNO_NAV_CLEARANCE_PX = 72;
+
 /** Breathing room below the fixed nav on full-screen analytics surfaces. */
-export const FNO_APP_TOP_GAP_CLASS = "pt-[3px]";
+export const FNO_APP_TOP_GAP_CLASS = "pt-2";
 
 /** Levels/chart main — fills the flex viewport below nav (used with FNO_LEVELS_PAGE_ROOT). */
 export const FNO_LEVELS_MAIN =

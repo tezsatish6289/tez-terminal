@@ -68,7 +68,7 @@ export function FnoNinjaNav() {
   return (
     <>
       <nav
-        className="sticky top-0 z-40 border-b"
+        className="fixed top-0 inset-x-0 z-50 border-b"
         style={{
           backgroundColor: "rgba(8,15,30,0.95)",
           borderColor: FNO_NAV_BORDER,

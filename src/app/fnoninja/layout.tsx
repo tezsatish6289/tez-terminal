@@ -29,9 +29,7 @@ export default function FnoNinjaLayout({ children }: { children: React.ReactNode
     <FnoNinjaClientProviders>
       <div className={FB_PAGE_ROOT} style={{ backgroundColor: FNO_BG, color: FNO_TEXT }}>
         <FnoNinjaNav />
-        <div
-          className={`${FB_VIEWPORT_MAIN} pt-14 sm:pt-16 flex flex-col flex-1 min-h-0 min-w-0`}
-        >
+        <div className={`${FB_VIEWPORT_MAIN} flex flex-col flex-1 min-h-0 min-w-0`}>
           {children}
         </div>
         <FnoNinjaFooter />

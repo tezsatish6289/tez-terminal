@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Loader2, LogOut, Menu, X } from "lucide-react";
 import { FnoNinjaCtaLink } from "@/components/fnoninja/FnoNinjaCtaLink";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
@@ -21,6 +22,9 @@ import {
 } from "@/lib/fnoninja/paths";
 import { FB_CONTENT_SHELL, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
 import { FNO_BG, FNO_NAV_BORDER } from "@/lib/fnoninja/theme";
+
+/** Reserve space below the fixed header in page layout. */
+export const FNO_NAV_HEIGHT_CLASS = "h-14 sm:h-16";
 
 const ANCHOR_LINKS = [
   { label: "How it works", href: "#how-it-works" },
@@ -51,6 +55,11 @@ export function FnoNinjaNav() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     setMenuOpen(false);
@@ -65,17 +74,18 @@ export function FnoNinjaNav() {
 
   const shellClass = isLevelsApp ? FB_LEVELS_SHELL : FB_CONTENT_SHELL;
 
-  return (
+  const header = (
     <>
       <nav
-        className="fixed top-0 inset-x-0 z-50 border-b"
+        className="fixed top-0 left-0 right-0 z-[200] border-b"
         style={{
           backgroundColor: "rgba(8,15,30,0.95)",
           borderColor: FNO_NAV_BORDER,
           backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
         }}
       >
-        <div className={`${shellClass} h-14 sm:h-16 flex items-center gap-3 min-w-0`}>
+        <div className={`${shellClass} ${FNO_NAV_HEIGHT_CLASS} flex items-center gap-3 min-w-0`}>
           <div className="flex items-center gap-2.5 min-w-0">
             {isLevelsApp && (
               <button
@@ -121,7 +131,7 @@ export function FnoNinjaNav() {
       </nav>
 
       {menuOpen && isLevelsApp && (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-[210]">
           <button
             type="button"
             className="absolute inset-0"
@@ -209,7 +219,7 @@ export function FnoNinjaNav() {
       )}
 
       {menuOpen && !isLevelsApp && (
-        <div className="fixed inset-0 z-50 md:hidden">
+        <div className="fixed inset-0 z-[210] md:hidden">
           <button
             type="button"
             className="absolute inset-0"
@@ -268,6 +278,13 @@ export function FnoNinjaNav() {
           </div>
         </div>
       )}
+    </>
+  );
+
+  return (
+    <>
+      {mounted ? createPortal(header, document.body) : null}
+      <div className={`${FNO_NAV_HEIGHT_CLASS} shrink-0`} aria-hidden="true" />
     </>
   );
 }

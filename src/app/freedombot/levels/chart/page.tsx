@@ -19,6 +19,7 @@ import { levelsTradingViewParams, type LevelsTvScope } from "@/lib/levels/tradin
 import { fnoCompanyName } from "@/lib/nse/fno-company-names";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
+import { FNO_LEVELS_MAIN } from "@/lib/fnoninja/responsive";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
 import { isFnoNinjaAppContext, requiresFnoNinjaChartAuth } from "@/lib/fnoninja/auth";
 import { isHighConfidenceLevels } from "@/lib/levels/levels-source";
@@ -172,7 +173,10 @@ function ChartContent() {
   }
 
   return (
-    <main className={`${FB_FULL_HEIGHT_MAIN} min-w-0`} style={FNO_APP_SURFACE_STYLE}>
+    <main
+      className={`${fnoninjaHost ? FNO_LEVELS_MAIN : FB_FULL_HEIGHT_MAIN} min-w-0`}
+      style={FNO_APP_SURFACE_STYLE}
+    >
       <div className={`${FB_LEVELS_SHELL} flex-1 min-h-0 flex flex-col overflow-hidden`}>
         <div className={`${CHART_PAGE_SHELL} py-2 sm:py-2.5 overflow-hidden min-w-0`}>
         <LevelsChartChrome

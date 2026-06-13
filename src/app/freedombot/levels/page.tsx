@@ -38,6 +38,7 @@ import {
   zonesUpdatedFooterLabel,
 } from "@/lib/levels/slideshow-zones";
 import { FB_FULL_HEIGHT_MAIN, FB_LEVELS_SHELL } from "@/lib/freedombot/responsive";
+import { FNO_LEVELS_MAIN } from "@/lib/fnoninja/responsive";
 import { FNO_APP_SURFACE_STYLE } from "@/lib/fnoninja/theme";
 import {
   bubbleMatchesMapFilter,
@@ -1022,7 +1023,10 @@ export default function LevelsPage() {
   );
 
   return (
-    <main className={`${FB_FULL_HEIGHT_MAIN} shrink-0 min-w-0`} style={FNO_APP_SURFACE_STYLE}>
+    <main
+      className={`${isFnoNinjaHost ? FNO_LEVELS_MAIN : `${FB_FULL_HEIGHT_MAIN} shrink-0`} min-w-0`}
+      style={FNO_APP_SURFACE_STYLE}
+    >
       {isFnoNinjaHost ? (
         <Suspense fallback={null}>
           <FnoNinjaLiveslideWalkthroughBridge onPrepare={prepareLiveslideWalkthrough} />

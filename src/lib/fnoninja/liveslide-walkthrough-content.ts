@@ -28,28 +28,28 @@ export const LIVESLIDE_WALKTHROUGH_INTRO = {
 export const LIVESLIDE_WALKTHROUGH_TOUR_STEPS: LiveslideWalkthroughTourStep[] = [
   {
     id: "filter",
-    selector: '[aria-label^="Filter setups:"]',
+    selector: '[data-liveslide-tour="filter"]',
     title: "Zone filter",
     body: "Tap ALL to narrow to At Support, Near Support, At Resistance, or Near Resistance. Only zone-qualified setups with a healthy reward to Max Pain appear in Liveslide.",
     placement: "bottom",
   },
   {
     id: "live",
-    selector: '[aria-label^="Liveslide"]',
+    selector: '[data-liveslide-tour="live-count"]',
     title: "Live count",
     body: "Shows how many aligned setups match your filter right now — the same live universe as the market map, pre-scored for you.",
     placement: "bottom",
   },
   {
     id: "pause",
-    selector: '[aria-label*="Pause slideshow"], [aria-label*="Resume slideshow"]',
+    selector: '[data-liveslide-tour="pause"]',
     title: "Pause or play",
     body: "Liveslide auto-advances every 60 seconds. Pause when something catches your eye — the countdown shows seconds until the next symbol.",
     placement: "bottom",
   },
   {
     id: "bubbles",
-    selector: '[aria-label*="Bubbles map"]',
+    selector: '[data-liveslide-tour="bubbles"]',
     title: "Back to map",
     body: "Return to the full bubble map anytime. Press B or click Bubbles.",
     placement: "bottom",

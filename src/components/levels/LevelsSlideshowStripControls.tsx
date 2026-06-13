@@ -162,6 +162,7 @@ export function LevelsSlideModePill({
         border: `1px solid ${accent.border}`,
         boxShadow: "none",
       }}
+      data-liveslide-tour={isFav ? undefined : "live-count"}
       aria-label={
         isFav
           ? `Favslide${count != null ? `, ${count} stocks` : ""}`
@@ -220,6 +221,7 @@ export function LevelsViewModeIconBox({
       }}
       aria-label="Back to Market Bubbles map. Press B or click."
       title={title}
+      data-liveslide-tour="bubbles"
     >
       <BubblesMapIcon
         className="h-6 w-6"
@@ -434,6 +436,13 @@ export function LevelsSlideshowStripControls({
 }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const activeMeta = FILTER_OPTIONS.find((o) => o.key === zoneFilter) ?? FILTER_OPTIONS[0];
+  const stripMode = slideModePill?.mode ?? viewToggle?.viewMode;
+  const slideAccent =
+    stripMode === "liveslide"
+      ? SLIDE_MODE_ACCENT.liveslide
+      : stripMode === "favslide"
+        ? SLIDE_MODE_ACCENT.favslide
+        : null;
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -474,14 +483,29 @@ export function LevelsSlideshowStripControls({
           <button
             type="button"
             className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
-            style={stripIconBoxStyle(filterOpen)}
+            style={{
+              ...stripIconBoxStyle(filterOpen),
+              ...(slideAccent
+                ? {
+                    border: `1px solid ${slideAccent.border}`,
+                    background:
+                      stripMode === "liveslide"
+                        ? "rgba(37,99,235,0.1)"
+                        : "rgba(251,191,36,0.1)",
+                  }
+                : {}),
+            }}
             aria-label={`Filter setups: ${activeMeta.label}, ${filterCounts[zoneFilter]} symbols`}
             title="Filter aligned setups"
+            data-liveslide-tour="filter"
           >
-            <Filter className="h-4 w-4" style={{ color: activeMeta.activeText }} />
+            <Filter
+              className="h-4 w-4"
+              style={{ color: slideAccent?.color ?? activeMeta.activeText }}
+            />
             <span
               className={`${LEVELS_STRIP_BOX_LABEL_CLASS} uppercase`}
-              style={{ color: BLACKBOARD_CHALK_DIM }}
+              style={{ color: slideAccent?.color ?? BLACKBOARD_CHALK_DIM }}
             >
               {activeMeta.shortLabel}
             </span>
@@ -547,23 +571,40 @@ export function LevelsSlideshowStripControls({
           type="button"
           onClick={slideshowControl.onToggle}
           className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
-          style={stripIconBoxStyle(slideshowControl.paused)}
+          style={{
+            ...stripIconBoxStyle(slideshowControl.paused),
+            ...(slideAccent && !slideshowControl.paused
+              ? {
+                  border: `1px solid ${slideAccent.border}`,
+                  background:
+                    stripMode === "liveslide"
+                      ? "rgba(37,99,235,0.1)"
+                      : "rgba(251,191,36,0.1)",
+                }
+              : {}),
+          }}
           aria-label={
             slideshowControl.paused
               ? "Resume slideshow — 60 second countdown per symbol. Press P or click."
               : `Pause slideshow. ${Math.max(0, slideshowControl.secondsRemaining ?? 0)} seconds until next symbol. Press P or click.`
           }
           title={slideshowControl.paused ? "Play slideshow" : "Pause slideshow"}
+          data-liveslide-tour="pause"
         >
           {slideshowControl.paused ? (
             <SlideshowTransportIcon mode="play" color="#f472b6" />
           ) : (
-            <SlideshowTransportIcon mode="pause" color={BLACKBOARD_CHALK} />
+            <SlideshowTransportIcon
+              mode="pause"
+              color={slideAccent?.color ?? BLACKBOARD_CHALK}
+            />
           )}
           <span
             className={`${LEVELS_STRIP_BOX_LABEL_CLASS} tabular-nums`}
             style={{
-              color: slideshowControl.paused ? "#f472b6" : BLACKBOARD_CHALK_DIM,
+              color: slideshowControl.paused
+                ? "#f472b6"
+                : slideAccent?.color ?? BLACKBOARD_CHALK_DIM,
             }}
             aria-live="polite"
           >

@@ -3,9 +3,11 @@
 import { CircleHelp } from "lucide-react";
 import { useLiveslideWalkthrough } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughContext";
 
-/** Liveslide in-app guide — icon button in nav, left of Learn. */
+/** Liveslide in-app guide — nav icon, shown in slideshow views only. */
 export function FnoNinjaNavLiveslideHelp() {
-  const { open } = useLiveslideWalkthrough();
+  const { open, levelsViewMode } = useLiveslideWalkthrough();
+
+  if (levelsViewMode === "bubbles") return null;
 
   return (
     <button

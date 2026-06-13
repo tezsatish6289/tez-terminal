@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { Clock, X } from "lucide-react";
 import {
@@ -8,7 +8,56 @@ import {
   LIVESLIDE_WALKTHROUGH_TOUR_STEPS,
   type LiveslideWalkthroughTourStep,
 } from "@/lib/fnoninja/liveslide-walkthrough-content";
-import { FNO_ACCENT, FNO_CARD_BORDER } from "@/lib/fnoninja/theme";
+import { FNO_ACCENT, FNO_CARD_BG, FNO_CARD_BORDER } from "@/lib/fnoninja/theme";
+
+const OVERLAY_Z = 120;
+
+function tourCalloutStyle(
+  rect: DOMRect | null,
+  placement: LiveslideWalkthroughTourStep["placement"],
+): CSSProperties {
+  const pad = 12;
+  const width = 320;
+  if (!rect) {
+    return { bottom: 24, left: 16, right: 16, maxWidth: 400, margin: "0 auto" };
+  }
+
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const left = Math.max(pad, Math.min(rect.left, vw - width - pad));
+
+  if (placement === "bottom") {
+    return {
+      top: Math.min(rect.bottom + pad, vh - 200),
+      left,
+      width,
+      maxWidth: width,
+    };
+  }
+  if (placement === "top") {
+    return {
+      top: Math.max(pad, rect.top - pad),
+      left,
+      width,
+      maxWidth: width,
+      transform: "translateY(-100%)",
+    };
+  }
+  if (placement === "left") {
+    return {
+      top: Math.max(pad, Math.min(rect.top, vh - 220)),
+      right: Math.max(pad, vw - rect.left + pad),
+      width,
+      maxWidth: width,
+    };
+  }
+  return {
+    top: Math.max(pad, Math.min(rect.top, vh - 220)),
+    left: Math.min(rect.right + pad, vw - width - pad),
+    width,
+    maxWidth: width,
+  };
+}
 
 function useViewportTargetRect(selector: string, enabled: boolean) {
   const [rect, setRect] = useState<DOMRect | null>(null);
@@ -33,7 +82,7 @@ function useViewportTargetRect(selector: string, enabled: boolean) {
     window.addEventListener("scroll", measure, true);
     const ro = new ResizeObserver(measure);
     ro.observe(document.documentElement);
-    const id = window.setInterval(measure, 400);
+    const id = window.setInterval(measure, 250);
     return () => {
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure, true);
@@ -49,21 +98,17 @@ function IntroPanel({ onNext, onClose }: { onNext: () => void; onClose: () => vo
   const intro = LIVESLIDE_WALKTHROUGH_INTRO;
 
   return (
-    <div className="fixed inset-0 z-[120] flex flex-col pointer-events-auto">
-      {/* Light scrim — Liveslide stays visible around the guide */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ backgroundColor: "rgba(8,15,30,0.42)" }}
-        aria-hidden
-      />
-
+    <div
+      className="fixed inset-0 flex flex-col pointer-events-auto"
+      style={{ zIndex: OVERLAY_Z, backgroundColor: "rgba(8,15,30,0.94)" }}
+    >
       <div className="relative flex flex-col h-dvh max-h-dvh min-h-0 w-full">
         <div className="shrink-0 flex items-center justify-end px-4 sm:px-6 py-2">
           <button
             type="button"
             onClick={onClose}
             className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-white/10"
-            style={{ color: "#94a3b8", backgroundColor: "rgba(8,15,30,0.55)" }}
+            style={{ color: "#94a3b8", backgroundColor: "rgba(15,23,42,0.8)" }}
             aria-label="Close guide"
           >
             <X className="h-5 w-5" />
@@ -100,8 +145,8 @@ function IntroPanel({ onNext, onClose }: { onNext: () => void; onClose: () => vo
 
           <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4 overflow-y-auto">
             <section
-              className="rounded-xl p-4 sm:p-5 min-h-0 overflow-hidden"
-              style={{ backgroundColor: "rgba(8,15,30,0.88)", border: FNO_CARD_BORDER }}
+              className="rounded-xl p-4 sm:p-5 min-h-0"
+              style={{ backgroundColor: FNO_CARD_BG, border: FNO_CARD_BORDER }}
             >
               <h2 className="text-base sm:text-lg font-bold text-white mb-2.5">Purpose</h2>
               <div className="space-y-2.5 text-[13px] sm:text-sm leading-snug text-slate-300">
@@ -112,8 +157,8 @@ function IntroPanel({ onNext, onClose }: { onNext: () => void; onClose: () => vo
             </section>
 
             <section
-              className="rounded-xl p-4 sm:p-5 min-h-0 overflow-hidden"
-              style={{ backgroundColor: "rgba(8,15,30,0.88)", border: FNO_CARD_BORDER }}
+              className="rounded-xl p-4 sm:p-5 min-h-0"
+              style={{ backgroundColor: FNO_CARD_BG, border: FNO_CARD_BORDER }}
             >
               <h2 className="text-base sm:text-lg font-bold text-white mb-2.5">The advantage</h2>
               <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-2">
@@ -135,7 +180,7 @@ function IntroPanel({ onNext, onClose }: { onNext: () => void; onClose: () => vo
 
           <footer
             className="shrink-0 flex items-center justify-center sm:justify-start pt-3 pb-1 border-t"
-            style={{ borderColor: "rgba(255,255,255,0.08)" }}
+            style={{ borderColor: "rgba(255,255,255,0.1)" }}
           >
             <button
               type="button"
@@ -170,22 +215,21 @@ function TourStepPanel({
   onClose: () => void;
 }) {
   const isLast = stepIndex >= totalSteps - 1;
-
-  const calloutTop =
-    step.placement === "top" && rect
-      ? Math.max(16, rect.top - 12)
-      : step.placement === "bottom" && rect
-        ? Math.min(window.innerHeight - 180, rect.bottom + 12)
-        : undefined;
+  const calloutStyle = tourCalloutStyle(rect, step.placement);
 
   return (
     <>
-      <div className="fixed inset-0 z-[115] bg-[rgba(8,15,30,0.18)] pointer-events-none" aria-hidden />
+      <div
+        className="fixed inset-0 pointer-events-none"
+        style={{ zIndex: OVERLAY_Z, backgroundColor: "rgba(8,15,30,0.35)" }}
+        aria-hidden
+      />
 
       {rect ? (
         <div
-          className="fixed z-[116] rounded-lg pointer-events-none transition-all duration-300 ease-out"
+          className="fixed rounded-lg pointer-events-none transition-all duration-300 ease-out"
           style={{
+            zIndex: OVERLAY_Z + 1,
             left: rect.left - 3,
             top: rect.top - 3,
             width: rect.width + 6,
@@ -198,17 +242,13 @@ function TourStepPanel({
       ) : null}
 
       <div
-        className="fixed z-[117] left-4 right-4 sm:left-auto sm:right-6 sm:max-w-sm pointer-events-auto"
-        style={{
-          top: calloutTop,
-          bottom: step.placement === "top" || step.placement === "bottom" ? undefined : 24,
-          transform: step.placement === "top" && rect ? "translateY(-100%)" : undefined,
-        }}
+        className="fixed pointer-events-auto"
+        style={{ zIndex: OVERLAY_Z + 2, ...calloutStyle }}
       >
         <div
           className="rounded-xl p-4 shadow-2xl"
           style={{
-            backgroundColor: "rgba(8,15,30,0.97)",
+            backgroundColor: "rgba(8,15,30,0.98)",
             border: "1px solid rgba(96,165,250,0.45)",
           }}
         >
@@ -267,6 +307,7 @@ export function FnoNinjaLiveslideWalkthroughOverlay({
   const [mounted, setMounted] = useState(false);
   const [phase, setPhase] = useState<"intro" | "tour">("intro");
   const [tourIndex, setTourIndex] = useState(0);
+  const wasOpenRef = useRef(false);
 
   const tourStep = LIVESLIDE_WALKTHROUGH_TOUR_STEPS[tourIndex];
   const tourRect = useViewportTargetRect(
@@ -279,14 +320,26 @@ export function FnoNinjaLiveslideWalkthroughOverlay({
   }, []);
 
   useEffect(() => {
+    if (isOpen && !wasOpenRef.current) {
+      setPhase("intro");
+      setTourIndex(0);
+    }
+    wasOpenRef.current = isOpen;
+  }, [isOpen]);
+
+  useEffect(() => {
     if (!isOpen) return;
-    setPhase("intro");
-    setTourIndex(0);
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = "";
     };
   }, [isOpen]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || phase !== "tour" || !tourStep) return;
+    const el = document.querySelector(tourStep.selector);
+    el?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [isOpen, phase, tourStep]);
 
   if (!mounted || !isOpen) return null;
 
@@ -295,12 +348,14 @@ export function FnoNinjaLiveslideWalkthroughOverlay({
     onClose();
   };
 
+  const startTour = () => {
+    setTourIndex(0);
+    setPhase("tour");
+  };
+
   return createPortal(
     phase === "intro" ? (
-      <IntroPanel
-        onNext={() => setPhase("tour")}
-        onClose={handleClose}
-      />
+      <IntroPanel onNext={startTour} onClose={handleClose} />
     ) : tourStep ? (
       <TourStepPanel
         step={tourStep}

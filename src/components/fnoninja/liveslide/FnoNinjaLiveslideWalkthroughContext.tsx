@@ -13,11 +13,14 @@ import { FnoNinjaLiveslideWalkthroughOverlay } from "@/components/fnoninja/lives
 
 type PrepareFn = () => void | Promise<void>;
 
+export type FnoNinjaLevelsViewMode = "bubbles" | "liveslide" | "favslide";
+
 type LiveslideWalkthroughContextValue = {
-  isOpen: boolean;
   open: () => Promise<void>;
   close: () => void;
   registerPrepare: (fn: PrepareFn | null) => void;
+  levelsViewMode: FnoNinjaLevelsViewMode;
+  registerLevelsViewMode: (mode: FnoNinjaLevelsViewMode) => void;
 };
 
 const LiveslideWalkthroughContext = createContext<LiveslideWalkthroughContextValue | null>(
@@ -26,10 +29,15 @@ const LiveslideWalkthroughContext = createContext<LiveslideWalkthroughContextVal
 
 export function FnoNinjaLiveslideWalkthroughProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [levelsViewMode, setLevelsViewMode] = useState<FnoNinjaLevelsViewMode>("bubbles");
   const prepareRef = useRef<PrepareFn | null>(null);
 
   const registerPrepare = useCallback((fn: PrepareFn | null) => {
     prepareRef.current = fn;
+  }, []);
+
+  const registerLevelsViewMode = useCallback((mode: FnoNinjaLevelsViewMode) => {
+    setLevelsViewMode(mode);
   }, []);
 
   const open = useCallback(async () => {
@@ -43,8 +51,8 @@ export function FnoNinjaLiveslideWalkthroughProvider({ children }: { children: R
   }, []);
 
   const value = useMemo(
-    () => ({ isOpen, open, close, registerPrepare }),
-    [isOpen, open, close, registerPrepare],
+    () => ({ open, close, registerPrepare, registerLevelsViewMode, levelsViewMode }),
+    [open, close, registerPrepare, registerLevelsViewMode, levelsViewMode],
   );
 
   return (

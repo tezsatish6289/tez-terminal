@@ -58,6 +58,7 @@ import type { LevelsBubbleItem } from "@/components/levels/LevelsBubblesView";
 import { FnoNinjaFavslideToggle } from "@/components/fnoninja/FnoNinjaFavslideToggle";
 import { FnoNinjaChartLoginGate } from "@/components/fnoninja/FnoNinjaChartLoginGate";
 import { FnoNinjaLiveslideWalkthroughBridge } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughBridge";
+import { useLiveslideWalkthroughOptional } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughContext";
 import { FnoNinjaGoogleSignInButton } from "@/components/fnoninja/FnoNinjaGoogleSignInButton";
 import { useFnoNinjaFavslide, type FnoNinjaFavslideApi } from "@/hooks/useFnoNinjaFavslide";
 import { isFnoNinjaAppContext } from "@/lib/fnoninja/auth";
@@ -185,7 +186,11 @@ export default function LevelsPage() {
   const nativeChartRef = useRef<NativeCandlesChartHandle>(null);
   const activeStripKeyRef = useRef("");
   const chartLevelsSymbolRef = useRef<string | null>(null);
-  const [isFnoNinjaHost, setIsFnoNinjaHost] = useState(false);
+  const [isFnoNinjaHost, setIsFnoNinjaHost] = useState(() =>
+    typeof window !== "undefined"
+      ? isFnoNinjaAppContext(window.location.pathname, window.location.hostname)
+      : false,
+  );
   const {
     entries: favslideEntries,
     loading: favslideLoading,
@@ -267,6 +272,14 @@ export default function LevelsPage() {
   const enterBubbles = useCallback(() => {
     setViewMode("bubbles");
   }, []);
+
+  const walkthrough = useLiveslideWalkthroughOptional();
+  const registerLevelsViewMode = walkthrough?.registerLevelsViewMode;
+
+  useEffect(() => {
+    if (!isFnoNinjaHost || !registerLevelsViewMode) return;
+    registerLevelsViewMode(viewMode);
+  }, [isFnoNinjaHost, registerLevelsViewMode, viewMode]);
 
   const prepareLiveslideWalkthrough = useCallback(() => {
     enterLiveslide();

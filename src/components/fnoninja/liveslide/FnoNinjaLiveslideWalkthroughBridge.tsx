@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLiveslideWalkthroughOptional } from "@/components/fnoninja/liveslide/FnoNinjaLiveslideWalkthroughContext";
 
@@ -11,22 +11,26 @@ export function FnoNinjaLiveslideWalkthroughBridge({
   onPrepare: () => void;
 }) {
   const walkthrough = useLiveslideWalkthroughOptional();
+  const registerPrepare = walkthrough?.registerPrepare;
+  const openWalkthrough = walkthrough?.open;
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const onPrepareRef = useRef(onPrepare);
+  onPrepareRef.current = onPrepare;
 
   useEffect(() => {
-    if (!walkthrough) return;
-    walkthrough.registerPrepare(onPrepare);
-    return () => walkthrough.registerPrepare(null);
-  }, [walkthrough, onPrepare]);
+    if (!registerPrepare) return;
+    registerPrepare(() => onPrepareRef.current());
+    return () => registerPrepare(null);
+  }, [registerPrepare]);
 
   useEffect(() => {
-    if (!walkthrough) return;
+    if (!openWalkthrough) return;
     if (searchParams.get("tour") !== "liveslide") return;
-    void walkthrough.open();
+    void openWalkthrough();
     router.replace(pathname, { scroll: false });
-  }, [walkthrough, searchParams, router, pathname]);
+  }, [openWalkthrough, searchParams, router, pathname]);
 
   return null;
 }

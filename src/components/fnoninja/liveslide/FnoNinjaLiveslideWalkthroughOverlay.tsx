@@ -19,25 +19,25 @@ function tourCalloutStyle(
   const pad = 12;
   const width = 320;
   if (!rect) {
-    return { bottom: 24, left: 16, right: 16, maxWidth: 400, margin: "0 auto" };
+    return { top: 80, left: 16, width, maxWidth: width };
   }
 
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const left = Math.max(pad, Math.min(rect.left, vw - width - pad));
+  const centerLeft = Math.max(pad, Math.min(rect.left + rect.width / 2 - width / 2, vw - width - pad));
 
   if (placement === "bottom") {
     return {
-      top: Math.min(rect.bottom + pad, vh - 200),
-      left,
+      top: Math.min(rect.bottom + pad, vh - 220),
+      left: centerLeft,
       width,
       maxWidth: width,
     };
   }
   if (placement === "top") {
     return {
-      top: Math.max(pad, rect.top - pad),
-      left,
+      top: Math.max(pad + 56, rect.top - pad),
+      left: centerLeft,
       width,
       maxWidth: width,
       transform: "translateY(-100%)",
@@ -45,14 +45,14 @@ function tourCalloutStyle(
   }
   if (placement === "left") {
     return {
-      top: Math.max(pad, Math.min(rect.top, vh - 220)),
+      top: Math.max(pad + 56, Math.min(rect.top, vh - 240)),
       right: Math.max(pad, vw - rect.left + pad),
       width,
       maxWidth: width,
     };
   }
   return {
-    top: Math.max(pad, Math.min(rect.top, vh - 220)),
+    top: Math.max(pad + 56, Math.min(rect.top, vh - 240)),
     left: Math.min(rect.right + pad, vw - width - pad),
     width,
     maxWidth: width,
@@ -76,20 +76,25 @@ function useViewportTargetRect(selector: string, enabled: boolean) {
   }, [enabled, selector]);
 
   useEffect(() => {
+    if (!enabled) {
+      setRect(null);
+      return;
+    }
     measure();
-    if (!enabled) return;
+    const el = document.querySelector(selector);
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
     const ro = new ResizeObserver(measure);
     ro.observe(document.documentElement);
-    const id = window.setInterval(measure, 250);
+    if (el) ro.observe(el);
+    const id = window.setInterval(measure, 150);
     return () => {
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure, true);
       ro.disconnect();
       window.clearInterval(id);
     };
-  }, [enabled, measure]);
+  }, [enabled, measure, selector]);
 
   return rect;
 }

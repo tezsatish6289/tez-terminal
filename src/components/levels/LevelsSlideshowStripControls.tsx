@@ -308,15 +308,21 @@ function StripMapFilterIconBox({
   filter,
   onChange,
   counts,
+  slideAccent,
+  stripMode,
 }: {
   filter: SlideshowMapFilter;
   onChange: (filter: SlideshowMapFilter) => void;
   counts: Record<SlideshowMapFilter, number>;
+  slideAccent?: { color: string; border: string } | null;
+  stripMode?: "liveslide" | "favslide";
 }) {
   const [open, setOpen] = useState(false);
   const activeMeta =
     MAP_FILTER_OPTIONS.find((o) => o.key === filter) ?? MAP_FILTER_OPTIONS[0];
   const filtered = filter !== "all";
+  const iconColor = slideAccent?.color ?? activeMeta.activeText;
+  const labelColor = slideAccent?.color ?? (filtered ? activeMeta.activeText : BLACKBOARD_CHALK_DIM);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -324,14 +330,26 @@ function StripMapFilterIconBox({
         <button
           type="button"
           className={`${LEVELS_STRIP_ICON_BOX_CLASS} ${LEVELS_STRIP_ICON_INNER_CLASS} transition-colors hover:border-slate-400/40 active:scale-[0.98]`}
-          style={stripIconBoxStyle(open || filtered)}
+          style={{
+            ...stripIconBoxStyle(open || filtered),
+            ...(slideAccent
+              ? {
+                  border: `1px solid ${slideAccent.border}`,
+                  background:
+                    stripMode === "liveslide"
+                      ? "rgba(37,99,235,0.1)"
+                      : "rgba(251,191,36,0.1)",
+                }
+              : {}),
+          }}
           aria-label={`Filter: ${filter === "all" ? "All" : BUBBLE_TONE_STYLE[filter].label}, ${counts[filter]} symbols`}
           title="Filter zone setups"
+          data-liveslide-tour="filter"
         >
-          <Filter className="h-4 w-4" style={{ color: activeMeta.activeText }} />
+          <Filter className="h-4 w-4" style={{ color: iconColor }} />
           <span
             className={`${LEVELS_STRIP_BOX_LABEL_CLASS} uppercase`}
-            style={{ color: filtered ? activeMeta.activeText : BLACKBOARD_CHALK_DIM }}
+            style={{ color: labelColor }}
           >
             {activeMeta.shortLabel}
           </span>
@@ -476,6 +494,8 @@ export function LevelsSlideshowStripControls({
           filter={mapFilter.filter}
           onChange={mapFilter.onChange}
           counts={mapFilter.counts}
+          slideAccent={slideAccent}
+          stripMode={stripMode === "liveslide" || stripMode === "favslide" ? stripMode : undefined}
         />
       ) : showFilter ? (
       <Popover open={filterOpen} onOpenChange={setFilterOpen}>
